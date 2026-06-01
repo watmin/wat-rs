@@ -19,20 +19,24 @@
 //! Post-stone 236.0: 6/6 PASS (struct-with-Option shape).
 //! Post-stone 236.3: 6/6 PASS (3-variant enum shape; ✅✅✅ structural impossibility).
 
-use wat::check::{CheckError, CheckResult};
+use wat::check::{CheckError, CheckErrorKind, CheckResult};
 use wat::span::Span;
 
 fn dummy_error() -> CheckError {
-    CheckError::UnknownCallee {
-        callee: ":dummy".to_string(),
+    CheckError {
         span: Span::unknown(),
+        kind: CheckErrorKind::UnknownCallee {
+            callee: ":dummy".to_string(),
+        },
     }
 }
 
 fn dummy_error_2() -> CheckError {
-    CheckError::UnknownCallee {
-        callee: ":dummy2".to_string(),
+    CheckError {
         span: Span::unknown(),
+        kind: CheckErrorKind::UnknownCallee {
+            callee: ":dummy2".to_string(),
+        },
     }
 }
 

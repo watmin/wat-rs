@@ -23,7 +23,7 @@
 //! - Nested typed forms compose normally.
 
 use std::sync::Arc;
-use wat::check::CheckError;
+use wat::check::{CheckError, CheckErrorKind};
 use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -63,7 +63,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 
 fn assert_malformed_mentioning(errs: &[CheckError], head: &str, needle: &str) {
     let hit = errs.iter().any(|e| match e {
-        CheckError::MalformedForm { head: h, reason, .. } => h == head && reason.contains(needle),
+        CheckError { kind: CheckErrorKind::MalformedForm { head: h, reason, .. }, .. } => h == head && reason.contains(needle),
         _ => false,
     });
     assert!(
@@ -75,11 +75,7 @@ fn assert_malformed_mentioning(errs: &[CheckError], head: &str, needle: &str) {
 
 fn assert_type_mismatch_on(errs: &[CheckError], callee: &str, param: &str) {
     let hit = errs.iter().any(|e| match e {
-        CheckError::TypeMismatch {
-            callee: c,
-            param: p,
-            ..
-        } => c == callee && p == param,
+        CheckError { kind: CheckErrorKind::TypeMismatch { callee: c, param: p, .. }, .. } => c == callee && p == param,
         _ => false,
     });
     assert!(

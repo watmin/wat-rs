@@ -21,7 +21,9 @@
 //! consumer reads `err.span` — one path, not a 34-arm match. The probe
 //! demonstrates the structural enforcement Rust's type system now imposes.
 
+use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
+use wat::diagnostic::DiagnosticValue;
 use wat::span::Span;
 
 /// Contract 1: CheckError carries `span: Span` at the outer struct level —
@@ -108,5 +110,158 @@ fn checkerror_span_access_is_single_path() {
         // of which kind variant. The whole point of Pattern A.
         let actual_span: &Span = &err.span;
         assert_eq!(actual_span, expected_span);
+    }
+}
+
+/// Contract 4a: Display elides SECONDARY unknown spans — secondary-span
+/// variants must not emit "<runtime>" when their secondary span is unknown.
+///
+/// Variant under test: `ProcessJoinHoldsStdinSender` with a known outer span
+/// and an UNKNOWN secondary `stdin_sender_span`.  The pre-fix code interpolated
+/// `stdin_sender_span` unconditionally; the fix gates it so the phrase reads
+/// naturally without a location.
+#[test]
+fn checkerror_display_elides_unknown_secondary_span() {
+    let known_outer = Span::new(Arc::new("src/bar.wat".to_string()), 5, 1);
+
+    // --- (a) UNKNOWN secondary span: must not emit "<runtime>" ---
+    let err_unknown_secondary = CheckError {
+        span: known_outer.clone(),
+        kind: CheckErrorKind::ProcessJoinHoldsStdinSender {
+            process_identifier: "worker".to_string(),
+            stdin_sender_span: Span::unknown(),
+        },
+    };
+    let rendered = err_unknown_secondary.to_string();
+    assert!(
+        !rendered.contains("<runtime>"),
+        "unknown secondary span must not appear in Display output; got: {rendered:?}"
+    );
+
+    // --- (b) KNOWN secondary span: location must appear ---
+    let known_secondary = Span::new(Arc::new("src/bar.wat".to_string()), 2, 7);
+    let err_known_secondary = CheckError {
+        span: known_outer,
+        kind: CheckErrorKind::ProcessJoinHoldsStdinSender {
+            process_identifier: "worker".to_string(),
+            stdin_sender_span: known_secondary,
+        },
+    };
+    let rendered_known = err_known_secondary.to_string();
+    assert!(
+        rendered_known.contains("src/bar.wat:2:7"),
+        "known secondary span must appear in Display output; got: {rendered_known:?}"
+    );
+}
+
+/// Contract 4: Display elides unknown spans — the doc claim is true in code.
+///
+/// Two sub-cases:
+/// (a) UNKNOWN span (`Span::unknown()`) — mid-prose " at <runtime>:0:0" must
+///     NOT appear in the rendered string.  Only the `span_prefix` and
+///     `diagnostic()` paths gated this; `fmt_with_span`'s mid-prose branches
+///     previously checked `Some`-ness only and would emit the synthetic noise.
+///     After the fix they check `!is_unknown()` via `shown` and stay silent.
+///
+/// (b) KNOWN span (`Span::new(...)`) — the " at <file>:<line>:<col>:" text
+///     MUST appear (unchanged behavior; the fix must not suppress known spans).
+///
+/// `ScopeDeadlock` is chosen because it is the simplest mid-prose variant
+/// (no secondary-span fields, emits "scope-deadlock at {s}: " inline).
+#[test]
+fn checkerror_display_elides_unknown_span() {
+    // --- (a) UNKNOWN span: mid-prose location must be suppressed ---
+    let err_unknown = CheckError {
+        span: Span::unknown(),
+        kind: CheckErrorKind::ScopeDeadlock {
+            thread_binding: "t".to_string(),
+            offending_binding: "tx".to_string(),
+            offending_kind: "Sender",
+        },
+    };
+    let rendered_unknown = err_unknown.to_string();
+    assert!(
+        !rendered_unknown.contains("<runtime>"),
+        "unknown span must not appear in Display output; got: {rendered_unknown:?}"
+    );
+    assert!(
+        !rendered_unknown.contains(" at <runtime>:0:0"),
+        "unknown span sentinel must not appear mid-prose; got: {rendered_unknown:?}"
+    );
+
+    // --- (b) KNOWN span: mid-prose location must appear ---
+    let known_span = Span::new(Arc::new("src/foo.wat".to_string()), 10, 3);
+    let err_known = CheckError {
+        span: known_span,
+        kind: CheckErrorKind::ScopeDeadlock {
+            thread_binding: "t".to_string(),
+            offending_binding: "tx".to_string(),
+            offending_kind: "Sender",
+        },
+    };
+    let rendered_known = err_known.to_string();
+    assert!(
+        rendered_known.contains("src/foo.wat:10:3"),
+        "known span must appear in Display output; got: {rendered_known:?}"
+    );
+}
+
+/// Contract 5: `diagnostic()` elides unknown spans — the single `loc_field`
+/// helper makes it structurally impossible to emit "<runtime>:0:0" as a
+/// diagnostic field value.
+///
+/// Variant under test: `ScopeDeadlock` — previously one of the unguarded arms
+/// (`.field("location", format!("{}", span))`).
+///
+/// (a) UNKNOWN outer span — no field value in the Diagnostic may contain
+///     `"<runtime>"`.
+/// (b) KNOWN outer span — a field named `"location"` must be present and its
+///     value must contain the file:line:col string.
+#[test]
+fn diagnostic_elides_unknown_span() {
+    // --- (a) UNKNOWN span: no field value may contain "<runtime>" ---
+    let err_unknown = CheckError {
+        span: Span::unknown(),
+        kind: CheckErrorKind::ScopeDeadlock {
+            thread_binding: "t".to_string(),
+            offending_binding: "tx".to_string(),
+            offending_kind: "Sender",
+        },
+    };
+    let diag = err_unknown.diagnostic();
+    for (name, value) in &diag.fields {
+        if let DiagnosticValue::String(s) = value {
+            assert!(
+                !s.contains("<runtime>"),
+                "diagnostic field '{name}' must not contain '<runtime>'; got: {s:?}"
+            );
+        }
+    }
+
+    // --- (b) KNOWN span: "location" field must be present with correct value ---
+    let known_span = Span::new(Arc::new("src/baz.wat".to_string()), 7, 4);
+    let err_known = CheckError {
+        span: known_span,
+        kind: CheckErrorKind::ScopeDeadlock {
+            thread_binding: "t".to_string(),
+            offending_binding: "tx".to_string(),
+            offending_kind: "Sender",
+        },
+    };
+    let diag_known = err_known.diagnostic();
+    let location_field = diag_known
+        .fields
+        .iter()
+        .find(|(name, _)| name == "location")
+        .map(|(_, v)| v);
+    assert!(
+        location_field.is_some(),
+        "known span must produce a 'location' field in diagnostic()"
+    );
+    if let Some(DiagnosticValue::String(s)) = location_field {
+        assert!(
+            s.contains("src/baz.wat:7:4"),
+            "location field must contain file:line:col; got: {s:?}"
+        );
     }
 }

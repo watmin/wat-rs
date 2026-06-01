@@ -85,7 +85,10 @@ impl From<ArgSpecError> for crate::runtime::RuntimeError {
 impl From<ArgSpecError> for crate::check::CheckError {
     fn from(e: ArgSpecError) -> Self {
         let reason = e.kind.reason();
-        Self::MalformedForm { head: e.head, reason, span: e.span, remedies: vec![] }
+        crate::check::CheckError {
+            span: e.span,
+            kind: crate::check::CheckErrorKind::MalformedForm { head: e.head, reason, remedies: vec![] },
+        }
     }
 }
 

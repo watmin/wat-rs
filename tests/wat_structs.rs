@@ -19,7 +19,7 @@
 //! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::check::CheckError;
+use wat::check::{CheckError, CheckErrorKind};
 use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -166,7 +166,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 2, got: 1, .. }
+        CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 2, got: 1, .. }, .. }
             if callee == ":my::market::Bar/new"
     ));
     assert!(saw_arity, "expected ArityMismatch on Bar/new; got {:?}", errs);
@@ -189,7 +189,7 @@ fn constructor_field_type_mismatch_rejected_at_check() {
     let errs = check_errors(src);
     let saw_type = errs.iter().any(|e| matches!(
         e,
-        CheckError::TypeMismatch { callee, .. }
+        CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. }
             if callee == ":my::market::Bar/new"
     ));
     assert!(saw_type, "expected TypeMismatch on Bar/new's open param; got {:?}", errs);
@@ -217,7 +217,7 @@ fn accessor_returns_correct_field_type() {
     let errs = check_errors(src);
     let saw_ret = errs.iter().any(|e| matches!(
         e,
-        CheckError::ReturnTypeMismatch { .. }
+        CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. }
     ));
     assert!(saw_ret, "expected ReturnTypeMismatch (body :wat::core::i64 vs declared :wat::core::f64); got {:?}", errs);
 }

@@ -8,7 +8,7 @@
 //! Computation moved to :my::compute; canonical nil main appended.
 
 use std::sync::Arc;
-use wat::check::CheckError;
+use wat::check::{CheckError, CheckErrorKind};
 use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -123,7 +123,7 @@ fn alias_preserves_type_mismatches() {
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let errs = check_errors(src);
-    let hit = errs.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. }));
+    let hit = errs.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. }));
     assert!(hit, "expected TypeMismatch; got {:?}", errs);
 }
 

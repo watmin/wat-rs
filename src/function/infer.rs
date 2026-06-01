@@ -18,7 +18,7 @@
 
 use crate::ast::WatAST;
 use crate::check::{
-    apply_subst, format_type, infer, unify, CheckEnv, CheckError, CheckResult, InferCtx, Subst,
+    apply_subst, format_type, infer, unify, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
 };
 use crate::function::metadata::peel_metadata_preamble;
 use crate::function::parse::{parse_fn_signature_prefix, ParseStepKind};
@@ -44,11 +44,13 @@ fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
         Ok((p, t, r)) => SigParse::Parsed(p, t, r),
         Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>
             SigParse::SilentReject,
-        Err(step) => SigParse::Diagnosed(CheckError::MalformedForm {
-            head: FN_HEAD.into(),
-            reason: step.kind.reason(),
+        Err(step) => SigParse::Diagnosed(CheckError {
             span: step.span,
-            remedies: vec![],
+            kind: CheckErrorKind::MalformedForm {
+                head: FN_HEAD.into(),
+                reason: step.kind.reason(),
+                remedies: vec![],
+            },
         }),
     }
 }
@@ -124,12 +126,14 @@ pub(crate) fn infer_fn(
         let body_span = body_ast.span();
         if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
             // WHY: location rendered once via span_prefix in Display; human label carries no span
-            errors.push(CheckError::ReturnTypeMismatch {
-                function: ":anonymous".to_string(),
-                expected: format_type(&apply_subst(&ret_type, subst)),
-                got: format_type(&apply_subst(&body_ty, subst)),
+            errors.push(CheckError {
                 span: body_span.clone(),
-                remedies: vec![],
+                kind: CheckErrorKind::ReturnTypeMismatch {
+                    function: ":anonymous".to_string(),
+                    expected: format_type(&apply_subst(&ret_type, subst)),
+                    got: format_type(&apply_subst(&body_ty, subst)),
+                    remedies: vec![],
+                },
             });
         }
     }

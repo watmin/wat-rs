@@ -243,7 +243,7 @@ fn spawn_thread_rejects_non_callable_body() {
             let hit = errs.0.iter().any(|e| {
                 matches!(
                     e,
-                    wat::check::CheckError::TypeMismatch { callee, .. }
+                    wat::check::CheckError { kind: wat::check::CheckErrorKind::TypeMismatch { callee, .. }, .. }
                         if callee.contains(":wat::kernel::spawn-thread")
                 )
             });

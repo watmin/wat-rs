@@ -48,14 +48,15 @@
 
 pub mod env;
 pub use env::CheckEnv;
+pub mod error;
+pub use error::{CheckError, CheckErrorKind, CheckErrors};
 
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::runtime::{Function, SymbolTable};
-use crate::span::{span_prefix, Span};
+use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
-use std::fmt;
 
 /// A function's declared signature: universally-quantified type
 /// parameters, then parameter types and return type.
@@ -85,921 +86,8 @@ pub struct TypeScheme {
     pub rest_param_type: Option<TypeExpr>,
 }
 
-/// Type-checking errors. Multiple errors accumulate in a single pass
-/// so users get one batch of findings.
-// rune:conformare(deferred-stone-243.6) — CheckError is a flat 34-variant
-// enum (some variants multi-span, no canonical primary; diagnostic() does
-// N-path span extraction). Pattern A retrofit (outer struct + kind enum;
-// multi-span per CONFORMARE.md § Multi-span) lands at Stone 243.6 — the
-// peer retrofit to TypeError (Stone 243.3). conformare attested this scope
-// in the 243.3 R2 cast.
-#[derive(Debug, Clone)]
-pub enum CheckError {
-    ArityMismatch {
-        callee: String,
-        expected: usize,
-        got: usize,
-        /// Arc 138 slice 1 — source coordinates of the offending
-        /// call form so users (and agents) can navigate to the
-        /// site without grepping. Use [`Span::unknown`] for
-        /// synthetic check rules that have no originating node;
-        /// Display skips the prefix when the span is unknown.
-        span: Span,
-    },
-    TypeMismatch {
-        callee: String,
-        param: String,
-        expected: String,
-        got: String,
-        /// Arc 138 slice 1 — see `ArityMismatch::span`.
-        span: Span,
-    },
-    ReturnTypeMismatch {
-        function: String,
-        expected: String,
-        got: String,
-        /// Arc 138 slice 1 — see `ArityMismatch::span`.
-        span: Span,
-        /// Stone 241.10 — ranked structured remediation candidates.
-        /// Empty vec = no remedy. Per `feedback_no_semantic_abuse_of_option`:
-        /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
-        remedies: Vec<crate::remedy::Remedy>,
-    },
-    UnknownCallee {
-        callee: String,
-        /// Arc 138 slice 1 — see `ArityMismatch::span`.
-        span: Span,
-    },
-    /// A built-in form (e.g., `:wat::core::match`) is structurally
-    /// malformed in a way the syntax-level grammar doesn't catch —
-    /// e.g., a match arm that isn't `(pattern body)`, or a match
-    /// whose pattern coverage is non-exhaustive.
-    MalformedForm {
-        head: String,
-        reason: String,
-        /// Arc 138 slice 1 — see `ArityMismatch::span`.
-        span: Span,
-        /// Stone 241.10 — ranked structured remediation candidates.
-        /// Empty vec = no remedy. Per `feedback_no_semantic_abuse_of_option`:
-        /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
-        remedies: Vec<crate::remedy::Remedy>,
-    },
-    /// Arc 110 — `:wat::kernel::send` / `:wat::kernel::recv` appeared
-    /// somewhere other than the discriminant of `:wat::core::match`
-    /// or the value-position of `:wat::core::option::expect`.
-    /// Silent-disconnect bugs (proof_004) are the class this rule
-    /// makes structurally impossible.
-    CommCallOutOfPosition {
-        callee: String,
-        /// Arc 138 slice 1 — see `ArityMismatch::span`.
-        span: Span,
-    },
-    /// Arc 117 — a `let` binding-block contains BOTH a Thread/Process
-    /// binding (a value one calls `Thread/join-result` / `Process/
-    /// join-result` on) AND a sibling binding whose alias-resolved
-    /// type contains a Sender-bearing parametric (`wat::kernel::Sender`,
-    /// channel `pair()`, `HandlePool`), AND that let's extent contains
-    /// a join-result call on the Thread. The Sender-bearing sibling
-    /// holds a clone alive past the join site; the worker can't see
-    /// EOF; the join blocks forever. The fix is structural: nest the
-    /// Sender-bearing bindings in an inner `let` whose body returns
-    /// the Thread.
-    ScopeDeadlock {
-        /// Name of the Thread (or Process) binding being joined.
-        thread_binding: String,
-        /// Name of the sibling Sender-bearing binding whose live
-        /// reference outlives the join site.
-        offending_binding: String,
-        /// Kind of the offending value — "Sender", "Channel", or
-        /// "HandlePool". Names which substrate abstraction holds
-        /// the live Sender clone.
-        offending_kind: &'static str,
-        /// Source location of the Thread binding (the let site
-        /// where the structural deadlock can be addressed by
-        /// nesting).
-        span: Span,
-    },
-    /// Arc 170 — Process-output-channel join-before-drain rule.
-    /// A `let` form contains BOTH:
-    ///   - a call to `:wat::kernel::Process/join-result <p>` (blocks
-    ///     until the forked child exits), and
-    ///   - a call to a Process output-channel accessor on the SAME
-    ///     `<p>` — `:wat::kernel::Process/stdout` /
-    ///     `:wat::kernel::Process/stderr` / `:wat::kernel::Process/output`.
-    ///
-    /// The substrate's internal drain threads consume the child's OS
-    /// stdout/stderr pipes and push lines into wat-level Receivers
-    /// obtained via `Process/stdout` / `Process/stderr`. If those
-    /// internal Receivers are bounded and the parent has not yet
-    /// consumed them, the drain threads block on send when full;
-    /// child's stdout writes fill the OS pipe and block; **child
-    /// cannot exit; parent's `Process/join-result` blocks forever.**
-    ///
-    /// The rule from SERVICE-PROGRAMS.md § "The lockstep" applied at
-    /// the Process boundary: outer scope holds the Process; inner
-    /// scope owns every output-channel Receiver derived from it; the
-    /// inner body drains them; the outer scope's `join-result` runs
-    /// AFTER the inner has fully consumed-and-disconnected the
-    /// drain pipeline.
-    ///
-    /// Sibling rule to `ScopeDeadlock`: scope-deadlock catches
-    /// Sender clones alive at thread/process join. This rule catches
-    /// the inverse — output Receivers (which gate the substrate's
-    /// internal Senders for stdout/stderr drain threads) alive at
-    /// Process/join-result. Both produce the same deadlock signature.
-    ProcessJoinBeforeOutputDrain {
-        /// Name of the Process identifier the join-result is called
-        /// on (matches the identifier of the conflicting accessor).
-        /// Often a fn parameter; can also be a let binding.
-        process_identifier: String,
-        /// The output-channel accessor in conflict —
-        /// `":wat::kernel::Process/stdout"`,
-        /// `":wat::kernel::Process/stderr"`, etc. Names which
-        /// substrate accessor's Receiver gates the deadlock.
-        output_accessor: String,
-        /// Source location of the `Process/join-result` call.
-        join_span: Span,
-        /// Source location of the conflicting output accessor call.
-        output_span: Span,
-    },
-    /// Arc 202 — Process input-channel held-at-join rule.
-    /// A `let` form contains:
-    ///   - a call to `:wat::kernel::Process/join-result <p>` (blocks
-    ///     until the forked child exits), AND
-    ///   - NO call to `:wat::kernel::Process/stdin <p>` anywhere in
-    ///     the let's scope tree (so the stdin Sender stays alive in
-    ///     the Process handle for the entire outer-let scope).
-    ///
-    /// The substrate's child has a structural StdInService (arc 170
-    /// slice 1f) blocked on fd 0. Without an EOF on the parent's
-    /// write-end of the child's stdin pipe, the child cannot exit;
-    /// parent's join blocks forever.
-    ///
-    /// Inverse direction of ProcessJoinBeforeOutputDrain: that rule
-    /// catches output-Receiver-held-at-join; this catches input-Sender-
-    /// held-at-join (via the Process handle, never extracted). Both
-    /// produce the same deadlock signature; both arise from the same
-    /// lockstep-discipline violation; both fire at freeze time.
-    ProcessJoinHoldsStdinSender {
-        /// Name of the Process identifier the join-result is called on.
-        process_identifier: String,
-        /// Source location of the `Process/join-result` call.
-        join_span: Span,
-        /// Source location where `<process_identifier>` was bound.
-        bind_span: Span,
-    },
-    /// Arc 126 — a function call passes two arguments that trace
-    /// back to the same `:wat::kernel::make-bounded-channel` /
-    /// `make-unbounded-channel` pair-anchor. One argument is a
-    /// `Sender<T>`; the other is a `Receiver<T>`; both are halves
-    /// of one channel. Holding both ends in one role deadlocks any
-    /// recv on the Receiver — the caller's Sender clone keeps the
-    /// channel alive even if the receiving thread dies.
-    ///
-    /// Sibling rule to `ScopeDeadlock`: same trace machinery applied
-    /// at call sites instead of spawn-thread closure bodies. Catches
-    /// the arc 119 "Pattern B Put-ack helper-verb cycle" deadlock
-    /// before runtime.
-    ChannelPairDeadlock {
-        /// Name of the function being called (callee head).
-        callee: String,
-        /// Name of the `Sender<T>`-typed argument.
-        sender_arg: String,
-        /// Name of the `Receiver<T>`-typed argument.
-        receiver_arg: String,
-        /// Name of the let binding that held the pair-anchor
-        /// (the `(:wat::kernel::make-bounded-channel ...)` RHS).
-        pair_anchor: String,
-        /// Source location of the function-call site.
-        span: Span,
-    },
-    /// Arc 109 slice 1c — a bare primitive type (`:i64`, `:f64`,
-    /// `:bool`, `:String`, `:u8`) appears in user code. Bare forms
-    /// retire; the canonical FQDN form (`:wat::core::i64`, etc.) is
-    /// the substitute. Detected at every type-token position
-    /// (outer annotation, parametric inner, tuple member, fn arg/
-    /// return).
-    ///
-    /// Same SUBSTRATE-AS-TEACHER pattern 3 as `CommCallOutOfPosition`
-    /// (arc 110), `InnerColonInCompoundArg` (arc 115), `ScopeDeadlock`
-    /// (arc 117) — dedicated variant per migration class; Display IS
-    /// the migration brief; no `collect_hints` involvement.
-    BareLegacyPrimitive {
-        /// User-source spelling — `":i64"` (outer) or `"i64"` (bare
-        /// inside parametric). Reproduces the offending token shape.
-        primitive: String,
-        /// Canonical FQDN form — `":wat::core::i64"` (outer) or
-        /// `"wat::core::i64"` (matching the offending token's
-        /// position).
-        fqdn: String,
-        /// Source location of the keyword carrying the bare token.
-        /// Multiple bare occurrences in one keyword (e.g.
-        /// `:Vec<i64,String>`) all carry the same span — the keyword
-        /// token.
-        span: Span,
-    },
-    /// Arc 109 slice 1d — the bare unit type annotation (`:()` or
-    /// `()` inside a parametric/tuple/fn) appears in user code.
-    /// `:wat::core::nil` is the canonical FQDN form (renamed from
-    /// `:wat::core::unit` per arc 153). The empty-tuple LITERAL
-    /// VALUE `()` is a list literal and is not affected; only the
-    /// type-position spelling retires.
-    ///
-    /// Distinct from `BareLegacyPrimitive` because the unit type
-    /// parses to `TypeExpr::Tuple(vec![])`, not `TypeExpr::Path` —
-    /// the walker arm is a separate Tuple-empty guard. Same
-    /// Pattern 3 mechanism otherwise.
-    BareLegacyUnitType {
-        /// Source location of the keyword carrying the bare unit
-        /// token.
-        span: Span,
-    },
-    /// Arc 153 — `:wat::core::unit` retired in favor of
-    /// `:wat::core::nil`. Same role (singleton type, "no
-    /// meaningful return value"); rename ships the marker effect
-    /// of a Lisp's `nil` while preserving wat's existing
-    /// `Option<T>::None` / `Some(t)` discipline (per arc 153
-    /// DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
-    ///
-    /// **Slice 2 retirement.** The walker bodies that emitted
-    /// this variant (`walk_type_for_legacy_unit_name` plus the
-    /// Path-arm in `walk_type_for_bare`) retired in arc 153 slice
-    /// 2 closure per substrate-as-teacher § "Retire the hint when
-    /// its window closes." The variant + Display remain as
-    /// orphaned scaffolding (arc 113 precedent — variant
-    /// preserved for testing/teaching; only the firing body
-    /// retires). Future symbol-migration arcs reintroduce the
-    /// firing path with new variants per Pattern 3.
-    BareLegacyUnitName {
-        /// Source location of the keyword carrying the retired
-        /// `:wat::core::unit` token.
-        span: Span,
-    },
-    /// Arc 154 — `:wat::core::let*` retired in favor of
-    /// `:wat::core::let` (Clojure-faithful single-letform vocabulary).
-    /// `:wat::core::let` adopts the sequential semantics that
-    /// `:wat::core::let*` carried; the parallel `:wat::core::let`
-    /// path retires (zero in-tree consumers per pre-arc grep).
-    /// Pattern 3 walker (substrate-as-teacher § "Three migration
-    /// patterns") mirrors `BareLegacyUnitName`'s shape: walks every
-    /// `WatAST::Keyword` looking for the retired FQDN; emits one
-    /// migration error per offending site; sweep 1b uses the
-    /// diagnostic stream as the work list.
-    BareLegacyLetStar {
-        /// Source location of the keyword carrying the retired
-        /// `:wat::core::let*` token.
-        span: Span,
-    },
-    /// Arc 159 — per-binding type annotation `((name :T) expr)` is the
-    /// legacy form; canonical post-arc-159 shape is `(name expr)` where
-    /// the binding type is inferred from the expression (arc 145 lesson
-    /// applied to the inner-binding slot; `def` set the same precedent
-    /// in arc 157). Walker (`walk_for_legacy_typed_let_binding`) fires
-    /// one error per legacy binding site; consumer sweep (slice 2) does
-    /// the mechanical `((name :T) expr)` → `(name expr)` transform.
-    ///
-    /// Arc 155 — `:wat::core::lambda` retired in favor of
-    /// `:wat::core::fn` (Clojure-faithful single-letform vocabulary;
-    /// lowercase verb for function values). Mirror of arc 154's
-    /// `BareLegacyLetStar` shape: walks every `WatAST::Keyword`
-    /// looking for the retired `:wat::core::lambda` FQDN in
-    /// operator position; emits one migration error per offending
-    /// site; sweep 1b uses the diagnostic stream as the work list.
-    ///
-    /// **Slice 2 retirement.** Walker body retires after sweep 1b
-    /// clears all in-tree `:wat::core::lambda` consumer sites. The
-    /// variant + Display remain as orphaned scaffolding per arc 113
-    /// precedent. Runtime dispatch arm for `:wat::core::lambda`
-    /// retired in arc 155 slice 2; source-level use surfaces
-    /// BareLegacyLambda fatal at check time (same shape as
-    /// `:wat::core::let*` post-arc-163).
-    BareLegacyLambda {
-        /// Source location of the keyword carrying the retired
-        /// `:wat::core::lambda` token.
-        span: Span,
-    },
-    /// Arc 155 — bare `:fn(...)` type-position spelling retired in
-    /// favor of the FQDN `:wat::core::Fn(...)` (Cap'd type head per
-    /// Clojure-faithful capitalization convention: `Fn` = type,
-    /// `fn` = verb; closes arc 109 slice 1e's last ungrabbed
-    /// parametric type head). Pattern 3 walker
-    /// (`walk_for_legacy_lowercase_fn`) detects any keyword whose
-    /// string starts with `:fn(` — the bare-fn type position prefix
-    /// — and emits one migration error per offending site.
-    ///
-    /// **Slice 2 retirement.** Walker body retires after sweep 1b
-    /// clears all in-tree `:fn(...)` type sites. Variant + Display
-    /// stay as orphaned scaffolding per arc 113 precedent.
-    BareLegacyLowercaseFn {
-        /// Source location of the keyword carrying the bare `:fn(`
-        /// type spelling.
-        span: Span,
-    },
-    /// Arc 109 slice 1e — a bare substrate-named parametric type
-    /// head (`Option`, `Result`, `HashMap`, `HashSet`) appears in
-    /// user code. The four containers move under `:wat::core::*`;
-    /// the bare-source spelling retires.
-    ///
-    /// Detects against `TypeExpr::Parametric.head` — the third
-    /// TypeExpr shape the walker template covers (slice 1c
-    /// detected `Path`, slice 1d detected `Tuple`). The mechanism
-    /// generalizes across all TypeExpr shapes via per-arm guards.
-    ///
-    /// Vec<T> is NOT in this slice — slice 1f territory because
-    /// the rename to Vector couples with § D's verb companion.
-    BareLegacyContainerHead {
-        /// User-source spelling — `"Option"` / `"Result"` /
-        /// `"HashMap"` / `"HashSet"`.
-        head: String,
-        /// Canonical FQDN form — `"wat::core::Option"` etc. (no
-        /// leading colon; matches the head-position spelling at
-        /// the offending site).
-        fqdn: String,
-        /// Source location of the keyword carrying the bare head.
-        span: Span,
-    },
-    /// Arc 109 slice 9d — a keyword carrying the legacy
-    /// `:wat::std::stream::` prefix appears in user code. The
-    /// stream stdlib graduated to `:wat::stream::*` per § G's
-    /// three-tier substrate organization (every substrate concern
-    /// earns its own top-level tier; `:wat::std::*` empties out).
-    /// File path mirrors: `wat/std/stream.wat` → `wat/stream.wat`.
-    ///
-    /// Walker fires on every keyword starting with the legacy
-    /// prefix, regardless of position (callable head, type
-    /// annotation, value position) — uniform Pattern 3 detection.
-    /// Same shape as slices 1c/1d/1e but at the keyword-prefix
-    /// level rather than the parsed-TypeExpr level.
-    BareLegacyStreamPath {
-        /// User-source keyword — `":wat::std::stream::map"`,
-        /// `":wat::std::stream::Stream"`, etc.
-        old: String,
-        /// Canonical replacement — `":wat::stream::map"`, etc.
-        /// Computed by stripping the `std::` segment.
-        new: String,
-        /// Source location of the keyword carrying the legacy
-        /// prefix.
-        span: Span,
-    },
-    /// Arc 109 slice K.telemetry — a keyword carrying the legacy
-    /// `:wat::telemetry::Service::` (typealias path) or
-    /// `:wat::telemetry::Service/` (verb path) prefix appears in
-    /// user code. The Service grouping noun retires per § K's
-    /// "/ requires a real Type" doctrine — Service has no struct,
-    /// no value, no kind; verbs and typealiases live at the
-    /// namespace level. Real types Stats and MetricsCadence keep
-    /// their PascalCase + /methods because they ARE structs (just
-    /// one less namespace segment deep).
-    ///
-    /// Walker fires on every keyword whose path starts with one
-    /// of the two retired prefixes; canonical replacement strips
-    /// the `Service::` or `Service/` segment.
-    BareLegacyTelemetryServicePath {
-        /// User-source keyword — `":wat::telemetry::Service/spawn"`,
-        /// `":wat::telemetry::Service::Stats"`, etc.
-        old: String,
-        /// Canonical replacement — `":wat::telemetry::spawn"`,
-        /// `":wat::telemetry::Stats"`, etc.
-        new: String,
-        /// Source location of the keyword carrying the legacy
-        /// prefix.
-        span: Span,
-    },
-    /// Arc 109 slice K.lru — a keyword carrying the legacy
-    /// `:wat::lru::CacheService::` (typealias path) or
-    /// `:wat::lru::CacheService/` (verb path) prefix appears in
-    /// user code. The CacheService grouping noun retires per § K;
-    /// verbs and typealiases live at `:wat::lru::*`. Real types
-    /// Stats / MetricsCadence / State / Report keep their
-    /// PascalCase + /methods (just one less namespace segment).
-    ///
-    /// Pattern B canonicalization rides this slice: `ReqPair`
-    /// renames to `ReqChannel` (gaze 2026-05-01 — in-crate
-    /// ReqPair/ReplyChannel mumble; both are (Tx, Rx) tuples but
-    /// the suffix divergence forces lookup); plus NEW
-    /// `ReplyRx<V>` + `ReplyChannel<V>` typealiases minted to
-    /// complete the Pattern B reference.
-    BareLegacyLruCacheServicePath {
-        /// User-source keyword — `":wat::lru::CacheService/get"`,
-        /// `":wat::lru::CacheService::ReqPair"`, etc.
-        old: String,
-        /// Canonical replacement — `":wat::lru::get"`,
-        /// `":wat::lru::ReqChannel"` (ReqPair → ReqChannel),
-        /// `":wat::lru::Stats"`, etc.
-        new: String,
-        /// Source location of the keyword carrying the legacy
-        /// prefix.
-        span: Span,
-    },
-    /// Arc 109 slice K.kernel-channel — a keyword carrying one of
-    /// the retired kernel `Queue*` family names. The kernel's
-    /// channel-primitive vocabulary moves from Queue* (which
-    /// leaked crossbeam's data-structure name) to the canonical
-    /// Channel / Sender / Receiver family.
-    ///
-    /// Retired prefixes:
-    /// - `:wat::kernel::QueueSender` → `:wat::kernel::Sender`
-    /// - `:wat::kernel::QueueReceiver` → `:wat::kernel::Receiver`
-    /// - `:wat::kernel::QueuePair` → `:wat::kernel::Channel`
-    /// - `:wat::kernel::make-bounded-queue` → `:wat::kernel::make-bounded-channel`
-    /// - `:wat::kernel::make-unbounded-queue` → `:wat::kernel::make-unbounded-channel`
-    BareLegacyKernelQueuePath {
-        /// User-source keyword — `":wat::kernel::QueueSender"`,
-        /// `":wat::kernel::make-bounded-queue"`, etc.
-        old: String,
-        /// Canonical replacement — `":wat::kernel::Sender"`,
-        /// `":wat::kernel::make-bounded-channel"`, etc.
-        new: String,
-        /// Source location of the keyword carrying the retired
-        /// name.
-        span: Span,
-    },
-    /// Arc 140 — a deftest body (or any sandboxed sub-program's
-    /// forms-block) invokes a name that exists in the OUTER scope
-    /// but NOT in the sub-program's own forms (prelude + auto-
-    /// generated `:user::main`). Sandboxes do NOT capture outer
-    /// scope by design (per `wat/test.wat`'s deftest macro and
-    /// `wat/kernel/sandbox.wat`'s `run-sandboxed-ast`); the user
-    /// either typed a name they thought would be visible or
-    /// forgot to put the helper into the deftest's prelude.
-    ///
-    /// Same teaching shape as arc 117 `ScopeDeadlock` / arc 126
-    /// `ChannelPairDeadlock`: substrate-as-teacher pattern 3 —
-    /// dedicated variant per failure class; Display IS the brief.
-    /// Two spans land in the diagnostic so users (and agents)
-    /// navigate to BOTH the offending invocation AND the helper
-    /// they meant to reference.
-    SandboxScopeLeak {
-        /// The keyword name invoked at the call site.
-        offending_name: String,
-        /// Source location of the offending invocation inside the
-        /// sandboxed body.
-        call_span: Span,
-        /// Source location of the outer-scope define. Best-effort:
-        /// uses the function's body span when the substrate doesn't
-        /// track the outer define-form span directly. May be
-        /// `Span::unknown()` if the outer scope is a built-in.
-        outer_define_span: Span,
-    },
-    /// Arc 157 — `:wat::core::def` appeared in a non-top-level position.
-    /// `def` is legal only at: (1) direct file top-level, (2) inside a
-    /// top-level `(:wat::core::do ...)` form, or (3) inside a top-level
-    /// `(:wat::core::let ...)` body. These are the "splice-eligible"
-    /// positions: each executes exactly once at module load time.
-    /// Conditional (`if`, `cond`, `match`, …), function body (`fn`,
-    /// `define` body), and iteration forms are all non-splice — `def`
-    /// inside them is rejected. Use a nested `let` for local binding
-    /// without module-env mutation.
-    DefNotTopLevel {
-        /// The enclosing form's head keyword that violates the rule.
-        wrapper: String,
-        /// Source location of the offending `def` form.
-        span: Span,
-    },
-    /// Arc 157 — `:wat::core::def` attempted to redefine a name that
-    /// is already bound in `defined_values`. Fires when `redef_allowed`
-    /// is `false` (the strict default). Enable opt-in redef via
-    /// `(:wat::config::set-redef! true)`.
-    DefRedefForbidden {
-        /// The name that was already bound.
-        name: String,
-        /// Source location of the prior (first) binding.
-        prior_loc: Span,
-        /// Source location of the new (colliding) binding.
-        current_loc: Span,
-    },
-    /// Arc 157 slice 1a-ii — `:wat::core::def` redef permitted by
-    /// `(:wat::config::set-redef! true)` but the new expression's
-    /// inferred type differs from the prior registered type.
-    /// Type-stability is mandatory whenever redef happens — opt-in to
-    /// redef does NOT opt out of type-stability. The contract downstream
-    /// callers depend on must remain intact.
-    DefRedefTypeChange {
-        /// The name whose type would change.
-        name: String,
-        /// The inferred type of the prior binding.
-        prior_type: String,
-        /// The inferred type of the new expression.
-        new_type: String,
-        /// Source location of the prior (first) binding.
-        prior_loc: Span,
-        /// Source location of the new (colliding) binding.
-        current_loc: Span,
-    },
-    /// Arc 170 slice 1e — `:user::main` declared with any non-canonical
-    /// shape. REALIZATIONS pass 7 + pass 10 make the canonical shape
-    /// `[] -> :wat::core::nil`: argv lives in the ambient
-    /// `(:wat::runtime::argv)`; stdio access moves to the three
-    /// substrate services (slice 1f); `nil` IS the success exit code.
-    /// Walker fires on every define whose params are non-empty OR
-    /// whose return-type keyword is not `:wat::core::nil`. Substrate-
-    /// as-teacher pattern 3 — the diagnostic carries the migration
-    /// template; sweep (revised slice 3) uses the diagnostic stream
-    /// as work list; slice 4 retires the firing body.
-    BareLegacyMainSignature {
-        /// Source location of the offending `:user::main` define form.
-        span: Span,
-    },
-    /// Arc 170 slice 2 — user-source callsite of legacy
-    /// `:wat::kernel::fork-program{,_ast}`. Arc 170 consolidated the
-    /// fork verbs under `:wat::kernel::spawn-process` (fn-input
-    /// surface; substrate handles closure extraction internally; "the
-    /// fn IS the program"). Pattern 3 walker; sweep migrates user
-    /// callsites; slice 4 retires the legacy verbs + this firing
-    /// body.
-    BareLegacyForkProgram {
-        /// User-source spelling — `":wat::kernel::fork-program"` or
-        /// `":wat::kernel::fork-program-ast"`.
-        verb: String,
-        /// Source location of the offending callsite.
-        span: Span,
-    },
-    /// Arc 170 slice 2 — user-source callsite of legacy
-    /// `:wat::kernel::spawn-program{,_ast}`. Arc 170 retired the
-    /// in-thread fresh-world spawn-program family entirely (Q1 in
-    /// DESIGN). Two-mode taxonomy: spawn-thread (parent's world,
-    /// shared memory) OR spawn-process (forked OS process, hermetic
-    /// boundary). Pattern 3 walker; sweep migrates user callsites;
-    /// slice 4 retires.
-    BareLegacySpawnProgram {
-        /// User-source spelling — `":wat::kernel::spawn-program"` or
-        /// `":wat::kernel::spawn-program-ast"`.
-        verb: String,
-        /// Source location of the offending callsite.
-        span: Span,
-    },
-    /// Arc 109 § kill-std / Arc 170 slice 1f-η — user-source call
-    /// into the fully-retired `:wat::console::*` namespace. The
-    /// Console driver (dispatch, handle plumbing, spawn factory,
-    /// ConsoleLogger) was annihilated in slice 1f-η. The replacement
-    /// is the ambient kernel-level stdio trio: `:wat::kernel::println`
-    /// (stdout), `:wat::kernel::eprintln` (stderr),
-    /// `:wat::kernel::readln` (stdin). All three are EDN-only — any
-    /// value EDN-encodes; no manual string formatting. Pattern 3
-    /// walker (`walk_for_bare_legacy_console`); prefix-match on
-    /// `:wat::console::` catches every verb in the namespace including
-    /// `:wat::console::spawn`, `:wat::console::out`,
-    /// `:wat::console::Console/out`, `:wat::console::log`, etc.
-    ///
-    /// **Walker is permanent** — no sweep window; the console
-    /// namespace is fully retired with no in-tree consumer code.
-    /// Variant + Display stay as orphaned scaffolding per arc 113
-    /// precedent, teaching migration at every cold hit.
-    BareLegacyConsolePath {
-        /// The `:wat::console::*` token exactly as written in user source.
-        path: String,
-        /// Source location of the offending token.
-        span: Span,
-    },
-    /// Stone 241.14 (arc 198 origin) — a call site invokes a binding whose
-    /// `:restricted-to` metadata-map entry excludes the enclosing fn FQDN.
-    ///
-    /// Whitelist matching:
-    /// - entry ending in `::` → namespace prefix match
-    /// - entry NOT ending in `::` → exact FQDN match
-    ///
-    /// Variant name preserved per `feedback_inscription_immutable` (historical
-    /// arc 198 naming stays even as the underlying mechanism migrated from
-    /// `def-restricted` form to `binding_metadata` `:restricted-to` key).
-    ///
-    /// Subsumes arc 170 Stone B's hard-coded `JoinResultUserNamespace`
-    /// rule (deleted in arc 198 slice 2 Stone 4): the restriction is
-    /// declared at the binding site (per fn) rather than hard-coded in
-    /// the walker. Stone B's two callees
-    /// (`eval_kernel_thread_join_result` + `eval_kernel_process_join_result`)
-    /// now carry `#[restricted_to(":wat::")]` and are enforced via
-    /// `walk_for_restricted_call`.
-    DefRestrictedCallerNotAllowed {
-        /// The restricted callee — the FQDN of the binding carrying a
-        /// `:restricted-to` key in its `binding_metadata`.
-        callee: String,
-        /// FQDN of the enclosing fn whose body called the restricted
-        /// binding. E.g. `":user::app::caller"`.
-        enclosing_fn: String,
-        /// The allowed-caller-prefix whitelist as declared at the
-        /// binding site. Each entry is matched against `enclosing_fn`
-        /// using prefix-or-exact rules.
-        prefixes: Vec<String>,
-        /// Source location of the call-site head token.
-        span: Span,
-    },
-    /// Stone 237.2 — a `:wat::core::defclause` call site had no clause
-    /// that could accept the given argument types. Fires when every
-    /// clause fails arity-match OR arg-type unification.
-    ///
-    /// TEMPORARY: Stone 237.4 will replace with rich EDN-serialized shape.
-    NoMatchingClauseAtCallSite {
-        /// The defclause name (FQDN keyword).
-        name: String,
-        /// Arity of the call site.
-        called_arity: usize,
-        /// Formatted arg types at the call site.
-        called_arg_types: Vec<String>,
-        /// Per-clause summaries: (arity, [arg-type-formats]).
-        attempted_clauses: Vec<(usize, Vec<String>)>,
-        /// Source location of the call form.
-        span: Span,
-    },
-
-    /// Stone 237.3 — `:guard` expression in a defclause clause does not have
-    /// type `:wat::core::bool`. Type-check error; parse-time detection.
-    GuardExprNotBoolean {
-        defclause_name: String,
-        clause_index: usize,
-        got_type: String,
-        span: Span,
-    },
-
-    /// Stone 237.3 — `:ensure :fn` in a defclause clause is invalid.
-    /// `reason` describes which check failed:
-    /// - "must be :wat::core::fn" (not a :fn form)
-    /// - "arity must be 1" (wrong number of params)
-    /// - "arg type must match clause return type" (type mismatch)
-    /// - "return type must be :bool" (fn doesn't return :bool)
-    EnsureFnInvalid {
-        defclause_name: String,
-        clause_index: usize,
-        reason: String,
-        span: Span,
-    },
-}
-
-impl fmt::Display for CheckError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CheckError::ArityMismatch { callee, expected, got, span } => write!(
-                f,
-                "{}{}: expected {} argument(s); got {}",
-                span_prefix(span), callee, expected, got
-            ),
-            CheckError::TypeMismatch {
-                callee,
-                param,
-                expected,
-                got,
-                span,
-            } => {
-                write!(
-                    f,
-                    "{}{}: parameter {} expects {}; got {}",
-                    span_prefix(span), callee, param, expected, got
-                )?;
-                if let Some(hint) = collect_hints(callee, expected, got) {
-                    write!(f, "\n  hint: {}", hint)?;
-                }
-                Ok(())
-            }
-            CheckError::ReturnTypeMismatch {
-                function,
-                expected,
-                got,
-                span,
-                remedies,
-            } => {
-                write!(
-                    f,
-                    "{}{}: body produces {}; signature declares {}",
-                    span_prefix(span), function, got, expected
-                )?;
-                if let Some(hint) = collect_hints(function, expected, got) {
-                    write!(f, "\n  hint: {}", hint)?;
-                }
-                let section = crate::remedy::render_remedies(remedies);
-                if !section.is_empty() {
-                    write!(f, "\n{}", section)?;
-                }
-                Ok(())
-            }
-            CheckError::UnknownCallee { callee, span } => {
-                write!(f, "{}unknown callee: {}", span_prefix(span), callee)
-            }
-            CheckError::MalformedForm { head, reason, span, remedies } => {
-                write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)?;
-                let section = crate::remedy::render_remedies(remedies);
-                if !section.is_empty() {
-                    write!(f, "\n{}", section)?;
-                }
-                Ok(())
-            }
-            CheckError::CommCallOutOfPosition { callee, span } => write!(
-                f,
-                "{}{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call",
-                span_prefix(span), callee
-            ),
-            CheckError::ScopeDeadlock {
-                thread_binding,
-                offending_binding,
-                offending_kind,
-                span,
-            } => write!(
-                f,
-                "scope-deadlock at {}: Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
-                span, thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
-            ),
-            CheckError::ProcessJoinBeforeOutputDrain {
-                process_identifier,
-                output_accessor,
-                join_span,
-                output_span,
-            } => write!(
-                f,
-                "process-join-before-output-drain at {join}: `:wat::kernel::Process/join-result {p}` and `{acc} {p}` appear in the same `let` form (sibling bindings or body). `Process/join-result` BLOCKS until the forked child exits. The substrate's internal drain threads consume the child's OS stdout/stderr pipes and push lines into the wat-level Receivers obtained via `{acc}`. If those Receivers are bounded and the parent has not yet drained them, the substrate's drain threads block on send when full; the child's stdout writes fill the OS pipe and block; the child CANNOT EXIT; `Process/join-result` BLOCKS FOREVER. ILLEGAL STATEMENT ORIENTATION: the output accessor call is at {out_loc}. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: outer scope holds the Process; INNER scope owns every output-channel Receiver derived from it and drains them; outer scope's `Process/join-result` runs only AFTER the inner has consumed-and-disconnected (Receivers dropped at inner-scope exit). DO NOT add a wall-clock timeout to mask this — restructure the let.",
-                join = join_span,
-                out_loc = output_span,
-                p = process_identifier,
-                acc = output_accessor,
-            ),
-            CheckError::ProcessJoinHoldsStdinSender {
-                process_identifier,
-                join_span,
-                bind_span,
-            } => write!(
-                f,
-                "process-join-holds-stdin-sender at {join}: `:wat::kernel::Process/join-result {p}` blocks until the forked child exits, but `:wat::kernel::Process/stdin {p}` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via the Process handle bound at {bind}. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin {p}` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
-                join = join_span,
-                bind = bind_span,
-                p = process_identifier,
-            ),
-            CheckError::ChannelPairDeadlock {
-                callee,
-                sender_arg,
-                receiver_arg,
-                pair_anchor,
-                span,
-            } => write!(
-                f,
-                "channel-pair-deadlock at {}: function call '{}' receives two halves of the same channel pair. Argument '{}' is a Sender<T> and argument '{}' is a Receiver<T>; both trace back to the make-bounded-channel allocation at '{}' (let binding above). Holding both ends of one channel in one role deadlocks any recv — the caller's writer keeps the channel alive even when the receiving thread dies. Fix options (per ZERO-MUTEX.md § \"Routing acks\"): 1. Pair-by-index via HandlePool — each producer pops one Handle holding ONE end of EACH of two distinct channels. 2. Embedded reply-tx in payload — caller does not bind the reply-tx; project the Sender directly into the Request.",
-                span, callee, sender_arg, receiver_arg, pair_anchor
-            ),
-            CheckError::BareLegacyPrimitive { primitive, fqdn, span } => write!(
-                f,
-                "bare primitive type '{}' at {} is retired (arc 109 slice 1c); canonical FQDN form is '{}'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). Rename '{}' → '{}' at the offending site.",
-                primitive, span, fqdn, primitive, fqdn
-            ),
-            CheckError::BareLegacyUnitType { span } => write!(
-                f,
-                "bare unit type '()' at {} is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::nil' (arc 153 renamed unit -> nil). Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' -> ':wat::core::nil' (or '()' -> 'wat::core::nil' inside parametrics) at the offending site.",
-                span
-            ),
-            CheckError::BareLegacyUnitName { span } => write!(
-                f,
-                "':wat::core::unit' at {} is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing Option<T>::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site.",
-                span
-            ),
-            CheckError::BareLegacyLetStar { span } => write!(
-                f,
-                "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
-                span
-            ),
-            CheckError::BareLegacyLambda { span } => write!(
-                f,
-                "':wat::core::lambda' at {} is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site.",
-                span
-            ),
-            CheckError::BareLegacyLowercaseFn { span } => write!(
-                f,
-                "bare ':fn(...)' type at {} is retired (arc 155); canonical FQDN is ':wat::core::Fn(...)'. Cap'd type head per Clojure-faithful capitalization convention: 'Fn' = function type, 'fn' = function value (closes arc 109 slice 1e's last ungrabbed parametric type head). Rename ':fn(args)->ret' -> ':wat::core::Fn(args)->ret' at the offending site.",
-                span
-            ),
-            CheckError::BareLegacyContainerHead { head, fqdn, span } => write!(
-                f,
-                "bare container type '{}' at {} is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
-                head, span, fqdn, head, fqdn, head, fqdn, head, fqdn
-            ),
-            CheckError::BareLegacyStreamPath { old, new, span } => write!(
-                f,
-                "legacy stream path '{}' at {} is retired (arc 109 slice 9d); canonical form is '{}'. The stream stdlib graduated to :wat::stream::* per § G's three-tier substrate organization (every substrate concern earns its own top-level tier; :wat::std::* empties out). File path mirrors: wat/std/stream.wat → wat/stream.wat. Rename '{}' → '{}' at the offending site.",
-                old, span, new, old, new
-            ),
-            CheckError::BareLegacyTelemetryServicePath { old, new, span } => write!(
-                f,
-                "legacy telemetry-service path '{}' at {} is retired (arc 109 slice K.telemetry); canonical form is '{}'. The :wat::telemetry::Service grouping noun retired per § K's '/ requires a real Type' doctrine — Service has no struct, no value, no kind. Verbs and typealiases live at the namespace level. Real types Stats and MetricsCadence keep their PascalCase + /methods because they ARE structs (just one less namespace segment deep). Rename '{}' → '{}' at the offending site.",
-                old, span, new, old, new
-            ),
-            CheckError::BareLegacyLruCacheServicePath { old, new, span } => write!(
-                f,
-                "legacy lru-cache-service path '{}' at {} is retired (arc 109 slice K.lru); canonical form is '{}'. The :wat::lru::CacheService grouping noun retired per § K's '/ requires a real Type' doctrine. Real types Stats / MetricsCadence / State / Report keep PascalCase + /methods (just one less namespace segment). Plus Pattern B canonicalization: ReqPair renamed to ReqChannel (in-crate ReqPair/ReplyChannel mumble); ReplyRx<V> + ReplyChannel<V> typealiases minted to complete the Pattern B reference. Rename '{}' → '{}' at the offending site.",
-                old, span, new, old, new
-            ),
-            CheckError::BareLegacyKernelQueuePath { old, new, span } => write!(
-                f,
-                "legacy kernel queue path '{}' at {} is retired (arc 109 slice K.kernel-channel); canonical form is '{}'. The :wat::kernel::Queue* family renamed to Channel / Sender / Receiver (Queue leaked crossbeam's data-structure name; the canonical vocabulary is the substrate's honest naming). File moved: wat/kernel/queue.wat → wat/kernel/channel.wat. Rename '{}' → '{}' at the offending site.",
-                old, span, new, old, new
-            ),
-            CheckError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
-                let define_loc = if outer_define_span.is_unknown() {
-                    "an outer scope".to_string()
-                } else {
-                    format!("{}", outer_define_span)
-                };
-                write!(
-                    f,
-                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
-                    span_prefix(call_span), offending_name, define_loc, offending_name
-                )
-            }
-            // Arc 157 — `:wat::core::def` position violations.
-            CheckError::DefNotTopLevel { wrapper, span } => write!(
-                f,
-                "{}`:wat::core::def` found inside `{}` — def is only legal at top-level position: (1) direct file top-level, (2) inside a top-level `(:wat::core::do ...)`, or (3) inside a top-level `(:wat::core::let ...)` body. Conditional and function-body wrappers do not splice def (arc 157 § Scope Q1). Use a nested `(:wat::core::let ...)` for local binding without module-env mutation.",
-                span_prefix(span), wrapper
-            ),
-            CheckError::DefRedefForbidden { name, prior_loc, current_loc } => write!(
-                f,
-                "{}`:wat::core::def` redef of `{}`: name already bound at {}. Redef is forbidden by default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different name, or enable redef explicitly.",
-                span_prefix(current_loc), name, prior_loc
-            ),
-            // Arc 157 slice 1a-ii — type-stability violation on opt-in redef.
-            CheckError::DefRedefTypeChange { name, prior_type, new_type, prior_loc, current_loc } => write!(
-                f,
-                "{}`:wat::core::def` redef of `{}` changes type from `{}` to `{}` (prior binding at {}). Type-stability is mandatory on redef — the signature downstream callers depend on must stay intact. Only the expression's value may change; the type must not.",
-                span_prefix(current_loc), name, prior_type, new_type, prior_loc
-            ),
-            CheckError::BareLegacyMainSignature { span } => write!(
-                f,
-                "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::defn :user::main [] -> :wat::core::nil \n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",
-                span_prefix(span)
-            ),
-            CheckError::BareLegacyForkProgram { verb, span } => write!(
-                f,
-                "{}`{}` is retired (arc 170 slice 2); canonical replacement is `:wat::kernel::spawn-process` (fn-input surface). The fn IS the program — substrate handles closure extraction + fork internally; user passes a fn directly that satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. Migrate:\n  ({} src scope)         → (:wat::kernel::spawn-process worker-fn)\n  (:wat::kernel::fork-program-ast forms) → (:wat::kernel::spawn-process worker-fn)\nwhere `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § \"The API — `spawn-* fn`\".",
-                span_prefix(span), verb, verb
-            ),
-            CheckError::BareLegacySpawnProgram { verb, span } => write!(
-                f,
-                "{}`{}` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:\n  ({} src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)\n  ({} src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)\nwhere `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.",
-                span_prefix(span), verb, verb, verb
-            ),
-            CheckError::BareLegacyConsolePath { path, span } => write!(
-                f,
-                "{}`:wat::console::*` at {} is retired (arc 109 § kill-std / arc 170 slice 1f-η). The :wat::console::* namespace (Console driver, spawn factory, handle plumbing, ConsoleLogger) has been fully annihilated. User code uses the ambient kernel-level stdio ops directly:\n  - For output:  (:wat::kernel::println v)         — EDN-encodes v, emits to stdout\n  - For error:   (:wat::kernel::eprintln v)        — EDN-encodes v, emits to stderr\n  - For input:   (:wat::kernel::readln -> :T)       — reads one EDN-decoded value of type :T\nThese are EDN-only — any value EDN-encodes; no manual string formatting. See examples/console-demo/wat/main.wat for the canonical ambient-stdio shape. Offending token: '{}'.",
-                span_prefix(span), span, path
-            ),
-            CheckError::DefRestrictedCallerNotAllowed {
-                callee,
-                enclosing_fn,
-                prefixes,
-                span,
-            } => write!(
-                f,
-                "{}`{}` at {} has a restricted caller whitelist [{}]; the enclosing fn `{}` does not match any entry (declared via `{{:restricted-to [...]}}` metadata-map). An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `{}` to the `:restricted-to` list at the binding site.",
-                span_prefix(span),
-                callee,
-                span,
-                prefixes.join(" "),
-                enclosing_fn,
-                enclosing_fn,
-            ),
-            // Stone 237.2 — NoMatchingClauseAtCallSite.
-            CheckError::NoMatchingClauseAtCallSite {
-                name,
-                called_arity,
-                called_arg_types,
-                attempted_clauses,
-                span,
-            } => {
-                let clause_summary: Vec<String> = attempted_clauses
-                    .iter()
-                    .map(|(arity, types)| format!("({}: [{}])", arity, types.join(", ")))
-                    .collect();
-                write!(
-                    f,
-                    "{}no clause of `{}` matches arity {} with types [{}]; \
-                     clauses attempted: {}",
-                    span_prefix(span),
-                    name,
-                    called_arity,
-                    called_arg_types.join(", "),
-                    if clause_summary.is_empty() { "(none)".into() } else { clause_summary.join("; ") },
-                )
-            }
-            // Stone 237.3 — GuardExprNotBoolean.
-            CheckError::GuardExprNotBoolean { defclause_name, clause_index, got_type, span } => {
-                write!(
-                    f,
-                    "{}defclause `{}` clause {}: `:guard` expression must return `:wat::core::bool`; got `{}`",
-                    span_prefix(span),
-                    defclause_name,
-                    clause_index,
-                    got_type,
-                )
-            }
-            // Stone 237.3 — EnsureFnInvalid.
-            CheckError::EnsureFnInvalid { defclause_name, clause_index, reason, span } => {
-                write!(
-                    f,
-                    "{}defclause `{}` clause {}: `:ensure` :fn is invalid — {}",
-                    span_prefix(span),
-                    defclause_name,
-                    clause_index,
-                    reason,
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for CheckError {}
+// CheckError, CheckErrorKind, CheckErrors — Pattern A (Stone 243.6a) — live in src/check/error.rs.
+// Re-exported above: `pub use error::{CheckError, CheckErrorKind, CheckErrors};`
 
 // Arc 111 / 112 / 113 migration-hint helpers retired 2026-04-30.
 // Each shipped with an `arc_N_migration_hint(callee, expected, got)
@@ -1068,21 +156,7 @@ fn arc_114_migration_hint(callee: &str, expected: &str, got: &str) -> Option<Str
     )
 }
 
-/// Aggregated errors — `check_program` returns all findings together.
-#[derive(Debug)]
-pub struct CheckErrors(pub Vec<CheckError>);
-
-impl fmt::Display for CheckErrors {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{} type-check error(s):", self.0.len())?;
-        for e in &self.0 {
-            writeln!(f, "  - {}", e)?;
-        }
-        Ok(())
-    }
-}
-
-impl std::error::Error for CheckErrors {}
+// CheckErrors — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
 /// Result of a type-check / inference operation.
 ///
@@ -1346,314 +420,7 @@ impl<T> CheckResult<T> {
     }
 }
 
-impl CheckError {
-    /// Arc 115 slice 1 — produce a structured [`Diagnostic`] for this
-    /// error variant. Renderers (text via Display, EDN, JSON) consume
-    /// the same data without parsing string forms.
-    ///
-    /// Each variant maps to one `Diagnostic` with `kind` = the variant
-    /// name and field-name → field-value pairs that mirror the Rust
-    /// struct fields. **One `hint` field, optional**: present when the
-    /// substrate has migration guidance for the error; absent otherwise.
-    /// Multiple applicable hints (e.g., arc 111 + arc 112 both firing
-    /// on the same TypeMismatch) join with a blank line — each hint
-    /// already self-identifies via its leading `"arc N — "` prefix.
-    pub fn diagnostic(&self) -> crate::diagnostic::Diagnostic {
-        use crate::diagnostic::Diagnostic;
-        match self {
-            CheckError::ArityMismatch { callee, expected, got, span } => {
-                let mut diag = Diagnostic::new("ArityMismatch")
-                    .field("callee", callee.as_str())
-                    .field("expected", *expected)
-                    .field("got", *got);
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-            CheckError::TypeMismatch { callee, param, expected, got, span } => {
-                let mut diag = Diagnostic::new("TypeMismatch")
-                    .field("callee", callee.as_str())
-                    .field("param", param.as_str())
-                    .field("expected", expected.as_str())
-                    .field("got", got.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                if let Some(hint) = collect_hints(callee, expected, got) {
-                    diag = diag.field("hint", hint);
-                }
-                diag
-            }
-            CheckError::ReturnTypeMismatch { function, expected, got, span, remedies } => {
-                let mut diag = Diagnostic::new("ReturnTypeMismatch")
-                    .field("function", function.as_str())
-                    .field("expected", expected.as_str())
-                    .field("got", got.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                if let Some(hint) = collect_hints(function, expected, got) {
-                    diag = diag.field("hint", hint);
-                }
-                let section = crate::remedy::render_remedies(remedies);
-                if !section.is_empty() {
-                    diag = diag.field("remedies", section);
-                }
-                diag
-            }
-            CheckError::UnknownCallee { callee, span } => {
-                let mut diag = Diagnostic::new("UnknownCallee").field("callee", callee.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-            CheckError::MalformedForm { head, reason, span, remedies } => {
-                let mut diag = Diagnostic::new("MalformedForm")
-                    .field("head", head.as_str())
-                    .field("reason", reason.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                let section = crate::remedy::render_remedies(remedies);
-                if !section.is_empty() {
-                    diag = diag.field("remedies", section);
-                }
-                diag
-            }
-            CheckError::CommCallOutOfPosition { callee, span } => {
-                let mut diag = Diagnostic::new("CommCallOutOfPosition")
-                    .field("callee", callee.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-            CheckError::ScopeDeadlock {
-                thread_binding,
-                offending_binding,
-                offending_kind,
-                span,
-            } => Diagnostic::new("ScopeDeadlock")
-                .field("thread_binding", thread_binding.as_str())
-                .field("offending_binding", offending_binding.as_str())
-                .field("offending_kind", *offending_kind)
-                .field("location", format!("{}", span)),
-            CheckError::ProcessJoinBeforeOutputDrain {
-                process_identifier,
-                output_accessor,
-                join_span,
-                output_span,
-            } => Diagnostic::new("ProcessJoinBeforeOutputDrain")
-                .field("process_identifier", process_identifier.as_str())
-                .field("output_accessor", output_accessor.as_str())
-                .field("join_location", format!("{}", join_span))
-                .field("output_location", format!("{}", output_span)),
-            CheckError::ProcessJoinHoldsStdinSender {
-                process_identifier,
-                join_span,
-                bind_span,
-            } => Diagnostic::new("ProcessJoinHoldsStdinSender")
-                .field("process_identifier", process_identifier.as_str())
-                .field("join_location", format!("{}", join_span))
-                .field("bind_location", format!("{}", bind_span)),
-            CheckError::ChannelPairDeadlock {
-                callee,
-                sender_arg,
-                receiver_arg,
-                pair_anchor,
-                span,
-            } => Diagnostic::new("ChannelPairDeadlock")
-                .field("callee", callee.as_str())
-                .field("sender_arg", sender_arg.as_str())
-                .field("receiver_arg", receiver_arg.as_str())
-                .field("pair_anchor", pair_anchor.as_str())
-                .field("location", format!("{}", span)),
-            CheckError::BareLegacyPrimitive { primitive, fqdn, span } => {
-                Diagnostic::new("BareLegacyPrimitive")
-                    .field("primitive", primitive.as_str())
-                    .field("fqdn", fqdn.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyUnitType { span } => {
-                Diagnostic::new("BareLegacyUnitType")
-                    .field("primitive", ":()")
-                    .field("fqdn", ":wat::core::nil")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyUnitName { span } => {
-                Diagnostic::new("BareLegacyUnitName")
-                    .field("retired", ":wat::core::unit")
-                    .field("fqdn", ":wat::core::nil")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyLetStar { span } => {
-                Diagnostic::new("BareLegacyLetStar")
-                    .field("retired", ":wat::core::let*")
-                    .field("fqdn", ":wat::core::let")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyLambda { span } => {
-                Diagnostic::new("BareLegacyLambda")
-                    .field("retired", ":wat::core::lambda")
-                    .field("fqdn", ":wat::core::fn")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyLowercaseFn { span } => {
-                Diagnostic::new("BareLegacyLowercaseFn")
-                    .field("retired", ":fn(...)->ret")
-                    .field("fqdn", ":wat::core::Fn(...)->ret")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyContainerHead { head, fqdn, span } => {
-                Diagnostic::new("BareLegacyContainerHead")
-                    .field("head", head.as_str())
-                    .field("fqdn", fqdn.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyStreamPath { old, new, span } => {
-                Diagnostic::new("BareLegacyStreamPath")
-                    .field("old", old.as_str())
-                    .field("new", new.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyTelemetryServicePath { old, new, span } => {
-                Diagnostic::new("BareLegacyTelemetryServicePath")
-                    .field("old", old.as_str())
-                    .field("new", new.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyLruCacheServicePath { old, new, span } => {
-                Diagnostic::new("BareLegacyLruCacheServicePath")
-                    .field("old", old.as_str())
-                    .field("new", new.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyKernelQueuePath { old, new, span } => {
-                Diagnostic::new("BareLegacyKernelQueuePath")
-                    .field("old", old.as_str())
-                    .field("new", new.as_str())
-                    .field("location", format!("{}", span))
-            }
-            CheckError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
-                let mut diag = Diagnostic::new("SandboxScopeLeak")
-                    .field("offending_name", offending_name.as_str())
-                    .field("call_span", format!("{}", call_span));
-                if !outer_define_span.is_unknown() {
-                    diag = diag.field("outer_define_span", format!("{}", outer_define_span));
-                }
-                diag
-            }
-            // Arc 157 — def position + redef diagnostics.
-            CheckError::DefNotTopLevel { wrapper, span } => {
-                Diagnostic::new("DefNotTopLevel")
-                    .field("wrapper", wrapper.as_str())
-                    .field("span", format!("{}", span))
-            }
-            CheckError::DefRedefForbidden { name, prior_loc, current_loc } => {
-                Diagnostic::new("DefRedefForbidden")
-                    .field("name", name.as_str())
-                    .field("prior_loc", format!("{}", prior_loc))
-                    .field("current_loc", format!("{}", current_loc))
-            }
-            // Arc 157 slice 1a-ii — type-stability violation.
-            CheckError::DefRedefTypeChange { name, prior_type, new_type, prior_loc, current_loc } => {
-                Diagnostic::new("DefRedefTypeChange")
-                    .field("name", name.as_str())
-                    .field("prior_type", prior_type.as_str())
-                    .field("new_type", new_type.as_str())
-                    .field("prior_loc", format!("{}", prior_loc))
-                    .field("current_loc", format!("{}", current_loc))
-            }
-            // Arc 170 slice 2 — substrate-as-teacher walkers for the
-            // OS-boundary contract change (`:user::main` 4-arg + ExitCode)
-            // plus the spawn verb consolidation (fork-program* +
-            // spawn-program* retire under the spawn-process(fn) /
-            // spawn-thread(fn) two-mode taxonomy).
-            CheckError::BareLegacyMainSignature { span } => {
-                Diagnostic::new("BareLegacyMainSignature")
-                    .field("canonical_signature", "[] -> :wat::core::nil")
-                    .field(
-                        "rationale",
-                        "arc 170 slice 1e (REALIZATIONS pass 7 + pass 10): argv ambient via (:wat::runtime::argv); stdio via three substrate services (slice 1f); nil IS the success exit code",
-                    )
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyForkProgram { verb, span } => {
-                Diagnostic::new("BareLegacyForkProgram")
-                    .field("retired", verb.as_str())
-                    .field("canonical", ":wat::kernel::spawn-process")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacySpawnProgram { verb, span } => {
-                Diagnostic::new("BareLegacySpawnProgram")
-                    .field("retired", verb.as_str())
-                    .field("canonical_fork_semantics", ":wat::kernel::spawn-process")
-                    .field("canonical_thread_semantics", ":wat::kernel::spawn-thread")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::BareLegacyConsolePath { path, span } => {
-                Diagnostic::new("BareLegacyConsolePath")
-                    .field("retired_namespace", ":wat::console::*")
-                    .field("offending_token", path.as_str())
-                    .field("canonical_stdout", ":wat::kernel::println")
-                    .field("canonical_stderr", ":wat::kernel::eprintln")
-                    .field("canonical_stdin", ":wat::kernel::readln")
-                    .field("location", format!("{}", span))
-            }
-            CheckError::DefRestrictedCallerNotAllowed {
-                callee,
-                enclosing_fn,
-                prefixes,
-                span,
-            } => Diagnostic::new("DefRestrictedCallerNotAllowed")
-                .field("callee", callee.as_str())
-                .field("enclosing_fn", enclosing_fn.as_str())
-                .field("prefixes", prefixes.join(" "))
-                .field("location", format!("{}", span)),
-            // Stone 237.2 — NoMatchingClauseAtCallSite diagnostic.
-            CheckError::NoMatchingClauseAtCallSite {
-                name,
-                called_arity,
-                called_arg_types,
-                attempted_clauses: _,
-                span,
-            } => {
-                let mut diag = Diagnostic::new("NoMatchingClauseAtCallSite")
-                    .field("name", name.as_str())
-                    .field("called_arity", *called_arity)
-                    .field("called_arg_types", called_arg_types.join(", "));
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-            // Stone 237.3 — GuardExprNotBoolean diagnostic.
-            CheckError::GuardExprNotBoolean { defclause_name, clause_index, got_type, span } => {
-                let mut diag = Diagnostic::new("GuardExprNotBoolean")
-                    .field("defclause_name", defclause_name.as_str())
-                    .field("clause_index", *clause_index)
-                    .field("got_type", got_type.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-            // Stone 237.3 — EnsureFnInvalid diagnostic.
-            CheckError::EnsureFnInvalid { defclause_name, clause_index, reason, span } => {
-                let mut diag = Diagnostic::new("EnsureFnInvalid")
-                    .field("defclause_name", defclause_name.as_str())
-                    .field("clause_index", *clause_index)
-                    .field("reason", reason.as_str());
-                if !span.is_unknown() {
-                    diag = diag.field("span", span.to_string());
-                }
-                diag
-            }
-        }
-    }
-}
+// CheckError::diagnostic() — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
 /// Collect all migration hints that fire for this (callee, expected,
 /// got) triple into a single string. Each hint already self-identifies
@@ -1845,7 +612,7 @@ fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
 // is invoked from both Display and diagnostic() for the same error. Caching
 // (a computed-hints field on the CheckError outer struct) folds into the
 // CheckError Pattern A retrofit at Stone 243.6.
-fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
+pub(crate) fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     // Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
     // arc_109_result_expect_migration_hint removed; those three zombies are now HARD CUT
     // (MalformedForm rejection arms), not soft-deprecation TypeMismatch hints.
@@ -1870,12 +637,7 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     }
 }
 
-impl CheckErrors {
-    /// Arc 115 slice 1 — produce one [`Diagnostic`] per CheckError.
-    pub fn diagnostics(&self) -> Vec<crate::diagnostic::Diagnostic> {
-        self.0.iter().map(|e| e.diagnostic()).collect()
-    }
-}
+// CheckErrors::diagnostics() — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
 /// Cross-cutting context threaded through every `infer_*` helper.
 /// Owns two concerns that need global scope during a single
@@ -2166,11 +928,11 @@ pub fn check_program(
     // into `WatAST::List(items, _)` children, emit one CheckError per
     // legacy binding site.
 
-    // Arc 157 — refuse `:wat::core::def` in non-top-level positions.
-    // Walk each program form BEFORE type inference so that position
-    // violations surface as structural errors (not type errors). The
-    // walker emits `DefNotTopLevel` naming the nearest enclosing non-
-    // splice form for each violation. Runs on program forms only (not
+    // Arc 157 / Arc 170 Gap I-B — def position-discipline is enforced at
+    // runtime by `dispatch_keyword_head`'s `DeclarationInExpressionPosition`
+    // arm (symmetric with the other 7 declaration forms). The check-time
+    // `DefNotTopLevel` variant was retired in Gap I-B; the walker below
+    // runs for non-def declarations only. Runs on program forms only (not
     // function bodies — `def` inside a `define` body IS always illegal
     // and the position checker covers it via function-body descent).
     validate_def_positions_in_forms(forms, &mut errors);
@@ -2383,10 +1145,9 @@ fn validate_comm_positions(
                     | CommCtx::LetBindingRhs,
             );
             if !permitted {
-                errors.push(CheckError::CommCallOutOfPosition {
+                errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::CommCallOutOfPosition {
                     callee: head_str.into(),
-                    span: head_span.clone(),
-                });
+                } });
             }
             // Comm-call arguments are ordinary expressions; nested comm
             // calls inside them are themselves Forbidden.
@@ -2688,11 +1449,10 @@ fn check_calls_for_sandbox_leak(
             let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
             if !reserved && !inner_names.contains(canonical) {
                 if let Some(outer_func) = sym.get(canonical) {
-                    errors.push(CheckError::SandboxScopeLeak {
+                    errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::SandboxScopeLeak {
                         offending_name: head_str.to_string(),
-                        call_span: head_span.clone(),
                         outer_define_span: outer_func.body.span().clone(),
-                    });
+                    } });
                 }
             }
 
@@ -2805,17 +1565,15 @@ fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
     match node {
         WatAST::Keyword(s, span) => {
             if s == ":wat::kernel::fork-program" || s == ":wat::kernel::fork-program-ast" {
-                errors.push(CheckError::BareLegacyForkProgram {
+                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyForkProgram {
                     verb: s.clone(),
-                    span: span.clone(),
-                });
+                } });
                 return;
             }
             if s == ":wat::kernel::spawn-program" || s == ":wat::kernel::spawn-program-ast" {
-                errors.push(CheckError::BareLegacySpawnProgram {
+                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacySpawnProgram {
                     verb: s.clone(),
-                    span: span.clone(),
-                });
+                } });
             }
         }
         WatAST::List(items, _) => {
@@ -2928,7 +1686,7 @@ fn check_legacy_user_main_signature(items: &[WatAST], errors: &mut Vec<CheckErro
     if canonical_params && canonical_ret {
         return;
     }
-    errors.push(CheckError::BareLegacyMainSignature { span: main_span });
+    errors.push(CheckError { span: main_span, kind: CheckErrorKind::BareLegacyMainSignature });
 }
 
 fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
@@ -2949,19 +1707,19 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
         // arc 113 precedent stand; this just brings the firing
         // path back online.
         if s == ":wat::core::let*" {
-            errors.push(CheckError::BareLegacyLetStar { span: span.clone() });
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyLetStar });
             return;
         }
         if s == ":wat::core::lambda" {
-            errors.push(CheckError::BareLegacyLambda { span: span.clone() });
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyLambda });
             return;
         }
         if s == ":wat::core::unit" {
-            errors.push(CheckError::BareLegacyUnitName { span: span.clone() });
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyUnitName });
             return;
         }
         if s.starts_with(":fn(") {
-            errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyLowercaseFn });
             return;
         }
         // Stone 242.1 — HARD CUT: `:wat::core::Char` (PascalCase) is retired per
@@ -2969,16 +1727,15 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
         // Walker fires in ANY keyword position (type annotation, argspec, return type,
         // etc.) — no privileged paths per `feedback_hard_cut_admits_no_bypasses`.
         if s == ":wat::core::Char" {
-            errors.push(CheckError::MalformedForm {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: s.clone(),
                 reason: format!(
                     "'{}' is retired (Stone 242.1); use ':wat::core::char' instead \
                      (scalar types lowercase per arc 242 Doctrine 2)",
                     s
                 ),
-                span: span.clone(),
                 remedies: crate::remedy::remedies_for(s, std::iter::empty()),
-            });
+            } });
             return;
         }
         // Try parsing as a type expression. Most keywords aren't
@@ -3125,11 +1882,10 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
             // scaffolding (arc 113 precedent).
             for (bare, fqdn) in BARE_PRIMITIVES {
                 if p == bare {
-                    errors.push(CheckError::BareLegacyPrimitive {
+                    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyPrimitive {
                         primitive: (*bare).to_string(),
                         fqdn: (*fqdn).to_string(),
-                        span: span.clone(),
-                    });
+                    } });
                     return;
                 }
             }
@@ -3143,11 +1899,10 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
             // surface.
             for (bare, fqdn) in BARE_CONTAINER_HEADS {
                 if head == bare {
-                    errors.push(CheckError::BareLegacyContainerHead {
+                    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyContainerHead {
                         head: (*bare).to_string(),
                         fqdn: (*fqdn).to_string(),
-                        span: span.clone(),
-                    });
+                    } });
                     break;
                 }
             }
@@ -3168,9 +1923,7 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
             // above, not here. Non-empty tuples are bona-fide tuple
             // types and recurse normally.
             if elements.is_empty() {
-                errors.push(CheckError::BareLegacyUnitType {
-                    span: span.clone(),
-                });
+                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyUnitType });
             } else {
                 for e in elements {
                     walk_type_for_bare(e, span, errors);
@@ -3204,11 +1957,10 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
     if let WatAST::Keyword(s, span) = node {
         if let Some(rest) = s.strip_prefix(LEGACY_STREAM_PREFIX) {
             let new = format!("{}{}", CANONICAL_STREAM_PREFIX, rest);
-            errors.push(CheckError::BareLegacyStreamPath {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyStreamPath {
                 old: s.clone(),
                 new,
-                span: span.clone(),
-            });
+            } });
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
@@ -3232,11 +1984,10 @@ fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>
             .or_else(|| s.strip_prefix(LEGACY_TELEMETRY_SERVICE_VERB_PREFIX));
         if let Some(tail) = stripped {
             let new = format!("{}{}", CANONICAL_TELEMETRY_PREFIX, tail);
-            errors.push(CheckError::BareLegacyTelemetryServicePath {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyTelemetryServicePath {
                 old: s.clone(),
                 new,
-                span: span.clone(),
-            });
+            } });
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
@@ -3268,18 +2019,16 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
                 CANONICAL_LRU_PREFIX,
                 canonical_lru_leaf(tail)
             );
-            errors.push(CheckError::BareLegacyLruCacheServicePath {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyLruCacheServicePath {
                 old: s.clone(),
                 new,
-                span: span.clone(),
-            });
+            } });
         } else if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_VERB_PREFIX) {
             let new = format!("{}{}", CANONICAL_LRU_PREFIX, tail);
-            errors.push(CheckError::BareLegacyLruCacheServicePath {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyLruCacheServicePath {
                 old: s.clone(),
                 new,
-                span: span.clone(),
-            });
+            } });
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
@@ -3332,11 +2081,10 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
                         .unwrap_or(false);
                 if boundary_ok {
                     let new = format!("{}{}", canonical, tail);
-                    errors.push(CheckError::BareLegacyKernelQueuePath {
+                    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyKernelQueuePath {
                         old: s.clone(),
                         new,
-                        span: span.clone(),
-                    });
+                    } });
                     break;
                 }
             }
@@ -3356,10 +2104,9 @@ fn walk_for_bare_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
     match node {
         WatAST::Keyword(s, span) => {
             if s.starts_with(LEGACY_CONSOLE_PREFIX) {
-                errors.push(CheckError::BareLegacyConsolePath {
+                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyConsolePath {
                     path: s.clone(),
-                    span: span.clone(),
-                });
+                } });
             }
         }
         WatAST::List(items, _) => {
@@ -3470,12 +2217,11 @@ fn walk_for_restricted_call(
             if let Some(meta) = env.get_binding_metadata(head) {
                 if let Some(prefixes) = extract_prefix_list_from_metadata(meta) {
                     if !caller_matches_prefix_list(enclosing_fn, &prefixes) {
-                        errors.push(CheckError::DefRestrictedCallerNotAllowed {
+                        errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRestrictedCallerNotAllowed {
                             callee: head.clone(),
                             enclosing_fn: enclosing_fn.into(),
                             prefixes,
-                            span: head_span.clone(),
-                        });
+                        } });
                     }
                 }
             }
@@ -4222,13 +2968,12 @@ fn check_call_for_pair_deadlock(
 
     for (anchor, sender_arg) in &sender_at_anchor {
         if let Some(receiver_arg) = receiver_at_anchor.get(anchor) {
-            errors.push(CheckError::ChannelPairDeadlock {
+            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::ChannelPairDeadlock {
                 callee: callee.clone(),
                 sender_arg: sender_arg.clone(),
                 receiver_arg: receiver_arg.clone(),
                 pair_anchor: anchor.clone(),
-                span: span.clone(),
-            });
+            } });
         }
     }
 }
@@ -4557,13 +3302,12 @@ fn check_function_body(
             let resolved_ret = apply_subst(&scheme.ret, &subst);
             let resolved_body = apply_subst(&body_ty, &subst);
             let remedies = variant_typo_remedies(&func.body, &resolved_ret, env.types());
-            errors.push(CheckError::ReturnTypeMismatch {
+            errors.push(CheckError { span: func.body.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
                 function: path.to_string(),
                 expected: format_type(&resolved_ret),
                 got: format_type(&resolved_body),
-                span: func.body.span().clone(),
                 remedies,
-            });
+            } });
         }
     }
 }
@@ -4683,13 +3427,12 @@ pub(crate) fn infer(
         // so the program type-checks the rest of the way.
         WatAST::Keyword(k, kw_span) if (k == ":None" || k == ":wat::core::None") => {
             if k == ":None" {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: kw_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":None".into(),
                     param: "(retired bare-keyword exception)".into(),
                     expected: ":wat::core::None".into(),
                     got: ":None".into(),
-                    span: kw_span.clone(),
-                });
+                } });
             }
             let ty = TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -4771,12 +3514,11 @@ pub(crate) fn infer(
                     k
                 )
             };
-            CheckResult::errs(vec![CheckError::MalformedForm {
+            CheckResult::errs(vec![CheckError { span: kw_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: k.clone(),
                 reason,
-                span: kw_span.clone(),
                 remedies: vec![],
-            }])
+            } }])
         }
         WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => {
@@ -4854,7 +3596,7 @@ pub(crate) fn infer(
         // position is a clean MalformedForm pointing the user at
         // the legal consumption path.
         WatAST::StructPattern(_, span) => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: "<struct-pattern>".into(),
                 reason: "struct-destructure brace-form `{...}` is only \
                          legal at let binding-position alongside a struct-\
@@ -4862,9 +3604,8 @@ pub(crate) fn infer(
                          [{outcome residue} p] body...)`); appearing at \
                          value position is not supported"
                     .into(),
-                span: span.clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.1): error path already had diagnostic (Classification 3).
             CheckResult::errs(local_errors)
         }
@@ -4890,17 +3631,16 @@ fn infer_some_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if is_bare {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
             callee: "Some".into(),
             param: "(retired bare-symbol exception)".into(),
             expected: ":wat::core::Some".into(),
-            got: "Some".into(),
-            span: head_span.clone(),
-        });
+            got: "Some".into()
+        } });
     }
     let args = &items[1..];
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: if is_bare {
                 "Some".into()
             } else {
@@ -4908,8 +3648,7 @@ fn infer_some_constructor(
             },
             expected: 1,
             got: args.len(),
-            span: head_span.clone(),
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -4943,26 +3682,24 @@ fn infer_ok_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if is_bare {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
             callee: "Ok".into(),
             param: "(retired bare-symbol exception)".into(),
             expected: ":wat::core::Ok".into(),
-            got: "Ok".into(),
-            span: head_span.clone(),
-        });
+            got: "Ok".into()
+        } });
     }
     let args = &items[1..];
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: if is_bare {
                 "Ok".into()
             } else {
                 ":wat::core::Ok".into()
             },
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -4997,26 +3734,24 @@ fn infer_err_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if is_bare {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
             callee: "Err".into(),
             param: "(retired bare-symbol exception)".into(),
             expected: ":wat::core::Err".into(),
-            got: "Err".into(),
-            span: head_span.clone(),
-        });
+            got: "Err".into()
+        } });
     }
     let args = &items[1..];
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: if is_bare {
                 "Err".into()
             } else {
                 ":wat::core::Err".into()
             },
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -5087,15 +3822,14 @@ fn infer_list(
             // Restrictions live as `:restricted-to` key in metadata-map on def/defn.
             // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
             ":wat::core::def-restricted" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!(
                         "'{}' is retired (Stone 241.14); use ':wat::core::def' with metadata-map: `(def :name {{:restricted-to [<prefix-kw>...]}} expr)`",
                         k
                     ),
-                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                    span: head_span.clone(),
-                }]);
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             // Stone 237.2 — `:wat::core::defclause` type-check arm.
             // Shape: (:wat::core::defclause :name [-> :T] (clause...) ...)
@@ -5150,35 +3884,32 @@ fn infer_list(
             // conforms?, neither arg is a value).
             ":wat::core::subtype?" => {
                 if args.len() != 2 {
-                    local_errors.push(CheckError::MalformedForm {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::subtype?".into(),
                         reason: format!(
                             "expected (:wat::core::subtype? :ChildType :ParentType); got {} arg(s)",
                             args.len()
                         ),
-                        span: head_span.clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return CheckResult::errs(local_errors);
                 }
                 // Validate arg[0] is a keyword (type-position).
                 if !matches!(&args[0], WatAST::Keyword(_, _)) {
-                    local_errors.push(CheckError::MalformedForm {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::subtype?".into(),
                         reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
-                        span: args[0].span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return CheckResult::errs(local_errors);
                 }
                 // Validate arg[1] is a keyword (type-position).
                 if !matches!(&args[1], WatAST::Keyword(_, _)) {
-                    local_errors.push(CheckError::MalformedForm {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::subtype?".into(),
                         reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
-                        span: args[1].span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return CheckResult::errs(local_errors);
                 }
                 let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
@@ -5203,15 +3934,14 @@ fn infer_list(
             //       We validate it's a Keyword-shaped AST and skip normal inference.
             ":wat::core::conforms?" => {
                 if args.len() != 2 {
-                    local_errors.push(CheckError::MalformedForm {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::conforms?".into(),
                         reason: format!(
                             "expected (:wat::core::conforms? <value> :TypeExpr); got {} arg(s)",
                             args.len()
                         ),
-                        span: head_span.clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return CheckResult::errs(local_errors);
                 }
                 // Infer arg[0] for side-effects (symbol resolution); discard type errors
@@ -5222,12 +3952,11 @@ fn infer_list(
                 // Validate arg[1] is a keyword (type-position); do NOT infer it as a
                 // value expression (would wrongly infer registered constructors as Fn types).
                 if !matches!(&args[1], WatAST::Keyword(_, _)) {
-                    local_errors.push(CheckError::MalformedForm {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::conforms?".into(),
                         reason: "second arg must be a type keyword (e.g. :my::Type or :wat::core::Vector<my::T>)".into(),
-                        span: args[1].span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return CheckResult::errs(local_errors);
                 }
                 let bool_result_ty = TypeExpr::Path(":wat::core::bool".into());
@@ -5276,30 +4005,27 @@ fn infer_list(
             // Stone 241.15 — Zombie A: :wat::core::try HARD CUT.
             // Soft-deprecation arm (arc 109 Pattern 2 poison) superseded; HARD CUT total.
             ":wat::core::try" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Result/try' instead", k),
-                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                    span: head_span.clone(),
-                }]);
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             // Stone 241.15 — Zombie B: :wat::core::option::expect HARD CUT.
             ":wat::core::option::expect" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Option/expect' instead", k),
-                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                    span: head_span.clone(),
-                }]);
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             // Stone 241.15 — Zombie C: :wat::core::result::expect HARD CUT.
             ":wat::core::result::expect" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.15); use ':wat::core::Result/expect' instead", k),
-                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                    span: head_span.clone(),
-                }]);
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             ":wat::core::Result/try" => {
                 let (val, mut errs) = infer_try(":wat::core::Result/try", head_span, args, env, locals, fresh, subst).into_parts();
@@ -5429,13 +4155,12 @@ fn infer_list(
                 // call site fires a hint, but continue to dispatch
                 // so the program still type-checks the rest of the
                 // way (consumers sweep call-by-call, no cliff).
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::vec".into(),
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Vector".into(),
-                    got: ":wat::core::vec".into(),
-                    span: head_span.clone(),
-                });
+                    got: ":wat::core::vec".into()
+                } });
                 let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -5467,12 +4192,11 @@ fn infer_list(
             // Clojure semantic: prepends item to front; distinct from Vector/conj (append).
             ":wat::core::List/conj" => {
                 if args.len() != 2 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: ":wat::core::List/conj".into(),
                         expected: 2,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     for arg in args {
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
@@ -5493,13 +4217,12 @@ fn infer_list(
                         }
                         TypeExpr::Var(_) => {}
                         _ => {
-                            local_errors.push(CheckError::TypeMismatch {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::List/conj".into(),
                                 param: "#1".into(),
                                 expected: "List<T>".into(),
-                                got: format_type(&apply_subst(lt, subst)),
-                                span: args[0].span().clone(),
-                            });
+                                got: format_type(&apply_subst(lt, subst))
+                            } });
                         }
                     }
                 }
@@ -5519,13 +4242,12 @@ fn infer_list(
                 // is the canonical constructor. Pattern 2 poison:
                 // synthetic TypeMismatch + redirect; continue to
                 // dispatch so the program type-checks.
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::list".into(),
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Vector".into(),
-                    got: ":wat::core::list".into(),
-                    span: head_span.clone(),
-                });
+                    got: ":wat::core::list".into()
+                } });
                 let (val, mut errs) = infer_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -5539,13 +4261,12 @@ fn infer_list(
                 // (verb-equals-type per slice 1f's vec→Vector
                 // playbook). Pattern 2 poison.
                 // Arc 165 — redirect target now matches storage.
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::tuple".into(),
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Tuple".into(),
-                    got: ":wat::core::tuple".into(),
-                    span: head_span.clone(),
-                });
+                    got: ":wat::core::tuple".into()
+                } });
                 let (val, mut errs) = infer_tuple_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -5611,12 +4332,11 @@ fn infer_list(
                 // DATA, not an expression — the type checker does not
                 // recurse into it. Return type is `:wat::WatAST`.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: ":wat::core::quote".into(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
@@ -5639,12 +4359,11 @@ fn infer_list(
                 // constrained (the runtime errors if T isn't a
                 // Struct). Return type is :wat::WatAST.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: ":wat::core::struct->form".into(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 } else {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -5667,12 +4386,11 @@ fn infer_list(
                 // whose first arg is an ordinary keyword; this special
                 // case handles the arc-009 "names are values" path.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 // Infer the argument for side-effects (e.g., symbol
                 // resolution in the local environment) but do not
@@ -5702,12 +4420,11 @@ fn infer_list(
                 // bypass pattern as `signature-of-defn`: infer for
                 // side-effects, do not constrain.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5725,12 +4442,11 @@ fn infer_list(
                 // its own validation. Arity must be exactly 3.
                 let expected_arity = 3;
                 if args.len() != expected_arity {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: expected_arity,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 for arg in args.iter() {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5745,12 +4461,11 @@ fn infer_list(
                 // type-scheme unification would fail on arc-009 call
                 // sites. Infer for side-effects; return the concrete type.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5768,12 +4483,11 @@ fn infer_list(
                 // rationale: first arg is a HolonAST value; normal type-scheme
                 // unification would fail on arc-009 call sites.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5793,25 +4507,23 @@ fn infer_list(
                 // arity and type unification; no special-case needed beyond routing here.
                 // Return HolonAST unconditionally (one arg, HolonAST input, HolonAST output).
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.clone(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
                     return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
                             expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)".into(),
-                            got: format_type(&apply_subst(&arg_ty, subst)),
-                            span: args[0].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg_ty, subst))
+                        } });
                     }
                 }
                 let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
@@ -5832,25 +4544,23 @@ fn infer_list(
                 // We need to fire AFTER inference resolves T, then apply the
                 // predicate as a post-unification check.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.clone(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
                     return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let resolved = apply_subst(&arg_ty, subst);
                     if !is_atomizable(&resolved) {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
                             expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)".into(),
-                            got: format_type(&resolved),
-                            span: args[0].span().clone(),
-                        });
+                            got: format_type(&resolved)
+                        } });
                     }
                 }
                 let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
@@ -5865,12 +4575,11 @@ fn infer_list(
                 //   are syntactic decoration; return type is still T (Infer).
                 // Both forms validate the first arg is HolonAST.
                 if args.len() != 1 && args.len() != 3 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.clone(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     let ty = fresh.fresh();
                     return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                 }
@@ -5878,13 +4587,12 @@ fn infer_list(
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let holon = TypeExpr::Path(":wat::holon::HolonAST".into());
                     if unify(&arg_ty, &holon, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
                             expected: ":wat::holon::HolonAST".into(),
-                            got: format_type(&apply_subst(&arg_ty, subst)),
-                            span: args[0].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg_ty, subst))
+                        } });
                     }
                 }
                 // For the 3-arg form, the `->` and type keyword are not type-checked
@@ -5902,12 +4610,11 @@ fn infer_list(
                 // don't unify via normal type-scheme paths at arc-009
                 // call sites).
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5927,12 +4634,11 @@ fn infer_list(
                 // HolonAST path (no Option wrap — the surface signals
                 // failure via TypeMismatch, not None).
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -5954,12 +4660,11 @@ fn infer_list(
                 // the runtime returns Value::String directly (not Option).
                 // Return type is :String (not Option<String>) for record args.
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -5988,12 +4693,11 @@ fn infer_list(
                 // doctrine-conventional reading. HolonAST arg bypasses normal
                 // type-unification (same rationale as Bundle/children).
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -6008,25 +4712,23 @@ fn infer_list(
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.clone(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     let ty = TypeExpr::Path(":wat::WatAST".into());
                     return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let expected = TypeExpr::Path(":wat::WatAST".into());
                     if !assignable(&arg_ty, &expected, subst, env.types()) {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
                             expected: format_type(&apply_subst(&expected, subst)),
-                            got: format_type(&apply_subst(&arg_ty, subst)),
-                            span: args[0].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg_ty, subst))
+                        } });
                     }
                 }
                 let ty = TypeExpr::Path(":wat::WatAST".into());
@@ -6279,13 +4981,12 @@ fn infer_list(
             // mismatches still surface) but the call itself is now an
             // error regardless of arg shapes.
             ":wat::kernel::join" => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::kernel::join".into(),
                     param: "(retired verb)".into(),
                     expected: ":wat::kernel::Thread/join-result".into(),
-                    got: ":wat::kernel::join".into(),
-                    span: head_span.clone(),
-                });
+                    got: ":wat::kernel::join".into()
+                } });
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -6293,13 +4994,12 @@ fn infer_list(
                 return CheckResult::errs(local_errors);
             }
             ":wat::kernel::join-result" => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::kernel::join-result".into(),
                     param: "(retired verb)".into(),
                     expected: ":wat::kernel::Thread/join-result".into(),
-                    got: ":wat::kernel::join-result".into(),
-                    span: head_span.clone(),
-                });
+                    got: ":wat::kernel::join-result".into()
+                } });
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -6386,12 +5086,11 @@ fn infer_list(
             // Vector; this arm supersedes it for List inputs.
             ":wat::core::rest" => {
                 if args.len() != 1 {
-                    local_errors.push(CheckError::ArityMismatch {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: ":wat::core::rest".into(),
                         expected: 1,
-                        got: args.len(),
-                        span: head_span.clone(),
-                    });
+                        got: args.len()
+                    } });
                     for arg in args {
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
@@ -6423,13 +5122,12 @@ fn infer_list(
                             TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
                         }
                         _ => {
-                            local_errors.push(CheckError::TypeMismatch {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
                                 expected: "Vec<T> or List<T>".into(),
-                                got: format_type(&apply_subst(ty, subst)),
-                                span: args[0].span().clone(),
-                            });
+                                got: format_type(&apply_subst(ty, subst))
+                            } });
                             let t = fresh.fresh();
                             TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
                         }
@@ -6505,39 +5203,36 @@ fn infer_list(
             // Stone 241.8 — HARD CUT: legacy struct form is REJECTED at check time.
             // It is no longer a recognized type-declaration form; use :wat::core::defstruct.
             ":wat::core::struct" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.8)", k),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.8 — HARD CUT: legacy struct-restricted form is REJECTED at check time.
             // Use :wat::core::defstruct with {:restricted-to [...]} for ctor restrictions and
             // {:field-metadata {field {:restricted-to [...]}}} for per-field restrictions.
             ":wat::core::struct-restricted" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!(
                         "'{}' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{{:restricted-to [<prefix-kw>...]}}` and per-field restrictions as `{{:field-metadata {{field {{:restricted-to [<prefix-kw>...]}}}}}}` on the defstruct binding",
                         k
                     ),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.9 — HARD CUT: legacy enum form is REJECTED at check time.
             // It is no longer a recognized type-declaration form; use :wat::core::defenum.
             ":wat::core::enum" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.9)", k),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.11 — HARD CUT: legacy define form is REJECTED at check time.
             // Stone 241.16 — eval-time residue completed: parse_define_form DELETED;
@@ -6546,51 +5241,47 @@ fn infer_list(
             // special_forms.rs registry entry DELETED. HARD CUT is now total.
             // It is no longer a recognized function-binding form; use :wat::core::defn.
             ":wat::core::define" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.11; eval-time residue completed Stone 241.16)", k),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.12 — HARD CUT: :wat::runtime::define-alias is retired.
             // The native :wat::core::defalias is the sole alias mechanism.
             // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
             ":wat::runtime::define-alias" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.12); use ':wat::core::defalias' instead", k),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.13 — HARD CUT: :wat::core::define-dispatch is retired.
             // :wat::core::defclause (Stone 237.2) is the surviving dispatch entity kind.
             // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
             ":wat::core::define-dispatch" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!("'{}' is retired (Stone 241.13); use ':wat::core::defclause' instead", k),
-                    span: head_span.clone(),
                     // Stone 241.10: retirement_lookup hits the table → structured remedy.
                     remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                }]);
+                } }]);
             }
             // Stone 241.14 — HARD CUT: :wat::core::defn-restricted is retired.
             // def and defn are the ONLY ways to declare bindings post-stone.
             // No privileged paths per `feedback_hard_cut_admits_no_bypasses`.
             ":wat::core::defn-restricted" => {
-                return CheckResult::errs(vec![CheckError::MalformedForm {
+                return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: k.to_string(),
                     reason: format!(
                         "'{}' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {{:restricted-to [<prefix-kw>...]}} [<args>] -> :<Ret> body)`",
                         k
                     ),
-                    remedies: crate::remedy::remedies_for(k, std::iter::empty()),
-                    span: head_span.clone(),
-                }]);
+                    remedies: crate::remedy::remedies_for(k, std::iter::empty())
+                } }]);
             }
             // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
             ":wat::core::defstruct"
@@ -6748,13 +5439,12 @@ fn infer_list(
                         .iter()
                         .map(|opt| opt.as_ref().map(format_type).unwrap_or_else(|| "?".into()))
                         .collect();
-                    local_errors.push(CheckError::NoMatchingClauseAtCallSite {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::NoMatchingClauseAtCallSite {
                         name: k.clone(),
                         called_arity,
                         called_arg_types,
-                        attempted_clauses: attempted,
-                        span: head_span.clone(),
-                    });
+                        attempted_clauses: attempted
+                    } });
                     CheckResult::errs(local_errors)
                 }
             };
@@ -6825,10 +5515,9 @@ fn infer_list(
                     // registered verb AND the receiver type is not a
                     // record/struct/HashMap. Emit check-time UnknownCallee so
                     // the error surfaces before runtime dispatch.
-                    local_errors.push(CheckError::UnknownCallee {
-                        callee: k.clone(),
-                        span: head_span.clone(),
-                    });
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::UnknownCallee {
+                        callee: k.clone()
+                    } });
                     // HARVEST (236.2): existing diagnostic; straight conversion.
                     return CheckResult::errs(local_errors);
                 }
@@ -6859,12 +5548,11 @@ fn infer_list(
         if let Some(elem_ty) = rest_elem_ty {
             // Variadic branch: `args.len() >= param_types.len()`.
             if args.len() < param_types.len() {
-                local_errors.push(CheckError::ArityMismatch {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                     callee: k.clone(),
                     expected: param_types.len(),
-                    got: args.len(),
-                    span: head_span.clone(),
-                });
+                    got: args.len()
+                } });
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -6881,13 +5569,12 @@ fn infer_list(
                 let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(arg_ty) = arg_ty {
                     if !assignable(&arg_ty, expected, subst, env.types()) {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{}", i + 1),
                             expected: format_type(&apply_subst(expected, subst)),
-                            got: format_type(&apply_subst(&arg_ty, subst)),
-                            span: arg.span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg_ty, subst))
+                        } });
                     }
                 }
             }
@@ -6903,13 +5590,12 @@ fn infer_list(
                 let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(arg_ty) = arg_ty {
                     if unify(&arg_ty, &elem_inst, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{} (rest)", j + 1),
                             expected: format_type(&apply_subst(&elem_inst, subst)),
-                            got: format_type(&apply_subst(&arg_ty, subst)),
-                            span: arg.span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg_ty, subst))
+                        } });
                     }
                 }
             }
@@ -6918,12 +5604,11 @@ fn infer_list(
         }
 
         if args.len() != param_types.len() {
-            local_errors.push(CheckError::ArityMismatch {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                 callee: k.clone(),
                 expected: param_types.len(),
-                got: args.len(),
-                span: head_span.clone(),
-            });
+                got: args.len()
+            } });
             for arg in args {
                 let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             }
@@ -6935,13 +5620,12 @@ fn infer_list(
             let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             if let Some(arg_ty) = arg_ty {
                 if !assignable(&arg_ty, expected, subst, env.types()) {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: k.clone(),
                         param: format!("#{}", i + 1),
                         expected: format_type(&apply_subst(expected, subst)),
-                        got: format_type(&apply_subst(&arg_ty, subst)),
-                        span: arg.span().clone(),
-                    });
+                        got: format_type(&apply_subst(&arg_ty, subst))
+                    } });
                 }
             }
         }
@@ -7054,12 +5738,11 @@ fn infer_list(
     };
     let call_args = &items[1..];
     if call_args.len() != param_types.len() {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head.span().clone(), kind: CheckErrorKind::ArityMismatch {
             callee: "(value head)".into(),
             expected: param_types.len(),
-            got: call_args.len(),
-            span: head.span().clone(),
-        });
+            got: call_args.len()
+        } });
         for arg in call_args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -7069,13 +5752,12 @@ fn infer_list(
     for (i, (arg, expected)) in call_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if !assignable(&arg_ty, expected, subst, env.types()) {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: "(value head)".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
-                    got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
             }
         }
     }
@@ -7113,12 +5795,11 @@ fn infer_match(
     if args.len() >= 2
         && !matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
     {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into(),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -7126,15 +5807,14 @@ fn infer_match(
         return CheckResult::errs(local_errors);
     }
     if args.len() < 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: format!(
                 "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -7146,23 +5826,21 @@ fn infer_match(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[2].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -7177,13 +5855,12 @@ fn infer_match(
     let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
         if unify(sty, &expected_scrutinee, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
                 expected: format_type(&expected_scrutinee),
-                got: format_type(&apply_subst(sty, subst)),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&apply_subst(sty, subst))
+            } });
         }
     }
 
@@ -7224,12 +5901,11 @@ fn infer_match(
         let arm_items = match arm {
             WatAST::List(items, _) if items.len() == 2 => items,
             _ => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: arm.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("arm #{} must be `(pattern body)`", idx + 1),
-                    span: arm.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 continue;
             }
         };
@@ -7271,13 +5947,12 @@ fn infer_match(
                 let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(t) = arm_ty {
                     if unify(&t, &declared_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::core::match".into(),
                             param: format!("arm #{} (hash-destructure)", idx + 1),
                             expected: format_type(&apply_subst(&declared_ty, subst)),
-                            got: format_type(&apply_subst(&t, subst)),
-                            span: body.span().clone(),
-                        });
+                            got: format_type(&apply_subst(&t, subst))
+                        } });
                     }
                 }
                 continue;
@@ -7350,13 +6025,12 @@ fn infer_match(
         let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(t) = arm_ty {
             if unify(&t, &declared_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::match".into(),
                     param: format!("arm #{}", idx + 1),
                     expected: format_type(&apply_subst(&declared_ty, subst)),
-                    got: format_type(&apply_subst(&t, subst)),
-                    span: body.span().clone(),
-                });
+                    got: format_type(&apply_subst(&t, subst))
+                } });
             }
         }
     }
@@ -7388,7 +6062,7 @@ fn infer_match(
         MatchShape::Open(_) => wildcard_seen,
     };
     if !exhaustive {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: match &shape {
                 MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)".into(),
@@ -7420,9 +6094,8 @@ fn infer_match(
                 // but provide a clear message if it does.
                 MatchShape::Open(_) => "non-exhaustive: open-typed match needs at least one hash-destructure arm or a wildcard `_` arm.".into(),
             },
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
     }
 
     let ty = apply_subst(&declared_ty, subst);
@@ -7649,15 +6322,14 @@ fn pattern_coverage(
         WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
             MatchShape::Result(_, _) | MatchShape::Enum(_, _) => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         ":None pattern on a {} scrutinee",
                         format_type(&shape.as_type())
                     ),
-                    span: pattern.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
             // Arc 234 Stone 234.4.match — Open shape accepts wildcard/bare-symbol
@@ -7674,28 +6346,26 @@ fn pattern_coverage(
                 let (prefix, variant_name) = match k.rsplit_once("::") {
                     Some(p) => p,
                     None => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "keyword pattern {} must be `<enum>::<Variant>`",
                                 k
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 if prefix != enum_path {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "variant pattern {} doesn't belong to scrutinee enum {}",
                             k, enum_path
                         ),
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 // Verify Variant is declared (and is a unit variant).
@@ -7707,27 +6377,25 @@ fn pattern_coverage(
                         matches!(v, crate::types::EnumVariant::Tagged { name, .. } if name == variant_name)
                     });
                     if !is_unit && is_tagged {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "{} is a tagged variant; pattern must be (`{}` binders...)",
                                 k, k
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                     if !is_unit {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "variant {} is not declared on enum {}",
                                 variant_name, enum_path
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                     // Unit variant — no fields, vacuously fully general.
@@ -7736,26 +6404,24 @@ fn pattern_coverage(
                         full: true,
                     })
                 } else {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!("enum {} not declared", enum_path),
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     None
                 }
             }
             _ => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "keyword pattern {} not valid on a {} scrutinee",
                         k,
                         format_type(&shape.as_type())
                     ),
-                    span: pattern.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
@@ -7769,12 +6435,11 @@ fn pattern_coverage(
             let (head, rest) = match items.split_first() {
                 Some(pair) => pair,
                 None => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: "empty list pattern".into(),
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
@@ -7794,55 +6459,51 @@ fn pattern_coverage(
                 let enum_path = match shape {
                     MatchShape::Enum(p, _) => p,
                     _ => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "keyword variant pattern {} on a {} scrutinee",
                                 variant_path,
                                 format_type(&shape.as_type())
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 let (prefix, variant_name) = match variant_path.rsplit_once("::") {
                     Some(p) => p,
                     None => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "variant constructor pattern {} must be `<enum>::<Variant>`",
                                 variant_path
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 if prefix != enum_path {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "variant constructor {} doesn't belong to scrutinee enum {}",
                             variant_path, enum_path
                         ),
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 let enum_def = match env.types().get(enum_path) {
                     Some(crate::types::TypeDef::Enum(e)) => e,
                     _ => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
@@ -7857,20 +6518,19 @@ fn pattern_coverage(
                 let fields = match fields {
                     Some(f) => f,
                     None => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "{} is not a tagged variant of {}",
                                 variant_path, enum_path
                             ),
-                            span: pattern.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 if rest.len() != fields.len() {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "({} ...) takes {} field(s), got {} binder(s)",
@@ -7878,9 +6538,8 @@ fn pattern_coverage(
                             fields.len(),
                             rest.len()
                         ),
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 // Arc 055 — recurse into each field's sub-pattern.
@@ -7908,15 +6567,14 @@ fn pattern_coverage(
                 WatAST::Keyword(k, _) if k == ":wat::core::Ok" => "Ok",
                 WatAST::Keyword(k, _) if k == ":wat::core::Err" => "Err",
                 other => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "list pattern head must be a variant constructor; got {}",
                             other.variant_name()
                         ),
-                        span: other.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
@@ -7986,41 +6644,38 @@ fn pattern_coverage(
                             format_type(&shape.as_type())
                         )
                     };
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason,
-                        span: pattern.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
             if rest.len() != 1 {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "({} _) takes exactly one field, got {}",
                         ctor_name,
                         rest.len()
                     ),
-                    span: pattern.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 return None;
             }
             check_subpattern(&rest[0], &expected_bind_ty, env, bindings, errors)
                 .map(mk_coverage)
         }
         other => {
-            errors.push(CheckError::MalformedForm {
+            errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "pattern must be keyword, symbol, or list; got {}",
                     other.variant_name()
                 ),
-                span: other.span().clone(),
                 remedies: vec![],
-            });
+            } });
             None
         }
     }
@@ -8067,60 +6722,56 @@ fn check_subpattern(
         WatAST::IntLit(_, _) => match expected_ty {
             TypeExpr::Path(p) if p == ":wat::core::i64" => Some(false),
             other => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "int literal pattern in {} position",
                         format_type(other)
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
         WatAST::FloatLit(_, _) => match expected_ty {
             TypeExpr::Path(p) if p == ":wat::core::f64" => Some(false),
             other => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "float literal pattern in {} position",
                         format_type(other)
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
         WatAST::BoolLit(_, _) => match expected_ty {
             TypeExpr::Path(p) if p == ":wat::core::bool" => Some(false),
             other => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "bool literal pattern in {} position",
                         format_type(other)
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
         WatAST::StringLit(_, _) => match expected_ty {
             TypeExpr::Path(p) if p == ":wat::core::String" => Some(false),
             other => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "string literal pattern in {} position",
                         format_type(other)
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
@@ -8131,15 +6782,14 @@ fn check_subpattern(
         WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match expected_ty {
             TypeExpr::Parametric { head, .. } if head == "wat::core::Option" => Some(false),
             other => {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         ":None pattern in {} position",
                         format_type(other)
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         },
@@ -8149,44 +6799,41 @@ fn check_subpattern(
             let (prefix, variant_name) = match k.rsplit_once("::") {
                 Some(p) => p,
                 None => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "keyword sub-pattern {} must be `<enum>::<Variant>` or `:None`",
                             k
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
             let enum_path = match expected_ty {
                 TypeExpr::Path(p) => p.as_str(),
                 other => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "keyword variant pattern {} in {} position",
                             k,
                             format_type(other)
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
             if prefix != enum_path {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "variant pattern {} doesn't belong to expected enum {}",
                         k, enum_path
                     ),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 return None;
             }
             if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
@@ -8194,25 +6841,23 @@ fn check_subpattern(
                     matches!(v, crate::types::EnumVariant::Unit(n) if n == variant_name)
                 });
                 if !is_unit {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "{} is not a unit variant of {} (use `({} ...)` for tagged variants)",
                             k, enum_path, k
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 Some(false)
             } else {
-                errors.push(CheckError::MalformedForm {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("enum {} not declared", enum_path),
-                    span: pat.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 None
             }
         }
@@ -8220,12 +6865,11 @@ fn check_subpattern(
             let head = match items.first() {
                 Some(h) => h,
                 None => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: "empty list sub-pattern".into(),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
             };
@@ -8246,15 +6890,14 @@ fn check_subpattern(
                         if h == "wat::core::Option" && args.len() == 1 =>
                     {
                         if items.len() != 2 {
-                            errors.push(CheckError::MalformedForm {
+                            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
                                     "(Some _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
-                                span: pat.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                             return None;
                         }
                         let _inner_full =
@@ -8265,15 +6908,14 @@ fn check_subpattern(
                         if h == "wat::core::Result" && args.len() == 2 =>
                     {
                         if items.len() != 2 {
-                            errors.push(CheckError::MalformedForm {
+                            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
                                     "(Ok _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
-                                span: pat.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                             return None;
                         }
                         let _inner_full =
@@ -8284,15 +6926,14 @@ fn check_subpattern(
                         if h == "wat::core::Result" && args.len() == 2 =>
                     {
                         if items.len() != 2 {
-                            errors.push(CheckError::MalformedForm {
+                            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
                                     "(Err _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
-                                span: pat.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                             return None;
                         }
                         let _inner_full =
@@ -8320,70 +6961,65 @@ fn check_subpattern(
                     // Built-in already dispatched above; if we reach
                     // here, the `expected_ty` didn't match the
                     // constructor's shape. Surface a precise mismatch.
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "{} pattern in {} position",
                             variant_path,
                             format_type(expected_ty)
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 let enum_path = match expected_ty {
                     TypeExpr::Path(p) => p.as_str(),
                     other => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "keyword variant pattern {} in {} position",
                                 variant_path,
                                 format_type(other)
                             ),
-                            span: pat.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 let (prefix, variant_name) = match variant_path.rsplit_once("::") {
                     Some(p) => p,
                     None => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "variant constructor pattern {} must be `<enum>::<Variant>`",
                                 variant_path
                             ),
-                            span: pat.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 if prefix != enum_path {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "variant constructor {} doesn't belong to expected enum {}",
                             variant_path, enum_path
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 let enum_def = match env.types().get(enum_path) {
                     Some(crate::types::TypeDef::Enum(e)) => e,
                     _ => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
-                            span: pat.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
@@ -8398,21 +7034,20 @@ fn check_subpattern(
                 let fields = match fields {
                     Some(f) => f,
                     None => {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "{} is not a tagged variant of {}",
                                 variant_path, enum_path
                             ),
-                            span: pat.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                 };
                 let rest = &items[1..];
                 if rest.len() != fields.len() {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "({} ...) takes {} field(s), got {}",
@@ -8420,9 +7055,8 @@ fn check_subpattern(
                             fields.len(),
                             rest.len()
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     return None;
                 }
                 for (sub_pat, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
@@ -8434,16 +7068,15 @@ fn check_subpattern(
             match expected_ty {
                 TypeExpr::Tuple(elem_tys) => {
                     if items.len() != elem_tys.len() {
-                        errors.push(CheckError::MalformedForm {
+                        errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
                                 "tuple pattern arity {} mismatched with type arity {}",
                                 items.len(),
                                 elem_tys.len()
                             ),
-                            span: pat.span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         return None;
                     }
                     let mut all_full = true;
@@ -8456,15 +7089,14 @@ fn check_subpattern(
                     Some(all_full)
                 }
                 other => {
-                    errors.push(CheckError::MalformedForm {
+                    errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "list sub-pattern in {} position (expected tuple, Option, Result, or enum)",
                             format_type(other)
                         ),
-                        span: pat.span().clone(),
                         remedies: vec![],
-                    });
+                    } });
                     None
                 }
             }
@@ -8474,24 +7106,22 @@ fn check_subpattern(
         // positions (fn / defn signatures); pattern position is
         // not one of them. Surface as MalformedForm.
         WatAST::Vector(_, _) => {
-            errors.push(CheckError::MalformedForm {
+            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "vector sub-patterns are not supported in arc 167".into(),
-                span: pat.span().clone(),
                 remedies: vec![],
-            });
+            } });
             None
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only at let binding-position. Match
         // sub-pattern position is not one of them.
         WatAST::StructPattern(_, _) => {
-            errors.push(CheckError::MalformedForm {
+            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-                span: pat.span().clone(),
                 remedies: vec![],
-            });
+            } });
             None
         }
     }
@@ -8519,12 +7149,11 @@ fn infer_if(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() == 3 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // Still recurse into the body so inner errors surface too.
         let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -8533,15 +7162,14 @@ fn infer_if(
         return CheckResult::errs(local_errors);
     }
     if args.len() != 5 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
                 "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -8552,12 +7180,11 @@ fn infer_if(
     match &args[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: "expected `->` between cond and type".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -8566,23 +7193,21 @@ fn infer_if(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::if".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[2].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -8591,13 +7216,12 @@ fn infer_if(
     let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(c) = cond_ty {
         if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "cond".into(),
                 expected: ":wat::core::bool".into(),
-                got: format_type(&apply_subst(&c, subst)),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&apply_subst(&c, subst))
+            } });
         }
     }
     // Each branch body checked against the declared `:T` independently.
@@ -8605,25 +7229,23 @@ fn infer_if(
     let then_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = then_ty {
         if unify(&t, &declared_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "then-branch".into(),
                 expected: format_type(&apply_subst(&declared_ty, subst)),
-                got: format_type(&apply_subst(&t, subst)),
-                span: args[3].span().clone(),
-            });
+                got: format_type(&apply_subst(&t, subst))
+            } });
         }
     }
     let else_ty = infer(&args[4], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(e) = else_ty {
         if unify(&e, &declared_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "else-branch".into(),
                 expected: format_type(&apply_subst(&declared_ty, subst)),
-                got: format_type(&apply_subst(&e, subst)),
-                span: args[4].span().clone(),
-            });
+                got: format_type(&apply_subst(&e, subst))
+            } });
         }
     }
     let ty = apply_subst(&declared_ty, subst);
@@ -8658,12 +7280,11 @@ fn infer_do(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::do".into(),
             reason: "do form requires at least one form; got zero".into(),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -8703,15 +7324,14 @@ fn infer_cond(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() < 3 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::cond".into(),
             reason: format!(
                 "expected (:wat::core::cond -> :T (:else body)) — at least 3 args; got {}",
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -8721,12 +7341,11 @@ fn infer_cond(
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "expected `->` at position 1".into(),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -8735,23 +7354,21 @@ fn infer_cond(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[1].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "expected type keyword at position 2 (after `->`)".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -8764,66 +7381,61 @@ fn infer_cond(
     let last_items = match last {
         WatAST::List(xs, _) if xs.len() == 2 => xs,
         WatAST::List(xs, _) => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: last.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: format!(
                     "last arm must be (:else body); got {}-element list",
                     xs.len()
                 ),
-                span: last.span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: last.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "last arm must be a list (:else body)".into(),
-                span: last.span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
     };
     let last_is_else = matches!(&last_items[0], WatAST::Keyword(k, _) if k == ":else");
     if !last_is_else {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: last.span().clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::cond".into(),
             reason: "last arm must be (:else body) — cond requires an explicit default".into(),
-            span: last.span().clone(),
             remedies: vec![],
-        });
+        } });
     }
 
     for (i, arm) in arms.iter().enumerate() {
         let items = match arm {
             WatAST::List(xs, _) if xs.len() == 2 => xs,
             WatAST::List(xs, _) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: arm.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
                         "arm #{} must be (test body); got {}-element list",
                         i + 1,
                         xs.len()
                     ),
-                    span: arm.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 continue;
             }
             other => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
                         "arm #{} must be a list (test body); got {:?}",
                         i + 1,
                         other
                     ),
-                    span: other.span().clone(),
                     remedies: vec![],
-                });
+                } });
                 continue;
             }
         };
@@ -8836,13 +7448,12 @@ fn infer_cond(
             let test_ty = infer(&items[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             if let Some(t) = test_ty {
                 if unify(&t, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: items[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::core::cond".into(),
                         param: format!("arm #{} test", i + 1),
                         expected: ":wat::core::bool".into(),
-                        got: format_type(&apply_subst(&t, subst)),
-                        span: items[0].span().clone(),
-                    });
+                        got: format_type(&apply_subst(&t, subst))
+                    } });
                 }
             }
         }
@@ -8855,13 +7466,12 @@ fn infer_cond(
                 } else {
                     format!("arm #{} body", i + 1)
                 };
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: items[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::cond".into(),
                     param,
                     expected: format_type(&apply_subst(&declared_ty, subst)),
-                    got: format_type(&apply_subst(&b, subst)),
-                    span: items[1].span().clone(),
-                });
+                    got: format_type(&apply_subst(&b, subst))
+                } });
             }
         }
     }
@@ -8907,15 +7517,14 @@ fn infer_let(
     let bindings_pairs: Vec<WatAST> = match &args[0] {
         WatAST::Vector(items, span) => {
             if items.len() % 2 != 0 {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
                     reason: format!(
                         "let bindings vector must have an even number of elements (alternating name expr name expr ...); got {}",
                         items.len()
                     ),
-                    span: span.clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
@@ -8930,12 +7539,11 @@ fn infer_let(
                 .collect()
         }
         other => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: "let bindings must be a flat vector `[name expr ...]`".into(),
-                span: other.span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -9007,12 +7615,11 @@ fn infer_let(
         if let Some((proc_id, accessor, join_span, output_span)) =
             find_process_join_before_drain(&let_scope)
         {
-            local_errors.push(CheckError::ProcessJoinBeforeOutputDrain {
+            local_errors.push(CheckError { span: join_span, kind: CheckErrorKind::ProcessJoinBeforeOutputDrain {
                 process_identifier: proc_id,
                 output_accessor: accessor,
-                join_span,
-                output_span,
-            });
+                output_accessor_span: output_span,
+            } });
         }
 
         // Arc 202 — Process input-channel held-at-join rule.
@@ -9025,11 +7632,10 @@ fn infer_let(
         if let Some((proc_id, join_span, bind_span)) =
             find_process_join_holds_stdin_sender(&let_scope)
         {
-            local_errors.push(CheckError::ProcessJoinHoldsStdinSender {
+            local_errors.push(CheckError { span: join_span, kind: CheckErrorKind::ProcessJoinHoldsStdinSender {
                 process_identifier: proc_id,
-                join_span,
-                bind_span,
-            });
+                stdin_sender_span: bind_span,
+            } });
         }
     }
 
@@ -9071,15 +7677,14 @@ fn infer_def(
     // Stone 241.6 — accept 2 args (no metadata: :name expr) OR 3 args
     // (with metadata: :name {meta} expr).
     if args.len() != 2 && args.len() != 3 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::def".into(),
             reason: format!(
                 "expected (:wat::core::def :name expr) or (:wat::core::def :name {{meta}} expr); got {} args",
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -9091,15 +7696,14 @@ fn infer_def(
     let name = match &args[0] {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::def".into(),
                 reason: format!(
                     "first arg must be a keyword name (e.g. `:my::name`); got {:?}",
                     other
                 ),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             // Still infer the expr so internal errors surface.
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; def is a declaration — return unit with errors.
@@ -9120,12 +7724,11 @@ fn infer_def(
             _ => false,
         };
         if !is_hashmap {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::def".into(),
                 reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
         // Empty {} check: list with only [head, K-type, V-type] = 3 items, 0 pairs.
@@ -9134,12 +7737,11 @@ fn infer_def(
             _ => false,
         };
         if is_empty {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::def".into(),
                 reason: "empty metadata-map `{}` is illegal; provide at least one key-value pair".into(),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
         2usize // expr is at args[2]
@@ -9163,11 +7765,10 @@ fn infer_def(
     if let Some(prior_span) = env.get_defined_value_span(&name) {
         if !env.redef_allowed {
             // Strict default — every redef is an error.
-            local_errors.push(CheckError::DefRedefForbidden {
-                name,
-                prior_loc: prior_span.clone(),
-                current_loc: head_span.clone(),
-            });
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRedefForbidden {
+                name: name.clone(),
+                original_def_span: prior_span.clone(),
+            } });
         } else {
             // Opt-in redef: check type-stability.
             let prior_type = env.get_defined_value_type(&name).cloned();
@@ -9179,13 +7780,12 @@ fn infer_def(
                     let pt_str = format_type(&pt);
                     let nt_str = format_type(&nt);
                     if pt_str != nt_str {
-                        local_errors.push(CheckError::DefRedefTypeChange {
-                            name,
+                        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRedefTypeChange {
+                            name: name.clone(),
                             prior_type: pt_str,
                             new_type: nt_str,
-                            prior_loc: prior_span.clone(),
-                            current_loc: head_span.clone(),
-                        });
+                            original_def_span: prior_span.clone(),
+                        } });
                     }
                     // else: types match → permit redef (no error).
                 }
@@ -9242,12 +7842,11 @@ fn infer_defclause(
     let cs = match crate::runtime::parse_defclause_form(&form) {
         Ok((_name, cs)) => cs,
         Err(e) => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::defclause".into(),
                 reason: format!("{}", e),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
     };
@@ -9277,12 +7876,11 @@ fn infer_defclause(
                 let bool_ty = TypeExpr::Path(":wat::core::bool".into());
                 let resolved_guard = apply_subst(&guard_ty, &clause_subst);
                 if unify(&resolved_guard, &bool_ty, &mut clause_subst, env.types()).is_err() {
-                    local_errors.push(CheckError::GuardExprNotBoolean {
+                    local_errors.push(CheckError { span: guard_ast.span().clone(), kind: CheckErrorKind::GuardExprNotBoolean {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
-                        got_type: format_type(&resolved_guard),
-                        span: guard_ast.span().clone(),
-                    });
+                        got_type: format_type(&resolved_guard)
+                    } });
                 }
             }
         }
@@ -9296,12 +7894,11 @@ fn infer_defclause(
                     match items.first() {
                         Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => &items[1..],
                         _ => {
-                            local_errors.push(CheckError::EnsureFnInvalid {
+                            local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
-                                reason: "must be :wat::core::fn form".into(),
-                                span: ensure_span,
-                            });
+                                reason: "must be :wat::core::fn form".into()
+                            } });
                             // Skip further ensure validation for this clause.
                             // Still do body type-check below.
                             fresh.push_enclosing_ret(clause.return_type.clone());
@@ -9318,13 +7915,12 @@ fn infer_defclause(
                                 let resolved_body = apply_subst(&body_ty, &clause_subst);
                                 let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
                                 if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
-                                    local_errors.push(CheckError::ReturnTypeMismatch {
+                                    local_errors.push(CheckError { span: clause.body.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
                                         function: format!("{}/clause#{}", cs.name, clause_idx + 1),
                                         expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                                         got: format_type(&apply_subst(&body_ty, &clause_subst)),
-                                        span: clause.body.span().clone(),
                                         remedies: vec![],
-                                    });
+                                    } });
                                 }
                             }
                             continue;
@@ -9332,12 +7928,11 @@ fn infer_defclause(
                     }
                 }
                 _ => {
-                    local_errors.push(CheckError::EnsureFnInvalid {
+                    local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
-                        reason: "must be :wat::core::fn form".into(),
-                        span: ensure_span,
-                    });
+                        reason: "must be :wat::core::fn form".into()
+                    } });
                     // Still do body type-check.
                     fresh.push_enclosing_ret(clause.return_type.clone());
                     let body_ty = infer(
@@ -9353,13 +7948,12 @@ fn infer_defclause(
                         let resolved_body = apply_subst(&body_ty, &clause_subst);
                         let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
                         if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
-                            local_errors.push(CheckError::ReturnTypeMismatch {
+                            local_errors.push(CheckError { span: clause.body.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
                                 function: format!("{}/clause#{}", cs.name, clause_idx + 1),
                                 expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                                 got: format_type(&apply_subst(&body_ty, &clause_subst)),
-                                span: clause.body.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                         }
                     }
                     continue;
@@ -9376,15 +7970,14 @@ fn infer_defclause(
                     Ok((param_names, param_types, ret_type)) => {
                         // Rule 1: arity must be 1.
                         if param_names.len() != 1 {
-                            local_errors.push(CheckError::EnsureFnInvalid {
+                            local_errors.push(CheckError { span: ensure_span.clone(), kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
                                 reason: format!(
                                     "arity must be 1 (one parameter for the result); got {}",
                                     param_names.len()
-                                ),
-                                span: ensure_span.clone(),
-                            });
+                                )
+                            } });
                         } else {
                             // Rule 2: arg type must match clause return type.
                             let arg_ty = &param_types[0];
@@ -9392,16 +7985,15 @@ fn infer_defclause(
                             let clause_ret = apply_subst(&clause.return_type, &clause_subst);
                             let resolved_arg = apply_subst(arg_ty, &ensure_subst);
                             if unify(&resolved_arg, &clause_ret, &mut ensure_subst, env.types()).is_err() {
-                                local_errors.push(CheckError::EnsureFnInvalid {
+                                local_errors.push(CheckError { span: ensure_span.clone(), kind: CheckErrorKind::EnsureFnInvalid {
                                     defclause_name: cs.name.clone(),
                                     clause_index: clause_idx,
                                     reason: format!(
                                         "arg type must match clause return type: :ensure :fn takes `{}` but clause returns `{}`",
                                         format_type(arg_ty),
                                         format_type(&clause_ret),
-                                    ),
-                                    span: ensure_span.clone(),
-                                });
+                                    )
+                                } });
                             }
                         }
 
@@ -9409,36 +8001,33 @@ fn infer_defclause(
                         let bool_ty = TypeExpr::Path(":wat::core::bool".into());
                         let mut ret_subst = Subst::new();
                         if unify(&ret_type, &bool_ty, &mut ret_subst, env.types()).is_err() {
-                            local_errors.push(CheckError::EnsureFnInvalid {
+                            local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
                                 reason: format!(
                                     "return type must be :bool; got `{}`",
                                     format_type(&ret_type),
-                                ),
-                                span: ensure_span,
-                            });
+                                )
+                            } });
                         }
                     }
                     Err(()) => {
                         // parse_fn_signature_for_check returns Err when shape doesn't match.
-                        local_errors.push(CheckError::EnsureFnInvalid {
+                        local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                             defclause_name: cs.name.clone(),
                             clause_index: clause_idx,
-                            reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into(),
-                            span: ensure_span,
-                        });
+                            reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into()
+                        } });
                     }
                 },
                 None => {
                     // fn_items has fewer than 3 elements — a malformed :fn shape;
                     // same diagnostic as the Err(()) arm above.
-                    local_errors.push(CheckError::EnsureFnInvalid {
+                    local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
-                        reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into(),
-                        span: ensure_span,
-                    });
+                        reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into()
+                    } });
                 }
             }
         }
@@ -9459,13 +8048,12 @@ fn infer_defclause(
             let resolved_body = apply_subst(&body_ty, &clause_subst);
             let resolved_ret = apply_subst(&clause.return_type, &clause_subst);
             if unify(&resolved_body, &resolved_ret, &mut clause_subst, env.types()).is_err() {
-                local_errors.push(CheckError::ReturnTypeMismatch {
+                local_errors.push(CheckError { span: clause.body.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
                     function: format!("{}/clause#{}", cs.name, clause_idx + 1),
                     expected: format_type(&apply_subst(&clause.return_type, &clause_subst)),
                     got: format_type(&apply_subst(&body_ty, &clause_subst)),
-                    span: clause.body.span().clone(),
                     remedies: vec![],
-                });
+                } });
             }
         }
     }
@@ -9507,15 +8095,14 @@ fn infer_config_set_bool(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: head.into(),
             reason: format!(
                 "expected (:{} true) or (:{} false); got {} args",
                 head, head, args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // HARVEST (236.2): existing diagnostic; declaration — return unit with errors.
         return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
     }
@@ -9527,13 +8114,12 @@ fn infer_config_set_bool(
             // Well-typed bool arg — accepted.
         }
         Some(ref ty) => {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: head.into(),
                 param: "flag".into(),
                 expected: ":wat::core::bool".into(),
-                got: format_type(ty),
-                span: head_span.clone(),
-            });
+                got: format_type(ty)
+            } });
         }
         None => {
             // Inference failed — error already pushed by infer.
@@ -9926,12 +8512,11 @@ fn infer_try(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: callee.into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         // Still infer the arg(s) so any internal errors surface.
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -9945,15 +8530,14 @@ fn infer_try(
     let enclosing = match fresh.enclosing_ret().cloned() {
         Some(r) => r,
         None => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "used outside any function body; `{}` requires an enclosing Result-returning scope to propagate into",
                     callee
                 ),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -9970,16 +8554,15 @@ fn infer_try(
             type_args[1].clone()
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "enclosing function returns {}; `{}` requires the enclosing function to return :Result<T,E>",
                     format_type(&enclosing),
                     callee
                 ),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10001,13 +8584,12 @@ fn infer_try(
         args: vec![fresh_t.clone(), enclosing_err_ty],
     };
     if !assignable(&arg_ty, &expected, subst, env.types()) {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
             expected: format_type(&apply_subst(&expected, subst)),
-            got: format_type(&apply_subst(&arg_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&arg_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -10047,12 +8629,11 @@ fn infer_option_try(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: callee.into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10063,15 +8644,14 @@ fn infer_option_try(
     let enclosing = match fresh.enclosing_ret().cloned() {
         Some(r) => r,
         None => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "used outside any function body; `{}` requires an enclosing Option-returning scope to propagate into",
                     callee
                 ),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10082,16 +8662,15 @@ fn infer_option_try(
         TypeExpr::Parametric { head, args: type_args }
             if head == "wat::core::Option" && type_args.len() == 1 => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "enclosing function returns {}; `{}` requires the enclosing function to return :Option<T>",
                     format_type(&enclosing),
                     callee
                 ),
-                span: head_span.clone(),
                 remedies: vec![],
-            });
+            } });
             let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
@@ -10112,13 +8691,12 @@ fn infer_option_try(
         args: vec![fresh_t.clone()],
     };
     if !assignable(&arg_ty, &expected, subst, env.types()) {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
             expected: format_type(&apply_subst(&expected, subst)),
-            got: format_type(&apply_subst(&arg_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&arg_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -10162,16 +8740,15 @@ fn infer_option_expect(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: callee.into(),
             reason: format!(
                 "expected ({} -> :T <opt> <msg>) — 4 args; got {}",
                 callee,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10182,15 +8759,14 @@ fn infer_option_expect(
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "expected `->` as the first argument; ({} -> :T <opt> <msg>)",
                     callee
                 ),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10200,23 +8776,21 @@ fn infer_option_expect(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[1].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10233,13 +8807,12 @@ fn infer_option_expect(
         args: vec![declared_ty.clone()],
     };
     if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "opt".into(),
             expected: format_type(&apply_subst(&expected_opt, subst)),
-            got: format_type(&apply_subst(&opt_ty, subst)),
-            span: args[2].span().clone(),
-        });
+            got: format_type(&apply_subst(&opt_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -10247,13 +8820,12 @@ fn infer_option_expect(
     let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
                 expected: ":wat::core::String".into(),
-                got: format_type(&apply_subst(&m, subst)),
-                span: args[3].span().clone(),
-            });
+                got: format_type(&apply_subst(&m, subst))
+            } });
         }
     }
     let ty = apply_subst(&declared_ty, subst);
@@ -10277,16 +8849,15 @@ fn infer_result_expect(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: callee.into(),
             reason: format!(
                 "expected ({} -> :T <res> <msg>) — 4 args; got {}",
                 callee,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10296,15 +8867,14 @@ fn infer_result_expect(
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "expected `->` as the first argument; ({} -> :T <res> <msg>)",
                     callee
                 ),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10313,23 +8883,21 @@ fn infer_result_expect(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[1].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10345,26 +8913,24 @@ fn infer_result_expect(
         args: vec![declared_ty.clone(), fresh_e],
     };
     if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "res".into(),
             expected: format_type(&apply_subst(&expected_res, subst)),
-            got: format_type(&apply_subst(&res_ty, subst)),
-            span: args[2].span().clone(),
-        });
+            got: format_type(&apply_subst(&res_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
     let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
                 expected: ":wat::core::String".into(),
-                got: format_type(&apply_subst(&m, subst)),
-                span: args[3].span().clone(),
-            });
+                got: format_type(&apply_subst(&m, subst))
+            } });
         }
     }
     let ty = apply_subst(&declared_ty, subst);
@@ -10402,31 +8968,29 @@ fn infer_kernel_readln(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 2 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: callee.into(),
             reason: format!(
                 "expected ({} -> :T) — 2 args (arrow + type keyword); got {}",
                 callee,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
                     "expected `->` as the first argument; ({} -> :T)",
                     callee
                 ),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10435,23 +8999,21 @@ fn infer_kernel_readln(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[1].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10489,16 +9051,15 @@ fn infer_apply(
     let mut local_errors: Vec<CheckError> = Vec::new();
     // Arity check: need at minimum (->, :T, head, spread-vec).
     if args.len() < 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::apply".into(),
             reason: format!(
                 "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
                  got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -10507,12 +9068,11 @@ fn infer_apply(
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::apply".into(),
                 reason: "position 1 must be the `->` symbol (inline return-type annotation)".into(),
-                span: other.span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10523,27 +9083,25 @@ fn infer_apply(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::apply".into(),
                     reason: format!(
                         "declared type {:?} failed to parse: {}",
                         k.as_str(),
                         e
                     ),
-                    span: args[1].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         other => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::apply".into(),
                 reason: "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`)".into(),
-                span: other.span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10590,16 +9148,15 @@ fn infer_program_env_get(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/get";
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env key -> :T) — 4 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10614,13 +9171,12 @@ fn infer_program_env_get(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = key — must unify with :wat::core::keyword
     let key_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -10630,27 +9186,25 @@ fn infer_program_env_get(
     };
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "key".into(),
             expected: ":wat::core::keyword".into(),
-            got: format_type(&apply_subst(&key_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&key_ty, subst))
+        } });
     }
     // args[2] = `->` symbol
     match &args[2] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 2; ({} env key -> :T)",
                     CALLEE
                 ),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10660,23 +9214,21 @@ fn infer_program_env_get(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[3].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10710,16 +9262,15 @@ fn infer_program_env_expect_get(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/expect-get";
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env key -> :T) — 4 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10734,13 +9285,12 @@ fn infer_program_env_expect_get(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = key
     let key_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -10750,27 +9300,25 @@ fn infer_program_env_expect_get(
     };
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "key".into(),
             expected: ":wat::core::keyword".into(),
-            got: format_type(&apply_subst(&key_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&key_ty, subst))
+        } });
     }
     // args[2] = `->`
     match &args[2] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 2; ({} env key -> :T)",
                     CALLEE
                 ),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10780,23 +9328,21 @@ fn infer_program_env_expect_get(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[3].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10827,16 +9373,15 @@ fn infer_program_env_get_default(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/get-default";
     if args.len() != 5 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env key default -> :T) — 5 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10851,13 +9396,12 @@ fn infer_program_env_get_default(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = key
     let key_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -10867,27 +9411,25 @@ fn infer_program_env_get_default(
     };
     let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
     if unify(&key_ty, &keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "key".into(),
             expected: ":wat::core::keyword".into(),
-            got: format_type(&apply_subst(&key_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&key_ty, subst))
+        } });
     }
     // args[3] = `->`
     match &args[3] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 3; ({} env key default -> :T)",
                     CALLEE
                 ),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10897,23 +9439,21 @@ fn infer_program_env_get_default(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[4].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[4].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -10925,13 +9465,12 @@ fn infer_program_env_get_default(
         None => return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::errs(local_errors) },
     };
     if unify(&default_ty, &declared_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "default".into(),
             expected: format_type(&declared_ty),
-            got: format_type(&apply_subst(&default_ty, subst)),
-            span: args[2].span().clone(),
-        });
+            got: format_type(&apply_subst(&default_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -10971,16 +9510,15 @@ fn infer_program_env_dig(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/dig";
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env path -> :T) — 4 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -10995,13 +9533,12 @@ fn infer_program_env_dig(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = path — must unify with Vector<keyword>.
     // Design call (Stone 4.3): path is Vector<keyword> at the WAT surface —
@@ -11019,27 +9556,25 @@ fn infer_program_env_dig(
         args: vec![keyword_ty],
     };
     if unify(&path_ty, &vector_keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "path".into(),
             expected: ":wat::core::Vector<wat::core::keyword>".into(),
-            got: format_type(&apply_subst(&path_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&path_ty, subst))
+        } });
     }
     // args[2] = `->` symbol
     match &args[2] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 2; ({} env path -> :T)",
                     CALLEE
                 ),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11049,23 +9584,21 @@ fn infer_program_env_dig(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[3].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11099,16 +9632,15 @@ fn infer_program_env_expect_dig(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/expect-dig";
     if args.len() != 4 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env path -> :T) — 4 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -11123,13 +9655,12 @@ fn infer_program_env_expect_dig(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = path — must unify with Vector<keyword> (design call; see /dig)
     let path_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -11143,27 +9674,25 @@ fn infer_program_env_expect_dig(
         args: vec![keyword_ty],
     };
     if unify(&path_ty, &vector_keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "path".into(),
             expected: ":wat::core::Vector<wat::core::keyword>".into(),
-            got: format_type(&apply_subst(&path_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&path_ty, subst))
+        } });
     }
     // args[2] = `->`
     match &args[2] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 2; ({} env path -> :T)",
                     CALLEE
                 ),
-                span: args[2].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11173,23 +9702,21 @@ fn infer_program_env_expect_dig(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[3].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11220,16 +9747,15 @@ fn infer_program_env_dig_default(
     let mut local_errors: Vec<CheckError> = Vec::new();
     const CALLEE: &str = ":wat::program::Env/dig-default";
     if args.len() != 5 {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: CALLEE.into(),
             reason: format!(
                 "expected ({} env path default -> :T) — 5 args; got {}",
                 CALLEE,
                 args.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -11244,13 +9770,12 @@ fn infer_program_env_dig_default(
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
     if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "env".into(),
             expected: ":wat::program::Env".into(),
-            got: format_type(&apply_subst(&env_ty, subst)),
-            span: args[0].span().clone(),
-        });
+            got: format_type(&apply_subst(&env_ty, subst))
+        } });
     }
     // args[1] = path — must unify with Vector<keyword> (design call; see /dig)
     let path_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -11264,27 +9789,25 @@ fn infer_program_env_dig_default(
         args: vec![keyword_ty],
     };
     if unify(&path_ty, &vector_keyword_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "path".into(),
             expected: ":wat::core::Vector<wat::core::keyword>".into(),
-            got: format_type(&apply_subst(&path_ty, subst)),
-            span: args[1].span().clone(),
-        });
+            got: format_type(&apply_subst(&path_ty, subst))
+        } });
     }
     // args[3] = `->`
     match &args[3] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: format!(
                     "expected `->` at position 3; ({} env path default -> :T)",
                     CALLEE
                 ),
-                span: args[3].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11294,23 +9817,21 @@ fn infer_program_env_dig_default(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: CALLEE.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[4].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "expected type keyword after `->`".into(),
-                span: args[4].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
@@ -11322,13 +9843,12 @@ fn infer_program_env_dig_default(
         None => return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::errs(local_errors) },
     };
     if unify(&default_ty, &declared_ty, subst, env.types()).is_err() {
-        local_errors.push(CheckError::TypeMismatch {
+        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: CALLEE.into(),
             param: "default".into(),
             expected: format_type(&declared_ty),
-            got: format_type(&apply_subst(&default_ty, subst)),
-            span: args[2].span().clone(),
-        });
+            got: format_type(&apply_subst(&default_ty, subst))
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
@@ -11544,12 +10064,11 @@ fn check_let_for_scope_deadlock_inferred(
             if sender_originates_from_thread_pipe(sender_name, bindings) {
                 continue;
             }
-            errors.push(CheckError::ScopeDeadlock {
+            errors.push(CheckError { span: thr_span.clone(), kind: CheckErrorKind::ScopeDeadlock {
                 thread_binding: thr_name.clone(),
                 offending_binding: sender_name.clone(),
-                offending_kind: kind,
-                span: thr_span.clone(),
-            });
+                offending_kind: kind
+            } });
         }
     }
 }
@@ -11741,13 +10260,12 @@ fn infer_spawn(
     // site. Continue type-checking the args (so additional unrelated
     // mismatches still surface) but the spawn-call itself is now an
     // error regardless of its arity / arg shapes.
-    local_errors.push(CheckError::TypeMismatch {
+    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
         callee: ":wat::kernel::spawn".into(),
         param: "(retired verb)".into(),
         expected: ":wat::kernel::spawn-thread".into(),
-        got: ":wat::kernel::spawn".into(),
-        span: head_span.clone(),
-    });
+        got: ":wat::kernel::spawn".into()
+    } });
     if args.is_empty() {
         let ty = TypeExpr::Parametric {
             head: "wat::kernel::ProgramHandle".into(),
@@ -11798,13 +10316,12 @@ fn infer_spawn(
             match fn_ty {
                 TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <fn>".to_string()),
                 _ => {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::kernel::spawn".into(),
                         param: "#1".into(),
                         expected: "function keyword path or fn(...) value".into(),
-                        got: format_type(&surface_ty),
-                        span: args[0].span().clone(),
-                    });
+                        got: format_type(&surface_ty)
+                    } });
                     for arg in &args[1..] {
                         let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                     }
@@ -11820,23 +10337,21 @@ fn infer_spawn(
     };
     let spawn_args = &args[1..];
     if spawn_args.len() != param_types.len() {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: callee_label.clone(),
             expected: param_types.len(),
-            got: spawn_args.len(),
-            span: head_span.clone(),
-        });
+            got: spawn_args.len()
+        } });
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if !assignable(&arg_ty, expected, subst, env.types()) {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: callee_label.clone(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
-                    got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
             }
         }
     }
@@ -11866,12 +10381,11 @@ fn infer_positional_accessor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         // HARVEST (236.2): existing diagnostic; return fresh placeholder with error.
         return CheckResult::partial_with(fresh.fresh(), local_errors);
     }
@@ -11887,13 +10401,12 @@ fn infer_positional_accessor(
                     let result_ty = apply_subst(elem, subst);
                     return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
                 } else {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: op.into(),
                         param: "#1".into(),
                         expected: format!("tuple with ≥ {} element(s)", index + 1),
-                        got: format_type(&apply_subst(&ty, subst)),
-                        span: args[0].span().clone(),
-                    });
+                        got: format_type(&apply_subst(&ty, subst))
+                    } });
                     // HARVEST (236.2): existing diagnostic; return fresh placeholder with error.
                     return CheckResult::partial_with(fresh.fresh(), local_errors);
                 }
@@ -11927,13 +10440,12 @@ fn infer_positional_accessor(
                 }
             }
             _ => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
                     expected: "tuple, Vec<T>, or List<T>".into(),
-                    got: format_type(&apply_subst(&ty, subst)),
-                    span: args[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
             }
         }
     }
@@ -11963,12 +10475,11 @@ fn infer_contains(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let bool_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         return CheckResult::partial_with(bool_ty, local_errors);
     }
     // Infer arg0 (the collection).
@@ -11992,13 +10503,12 @@ fn infer_contains(
                 targs.first().map(|k| apply_subst(k, subst))
             }
             _ => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T>, HashSet<T>, or HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst)),
-                    span: args[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&coll_ty, subst))
+                } });
                 None
             }
         };
@@ -12006,13 +10516,12 @@ fn infer_contains(
         // If we extracted an element type and inferred arg1, unify them.
         if let (Some(elem_ty), Some(arg1)) = (elem_ty_opt, arg1_ty) {
             if unify(&arg1, &elem_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
                     expected: format_type(&elem_ty),
-                    got: format_type(&apply_subst(&arg1, subst)),
-                    span: args[1].span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg1, subst))
+                } });
             }
         }
     }
@@ -12047,12 +10556,11 @@ fn infer_conj(
     // Fallback type if we can't determine the collection type (arity error, etc.).
     let fallback_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         return CheckResult::partial_with(fallback_ty, local_errors);
     }
     // Infer arg0 (the collection).
@@ -12073,13 +10581,12 @@ fn infer_conj(
                 targs.first().map(|t| apply_subst(t, subst))
             }
             _ => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T> or HashSet<T>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst)),
-                    span: args[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&coll_ty, subst))
+                } });
                 None
             }
         };
@@ -12087,13 +10594,12 @@ fn infer_conj(
         // If we extracted an element type and inferred arg1, unify them.
         if let (Some(elem_ty), Some(arg1)) = (elem_ty_opt, arg1_ty) {
             if unify(&arg1, &elem_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
                     expected: format_type(&elem_ty),
-                    got: format_type(&apply_subst(&arg1, subst)),
-                    span: args[1].span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg1, subst))
+                } });
             }
         }
 
@@ -12140,12 +10646,11 @@ fn infer_get(
         args: vec![fresh.fresh()],
     };
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         return CheckResult::partial_with(fallback_ty, local_errors);
     }
     // Infer arg0 (the collection).
@@ -12172,13 +10677,12 @@ fn infer_get(
                 Some((key_ty, val_ty))
             }
             _ => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T> or HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst)),
-                    span: args[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&coll_ty, subst))
+                } });
                 None
             }
         };
@@ -12187,13 +10691,12 @@ fn infer_get(
             // Unify arg1 against the expected type (i64 for Vector, K for HashMap).
             if let Some(arg1) = arg1_ty {
                 if unify(&arg1, &expected_arg1_ty, subst, env.types()).is_err() {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "#2".into(),
                         expected: format_type(&expected_arg1_ty),
-                        got: format_type(&apply_subst(&arg1, subst)),
-                        span: args[1].span().clone(),
-                    });
+                        got: format_type(&apply_subst(&arg1, subst))
+                    } });
                 }
             }
             // Return Option<element> — the load-bearing precision this custom arm exists for.
@@ -12229,12 +10732,11 @@ fn infer_drop(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::kernel::drop".into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         // HARVEST (236.2): existing diagnostic; drop returns unit.
         return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
     }
@@ -12250,13 +10752,12 @@ fn infer_drop(
                     || head == "rust::crossbeam_channel::Receiver"
         );
         if !is_channel_handle {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::kernel::drop".into(),
                 param: "#1".into(),
                 expected: "rust::crossbeam_channel::Sender<T> | rust::crossbeam_channel::Receiver<T>".into(),
-                got: format_type(&apply_subst(&ty, subst)),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&apply_subst(&ty, subst))
+            } });
         }
     }
     // HARVEST (236.2): silent-by-intent — drop is a declaration; returns unit.
@@ -12286,12 +10787,11 @@ fn infer_make_queue(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let expected_arity = if with_capacity { 2 } else { 1 };
     if args.len() != expected_arity {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: form.into(),
             expected: expected_arity,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         // Still recurse into any extra args for nested checks.
         for arg in args.iter().skip(1) {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -12317,17 +10817,16 @@ fn infer_make_queue(
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(_) => {
-                local_errors.push(CheckError::MalformedForm {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: form.into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
-                    span: args[0].span().clone(),
                     remedies: vec![],
-                });
+                } });
                 fresh.fresh()
             }
         },
         other => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: form.into(),
                 reason: format!(
                     "first argument must be a type keyword; got {}",
@@ -12343,9 +10842,8 @@ fn infer_make_queue(
                         WatAST::Keyword(_, _) => unreachable!(),
                     }
                 ),
-                span: other.span().clone(),
                 remedies: vec![],
-            });
+            } });
             fresh.fresh()
         }
     };
@@ -12355,13 +10853,12 @@ fn infer_make_queue(
         if let Some(cap_ty) = cap_ty {
             let i64_ty = TypeExpr::Path(":wat::core::i64".into());
             if unify(&cap_ty, &i64_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: form.into(),
                     param: "capacity".into(),
                     expected: "i64".into(),
-                    got: format_type(&apply_subst(&cap_ty, subst)),
-                    span: args[1].span().clone(),
-                });
+                    got: format_type(&apply_subst(&cap_ty, subst))
+                } });
             }
         }
     }
@@ -12437,13 +10934,12 @@ fn process_let_binding(
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         if let Some(rhs_ty) = rhs_ty {
             if unify(&rhs_ty, &tuple_ty, subst, env.types()).is_err() {
-                binding_errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: form.into(),
                     param: format!("destructure ({})", names.join(" ")),
                     expected: format_type(&apply_subst(&tuple_ty, subst)),
-                    got: format_type(&apply_subst(&rhs_ty, subst)),
-                    span: rhs.span().clone(),
-                });
+                    got: format_type(&apply_subst(&rhs_ty, subst))
+                } });
             }
         }
         for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
@@ -12568,26 +11064,24 @@ fn process_let_binding(
                 }
             }
             other => {
-                binding_errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: form.into(),
                     param: format!("struct-destructure ({})", field_names.join(" ")),
                     expected: "a struct type".into(),
-                    got: format_type(other),
-                    span: rhs.span().clone(),
-                });
+                    got: format_type(other)
+                } });
                 return CheckResult::errs(binding_errors);
             }
         };
         let struct_def = match env.types().get(&struct_name) {
             Some(crate::types::TypeDef::Struct(sd)) => sd.clone(),
             _ => {
-                binding_errors.push(CheckError::TypeMismatch {
+                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: form.into(),
                     param: format!("struct-destructure ({})", field_names.join(" ")),
                     expected: "a struct type".into(),
-                    got: format_type(&rhs_ty),
-                    span: rhs.span().clone(),
-                });
+                    got: format_type(&rhs_ty)
+                } });
                 return CheckResult::errs(binding_errors);
             }
         };
@@ -12606,15 +11100,14 @@ fn process_let_binding(
                         .map(|(n, _)| n.as_str())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    binding_errors.push(CheckError::MalformedForm {
+                    binding_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
                         head: form.into(),
                         reason: format!(
                             "struct-destructure: field {:?} is not declared on struct {} (declared fields: {})",
                             fname, struct_def.name, declared
                         ),
-                        span: span.clone(),
                         remedies: vec![],
-                    });
+                    } });
                 }
             }
         }
@@ -12637,15 +11130,14 @@ fn process_let_binding(
     // at startup rather than silently accepting and letting the
     // runtime catch it.
     let binder = &kv[0];
-    binding_errors.push(CheckError::MalformedForm {
+    binding_errors.push(CheckError { span: binder.span().clone(), kind: CheckErrorKind::MalformedForm {
         head: form.into(),
         reason: format!(
             "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a {} in binder position",
             binder.variant_name()
         ),
-        span: binder.span().clone(),
         remedies: vec![],
-    });
+    } });
     CheckResult::errs(binding_errors)
 }
 
@@ -12663,12 +11155,11 @@ fn infer_hashset_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::core::HashSet".into(),
             expected: 1,
-            got: 0,
-            span: head_span.clone(),
-        });
+            got: 0
+        } });
         let ty = TypeExpr::Parametric {
             head: "wat::core::HashSet".into(),
             args: vec![fresh.fresh()],
@@ -12687,37 +11178,34 @@ fn infer_hashset_constructor(
                 match crate::types::parse_type_expr(k) {
                     Ok(t) => t,
                     Err(_) => {
-                        local_errors.push(CheckError::MalformedForm {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::HashSet".into(),
                             reason: format!("first argument {} is not a valid type keyword", k),
-                            span: args[0].span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         fresh.fresh()
                     }
                 }
             }
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashSet".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             fresh.fresh()
         }
     };
     for (i, arg) in args[1..].iter().enumerate() {
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &t_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::HashSet".into(),
                     param: format!("element #{}", i + 1),
                     expected: format_type(&apply_subst(&t_ty, subst)),
-                    got: format_type(&apply_subst(&ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
             }
         }
     }
@@ -12762,12 +11250,11 @@ fn infer_comparison(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let bool_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -12800,13 +11287,12 @@ fn infer_comparison(
             false
         };
         if !types_compatible {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
                 expected: format_type(&apply_subst(&a_resolved, subst)),
-                got: format_type(&apply_subst(&b_resolved, subst)),
-                span: args[1].span().clone(),
-            });
+                got: format_type(&apply_subst(&b_resolved, subst))
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
@@ -12859,12 +11345,11 @@ fn infer_arithmetic(
             // HARVEST (236.2): silent-by-intent — 0-ary identity returns i64.
             return CheckResult::ok(i64_ty);
         }
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 1,
-            got: 0,
-            span: head_span.clone(),
-        });
+            got: 0
+        } });
         // HARVEST (236.2): existing diagnostic; return f64 fallback.
         return CheckResult::partial_with(f64_ty, local_errors);
     }
@@ -12883,13 +11368,12 @@ fn infer_arithmetic(
     for (i, t_opt) in resolved.iter().enumerate() {
         if let Some(t) = t_opt {
             if !is_numeric(t) {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[i].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: format!("#{}", i + 1),
                     expected: ":i64 or :f64".into(),
-                    got: format_type(t),
-                    span: args[i].span().clone(),
-                });
+                    got: format_type(t)
+                } });
             }
         }
     }
@@ -12924,13 +11408,12 @@ fn infer_arithmetic(
                 for (i, t_opt) in resolved.iter().enumerate().skip(1) {
                     if let Some(t) = t_opt {
                         if unify(t, first_ty, subst, env.types()).is_err() {
-                            local_errors.push(CheckError::TypeMismatch {
+                            local_errors.push(CheckError { span: args[i].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: op.into(),
                                 param: format!("#{}", i + 1),
                                 expected: format_type(first_ty),
-                                got: format_type(t),
-                                span: args[i].span().clone(),
-                            });
+                                got: format_type(t)
+                            } });
                             break;
                         }
                     }
@@ -12977,12 +11460,11 @@ fn infer_record_of(
     const CALLEE: &str = ":wat::Record::of";
     // Arity check: exactly 2 args (class, struct_form).
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: CALLEE.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -12995,13 +11477,12 @@ fn infer_record_of(
     if let Some(ct) = class_ty {
         let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
         if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: CALLEE.into(),
                 param: "#1".into(),
                 expected: ":wat::core::keyword".into(),
-                got: format_type(&apply_subst(&ct, subst)),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&apply_subst(&ct, subst))
+            } });
         }
     }
 
@@ -13037,14 +11518,13 @@ fn infer_record_of(
         _ => {
             // Not a recognized Vec shape. Infer and emit a shape error.
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "struct_form (arg #2) must be a Vector literal `[...]` \
                          or a :wat::core::Vector expression"
                     .into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
         }
     }
 
@@ -13073,12 +11553,11 @@ fn infer_holon_record_of(
     const CALLEE: &str = ":wat::holon::Record::of";
     // Arity check: exactly 3 args (class, struct_form, holon_form).
     if args.len() != 3 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: CALLEE.into(),
             expected: 3,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13090,13 +11569,12 @@ fn infer_holon_record_of(
     if let Some(ct) = class_ty {
         let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
         if unify(&ct, &keyword_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: CALLEE.into(),
                 param: "#1".into(),
                 expected: ":wat::core::keyword".into(),
-                got: format_type(&apply_subst(&ct, subst)),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&apply_subst(&ct, subst))
+            } });
         }
     }
 
@@ -13122,14 +11600,13 @@ fn infer_holon_record_of(
         }
         _ => {
             let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: CALLEE.into(),
                 reason: "struct_form (arg #2) must be a Vector literal `[...]` \
                          or a :wat::core::Vector expression"
                     .into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
         }
     }
 
@@ -13138,13 +11615,12 @@ fn infer_holon_record_of(
     if let Some(ht) = holon_ty {
         let expected_holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
         if unify(&ht, &expected_holon_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: CALLEE.into(),
                 param: "#3".into(),
                 expected: ":wat::holon::HolonAST".into(),
-                got: format_type(&apply_subst(&ht, subst)),
-                span: args[2].span().clone(),
-            });
+                got: format_type(&apply_subst(&ht, subst))
+            } });
         }
     }
 
@@ -13178,12 +11654,11 @@ fn infer_polymorphic_time_arith(
     let duration_ty = TypeExpr::Path(":wat::time::Duration".into());
 
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13205,13 +11680,12 @@ fn infer_polymorphic_time_arith(
         .unwrap_or(false);
     if !a_is_instant {
         if let Some(t) = &a_resolved {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
                 expected: ":wat::time::Instant".into(),
-                got: format_type(t),
-                span: args[0].span().clone(),
-            });
+                got: format_type(t)
+            } });
         }
     }
 
@@ -13241,13 +11715,12 @@ fn infer_polymorphic_time_arith(
                 } else {
                     ":wat::time::Duration or :wat::time::Instant"
                 };
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#2".into(),
                     expected: expected.into(),
-                    got: format_type(t),
-                    span: args[1].span().clone(),
-                });
+                    got: format_type(t)
+                } });
             }
             instant_ty
         }
@@ -13283,12 +11756,11 @@ fn infer_form_matches(
     let bool_ty = TypeExpr::Path(":wat::core::bool".into());
 
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::form::matches?".into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13303,12 +11775,11 @@ fn infer_form_matches(
     let pattern_items = match &args[1] {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
         }
@@ -13316,12 +11787,11 @@ fn infer_form_matches(
     let type_name = match &pattern_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: "pattern head must be a struct type keyword".into(),
-                span: pattern_items[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
         }
@@ -13331,25 +11801,23 @@ fn infer_form_matches(
     let fields: Vec<(String, TypeExpr)> = match env.types().get(type_name) {
         Some(crate::types::TypeDef::Struct(s)) => s.fields.clone(),
         Some(_) => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: format!(
                     "pattern head {} names a non-struct type; matches? walks struct fields",
                     type_name
                 ),
-                span: pattern_items[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
         }
         None => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: format!("unknown struct type {}", type_name),
-                span: pattern_items[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             // HARVEST (236.2): existing diagnostic; matches? always returns bool.
             return CheckResult::partial_with(bool_ty, local_errors);
         }
@@ -13413,15 +11881,14 @@ fn check_clause(
                     let field_name = match keyword_payload(right) {
                         Some(k) => k,
                         None => {
-                            errors.push(CheckError::MalformedForm {
+                            errors.push(CheckError { span: right.span().clone(), kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::form::matches?".into(),
                                 reason: format!(
                                     "binding RHS for {} must be a field keyword like :field-name",
                                     var
                                 ),
-                                span: right.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                             return;
                         }
                     };
@@ -13430,15 +11897,14 @@ fn check_clause(
                     let field_ty = match fields.iter().find(|(n, _)| n == field_lookup) {
                         Some((_, t)) => t.clone(),
                         None => {
-                            errors.push(CheckError::MalformedForm {
+                            errors.push(CheckError { span: right.span().clone(), kind: CheckErrorKind::MalformedForm {
                                 head: ":wat::form::matches?".into(),
                                 reason: format!(
                                     "struct {} has no field {}",
                                     type_name, field_name
                                 ),
-                                span: right.span().clone(),
                                 remedies: vec![],
-                            });
+                            } });
                             return;
                         }
                     };
@@ -13471,13 +11937,12 @@ fn check_clause(
             if let Some(t) = body_ty {
                 let bool_ty = TypeExpr::Path(":wat::core::bool".into());
                 if unify(&t, &bool_ty, subst, env.types()).is_err() {
-                    errors.push(CheckError::TypeMismatch {
+                    errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::form::matches?".into(),
                         param: "where-body".into(),
                         expected: format_type(&bool_ty),
-                        got: format_type(&apply_subst(&t, subst)),
-                        span: body.span().clone(),
-                    });
+                        got: format_type(&apply_subst(&t, subst))
+                    } });
                 }
             }
         }
@@ -13500,13 +11965,12 @@ fn check_comparison(
     let r_ty = infer(right, env, locals, fresh, subst).drain_errors_into(errors);
     if let (Some(l), Some(r)) = (l_ty, r_ty) {
         if unify(&l, &r, subst, env.types()).is_err() {
-            errors.push(CheckError::TypeMismatch {
+            errors.push(CheckError { span: right.span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: ":wat::form::matches?".into(),
                 param: "comparison".into(),
                 expected: format_type(&apply_subst(&l, subst)),
-                got: format_type(&apply_subst(&r, subst)),
-                span: right.span().clone(),
-            });
+                got: format_type(&apply_subst(&r, subst))
+            } });
         }
     }
 }
@@ -13525,12 +11989,11 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
         G::WhereArity { got, .. } => format!("`where` takes exactly 1 expression; got {}", got),
         G::BinaryArity { op, got, .. } => format!("`{}` takes exactly 2 args; got {}", op.as_str(), got),
     };
-    CheckError::MalformedForm {
+    CheckError { span, kind: CheckErrorKind::MalformedForm {
         head: ":wat::form::matches?".into(),
         reason,
-        span,
         remedies: vec![],
-    }
+    } }
 }
 
 /// Arc 050 — predicate. Recognizes `:i64` path specifically.
@@ -13575,12 +12038,11 @@ fn infer_polymorphic_holon_pair_to_f64(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let f64_ty = TypeExpr::Path(":wat::core::f64".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13592,25 +12054,23 @@ fn infer_polymorphic_holon_pair_to_f64(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[1].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(f64_ty) } else { CheckResult::partial_with(f64_ty, local_errors) }
@@ -13638,12 +12098,11 @@ fn infer_holon_bind(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let holon_ty = TypeExpr::Path(":wat::holon::HolonAST".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::holon::Bind".into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13656,13 +12115,12 @@ fn infer_holon_bind(
         if let Some(t) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             let resolved = apply_subst(&t, subst);
             if !is_holon_or_record(&resolved) {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::holon::Bind".into(),
                     param: format!("#{}", idx + 1),
                     expected: ":wat::holon::HolonAST or :wat::Record".into(),
-                    got: format_type(&resolved),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&resolved)
+                } });
             }
         }
     }
@@ -13712,12 +12170,11 @@ fn infer_holon_bundle(
         ],
     };
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::holon::Bundle".into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13733,13 +12190,12 @@ fn infer_holon_bundle(
                 if let Some(t) = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let resolved = apply_subst(&t, subst);
                     if !is_holon_or_record(&resolved) {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: elem.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::holon::Bundle".into(),
                             param: "list element".into(),
                             expected: ":wat::holon::HolonAST or :wat::Record".into(),
-                            got: format_type(&resolved),
-                            span: elem.span().clone(),
-                        });
+                            got: format_type(&resolved)
+                        } });
                     }
                 }
             }
@@ -13761,13 +12217,12 @@ fn infer_holon_bundle(
                     _ => false,
                 };
                 if !ok {
-                    local_errors.push(CheckError::TypeMismatch {
+                    local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::holon::Bundle".into(),
                         param: "#1".into(),
                         expected: "wat::core::Vector<:wat::holon::HolonAST> or wat::core::Vector<:wat::Record>".into(),
-                        got: format_type(&resolved),
-                        span: other.span().clone(),
-                    });
+                        got: format_type(&resolved)
+                    } });
                 }
             }
         }
@@ -13792,12 +12247,11 @@ fn infer_polymorphic_holon_pair_to_bool(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let bool_ty = TypeExpr::Path(":wat::core::bool".into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13809,25 +12263,23 @@ fn infer_polymorphic_holon_pair_to_bool(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[1].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
@@ -13852,12 +12304,11 @@ fn infer_polymorphic_holon_pair_to_path(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let ret_ty = TypeExpr::Path(return_path.into());
     if args.len() != 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13869,25 +12320,23 @@ fn infer_polymorphic_holon_pair_to_path(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[1].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) }
@@ -13907,12 +12356,11 @@ fn infer_polymorphic_holon_to_i64(
     let mut local_errors: Vec<CheckError> = Vec::new();
     let i64_ty = TypeExpr::Path(":wat::core::i64".into());
     if args.len() != 1 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: op.into(),
             expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
@@ -13923,13 +12371,12 @@ fn infer_polymorphic_holon_to_i64(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         if !is_holon_or_vector(&resolved) {
-            local_errors.push(CheckError::TypeMismatch {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
-                got: format_type(&resolved),
-                span: args[0].span().clone(),
-            });
+                got: format_type(&resolved)
+            } });
         }
     }
     if local_errors.is_empty() { CheckResult::ok(i64_ty) } else { CheckResult::partial_with(i64_ty, local_errors) }
@@ -13981,12 +12428,11 @@ fn infer_assoc(
     // Fallback type used for arity-error only; success paths return the collection type.
     let fallback_ty = fresh.fresh();
     if args.len() != 3 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         return CheckResult::partial_with(fallback_ty, local_errors);
     }
     // Infer arg0 (the collection).
@@ -14007,25 +12453,23 @@ fn infer_assoc(
                 // Unify arg1 against K.
                 if let Some(arg1) = arg1_ty {
                     if unify(&arg1, &key_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "#2".into(),
                             expected: format_type(&key_ty),
-                            got: format_type(&apply_subst(&arg1, subst)),
-                            span: args[1].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg1, subst))
+                        } });
                     }
                 }
                 // Unify arg2 against V (NOT K — the K-vs-V trap).
                 if let Some(arg2) = arg2_ty {
                     if unify(&arg2, &val_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "#3".into(),
                             expected: format_type(&val_ty),
-                            got: format_type(&apply_subst(&arg2, subst)),
-                            span: args[2].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg2, subst))
+                        } });
                     }
                 }
                 // Return type-preserving HashMap<K,V>.
@@ -14044,13 +12488,12 @@ fn infer_assoc(
                 let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
                 if let Some(arg1) = arg1_ty {
                     if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError::TypeMismatch {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "#2".into(),
                             expected: format_type(&keyword_ty),
-                            got: format_type(&apply_subst(&arg1, subst)),
-                            span: args[1].span().clone(),
-                        });
+                            got: format_type(&apply_subst(&arg1, subst))
+                        } });
                     }
                 }
                 // arg2 is free ∀T — no unification. Flavor preserved at runtime via eval_record_assoc.
@@ -14064,13 +12507,12 @@ fn infer_assoc(
                 };
             }
             _ => {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "HashMap<K,V> or :wat::Record".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst)),
-                    span: args[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&coll_ty, subst))
+                } });
             }
         }
     }
@@ -14121,12 +12563,11 @@ fn infer_hashmap_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() < 2 {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::core::HashMap".into(),
             expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
+            got: args.len()
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion — return placeholder HashMap type.
         return CheckResult::partial_with(TypeExpr::Parametric {
             head: "wat::core::HashMap".into(),
@@ -14147,24 +12588,22 @@ fn infer_hashmap_constructor(
                         expanded
                     }
                     Err(_) => {
-                        local_errors.push(CheckError::MalformedForm {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::HashMap".into(),
                             reason: format!("first type argument {} is not a valid type keyword", k),
-                            span: args[0].span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         fresh.fresh()
                     }
                 }
             }
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashMap".into(),
                 reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             fresh.fresh()
         }
     };
@@ -14182,49 +12621,45 @@ fn infer_hashmap_constructor(
                         expanded
                     }
                     Err(_) => {
-                        local_errors.push(CheckError::MalformedForm {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::HashMap".into(),
                             reason: format!("second type argument {} is not a valid type keyword", v),
-                            span: args[1].span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         fresh.fresh()
                     }
                 }
             }
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashMap".into(),
                 reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
-                span: args[1].span().clone(),
                 remedies: vec![],
-            });
+            } });
             fresh.fresh()
         }
     };
     let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
             ),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
     }
     for (i, chunk) in pairs.chunks(2).enumerate() {
         if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: chunk[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::HashMap".into(),
                     param: format!("key #{}", i + 1),
                     expected: format_type(&apply_subst(&k_ty, subst)),
-                    got: format_type(&apply_subst(&k_arg_ty, subst)),
-                    span: chunk[0].span().clone(),
-                });
+                    got: format_type(&apply_subst(&k_arg_ty, subst))
+                } });
             }
         }
         if let Some(v_arg_ty) = chunk
@@ -14232,13 +12667,12 @@ fn infer_hashmap_constructor(
             .and_then(|a| infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
         {
             if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: chunk[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::HashMap".into(),
                     param: format!("value #{}", i + 1),
                     expected: format_type(&apply_subst(&v_ty, subst)),
-                    got: format_type(&apply_subst(&v_arg_ty, subst)),
-                    span: chunk[1].span().clone(),
-                });
+                    got: format_type(&apply_subst(&v_arg_ty, subst))
+                } });
             }
         }
     }
@@ -14263,12 +12697,11 @@ fn infer_tuple_constructor(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.is_empty() {
-        local_errors.push(CheckError::MalformedForm {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element".into(),
-            span: head_span.clone(),
             remedies: vec![],
-        });
+        } });
         // HARVEST (236.2): existing diagnostic; straight conversion — return placeholder Tuple type.
         return CheckResult::partial_with(TypeExpr::Tuple(vec![fresh.fresh()]), local_errors);
     }
@@ -14308,13 +12741,12 @@ fn infer_string_concat(
     for arg in args {
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &string_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::string::concat".into(),
                     param: "arg".into(),
                     expected: ":wat::core::String".into(),
-                    got: format_type(&apply_subst(&ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
             }
         }
     }
@@ -14339,12 +12771,11 @@ fn infer_list_constructor(
     // the unification loop below concretizes it from the first element.
     // This is the path used by `[...]` expression-position literals.
     if args.is_empty() {
-        local_errors.push(CheckError::ArityMismatch {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: ":wat::core::vec".into(),
             expected: 1,
-            got: 0,
-            span: head_span.clone(),
-        });
+            got: 0
+        } });
         let t = fresh.fresh();
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::partial_with(TypeExpr::Parametric {
@@ -14363,24 +12794,22 @@ fn infer_list_constructor(
                 match crate::types::parse_type_expr(k) {
                     Ok(t) => t,
                     Err(_) => {
-                        local_errors.push(CheckError::MalformedForm {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::vec".into(),
                             reason: format!("first argument {} is not a valid type keyword", k),
-                            span: args[0].span().clone(),
                             remedies: vec![],
-                        });
+                        } });
                         fresh.fresh()
                     }
                 }
             }
         }
         _ => {
-            local_errors.push(CheckError::MalformedForm {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::vec".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
-                span: args[0].span().clone(),
                 remedies: vec![],
-            });
+            } });
             fresh.fresh()
         }
     };
@@ -14388,13 +12817,12 @@ fn infer_list_constructor(
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::vec".into(),
                     param: format!("#{}", i + 2),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
-                    got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
             }
         }
     }
@@ -14425,13 +12853,12 @@ fn infer_linked_list_constructor(
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::List/of".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
-                    got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
             }
         }
     }
@@ -14463,13 +12890,12 @@ fn infer_boolean_shortcircuit(
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
-                local_errors.push(CheckError::TypeMismatch {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::and/or".into(),
                     param: format!("#{}", i + 1),
                     expected: ":wat::core::bool".into(),
-                    got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: arg.span().clone(),
-                });
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
             }
         }
     }
@@ -14703,10 +13129,9 @@ fn dispatch_rust_scheme(
     let sym_entry = match registry.get_symbol(keyword) {
         Some(s) => s,
         None => {
-            return CheckResult::errs(vec![CheckError::UnknownCallee {
-                callee: keyword.to_string(),
-                span: head_span.clone(),
-            }]);
+            return CheckResult::errs(vec![CheckError { span: head_span.clone(), kind: CheckErrorKind::UnknownCallee {
+                callee: keyword.to_string()
+            } }]);
         }
     };
     let mut ctx = CheckSchemeCtx {
@@ -14769,31 +13194,28 @@ impl<'a, 'b: 'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a, 'b> {
         got: String,
         span: Span,
     ) {
-        self.errors.push(CheckError::TypeMismatch {
+        self.errors.push(CheckError { span, kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: param.into(),
             expected,
             got,
-            span, // arc 138 F2: real span threaded through
-        });
+        } }); // arc 138 F2: real span threaded through
     }
 
     fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize, span: Span) {
-        self.errors.push(CheckError::ArityMismatch {
+        self.errors.push(CheckError { span, kind: CheckErrorKind::ArityMismatch {
             callee: callee.into(),
             expected,
             got,
-            span, // arc 138 F2: real span threaded through
-        });
+        } }); // arc 138 F2: real span threaded through
     }
 
     fn push_malformed(&mut self, head: &str, reason: String, span: Span) {
-        self.errors.push(CheckError::MalformedForm {
+        self.errors.push(CheckError { span, kind: CheckErrorKind::MalformedForm {
             head: head.into(),
             reason,
-            span, // arc 138 F2: real span threaded through
             remedies: vec![],
-        });
+        } }); // arc 138 F2: real span threaded through
     }
 
     fn parse_type_keyword(&self, keyword: &str) -> Result<TypeExpr, crate::types::TypeError> {
@@ -19429,7 +17851,7 @@ mod tests {
         assert!(err
             .0
             .iter()
-            .any(|e| matches!(e, CheckError::ArityMismatch { expected: 2, got: 1, .. })));
+            .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ArityMismatch { expected: 2, got: 1, .. }, .. })));
     }
 
     #[test]
@@ -19438,7 +17860,7 @@ mod tests {
         assert!(err
             .0
             .iter()
-            .any(|e| matches!(e, CheckError::ArityMismatch { expected: 1, got: 2, .. })));
+            .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ArityMismatch { expected: 1, got: 2, .. }, .. })));
     }
 
     // ─── Monomorphic type mismatch ──────────────────────────────────────
@@ -19446,7 +17868,7 @@ mod tests {
     #[test]
     fn string_to_add_rejected() {
         let err = check(r#"(:wat::core::i64::+'2 "hello" 3)"#).unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     /// Arc 138 slice 1 — every CheckError surfaced on user source carries
@@ -19501,7 +17923,7 @@ mod tests {
         let err = check(src).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            err.0.iter().any(|e| matches!(e, CheckError::SandboxScopeLeak { .. })),
+            err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::SandboxScopeLeak { .. }, .. })),
             "expected SandboxScopeLeak; rendered:\n{}", rendered
         );
         assert!(rendered.contains("sandbox-scope leak"));
@@ -19527,7 +17949,7 @@ mod tests {
         let result = check(src);
         if let Err(errs) = &result {
             assert!(
-                !errs.0.iter().any(|e| matches!(e, CheckError::SandboxScopeLeak { .. })),
+                !errs.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::SandboxScopeLeak { .. }, .. })),
                 "SandboxScopeLeak misfired; rendered:\n{}", errs
             );
         }
@@ -19538,13 +17960,13 @@ mod tests {
     #[test]
     fn bool_to_add_rejected() {
         let err = check("(:wat::core::i64::+'2 true 3)").unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn bind_non_holon_rejected() {
         let err = check("(:wat::holon::Bind 42 (:wat::holon::Atom 1))").unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── Polymorphic comparison (T -> T -> bool) ────────────────────────
@@ -19559,13 +17981,13 @@ mod tests {
     #[test]
     fn equality_mixed_types_rejected() {
         let err = check(r#"(:wat::core::= 1 "x")"#).unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn less_than_mixed_types_rejected() {
         let err = check(r#"(:wat::core::< 1 "x")"#).unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── Polymorphic list (T* -> List<T>) ───────────────────────────────
@@ -19579,7 +18001,7 @@ mod tests {
     #[test]
     fn list_mixed_types_rejected() {
         let err = check(r#"(:wat::core::Vector :wat::core::i64 1 "two" 3)"#).unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -19600,7 +18022,7 @@ mod tests {
     fn bundle_of_list_of_ints_rejected() {
         // Bundle wants :wat::holon::Holons, but this is :wat::core::Vector<wat::core::i64>.
         let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :wat::core::i64 1 2 3))"#).unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // LocalCache / :rust::lru::LruCache check tests retired in
@@ -19621,7 +18043,7 @@ mod tests {
     #[test]
     fn rust_unknown_symbol_rejected() {
         let err = check("(:rust::imaginary::Crate::method 1 2)").unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::UnknownCallee { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::UnknownCallee { .. }, .. })));
     }
 
     // ─── User define signature checks ───────────────────────────────────
@@ -19640,7 +18062,7 @@ mod tests {
             r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::core::i64::+'2 x y))"#,
         )
         .unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -19661,7 +18083,7 @@ mod tests {
             r#"(:wat::core::defn :my::app::bad<T> [x <- :T] -> :T 42)"#,
         )
         .unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
+        assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. })));
     }
 
     // ─── Typed-let discipline ───────────────────────────────────────────
@@ -19965,7 +18387,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. })),
             "expected ScopeDeadlock at outer scope (arc 117 still active), got: {:?}",
             err.0
         );
@@ -20021,7 +18443,7 @@ mod tests {
                 let scope_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
@@ -20057,7 +18479,7 @@ mod tests {
         assert!(
             err.0.iter().any(|e| matches!(
                 e,
-                CheckError::ChannelPairDeadlock { callee, sender_arg, receiver_arg, pair_anchor, .. }
+                CheckError { kind: CheckErrorKind::ChannelPairDeadlock { callee, sender_arg, receiver_arg, pair_anchor, .. }, .. }
                     if callee == ":my::helper-verb"
                         && sender_arg == "tx"
                         && receiver_arg == "rx"
@@ -20098,7 +18520,7 @@ mod tests {
                     .err()
                     .map(|e| {
                         !e.0.iter()
-                            .any(|err| matches!(err, CheckError::ChannelPairDeadlock { .. }))
+                            .any(|err| matches!(err, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
                     })
                     .unwrap_or(true),
             "two different pairs should not fire ChannelPairDeadlock, got: {:?}",
@@ -20151,7 +18573,7 @@ mod tests {
                     .err()
                     .map(|e| {
                         !e.0.iter()
-                            .any(|err| matches!(err, CheckError::ChannelPairDeadlock { .. }))
+                            .any(|err| matches!(err, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
                     })
                     .unwrap_or(true),
             "HandlePool-pop pattern should not fire ChannelPairDeadlock (trace gives up at user fn boundary), got: {:?}",
@@ -20182,7 +18604,7 @@ mod tests {
         let pair_err = err
             .0
             .iter()
-            .find(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+            .find(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
             .expect("ChannelPairDeadlock variant present");
         let display = format!("{}", pair_err);
         assert!(
@@ -20239,7 +18661,7 @@ mod tests {
                 let pair_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     pair_deadlocks.is_empty(),
@@ -20303,7 +18725,7 @@ mod tests {
             .0
             .iter()
             .filter_map(|e| match e {
-                CheckError::ScopeDeadlock { offending_kind, .. } => Some(*offending_kind),
+                CheckError { kind: CheckErrorKind::ScopeDeadlock { offending_kind, .. }, .. } => Some(*offending_kind),
                 _ => None,
             })
             .collect();
@@ -20352,7 +18774,7 @@ mod tests {
                 let scope_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
@@ -20411,7 +18833,7 @@ mod tests {
             .0
             .iter()
             .filter_map(|e| match e {
-                CheckError::ScopeDeadlock { offending_kind, .. } => Some(*offending_kind),
+                CheckError { kind: CheckErrorKind::ScopeDeadlock { offending_kind, .. }, .. } => Some(*offending_kind),
                 _ => None,
             })
             .collect();
@@ -20480,7 +18902,7 @@ mod tests {
             .0
             .iter()
             .filter_map(|e| match e {
-                CheckError::ScopeDeadlock { offending_binding, offending_kind, .. } => {
+                CheckError { kind: CheckErrorKind::ScopeDeadlock { offending_binding, offending_kind, .. }, .. } => {
                     Some((offending_binding.clone(), *offending_kind))
                 }
                 _ => None,
@@ -20536,7 +18958,7 @@ mod tests {
                 let scope_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
@@ -20574,7 +18996,7 @@ mod tests {
         let pair_deadlocks: Vec<_> = err
             .0
             .iter()
-            .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+            .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
             .collect();
         assert!(
             !pair_deadlocks.is_empty(),
@@ -20622,7 +19044,7 @@ mod tests {
                 let scope_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
@@ -20669,7 +19091,7 @@ mod tests {
         let scope_deadlocks: Vec<_> = err
             .0
             .iter()
-            .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+            .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
             .collect();
         assert!(
             !scope_deadlocks.is_empty(),
@@ -20730,7 +19152,7 @@ mod tests {
                 let scope_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     scope_deadlocks.is_empty(),
@@ -20792,7 +19214,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. })),
             "arc 158a test 1: expected ChannelPairDeadlock from new-shape Channel binding; got: {:?}",
             err.0
         );
@@ -20824,7 +19246,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. })),
             "arc 158a test 2: expected ChannelPairDeadlock tracing (:second pair) in new shape; got: {:?}",
             err.0
         );
@@ -20865,7 +19287,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. })),
             "arc 158a test 3: regression — legacy shape no longer fires ScopeDeadlock; got: {:?}",
             err.0
         );
@@ -20907,7 +19329,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. })),
             "arc 158a test 4: mixed-shape let must fire ScopeDeadlock; got: {:?}",
             err.0
         );
@@ -20938,7 +19360,7 @@ mod tests {
                 let channel_deadlocks: Vec<_> = errors
                     .0
                     .iter()
-                    .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+                    .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
                     .collect();
                 assert!(
                     channel_deadlocks.is_empty(),
@@ -20974,7 +19396,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. })),
             "arc 158a test 6: arc 126 pattern in new shape; expected ChannelPairDeadlock; got: {:?}",
             err.0
         );
@@ -21002,7 +19424,7 @@ mod tests {
         assert!(
             err.0
                 .iter()
-                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+                .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. })),
             "arc 158a test 7: make-unbounded-channel new shape; expected ChannelPairDeadlock; got: {:?}",
             err.0
         );
@@ -21067,7 +19489,7 @@ mod tests {
         let scope_deadlocks: Vec<_> = err
             .0
             .iter()
-            .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+            .filter(|e| matches!(e, CheckError { kind: CheckErrorKind::ScopeDeadlock { .. }, .. }))
             .collect();
         assert!(
             !scope_deadlocks.is_empty(),

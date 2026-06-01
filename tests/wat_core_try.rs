@@ -15,7 +15,7 @@
 //! `src/check.rs` for the implementations.
 
 use std::sync::Arc;
-use wat::check::CheckError;
+use wat::check::{CheckError, CheckErrorKind};
 use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -171,7 +171,7 @@ fn try_with_zero_args_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 1, got: 0, .. }
+        CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 0, .. }, .. }
             if callee == ":wat::core::Result/try"
     ));
     assert!(saw_arity, "expected ArityMismatch on :wat::core::Result/try; got {:?}", errs);
@@ -186,7 +186,7 @@ fn try_with_two_args_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 1, got: 2, .. }
+        CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 2, .. }, .. }
             if callee == ":wat::core::Result/try"
     ));
     assert!(saw_arity, "expected ArityMismatch on :wat::core::Result/try; got {:?}", errs);
@@ -202,7 +202,7 @@ fn try_on_non_result_arg_rejected_at_check() {
     let errs = check_errors(src);
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
-        CheckError::TypeMismatch { callee, .. } if callee == ":wat::core::Result/try"
+        CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
     ));
     assert!(saw_type_mismatch, "expected TypeMismatch on :wat::core::Result/try; got {:?}", errs);
 }
@@ -218,7 +218,7 @@ fn try_inside_non_result_function_rejected_at_check() {
     let errs = check_errors(src);
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
-        CheckError::MalformedForm { head, .. } if head == ":wat::core::Result/try"
+        CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"
     ));
     assert!(saw_malformed, "expected MalformedForm on :wat::core::Result/try; got {:?}", errs);
 }
@@ -236,7 +236,7 @@ fn try_mismatched_err_types_rejected_at_check() {
     let errs = check_errors(src);
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
-        CheckError::TypeMismatch { callee, .. } if callee == ":wat::core::Result/try"
+        CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
     ));
     assert!(saw_type_mismatch, "expected TypeMismatch on :wat::core::Result/try; got {:?}", errs);
 }
@@ -285,7 +285,7 @@ fn try_inside_non_result_fn_rejected_at_check() {
     let errs = check_errors(src);
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
-        CheckError::MalformedForm { head, .. } if head == ":wat::core::Result/try"
+        CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"
     ));
     assert!(saw_malformed, "expected MalformedForm on :wat::core::Result/try; got {:?}", errs);
 }
