@@ -145,11 +145,18 @@ The brief for wide work is short: *"run cargo test; read the errors; apply the
 rule; iterate until green."*
 
 **For a large mechanical cascade (≥ ~50–100 sites), the weapon is an *ephemeral
-Cargo tool*, not a bash chain.** The firewall blocks `sed`/wrapper-script
-mass-edits (FM 16); a cold-booted Shadowdancer reaches instead for the toolchain
-it is *built on* and *allowed* to wield — it builds a Cargo binary that
-parses+rewrites, runs it, and **deletes it before the commit** (build → use →
-delete; the tool never lands in the substrate). Confirmed at three stones: 241.10
+Cargo tool*, not a bash chain.** **The corrective/transform script MUST be Rust — a Cargo binary — NEVER Python,
+never `sed`/`awk`/shell.** This is the recurring trap (observed ≥3×): the
+Shadowdancer's default instinct for "parse + rewrite text" is a Python script —
+but `python`/`python3` and shell mass-editors are sandbox-BLOCKED here; the
+cold-booted Shadowdancer writes Python, finds it non-viable, and burns a cycle
+troubleshooting before it pivots. **Name the language imperatively in BOTH the
+BRIEF and the spawn prompt:** *"build any corrective/transform script as a Rust
+Cargo binary; do NOT use Python or shell — they are blocked in this
+environment."* Rust is the toolchain the Shadowdancer is already *built on* and
+*allowed* to wield — it builds a Cargo binary that parses+rewrites, runs it, and
+**deletes it before the commit** (build → use → delete; the tool never lands in
+the substrate). Confirmed at three stones: 241.10
 `fix-defines` + 241.11 `fix-remedies` (wat-surface migrations) and 243.6a
 `transform-checkerror`, which **attacked Rust syntax itself** (the CheckError
 Pattern-A reshape) — proving the move is not wat-surface-bound: a clean substrate
