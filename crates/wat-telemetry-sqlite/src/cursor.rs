@@ -110,7 +110,7 @@ fn parse_time_constraints(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::Vector<wat::telemetry::TimeConstraint>",
-                got: ValueSnapshot::of(other),
+                got: Box::new(ValueSnapshot::of(other)),
                 // arc 138: no span — parse_time_constraints receives &Value, no WatAST trace available
                 span: wat::span::Span::unknown(),
             });
@@ -125,7 +125,7 @@ fn parse_time_constraints(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::telemetry::TimeConstraint",
-                    got: ValueSnapshot::of(other),
+                    got: Box::new(ValueSnapshot::of(other)),
                     // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
                     span: wat::span::Span::unknown(),
                 });

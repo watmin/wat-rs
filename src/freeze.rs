@@ -60,7 +60,7 @@ use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
-    apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
+    apply_function, register_defines, register_stdlib_defines, EvalBreak, EncodingCtx, Environment,
     RuntimeError, SymbolTable, TrackedValue, Value,
 };
 use crate::span::Span;
@@ -403,7 +403,20 @@ impl FrozenWorld {
         // sigma-fn evaluation above — same pattern, broader scope.
         let env = crate::runtime::Environment::new();
         crate::runtime::register_runtime_defs(&program, &env, &mut symbols)
-            .map_err(|e| StartupError::Runtime(Box::new(e)))?;
+            .map_err(|e| match e {
+                EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+                // A Signal at the freeze boundary is an interpreter bug.
+                // TryPropagate/OptionPropagate are eliminated BEFORE this
+                // path: the checker rejects top-level `?`/option-propagation
+                // with "used outside any function body" (check.rs:8406 /
+                // :8520), and the check pass runs before register_runtime_defs
+                // in the freeze pipeline. TailCall is trampolined inside
+                // apply_function and cannot escape. A Signal here means the
+                // checker or eval subgraph is mis-wired.
+                EvalBreak::Signal(_) => unreachable!(
+                    "interpreter bug: eval-loop control signal escaped to freeze layer"
+                ),
+            })?;
 
         Ok(FrozenWorld {
             config,

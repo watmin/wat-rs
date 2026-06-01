@@ -8368,7 +8368,7 @@ fn validate_def_position_with_wrapper(
 ///
 /// Runtime behavior (see `crate::runtime::eval_try`):
 /// - `Ok(v)` → evaluates to `v`.
-/// - `Err(e)` → raises `RuntimeError::TryPropagate(e)`; the innermost
+/// - `Err(e)` → raises `EvalSignal::TryPropagate(e)`; the innermost
 ///   `apply_function` packages it as the function's own `Err(e)`
 ///   return value.
 fn infer_try(
@@ -8485,7 +8485,7 @@ fn infer_try(
 ///
 /// Runtime behavior (see `crate::runtime::eval_option_try`):
 /// - `Some(v)` → evaluates to `v`.
-/// - `:None` → raises `RuntimeError::OptionPropagate`; the innermost
+/// - `:None` → raises `EvalSignal::OptionPropagate`; the innermost
 ///   `apply_function` packages it as the function's own
 ///   `Value::Option(None)` return value.
 fn infer_option_try(
@@ -14484,7 +14484,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // parse, mutation-form refused, unknown function, type mismatch,
     // etc.) becomes an Err value in the Result rather than an
     // unwinding RuntimeError. `:wat::core::try` inside eval'd code
-    // continues to propagate as before — the TryPropagate signal
+    // continues to propagate as before — the EvalSignal::TryPropagate signal
     // passes through the dispatcher's wrap.
     //
     // Arg types keep the pre-inscription looseness (the structural

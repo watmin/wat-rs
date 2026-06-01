@@ -686,7 +686,7 @@ fn eval_keyword(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: ":wat::core::keyword",
-            got: ValueSnapshot::of(&other),
+            got: Box::new(ValueSnapshot::of(&other)),
             span: ast.span().clone(),
         }),
     }

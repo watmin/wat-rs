@@ -182,28 +182,6 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::TryPropagate(value) => {
-            // Carry the err-payload value as a ValueSnapshot (type + rendered).
-            // A future arc can deepen to full structured encoding.
-            let snap = ValueSnapshot::of(value);
-            tagged("TryPropagate", map1(
-                kw("value"), snap_val(&snap),
-            ))
-        }
-        RuntimeError::OptionPropagate => {
-            tagged("OptionPropagate", OwnedValue::Map(vec![]))
-        }
-        RuntimeError::TailCall { func, args, call_span } => {
-            // Internal control-flow signal; render function name + arg
-            // count + span. Reaching the user is a bug, so rich detail
-            // is secondary to not panicking during serialization.
-            let fn_name = func.name.as_deref().unwrap_or("<anonymous>").to_owned();
-            tagged("TailCall", OwnedValue::Map(vec![
-                (kw("fn-name"), str_val(&fn_name)),
-                (kw("arg-count"), OwnedValue::Integer(args.len() as i64)),
-                (kw("call-span"), span_val(call_span)),
-            ]))
-        }
         RuntimeError::AssertionFailed { message, actual, expected, span } => {
             // Mirrors #wat.kernel/AssertionFailure (arc 211b panic
             // envelope) but as a RuntimeError variant — see module doc.
@@ -356,9 +334,6 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeError::PatternMatchFailed { .. } => "PatternMatchFailed",
         RuntimeError::EffectfulInStep { .. } => "EffectfulInStep",
         RuntimeError::NoStepRule { .. } => "NoStepRule",
-        RuntimeError::TryPropagate(..) => "TryPropagate",
-        RuntimeError::OptionPropagate => "OptionPropagate",
-        RuntimeError::TailCall { .. } => "TailCall",
         RuntimeError::AssertionFailed { .. } => "AssertionFailed",
         RuntimeError::SandboxScopeLeak { .. } => "SandboxScopeLeak",
         RuntimeError::ServiceNotRunning { .. } => "ServiceNotRunning",
