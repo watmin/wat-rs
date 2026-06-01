@@ -120,7 +120,7 @@ pub fn eval_kernel_assertion_failed(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: args[0].span().clone(),
             });
         }
@@ -168,7 +168,7 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: crate::span::Span::unknown(),
             }),
         },
@@ -176,7 +176,7 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }

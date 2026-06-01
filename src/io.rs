@@ -713,7 +713,7 @@ fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatRe
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -725,7 +725,7 @@ fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWr
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -737,7 +737,7 @@ fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeErro
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -749,7 +749,7 @@ fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, 
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -767,7 +767,7 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
-                            got: crate::runtime::ValueSnapshot::of(&other),
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                             span: span.clone(),
                         });
                     }
@@ -778,7 +778,7 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -929,7 +929,7 @@ pub fn eval_iowriter_open_file(
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::String",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: args[0].span().clone(),
             });
         }

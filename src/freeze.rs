@@ -403,7 +403,7 @@ impl FrozenWorld {
         // sigma-fn evaluation above — same pattern, broader scope.
         let env = crate::runtime::Environment::new();
         crate::runtime::register_runtime_defs(&program, &env, &mut symbols)
-            .map_err(StartupError::Runtime)?;
+            .map_err(|e| StartupError::Runtime(Box::new(e)))?;
 
         Ok(FrozenWorld {
             config,
@@ -450,7 +450,7 @@ pub enum StartupError {
     /// A user `define` collided with a builtin or another user
     /// define during registration. Surfaces `register_defines`'s
     /// errors as-is.
-    Runtime(RuntimeError),
+    Runtime(Box<RuntimeError>),
     /// A baked stdlib source failed to parse. Should never fire in
     /// production — the stdlib is authored in-repo and its parsing is
     /// validated by `cargo test` — but surfaces cleanly if someone
@@ -597,7 +597,7 @@ impl From<CheckErrors> for StartupError {
 }
 impl From<RuntimeError> for StartupError {
     fn from(e: RuntimeError) -> Self {
-        StartupError::Runtime(e)
+        StartupError::Runtime(Box::new(e))
     }
 }
 impl From<StdlibError> for StartupError {
@@ -1003,7 +1003,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
             return Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::Thread",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: Span::unknown(),
             });
         }
@@ -1034,7 +1034,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
             return Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::ProgramHandle (service Thread.join slot)",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: Span::unknown(),
             });
         }
@@ -1062,7 +1062,7 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
         crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError::TypeMismatch {
             op: label.to_string(),
             expected: "InThread variant for service Thread",
-            got: crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug")),
             span: Span::unknown(),
         }),
     }

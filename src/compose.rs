@@ -197,6 +197,6 @@ pub fn compose_and_run_with_loader(
     // (empty Vec by default). Slice 1f's three substrate services
     // will own fd 0/1/2; the Real* IO trait construction this fn
     // previously did retires alongside the four-arg main_args plumbing.
-    invoke_user_main(&world, Vec::new()).map_err(HarnessError::Runtime)?;
+    invoke_user_main(&world, Vec::new()).map_err(|e| HarnessError::Runtime(Box::new(e)))?;
     Ok(())
 }

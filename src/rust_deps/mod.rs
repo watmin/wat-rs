@@ -1,4 +1,4 @@
-//! vigilatum: 2026-06-01T04:45:47Z — vigilia 7-spell L1+L2=0 (clippy clean-or-runed: result_large_err → excusare OPEN-DEFERRAL 243.7a)
+//! vigilatum: 2026-06-01T04:45:47Z — vigilia 7-spell L1+L2=0
 //!
 //! Rust-symbol bindings surfaced to wat source via the `:rust::` namespace.
 //!

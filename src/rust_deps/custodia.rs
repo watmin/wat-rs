@@ -51,8 +51,6 @@ impl<T: Send> ThreadOwnedCell<T> {
         }
     }
 
-    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-    #[allow(clippy::result_large_err)]
     fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
         let current = std::thread::current().id();
         if current != self.owner {
@@ -71,8 +69,6 @@ impl<T: Send> ThreadOwnedCell<T> {
     }
 
     /// Borrow the inner value mutably after asserting ownership.
-    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-    #[allow(clippy::result_large_err)]
     pub fn with_mut<R>(
         &self,
         op: &'static str,
@@ -86,8 +82,6 @@ impl<T: Send> ThreadOwnedCell<T> {
 
     /// Borrow the inner value immutably after asserting ownership.
     /// (Kept for `&self` methods under `scope = "thread_owned"`.)
-    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-    #[allow(clippy::result_large_err)]
     pub fn with_ref<R>(
         &self,
         op: &'static str,
@@ -147,8 +141,6 @@ impl<T: Send> OwnedMoveCell<T> {
 
     /// Consume the payload. The first caller wins; every subsequent
     /// caller receives `RuntimeError::MalformedForm`.
-    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-    #[allow(clippy::result_large_err)]
     pub fn take(&self, op: &'static str, span: crate::span::Span) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
             return Err(RuntimeError::MalformedForm {

@@ -440,14 +440,14 @@ fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crossbeam_channe
             SenderInner::PipeFd { .. } => Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "tier-1 (crossbeam) Sender",
-                got: crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender"),
+                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender")),
                 span: Span::unknown(),
             }),
         },
         other => Err(RuntimeError::TypeMismatch {
             op: label.to_string(),
             expected: "wat::kernel::Sender<T>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: Span::unknown(),
         }),
     }
@@ -465,14 +465,14 @@ fn unwrap_value_receiver(
             ReceiverInner::PipeFd(_) => Err(RuntimeError::TypeMismatch {
                 op: label.to_string(),
                 expected: "tier-1 (crossbeam) Receiver",
-                got: crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver"),
+                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver")),
                 span: Span::unknown(),
             }),
         },
         other => Err(RuntimeError::TypeMismatch {
             op: label.to_string(),
             expected: "wat::kernel::Receiver<T>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: Span::unknown(),
         }),
     }
@@ -879,7 +879,7 @@ pub fn extract_control_tx(
             return Err(RuntimeError::TypeMismatch {
                 op: service_label.to_string(),
                 expected: "(Thread, Sender) tuple from service spawn",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: Span::unknown(),
             });
         }

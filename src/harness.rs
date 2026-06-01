@@ -68,7 +68,7 @@ pub struct Outcome {
 pub enum HarnessError {
     Startup(StartupError),
     MainSignature(String),
-    Runtime(RuntimeError),
+    Runtime(Box<RuntimeError>),
     StdioSnapshot(String),
 }
 
@@ -197,7 +197,7 @@ impl Harness {
         // path (or by invoking spawn-process / spawn-thread directly).
         let _ = stdin; // pre-seeded stdin retires with the four-arg shape.
 
-        invoke_user_main(&self.world, Vec::new()).map_err(HarnessError::Runtime)?;
+        invoke_user_main(&self.world, Vec::new()).map_err(|e| HarnessError::Runtime(Box::new(e)))?;
 
         let stdout: Vec<String> = Vec::new();
         let stderr: Vec<String> = Vec::new();

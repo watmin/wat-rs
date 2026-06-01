@@ -107,7 +107,7 @@ fn probe_02_postcondition_failed_constructs_with_ensure_snapshot_and_dual_spans(
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "(:wat::core::fn [result <- :i64] -> :bool (> result 0))".into(),
-        returned_value: ValueSnapshot::of(&Value::i64(-5)),
+        returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         body_span: test_span(),
         ensure_span: test_span(),
     };
@@ -148,7 +148,7 @@ fn probe_04_postcondition_failed_edn_tag_clean() {
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "(fn ...)".into(),
-        returned_value: ValueSnapshot::of(&Value::i64(-5)),
+        returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         body_span: test_span(),
         ensure_span: test_span(),
     };
@@ -203,7 +203,7 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
         defclause_name: ":my::positive".into(),
         clause_index: 0,
         ensure_expr_snapshot: "ENSURE_MARKER_TEXT".into(),
-        returned_value: ValueSnapshot::of(&Value::i64(-5)),
+        returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         body_span: test_span(),
         ensure_span: test_span(),
     };

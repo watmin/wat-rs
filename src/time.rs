@@ -89,7 +89,7 @@ pub(crate) fn eval_time_at(
         RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "epoch-seconds in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range i64"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range i64")),
             span: crate::span::Span::unknown(),
         }
     })?;
@@ -119,7 +119,7 @@ pub(crate) fn eval_time_at_millis(
         RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "epoch-ms in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range i64"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range i64")),
             span: crate::span::Span::unknown(),
         }
     })?;
@@ -285,7 +285,7 @@ pub(crate) fn eval_time_epoch_nanos(
         RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "instant in i64-nanosecond range (~1677 to ~2262)",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range instant"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range instant")),
             span: crate::span::Span::unknown(),
         }
     })?;
@@ -475,7 +475,7 @@ pub(crate) fn eval_time_sub(
                 .ok_or_else(|| RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "result-Instant in chrono representable range",
-                    got: crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"),
+                    got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction")),
                     span: crate::span::Span::unknown(),
                 })?;
             Ok(Value::Instant(new_inst))
@@ -490,7 +490,7 @@ pub(crate) fn eval_time_sub(
                 RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "elapsed nanoseconds in i64 range",
-                    got: crate::runtime::ValueSnapshot::unavailable("out-of-range duration"),
+                    got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range duration")),
                     span: crate::span::Span::unknown(),
                 }
             })?;
@@ -509,7 +509,7 @@ pub(crate) fn eval_time_sub(
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "wat::time::Duration or wat::time::Instant",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }
@@ -541,7 +541,7 @@ pub(crate) fn eval_time_add(
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::time::Duration",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: crate::span::Span::unknown(),
             })
         }
@@ -552,7 +552,7 @@ pub(crate) fn eval_time_add(
         .ok_or_else(|| RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range addition"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition")),
             span: crate::span::Span::unknown(),
         })?;
     Ok(Value::Instant(new_inst))
@@ -589,7 +589,7 @@ pub(crate) fn eval_time_ago(
         .ok_or_else(|| RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction")),
             span: crate::span::Span::unknown(),
         })?;
     Ok(Value::Instant(result))
@@ -620,7 +620,7 @@ pub(crate) fn eval_time_from_now(
         .ok_or_else(|| RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range addition"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition")),
             span: crate::span::Span::unknown(),
         })?;
     Ok(Value::Instant(result))
@@ -678,7 +678,7 @@ fn unit_ago(
         .ok_or_else(|| RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "result-Instant in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction")),
             span: crate::span::Span::unknown(),
         })?;
     Ok(Value::Instant(result))
@@ -724,7 +724,7 @@ fn unit_from_now(
         .ok_or_else(|| RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "result-Instant in chrono representable range",
-            got: crate::runtime::ValueSnapshot::unavailable("out-of-range addition"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition")),
             span: crate::span::Span::unknown(),
         })?;
     Ok(Value::Instant(result))
@@ -932,7 +932,7 @@ fn require_i64(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> 
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }
@@ -945,7 +945,7 @@ fn require_string(op: &'static str, tv: TrackedValue) -> Result<String, RuntimeE
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }
@@ -958,7 +958,7 @@ fn require_instant(op: &'static str, tv: TrackedValue) -> Result<DateTime<Utc>, 
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Instant",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }
@@ -971,7 +971,7 @@ fn require_duration(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeEr
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Duration",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span: crate::span::Span::unknown(),
         }),
     }

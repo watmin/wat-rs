@@ -27,8 +27,6 @@ use std::sync::Arc;
 /// dispatch arm (src/runtime.rs — the only active entry point).
 ///
 /// Moved from `src/runtime.rs` at Stone 241.18a.
-// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-#[allow(clippy::result_large_err)]
 pub(crate) fn eval_fn(
     args: &[WatAST],
     list_span: &Span,

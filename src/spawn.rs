@@ -285,7 +285,7 @@ fn expect_string(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -302,7 +302,7 @@ fn expect_option_string(
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 span: span.clone(),
             }),
             None => Ok(None),
@@ -310,7 +310,7 @@ fn expect_option_string(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }
@@ -328,7 +328,7 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
-                            got: crate::runtime::ValueSnapshot::of(&other),
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                             span: span.clone(),
                         });
                     }
@@ -339,7 +339,7 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
             span,
         }),
     }

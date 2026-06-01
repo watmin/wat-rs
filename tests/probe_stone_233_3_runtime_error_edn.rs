@@ -33,7 +33,7 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
     };
     let snap = ValueSnapshot::of(&Value::String(Arc::new("not-fn".to_string())));
     let err = RuntimeError::NotCallable {
-        got: snap,
+        got: Box::new(snap),
         span: span.clone(),
     };
 
@@ -68,7 +68,7 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
     let err = RuntimeError::TypeMismatch {
         op: ":wat::core::+".into(),
         expected: "wat::core::i64",
-        got: snap,
+        got: Box::new(snap),
         span: span.clone(),
     };
 

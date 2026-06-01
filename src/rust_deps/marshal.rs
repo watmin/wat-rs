@@ -48,8 +48,6 @@ pub trait ToWat {
 /// carries the source location of the original call-site AST node so
 /// that type-mismatch errors surface with file:line:col coordinates.
 pub trait FromWat: Sized {
-    // rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-    #[allow(clippy::result_large_err)]
     fn from_wat(v: &Value, op: &'static str, span: &Span) -> Result<Self, RuntimeError>;
 }
 
@@ -68,7 +66,7 @@ impl FromWat for i64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -88,7 +86,7 @@ impl FromWat for f64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -108,7 +106,7 @@ impl FromWat for bool {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -128,7 +126,7 @@ impl FromWat for String {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -150,7 +148,7 @@ impl FromWat for () {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -175,7 +173,7 @@ impl<T: FromWat> FromWat for Option<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Option",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -223,7 +221,7 @@ macro_rules! impl_tuple_marshaling {
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
-                        got: crate::runtime::ValueSnapshot::of(other),
+                        got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                         span: span.clone(), // arc 138 F4b: real span threaded through
                     }),
                 }
@@ -261,7 +259,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Result",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -286,7 +284,7 @@ impl<T: FromWat> FromWat for Vec<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Vector",
-                got: crate::runtime::ValueSnapshot::of(other),
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -356,8 +354,6 @@ pub fn make_rust_opaque<T: Any + Send + Sync>(type_path: &'static str, payload: 
 /// Validate `v` is a `RustOpaque` with the expected type path and return the
 /// inner `Arc`. Callers pass this to `downcast_ref_opaque` for a typed
 /// reference to the payload.
-// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-#[allow(clippy::result_large_err)]
 pub fn rust_opaque_arc(
     v: &Value,
     expected_path: &'static str,
@@ -370,7 +366,7 @@ pub fn rust_opaque_arc(
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
-                    got: crate::runtime::ValueSnapshot::unavailable(inner.type_path),
+                    got: Box::new(crate::runtime::ValueSnapshot::unavailable(inner.type_path)),
                     span,
                 });
             }
@@ -379,7 +375,7 @@ pub fn rust_opaque_arc(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: crate::runtime::ValueSnapshot::of(other),
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
             span,
         }),
     }
@@ -389,8 +385,6 @@ pub fn rust_opaque_arc(
 /// dispatch code calls this for each `:rust::T` argument, bypassing
 /// the generic `FromWat` pathway (since opaque handles aren't cloneable
 /// and often need shared-ref access, not consumed-value access).
-// rune:excusare(OPEN-DEFERRAL → 243.7a) — clippy is correct (RuntimeError is large-by-value); the fix is the type-level boxing retrofit in Stone 243.7a (named, open, in-reach), not a per-site change. Struck the moment 243.7a ships.
-#[allow(clippy::result_large_err)]
 pub fn downcast_ref_opaque<'a, T: Any>(
     inner: &'a RustOpaqueInner,
     expected_path: &'static str,
@@ -401,7 +395,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         return Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: crate::runtime::ValueSnapshot::unavailable(inner.type_path),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable(inner.type_path)),
             span: span.clone(),
         });
     }
@@ -409,7 +403,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: crate::runtime::ValueSnapshot::unavailable("payload downcast failed — shim author misalignment"),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("payload downcast failed — shim author misalignment")),
             span,
         }
     })
