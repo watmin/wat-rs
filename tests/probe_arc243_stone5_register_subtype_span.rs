@@ -62,9 +62,8 @@ fn register_subtype_threads_caller_span_into_cyclic_error() {
         matches!(err.kind, TypeErrorKind::CyclicSubtype { .. }),
         "the closed cycle must surface as CyclicSubtype"
     );
-    assert_ne!(
-        err.span,
-        Span::unknown(),
+    assert!(
+        !err.span.is_unknown(),
         "a real caller span must not collapse to unknown (the retired rune's bug)"
     );
 }

@@ -39,6 +39,7 @@ use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
+use wat::span::Span;
 use wat::types::{is_subtype, TypeEnv};
 
 // ─── Rust-API helpers (mirror probe_arc237_stone1_typeunion_substrate) ────────
@@ -51,7 +52,7 @@ fn fresh_env() -> TypeEnv {
 #[test]
 fn probe_01_edge_directional() {
     let mut env = fresh_env();
-    env.register_subtype(":my::Child", ":my::Parent")
+    env.register_subtype(":my::Child", ":my::Parent", Span::unknown())
         .expect("register_subtype Child→Parent");
     assert!(is_subtype(":my::Child", ":my::Parent", &env), "Child is-a Parent");
     assert!(
@@ -64,8 +65,8 @@ fn probe_01_edge_directional() {
 #[test]
 fn probe_02_transitive() {
     let mut env = fresh_env();
-    env.register_subtype(":my::A", ":my::B").expect("A→B");
-    env.register_subtype(":my::B", ":my::C").expect("B→C");
+    env.register_subtype(":my::A", ":my::B", Span::unknown()).expect("A→B");
+    env.register_subtype(":my::B", ":my::C", Span::unknown()).expect("B→C");
     assert!(is_subtype(":my::A", ":my::C", &env), "A is-a C transitively");
 }
 
@@ -93,8 +94,8 @@ fn probe_04_leaf_safe() {
 #[test]
 fn probe_05_cycle_rejected() {
     let mut env = fresh_env();
-    env.register_subtype(":my::A", ":my::B").expect("A→B ok");
-    let closes_cycle = env.register_subtype(":my::B", ":my::A");
+    env.register_subtype(":my::A", ":my::B", Span::unknown()).expect("A→B ok");
+    let closes_cycle = env.register_subtype(":my::B", ":my::A", Span::unknown());
     assert!(
         closes_cycle.is_err(),
         "B→A closes a cycle through A→B; must be rejected at registration"
