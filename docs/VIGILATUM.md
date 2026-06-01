@@ -4,7 +4,9 @@
 
 ## What it is
 
-A single module-doc line that records a namespaced home's **ward provenance**: when the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0), and what cast it. The anchor commit is not written in the line — git already holds it (see *Drift* below).
+A single module-doc line that records a namespaced home's **ward provenance**: when the home last passed the vigilia REMARKABLE bar (L1 + L2 = 0) **AND `cargo clippy` was zero on the home's files**, and what cast it. The anchor commit is not written in the line — git already holds it (see *Drift* below).
+
+The bar has **two gates, both mandatory**: (1) a live vigilia cast converges L1 + L2 = 0, and (2) `cargo clippy -p wat` reports ZERO warnings on every file of the home. Clippy-in-home IS an L2 (a craft/correctness lint the lenses don't all independently emit), so a home with live clippy warnings has NOT met the bar — its stamp would be overclaiming. Both gates pass, or the home is not stamped.
 
 ```rust
 //! vigilatum: 2026-05-31T08:24:29Z — vigilia 8-spell L1+L2=0
@@ -33,7 +35,11 @@ The marker once embedded `@ <commit>` — the hash of its own ward commit. That 
 
 ## The iron rule — EARNED, never asserted
 
-**A `vigilatum` line is written ONLY when a live vigilia cast has just confirmed L1 + L2 = 0 on that home.** It is an attestation. An attestation you cannot back with a cast is the exact false-claim failure mode the whole substrate refuses (`scratch/FAILURE-ENGINEERING.md`). You never backfill `vigilatum` from memory or from "it was probably fine" — git evidence (2026-05-30) showed several homes had drifted since their last convergence without anyone noticing. Re-cast, confirm, then inscribe.
+**A `vigilatum` line is written ONLY when BOTH gates pass on that home: (1) a live vigilia cast has just confirmed L1 + L2 = 0, AND (2) `cargo clippy -p wat` reports zero warnings on the home's files.** It is an attestation. An attestation you cannot back with both is the exact false-claim failure mode the whole substrate refuses (`scratch/FAILURE-ENGINEERING.md`). You never backfill `vigilatum` from memory or from "it was probably fine" — git evidence (2026-05-30) showed several homes had drifted since their last convergence without anyone noticing.
+
+**The clippy gate is named because its ABSENCE caused real drift (2026-06-01).** Clippy was not an explicit lens in the early home casts, so five warded homes (`comms/`, `rust_deps/`, `remedy/`, `function/`) shipped `vigilatum` stamps while carrying live clippy warnings their stamps denied — the stamps overclaimed. The fix eliminates the class: clippy-zero is now a stated precondition of the stamp, verified at cast time, not an afterthought. Run `cargo clippy -p wat --release 2>&1 | grep "src/<home>/"` and confirm zero (excluding any finding the home has runed with a documented `#[allow(clippy::…)]` + reason — a runed lint is an adjudicated exception, not drift) before inscribing.
+
+Re-cast, confirm both gates, then inscribe.
 
 **Re-ward on every touch.** When a home is modified, its `vigilatum` is stale by definition — the next work on that home re-casts vigilia and re-inscribes the line with the new anchor. "Run them into submission on every go."
 
@@ -56,6 +62,8 @@ The marker is the FIRST `//!` line of the file's module doc, followed by a blank
 - `vigilia <N>-spell L1+L2=0` — the verdict + how many spells stood the watch
 
 The marker carries no commit hash — git is the anchor (see *Drift*). The stamp ships in the ward commit itself.
+
+**Before writing the stamp, confirm BOTH gates in the same pre-commit breath:** the vigilia cast converged L1+L2=0, and `cargo clippy -p wat --release 2>&1 | grep "src/<home>/"` is empty (or shows only lines the home has runed with a documented `#[allow]`). A stamp written without the clippy check is the 2026-06-01 drift reintroduced.
 
 ## What it is NOT
 

@@ -91,7 +91,7 @@ impl Remedy {
 /// Variant declaration order IS the Eq-consistency tiebreaker in `Remedy`'s `Ord`
 /// (`Typo` before `Retirement`). The order carries ZERO ranking meaning — `score()`
 /// + `form` decide all real cases — but DO NOT reorder these variants: it would
-/// silently change tie resolution between otherwise-identical remedies.
+///   silently change tie resolution between otherwise-identical remedies.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum RemedyKind {
     /// Levenshtein-derived from a candidate set — the user likely mistyped.

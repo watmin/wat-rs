@@ -66,7 +66,7 @@ impl FromWat for i64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -86,7 +86,7 @@ impl FromWat for f64 {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -106,7 +106,7 @@ impl FromWat for bool {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -126,7 +126,7 @@ impl FromWat for String {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -148,7 +148,7 @@ impl FromWat for () {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -173,7 +173,7 @@ impl<T: FromWat> FromWat for Option<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Option",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -221,7 +221,7 @@ macro_rules! impl_tuple_marshaling {
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
-                        got: crate::runtime::ValueSnapshot::of(&other),
+                        got: crate::runtime::ValueSnapshot::of(other),
                         span: span.clone(), // arc 138 F4b: real span threaded through
                     }),
                 }
@@ -259,7 +259,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Result",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -284,7 +284,7 @@ impl<T: FromWat> FromWat for Vec<T> {
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "wat::core::Vector",
-                got: crate::runtime::ValueSnapshot::of(&other),
+                got: crate::runtime::ValueSnapshot::of(other),
                 span: span.clone(), // arc 138 F4b: real span threaded through
             }),
         }
@@ -375,7 +375,7 @@ pub fn rust_opaque_arc(
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
-            got: crate::runtime::ValueSnapshot::of(&other),
+            got: crate::runtime::ValueSnapshot::of(other),
             span,
         }),
     }

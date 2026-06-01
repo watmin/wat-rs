@@ -1057,8 +1057,7 @@ pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)
         accumulator: RefCell::new(Vec::new()),
         ring: RefCell::new(
             IoUring::new(4)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other,
-                    format!("IoUring::new(4) failed at Receiver construction: {}", e)))?,
+                .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at Receiver construction: {}", e)))?,
         ),
         _phantom: PhantomData,
     };
