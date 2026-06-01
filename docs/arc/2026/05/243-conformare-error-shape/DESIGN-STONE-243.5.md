@@ -27,9 +27,18 @@ Everything else (TypeExpr, TypeDef, TypeEnv, the other `parse_*` decl fns, the t
 
 The error TYPE no longer forces `Span::unknown()` at any emitter; the single remaining `Span::unknown()` is a built-in-seed argument, not an excuse baked into the type. That is what makes "zero exceptions" honest.
 
-## Home mechanics (mirror the proven 243.3.1 `src/check/` pattern)
+## Home mechanics (mirror the ACTUAL 243.3.1 `src/check/` pattern — crawled 2026-06-01)
 
-`mv src/types.rs src/types/mod.rs`; create `types/error.rs` + `types/defstruct.rs`. Re-export from `mod.rs` so every `crate::types::TypeError` / `crate::types::*` import path is preserved (zero consumer churn outside the carve) — the same re-export discipline that kept 243.3.1's 21k check.rs lines' import paths intact. Born under the vigilatum REMARKABLE bar: the home holds ONLY L1+L2=0 residents (`error.rs`, `defstruct.rs`); the `mod.rs` remainder is untrusted-by-design.
+**Correction (grounded, supersedes the arc DESIGN table's "mv → mod.rs" wording):** the real 243.3.1 home is NOT `mv check.rs → check/mod.rs`. On disk: the flat `src/check.rs` (945KB) STAYS; the warded resident lives at `src/check/env.rs`; they are wired by Rust's flat-file-with-sibling-dir resolution — `src/check.rs` line 49-50 holds `pub mod env;` + `pub use env::CheckEnv;`, and Rust resolves `mod env` to `src/check/env.rs` automatically. **No `mv`, no `mod.rs`, no `#[path]`.** Zero import churn — `crate::check::CheckEnv` still resolves.
+
+So 243.5 mirrors THAT, exactly:
+- **Keep** flat `src/types.rs` in place (4119 lines). Do NOT `mv` it.
+- Add to `src/types.rs`: `pub mod error;` + `pub use error::{TypeError, TypeErrorKind};` (and `pub(crate) mod defstruct;` + the defstruct re-export).
+- **Create** `src/types/error.rs` — carve `TypeError` + `TypeErrorKind` + `impl Display for TypeErrorKind` + `impl Display for TypeError` + `impl Error` (types.rs:1429–1674) into it. This is the home's first warded resident; it carries the `//! vigilatum:` stamp once vigilia converges.
+- **Create** `src/types/defstruct.rs` — `parse_defstruct` decomposition (types.rs:1901–2281).
+- The flat `src/types.rs` remainder is untrusted-by-design (selective lift-and-ward — exactly as the 945KB `check.rs` remainder is). The vigilatum REMARKABLE bar governs the LIFTED residents (`error.rs`, `defstruct.rs`), NOT the flat remainder.
+
+Why this matters: briefing a `mv` + full import-rewire when the real pattern is "add two lines + create two sibling files" would be an FM-2 fiction (briefing from a doc's description, not crawled truth). The lair-study caught it.
 
 ## Cadence (the stone rhythm)
 
