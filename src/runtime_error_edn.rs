@@ -26,7 +26,7 @@ use std::borrow::Cow;
 use std::io::Write;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-use crate::runtime::{ClauseAttempt, ClauseFailureReason, Provenance, RuntimeError, ValueSnapshot};
+use crate::runtime::{ClauseAttempt, ClauseFailureReason, Provenance, RuntimeError, RuntimeErrorKind, ValueSnapshot};
 use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
@@ -37,44 +37,47 @@ use crate::span::Span;
 /// Struct fields become EDN map keyword entries. Tuple-variant fields
 /// get descriptive key names, never positional `:0 :1`.
 pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
-    match err {
+    // Pattern A: span lives at the outer struct; kind carries variant data.
+    // Read self.span once; match self.kind for variant-specific fields.
+    let span = &err.span;
+    match &err.kind {
         // ── Tuple variants (simple: String + Span or just Span) ──────────
-        RuntimeError::UnboundSymbol(name, span) => {
+        RuntimeErrorKind::UnboundSymbol(name) => {
             tagged("UnboundSymbol", map2(
                 kw("name"), str_val(name),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::UnknownFunction(path, span) => {
+        RuntimeErrorKind::UnknownFunction(path) => {
             tagged("UnknownFunction", map2(
                 kw("path"), str_val(path),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::ParamShadowsBuiltin(name, span) => {
+        RuntimeErrorKind::ParamShadowsBuiltin(name) => {
             tagged("ParamShadowsBuiltin", map2(
                 kw("name"), str_val(name),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::DivisionByZero(span) => {
+        RuntimeErrorKind::DivisionByZero => {
             tagged("DivisionByZero", map1(
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::DuplicateDefine(name, span) => {
+        RuntimeErrorKind::DuplicateDefine(name) => {
             tagged("DuplicateDefine", map2(
                 kw("name"), str_val(name),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::ReservedPrefix(prefix, span) => {
+        RuntimeErrorKind::ReservedPrefix(prefix) => {
             tagged("ReservedPrefix", map2(
                 kw("prefix"), str_val(prefix),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::DeclarationInExpressionPosition(head, span) => {
+        RuntimeErrorKind::DeclarationInExpressionPosition(head) => {
             tagged("DeclarationInExpressionPosition", map2(
                 kw("head"), str_val(head),
                 kw("span"), span_val(span),
@@ -82,13 +85,13 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
         }
 
         // ── Struct variants ──────────────────────────────────────────────
-        RuntimeError::NotCallable { got, span } => {
+        RuntimeErrorKind::NotCallable { got } => {
             tagged("NotCallable", map2(
                 kw("got"), snap_val(got),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::TypeMismatch { op, expected, got, span } => {
+        RuntimeErrorKind::TypeMismatch { op, expected, got } => {
             tagged("TypeMismatch", map4(
                 kw("op"), str_val(op),
                 kw("expected"), str_val(expected),
@@ -96,7 +99,7 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::ArityMismatch { op, expected, got, span } => {
+        RuntimeErrorKind::ArityMismatch { op, expected, got } => {
             tagged("ArityMismatch", map4(
                 kw("op"), str_val(op),
                 kw("expected"), OwnedValue::Integer(*expected as i64),
@@ -104,85 +107,86 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::BadCondition { got, span } => {
+        RuntimeErrorKind::BadCondition { got } => {
             tagged("BadCondition", map2(
                 kw("got"), snap_val(got),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::MalformedForm { head, reason, span } => {
+        RuntimeErrorKind::MalformedForm { head, reason } => {
             tagged("MalformedForm", OwnedValue::Map(vec![
                 (kw("head"), str_val(head)),
                 (kw("reason"), str_val(reason)),
                 (kw("span"), span_val(span)),
             ]))
         }
-        RuntimeError::EvalForbidsMutationForm { head, span } => {
+        RuntimeErrorKind::EvalForbidsMutationForm { head } => {
             tagged("EvalForbidsMutationForm", map2(
                 kw("head"), str_val(head),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::UserMainMissing => {
+        RuntimeErrorKind::UserMainMissing => {
+            // Freeze pair: span is Span::unknown(); elide from EDN.
             tagged("UserMainMissing", OwnedValue::Map(vec![]))
         }
-        RuntimeError::EvalVerificationFailed { err } => {
+        RuntimeErrorKind::EvalVerificationFailed { err } => {
+            // Freeze pair: span is Span::unknown(); elide from EDN.
             // Lazy fallback: HashError rendered as Display string.
-            // A future arc can deepen to a structured EDN map if needed.
             tagged("EvalVerificationFailed", map1(
                 kw("error"), str_val(&format!("{}", err)),
             ))
         }
-        RuntimeError::ChannelDisconnected { op, span } => {
+        RuntimeErrorKind::ChannelDisconnected { op } => {
             tagged("ChannelDisconnected", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::NoEncodingCtx { op, span } => {
+        RuntimeErrorKind::NoEncodingCtx { op } => {
             tagged("NoEncodingCtx", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::NoSourceLoader { op, span } => {
+        RuntimeErrorKind::NoSourceLoader { op } => {
             tagged("NoSourceLoader", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::NoMacroRegistry { op, span } => {
+        RuntimeErrorKind::NoMacroRegistry { op } => {
             tagged("NoMacroRegistry", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::MacroExpansionFailed { op, reason, span } => {
+        RuntimeErrorKind::MacroExpansionFailed { op, reason } => {
             tagged("MacroExpansionFailed", OwnedValue::Map(vec![
                 (kw("op"), str_val(op)),
                 (kw("reason"), str_val(reason)),
                 (kw("span"), span_val(span)),
             ]))
         }
-        RuntimeError::PatternMatchFailed { value_type, span } => {
+        RuntimeErrorKind::PatternMatchFailed { value_type } => {
             tagged("PatternMatchFailed", map2(
                 kw("value-type"), str_val(value_type),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::EffectfulInStep { op, span } => {
+        RuntimeErrorKind::EffectfulInStep { op } => {
             tagged("EffectfulInStep", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::NoStepRule { op, span } => {
+        RuntimeErrorKind::NoStepRule { op } => {
             tagged("NoStepRule", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::AssertionFailed { message, actual, expected, span } => {
+        RuntimeErrorKind::AssertionFailed { message, actual, expected } => {
             // Mirrors #wat.kernel/AssertionFailure (arc 211b panic
             // envelope) but as a RuntimeError variant — see module doc.
             tagged("AssertionFailed", OwnedValue::Map(vec![
@@ -192,20 +196,21 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
-        RuntimeError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
+        RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
+            // Multi-span: outer span = call_span (in err.span); secondary = outer_define_span.
             tagged("SandboxScopeLeak", OwnedValue::Map(vec![
                 (kw("offending-name"), str_val(offending_name)),
-                (kw("call-span"), span_val(call_span)),
+                (kw("call-span"), span_val(span)),
                 (kw("outer-define-span"), span_val(outer_define_span)),
             ]))
         }
-        RuntimeError::ServiceNotRunning { op, span } => {
+        RuntimeErrorKind::ServiceNotRunning { op } => {
             tagged("ServiceNotRunning", map2(
                 kw("op"), str_val(op),
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeError::EdnCoerceMismatch { op, expected, got, path, span } => {
+        RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => {
             tagged("EdnCoerceMismatch", OwnedValue::Map(vec![
                 (kw("op"), str_val(op)),
                 (kw("expected"), str_val(expected)),
@@ -214,7 +219,7 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("span"), span_val(span)),
             ]))
         }
-        RuntimeError::UnknownField { record_class, field, available, span } => {
+        RuntimeErrorKind::UnknownField { record_class, field, available } => {
             let available_edn = OwnedValue::Vector(
                 available.iter().map(|s| str_val(s)).collect(),
             );
@@ -226,7 +231,7 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
             ]))
         }
         // Stone 237.4 — rich NoMatchingClause with structured ClauseAttempt list.
-        RuntimeError::NoMatchingClause { name, called_arity, called_args, attempted_clauses, span } => {
+        RuntimeErrorKind::NoMatchingClause { name, called_arity, called_args, attempted_clauses } => {
             let called_args_edn = OwnedValue::Vector(
                 called_args.iter().map(|s| snap_val(s)).collect(),
             );
@@ -242,13 +247,14 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
             ]))
         }
         // Stone 237.4 — rich PostconditionFailed with ensure snapshot + dual spans.
-        RuntimeError::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, body_span, ensure_span } => {
+        RuntimeErrorKind::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, ensure_span } => {
+            // Multi-span: outer span = body_span (in err.span); secondary = ensure_span.
             tagged("PostconditionFailed", OwnedValue::Map(vec![
                 (kw("defclause-name"), str_val(defclause_name)),
                 (kw("clause-index"), OwnedValue::Integer(*clause_index as i64)),
                 (kw("ensure-expr-snapshot"), str_val(ensure_expr_snapshot)),
                 (kw("returned-value"), snap_val(returned_value)),
-                (kw("body-span"), span_val(body_span)),
+                (kw("body-span"), span_val(span)),
                 (kw("ensure-span"), span_val(ensure_span)),
             ]))
         }
@@ -310,37 +316,37 @@ pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
 /// format prefix). Must stay in sync with the match arms in
 /// `runtime_error_to_edn`.
 fn variant_name(err: &RuntimeError) -> &'static str {
-    match err {
-        RuntimeError::UnboundSymbol(..) => "UnboundSymbol",
-        RuntimeError::UnknownFunction(..) => "UnknownFunction",
-        RuntimeError::NotCallable { .. } => "NotCallable",
-        RuntimeError::TypeMismatch { .. } => "TypeMismatch",
-        RuntimeError::ArityMismatch { .. } => "ArityMismatch",
-        RuntimeError::BadCondition { .. } => "BadCondition",
-        RuntimeError::MalformedForm { .. } => "MalformedForm",
-        RuntimeError::ParamShadowsBuiltin(..) => "ParamShadowsBuiltin",
-        RuntimeError::DivisionByZero(..) => "DivisionByZero",
-        RuntimeError::DuplicateDefine(..) => "DuplicateDefine",
-        RuntimeError::ReservedPrefix(..) => "ReservedPrefix",
-        RuntimeError::DeclarationInExpressionPosition(..) => "DeclarationInExpressionPosition",
-        RuntimeError::EvalForbidsMutationForm { .. } => "EvalForbidsMutationForm",
-        RuntimeError::UserMainMissing => "UserMainMissing",
-        RuntimeError::EvalVerificationFailed { .. } => "EvalVerificationFailed",
-        RuntimeError::ChannelDisconnected { .. } => "ChannelDisconnected",
-        RuntimeError::NoEncodingCtx { .. } => "NoEncodingCtx",
-        RuntimeError::NoSourceLoader { .. } => "NoSourceLoader",
-        RuntimeError::NoMacroRegistry { .. } => "NoMacroRegistry",
-        RuntimeError::MacroExpansionFailed { .. } => "MacroExpansionFailed",
-        RuntimeError::PatternMatchFailed { .. } => "PatternMatchFailed",
-        RuntimeError::EffectfulInStep { .. } => "EffectfulInStep",
-        RuntimeError::NoStepRule { .. } => "NoStepRule",
-        RuntimeError::AssertionFailed { .. } => "AssertionFailed",
-        RuntimeError::SandboxScopeLeak { .. } => "SandboxScopeLeak",
-        RuntimeError::ServiceNotRunning { .. } => "ServiceNotRunning",
-        RuntimeError::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
-        RuntimeError::UnknownField { .. } => "UnknownField",
-        RuntimeError::NoMatchingClause { .. } => "NoMatchingClause",
-        RuntimeError::PostconditionFailed { .. } => "PostconditionFailed",
+    match &err.kind {
+        RuntimeErrorKind::UnboundSymbol(..) => "UnboundSymbol",
+        RuntimeErrorKind::UnknownFunction(..) => "UnknownFunction",
+        RuntimeErrorKind::NotCallable { .. } => "NotCallable",
+        RuntimeErrorKind::TypeMismatch { .. } => "TypeMismatch",
+        RuntimeErrorKind::ArityMismatch { .. } => "ArityMismatch",
+        RuntimeErrorKind::BadCondition { .. } => "BadCondition",
+        RuntimeErrorKind::MalformedForm { .. } => "MalformedForm",
+        RuntimeErrorKind::ParamShadowsBuiltin(..) => "ParamShadowsBuiltin",
+        RuntimeErrorKind::DivisionByZero => "DivisionByZero",
+        RuntimeErrorKind::DuplicateDefine(..) => "DuplicateDefine",
+        RuntimeErrorKind::ReservedPrefix(..) => "ReservedPrefix",
+        RuntimeErrorKind::DeclarationInExpressionPosition(..) => "DeclarationInExpressionPosition",
+        RuntimeErrorKind::EvalForbidsMutationForm { .. } => "EvalForbidsMutationForm",
+        RuntimeErrorKind::UserMainMissing => "UserMainMissing",
+        RuntimeErrorKind::EvalVerificationFailed { .. } => "EvalVerificationFailed",
+        RuntimeErrorKind::ChannelDisconnected { .. } => "ChannelDisconnected",
+        RuntimeErrorKind::NoEncodingCtx { .. } => "NoEncodingCtx",
+        RuntimeErrorKind::NoSourceLoader { .. } => "NoSourceLoader",
+        RuntimeErrorKind::NoMacroRegistry { .. } => "NoMacroRegistry",
+        RuntimeErrorKind::MacroExpansionFailed { .. } => "MacroExpansionFailed",
+        RuntimeErrorKind::PatternMatchFailed { .. } => "PatternMatchFailed",
+        RuntimeErrorKind::EffectfulInStep { .. } => "EffectfulInStep",
+        RuntimeErrorKind::NoStepRule { .. } => "NoStepRule",
+        RuntimeErrorKind::AssertionFailed { .. } => "AssertionFailed",
+        RuntimeErrorKind::SandboxScopeLeak { .. } => "SandboxScopeLeak",
+        RuntimeErrorKind::ServiceNotRunning { .. } => "ServiceNotRunning",
+        RuntimeErrorKind::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
+        RuntimeErrorKind::UnknownField { .. } => "UnknownField",
+        RuntimeErrorKind::NoMatchingClause { .. } => "NoMatchingClause",
+        RuntimeErrorKind::PostconditionFailed { .. } => "PostconditionFailed",
     }
 }
 

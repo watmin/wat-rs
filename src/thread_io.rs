@@ -28,7 +28,7 @@ use std::sync::Arc;
 use crate::typed_channel::{Receiver, Sender};
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, EnumValue, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, EnumValue, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::typed_channel::{
     receiver_from_crossbeam, sender_from_crossbeam, ReceiverInner, SenderInner,
@@ -161,10 +161,9 @@ where
 {
     THREAD_IO.with(|cell| match &*cell.borrow() {
         Some(io) => f(io),
-        None => Err(RuntimeError::ServiceNotRunning {
-            op: op.into(),
-            span: Span::unknown(),
-        }),
+        None => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ServiceNotRunning {
+            op: op.into()
+        } }),
     })
 }
 
@@ -177,12 +176,11 @@ fn require_one_arg(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
@@ -204,16 +202,14 @@ pub fn eval_kernel_println(
     with_thread_io(OP, |io| {
         io.stdout_tx
             .send(StdOutServiceEvent::Write { line })
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
         io.stdout_ack_rx
             .recv()
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
         Ok(Value::Unit)
     })
 }
@@ -234,16 +230,14 @@ pub fn eval_kernel_eprintln(
     with_thread_io(OP, |io| {
         io.stderr_tx
             .send(StdErrServiceEvent::Write { line })
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
         io.stderr_ack_rx
             .recv()
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
         Ok(Value::Unit)
     })
 }
@@ -285,74 +279,66 @@ pub fn eval_kernel_readln(
     const OP: &str = ":wat::kernel::readln";
     // Annotation shape: `(readln -> :T)` → args = [Symbol("->"), Keyword(":T")].
     if args.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "expected (:wat::kernel::readln -> :T) — 2 args (arrow + type keyword); got {}",
                 args.len()
-            ),
-            span: Span::unknown(),
-        });
+            )
+        } });
     }
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
                     "expected `->` as the first argument; (:wat::kernel::readln -> :T); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            });
+                )
+            } });
         }
     }
     let target_ty = match &args[1] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    span: args[1].span().clone(),
-                });
+                    reason: format!("declared type {:?} failed to parse: {}", k, e)
+                } });
             }
         },
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: "expected type keyword after `->`".into(),
-                span: other.span().clone(),
-            });
+                reason: "expected type keyword after `->`".into()
+            } });
         }
     };
     with_thread_io(OP, |io| {
         io.stdin_tx
             .send(StdInServiceEvent::Read)
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
         let line = io
             .stdin_reply_rx
             .recv()
-            .map_err(|_| RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: Span::unknown(),
-            })?;
-        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError::MalformedForm {
+            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
+        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("EDN parse error reading stdin line {:?}: {}", line, e),
-            span: Span::unknown(),
-        })?;
+            reason: format!("EDN parse error reading stdin line {:?}: {}", line, e)
+        } })?;
         crate::edn_shim::edn_to_typed_value(&target_ty, &edn, sym).map_err(|e| {
-            RuntimeError::EdnCoerceMismatch {
+            RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EdnCoerceMismatch {
                 op: OP.into(),
                 expected: e.expected,
                 got: e.got,
-                path: e.path,
-                span: Span::unknown(),
-            }
+                path: e.path
+            } }
         })
     })
 }
@@ -437,19 +423,17 @@ fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crossbeam_channe
     match v {
         Value::wat__kernel__Sender(inner) => match inner.as_ref() {
             SenderInner::Crossbeam { sender: s, .. } => Ok(s.clone()),
-            SenderInner::PipeFd { .. } => Err(RuntimeError::TypeMismatch {
+            SenderInner::PipeFd { .. } => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
                 expected: "tier-1 (crossbeam) Sender",
-                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender")),
-                span: Span::unknown(),
-            }),
+                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender"))
+            } }),
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: label.to_string(),
             expected: "wat::kernel::Sender<T>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }
 
@@ -462,19 +446,17 @@ fn unwrap_value_receiver(
     match v {
         Value::wat__kernel__Receiver(inner) => match inner.as_ref() {
             ReceiverInner::Crossbeam(r) => Ok(r.clone()),
-            ReceiverInner::PipeFd(_) => Err(RuntimeError::TypeMismatch {
+            ReceiverInner::PipeFd(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
                 expected: "tier-1 (crossbeam) Receiver",
-                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver")),
-                span: Span::unknown(),
-            }),
+                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver"))
+            } }),
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: label.to_string(),
             expected: "wat::kernel::Receiver<T>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }
 
@@ -630,10 +612,9 @@ pub fn register_thread_with_services(
     services
         .stdin_ctrl
         .send(stdin_add)
-        .map_err(|_| RuntimeError::ChannelDisconnected {
-            op: OP_ADD.into(),
-            span: Span::unknown(),
-        })?;
+        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            op: OP_ADD.into()
+        } })?;
 
     let stdout_add = make_event_value(
         ":wat::kernel::services::StdOutService::Event",
@@ -647,10 +628,9 @@ pub fn register_thread_with_services(
     services
         .stdout_ctrl
         .send(stdout_add)
-        .map_err(|_| RuntimeError::ChannelDisconnected {
-            op: OP_ADD.into(),
-            span: Span::unknown(),
-        })?;
+        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            op: OP_ADD.into()
+        } })?;
 
     let stderr_add = make_event_value(
         ":wat::kernel::services::StdErrService::Event",
@@ -664,10 +644,9 @@ pub fn register_thread_with_services(
     services
         .stderr_ctrl
         .send(stderr_add)
-        .map_err(|_| RuntimeError::ChannelDisconnected {
-            op: OP_ADD.into(),
-            span: Span::unknown(),
-        })?;
+        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            op: OP_ADD.into()
+        } })?;
 
     Ok(ThreadIO {
         stdout_tx: rust_stdout_tx,
@@ -876,23 +855,21 @@ pub fn extract_control_tx(
     let tuple = match spawn_result {
         Value::Tuple(t) => t,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: service_label.to_string(),
                 expected: "(Thread, Sender) tuple from service spawn",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     if tuple.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: service_label.to_string(),
             reason: format!(
                 "service spawn returned tuple with {} fields; expected 2",
                 tuple.len()
-            ),
-            span: Span::unknown(),
-        });
+            )
+        } });
     }
     let thread_value = tuple[0].clone();
     let ctrl_tx_value = tuple[1].clone();

@@ -50,7 +50,7 @@
 //! value.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use std::sync::Arc;
 use wat_edn::{Keyword, OwnedValue, Tag};
@@ -116,12 +116,11 @@ fn require_one_arg(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         // arc 138: no span — require_one_arg has no list_span; callers in runtime.rs don't pass it; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
@@ -201,29 +200,26 @@ pub fn eval_edn_read(
         Value::String(s) => (**s).clone(),
         other => {
             // arc 138: no span — eval_edn_read receives evaluated Value via require_one_arg, no WatAST trace
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: crate::span::Span::unknown(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     // arc 138: no span — s is a plain String extracted from Value; no WatAST span to thread
-    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::MalformedForm {
+    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("EDN parse error: {e}"),
-        span: crate::span::Span::unknown(),
-    })?;
+        reason: format!("EDN parse error: {e}")
+    } })?;
     // Arc 233 Stone 233.2.c — wrap result in Tracked with RuntimeBuilt provenance
     // so that errors flowing from edn::read-produced Values surface the producer origin.
     let result = edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
         // arc 138: no span — edn_to_value errors on parsed EDN, no originating WatAST
-        RuntimeError::MalformedForm {
+        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: e.to_string(),
-            span: crate::span::Span::unknown(),
-        }
+            reason: e.to_string()
+        } }
     })?;
     // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
     Ok(crate::runtime::TrackedValue::new(

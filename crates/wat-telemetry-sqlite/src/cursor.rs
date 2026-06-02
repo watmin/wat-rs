@@ -57,7 +57,7 @@ use rusqlite::{Connection, OpenFlags};
 use wat::ast::WatAST;
 use wat::edn_shim::{read_holon_ast_natural, read_holon_ast_tagged};
 use wat::runtime::{
-    eval, Environment, EnumValue, RuntimeError, StructValue, SymbolTable, Value, ValueSnapshot,
+    eval, Environment, EnumValue, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value, ValueSnapshot,
 };
 use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
@@ -107,13 +107,12 @@ fn parse_time_constraints(
     let xs = match constraints {
         Value::Vec(xs) => xs.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::Vector<wat::telemetry::TimeConstraint>",
                 got: Box::new(ValueSnapshot::of(other)),
-                // arc 138: no span — parse_time_constraints receives &Value, no WatAST trace available
-                span: wat::span::Span::unknown(),
-            });
+                // arc 138: no — parse_time_constraints receives &Value, no WatAST trace available
+            } });
         }
     };
     let mut clauses: Vec<String> = Vec::with_capacity(xs.len());
@@ -122,53 +121,49 @@ fn parse_time_constraints(
         let ev = match v {
             Value::Enum(e) if e.type_path == TIME_CONSTRAINT_TYPE_PATH => e.clone(),
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::telemetry::TimeConstraint",
                     got: Box::new(ValueSnapshot::of(other)),
-                    // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                    span: wat::span::Span::unknown(),
-                });
+                    // arc 138: no — Vec element iteration over Values; per-element WatAST span unavailable
+                } });
             }
         };
         let instant = match ev.fields.first() {
             Some(Value::Instant(i)) => *i,
             _ => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "TimeConstraint::{} at index {idx} missing Instant field",
                         ev.variant_name
                     ),
-                    // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                    span: wat::span::Span::unknown(),
-                });
+                    // arc 138: no — Vec element iteration over Values; per-element WatAST span unavailable
+                } });
             }
         };
         let nanos = instant.timestamp_nanos_opt().ok_or_else(|| {
-            RuntimeError::MalformedForm {
+            RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "TimeConstraint::{} at index {idx}: Instant out of i64-nanos range",
                     ev.variant_name
                 ),
-                // arc 138: no span — chrono range error on evaluated Instant value; no WatAST trace
-                span: wat::span::Span::unknown(),
-            }
+                // arc 138: no — chrono range error on evaluated Instant value; no WatAST trace
+            } }
         })?;
         let placeholder_idx = params.len() + 1;
         match ev.variant_name.as_str() {
             "Since" => clauses.push(format!("{time_col} >= ?{placeholder_idx}")),
             "Until" => clauses.push(format!("{time_col} <= ?{placeholder_idx}")),
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "TimeConstraint variant {other}: only Since / Until are recognized"
                     ),
-                    // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                    span: wat::span::Span::unknown(),
-                });
+                    // arc 138: no — Vec element iteration over Values; per-element WatAST span unavailable
+                } });
             }
         }
         params.push(nanos);
@@ -719,13 +714,12 @@ fn eval_handle_and_constraints(
     time_col: &'static str,
 ) -> Result<(ReadHandle, WhereClause), RuntimeError> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
-            // arc 138: no span — eval_handle_and_constraints has no list_span; cross-file broadening out of scope
-            span: wat::span::Span::unknown(),
-        });
+            // arc 138: no — eval_handle_and_constraints has no list_span; cross-file broadening out of scope
+        } });
     }
     let handle_val = eval(&args[0], env, sym)?.value_owned();
     let inner = rust_opaque_arc(&handle_val, READ_HANDLE_PATH, op, args[0].span().clone())?;
@@ -779,13 +773,12 @@ fn with_cursor_step<C: Send + Sync + 'static>(
     step: impl FnOnce(&C) -> Option<Value>,
 ) -> Result<Option<Value>, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138: no span — with_cursor_step has no list_span; cross-file broadening out of scope
-            span: wat::span::Span::unknown(),
-        });
+            // arc 138: no — with_cursor_step has no list_span; cross-file broadening out of scope
+        } });
     }
     let cur_val = eval(&args[0], env, sym)?.value_owned();
     let inner = rust_opaque_arc(&cur_val, cursor_path, op, args[0].span().clone())?;

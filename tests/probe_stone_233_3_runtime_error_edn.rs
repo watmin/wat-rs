@@ -19,7 +19,7 @@
 //! IPC boundaries via tagged EDN envelopes.
 
 use std::sync::Arc;
-use wat::runtime::{Provenance, RuntimeError, TrackedValue, Value, ValueSnapshot};
+use wat::runtime::{Provenance, RuntimeError, RuntimeErrorKind, TrackedValue, Value, ValueSnapshot};
 use wat::span::Span;
 
 // ─── Probe 1 — NotCallable serializes to #wat.kernel/NotCallable ────────────
@@ -32,10 +32,9 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
         col: 7,
     };
     let snap = ValueSnapshot::of(&Value::String(Arc::new("not-fn".to_string())));
-    let err = RuntimeError::NotCallable {
-        got: Box::new(snap),
-        span: span.clone(),
-    };
+    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::NotCallable {
+        got: Box::new(snap)
+    } };
 
     // Pre-stone: this function doesn't exist; FAILS to compile.
     let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
@@ -65,12 +64,11 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
         col: 12,
     };
     let snap = ValueSnapshot::of(&Value::i64(42));
-    let err = RuntimeError::TypeMismatch {
+    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
         op: ":wat::core::+".into(),
         expected: "wat::core::i64",
-        got: Box::new(snap),
-        span: span.clone(),
-    };
+        got: Box::new(snap)
+    } };
 
     let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
     let serialized = wat_edn::write(&edn);
@@ -105,12 +103,11 @@ fn probe_3_assertion_failed_with_optional_fields() {
         line: 1,
         col: 1,
     };
-    let err = RuntimeError::AssertionFailed {
+    let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::AssertionFailed {
         message: "assertion fired".into(),
         actual: Some("42".into()),
         expected: None, // tests the Nil branch
-        span: span.clone(),
-    };
+    } };
 
     let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
     let serialized = wat_edn::write(&edn);
@@ -140,7 +137,7 @@ fn probe_4_tuple_variant_serializes() {
         line: 9,
         col: 4,
     };
-    let err = RuntimeError::ParamShadowsBuiltin("my-fn".into(), span);
+    let err = RuntimeError { span: span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
 
     let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
     let serialized = wat_edn::write(&edn);

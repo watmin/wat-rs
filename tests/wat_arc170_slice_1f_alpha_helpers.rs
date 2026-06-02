@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, RuntimeError, Value};
+use wat::runtime::{Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::thread_io::{
     install_thread_io, uninstall_thread_io, ThreadIO,
     StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
@@ -139,7 +139,7 @@ fn row_a_println_unpopulated_returns_service_not_running() {
     let err = eval_in_frozen(&ast, &world, &env)
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
-        RuntimeError::ServiceNotRunning { op, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
             assert_eq!(op, ":wat::kernel::println");
         }
         other => panic!("expected ServiceNotRunning; got {:?}", other),
@@ -157,7 +157,7 @@ fn row_b_eprintln_unpopulated_returns_service_not_running() {
     let err = eval_in_frozen(&ast, &world, &env)
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
-        RuntimeError::ServiceNotRunning { op, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
             assert_eq!(op, ":wat::kernel::eprintln");
         }
         other => panic!("expected ServiceNotRunning; got {:?}", other),
@@ -176,7 +176,7 @@ fn row_c_readln_unpopulated_returns_service_not_running() {
     let err = eval_in_frozen(&ast, &world, &env)
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
-        RuntimeError::ServiceNotRunning { op, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
             assert_eq!(op, ":wat::kernel::readln");
         }
         other => panic!("expected ServiceNotRunning; got {:?}", other),

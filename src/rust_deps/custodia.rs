@@ -9,7 +9,7 @@
 //! Consumed across the shim ecosystem (runtime, io, hologram, the shim
 //! crates); not a marshalling concern (hence carved from marshal.rs).
 
-use crate::runtime::RuntimeError;
+use crate::runtime::{RuntimeError, RuntimeErrorKind};
 
 /// Wrapper for single-thread-owned mutable state. Generic version of
 /// the hand-written `LruCacheCell` pattern. The `#[wat_dispatch]`
@@ -54,16 +54,15 @@ impl<T: Send> ThreadOwnedCell<T> {
     fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
         let current = std::thread::current().id();
         if current != self.owner {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "thread-owned value crossed thread boundary \
                      (owner: {:?}, current: {:?})",
                     self.owner,
                     current
-                ),
-                span,
-            });
+                )
+            } });
         }
         Ok(())
     }
@@ -143,18 +142,16 @@ impl<T: Send> OwnedMoveCell<T> {
     /// caller receives `RuntimeError::MalformedForm`.
     pub fn take(&self, op: &'static str, span: crate::span::Span) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
-                reason: "owned-move handle already consumed".into(),
-                span: span.clone(),
-            });
+                reason: "owned-move handle already consumed".into()
+            } });
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
-        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
+        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError { span: span, kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
-            reason: "owned-move handle payload was unexpectedly None".into(),
-            span,
-        })
+            reason: "owned-move handle payload was unexpectedly None".into()
+        } })
     }
 }

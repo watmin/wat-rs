@@ -2165,30 +2165,52 @@ impl fmt::Display for EvalBreak {
     }
 }
 
-/// Runtime error.
+/// Runtime error. Pattern A (Stone 243.7c): span at the outer struct level;
+/// variant data in [`RuntimeErrorKind`].
+///
+/// The `span` field is mandatory at construction — Rust's struct-literal rule
+/// makes a span-less `RuntimeError` uncompilable. `Span::unknown()` is the
+/// explicit sentinel for the rare site with no recoverable source location
+/// (freeze-pair variants `UserMainMissing` / `EvalVerificationFailed`);
+/// `Display` / EDN elide unknown spans.
 #[derive(Debug)]
-pub enum RuntimeError {
-    UnboundSymbol(String, Span),
-    UnknownFunction(String, Span),
-    NotCallable { got: Box<ValueSnapshot>, span: Span },
+pub struct RuntimeError {
+    pub span: Span,
+    pub kind: RuntimeErrorKind,
+}
+
+/// Variant data for [`RuntimeError`]. Spans live in the outer struct; variants
+/// carry ONLY data unique to each failure kind.
+///
+/// **Multi-span variants** keep their SECONDARY spans as domain-named kind
+/// fields per CONFORMARE.md § Multi-span. The outer `span` is the
+/// most-actionable location (the site the user edits to fix):
+/// - `SandboxScopeLeak`: outer = `call_span`, secondary = `outer_define_span`
+/// - `PostconditionFailed`: outer = `body_span`, secondary = `ensure_span`
+///
+/// **Freeze pair** (`UserMainMissing`, `EvalVerificationFailed`): no span on
+/// the kind; construct with outer `Span::unknown()`, honestly elided by Display.
+#[derive(Debug)]
+pub enum RuntimeErrorKind {
+    UnboundSymbol(String),
+    UnknownFunction(String),
+    NotCallable { got: Box<ValueSnapshot> },
     TypeMismatch {
         op: String,
         expected: &'static str,
         got: Box<ValueSnapshot>,
-        span: Span,
     },
     ArityMismatch {
         op: String,
         expected: usize,
         got: usize,
-        span: Span,
     },
-    BadCondition { got: Box<ValueSnapshot>, span: Span },
-    MalformedForm { head: String, reason: String, span: Span },
-    ParamShadowsBuiltin(String, Span),
-    DivisionByZero(Span),
-    DuplicateDefine(String, Span),
-    ReservedPrefix(String, Span),
+    BadCondition { got: Box<ValueSnapshot> },
+    MalformedForm { head: String, reason: String },
+    ParamShadowsBuiltin(String),
+    DivisionByZero,
+    DuplicateDefine(String),
+    ReservedPrefix(String),
     /// A declaration form (`:wat::core::def`, `:wat::core::define`, etc.)
     /// found in expression position at runtime. Declaration forms are
     /// top-level registration forms; calling one at expression position
@@ -2198,21 +2220,23 @@ pub enum RuntimeError {
     /// Arc 170 Gap I-B — minted to replace `DefineInExpressionPosition`,
     /// which only named `define`. Now covers all 8 declaration forms
     /// with a single symmetric variant carrying the offending `head`.
-    DeclarationInExpressionPosition(String, Span),
+    DeclarationInExpressionPosition(String),
     /// A constrained `eval` (`eval_in_frozen`) found a mutation-inducing
     /// form inside the AST it was asked to evaluate. Per FOUNDATION
     /// (§ constrained eval, line 663): "If the submitted AST contains a
     /// `define`, `defmacro`, `struct`, `enum`, `newtype`, `typealias`,
     /// or `load` form — eval refuses. This is not a mode; it is an
     /// invariant." Also covers `set-*!` config setters.
-    EvalForbidsMutationForm { head: String, span: Span },
+    EvalForbidsMutationForm { head: String },
     /// `:user::main` was not registered at startup. FOUNDATION requires
     /// exactly one `:user::main` declaration; zero halts.
+    /// Freeze pair — no span; construct with outer `Span::unknown()`.
     UserMainMissing,
     /// Verification failed for a `:wat::eval-digest!` /
     /// `:wat::eval-signed!` call. The wrapped [`HashError`]
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
+    /// Freeze pair — no span; construct with outer `Span::unknown()`.
     EvalVerificationFailed { err: crate::hash::HashError },
     /// Raised when `:wat::kernel::join` reaps a spawned program
     /// whose thread panicked before yielding a result — the internal
@@ -2224,13 +2248,13 @@ pub enum RuntimeError {
     /// `:Option` rather than via this error, so no call path in the
     /// user-level channel primitives produces this variant. It
     /// remains only for the join-on-panic case.
-    ChannelDisconnected { op: String, span: Span },
+    ChannelDisconnected { op: String },
     /// A vector-level primitive (`:wat::holon::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
     /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
-    NoEncodingCtx { op: String, span: Span },
+    NoEncodingCtx { op: String },
     /// A file-reading primitive (`:wat::eval-file!`, file-path
     /// variants of the verified eval/load forms, `:wat::verify::file-path`
     /// payloads) was invoked but the [`SymbolTable`] has no attached
@@ -2238,24 +2262,24 @@ pub enum RuntimeError {
     /// handed to `startup_from_source`; test harnesses that build a
     /// SymbolTable directly must call [`SymbolTable::set_source_loader`]
     /// to grant file-I/O capability.
-    NoSourceLoader { op: String, span: Span },
+    NoSourceLoader { op: String },
     /// `:wat::core::macroexpand` / `macroexpand-1` was invoked but the
     /// [`SymbolTable`] has no attached macro registry. The frozen
     /// startup pipeline attaches the registry; test harnesses that
     /// build a SymbolTable directly must call
     /// [`SymbolTable::set_macro_registry`] to grant macro-expansion
     /// capability. Arc 030.
-    NoMacroRegistry { op: String, span: Span },
+    NoMacroRegistry { op: String },
     /// `:wat::core::macroexpand` / `macroexpand-1` surfaced a macro-
     /// expansion error (malformed template, arity mismatch in the
     /// expanded call, expansion-depth cycle, etc.). Carries the
     /// wrapped [`crate::macros::MacroError`] description. Arc 030.
-    MacroExpansionFailed { op: String, reason: String, span: Span },
+    MacroExpansionFailed { op: String, reason: String },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
     /// bypassed or hasn't caught up with a new pattern form.
-    PatternMatchFailed { value_type: &'static str, span: Span },
+    PatternMatchFailed { value_type: &'static str },
     /// Arc 068 — `:wat::eval-step!` saw a form whose head is an
     /// effectful op (kernel sends/recvs, IO writes, channel-construction
     /// primitives, `:wat::eval-ast!` itself, etc.). The stepwise
@@ -2263,14 +2287,14 @@ pub enum RuntimeError {
     /// dual-LRU cache's "form IS its return value" invariant holds —
     /// the caller falls back to `:wat::eval-ast!` for sub-forms with
     /// effects.
-    EffectfulInStep { op: String, span: Span },
+    EffectfulInStep { op: String },
     /// Arc 068 — `:wat::eval-step!` saw a form whose shape isn't yet
     /// covered by a step rule (a future stdlib op, an unrecognized
     /// keyword head). Caller falls back to `:wat::eval-ast!` for
     /// the affected sub-form. Distinct from `EffectfulInStep` so
     /// consumers can distinguish "out of scope by design" from "not
     /// taught yet."
-    NoStepRule { op: String, span: Span },
+    NoStepRule { op: String },
     /// Raised by `:wat::kernel::assertion-failed!` when an assertion in
     /// a `:wat::test::*` form (or any user code that calls the primitive
     /// directly) fails. Intended to travel as a panic payload via the
@@ -2283,7 +2307,6 @@ pub enum RuntimeError {
         message: String,
         actual: Option<String>,
         expected: Option<String>,
-        span: Span,
     },
     /// Arc 140 slice 1 — runtime panic enrichment. Fires when a
     /// sub-program (`run-sandboxed-ast` / `run-sandboxed-hermetic-ast`
@@ -2300,9 +2323,12 @@ pub enum RuntimeError {
     /// variant is the runtime backstop for dynamic / `eval-ast!` /
     /// otherwise check-walker-bypassing call paths. Same DESIGN.md
     /// covers both.
+    ///
+    /// Multi-span: outer `span` = `call_span` (most-actionable).
+    /// Secondary: `outer_define_span` (the outer-scope define).
     SandboxScopeLeak {
         offending_name: String,
-        call_span: crate::span::Span,
+        /// Source location of the outer-scope define. May be `Span::unknown()`.
         outer_define_span: crate::span::Span,
     },
     /// Arc 170 slice 1f-α — a thread-aware stdio helper
@@ -2321,7 +2347,6 @@ pub enum RuntimeError {
     /// the primitive.
     ServiceNotRunning {
         op: String,
-        span: Span,
     },
     /// Arc 170 slice 1f-ι — `:wat::kernel::readln`'s
     /// EDN→typed-`T` coercion (the `edn_to_typed_value` walker
@@ -2341,7 +2366,6 @@ pub enum RuntimeError {
         expected: String,
         got: String,
         path: String,
-        span: Span,
     },
     /// Arc 234 Stone 234.3b.fix — `:wat::Record/assoc` was invoked with
     /// a field key that does not exist on the record's class. Carries the
@@ -2355,7 +2379,6 @@ pub enum RuntimeError {
         record_class: String,   // bare FQDN, e.g. "myapp::Voltage" (no leading colon)
         field: String,          // bare field-name attempted, e.g. "nonexistent"
         available: Vec<String>, // known field names on the record
-        span: Span,
     },
     /// Stone 237.4 — runtime fall-through for a defclause call where no
     /// clause matches the actual argument values. Carries a structured
@@ -2376,7 +2399,6 @@ pub enum RuntimeError {
         called_args: Vec<ValueSnapshot>,
         /// Structured per-clause failure reasons (Stone 237.4 promotion).
         attempted_clauses: Vec<ClauseAttempt>,
-        span: Span,
     },
 
     /// Stone 237.4 — postcondition failure for a defclause clause whose
@@ -2386,14 +2408,15 @@ pub enum RuntimeError {
     /// and dual spans (body site vs ensure-declaration site).
     ///
     /// Per arc 233 discipline: `returned_value` uses `ValueSnapshot`.
+    ///
+    /// Multi-span: outer `span` = `body_span` (most-actionable).
+    /// Secondary: `ensure_span` (the `:ensure :fn` declaration).
     PostconditionFailed {
         defclause_name: String,
         clause_index: usize,
         /// Rendered form of the `:ensure :fn` expression (captured at dispatch time).
         ensure_expr_snapshot: String,
         returned_value: Box<ValueSnapshot>,
-        /// Span of the clause body (where the returned value was produced).
-        body_span: Span,
         /// Span of the `:ensure :fn` declaration.
         ensure_span: Span,
     },
@@ -2411,108 +2434,122 @@ fn span_prefix(span: &Span) -> String {
     }
 }
 
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl RuntimeErrorKind {
+    /// Render this error kind's human-facing message with the span woven in.
+    ///
+    /// `span` is `Some(&outer_span)` when rendering a full [`RuntimeError`]
+    /// (span-bearing form) and `None` when rendering the kind alone (span-free
+    /// form). Message text lives here exactly once; both `Display` impls
+    /// delegate here.
+    fn fmt_with_span(
+        &self,
+        span: Option<&Span>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let prefix = span.map(span_prefix).unwrap_or_default();
+        // `shown` gates mid-prose span emission: unknown spans are treated as
+        // absent so "at <runtime>:0:0" noise never appears.
+        let shown: Option<&Span> = span.filter(|s| !s.is_unknown());
         match self {
-            RuntimeError::UnboundSymbol(s, span) => {
-                write!(f, "{}unbound symbol: {}", span_prefix(span), s)
+            RuntimeErrorKind::UnboundSymbol(s) => {
+                write!(f, "{}unbound symbol: {}", prefix, s)
             }
-            RuntimeError::UnknownFunction(p, span) => {
-                write!(f, "{}unknown function: {}", span_prefix(span), p)
+            RuntimeErrorKind::UnknownFunction(p) => {
+                write!(f, "{}unknown function: {}", prefix, p)
             }
-            RuntimeError::NotCallable { got, span } => {
-                write!(f, "{}not callable: expected Function, got {}", span_prefix(span), got)
+            RuntimeErrorKind::NotCallable { got } => {
+                write!(f, "{}not callable: expected Function, got {}", prefix, got)
             }
-            RuntimeError::TypeMismatch { op, expected, got, span } => {
-                write!(f, "{}{}: expected {}, got {}", span_prefix(span), op, expected, got)
+            RuntimeErrorKind::TypeMismatch { op, expected, got } => {
+                write!(f, "{}{}: expected {}, got {}", prefix, op, expected, got)
             }
-            RuntimeError::ArityMismatch { op, expected, got, span } => {
-                write!(f, "{}{}: expected {} arguments, got {}", span_prefix(span), op, expected, got)
+            RuntimeErrorKind::ArityMismatch { op, expected, got } => {
+                write!(f, "{}{}: expected {} arguments, got {}", prefix, op, expected, got)
             }
-            RuntimeError::BadCondition { got, span } => {
-                write!(f, "{}if / when condition must be :wat::core::bool; got {}", span_prefix(span), got)
+            RuntimeErrorKind::BadCondition { got } => {
+                write!(f, "{}if / when condition must be :wat::core::bool; got {}", prefix, got)
             }
-            RuntimeError::MalformedForm { head, reason, span } => {
-                write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)
+            RuntimeErrorKind::MalformedForm { head, reason } => {
+                write!(f, "{}malformed {} form: {}", prefix, head, reason)
             }
-            RuntimeError::ParamShadowsBuiltin(s, span) => {
-                write!(f, "{}parameter name {} shadows a :wat::core builtin; pick another name", span_prefix(span), s)
+            RuntimeErrorKind::ParamShadowsBuiltin(s) => {
+                write!(f, "{}parameter name {} shadows a :wat::core builtin; pick another name", prefix, s)
             }
-            RuntimeError::DivisionByZero(span) => {
-                write!(f, "{}division by zero", span_prefix(span))
+            RuntimeErrorKind::DivisionByZero => {
+                write!(f, "{}division by zero", prefix)
             }
-            RuntimeError::DuplicateDefine(p, span) => {
-                write!(f, "{}duplicate define: {} already registered", span_prefix(span), p)
+            RuntimeErrorKind::DuplicateDefine(p) => {
+                write!(f, "{}duplicate define: {} already registered", prefix, p)
             }
-            RuntimeError::ReservedPrefix(p, span) => write!(
+            RuntimeErrorKind::ReservedPrefix(p) => write!(
                 f,
                 "{}cannot define {} — reserved prefix ({}); user defines must use their own prefix",
-                span_prefix(span),
+                prefix,
                 p,
                 crate::resolve::reserved_prefix_list()
             ),
-            RuntimeError::DeclarationInExpressionPosition(head, span) => write!(
+            RuntimeErrorKind::DeclarationInExpressionPosition(head) => write!(
                 f,
                 "{}{} is a declaration form, not an expression — declaration forms are \
                  top-level registration forms and cannot appear in expression position",
-                span_prefix(span),
+                prefix,
                 head
             ),
-            RuntimeError::EvalForbidsMutationForm { head, span } => write!(
+            RuntimeErrorKind::EvalForbidsMutationForm { head } => write!(
                 f,
                 "{}constrained eval refuses mutation form {}; eval evaluates against the frozen symbol table and cannot register / replace / load definitions",
-                span_prefix(span),
+                prefix,
                 head
             ),
-            RuntimeError::UserMainMissing => write!(
+            RuntimeErrorKind::UserMainMissing => write!(
                 f,
                 ":user::main not defined — a wat program needs an entry point"
             ),
-            RuntimeError::EvalVerificationFailed { err } => {
+            RuntimeErrorKind::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
-            RuntimeError::ChannelDisconnected { op, span } => write!(
+            RuntimeErrorKind::ChannelDisconnected { op } => write!(
                 f,
                 "{}{}: channel disconnected — receiver was dropped. `recv` is now Option-returning (disconnect yields :None); only `send` to a dropped receiver raises this error.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::NoEncodingCtx { op, span } => write!(
+            RuntimeErrorKind::NoEncodingCtx { op } => write!(
                 f,
                 "{}{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::NoSourceLoader { op, span } => write!(
+            RuntimeErrorKind::NoSourceLoader { op } => write!(
                 f,
                 "{}{}: no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::NoMacroRegistry { op, span } => write!(
+            RuntimeErrorKind::NoMacroRegistry { op } => write!(
                 f,
                 "{}{}: no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::MacroExpansionFailed { op, reason, span } => write!(
+            RuntimeErrorKind::MacroExpansionFailed { op, reason } => write!(
                 f,
                 "{}{}: macro expansion failed: {}",
-                span_prefix(span), op, reason
+                prefix, op, reason
             ),
-            RuntimeError::PatternMatchFailed { value_type, span } => write!(
+            RuntimeErrorKind::PatternMatchFailed { value_type } => write!(
                 f,
                 "{}:wat::core::match: no arm matched scrutinee of type {}; exhaustiveness should be caught at type-check time",
-                span_prefix(span), value_type
+                prefix, value_type
             ),
-            RuntimeError::EffectfulInStep { op, span } => write!(
+            RuntimeErrorKind::EffectfulInStep { op } => write!(
                 f,
                 "{}:wat::eval-step!: refuses to step effectful op {}; the BOOK Chapter 59 dual-LRU cache assumes form IS its return value (no side effects). Fall back to :wat::eval-ast! for sub-forms with effects.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::NoStepRule { op, span } => write!(
+            RuntimeErrorKind::NoStepRule { op } => write!(
                 f,
                 "{}:wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::AssertionFailed { message, actual, expected, span } => {
-                write!(f, "{}assertion failed: {}", span_prefix(span), message)?;
+            RuntimeErrorKind::AssertionFailed { message, actual, expected } => {
+                write!(f, "{}assertion failed: {}", prefix, message)?;
                 if let Some(a) = actual {
                     write!(f, "\n  actual:   {}", a)?;
                 }
@@ -2521,12 +2558,8 @@ impl fmt::Display for RuntimeError {
                 }
                 Ok(())
             }
-            RuntimeError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
-                let call_loc = if call_span.is_unknown() {
-                    String::new()
-                } else {
-                    format!("{}: ", call_span)
-                };
+            RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
+                // outer span (call_span) is in prefix; secondary span here.
                 let define_loc = if outer_define_span.is_unknown() {
                     "the outer scope".to_string()
                 } else {
@@ -2535,18 +2568,18 @@ impl fmt::Display for RuntimeError {
                 write!(
                     f,
                     "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",
-                    call_loc, offending_name, define_loc, offending_name
+                    prefix, offending_name, define_loc, offending_name
                 )
             }
-            RuntimeError::ServiceNotRunning { op, span } => write!(
+            RuntimeErrorKind::ServiceNotRunning { op } => write!(
                 f,
                 "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::thread_io::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",
-                span_prefix(span), op
+                prefix, op
             ),
-            RuntimeError::EdnCoerceMismatch { op, expected, got, path, span } => write!(
+            RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => write!(
                 f,
                 "{}{}: edn coerce mismatch: expected {}, got {}{}",
-                span_prefix(span),
+                prefix,
                 op,
                 expected,
                 got,
@@ -2556,15 +2589,15 @@ impl fmt::Display for RuntimeError {
                     format!(" at {}", path)
                 }
             ),
-            RuntimeError::UnknownField { record_class, field, available, span } => write!(
+            RuntimeErrorKind::UnknownField { record_class, field, available } => write!(
                 f,
                 "{}unknown field '{}' on record {}; available: [{}]",
-                span_prefix(span),
+                prefix,
                 field,
                 record_class,
                 available.join(", ")
             ),
-            RuntimeError::NoMatchingClause { name, called_arity, called_args, attempted_clauses, span } => {
+            RuntimeErrorKind::NoMatchingClause { name, called_arity, called_args, attempted_clauses } => {
                 let args_fmt: Vec<String> = called_args.iter().map(|s| format!("{}", s)).collect();
                 let attempts_fmt: Vec<String> = attempted_clauses.iter().map(|a| {
                     let reason = match &a.failure_reason {
@@ -2580,7 +2613,7 @@ impl fmt::Display for RuntimeError {
                 write!(
                     f,
                     "{}no clause of {} matched ({} args); {}{}",
-                    span_prefix(span),
+                    prefix,
                     name,
                     called_arity,
                     if args_fmt.is_empty() { String::new() } else { format!("called with ({}); ", args_fmt.join(", ")) },
@@ -2591,19 +2624,36 @@ impl fmt::Display for RuntimeError {
                     },
                 )
             }
-            RuntimeError::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, body_span, ensure_span: _ } => {
+            RuntimeErrorKind::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, ensure_span: _ } => {
+                // outer span = body_span (in prefix); ensure_span is secondary (informational).
+                // We re-render body_span from `shown` (which is the outer span).
+                let body_span_str = shown.map(|s| format!("{}", s)).unwrap_or_default();
                 write!(
                     f,
                     "{}defclause {}: postcondition failed on clause {} — :ensure :fn `{}` returned false for result {} (body at {})",
-                    span_prefix(body_span),
+                    prefix,
                     defclause_name,
                     clause_index,
                     ensure_expr_snapshot,
                     returned_value,
-                    body_span,
+                    body_span_str,
                 )
             }
         }
+    }
+}
+
+impl fmt::Display for RuntimeErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Span-free form: passes None so no prefix or mid-prose span is inserted.
+        self.fmt_with_span(None, f)
+    }
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Span-bearing form: passes Some so prefix and mid-prose spans are woven in.
+        self.kind.fmt_with_span(Some(&self.span), f)
     }
 }
 
@@ -2658,7 +2708,7 @@ pub fn register_defines(
             // at `register_defines` time alongside the fn pre-registration.
             let form_span = form.span().clone();
             if crate::resolve::is_reserved_prefix(&path) {
-                return Err(RuntimeError::ReservedPrefix(path, form_span).into());
+                return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
             }
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path.clone(), func);
@@ -2958,7 +3008,7 @@ pub fn register_struct_methods(
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized struct constructor; collision
             // surfaces at type-registry walk time, no source form available.
-            return Err(RuntimeError::DuplicateDefine(constructor_path, Span::unknown()).into());
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
@@ -2987,7 +3037,7 @@ pub fn register_struct_methods(
             if sym.functions.contains_key(&accessor_path) {
                 // arc 138: no span — synthesized struct accessor; collision
                 // surfaces at type-registry walk time.
-                return Err(RuntimeError::DuplicateDefine(accessor_path, Span::unknown()).into());
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
             }
             sym.functions.insert(accessor_path, Arc::new(accessor_func));
         }
@@ -3075,11 +3125,11 @@ pub fn register_enum_methods(
                     let key = format!("{}::{}", enum_def.name, variant_name);
                     if sym.unit_variants.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError::DuplicateDefine(key, Span::unknown()).into());
+                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
                     }
                     if sym.functions.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError::DuplicateDefine(key, Span::unknown()).into());
+                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
                     }
                     sym.unit_variants.insert(
                         key,
@@ -3133,7 +3183,7 @@ pub fn register_enum_methods(
                         || sym.unit_variants.contains_key(&constructor_path)
                     {
                         // arc 138: no span — synthesized enum tagged-variant.
-                        return Err(RuntimeError::DuplicateDefine(constructor_path, Span::unknown()).into());
+                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
                     }
                     sym.functions
                         .insert(constructor_path, Arc::new(func));
@@ -3204,7 +3254,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
-            return Err(RuntimeError::DuplicateDefine(constructor_path, Span::unknown()).into());
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
@@ -3233,7 +3283,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
-            return Err(RuntimeError::DuplicateDefine(accessor_path, Span::unknown()).into());
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
         }
         sym.functions.insert(accessor_path, Arc::new(accessor_func));
     }
@@ -3326,7 +3376,7 @@ pub fn register_type_predicates(
 
         if sym.functions.contains_key(&predicate_name) {
             // Collision: a user-defined function already occupies this name.
-            return Err(RuntimeError::DuplicateDefine(predicate_name, Span::unknown()).into());
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(predicate_name) }.into());
         }
         sym.functions.insert(predicate_name, Arc::new(pred_func));
     }
@@ -3625,7 +3675,7 @@ fn register_defalias(
     check_reserved: bool,
 ) -> Result<(), RuntimeError> {
     if check_reserved && crate::resolve::is_reserved_prefix(alias) {
-        return Err(RuntimeError::ReservedPrefix(alias.to_string(), span).into());
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(alias.to_string()) }.into());
     }
     // Skip if already registered (idempotent).
     if sym.functions.contains_key(alias) {
@@ -3806,7 +3856,7 @@ fn preregister_struct_accessors_from_form(
     let constructor_path = format!("{}/new", type_base);
     if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
         let span = form.span().clone();
-        return Err(RuntimeError::ReservedPrefix(constructor_path, span).into());
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
     }
     if !sym.functions.contains_key(&constructor_path) {
         sym.functions.insert(
@@ -3860,7 +3910,7 @@ fn preregister_struct_accessors_from_form(
             let accessor_path = format!("{}/{}", type_base, field_name);
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
                 let span = form.span().clone();
-                return Err(RuntimeError::ReservedPrefix(accessor_path, span).into());
+                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(accessor_path) }.into());
             }
             if !sym.functions.contains_key(&accessor_path) {
                 sym.functions.insert(
@@ -3968,7 +4018,7 @@ fn preregister_enum_constructors_from_form(
         let constructor_path = format!("{}::{}", type_base, variant_name);
         if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
             let span = form.span().clone();
-            return Err(RuntimeError::ReservedPrefix(constructor_path, span).into());
+            return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
         }
         if !sym.functions.contains_key(&constructor_path) {
             sym.functions.insert(
@@ -4299,7 +4349,7 @@ fn preregister_fn_defs_in_do(
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
                 let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span).into());
+                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
             }
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path.clone(), func);
@@ -4366,7 +4416,7 @@ fn preregister_fn_defs_in_let(
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
             if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
                 let span = child.span().clone();
-                return Err(RuntimeError::ReservedPrefix(path, span).into());
+                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
             }
             if !sym.functions.contains_key(&path) {
                 sym.functions.insert(path.clone(), func);
@@ -4411,11 +4461,10 @@ pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, Run
     // arc 138: no span — kw is a `&str` lifted from the keyword's payload;
     // the keyword's own span isn't carried through the parse helper.
     // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
-    crate::types::parse_type_expr(kw).map_err(|e| RuntimeError::MalformedForm {
+    crate::types::parse_type_expr(kw).map_err(|e| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: ":wat::core::defn".into(),
-        reason: e.to_string(),
-        span: Span::unknown(),
-    })
+        reason: e.to_string()
+    } })
 }
 
 /// Arc 201 slice 1 — accept EITHER a keyword (legacy source form) OR a
@@ -4445,23 +4494,21 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
         WatAST::Keyword(k, _) => parse_type_keyword(k).map_err(Into::into),
         WatAST::List(items, span) => {
             if items.is_empty() {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::defn".into(),
-                    reason: "structured type slot must be a non-empty list".into(),
-                    span: span.clone(),
-                }.into());
+                    reason: "structured type slot must be a non-empty list".into()
+                } }.into());
             }
             let head_kw = match &items[0] {
                 WatAST::Keyword(k, _) => k.as_str(),
                 other => {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::defn".into(),
                         reason: format!(
                             "structured type slot head must be a keyword; got {}",
                             other.variant_name()
-                        ),
-                        span: other.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
             };
             // :Fn — args*, Symbol("->"), ret. Split at the arrow.
@@ -4475,24 +4522,21 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
                         }
                     }
                 }
-                let arrow = arrow_idx.ok_or_else(|| RuntimeError::MalformedForm {
+                let arrow = arrow_idx.ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::defn".into(),
-                    reason: "structured :Fn type missing '->' arrow".into(),
-                    span: span.clone(),
-                })?;
+                    reason: "structured :Fn type missing '->' arrow".into()
+                } })?;
                 if arrow + 1 >= items.len() {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::defn".into(),
-                        reason: "structured :Fn type missing return-type slot after '->'".into(),
-                        span: span.clone(),
-                    }.into());
+                        reason: "structured :Fn type missing return-type slot after '->'".into()
+                    } }.into());
                 }
                 if arrow + 2 != items.len() {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::defn".into(),
-                        reason: "structured :Fn type has extra slots after return type".into(),
-                        span: span.clone(),
-                    }.into());
+                        reason: "structured :Fn type has extra slots after return type".into()
+                    } }.into());
                 }
                 let mut fn_args: Vec<crate::types::TypeExpr> =
                     Vec::with_capacity(arrow.saturating_sub(1));
@@ -4528,14 +4572,13 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
                 args: p_args,
             })
         }
-        other => Err(RuntimeError::MalformedForm {
+        other => Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::defn".into(),
             reason: format!(
                 "parameter type must be a type keyword or structured type list; got {}",
                 other.variant_name()
-            ),
-            span: other.span().clone(),
-        }.into()),
+            )
+        } }.into()),
     }
 }
 
@@ -4581,11 +4624,10 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
     if !kw.ends_with('>') {
         // arc 138: no span — kw is a `&str` lifted from the keyword payload.
         // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::defn".into(),
-            reason: format!("name keyword {:?} opens '<' but does not close '>'", kw),
-            span: Span::unknown(),
-        }.into());
+            reason: format!("name keyword {:?} opens '<' but does not close '>'", kw)
+        } }.into());
     }
     let head = kw[..lt_index].to_string();
     let inside = &kw[lt_index + 1..kw.len() - 1];
@@ -4718,56 +4760,51 @@ fn eval_if_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() == 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
-            span: list_span.clone(),
-        }.into());
+            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into()
+        } }.into());
     }
     if args.len() != 5 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
                 "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     match &args[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected `->` at position 2; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     match &args[2] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected type keyword at position 3 (after `->`); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
     match cond_val {
         Value::bool(true) => eval_tail(&args[3], env, sym),
         Value::bool(false) => eval_tail(&args[4], env, sym),
-        other => Err(RuntimeError::BadCondition {
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -4793,14 +4830,13 @@ fn eval_let_tail(
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
                 "expected (:wat::core::let [name expr ...] body ...); got {} args",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     let bindings_form = &args[0];
 
@@ -4808,14 +4844,13 @@ fn eval_let_tail(
     match bindings_form {
         WatAST::Vector(items, _) => {
             if items.len() % 2 != 0 {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: bindings_form.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
                     reason: format!(
                         "let bindings vector must have an even number of elements; got {}",
                         items.len()
-                    ),
-                    span: bindings_form.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
             let mut i = 0;
             while i < items.len() {
@@ -4827,11 +4862,10 @@ fn eval_let_tail(
             }
         }
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: bindings_form.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "let bindings must be a flat vector `[name expr ...]`".into(),
-                span: bindings_form.span().clone(),
-            }.into());
+                reason: "let bindings must be a flat vector `[name expr ...]`".into()
+            } }.into());
         }
     };
 
@@ -4859,11 +4893,10 @@ fn eval_do_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::do".into(),
-            reason: "do form requires at least one form; got zero".into(),
-            span: list_span.clone(),
-        }.into());
+            reason: "do form requires at least one form; got zero".into()
+        } }.into());
     }
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
@@ -4882,7 +4915,7 @@ fn eval_match_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() < 4 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: if args.len() >= 2
                 && !matches!(
@@ -4896,31 +4929,28 @@ fn eval_match_tail(
                     "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
                     args.len()
                 )
-            },
-            span: list_span.clone(),
-        }.into());
+            }
+        } }.into());
     }
     match &args[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
-                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into(),
-                span: args[1].span().clone(),
-            }.into());
+                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into()
+            } }.into());
         }
     }
     match &args[2] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "expected type keyword after `->`; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
@@ -4928,25 +4958,23 @@ fn eval_match_tail(
         let arm_items = match arm {
             WatAST::List(items, _) => items,
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "each arm must be a list `(pattern body)`, got {}",
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         };
         if arm_items.len() != 2 {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "each arm must have exactly (pattern body); got {} elements",
                     arm_items.len()
-                ),
-                span: arm.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
         let pattern = &arm_items[0];
         let body = &arm_items[1];
@@ -4954,10 +4982,9 @@ fn eval_match_tail(
             return eval_tail(body, &arm_env, sym);
         }
     }
-    Err(RuntimeError::PatternMatchFailed {
-        value_type: scrutinee.type_name(),
-        span: args[0].span().clone(),
-    }.into())
+    Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::PatternMatchFailed {
+        value_type: scrutinee.type_name()
+    } }.into())
 }
 
 /// Evaluate a single form in the given scope. Internal implementation;
@@ -5013,16 +5040,15 @@ pub(crate) fn eval_inner(
         // consumed only in `:wat::core::let` binding-position
         // alongside a struct-typed expression. Reaching `eval` is a
         // value-position use; surface as MalformedForm.
-        WatAST::StructPattern(_, span) => Err(RuntimeError::MalformedForm {
+        WatAST::StructPattern(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: "<struct-pattern>".into(),
             reason: "struct-destructure brace-form `{...}` is only legal \
                      at let binding-position alongside a struct-typed \
                      expression (e.g. `(:wat::core::let [{outcome residue} \
                      p] body...)`); appearing at value position is not \
                      supported"
-                .into(),
-            span: span.clone(),
-        }.into()),
+                .into()
+        } }.into()),
         WatAST::Keyword(k, span) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
             // position evaluates to `Value::Unit` (the nil
@@ -5097,7 +5123,7 @@ pub(crate) fn eval_inner(
         }
         WatAST::Symbol(ident, span) => env
             .lookup(ident.as_str(), span)
-            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))
+            .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })
             .map_err(EvalBreak::from),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
         // TrackedValue directly; non-producer arms wrap with .into_tracked()).
@@ -5134,11 +5160,10 @@ pub fn eval(
         // A signal escaping through the public eval boundary is an interpreter
         // bug — apply_function should catch signals before they reach here.
         // Convert to a diagnostic so external callers get a RuntimeError.
-        Err(EvalBreak::Signal(s)) => Err(RuntimeError::MalformedForm {
+        Err(EvalBreak::Signal(s)) => Err(RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: "eval".into(),
-            reason: format!("internal: eval-loop signal escaped apply_function boundary: {s}"),
-            span: ast.span().clone(),
-        }),
+            reason: format!("internal: eval-loop signal escaped apply_function boundary: {s}")
+        } }),
     }
 }
 
@@ -5186,7 +5211,7 @@ fn eval_list(
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
                 .lookup(ident.as_str(), span)
-                .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone(), span.clone()))?;
+                .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })?;
             apply_tracked_callee(tv, rest, env, sym)
         }
         WatAST::List(_, _) => {
@@ -5194,11 +5219,10 @@ fn eval_list(
             let callee_tv = eval_inner(head, env, sym)?;
             apply_tracked_callee(callee_tv, rest, env, sym)
         }
-        other => Err(RuntimeError::MalformedForm {
+        other => Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: other.variant_name().into(),
-            reason: "call head must be a keyword, symbol, or list".into(),
-            span: other.span().clone(),
-        }.into()),
+            reason: "call head must be a keyword, symbol, or list".into()
+        } }.into()),
     }
 }
 
@@ -5331,19 +5355,17 @@ fn dispatch_keyword_head_value(
         // must be rejected. Top-level defs are processed by
         // `register_runtime_defs_form` (freeze-time), which never routes
         // through `eval` / `dispatch_keyword_head`.
-        ":wat::core::def" => Err(RuntimeError::DeclarationInExpressionPosition(
+        ":wat::core::def" => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::DeclarationInExpressionPosition(
             ":wat::core::def".into(),
-            list_span.clone(),
-        ).into()),
+        ) }.into()),
         // Stone 241.14 — `:wat::core::def-restricted` eval arm DELETED.
         // HARD CUT at check.rs fires before eval; no form reaches here.
         // Stone 237.2 — `:wat::core::defclause` at expression position is
         // a position violation. Top-level defclauses are processed by
         // `register_runtime_defs_form` (freeze-time).
-        ":wat::core::defclause" => Err(RuntimeError::DeclarationInExpressionPosition(
+        ":wat::core::defclause" => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::DeclarationInExpressionPosition(
             ":wat::core::defclause".into(),
-            list_span.clone(),
-        ).into()),
+        ) }.into()),
         // Stone 241.16 — `:wat::core::define` eval dispatch arm DELETED.
         // HARD CUT at check.rs (Stone 241.11 + 241.16) fires before eval;
         // no define-headed form reaches this dispatch. DefineInExpressionPosition
@@ -5462,7 +5484,7 @@ fn dispatch_keyword_head_value(
         }
         ":wat::core::i64::/'2" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
             if b == 0 {
-                Err(RuntimeError::DivisionByZero(b_span.clone()).into())
+                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
             } else {
                 Ok(a.wrapping_div(b))
             }
@@ -5514,7 +5536,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::f64::*'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b)),
         ":wat::core::f64::/'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, b_span| {
             if b == 0.0 {
-                Err(RuntimeError::DivisionByZero(b_span.clone()).into())
+                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
             } else {
                 Ok(a / b)
             }
@@ -5596,22 +5618,20 @@ fn dispatch_keyword_head_value(
         ":wat::core::String/empty?" => {
             // :String/empty? :: :String -> :bool. True iff string is empty.
             if args.len() != 1 {
-                return Err(RuntimeError::ArityMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
                     op: ":wat::core::String/empty?".into(),
                     expected: 1,
-                    got: args.len(),
-                    span: list_span.clone(),
-                }.into());
+                    got: args.len()
+                } }.into());
             }
             let val = eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())?;
             match val {
                 Value::String(s) => Ok(Value::bool(s.is_empty())),
-                other => Err(RuntimeError::TypeMismatch {
+                other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::String/empty?".into(),
                     expected: "String",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[0].span().clone(),
-                }.into()),
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into()),
             }
         }
 
@@ -6055,20 +6075,18 @@ fn dispatch_keyword_head_value(
         // Infer-time: arc_170_stone_c_typed_channel_at_process_boundary_retire_hint
         // emits the migration hint through collect_hints.
         ":wat::kernel::process-send" => {
-            Err(RuntimeError::TypeMismatch {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::process-send".into(),
                 expected: "Process/stdin (IOWriter) + Sender/from-pipe for typed sends",
-                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C")),
-                span: list_span.clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C"))
+            } }.into())
         }
         ":wat::kernel::process-recv" => {
-            Err(RuntimeError::TypeMismatch {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::process-recv".into(),
                 expected: "Process/stdout (IOReader) + Receiver/from-pipe for typed recvs",
-                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C")),
-                span: list_span.clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C"))
+            } }.into())
         }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
@@ -6252,10 +6270,9 @@ fn dispatch_keyword_head_value(
             let registry = crate::rust_deps::registry();
             match registry.get_symbol(other) {
                 Some(sym_entry) => (sym_entry.dispatch)(args, env, sym).map_err(Into::into),
-                None => Err(RuntimeError::UnknownFunction(
+                None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownFunction(
                     format!("{} is not registered in the rust-deps registry", other),
-                    list_span.clone(),
-                ).into()),
+                ) }.into()),
             }
         }
 
@@ -6293,10 +6310,9 @@ fn dispatch_keyword_head_value(
                                 return eval_call_to_defclause(cs, args, list_span, env, sym);
                             }
                             other_val => {
-                                return Err(RuntimeError::NotCallable {
-                                    got: Box::new(ValueSnapshot::of(&other_val)),
-                                    span: list_span.clone(),
-                                }.into());
+                                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NotCallable {
+                                    got: Box::new(ValueSnapshot::of(&other_val))
+                                } }.into());
                             }
                         }
                     }
@@ -6312,11 +6328,10 @@ fn dispatch_keyword_head_value(
                     // UnknownFunction.
                     if let Some(outer) = sym.outer_symbols.as_ref() {
                         if let Some(outer_func) = outer.get(canonical) {
-                            return Err(RuntimeError::SandboxScopeLeak {
+                            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::SandboxScopeLeak {
                                 offending_name: other.to_string(),
-                                call_span: list_span.clone(),
                                 outer_define_span: outer_func.body.span().clone(),
-                            }.into());
+                            } }.into());
                         }
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
@@ -6363,7 +6378,7 @@ fn dispatch_keyword_head_value(
                             }
                         }
                     }
-                    return Err(RuntimeError::UnknownFunction(other.to_string(), list_span.clone()).into());
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownFunction(other.to_string()) }.into());
                 }
             };
             let vals = args
@@ -6394,33 +6409,30 @@ fn keyword_accessor_record(
     const OP: &str = "keyword-as-accessor (record)";
     // Look up the RecordDef in the TypeEnv — class_fqdn has no leading ':', TypeEnv keys do.
     let type_key = format!(":{}", class_fqdn);
-    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: "record keyword-accessor requires the type registry".into(),
-        span: list_span.clone(),
-    })?;
+        reason: "record keyword-accessor requires the type registry".into()
+    } })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Record(rd)) => rd,
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
                     "record class :{} is not registered in the TypeEnv",
                     class_fqdn
-                ),
-                span: list_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let available: Vec<String> = record_def.field_names.clone();
     match record_def.field_names.iter().position(|n| n == bare_name) {
         Some(i) => Ok(struct_form[i].clone()),
-        None => Err(RuntimeError::UnknownField {
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
             record_class: class_fqdn.as_ref().to_string(),
             field: bare_name.to_string(),
-            available,
-            span: list_span.clone(),
-        }.into()),
+            available
+        } }.into()),
     }
 }
 
@@ -6433,33 +6445,30 @@ fn keyword_accessor_struct(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = "keyword-as-accessor (struct)";
-    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: "struct keyword-accessor requires the type registry".into(),
-        span: list_span.clone(),
-    })?;
+        reason: "struct keyword-accessor requires the type registry".into()
+    } })?;
     let struct_def = match types.get(&sv.type_name) {
         Some(crate::types::TypeDef::Struct(sd)) => sd,
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
                     "struct type {} is not registered in the TypeEnv",
                     sv.type_name
-                ),
-                span: list_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let available: Vec<String> = struct_def.fields.iter().map(|(n, _)| n.clone()).collect();
     match struct_def.fields.iter().position(|(n, _)| n == bare_name) {
         Some(i) => Ok(sv.fields[i].clone()),
-        None => Err(RuntimeError::UnknownField {
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
             record_class: sv.type_name.clone(),
             field: bare_name.to_string(),
-            available,
-            span: list_span.clone(),
-        }.into()),
+            available
+        } }.into()),
     }
 }
 
@@ -6571,36 +6580,33 @@ fn parse_defclause_clause(
     let items = match clause_form {
         WatAST::List(items, _) => items,
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: format!(
                     "each defclause clause must be a list `([args] -> :Ret body)` or `([args] body)` (with shared return); got {}",
                     other.variant_name()
-                ),
-                span: form_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     if items.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
-            reason: "defclause clause must not be empty".into(),
-            span: form_span.clone(),
-        }.into());
+            reason: "defclause clause must not be empty".into()
+        } }.into());
     }
 
     // items[0] must be the args-vector.
     let args_vec = match &items[0] {
         WatAST::Vector(v, _) => v,
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
                 reason: format!(
                     "defclause clause must start with args-vector `[name <- :T ...]`; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
 
@@ -6669,32 +6675,29 @@ fn parse_defclause_clause(
     // Reject: :guard after :ensure (probe 13 — order violation).
     if let (Some(gpos), Some(epos)) = (guard_kw_pos, ensure_kw_pos) {
         if gpos > epos {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: rest[gpos].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
-                reason: "defclause clause has `:guard` after `:ensure` — fixed order is: args → :guard? → :ensure? → body".into(),
-                span: rest[gpos].span().clone(),
-            }.into());
+                reason: "defclause clause has `:guard` after `:ensure` — fixed order is: args → :guard? → :ensure? → body".into()
+            } }.into());
         }
     }
 
     // Reject: multiple :guard (probe 12).
     if let Some(spos) = second_guard_pos {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: rest[spos].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
-            reason: "defclause clause has multiple `:guard` keywords — only one `:guard` per clause is permitted (compose multiple conditions with :and)".into(),
-            span: rest[spos].span().clone(),
-        }.into());
+            reason: "defclause clause has multiple `:guard` keywords — only one `:guard` per clause is permitted (compose multiple conditions with :and)".into()
+        } }.into());
     }
 
     // --- Phase 2: Extract :guard expression ---
     let guard_ast: Option<Arc<WatAST>> = if let Some(gpos) = guard_kw_pos {
         let expr_pos = gpos + 1;
         if expr_pos >= rest.len() {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
-                reason: "`:guard` keyword must be followed by a guard expression".into(),
-                span: form_span.clone(),
-            }.into());
+                reason: "`:guard` keyword must be followed by a guard expression".into()
+            } }.into());
         }
         Some(Arc::new(rest[expr_pos].clone()))
     } else {
@@ -6705,11 +6708,10 @@ fn parse_defclause_clause(
     let ensure_ast: Option<Arc<WatAST>> = if let Some(epos) = ensure_kw_pos {
         let fn_pos = epos + 1;
         if fn_pos >= rest.len() {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
-                reason: "`:ensure` keyword must be followed by a :fn form".into(),
-                span: form_span.clone(),
-            }.into());
+                reason: "`:ensure` keyword must be followed by a :fn form".into()
+            } }.into());
         }
         Some(Arc::new(rest[fn_pos].clone()))
     } else {
@@ -6720,23 +6722,21 @@ fn parse_defclause_clause(
     let return_type: crate::types::TypeExpr = if let Some(apos) = arrow_pos {
         let type_pos = apos + 1;
         if type_pos >= rest.len() {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: head.into(),
-                reason: "defclause clause `->` must be followed by a return type keyword".into(),
-                span: form_span.clone(),
-            }.into());
+                reason: "defclause clause `->` must be followed by a return type keyword".into()
+            } }.into());
         }
         match &rest[type_pos] {
             WatAST::Keyword(k, _) => parse_type_keyword(k)?,
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: head.into(),
                     reason: format!(
                         "defclause clause `->` must be followed by a return type keyword; got {}",
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         }
     } else {
@@ -6744,11 +6744,10 @@ fn parse_defclause_clause(
         match shared_return {
             Some(r) => r.clone(),
             None => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: head.into(),
-                    reason: "defclause clause missing `-> :RetType`; either add per-clause `-> :T` or provide a top-level shared return type".into(),
-                    span: form_span.clone(),
-                }.into());
+                    reason: "defclause clause missing `-> :RetType`; either add per-clause `-> :T` or provide a top-level shared return type".into()
+                } }.into());
             }
         }
     };
@@ -6777,11 +6776,10 @@ fn parse_defclause_clause(
         .collect();
 
     if body_items.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: head.into(),
-            reason: "defclause clause must have a body expression".into(),
-            span: form_span.clone(),
-        }.into());
+            reason: "defclause clause must have a body expression".into()
+        } }.into());
     }
     let body_ast = synthesize_fn_body(&body_items);
 
@@ -6809,45 +6807,42 @@ pub fn parse_defclause_form(
     let form_span = form.span().clone();
     let items = match form {
         WatAST::List(items, _) => items,
-        _ => return Err(RuntimeError::MalformedForm {
+        _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
-            reason: "expected list".into(),
-            span: form_span,
-        }.into()),
+            reason: "expected list".into()
+        } }.into()),
     };
     // items[0] = :wat::core::defclause keyword
     // items[1] = :name keyword
     // Optional: items[2] could be `->` symbol followed by :T keyword (Option A)
     // Then: one or more clause forms
     if items.len() < 2 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!(
                 "expected (:wat::core::defclause :name [-> :T] clause ...); got {} elements",
                 items.len()
-            ),
-            span: form_span,
-        }.into());
+            )
+        } }.into());
     }
 
     // items[1] must be the name keyword.
     let name = match &items[1] {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!(
                     "defclause first arg must be a keyword name (e.g. `:my::name`); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
 
     // Check for reserved prefix on :name.
     if crate::resolve::is_reserved_prefix(&name) {
-        return Err(RuntimeError::ReservedPrefix(name, form_span).into());
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) }.into());
     }
 
     // Detect Option A: `-> :T` after the name keyword.
@@ -6870,11 +6865,10 @@ pub fn parse_defclause_form(
 
     let clause_items = &items[clause_offset..];
     if clause_items.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
-            reason: "defclause must have at least one clause".into(),
-            span: form_span,
-        }.into());
+            reason: "defclause must have at least one clause".into()
+        } }.into());
     }
 
     let mut clauses = Vec::with_capacity(clause_items.len());
@@ -7124,12 +7118,11 @@ fn eval_call_to_defclause_with_vals(
                 }
                 other => {
                     // Type-checker should have caught non-fn :ensure. Defensive.
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: format!("defclause {}/clause#{} :ensure", cs.name, clause_idx),
                         expected: "wat::core::fn",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                        span: list_span.clone(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&other))
+                    } }.into());
                 }
             };
             match &ensure_result {
@@ -7137,24 +7130,22 @@ fn eval_call_to_defclause_with_vals(
                     // Postcondition passes — return result.
                 }
                 Value::bool(false) => {
-                    return Err(RuntimeError::PostconditionFailed {
+                    return Err(RuntimeError { span: body_span, kind: RuntimeErrorKind::PostconditionFailed {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
                         ensure_expr_snapshot,
                         returned_value: Box::new(ValueSnapshot::of(&result)),
-                        body_span,
                         ensure_span,
-                    }.into());
+                    } }.into());
                 }
                 other => {
                     // Non-bool from ensure — type-checker should have caught.
                     // Defensive: treat as postcondition failure.
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: format!("defclause {}/clause#{} :ensure result", cs.name, clause_idx),
                         expected: "wat::core::bool",
-                        got: Box::new(ValueSnapshot::of(other)),
-                        span: list_span.clone(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(other))
+                    } }.into());
                 }
             }
         }
@@ -7164,13 +7155,12 @@ fn eval_call_to_defclause_with_vals(
 
     // No clause matched (arity + type + guard all fell through).
     let called_args: Vec<ValueSnapshot> = vals.iter().map(|v| ValueSnapshot::of(v)).collect();
-    Err(RuntimeError::NoMatchingClause {
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoMatchingClause {
         name: cs.name.clone(),
         called_arity,
         called_args,
-        attempted_clauses: attempted,
-        span: list_span.clone(),
-    }.into())
+        attempted_clauses: attempted
+    } }.into())
 }
 
 /// Stone 237.2 — runtime type match for defclause dispatch.
@@ -7278,14 +7268,13 @@ fn eval_let(
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
                 "expected (:wat::core::let [name expr ...] body ...); got {} args",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     let bindings_form = &args[0];
 
@@ -7295,14 +7284,13 @@ fn eval_let(
         WatAST::Vector(items, _) => {
             // Canonical flat-vector outer. Even-length required.
             if items.len() % 2 != 0 {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: bindings_form.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
                     reason: format!(
                         "let bindings vector must have an even number of elements (alternating name expr name expr ...); got {}",
                         items.len()
-                    ),
-                    span: bindings_form.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
             let mut i = 0;
             while i < items.len() {
@@ -7314,11 +7302,10 @@ fn eval_let(
             }
         }
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: bindings_form.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "let bindings must be a flat vector `[name expr ...]`".into(),
-                span: bindings_form.span().clone(),
-            }.into());
+                reason: "let bindings must be a flat vector `[name expr ...]`".into()
+            } }.into());
         }
     };
 
@@ -7383,33 +7370,30 @@ fn bind_let_binding(
             let sv = match &value {
                 Value::Struct(sv) => sv.clone(),
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::let".into(),
                         expected: "wat::core::Struct",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                        span: rhs.span().clone(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&other))
+                    } }.into());
                 }
             };
             // Resolve field-name → field-index via the struct's
             // declared field list. SymbolTable carries the TypeEnv
             // post-freeze; runtime callers always have it attached.
-            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+            let types = sym.types().ok_or_else(|| RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "struct destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into(),
-                span: rhs.span().clone(),
-            })?;
+                reason: "struct destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+            } })?;
             let struct_def = match types.get(&sv.type_name) {
                 Some(crate::types::TypeDef::Struct(sd)) => sd,
                 _ => {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
                             "struct destructure: rhs type {} is not registered as a struct in the TypeEnv (programmer error: a Value::Struct exists at runtime without a corresponding StructDef)",
                             sv.type_name
-                        ),
-                        span: rhs.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
             };
             let mut builder = scope.child();
@@ -7418,7 +7402,7 @@ fn bind_let_binding(
                     .fields
                     .iter()
                     .position(|(n, _)| n == fname)
-                    .ok_or_else(|| RuntimeError::MalformedForm {
+                    .ok_or_else(|| RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
                             "struct destructure: field {:?} is not declared on struct {} (declared fields: {})",
@@ -7430,14 +7414,13 @@ fn bind_let_binding(
                                 .map(|(n, _)| n.as_str())
                                 .collect::<Vec<_>>()
                                 .join(", ")
-                        ),
-                        span: rhs.span().clone(),
-                    })?;
+                        )
+                    } })?;
                 let elem = sv
                     .fields
                     .get(idx)
                     .cloned()
-                    .ok_or_else(|| RuntimeError::MalformedForm {
+                    .ok_or_else(|| RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
                             "struct destructure: field {:?} index {} is out of range on struct {} (value has {} fields, declaration has {})",
@@ -7446,9 +7429,8 @@ fn bind_let_binding(
                             sv.type_name,
                             sv.fields.len(),
                             struct_def.fields.len()
-                        ),
-                        span: rhs.span().clone(),
-                    })?;
+                        )
+                    } })?;
                 // Arc 233 Stone 233.2.e: bind with fname_span so lookup yields SymbolBound.
                 builder = builder.bind(fname.clone(), fname_span.clone(), TrackedValue::from(elem));
             }
@@ -7525,12 +7507,11 @@ fn bind_let_binding(
                     }
                 }
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::let hash-destructure".into(),
                         expected: "wat::Record, Struct, or wat::core::HashMap",
-                        got: Box::new(ValueSnapshot::of(other)),
-                        span: rhs.span().clone(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(other))
+                    } }.into());
                 }
             }
             Ok(builder.build())
@@ -7553,11 +7534,10 @@ fn eval_do(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::do".into(),
-            reason: "do form requires at least one form; got zero".into(),
-            span: list_span.clone(),
-        }.into());
+            reason: "do form requires at least one form; got zero".into()
+        } }.into());
     }
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
@@ -7579,26 +7559,24 @@ fn destructure_tuple(
                 // arc 138: no span — destructure_tuple is called from let
                 // binding evaluators with no per-binding span context;
                 // the enclosing let form's span is one frame up.
-                Err(RuntimeError::MalformedForm {
+                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "destructure arity mismatch: binder has {} names, tuple has {} elements",
                         expected_arity,
                         items.len()
-                    ),
-                    span: Span::unknown(),
-                }.into())
+                    )
+                } }.into())
             } else {
                 Ok((**items).clone())
             }
         }
         // arc 138: no span — same rationale as above.
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Tuple",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -7686,23 +7664,21 @@ fn parse_let_binding<'a>(
                 match item {
                     WatAST::Symbol(ident, name_span) => names.push((ident.name.clone(), name_span.clone())),
                     other => {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::let".into(),
                             reason: format!(
                                 "destructure binder must be a vector of bare symbols; got {}",
                                 other.variant_name()
-                            ),
-                            span: other.span().clone(),
-                        }.into());
+                            )
+                        } }.into());
                     }
                 }
             }
             if names.is_empty() {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
-                    reason: "destructure binder cannot be empty — at least one name is required".into(),
-                    span: binder.span().clone(),
-                }.into());
+                    reason: "destructure binder cannot be empty — at least one name is required".into()
+                } }.into());
             }
             Ok(LetBinding::Destructure { names, rhs })
         }
@@ -7719,14 +7695,13 @@ fn parse_let_binding<'a>(
                 // Parser guarantees alternating Symbol/Keyword + even count.
                 // Defense-in-depth: re-validate here for synthesized nodes.
                 if inner.len() % 2 != 0 || inner.is_empty() {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
                             "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {}",
                             inner.len()
-                        ),
-                        span: binder.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
                 let mut bindings = Vec::with_capacity(inner.len() / 2);
                 let mut i = 0;
@@ -7734,29 +7709,27 @@ fn parse_let_binding<'a>(
                     let (var_name, var_span) = match &inner[i] {
                         WatAST::Symbol(ident, sp) => (ident.name.clone(), sp.clone()),
                         other => {
-                            return Err(RuntimeError::MalformedForm {
+                            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                                 head: ":wat::core::let".into(),
                                 reason: format!(
                                     "hash-destructure: expected bare symbol at position {}; got {}",
                                     i,
                                     other.variant_name()
-                                ),
-                                span: other.span().clone(),
-                            }.into());
+                                )
+                            } }.into());
                         }
                     };
                     let bare_field = match &inner[i + 1] {
                         WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
                         other => {
-                            return Err(RuntimeError::MalformedForm {
+                            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                                 head: ":wat::core::let".into(),
                                 reason: format!(
                                     "hash-destructure: expected keyword (field name) at position {}; got {}",
                                     i + 1,
                                     other.variant_name()
-                                ),
-                                span: other.span().clone(),
-                            }.into());
+                                )
+                            } }.into());
                         }
                     };
                     bindings.push((var_name, bare_field, var_span));
@@ -7779,34 +7752,31 @@ fn parse_let_binding<'a>(
                         field_names.push((ident.name.clone(), name_span.clone()))
                     }
                     other => {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::let".into(),
                             reason: format!(
                                 "struct-destructure brace-form must contain only bare symbols; got {}",
                                 other.variant_name()
-                            ),
-                            span: other.span().clone(),
-                        }.into());
+                            )
+                        } }.into());
                     }
                 }
             }
             if field_names.is_empty() {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
-                    reason: "struct-destructure brace-form cannot be empty — at least one field name is required".into(),
-                    span: binder.span().clone(),
-                }.into());
+                    reason: "struct-destructure brace-form cannot be empty — at least one field name is required".into()
+                } }.into());
             }
             Ok(LetBinding::StructDestructure { field_names, rhs })
         }
-        other => Err(RuntimeError::MalformedForm {
+        other => Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
                 "let binder must be a Symbol (single), a Vector of symbols (tuple destructure), or a StructPattern of symbols (struct destructure); got {}",
                 other.variant_name()
-            ),
-            span: other.span().clone(),
-        }.into()),
+            )
+        } }.into()),
     }
 }
 
@@ -7825,21 +7795,19 @@ fn eval_if(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() == 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
-            span: list_span.clone(),
-        }.into());
+            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into()
+        } }.into());
     }
     if args.len() != 5 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
                 "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     // Validate the `-> :T` shape at runtime too — belt-and-suspenders
     // for programs that reach the dispatcher without the checker
@@ -7847,37 +7815,34 @@ fn eval_if(
     match &args[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected `->` at position 2; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     match &args[2] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: format!(
                     "expected type keyword at position 3 (after `->`); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
     match cond_val {
         Value::bool(true) => eval_inner(&args[3], env, sym).map(|tv| tv.value_owned()),
         Value::bool(false) => eval_inner(&args[4], env, sym).map(|tv| tv.value_owned()),
-        other => Err(RuntimeError::BadCondition {
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -7917,29 +7882,26 @@ fn eval_cond(
         // Only the last arm may be `:else`; non-`:else` arms before
         // the last are test arms by the grammar.
         if is_last {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
-                reason: "last arm must be (:else body); got a test arm".into(),
-                span: arm.span().clone(),
-            }.into());
+                reason: "last arm must be (:else body); got a test arm".into()
+            } }.into());
         }
         match eval_inner(&items[0], env, sym)?.value_owned() {
             Value::bool(true) => return eval_inner(&items[1], env, sym).map(|tv| tv.value_owned()),
             Value::bool(false) => continue,
             other => {
-                return Err(RuntimeError::BadCondition {
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: items[0].span().clone(),
-                }.into());
+                return Err(RuntimeError { span: items[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         }
     }
     // Unreachable: validate_cond_shape requires a final :else arm.
-    Err(RuntimeError::MalformedForm {
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: ":wat::core::cond".into(),
-        reason: "cond fell through without matching :else — validation bug".into(),
-        span: list_span.clone(),
-    }.into())
+        reason: "cond fell through without matching :else — validation bug".into()
+    } }.into())
 }
 
 /// Tail-position twin of [`eval_cond`]. Selected body inherits tail
@@ -7965,28 +7927,25 @@ fn eval_cond_tail(
             }
         }
         if is_last {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
-                reason: "last arm must be (:else body); got a test arm".into(),
-                span: arm.span().clone(),
-            }.into());
+                reason: "last arm must be (:else body); got a test arm".into()
+            } }.into());
         }
         match eval_inner(&items[0], env, sym)?.value_owned() {
             Value::bool(true) => return eval_tail(&items[1], env, sym),
             Value::bool(false) => continue,
             other => {
-                return Err(RuntimeError::BadCondition {
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: items[0].span().clone(),
-                }.into());
+                return Err(RuntimeError { span: items[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         }
     }
-    Err(RuntimeError::MalformedForm {
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: ":wat::core::cond".into(),
-        reason: "cond fell through without matching :else — validation bug".into(),
-        span: list_span.clone(),
-    }.into())
+        reason: "cond fell through without matching :else — validation bug".into()
+    } }.into())
 }
 
 /// Shape check shared between `eval_cond` and `eval_cond_tail`. Runs
@@ -7995,39 +7954,36 @@ fn eval_cond_tail(
 /// checker having run.
 fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), EvalBreak> {
     if args.len() < 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::cond".into(),
             reason: format!(
                 "expected (:wat::core::cond -> :T (:else body)) — at least 3 args; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: format!(
                     "expected `->` at position 1; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     match &args[1] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: format!(
                     "expected type keyword at position 2 (after `->`); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let arms = &args[2..];
@@ -8036,26 +7992,24 @@ fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), EvalBrea
         match arm {
             WatAST::List(xs, _) if xs.len() == 2 => {}
             WatAST::List(xs, _) => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
                         "arm #{} must be (test body); got {}-element list",
                         i + 1,
                         xs.len()
-                    ),
-                    span: arm.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
                         "arm #{} must be a list (test body); got {}",
                         i + 1,
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         }
     }
@@ -8067,11 +8021,10 @@ fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), EvalBrea
     };
     match &last_items[0] {
         WatAST::Keyword(k, _) if k == ":else" => Ok(()),
-        _ => Err(RuntimeError::MalformedForm {
+        _ => Err(RuntimeError { span: last.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::cond".into(),
-            reason: "last arm must be (:else body) — cond requires an explicit default".into(),
-            span: last.span().clone(),
-        }.into()),
+            reason: "last arm must be (:else body) — cond requires an explicit default".into()
+        } }.into()),
     }
 }
 
@@ -8091,12 +8044,11 @@ where
     F: Fn(i64, i64, &Span) -> Result<i64, EvalBreak>,
 {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
@@ -8104,18 +8056,16 @@ where
     let b = eval_inner(&args[1], env, sym)?;
     match (a.value(), b.value()) {
         (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(*x, *y, &b_span)?)),
-        (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
+        (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: Box::new(ValueSnapshot::of(a.value())),
-            span: a_span,
-        }.into()),
-        (_, _) => Err(RuntimeError::TypeMismatch {
+            got: Box::new(ValueSnapshot::of(a.value()))
+        } }.into()),
+        (_, _) => Err(RuntimeError { span: b_span, kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "i64",
-            got: Box::new(ValueSnapshot::of(b.value())),
-            span: b_span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(b.value()))
+        } }.into()),
     }
 }
 
@@ -8131,32 +8081,29 @@ fn eval_u8_cast(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::u8".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_span = args[0].span().clone();
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::i64(n) => {
             if !(0..=255).contains(&n) {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::u8".into(),
-                    reason: format!("value {} out of :u8 range 0..=255", n),
-                    span: arg_span,
-                }.into());
+                    reason: format!("value {} out of :u8 range 0..=255", n)
+                } }.into());
             }
             Ok(Value::u8(n as u8))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::u8".into(),
             expected: "i64",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: arg_span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -8174,12 +8121,11 @@ where
     F: Fn(f64, f64, &Span) -> Result<f64, EvalBreak>,
 {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
@@ -8187,18 +8133,16 @@ where
     let b = eval_inner(&args[1], env, sym)?.value_owned();
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => Ok(Value::f64(op(x, y, &b_span)?)),
-        (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
+        (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: a_span,
-        }.into()),
-        (_, other) => Err(RuntimeError::TypeMismatch {
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+        (_, other) => Err(RuntimeError { span: b_span, kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "f64",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: b_span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -8225,21 +8169,19 @@ fn eval_one_arg<T>(
     extract: impl Fn(Value) -> Result<T, Value>,
 ) -> Result<T, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_span = args[0].span().clone();
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    extract(v).map_err(|other| EvalBreak::from(RuntimeError::TypeMismatch {
+    extract(v).map_err(|other| EvalBreak::from(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
         op: head.into(),
         expected,
-        got: Box::new(ValueSnapshot::of(&other)),
-        span: arg_span,
-    }))
+        got: Box::new(ValueSnapshot::of(&other))
+    } }))
 }
 
 fn eval_i64_to_string(
@@ -8347,46 +8289,42 @@ fn eval_f64_round(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::f64::round";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg0_span = args[0].span().clone();
     let arg1_span = args[1].span().clone();
     let v = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg0_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg0_span,
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let digits = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::i64(d) => d,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg1_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "i64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg1_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     if digits < 0 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: arg1_span, kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "`digits` must be non-negative; got {}. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today",
                 digits
-            ),
-            span: arg1_span,
-        }.into());
+            )
+        } }.into());
     }
     let factor = 10f64.powi(digits as i32);
     Ok(Value::f64((v * factor).round() / factor))
@@ -8408,23 +8346,21 @@ fn eval_f64_unary(
     f: fn(f64) -> f64,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_span = args[0].span().clone();
     let v = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg_span,
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::f64(f(v)))
@@ -8444,12 +8380,11 @@ fn eval_f64_clamp(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::f64::clamp";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let mut vs = [0.0_f64; 3];
     for (i, slot) in vs.iter_mut().enumerate() {
@@ -8457,25 +8392,23 @@ fn eval_f64_clamp(
         *slot = match eval_inner(&args[i], env, sym)?.value_owned() {
             Value::f64(x) => x,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "f64",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: arg_span,
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
     }
     let [v, lo, hi] = vs;
     if lo.is_nan() || hi.is_nan() || lo > hi {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "lo must be ≤ hi and neither may be NaN; got lo={}, hi={}",
                 lo, hi
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     Ok(Value::f64(v.clamp(lo, hi)))
 }
@@ -8639,15 +8572,14 @@ fn eval_keyword_from_string(
         },
     )?;
     if s.starts_with(':') {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::keyword/from-string".into(),
             reason: format!(
                 "input string {:?} starts with ':' — keyword text must not include the leading colon sigil; \
                  use keyword/to-string to produce a colon-free string, or strip the ':' before calling from-string",
                 s.as_str()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     // Prepend ':' to form the canonical keyword string.
     // Arc 233 Stone 233.2.j: construct TrackedValue directly (no Value::Tracked wrap).
@@ -8708,15 +8640,14 @@ fn eval_apply(
 ) -> Result<Value, EvalBreak> {
     // Arity check: at minimum (->, :T, head, args-vec) = 4 args.
     if args.len() < 4 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::apply".into(),
             reason: format!(
                 "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
                  got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
                 args.len()
-            ),
-            span: list_span,
-        }.into());
+            )
+        } }.into());
     }
 
     // Step 1 — validate inline `-> :T` annotation (positions 0 and 1).
@@ -8725,27 +8656,25 @@ fn eval_apply(
     match &args[0] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::apply".into(),
                 reason: format!(
                     "position 1 must be the `->` symbol (inline return-type annotation); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     match &args[1] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::apply".into(),
                 reason: format!(
                     "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
 
@@ -8770,12 +8699,11 @@ fn eval_apply(
     let spread_vec = match spread_val {
         Value::Vec(ref v) => v.clone(),
         ref other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: spread_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: spread_ast.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     combined.extend((*spread_vec).iter().cloned());
@@ -8789,12 +8717,11 @@ fn eval_apply(
     let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::keyword",
-                got: Box::new(ValueSnapshot::of(other)),
-                span: args[2].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(other))
+            } }.into());
         }
     };
 
@@ -8817,15 +8744,14 @@ fn eval_apply(
         ":wat::core::quasiquote",
     ];
     if SPECIAL_FORMS.contains(&head_kw.as_str()) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::apply".into(),
             reason: format!(
                 "cannot apply special form {:?} — apply only dispatches callable \
                  verbs and user-defined functions, not declaration or language forms",
                 head_kw.as_str()
-            ),
-            span: list_span,
-        }.into());
+            )
+        } }.into());
     }
 
     // Step 7 — dispatch (mirrors dispatch_keyword_head's `other` arm).
@@ -8842,10 +8768,9 @@ fn eval_apply(
                 return apply_function(f.clone(), combined, sym, list_span).map_err(Into::into);
             }
             other_val => {
-                return Err(RuntimeError::NotCallable {
-                    got: Box::new(ValueSnapshot::of(&other_val)),
-                    span: list_span,
-                }.into());
+                return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::NotCallable {
+                    got: Box::new(ValueSnapshot::of(&other_val))
+                } }.into());
             }
         }
     }
@@ -8856,10 +8781,9 @@ fn eval_apply(
     }
 
     // (d) Nothing found — UnknownFunction with the keyword name.
-    Err(RuntimeError::UnknownFunction(
+    Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::UnknownFunction(
         head_kw.as_str().to_string(),
-        list_span,
-    ).into())
+    ) }.into())
 }
 
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
@@ -8876,24 +8800,22 @@ fn eval_eq(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a_span = args[0].span().clone();
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
     match values_equal(&a, &b) {
         Some(eq) => Ok(Value::bool(eq)),
-        None => Err(RuntimeError::TypeMismatch {
+        None => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "matching comparable pair",
-            got: Box::new(ValueSnapshot::of(&a)),
-            span: a_span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
     }
 }
 
@@ -8918,12 +8840,11 @@ fn eval_not_eq(
     match eval_eq(head, args, list_span, env, sym)? {
         Value::bool(eq) => Ok(Value::bool(!eq)),
         // Unreachable — eval_eq always returns Value::bool on success.
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "bool from inner eq",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9254,12 +9175,11 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     pred: F,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a_span = args[0].span().clone();
     let a = eval_inner(&args[0], env, sym)?.value_owned();
@@ -9267,12 +9187,11 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     let order = match values_compare(&a, &b) {
         Some(o) => o,
         None => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "matching comparable pair",
-                got: Box::new(ValueSnapshot::of(&a)),
-                span: a_span,
-            }.into());
+                got: Box::new(ValueSnapshot::of(&a))
+            } }.into());
         }
     };
     Ok(Value::bool(pred(order)))
@@ -9340,7 +9259,7 @@ fn apply_arith_pair(
             ArithOp::Mul => Ok(Value::i64(x.wrapping_mul(*y))),
             ArithOp::Div => {
                 if *y == 0 {
-                    Err(RuntimeError::DivisionByZero(b_span.clone()).into())
+                    Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
                 } else {
                     Ok(Value::i64(x.wrapping_div(*y)))
                 }
@@ -9352,7 +9271,7 @@ fn apply_arith_pair(
             ArithOp::Mul => Ok(Value::f64(x * y)),
             ArithOp::Div => {
                 if *y == 0.0 {
-                    Err(RuntimeError::DivisionByZero(b_span.clone()).into())
+                    Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
                 } else {
                     Ok(Value::f64(x / y))
                 }
@@ -9363,12 +9282,11 @@ fn apply_arith_pair(
         // runtime (defense-in-depth; check-time tightening in
         // `infer_arithmetic` is the primary gate). Callers homogenize
         // explicitly via `:wat::core::i64::to-f64` before calling.
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: a_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: head.into(),
             expected: "matching numeric pair (i64, i64) or (f64, f64)",
-            got: Box::new(ValueSnapshot::of(&a)),
-            span: a_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
     }
 }
 
@@ -9405,12 +9323,11 @@ fn eval_arithmetic_variadic(
         if op.allows_zero_ary() {
             return Ok(Value::i64(op.identity_i64()));
         }
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
             expected: 1,
-            got: 0,
-            span: list_span.clone(),
-        }.into());
+            got: 0
+        } }.into());
     }
 
     // 1-ary handling.
@@ -9424,12 +9341,11 @@ fn eval_arithmetic_variadic(
                 Value::i64(_) => Value::i64(op.identity_i64()),
                 Value::f64(_) => Value::f64(op.identity_i64() as f64),
                 _ => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                         op: head.into(),
                         expected: "i64 or f64",
-                        got: Box::new(ValueSnapshot::of(&v)),
-                        span: arg_span,
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&v))
+                    } }.into());
                 }
             };
             return apply_arith_pair(op, head, &identity, &v, &arg_span, &arg_span);
@@ -9437,12 +9353,11 @@ fn eval_arithmetic_variadic(
         // `+` / `*` 1-ary return arg unchanged (after type check).
         match &v {
             Value::i64(_) | Value::f64(_) => Ok(v),
-            _ => Err(RuntimeError::TypeMismatch {
+            _ => Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "i64 or f64",
-                got: Box::new(ValueSnapshot::of(&v)),
-                span: arg_span,
-            }.into()),
+                got: Box::new(ValueSnapshot::of(&v))
+            } }.into()),
         }
     } else {
         // 2+-ary: fold left.
@@ -9466,22 +9381,20 @@ fn eval_not(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::not".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_span = args[0].span().clone();
     match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::bool(b) => Ok(Value::bool(!b)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::not".into(),
             expected: "bool",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: arg_span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9498,12 +9411,11 @@ fn eval_and(
             Value::bool(false) => return Ok(Value::bool(false)),
             Value::bool(true) => continue,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::and".into(),
                     expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: arg_span,
-                }.into())
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into())
             }
         }
     }
@@ -9522,12 +9434,11 @@ fn eval_or(
             Value::bool(true) => return Ok(Value::bool(true)),
             Value::bool(false) => continue,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::or".into(),
                     expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: arg_span,
-                }.into())
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into())
             }
         }
     }
@@ -9549,20 +9460,18 @@ fn eval_list_ctor(
     if args.is_empty() {
         // arc 138: no span — leaf helper; threading list_span here would
         // require updating ~150 dispatcher arms.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector".into(),
             expected: 1,
-            got: 0,
-            span: Span::unknown(),
-        }.into());
+            got: 0
+        } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         // arc 138: no span — same rationale.
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Vector".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into(),
-            span: Span::unknown(),
-        }.into());
+            reason: "first argument must be a type keyword (e.g., :i64)".into()
+        } }.into());
     }
     let items = args[1..]
         .iter()
@@ -9593,11 +9502,10 @@ fn eval_tuple_ctor(
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
-            reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
-            span: Span::unknown(),
-        }.into());
+            reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into()
+        } }.into());
     }
     let items = args
         .iter()
@@ -9614,12 +9522,11 @@ fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, EvalBreak>
         // arc 138: no span — require_vec is a value-level helper without
         // AST context; the caller's arg span isn't threaded through every
         // call site (would expand the helper signature across ~30 callers).
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Vector",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9629,12 +9536,11 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> {
     match v {
         Value::i64(n) => Ok(n),
         // arc 138: no span — same rationale as `require_vec` above.
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "i64",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9662,12 +9568,11 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> {
 fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9675,36 +9580,33 @@ fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/length".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
 fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
 fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9715,12 +9617,11 @@ fn eval_vector_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     vector_length_inner(&v)
@@ -9733,12 +9634,11 @@ fn eval_hashmap_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_length_inner(&v)
@@ -9751,12 +9651,11 @@ fn eval_hashset_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashset_length_inner(&v)
@@ -9782,36 +9681,33 @@ fn eval_hashset_length(
 fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
 fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
 fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9819,12 +9715,11 @@ fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9835,12 +9730,11 @@ fn eval_vector_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     vector_empty_q_inner(&v)
@@ -9853,12 +9747,11 @@ fn eval_hashmap_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_empty_q_inner(&v)
@@ -9871,12 +9764,11 @@ fn eval_hashset_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     hashset_empty_q_inner(&v)
@@ -9893,12 +9785,11 @@ fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Eva
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9910,12 +9801,11 @@ fn list_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalB
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9930,12 +9820,11 @@ fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value,
             }
             Ok(Value::bool(m.contains_key(key)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9951,12 +9840,11 @@ fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Ev
             }
             Ok(Value::bool(s.contains(item)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -9967,12 +9855,11 @@ fn eval_vector_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -9986,12 +9873,11 @@ fn eval_hashmap_contains_key_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let key = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10005,12 +9891,11 @@ fn eval_hashset_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10025,12 +9910,11 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::Vector/get".into(),
                         expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                        span: Span::unknown(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&other))
+                    } }.into());
                 }
             };
             if i < 0 || (i as usize) >= xs.len() {
@@ -10039,12 +9923,11 @@ fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak
                 Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
             }
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10056,12 +9939,11 @@ fn list_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> 
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::List/get".into(),
                         expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                        span: Span::unknown(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&other))
+                    } }.into());
                 }
             };
             if i < 0 || (i as usize) >= xs.len() {
@@ -10072,12 +9954,11 @@ fn list_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> 
                 )))
             }
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/get".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10094,12 +9975,11 @@ fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak>
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10110,12 +9990,11 @@ fn eval_vector_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let index = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10129,12 +10008,11 @@ fn eval_hashmap_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let key = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10150,12 +10028,11 @@ fn eval_list_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/length".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     list_length_inner(&v)
@@ -10168,12 +10045,11 @@ fn eval_list_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     list_empty_q_inner(&v)
@@ -10186,12 +10062,11 @@ fn eval_list_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10205,12 +10080,11 @@ fn eval_list_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/get".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let index = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10224,12 +10098,11 @@ fn eval_list_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/conj".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10308,12 +10181,11 @@ fn program_env_lookup(
     let map = match env_val {
         Value::wat__std__HashMap(m) => m,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: key_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: key_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Stone 216.5c — native HashMap<Value, Value> lookup; hashmap_key crutch removed.
@@ -10348,31 +10220,28 @@ fn parse_arrow_ty(
     match &args[arrow_pos] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "expected `->` at position {}; got {}",
                     arrow_pos,
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let target_ty = match &args[type_pos] {
         WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|e| {
-            RuntimeError::MalformedForm {
+            RuntimeError { span: args[type_pos].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
-                reason: format!("declared type {:?} failed to parse: {}", k, e),
-                span: args[type_pos].span().clone(),
-            }
+                reason: format!("declared type {:?} failed to parse: {}", k, e)
+            } }
         })?,
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
-                reason: "expected type keyword after `->`".into(),
-                span: other.span().clone(),
-            }.into());
+                reason: "expected type keyword after `->`".into()
+            } }.into());
         }
     };
     Ok(target_ty)
@@ -10392,12 +10261,11 @@ fn eval_program_env_get(
     const OP: &str = ":wat::program::Env/get";
     // args layout: [env, key, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10419,12 +10287,11 @@ fn eval_program_env_expect_get(
     const OP: &str = ":wat::program::Env/expect-get";
     // args layout: [env, key, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10468,12 +10335,11 @@ fn eval_program_env_get_default(
     const OP: &str = ":wat::program::Env/get-default";
     // args layout: [env, key, default, ->, :T]
     if args.len() != 5 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 5,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10608,12 +10474,11 @@ fn eval_program_env_dig(
     const OP: &str = ":wat::program::Env/dig";
     // args layout: [env, path, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10622,24 +10487,22 @@ fn eval_program_env_dig(
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Extract the path elements from the Vector
     let path_items = match &path_val {
         Value::Vec(xs) => (**xs).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let result = program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())?;
@@ -10659,12 +10522,11 @@ fn eval_program_env_expect_dig(
     const OP: &str = ":wat::program::Env/expect-dig";
     // args layout: [env, path, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 2, 3)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10673,23 +10535,21 @@ fn eval_program_env_expect_dig(
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let path_items = match &path_val {
         Value::Vec(xs) => (**xs).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
@@ -10730,12 +10590,11 @@ fn eval_program_env_dig_default(
     const OP: &str = ":wat::program::Env/dig-default";
     // args layout: [env, path, default, ->, :T]
     if args.len() != 5 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 5,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target_ty = parse_arrow_ty(OP, args, 3, 4)?;
     let env_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -10743,23 +10602,21 @@ fn eval_program_env_dig_default(
     let map = match &env_val {
         Value::wat__std__HashMap(m) => m.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::program::Env (HashMap<keyword, HolonAST>)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let path_items = match &path_val {
         Value::Vec(xs) => (**xs).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<HolonAST> path",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     match program_env_dig_walk(OP, &map, &path_items, &target_ty, args[1].span())? {
@@ -10777,12 +10634,11 @@ fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak
             out.push(item.clone());
             Ok(Value::Vec(Arc::new(out)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10796,12 +10652,11 @@ fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> 
             out.push_front(item.clone());
             Ok(Value::wat__core__List(Arc::new(out)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/conj".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10819,23 +10674,21 @@ fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBrea
             // hashmap_key canonical-key crutch removed.
             // Guard: reject opaque-handle variants before they reach Hash.
             if !value_is_set_hashable(item) {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::HashSet/conj".into(),
                     expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&item)),
-                    span: Span::unknown(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&item))
+                } }.into());
             }
             let mut out: HashSet<Value> = (**s).clone();
             out.insert(item.clone());
             Ok(Value::wat__std__HashSet(Arc::new(out)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10846,12 +10699,11 @@ fn eval_vector_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10865,12 +10717,11 @@ fn eval_hashset_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let item = eval_inner(&args[1], env, sym)?.value_owned();
@@ -10904,23 +10755,21 @@ fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value,
             // Arc strategy: clone-then-new-Arc (functional; no aliased mutation; mirrors 216.5b).
             // Guard: reject opaque-handle keys before they reach Hash::hash.
             if !value_is_key_hashable(k) {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&k)),
-                    span: Span::unknown(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&k))
+                } }.into());
             }
             let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
             new_map.insert(k.clone(), v.clone());
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10942,12 +10791,11 @@ fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, EvalBreak
             new_map.remove(k);
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10962,12 +10810,11 @@ fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
             let ks: Vec<Value> = m.keys().cloned().collect();
             Ok(Value::Vec(Arc::new(ks)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10979,12 +10826,11 @@ fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
             let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -10993,23 +10839,21 @@ fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> 
     let l = match left {
         Value::Vec(xs) => xs.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let r = match right {
         Value::Vec(xs) => xs.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
@@ -11025,12 +10869,11 @@ fn eval_hashmap_assoc(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/assoc".into(),
             expected: 3,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let k = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11045,12 +10888,11 @@ fn eval_hashmap_dissoc(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/dissoc".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let k = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11064,12 +10906,11 @@ fn eval_hashmap_keys(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/keys".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_keys_inner(&container)
@@ -11082,12 +10923,11 @@ fn eval_hashmap_values(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/values".into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     hashmap_values_inner(&container)
@@ -11100,12 +10940,11 @@ fn eval_vector_concat(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/concat".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let left = eval_inner(&args[0], env, sym)?.value_owned();
     let right = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11281,14 +11120,13 @@ where
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::i64(r)),
-            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown()).into()),
+            Err(()) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DivisionByZero }.into()),
         },
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(i64, i64)",
-            got: Box::new(ValueSnapshot::of(&a)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
     }
 }
 
@@ -11305,14 +11143,13 @@ where
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::f64(r)),
-            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown()).into()),
+            Err(()) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DivisionByZero }.into()),
         },
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, f64)",
-            got: Box::new(ValueSnapshot::of(&a)),
-            span: Span::unknown(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
     }
 }
 
@@ -11341,12 +11178,11 @@ fn eval_vec_reverse(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::reverse".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?.value_owned())?;
     let mut out = (*xs).clone();
@@ -11364,12 +11200,11 @@ fn eval_vec_range(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::range".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?.value_owned())?;
     let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11391,12 +11226,11 @@ fn eval_vec_take(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::take".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11415,12 +11249,11 @@ fn eval_vec_drop(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::drop".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11457,24 +11290,22 @@ fn eval_vec_sort_by(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut sorted: Vec<Value> = (*xs).clone();
@@ -11493,13 +11324,12 @@ fn eval_vec_sort_by(
             ).map_err(EvalBreak::from)?;
             match v {
                 Value::bool(b) => Ok(b),
-                other => Err(RuntimeError::TypeMismatch {
+                other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — inside sort_by closure, no AST args in scope
-                    span: Span::unknown(),
-                }.into()),
+                    // arc 138: no — inside sort_by closure, no AST args in scope
+                } }.into()),
             }
         };
         let ab = match call(a, b) {
@@ -11541,12 +11371,11 @@ fn eval_vec_map(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::map".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::map", eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11554,12 +11383,11 @@ fn eval_vec_map(
         Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::map".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut out = Vec::with_capacity(xs.len());
@@ -11580,12 +11408,11 @@ fn eval_vec_foldl(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldl".into(),
             expected: 3,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::foldl", eval_inner(&args[0], env, sym)?.value_owned())?;
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11594,12 +11421,11 @@ fn eval_vec_foldl(
         Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     for x in xs.iter() {
@@ -11619,12 +11445,11 @@ fn eval_vec_foldr(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldr".into(),
             expected: 3,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::foldr", eval_inner(&args[0], env, sym)?.value_owned())?;
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11633,12 +11458,11 @@ fn eval_vec_foldr(
         Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldr".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     for x in xs.iter().rev() {
@@ -11657,12 +11481,11 @@ fn eval_vec_filter(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::filter".into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::filter", eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11670,12 +11493,11 @@ fn eval_vec_filter(
         Value::wat__core__fn(func) => func.clone(),
         other => {
             // arc 138: no span — leaf helper.
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::filter".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut out = Vec::with_capacity(xs.len());
@@ -11685,12 +11507,11 @@ fn eval_vec_filter(
             Value::bool(false) => {}
             other => {
                 // arc 138: no span — leaf helper.
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::filter".into(),
                     expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: Span::unknown(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         }
     }
@@ -11706,12 +11527,11 @@ fn eval_list_zip(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::zip".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?.value_owned())?;
     let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11734,12 +11554,11 @@ fn eval_list_window(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::window".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11767,12 +11586,11 @@ fn eval_list_remove_at(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::remove-at".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?.value_owned())?;
     let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -11862,37 +11680,33 @@ fn eval_hashmap_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() < 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
-            span: args[0].span().clone(),
-        }.into());
+            reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into()
+        } }.into());
     }
     if !matches!(&args[1], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
-            span: args[1].span().clone(),
-        }.into());
+            reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into()
+        } }.into());
     }
     let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
                 pairs.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     // Stone 216.5c — HashMap<Value, Value> native storage; hashmap_key crutch removed.
     // Guard: reject opaque-handle keys before they reach Hash::hash (unreachable!()).
@@ -11904,12 +11718,11 @@ fn eval_hashmap_ctor(
         let k = eval_inner(&pair[0], env, sym)?.value_owned();
         let v = eval_inner(&pair[1], env, sym)?.value_owned();
         if !value_is_key_hashable(&k) {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: pair[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::HashMap".into(),
                 expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: Box::new(ValueSnapshot::of(&k)),
-                span: pair[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&k))
+            } }.into());
         }
         map.insert(k, v);
     }
@@ -11951,12 +11764,11 @@ fn eval_assoc(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::assoc";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -11966,12 +11778,11 @@ fn eval_assoc(
         Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
             eval_record_assoc(args, list_span, env, sym)
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V> or :wat::Record",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -11988,19 +11799,17 @@ fn eval_hashset_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet".into(),
             expected: 1,
-            got: 0,
-            span: list_span.clone(),
-        }.into());
+            got: 0
+        } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashSet".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into(),
-            span: args[0].span().clone(),
-        }.into());
+            reason: "first argument must be a type keyword (e.g., :i64)".into()
+        } }.into());
     }
     // Stone 216.5b — native HashSet<Value> insert. Value implements Hash + Eq
     // (Stone 216.5a); dedupe is handled natively by HashSet::insert semantics.
@@ -12010,12 +11819,11 @@ fn eval_hashset_ctor(
     for a in &args[1..] {
         let v = eval_inner(a, env, sym)?.value_owned();
         if !value_is_set_hashable(&v) {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::HashSet".into(),
                 expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: Box::new(ValueSnapshot::of(&v)),
-                span: a.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&v))
+            } }.into());
         }
         set.insert(v);
     }
@@ -12041,12 +11849,11 @@ fn eval_hashset_ctor(
 /// Quote is how programs become holons without running.
 fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::quote".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
@@ -12089,12 +11896,11 @@ fn eval_quasiquote(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let walked = walk_quasiquote(&args[0], env, sym, 1)?;
     Ok(Value::wat__WatAST(Arc::new(walked)))
@@ -12190,12 +11996,11 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
         Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span,
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -12228,23 +12033,21 @@ fn eval_struct_to_form(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let s = match v {
         Value::Struct(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "struct value (e.g. `:my::Foo/new`'s output)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Build constructor keyword: `:my::Foo/new` from type_name `:my::Foo`.
@@ -12802,12 +12605,11 @@ fn eval_lookup_define(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::lookup-define";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Arc 166 — when the argument is a literal keyword AST, use it
     // directly instead of going through `eval`. Without this, a literal
@@ -12828,12 +12630,11 @@ fn eval_lookup_define(
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                    got: Box::new(ValueSnapshot::of(&v)),
-                    span: args[0].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&v))
+                } }.into());
             }
         }
     };
@@ -12901,23 +12702,21 @@ fn eval_signature_of_defn(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-defn";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: Box::new(ValueSnapshot::of(&v)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&v))
+            } }.into());
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. SpecialForm
@@ -13007,23 +12806,21 @@ fn eval_signature_of_fn(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-fn";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let ast = function_to_signature_ast(&f);
@@ -13047,23 +12844,21 @@ fn eval_body_of(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::body-of";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_from_keyword_or_fn(&v) {
         Some(n) => n,
         None => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: Box::new(ValueSnapshot::of(&v)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&v))
+            } }.into());
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. Bodies exist for
@@ -13113,12 +12908,11 @@ fn eval_metadata_of(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::metadata-of";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Extract the binding name. Prefer the keyword string directly from
     // the WatAST (avoids runtime_def_values resolution that would lose the
@@ -13131,12 +12925,11 @@ fn eval_metadata_of(
             match name_from_keyword_or_fn(&v) {
                 Some(n) => n,
                 None => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: ":wat::core::keyword or named function",
-                        got: Box::new(ValueSnapshot::of(&v)),
-                        span: args[0].span().clone(),
-                    }.into());
+                        got: Box::new(ValueSnapshot::of(&v))
+                    } }.into());
                 }
             }
         }
@@ -13168,12 +12961,11 @@ fn require_bundle<'a>(
 ) -> Result<&'a Vec<HolonAST>, EvalBreak> {
     match holon {
         HolonAST::Bundle(children) => Ok(children),
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Bundle (signature head HolonAST)",
-            got: Box::new(ValueSnapshot::unavailable("non-Bundle HolonAST variant")),
-            span: arg_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::unavailable("non-Bundle HolonAST variant"))
+        } }.into()),
     }
 }
 
@@ -13219,12 +13011,11 @@ fn eval_rename_callable_name(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::rename-callable-name";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Eval all three args.
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
@@ -13235,12 +13026,11 @@ fn eval_rename_callable_name(
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
@@ -13250,35 +13040,32 @@ fn eval_rename_callable_name(
     let from_str = match name_from_keyword_or_fn(&from_val) {
         Some(n) => n,
         None => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::keyword or named function (from name)",
-                got: Box::new(ValueSnapshot::of(&from_val)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&from_val))
+            } }.into());
         }
     };
     let to_str = match name_from_keyword_or_fn(&to_val) {
         Some(n) => n,
         None => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::keyword or named function (to name)",
-                got: Box::new(ValueSnapshot::of(&to_val)),
-                span: args[2].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&to_val))
+            } }.into());
         }
     };
 
     // Destructure Bundle; check children[0] is a Keyword (arc 221 Stone 221.4b).
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
     if children.is_empty() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Bundle with at least one Keyword child (the function name, arc 221 doctrine)",
-            got: Box::new(ValueSnapshot::unavailable("empty Bundle")),
-            span: args[0].span().clone(),
-        }.into());
+            got: Box::new(ValueSnapshot::unavailable("empty Bundle"))
+        } }.into());
     }
     // Arc 230: children[0] is a Keyword composition (Bind(Atom("Keyword"), Atom(s))).
     // Arc 221 Stone 221.4b established Keyword as first Bundle child.
@@ -13286,12 +13073,11 @@ fn eval_rename_callable_name(
     let first_str = if let Some(s) = children[0].as_keyword() {
         s
     } else {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Keyword composition as first Bundle child (the function name, arc 230 doctrine)",
-            got: Box::new(ValueSnapshot::unavailable("non-Keyword first child")),
-            span: args[0].span().clone(),
-        }.into());
+            got: Box::new(ValueSnapshot::unavailable("non-Keyword first child"))
+        } }.into());
     };
 
     // Split name at `<` to preserve type-param suffix.
@@ -13302,14 +13088,13 @@ fn eval_rename_callable_name(
     // the leading colon. Strip it before comparing.
     let from_base = from_str.strip_prefix(':').unwrap_or(from_str.as_str());
     if base != from_base {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "rename-callable-name: head base name '{}' does not match `from` argument '{}'",
                 base, from_str
-            ),
-            span: args[1].span().clone(),
-        }.into());
+            )
+        } }.into());
     }
 
     // Arc 221 Stone 221.4b — construct new first Keyword (not Symbol).
@@ -13353,23 +13138,21 @@ fn eval_extract_arg_names(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-names";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
@@ -13435,23 +13218,21 @@ fn eval_extract_arg_types(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-types";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match head_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (signature head)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
@@ -13504,23 +13285,21 @@ fn eval_bundle_children(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/children";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (Bundle)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
@@ -13552,32 +13331,29 @@ fn eval_bundle_first(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/first";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST (Bundle)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
-    let first = children.first().ok_or_else(|| RuntimeError::TypeMismatch {
+    let first = children.first().ok_or_else(|| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
         op: OP.into(),
         expected: "Bundle with at least one child",
-        got: Box::new(ValueSnapshot::unavailable("empty Bundle")),
-        span: args[0].span().clone(),
-    })?;
+        got: Box::new(ValueSnapshot::unavailable("empty Bundle"))
+    } })?;
     Ok(Value::holon__HolonAST(Arc::new(first.clone())))
 }
 
@@ -13618,12 +13394,11 @@ fn eval_form_matches(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
 
     // Eval the subject. Auto-unwrap one level of `Option(Some(_))`
@@ -13645,19 +13420,17 @@ fn eval_form_matches(
         WatAST::List(items, _) if !items.is_empty() => match &items[0] {
             WatAST::Keyword(k, _) => (k.as_str(), &items[1..]),
             other_head => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other_head.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "pattern head must be a struct type keyword".into(),
-                    span: other_head.span().clone(),
-                }.into());
+                    reason: "pattern head must be a struct type keyword".into()
+                } }.into());
             }
         },
         other_pat => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other_pat.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
-                span: other_pat.span().clone(),
-            }.into());
+                reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into()
+            } }.into());
         }
     };
 
@@ -13717,11 +13490,10 @@ fn walk_match_clause(
         classify_clause, keyword_payload, logic_var_name, CompareOp, RawClause,
     };
 
-    let raw = classify_clause(clause).map_err(|e| RuntimeError::MalformedForm {
+    let raw = classify_clause(clause).map_err(|e| RuntimeError { span: clause.span().clone(), kind: RuntimeErrorKind::MalformedForm {
         head: ":wat::form::matches?".into(),
-        reason: format!("classifier: {:?}", e),
-        span: clause.span().clone(),
-    })?;
+        reason: format!("classifier: {:?}", e)
+    } })?;
 
     match raw {
         RawClause::Eq { left, right } => {
@@ -13731,14 +13503,13 @@ fn walk_match_clause(
                 if env.lookup(var, left.span()).is_none() {
                     // Fresh ?var — binding.
                     let field_kw = keyword_payload(right).ok_or_else(|| {
-                        RuntimeError::MalformedForm {
+                        RuntimeError { span: right.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::form::matches?".into(),
                             reason: format!(
                                 "binding RHS for {} must be a field keyword",
                                 var
-                            ),
-                            span: right.span().clone(),
-                        }
+                            )
+                        } }
                     })?;
                     let field_lookup = field_kw.strip_prefix(':').unwrap_or(field_kw);
                     let idx = field_names.iter().position(|n| n == field_lookup);
@@ -13853,12 +13624,11 @@ fn walk_match_clause(
             let v = eval_inner(body, &env, sym)?.value_owned();
             match v {
                 Value::bool(b) => Ok((b, env)),
-                other => Err(RuntimeError::TypeMismatch {
+                other => Err(RuntimeError { span: body.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::form::matches?".into(),
                     expected: "bool from where-body",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: body.span().clone(),
-                }.into()),
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into()),
             }
         }
     }
@@ -13903,34 +13673,30 @@ fn eval_macroexpand_1(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let ast = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::WatAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
-    let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
-        op: OP.into(),
-        span: args[0].span().clone(),
-    })?;
+    let registry = sym.macro_registry().ok_or(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::NoMacroRegistry {
+        op: OP.into()
+    } })?;
     let expanded = crate::macros::expand_once(ast, registry, env, sym)
-        .map_err(|e| RuntimeError::MacroExpansionFailed {
+        .map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
             op: OP.into(),
-            reason: format!("{}", e),
-            span: args[0].span().clone(),
-        })?;
+            reason: format!("{}", e)
+        } })?;
     Ok(Value::wat__WatAST(Arc::new(expanded)))
 }
 
@@ -13947,48 +13713,43 @@ fn eval_macroexpand(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let mut ast = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::WatAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
-    let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
-        op: OP.into(),
-        span: args[0].span().clone(),
-    })?;
+    let registry = sym.macro_registry().ok_or(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::NoMacroRegistry {
+        op: OP.into()
+    } })?;
     for _ in 0..crate::macros::EXPANSION_DEPTH_LIMIT {
         let next = crate::macros::expand_once(ast.clone(), registry, env, sym)
-            .map_err(|e| RuntimeError::MacroExpansionFailed {
+            .map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
                 op: OP.into(),
-                reason: format!("{}", e),
-                span: args[0].span().clone(),
-            })?;
+                reason: format!("{}", e)
+            } })?;
         if next == ast {
             return Ok(Value::wat__WatAST(Arc::new(next)));
         }
         ast = next;
     }
-    Err(RuntimeError::MacroExpansionFailed {
+    Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
         op: OP.into(),
         reason: format!(
             "expansion did not reach fixpoint within {} iterations",
             crate::macros::EXPANSION_DEPTH_LIMIT
-        ),
-        span: args[0].span().clone(),
-    }.into())
+        )
+    } }.into())
 }
 
 /// `(:wat::core::first xs)` / `second` / `third` — positional
@@ -14016,25 +13777,23 @@ fn eval_positional_accessor(
     index: usize,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
-            EvalBreak::from(RuntimeError::MalformedForm {
+            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "tuple has {} element(s); no element at index {}",
                     items.len(),
                     index
-                ),
-                span: args[0].span().clone(),
-            })
+                )
+            } })
         }),
         Value::Vec(items) => Ok(Value::Option(Arc::new(items.get(index).cloned()))),
         // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
@@ -14042,12 +13801,11 @@ fn eval_positional_accessor(
         Value::wat__core__List(items) => Ok(Value::Option(Arc::new(
             items.iter().nth(index).cloned(),
         ))),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "tuple, Vec, or List",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14062,12 +13820,11 @@ fn eval_vec_last(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::last".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?.value_owned())?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
@@ -14088,24 +13845,22 @@ fn eval_vec_find_last_index(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut last_idx: Option<i64> = None;
@@ -14120,13 +13875,12 @@ fn eval_vec_find_last_index(
             Value::bool(true) => last_idx = Some(i as i64),
             Value::bool(false) => {}
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool (predicate result)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — predicate result from apply_function; no AST arg in scope
-                    span: Span::unknown(),
-                }.into());
+                    // arc 138: no — predicate result from apply_function; no AST arg in scope
+                } }.into());
             }
         }
     }
@@ -14148,12 +13902,11 @@ fn eval_f64_reduce(
     fold: fn(f64, f64) -> f64,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_span = args[0].span().clone();
     let xs = require_vec(op, eval_inner(&args[0], env, sym)?.value_owned())?;
@@ -14161,12 +13914,11 @@ fn eval_f64_reduce(
     let init = match iter.next() {
         Some(Value::f64(x)) => *x,
         Some(other) => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Vec<f64>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg_span,
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
         None => return Ok(Value::Option(Arc::new(None))),
     };
@@ -14175,12 +13927,11 @@ fn eval_f64_reduce(
         match x {
             Value::f64(v) => acc = fold(acc, *v),
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "Vec<f64>",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: arg_span.clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         }
     }
@@ -14198,22 +13949,20 @@ fn eval_vec_rest(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::rest".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
         Value::Vec(xs) => {
             if xs.is_empty() {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty Vec".into(),
-                    span: args[0].span().clone(),
-                }.into());
+                    reason: "cannot take rest of empty Vec".into()
+                } }.into());
             }
             let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
             Ok(Value::Vec(Arc::new(out)))
@@ -14222,21 +13971,19 @@ fn eval_vec_rest(
         // Maintains type identity: List/rest → List (not Vec).
         Value::wat__core__List(xs) => {
             if xs.is_empty() {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty List".into(),
-                    span: args[0].span().clone(),
-                }.into());
+                    reason: "cannot take rest of empty List".into()
+                } }.into());
             }
             let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
             Ok(Value::wat__core__List(Arc::new(out)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::rest".into(),
             expected: "Vec or List",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14250,24 +13997,22 @@ fn eval_list_map_with_index(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::map-with-index".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::std::list::map-with-index".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut out = Vec::with_capacity(xs.len());
@@ -14296,12 +14041,11 @@ fn eval_some_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: "Some".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Option(Arc::new(Some(v))))
@@ -14317,12 +14061,11 @@ fn eval_ok_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: "Ok".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Result(Arc::new(Ok(v))))
@@ -14338,12 +14081,11 @@ fn eval_err_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: "Err".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::Result(Arc::new(Err(v))))
@@ -14379,12 +14121,11 @@ fn eval_try(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
@@ -14396,12 +14137,11 @@ fn eval_try(
                 std::result::Result::Err(e) => Err(EvalBreak::Signal(EvalSignal::TryPropagate(Box::new(e.clone())))),
             },
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Result<T,E>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14429,12 +14169,11 @@ fn eval_option_try(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     match v {
@@ -14446,12 +14185,11 @@ fn eval_option_try(
                 None => Err(EvalBreak::Signal(EvalSignal::OptionPropagate)),
             },
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Option<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14479,12 +14217,11 @@ fn eval_option_expect(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let opt = eval_inner(&args[2], env, sym)?.value_owned();
     match opt {
@@ -14496,12 +14233,11 @@ fn eval_option_expect(
                 None => expect_panic(op, &args[3], env, sym, args[2].span().clone(), None),
             },
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Option<T>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[2].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14515,12 +14251,11 @@ fn eval_result_expect(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let res = eval_inner(&args[2], env, sym)?.value_owned();
     match res {
@@ -14538,12 +14273,11 @@ fn eval_result_expect(
                 }
             },
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Result<T,E>",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[2].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -14589,12 +14323,11 @@ fn expect_panic(
     let msg = match eval_inner(msg_ast, env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: msg_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: msg_ast.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let frames = snapshot_call_stack();
@@ -14639,23 +14372,21 @@ fn eval_kernel_raise(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let data = eval_inner(&args[0], env, sym)?.value_owned();
     match &data {
         Value::holon__HolonAST(_) => {}
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Render data → EDN string. The HolonAST flows through the
@@ -14698,24 +14429,22 @@ fn eval_struct_new(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::struct-new".into(),
             expected: 1,
-            got: 0,
-            span: list_span.clone(),
-        }.into());
+            got: 0
+        } }.into());
     }
     let type_name = match &args[0] {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::struct-new".into(),
                 reason: format!(
                     "first argument must be a keyword literal (the struct's type name); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let mut fields = Vec::with_capacity(args.len() - 1);
@@ -14752,24 +14481,22 @@ fn eval_variant(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() < 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::variant".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let type_path = match &args[0] {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::variant".into(),
                 reason: format!(
                     "first argument must be a keyword literal (the enum's type path); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let variant_name = match &args[1] {
@@ -14779,14 +14506,13 @@ fn eval_variant(
             k.strip_prefix(':').unwrap_or(k.as_str()).to_string()
         }
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::variant".into(),
                 reason: format!(
                     "second argument must be a keyword literal (the variant identifier); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let mut fields = Vec::with_capacity(args.len() - 2);
@@ -14822,56 +14548,51 @@ fn eval_struct_field(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::struct-field".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let struct_val = eval_inner(&args[0], env, sym)?.value_owned();
     let inner = match struct_val {
         Value::Struct(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::struct-field".into(),
                 expected: "Struct",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let index = match &args[1] {
         WatAST::IntLit(n, _) if *n >= 0 => *n as usize,
         WatAST::IntLit(n, span) => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::struct-field".into(),
-                reason: format!("field index must be non-negative; got {}", n),
-                span: span.clone(),
-            }.into());
+                reason: format!("field index must be non-negative; got {}", n)
+            } }.into());
         }
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::struct-field".into(),
                 reason: format!(
                     "second argument must be an integer literal (the field index); got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     if index >= inner.fields.len() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::struct-field".into(),
             reason: format!(
                 "field index {} out of range for struct {} with {} fields",
                 index,
                 inner.type_name,
                 inner.fields.len()
-            ),
-            span: args[1].span().clone(),
-        }.into());
+            )
+        } }.into());
     }
     Ok(inner.fields[index].clone())
 }
@@ -14911,7 +14632,7 @@ fn eval_match(
         // Two bad-shape possibilities to distinguish:
         //   - Pre-inscription `(match scrutinee arm1)` — 2 args, no `->`
         //   - Too few args overall
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: if args.len() >= 2
                 && !matches!(
@@ -14925,32 +14646,29 @@ fn eval_match(
                     "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
                     args.len()
                 )
-            },
-            span: list_span.clone(),
-        }.into());
+            }
+        } }.into());
     }
     // Validate the `-> :T` shape.
     match &args[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
-                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into(),
-                span: args[1].span().clone(),
-            }.into());
+                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into()
+            } }.into());
         }
     }
     match &args[2] {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "expected type keyword after `->`; got {}",
                     other.variant_name()
-                ),
-                span: other.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
@@ -14958,25 +14676,23 @@ fn eval_match(
         let arm_items = match arm {
             WatAST::List(items, _) => items,
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "each arm must be a list `(pattern body)`, got {}",
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         };
         if arm_items.len() != 2 {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!(
                     "each arm must have exactly (pattern body); got {} elements",
                     arm_items.len()
-                ),
-                span: arm.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
         let pattern = &arm_items[0];
         let body = &arm_items[1];
@@ -14984,10 +14700,9 @@ fn eval_match(
             return eval_inner(body, &arm_env, sym).map(|tv| tv.value_owned());
         }
     }
-    Err(RuntimeError::PatternMatchFailed {
-        value_type: scrutinee.type_name(),
-        span: args[0].span().clone(),
-    }.into())
+    Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::PatternMatchFailed {
+        value_type: scrutinee.type_name()
+    } }.into())
 }
 
 /// Attempt to match `pattern` against `value`. Returns:
@@ -15055,11 +14770,10 @@ fn try_match_pattern(
         )),
         // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
         WatAST::List(items, _) => {
-            let head = items.first().ok_or_else(|| RuntimeError::MalformedForm {
+            let head = items.first().ok_or_else(|| RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
-                reason: "empty list pattern".into(),
-                span: pattern.span().clone(),
-            })?;
+                reason: "empty list pattern".into()
+            } })?;
             // Arc 109 slice 1h — recognize FQDN keyword forms for
             // Option variant patterns. Both bare-Symbol "Some" and
             // FQDN keyword ":wat::core::Some" land here at runtime;
@@ -15073,14 +14787,13 @@ fn try_match_pattern(
             );
             if head_is_some {
                 if items.len() != 2 {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "(Some _) takes exactly one field, got {}",
                             items.len() - 1
-                        ),
-                        span: pattern.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
                 return match value {
                     Value::Option(opt) => match &**opt {
@@ -15103,14 +14816,13 @@ fn try_match_pattern(
             );
             if head_is_ok {
                 if items.len() != 2 {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "(Ok _) takes exactly one field, got {}",
                             items.len() - 1
-                        ),
-                        span: pattern.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
                 return match value {
                     Value::Result(r) => match &**r {
@@ -15129,14 +14841,13 @@ fn try_match_pattern(
             );
             if head_is_err {
                 if items.len() != 2 {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "(Err _) takes exactly one field, got {}",
                             items.len() - 1
-                        ),
-                        span: pattern.span().clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
                 return match value {
                     Value::Result(r) => match &**r {
@@ -15166,7 +14877,7 @@ fn try_match_pattern(
                         }
                         let sub_pats = &items[1..];
                         if sub_pats.len() != ev.fields.len() {
-                            return Err(RuntimeError::MalformedForm {
+                            return Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
                                     "({} ...) takes {} field(s) for variant {}, got {}",
@@ -15174,9 +14885,8 @@ fn try_match_pattern(
                                     ev.fields.len(),
                                     ev.variant_name,
                                     sub_pats.len()
-                                ),
-                                span: pattern.span().clone(),
-                            }.into());
+                                )
+                            } }.into());
                         }
                         let mut env = outer.clone();
                         for (sub_pat, field_value) in sub_pats.iter().zip(ev.fields.iter()) {
@@ -15214,11 +14924,10 @@ fn try_match_pattern(
         // Arc 167 slice 1 — vector sub-patterns are not admitted
         // in arc 167. Slice 2 wires fn / defn signature consumers;
         // pattern-match positions are not legal Vector consumers.
-        WatAST::Vector(_, _) => Err(RuntimeError::MalformedForm {
+        WatAST::Vector(_, _) => Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "vector sub-patterns are not supported in arc 167".into(),
-            span: pattern.span().clone(),
-        }.into()),
+            reason: "vector sub-patterns are not supported in arc 167".into()
+        } }.into()),
         // Arc 167 slice 1 / Arc 169 slice 1 / Arc 234 Stone 234.4.match
         // — StructPattern brace-forms.
         //
@@ -15310,11 +15019,10 @@ fn try_match_pattern(
             } else {
                 // Arc-169 struct-destructure `{field1 field2 ...}` —
                 // let-binding-position only; not a match sub-pattern.
-                Err(RuntimeError::MalformedForm {
+                Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
-                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-                    span: span.clone(),
-                }.into())
+                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into()
+                } }.into())
             }
         }
     }
@@ -15362,12 +15070,11 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, E
         item if extract_classifier(item).is_some() => {
             let classifier = extract_classifier(item).unwrap();
             let inner_items = extract_classifier_inner_bundle(item).ok_or_else(|| {
-                RuntimeError::TypeMismatch {
+                RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                    got: Box::new(ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner")),
-                    span: op_span.clone(),
-                }
+                    got: Box::new(ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner"))
+                } }
             })?;
             match classifier.as_str() {
                 "Map" => {
@@ -15383,12 +15090,11 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, E
                                 map.insert(k_val, v_val);
                             }
                             _ => {
-                                return Err(RuntimeError::TypeMismatch {
+                                return Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(K, V) child in nested Map classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items")),
-                                    span: op_span.clone(),
-                                }.into());
+                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"))
+                                } }.into());
                             }
                         }
                     }
@@ -15411,24 +15117,22 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, E
                                 let idx = match k.as_ref() {
                                     HolonAST::I64(i) => *i,
                                     _ => {
-                                        return Err(RuntimeError::TypeMismatch {
+                                        return Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                                             op: op.into(),
                                             expected: "I64 positional key in nested Vector classifier-Bundle",
-                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle")),
-                                            span: op_span.clone(),
-                                        }.into());
+                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"))
+                                        } }.into());
                                     }
                                 };
                                 let elem = from_holon_item(v, op, op_span)?;
                                 pairs.push((idx, elem));
                             }
                             _ => {
-                                return Err(RuntimeError::TypeMismatch {
+                                return Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(I64, _) in nested Vector classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items")),
-                                    span: op_span.clone(),
-                                }.into());
+                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"))
+                                } }.into());
                             }
                         }
                     }
@@ -15453,24 +15157,22 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, E
                                 let idx = match k.as_ref() {
                                     HolonAST::I64(i) => *i,
                                     _ => {
-                                        return Err(RuntimeError::TypeMismatch {
+                                        return Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                                             op: op.into(),
                                             expected: "I64 positional key in nested Tuple classifier-Bundle",
-                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle")),
-                                            span: op_span.clone(),
-                                        }.into());
+                                            got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"))
+                                        } }.into());
                                     }
                                 };
                                 let elem = from_holon_item(v, op, op_span)?;
                                 pairs.push((idx, elem));
                             }
                             _ => {
-                                return Err(RuntimeError::TypeMismatch {
+                                return Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                                     op: op.into(),
                                     expected: "Bind(I64, _) in nested Tuple classifier-Bundle",
-                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items")),
-                                    span: op_span.clone(),
-                                }.into());
+                                    got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"))
+                                } }.into());
                             }
                         }
                     }
@@ -15478,20 +15180,18 @@ fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, E
                     let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
                     Ok(Value::Tuple(Arc::new(elems)))
                 }
-                _ => Err(RuntimeError::TypeMismatch {
+                _ => Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                    got: Box::new(ValueSnapshot::unavailable("unknown classifier name in nested collection item")),
-                    span: op_span.clone(),
-                }.into()),
+                    got: Box::new(ValueSnapshot::unavailable("unknown classifier name in nested collection item"))
+                } }.into()),
             }
         }
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: op_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "primitive leaf or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon",
-            got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)")),
-            span: op_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, non-classifier Bind, Permute, Thermometer, Blend, or other composite)"))
+        } }.into()),
     }
 }
 
@@ -15516,12 +15216,11 @@ fn eval_type(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::type";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc 237 Stone 237.5.fix-nominal-identity — route through the ONE authority.
@@ -15550,24 +15249,22 @@ fn eval_length(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::length";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     match &arg_val {
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -15590,24 +15287,22 @@ fn eval_empty(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::empty?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     match &arg_val {
         Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
         Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
         Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -15630,12 +15325,11 @@ fn eval_contains(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::contains?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -15643,12 +15337,11 @@ fn eval_contains(
         Value::Vec(_) => vector_contains_q_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashSet(_) => hashset_contains_q_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashMap(_) => hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -15671,24 +15364,22 @@ fn eval_conj(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::conj";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     match &arg0_val {
         Value::Vec(_) => vector_conj_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashSet(_) => hashset_conj_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T> or HashSet<T>",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -15711,24 +15402,22 @@ fn eval_get(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::get";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     match &arg0_val {
         Value::Vec(_) => vector_get_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashMap(_) => hashmap_get_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T> or HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
     }
 }
 
@@ -15753,33 +15442,29 @@ fn eval_conforms(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::conforms?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Evaluate the value (arg 0).
     let value = eval_inner(&args[0], env, sym)?.value_owned();
     // Parse the type expression from arg 1 (type-position keyword — labels-are-ASTs).
-    let texpr = parse_type_slot(&args[1]).map_err(|e| RuntimeError::MalformedForm {
+    let texpr = parse_type_slot(&args[1]).map_err(|e| RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("second arg must be a type keyword: {}", e),
-        span: args[1].span().clone(),
-    })?;
+        reason: format!("second arg must be a type keyword: {}", e)
+    } })?;
     // Acquire the runtime TypeEnv for Path/Alias/Union resolution.
-    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: "conforms? requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into(),
-        span: list_span.clone(),
-    })?;
+        reason: "conforms? requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+    } })?;
     let result = conforms_check(&value, &texpr, types).map_err(|reason| {
-        RuntimeError::MalformedForm {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason,
-            span: list_span.clone(),
-        }
+            reason
+        } }
     })?;
     Ok(Value::bool(result))
 }
@@ -16051,38 +15736,34 @@ fn eval_subtype(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::subtype?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Both args are type-position keywords — extract paths literally (labels-are-ASTs).
     let a_kw = match &args[0] {
         WatAST::Keyword(k, _) => k.clone(),
-        _ => return Err(RuntimeError::MalformedForm {
+        _ => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
-            span: args[0].span().clone(),
-        }.into()),
+            reason: "first arg must be a type keyword (e.g. :my::Child)".into()
+        } }.into()),
     };
     let b_kw = match &args[1] {
         WatAST::Keyword(k, _) => k.clone(),
-        _ => return Err(RuntimeError::MalformedForm {
+        _ => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
-            span: args[1].span().clone(),
-        }.into()),
+            reason: "second arg must be a type keyword (e.g. :my::Parent)".into()
+        } }.into()),
     };
     // Acquire the runtime TypeEnv.
-    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: "subtype? requires the type registry, but the SymbolTable has no TypeEnv attached \
                  (programmer error: this build path didn't go through startup_from_source / freeze)"
-            .into(),
-        span: list_span.clone(),
-    })?;
+            .into()
+    } })?;
     // Validate both names are known (in TypeEnv OR a built-in primitive).
     // This keeps `false` honest: an unknown name is bad input, not a negative result.
     let a_known = {
@@ -16094,28 +15775,26 @@ fn eval_subtype(
         types.get(&b_kw).is_some() || is_builtin_primitive(stripped)
     };
     if !a_known {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
                  cannot determine subtype relationship (this is bad input, not a negative result — \
                  check the spelling and ensure the type is declared before use)",
                 a_kw
-            ),
-            span: args[0].span().clone(),
-        }.into());
+            )
+        } }.into());
     }
     if !b_known {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "unknown type name '{}' is not registered in the TypeEnv and is not a built-in primitive; \
                  cannot determine subtype relationship (this is bad input, not a negative result — \
                  check the spelling and ensure the type is declared before use)",
                 b_kw
-            ),
-            span: args[1].span().clone(),
-        }.into());
+            )
+        } }.into());
     }
     Ok(Value::bool(crate::types::is_subtype(&a_kw, &b_kw, types)))
 }
@@ -16141,12 +15820,11 @@ fn eval_record_of(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::Record::of";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let class_val = eval_inner(&args[0], env, sym)?.value_owned();
     let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -16154,12 +15832,11 @@ fn eval_record_of(
     let class_arc = match class_val {
         Value::wat__core__keyword(arc_s) => arc_s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword (class FQDN)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
@@ -16169,12 +15846,11 @@ fn eval_record_of(
     let struct_form = match struct_val {
         Value::Vec(arc_vec) => arc_vec,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<T> (struct-form field values in declaration order)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
@@ -16204,12 +15880,11 @@ fn eval_holon_record_of(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Record::of";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let class_val = eval_inner(&args[0], env, sym)?.value_owned();
     let struct_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -16218,12 +15893,11 @@ fn eval_holon_record_of(
     let class_arc = match class_val {
         Value::wat__core__keyword(arc_s) => arc_s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword (class FQDN)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Keywords store the leading ':' in their Arc<String>; strip it for class_fqdn.
@@ -16233,24 +15907,22 @@ fn eval_holon_record_of(
     let struct_form = match struct_val {
         Value::Vec(arc_vec) => arc_vec,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector<T> (struct-form field values in declaration order)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
     let holon_form = match holon_val {
         Value::holon__HolonAST(arc_h) => arc_h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::holon::HolonAST (holon-form classifier-wrap)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
@@ -16275,12 +15947,11 @@ fn eval_record_field_at(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::Record/field-at";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let record_val = eval_inner(&args[0], env, sym)?.value_owned();
     let index_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -16290,29 +15961,27 @@ fn eval_record_field_at(
         Value::wat__holon__Record { struct_form, .. }
         | Value::wat__Record { struct_form, .. } => struct_form,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::Record instance",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
     let index = match index_val {
         Value::i64(n) => n,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "i64 positional index",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
     if index < 0 || (index as usize) >= struct_form.len() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "i64 index within bounds of struct_form",
             got: Box::new(ValueSnapshot::described(
@@ -16322,9 +15991,8 @@ fn eval_record_field_at(
                     index,
                     struct_form.len()
                 ),
-            )),
-            span: list_span.clone(),
-        }.into());
+            ))
+        } }.into());
     }
 
     Ok(struct_form[index as usize].clone())
@@ -16342,12 +16010,11 @@ fn eval_record_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::record?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Stone S-C.2c — both base and holonic are records.
@@ -16380,22 +16047,20 @@ fn record_field_map(
             // Stone S-C.2b re-route: field names from RecordDef.field_names (CLASS property)
             // instead of walking holon_form. Variant-agnostic; parity for holonic (same result).
             let type_key = format!(":{}", class_fqdn);
-            let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+            let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
-                reason: "record->map requires the type registry".into(),
-                span: span.clone(),
-            })?;
+                reason: "record->map requires the type registry".into()
+            } })?;
             let record_def = match types.get(&type_key) {
                 Some(crate::types::TypeDef::Record(rd)) => rd,
                 _ => {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: op.into(),
                         reason: format!(
                             "record class :{} is not registered in the TypeEnv",
                             class_fqdn
-                        ),
-                        span: span.clone(),
-                    }.into());
+                        )
+                    } }.into());
                 }
             };
             // Build keyword-keyed map: :<field-name> → struct_form[i] in declaration order.
@@ -16408,12 +16073,11 @@ fn record_field_map(
             }
             Ok(Value::wat__std__HashMap(Arc::new(map)))
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: ":wat::Record instance",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -16438,12 +16102,11 @@ fn eval_record_to_map(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::record->map";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     record_field_map(v, OP, list_span, sym)
@@ -16470,12 +16133,11 @@ fn eval_record_same_data(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::Record/same-data?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
@@ -16506,12 +16168,11 @@ fn eval_record_assoc(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::Record/assoc";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let record_val = eval_inner(&args[0], env, sym)?.value_owned();
     let key_val    = eval_inner(&args[1], env, sym)?.value_owned();
@@ -16527,55 +16188,50 @@ fn eval_record_assoc(
                 s.strip_prefix(':').unwrap_or(&s).to_string()
             }
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::core::keyword field name",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: list_span.clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
         let type_key = format!(":{}", base_class);
-        let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+        let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: "record assoc requires the type registry".into(),
-            span: list_span.clone(),
-        })?;
+            reason: "record assoc requires the type registry".into()
+        } })?;
         let record_def = match types.get(&type_key) {
             Some(crate::types::TypeDef::Record(rd)) => rd,
             _ => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
                         "record class :{} is not registered in the TypeEnv",
                         base_class
-                    ),
-                    span: list_span.clone(),
-                }.into());
+                    )
+                } }.into());
             }
         };
         let available: Vec<String> = record_def.field_names.clone();
         let field_index = match record_def.field_names.iter().position(|n| n == &key_name) {
             Some(i) => i,
             None => {
-                return Err(RuntimeError::UnknownField {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
                     record_class: base_class.as_ref().to_string(),
                     field: key_name,
-                    available,
-                    span: list_span.clone(),
-                }.into());
+                    available
+                } }.into());
             }
         };
         // Type check: new value variant must match original field's variant.
         let old_type = base_struct[field_index].type_name();
         let new_type = new_val.type_name();
         if old_type != new_type {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: old_type,
-                got: Box::new(ValueSnapshot::of(&new_val)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&new_val))
+            } }.into());
         }
         // Rebuild struct_form ONLY — base has no holon_form.
         let mut new_struct: Vec<Value> = (*base_struct).clone();
@@ -16592,12 +16248,11 @@ fn eval_record_assoc(
             (class_fqdn, struct_form, holon_form)
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::Record instance",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
@@ -16608,46 +16263,42 @@ fn eval_record_assoc(
             s.strip_prefix(':').unwrap_or(s).to_string()
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::keyword field name",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
 
     // Stone S-C.2b re-route: name→index via RecordDef.field_names (CLASS property) instead
     // of walking holon_form. Parity for holonic (same positions, new source).
     let type_key = format!(":{}", class_fqdn);
-    let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: "record assoc requires the type registry".into(),
-        span: list_span.clone(),
-    })?;
+        reason: "record assoc requires the type registry".into()
+    } })?;
     let record_def = match types.get(&type_key) {
         Some(crate::types::TypeDef::Record(rd)) => rd,
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
                     "record class :{} is not registered in the TypeEnv",
                     class_fqdn
-                ),
-                span: list_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let available: Vec<String> = record_def.field_names.clone();
     let field_index = match record_def.field_names.iter().position(|n| n == &key_name) {
         Some(i) => i,
         None => {
-            return Err(RuntimeError::UnknownField {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
                 record_class: class_fqdn.as_ref().to_string(),
                 field: key_name,
-                available,
-                span: list_span.clone(),
-            }.into());
+                available
+            } }.into());
         }
     };
 
@@ -16658,21 +16309,19 @@ fn eval_record_assoc(
         HolonAST::Bind(_, right) => match right.as_ref() {
             HolonAST::Bundle(children) => children.clone(),
             _ => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "holon_form outer Bind right to be Bundle(field-binds)",
-                    got: Box::new(ValueSnapshot::unavailable("non-Bundle holon_form inner")),
-                    span: list_span.clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::unavailable("non-Bundle holon_form inner"))
+                } }.into());
             }
         },
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "holon_form to be Bind(class, Bundle)",
-                got: Box::new(ValueSnapshot::unavailable("non-Bind holon_form")),
-                span: list_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("non-Bind holon_form"))
+            } }.into());
         }
     };
 
@@ -16680,12 +16329,11 @@ fn eval_record_assoc(
     let old_type = struct_form[field_index].type_name();
     let new_type = new_val.type_name();
     if old_type != new_type {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: old_type,
-            got: Box::new(ValueSnapshot::of(&new_val)),
-            span: list_span.clone(),
-        }.into());
+            got: Box::new(ValueSnapshot::of(&new_val))
+        } }.into());
     }
 
     // Rebuild struct_form: clone Vec, replace at field_index (D5).
@@ -16795,12 +16443,11 @@ fn eval_extract_classifier(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::extract-classifier";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc 234 Stone 234.5 — D3: auto-dispatch on wat::Record.
@@ -16819,12 +16466,11 @@ fn eval_extract_classifier(
             return Ok(Value::Option(Arc::new(result)));
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST or wat::Record",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     }
 }
@@ -16841,23 +16487,21 @@ fn eval_bind_left(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/left";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let result = bind_left(&*holon_arc)
@@ -16877,23 +16521,21 @@ fn eval_bind_right(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/right";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let result = bind_right(&*holon_arc)
@@ -16967,12 +16609,11 @@ fn eval_holon_from_holon(
     // for disambiguating empty Bundle: `(from-holon h -> :wat::core::HashMap<K,V>)`.
     // Arc 216 Stone 3 — the 3-arg form is the only way to signal "empty Bundle = empty HashMap".
     if args.len() != 1 && args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Extract optional type annotation from `-> :T` suffix.
     // When args.len() == 3: args[0] = holon expr, args[1] = `->` symbol, args[2] = type keyword.
@@ -16981,14 +16622,13 @@ fn eval_holon_from_holon(
         match &args[1] {
             WatAST::Symbol(s, _) if s.as_str() == "->" => {}
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
                         "expected `->` at position 2 for type annotation; got {}",
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         }
         // Check if the type keyword starts with :wat::core::HashMap.
@@ -16996,14 +16636,13 @@ fn eval_holon_from_holon(
         match &args[2] {
             WatAST::Keyword(k, _) => k.starts_with(":wat::core::HashMap"),
             other => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
                         "expected type keyword after `->` for annotation; got {}",
                         other.variant_name()
-                    ),
-                    span: other.span().clone(),
-                }.into());
+                    )
+                } }.into());
             }
         }
     } else {
@@ -17013,12 +16652,11 @@ fn eval_holon_from_holon(
     let holon = match v {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Arc 230: Symbol/Keyword/Nil variants retired. Recognise via accessors.
@@ -17069,12 +16707,11 @@ fn eval_holon_from_holon(
                 let items = match inner_bundle.as_ref() {
                     HolonAST::Bundle(items) => items,
                     _ => {
-                        return Err(RuntimeError::TypeMismatch {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "classifier-wrapped Bundle (Bind(Atom(name), Bundle(...)))",
-                            got: Box::new(ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner")),
-                            span: args[0].span().clone(),
-                        }.into());
+                            got: Box::new(ValueSnapshot::unavailable("classifier-wrapped non-Bundle inner"))
+                        } }.into());
                     }
                 };
                 match classifier.as_str() {
@@ -17093,12 +16730,11 @@ fn eval_holon_from_holon(
                                     map.insert(k_val, v_val);
                                 }
                                 _ => {
-                                    return Err(RuntimeError::TypeMismatch {
+                                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(K, V) child in Map classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items")),
-                                        span: args[0].span().clone(),
-                                    }.into());
+                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Map classifier-Bundle inner items"))
+                                    } }.into());
                                 }
                             }
                         }
@@ -17123,24 +16759,22 @@ fn eval_holon_from_holon(
                                     let idx = match k.as_ref() {
                                         HolonAST::I64(i) => *i,
                                         _ => {
-                                            return Err(RuntimeError::TypeMismatch {
+                                            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                                 op: OP.into(),
                                                 expected: "I64 positional key in Vector classifier-Bundle",
-                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle")),
-                                                span: args[0].span().clone(),
-                                            }.into());
+                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Vector classifier-Bundle"))
+                                            } }.into());
                                         }
                                     };
                                     let elem = from_holon_item(v, OP, args[0].span())?;
                                     pairs.push((idx, elem));
                                 }
                                 _ => {
-                                    return Err(RuntimeError::TypeMismatch {
+                                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(I64, _) positional child in Vector classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items")),
-                                        span: args[0].span().clone(),
-                                    }.into());
+                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Vector classifier-Bundle inner items"))
+                                    } }.into());
                                 }
                             }
                         }
@@ -17169,24 +16803,22 @@ fn eval_holon_from_holon(
                                     let idx = match k.as_ref() {
                                         HolonAST::I64(i) => *i,
                                         _ => {
-                                            return Err(RuntimeError::TypeMismatch {
+                                            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                                 op: OP.into(),
                                                 expected: "I64 positional key in Tuple classifier-Bundle",
-                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle")),
-                                                span: args[0].span().clone(),
-                                            }.into());
+                                                got: Box::new(ValueSnapshot::unavailable("non-I64 Bind key in Tuple classifier-Bundle"))
+                                            } }.into());
                                         }
                                     };
                                     let elem = from_holon_item(v, OP, args[0].span())?;
                                     pairs.push((idx, elem));
                                 }
                                 _ => {
-                                    return Err(RuntimeError::TypeMismatch {
+                                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                         op: OP.into(),
                                         expected: "Bind(I64, _) positional child in Tuple classifier-Bundle",
-                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items")),
-                                        span: args[0].span().clone(),
-                                    }.into());
+                                        got: Box::new(ValueSnapshot::unavailable("non-Bind child in Tuple classifier-Bundle inner items"))
+                                    } }.into());
                                 }
                             }
                         }
@@ -17195,12 +16827,11 @@ fn eval_holon_from_holon(
                         Ok(TrackedValue::new(Value::Tuple(Arc::new(elems)), prov()))
                     }
                     _ => {
-                        Err(RuntimeError::TypeMismatch {
+                        Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "known classifier: Map, Set, Vector, List, or Tuple",
-                            got: Box::new(ValueSnapshot::unavailable("unknown classifier name in collection Bind")),
-                            span: args[0].span().clone(),
-                        }.into())
+                            got: Box::new(ValueSnapshot::unavailable("unknown classifier name in collection Bind"))
+                        } }.into())
                     }
                 }
             } else {
@@ -17208,12 +16839,11 @@ fn eval_holon_from_holon(
                 // Per arc 228 HARD CUT: unclassified collections are not decodeable.
                 // Bare Bundle must be upgraded to classifier-wrapped form first
                 // (use to-holon on the collection Value, or a Pascal-Case constructor).
-                Err(RuntimeError::TypeMismatch {
+                Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "primitive leaf, Atom, or classifier-wrapped collection (Bind(Atom(name), Bundle(...))) as produced by to-holon or :wat::holon::Map/Set/Vector/List/Tuple constructors",
-                    got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)")),
-                    span: args[0].span().clone(),
-                }.into())
+                    got: Box::new(ValueSnapshot::unavailable("unclassified HolonAST (bare Bundle, Bind without Atom-String classifier, Permute, Thermometer, Blend, or other composite)"))
+                } }.into())
             }
         }
     }
@@ -17235,12 +16865,11 @@ fn eval_holon_atom_constructor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Atom".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     wrap_holon_as_atom(v, args[0].span())
@@ -17254,12 +16883,11 @@ fn eval_holon_atom_constructor(
 fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
     match v {
         Value::holon__HolonAST(h) => Ok(Value::holon__HolonAST(Arc::new(HolonAST::Atom(h)))),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::Atom".into(),
             expected: ":wat::holon::HolonAST (use :wat::holon::to-holon for other types)",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: arg_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -17285,12 +16913,11 @@ fn eval_holon_to_holon(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::to-holon".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     to_holon_inner(v, args[0].span())
@@ -17466,23 +17093,21 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
         // Stone S-C.2c — Bucket C teaching error: base record has no holon flavor.
         // Constructing a holonic record (`:wat::holon::Record::def`) is the remedy.
         Value::wat__Record { class_fqdn, .. } => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::holon::to-holon".into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
                      (`:wat::holon::Record::def`) to use holon operations",
                     class_fqdn
-                ),
-                span: arg_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::to-holon".into(),
                 expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, List<T>, or wat::Record",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg_span.clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(holon)))
@@ -17553,12 +17178,11 @@ fn eval_holon_leaf(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::leaf";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let h = match v {
@@ -17573,15 +17197,14 @@ fn eval_holon_leaf(
         // HolonAST::nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil.
         Value::Unit => HolonAST::nil(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "primitive (i64/f64/bool/String/keyword/nil); \
                            use :wat::holon::Atom to wrap a HolonAST, \
                            :wat::holon::from-wat to lower a quoted form, \
                            :wat::holon::to-holon for other types",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(h)))
@@ -17605,26 +17228,24 @@ fn eval_holon_from_wat(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::from-wat";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let h = match v {
         Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::WatAST (typically from :wat::core::quote); \
                            use :wat::holon::Atom for HolonAST inputs, \
                            :wat::holon::to-holon for other types, \
                            :wat::holon::leaf for primitives",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(h)))
@@ -17658,22 +17279,20 @@ fn eval_holon_to_wat(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::to-wat".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::to-wat".into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::wat__WatAST(Arc::new(holon_to_watast(&h))))
@@ -17694,22 +17313,20 @@ fn eval_term_template(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::template";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(h.template())))
@@ -17728,22 +17345,20 @@ fn eval_term_slots(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::slots";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let items: Vec<Value> = h.slots().into_iter().map(Value::f64).collect();
@@ -17763,22 +17378,20 @@ fn eval_term_ranges(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::ranges";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let h = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let items: Vec<Value> = h
@@ -17813,33 +17426,30 @@ fn eval_term_matches_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::matches?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let q = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let s = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     if q.template() != s.template() {
@@ -17886,20 +17496,18 @@ fn eval_presence_floor(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::presence-floor";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if d <= 0 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("d must be positive; got {}", d),
-            span: args[0].span().clone(),
-        }.into());
+            reason: format!("d must be positive; got {}", d)
+        } }.into());
     }
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     Ok(Value::f64(ctx.encoders.get(d as usize).presence_floor(sym)))
@@ -17917,20 +17525,18 @@ fn eval_coincident_floor(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-floor";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if d <= 0 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("d must be positive; got {}", d),
-            span: args[0].span().clone(),
-        }.into());
+            reason: format!("d must be positive; got {}", d)
+        } }.into());
     }
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     Ok(Value::f64(ctx.encoders.get(d as usize).coincident_floor(sym)))
@@ -17944,26 +17550,24 @@ fn require_hologram(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::hologram::Hologram>>, EvalBreak> {
     match v {
         Value::Hologram(h) => Ok(h),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Hologram",
             got: Box::new(ValueSnapshot::of(&other)),
-            // arc 138: no span — takes Value, not WatAST; no source coords available
-            span: Span::unknown(),
-        }.into()),
+            // arc 138: no — takes Value, not WatAST; no source coords available
+        } }.into()),
     }
 }
 
 fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, EvalBreak> {
     match v {
         Value::wat__core__fn(f) => Ok(f),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "fn(f64)->bool",
             got: Box::new(ValueSnapshot::of(&other)),
-            // arc 138: no span — takes Value, not WatAST; no source coords available
-            span: Span::unknown(),
-        }.into()),
+            // arc 138: no — takes Value, not WatAST; no source coords available
+        } }.into()),
     }
 }
 
@@ -17981,12 +17585,11 @@ fn eval_hologram_make(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/make";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let filter = require_fn(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
@@ -18009,34 +17612,31 @@ fn eval_hologram_put(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/put";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let key = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let val = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[2].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     store.with_mut(OP, list_span.clone(), |s| s.put(key, val))?;
@@ -18057,23 +17657,21 @@ fn eval_hologram_get(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/get";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
@@ -18103,23 +17701,21 @@ fn eval_hologram_find(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/find";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
@@ -18149,23 +17745,21 @@ fn eval_hologram_remove(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/remove";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let key = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let removed = store.with_mut(OP, list_span.clone(), |s| s.remove(&key))?;
@@ -18187,12 +17781,11 @@ fn eval_hologram_len(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/len";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
@@ -18213,12 +17806,11 @@ fn eval_hologram_capacity(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
@@ -18239,52 +17831,47 @@ fn eval_therm_form(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::therm-form";
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let low = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let high = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let value = match eval_inner(&args[2], env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[2].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     if !low.is_finite() || !high.is_finite() || low >= high {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("require finite low < high; got low={}, high={}", low, high),
-            span: list_span.clone(),
-        }.into());
+            reason: format!("require finite low < high; got low={}, high={}", low, high)
+        } }.into());
     }
     let clamped = if !value.is_finite() {
         low
@@ -18414,12 +18001,11 @@ fn eval_algebra_bind(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Bind".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
     // Accepts Value::holon__HolonAST (existing) OR Value::wat__holon__Record (NEW).
@@ -18472,22 +18058,20 @@ fn eval_algebra_bundle(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Bundle".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Bundle".into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
@@ -18551,28 +18135,25 @@ fn eval_algebra_permute(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Permute".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let child = require_holon(":wat::holon::Permute", eval_inner(&args[0], env, sym)?.value_owned())?;
     let k = match eval_inner(&args[1], env, sym)?.value_owned() {
-        Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
+        Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
-            got: Box::new(ValueSnapshot::unavailable("i64 out of range")),
-            span: args[1].span().clone(),
-        })?,
+            got: Box::new(ValueSnapshot::unavailable("i64 out of range"))
+        } })?,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Permute".into(),
                 expected: "i32 step",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::permute((*child).clone(), k))))
@@ -18604,12 +18185,11 @@ fn eval_algebra_thermometer(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Thermometer".into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = require_numeric(":wat::holon::Thermometer", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let mn = require_numeric(":wat::holon::Thermometer", eval_inner(&args[1], env, sym)?.value_owned(), list_span)?;
@@ -18624,12 +18204,11 @@ fn eval_algebra_blend(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Blend".into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a = require_holon(":wat::holon::Blend", eval_inner(&args[0], env, sym)?.value_owned())?;
     let b = require_holon(":wat::holon::Blend", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -18661,22 +18240,20 @@ fn eval_algebra_map(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Map";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children: Vec<HolonAST> = list
@@ -18704,22 +18281,20 @@ fn eval_algebra_set(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Set";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children: Vec<HolonAST> = list
@@ -18748,22 +18323,20 @@ fn eval_algebra_vector(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Vector";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let positional: Vec<HolonAST> = list
@@ -18797,22 +18370,20 @@ fn eval_algebra_list(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::List";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let children: Vec<HolonAST> = list
@@ -18842,22 +18413,20 @@ fn eval_algebra_tuple(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Tuple";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let list = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let positional: Vec<HolonAST> = list
@@ -18880,13 +18449,12 @@ fn eval_algebra_tuple(
 fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, EvalBreak> {
     match v {
         Value::holon__HolonAST(h) => Ok(h),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Holon",
             got: Box::new(ValueSnapshot::of(&other)),
-            // arc 138: no span — takes Value, not WatAST; no source coords available
-            span: Span::unknown(),
-        }.into()),
+            // arc 138: no — takes Value, not WatAST; no source coords available
+        } }.into()),
     }
 }
 
@@ -18904,21 +18472,19 @@ fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, 
         Value::holon__HolonAST(h) => Ok((*h).clone()),
         Value::wat__holon__Record { holon_form, .. } => Ok(holon_form.as_ref().clone()),
         // Stone S-C.2c — Bucket C teaching error: base record has no holon flavor.
-        Value::wat__Record { class_fqdn, .. } => Err(RuntimeError::MalformedForm {
+        Value::wat__Record { class_fqdn, .. } => Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "base record `{}` has no holon flavor; construct a holonic record \
                  (`:wat::holon::Record::def`) to use holon operations",
                 class_fqdn
-            ),
-            span: arg_span.clone(),
-        }.into()),
-        other => Err(RuntimeError::TypeMismatch {
+            )
+        } }.into()),
+        other => Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "HolonAST or wat::Record",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: arg_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -18961,24 +18527,22 @@ fn eval_holon_is_predicate(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let class_val = eval_inner(&args[1], env, sym)?.value_owned();
     let class_name = match class_val {
         Value::String(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String (classifier name)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let matches = match value_val {
@@ -19000,12 +18564,11 @@ fn eval_holon_is_map_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Map?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19027,12 +18590,11 @@ fn eval_holon_is_set_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Set?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19055,12 +18617,11 @@ fn eval_holon_is_vector_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Vector?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19082,12 +18643,11 @@ fn eval_holon_is_list_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-List?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19110,12 +18670,11 @@ fn eval_holon_is_tuple_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Tuple?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19139,12 +18698,11 @@ fn eval_holon_is_symbol_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Symbol?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19166,12 +18724,11 @@ fn eval_holon_is_keyword_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Keyword?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19193,12 +18750,11 @@ fn eval_holon_is_tag_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Tag?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19224,12 +18780,11 @@ fn eval_holon_is_nil_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is-Nil?";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let value_val = eval_inner(&args[0], env, sym)?.value_owned();
     let matches = match value_val {
@@ -19267,43 +18822,40 @@ fn pair_values_to_vectors(
     let a = match a {
         Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
         Value::wat__Record { class_fqdn, .. } => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
                      (`:wat::holon::Record::def`) to use holon operations",
                     class_fqdn
-                ),
-                span: list_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
         other => other,
     };
     let b = match b {
         Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
         Value::wat__Record { class_fqdn, .. } => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
                      (`:wat::holon::Record::def`) to use holon operations",
                     class_fqdn
-                ),
-                span: list_span.clone(),
-            }.into());
+                )
+            } }.into());
         }
         other => other,
     };
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "Vector pair with matching dimensions",
                     got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-                    // arc 138: no span — takes Value pair, no AST in scope
-                    span: Span::unknown(),
-                }.into());
+                    // arc 138: no — takes Value pair, no AST in scope
+                } }.into());
             }
             Ok((va.as_ref().clone(), vb.as_ref().clone()))
         }
@@ -19326,13 +18878,12 @@ fn pair_values_to_vectors(
             let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok((va, vb))
         }
-        (a, _) => Err(RuntimeError::TypeMismatch {
+        (a, _) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::HolonAST, wat::Record, or wat::holon::Vector",
             got: Box::new(ValueSnapshot::of(&a)),
-            // arc 138: no span — takes Value pair, no AST in scope
-            span: Span::unknown(),
-        }.into()),
+            // arc 138: no — takes Value pair, no AST in scope
+        } }.into()),
     }
 }
 
@@ -19353,12 +18904,11 @@ fn eval_algebra_cosine(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::cosine".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
@@ -19390,12 +18940,11 @@ fn eval_algebra_presence_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::presence?".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target = require_holon(":wat::holon::presence?", eval_inner(&args[0], env, sym)?.value_owned())?;
     let reference = require_holon(":wat::holon::presence?", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -19446,12 +18995,11 @@ fn eval_algebra_coincident_q(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident?";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
@@ -19493,12 +19041,11 @@ fn eval_algebra_coincident_explain(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-explain";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
@@ -19560,14 +19107,13 @@ fn eval_form_ast_coincident_q(
     // Structural pre-check — matches eval-ast! pattern. Arity errors
     // fire before the EvalError wrap; they're caller-syntactic issues.
     if args.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::holon::eval-coincident?".into(),
             reason: format!(
                 "(:wat::holon::eval-coincident? <ast-a> <ast-b>) takes exactly 2 arguments; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let op = ":wat::holon::eval-coincident?";
@@ -19592,12 +19138,11 @@ fn run_ast_arg_for_eval_coincident(
     let ast = match eval_inner(arg, env, sym)?.value_owned() {
         Value::wat__WatAST(a) => a,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Ast",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: arg.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     run_constrained(&ast, env, sym)
@@ -19644,14 +19189,13 @@ fn eval_form_edn_coincident_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::holon::eval-edn-coincident?".into(),
             reason: format!(
                 "(:wat::holon::eval-edn-coincident? <source-a> <source-b>) takes exactly 2 arguments; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let op = ":wat::holon::eval-edn-coincident?";
@@ -19702,14 +19246,13 @@ fn eval_form_digest_coincident_shared(
         ":wat::holon::eval-digest-coincident?"
     };
     if args.len() != 8 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "({} <4-arg side A> <4-arg side B>) takes exactly 8 arguments; got {}",
                 op, args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         // Side A — 4-arg block [0..4).
@@ -19721,7 +19264,7 @@ fn eval_form_digest_coincident_shared(
         let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = parse_and_run(&src_a, env, sym)?;
 
         // Side B — 4-arg block [4..8).
@@ -19733,7 +19276,7 @@ fn eval_form_digest_coincident_shared(
         let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
         let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
         crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = parse_and_run(&src_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -19786,14 +19329,13 @@ fn eval_form_signed_coincident_shared(
         ":wat::holon::eval-signed-coincident?"
     };
     if args.len() != 12 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "({} <6-arg side A> <6-arg side B>) takes exactly 12 arguments; got {}",
                 op, args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         // Side A — 6-arg block [0..6).
@@ -19807,7 +19349,7 @@ fn eval_form_signed_coincident_shared(
         let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast_a = parse_program(&src_a, op)?;
         crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = run_program(&ast_a, env, sym)?;
 
         // Side B — 6-arg block [6..12).
@@ -19821,7 +19363,7 @@ fn eval_form_signed_coincident_shared(
         let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
         let ast_b = parse_program(&src_b, op)?;
         crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = run_program(&ast_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -19846,12 +19388,11 @@ fn eval_holon_statement_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::statement-length".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let ast = require_holon(":wat::holon::statement-length", eval_inner(&args[0], env, sym)?.value_owned())?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
@@ -19884,12 +19425,11 @@ fn eval_algebra_dot(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::dot".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
@@ -19933,12 +19473,11 @@ fn eval_algebra_simhash(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::simhash".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target = eval_inner(&args[0], env, sym)?.value_owned();
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
@@ -19955,12 +19494,11 @@ fn eval_algebra_simhash(
             (v, enc)
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::simhash".into(),
                 expected: "wat::holon::HolonAST or wat::holon::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
 
@@ -19998,12 +19536,11 @@ fn eval_holon_encode(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::encode".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let target = require_holon(":wat::holon::encode", eval_inner(&args[0], env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
@@ -20049,22 +19586,20 @@ fn eval_holon_vector_bytes(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::vector-bytes";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let dim = v.dimensions();
-    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError::TypeMismatch {
+    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
         op: OP.into(),
         expected: "Vector with dim representable as u32",
         got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
-        // arc 138: no span — dim comes from Vector value, not AST
-        span: Span::unknown(),
-    })?;
+        // arc 138: no — dim comes from Vector value, not AST
+    } })?;
     // 4-byte dim header + ceil(dim/4) data bytes.
     let data_len = dim.div_ceil(4);
     let mut out: Vec<Value> = Vec::with_capacity(4 + data_len);
@@ -20080,16 +19615,15 @@ fn eval_holon_vector_bytes(
                 1 => 0b01,
                 -1 => 0b10,
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "Vector cell in {-1, 0, +1}",
                         got: Box::new(ValueSnapshot::described(
                             "wat::core::i64",
                             format!("cell value out of ternary range ({})", other),
                         )),
-                        // arc 138: no span — cell value from Vector data, not AST
-                        span: Span::unknown(),
-                    }.into());
+                        // arc 138: no — cell value from Vector data, not AST
+                    } }.into());
                 }
             };
             byte |= bits << (i * 2);
@@ -20121,23 +19655,21 @@ fn eval_holon_bytes_vector(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::bytes-vector";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     // Pull the byte vector contents out as Vec<u8>.
     let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<u8>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut bytes: Vec<u8> = Vec::with_capacity(xs.len());
@@ -20145,13 +19677,12 @@ fn eval_holon_bytes_vector(
         match v {
             Value::u8(b) => bytes.push(*b),
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<u8>",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — element from Vec value, not AST
-                    span: Span::unknown(),
-                }.into());
+                    // arc 138: no — element from Vec value, not AST
+                } }.into());
             }
         }
     }
@@ -20219,22 +19750,20 @@ fn eval_bytes_to_hex(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::to-hex";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::Bytes (Vec<u8>)",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let mut out = String::with_capacity(xs.len() * 2);
@@ -20242,13 +19771,12 @@ fn eval_bytes_to_hex(
         let b = match v {
             Value::u8(b) => *b,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::Bytes (Vec<u8>)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — element from Vec value, not AST
-                    span: Span::unknown(),
-                }.into());
+                    // arc 138: no — element from Vec value, not AST
+                } }.into());
             }
         };
         // Lowercase hex (matches Rust's hex::encode default + git /
@@ -20285,22 +19813,20 @@ fn eval_bytes_from_hex(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::from-hex";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::String(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let bytes_in = s.as_bytes();
@@ -20368,12 +19894,11 @@ fn eval_show(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::String(Arc::new(render_value(&v, 0))))
@@ -20602,13 +20127,12 @@ fn render_value(v: &Value, depth: usize) -> String {
 fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, EvalBreak> {
     match v {
         Value::Vector(vec) => Ok(vec),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Vector",
             got: Box::new(ValueSnapshot::of(&other)),
-            // arc 138: no span — takes Value, not WatAST; no source coords available
-            span: Span::unknown(),
-        }.into()),
+            // arc 138: no — takes Value, not WatAST; no source coords available
+        } }.into()),
     }
 }
 
@@ -20625,23 +20149,21 @@ fn eval_holon_vector_bind(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::vector-bind".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?.value_owned())?;
     let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?.value_owned())?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no span — dimensions from Vector values, not AST
-            span: Span::unknown(),
-        }.into());
+            // arc 138: no — dimensions from Vector values, not AST
+        } }.into());
     }
     let result = holon::primitives::Primitives::bind(&va, &vb);
     Ok(Value::Vector(Arc::new(result)))
@@ -20660,32 +20182,29 @@ fn eval_holon_vector_bundle(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::vector-bundle".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let vec_value = eval_inner(&args[0], env, sym)?.value_owned();
     let elements = match vec_value {
         Value::Vec(v) => v,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of wat::holon::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     if elements.is_empty() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-bundle".into(),
             expected: "non-empty Vec of Vector",
-            got: Box::new(ValueSnapshot::unavailable("empty Vec")),
-            span: args[0].span().clone(),
-        }.into());
+            got: Box::new(ValueSnapshot::unavailable("empty Vec"))
+        } }.into());
     }
     let mut owned: Vec<Arc<holon::Vector>> = Vec::with_capacity(elements.len());
     for elem in elements.iter() {
@@ -20698,13 +20217,12 @@ fn eval_holon_vector_bundle(
     let d = owned[0].dimensions();
     for v in &owned[1..] {
         if v.dimensions() != d {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of Vectors with matching dimensions",
                 got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector in Vec")),
-                // arc 138: no span — dimensions from Vector values, not AST
-                span: Span::unknown(),
-            }.into());
+                // arc 138: no — dimensions from Vector values, not AST
+            } }.into());
         }
     }
     let refs: Vec<&holon::Vector> = owned.iter().map(|v| v.as_ref()).collect();
@@ -20724,25 +20242,23 @@ fn eval_holon_vector_blend(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let va = require_vector(":wat::holon::vector-blend", eval_inner(&args[0], env, sym)?.value_owned())?;
     let vb = require_vector(":wat::holon::vector-blend", eval_inner(&args[1], env, sym)?.value_owned())?;
     let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
     let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
-            // arc 138: no span — dimensions from Vector values, not AST
-            span: Span::unknown(),
-        }.into());
+            // arc 138: no — dimensions from Vector values, not AST
+        } }.into());
     }
     let result = holon::primitives::Primitives::blend_weighted(&va, &vb, w1, w2);
     Ok(Value::Vector(Arc::new(result)))
@@ -20761,24 +20277,22 @@ fn eval_holon_vector_permute(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::vector-permute".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let v = require_vector(":wat::holon::vector-permute", eval_inner(&args[0], env, sym)?.value_owned())?;
     let k_val = eval_inner(&args[1], env, sym)?.value_owned();
     let k = match k_val {
         Value::i64(n) => n as i32,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-permute".into(),
                 expected: "i64 shift amount",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     let result = holon::primitives::Primitives::permute(&v, k);
@@ -20793,12 +20307,11 @@ fn require_subspace(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, EvalBreak> {
     match v {
         Value::OnlineSubspace(s) => Ok(s),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::OnlineSubspace",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -20815,12 +20328,11 @@ fn eval_subspace_new(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/new".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let dim = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[0], env, sym)?.value_owned())?;
     let k = require_i64(":wat::holon::OnlineSubspace/new", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -20837,12 +20349,11 @@ fn eval_subspace_dim(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/dim".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
@@ -20856,12 +20367,11 @@ fn eval_subspace_k(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/k".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(":wat::holon::OnlineSubspace/k", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
@@ -20875,12 +20385,11 @@ fn eval_subspace_n(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/n".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(":wat::holon::OnlineSubspace/n", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
@@ -20894,12 +20403,11 @@ fn eval_subspace_threshold(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/threshold".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
@@ -20917,12 +20425,11 @@ fn eval_subspace_eigenvalues(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/eigenvalues".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
@@ -20940,12 +20447,11 @@ fn eval_subspace_update(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/update".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
@@ -20965,12 +20471,11 @@ fn eval_subspace_residual(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/residual".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
@@ -20993,12 +20498,11 @@ fn eval_subspace_project(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/project".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
@@ -21021,12 +20525,11 @@ fn eval_subspace_reconstruct(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::OnlineSubspace/reconstruct".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
@@ -21052,12 +20555,11 @@ fn require_reckoner(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, EvalBreak> {
     match v {
         Value::Reckoner(r) => Ok(r),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Reckoner",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -21069,23 +20571,21 @@ fn eval_reckoner_new_discrete(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/new-discrete".into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let name_val = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -21105,12 +20605,11 @@ fn eval_reckoner_new_discrete(
             out
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[3].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "Vec of HolonAST",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[3].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     let r = holon::Reckoner::new(
@@ -21132,23 +20631,21 @@ fn eval_reckoner_new_continuous(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 5 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/new-continuous".into(),
             expected: 5,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let name_val = eval_inner(&args[0], env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-continuous".into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -21183,12 +20680,11 @@ fn eval_reckoner_observe(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/observe".into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/observe", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let v = require_vector(":wat::holon::Reckoner/observe", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -21217,12 +20713,11 @@ fn eval_reckoner_predict(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/predict".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/predict", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let v = require_vector(":wat::holon::Reckoner/predict", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -21263,12 +20758,11 @@ fn eval_reckoner_resolve(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/resolve".into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/resolve", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let conviction = require_numeric(
@@ -21280,12 +20774,11 @@ fn eval_reckoner_resolve(
     let correct = match correct_val {
         Value::bool(b) => b,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::Reckoner/resolve".into(),
                 expected: "bool",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[2].span().clone(),
-            }.into())
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     r.with_mut(":wat::holon::Reckoner/resolve", list_span.clone(), |r| {
@@ -21302,12 +20795,11 @@ fn eval_reckoner_curve(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/curve".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/curve", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| r.curve())?;
@@ -21328,12 +20820,11 @@ fn eval_reckoner_labels(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/labels".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/labels", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
@@ -21351,12 +20842,11 @@ fn eval_reckoner_dims(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Reckoner/dims".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let r = require_reckoner(":wat::holon::Reckoner/dims", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
@@ -21371,12 +20861,11 @@ fn require_engram(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, EvalBreak> {
     match v {
         Value::Engram(e) => Ok(e),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Engram",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -21388,12 +20877,11 @@ fn require_engram_library(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, EvalBreak> {
     match v {
         Value::EngramLibrary(l) => Ok(l),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::EngramLibrary",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -21401,12 +20889,11 @@ fn require_engram_library(
 fn require_string(op: &str, v: Value, list_span: &Span) -> Result<String, EvalBreak> {
     match v {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -21417,12 +20904,11 @@ fn eval_engram_name(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Engram/name".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let e = require_engram(":wat::holon::Engram/name", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
@@ -21436,12 +20922,11 @@ fn eval_engram_eigenvalue_signature(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Engram/eigenvalue-signature".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let e = require_engram(
         ":wat::holon::Engram/eigenvalue-signature",
@@ -21462,12 +20947,11 @@ fn eval_engram_n(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Engram/n".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let e = require_engram(":wat::holon::Engram/n", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
@@ -21481,12 +20965,11 @@ fn eval_engram_residual(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::Engram/residual".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let e = require_engram(":wat::holon::Engram/residual", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let v = require_vector(":wat::holon::Engram/residual", eval_inner(&args[1], env, sym)?.value_owned())?;
@@ -21503,12 +20986,11 @@ fn eval_library_new(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/new".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let dim = require_i64(":wat::holon::EngramLibrary/new", eval_inner(&args[0], env, sym)?.value_owned())?;
     let lib = holon::EngramLibrary::new(dim as usize);
@@ -21529,12 +21011,11 @@ fn eval_library_add(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/add".into(),
             expected: 3,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval_inner(&args[0], env, sym)?.value_owned(), list_span)?;
     let name = require_string(":wat::holon::EngramLibrary/add", eval_inner(&args[1], env, sym)?.value_owned(), list_span)?;
@@ -21561,12 +21042,11 @@ fn eval_library_match_vec(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/match-vec".into(),
             expected: 4,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/match-vec",
@@ -21608,12 +21088,11 @@ fn eval_library_len(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/len".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/len",
@@ -21631,12 +21110,11 @@ fn eval_library_contains(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/contains".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/contains",
@@ -21661,12 +21139,11 @@ fn eval_library_names(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::holon::EngramLibrary/names".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/names",
@@ -21687,12 +21164,11 @@ fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, EvalBrea
     match v {
         Value::i64(n) => Ok(n as f64),
         Value::f64(x) => Ok(x),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "numeric",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: list_span.clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -21711,10 +21187,9 @@ fn apply_tracked_callee(
     let func = match callee_tv.value() {
         Value::wat__core__fn(f) => f.clone(),
         _ => {
-            return Err(RuntimeError::NotCallable {
-                got: Box::new(ValueSnapshot::of_tracked(&callee_tv)),
-                span: Span::unknown(),
-            }.into())
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::NotCallable {
+                got: Box::new(ValueSnapshot::of_tracked(&callee_tv))
+            } }.into())
         }
     };
     let vals = args
@@ -21736,10 +21211,9 @@ fn apply_value(
         Value::wat__core__fn(f) => f.clone(),
         other => {
             // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
-            return Err(RuntimeError::NotCallable {
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            }.into())
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::NotCallable {
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into())
         }
     };
     let vals = args
@@ -21811,28 +21285,26 @@ pub fn apply_function(
         match cur_func.rest_param {
             None => {
                 if actual_arity != fixed_arity {
-                    return Err(RuntimeError::ArityMismatch {
+                    return Err(RuntimeError { span: cur_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
                             None => format!("<fn@{}>", cur_func.body.span()),
                         },
                         expected: fixed_arity,
-                        got: actual_arity,
-                        span: cur_span.clone(),
-                    }.into());
+                        got: actual_arity
+                    } }.into());
                 }
             }
             Some(_) => {
                 if actual_arity < fixed_arity {
-                    return Err(RuntimeError::ArityMismatch {
+                    return Err(RuntimeError { span: cur_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
                             None => format!("<fn@{}>", cur_func.body.span()),
                         },
                         expected: fixed_arity,
-                        got: actual_arity,
-                        span: cur_span.clone(),
-                    }.into());
+                        got: actual_arity
+                    } }.into());
                 }
             }
         }
@@ -22007,12 +21479,11 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
 /// predicates end in `?`.
 fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::stopped?".into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
 }
@@ -22029,12 +21500,11 @@ fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalB
 /// ambient is "always available."
 fn eval_runtime_argv(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::runtime::argv".into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let argv = argv();
     let values: Vec<Value> = argv
@@ -22057,12 +21527,11 @@ fn eval_runtime_current_thread(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::runtime::current-thread".into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let id = std::thread::current().id();
     Ok(Value::String(Arc::new(format!("{:?}", id))))
@@ -22078,12 +21547,11 @@ fn eval_user_signal_query(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     Ok(Value::bool(flag.load(Ordering::SeqCst)))
 }
@@ -22099,12 +21567,11 @@ fn eval_user_signal_reset(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     flag.store(false, Ordering::SeqCst);
     Ok(Value::Unit)
@@ -22126,10 +21593,9 @@ fn require_encoding_ctx<'a>(
 ) -> Result<&'a EncodingCtx, EvalBreak> {
     sym.encoding_ctx()
         .map(|arc| arc.as_ref())
-        .ok_or_else(|| EvalBreak::from(RuntimeError::NoEncodingCtx {
-            op: op.into(),
-            span: list_span.clone(),
-        }))
+        .ok_or_else(|| EvalBreak::from(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoEncodingCtx {
+            op: op.into()
+        } }))
 }
 
 /// Arc 077: the program runs at one d. Read it from the ambient
@@ -22142,12 +21608,11 @@ fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<
 
 fn check_nullary(op: &'static str, args: &[WatAST], list_span: &Span) -> Result<(), EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     Ok(())
 }
@@ -22235,36 +21700,32 @@ fn eval_make_bounded_queue(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::make-bounded-channel".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::make-bounded-channel".into(),
-            reason: "first argument must be a type keyword (e.g., :Candle)".into(),
-            span: args[0].span().clone(),
-        }.into());
+            reason: "first argument must be a type keyword (e.g., :Candle)".into()
+        } }.into());
     }
     let capacity = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::i64(n) if n >= 0 => n as usize,
         Value::i64(n) => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::kernel::make-bounded-channel".into(),
-                reason: format!("capacity must be non-negative; got {}", n),
-                span: args[1].span().clone(),
-            }.into());
+                reason: format!("capacity must be non-negative; got {}", n)
+            } }.into());
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::make-bounded-channel".into(),
                 expected: "i64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let (tx, rx) = crossbeam_channel::bounded::<Value>(capacity);
@@ -22282,19 +21743,17 @@ fn eval_make_bounded_queue(
 /// the checker; the runtime transports any `Value`.
 fn eval_make_unbounded_queue(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::make-unbounded-channel".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::make-unbounded-channel".into(),
-            reason: "argument must be a type keyword (e.g., :LearnSignal)".into(),
-            span: args[0].span().clone(),
-        }.into());
+            reason: "argument must be a type keyword (e.g., :LearnSignal)".into()
+        } }.into());
     }
     let (tx, rx) = crossbeam_channel::unbounded::<Value>();
     Ok(Value::Tuple(Arc::new(vec![
@@ -22326,22 +21785,20 @@ fn eval_kernel_send(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::send".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Sender(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::send".into(),
                 expected: "wat::kernel::Sender",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let msg = eval_inner(&args[1], env, sym)?.value_owned();
@@ -22384,22 +21841,20 @@ fn eval_kernel_sender_close(
 ) -> Result<Value, EvalBreak> {
     let op = ":wat::kernel::Sender/close";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Sender(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::kernel::Sender<T>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     crate::typed_channel::sender_close(sender.as_ref(), list_span.clone())?;
@@ -22418,22 +21873,20 @@ fn eval_kernel_recv(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::recv".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Receiver(r) => r,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::recv".into(),
                 expected: "wat::kernel::Receiver",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
@@ -22459,11 +21912,10 @@ fn eval_kernel_recv(
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
         }
         crate::typed_channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError::MalformedForm {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::kernel::recv".into(),
-                reason: format!("EDN decode on pipe-channel recv: {}", msg),
-                span: list_span.clone(),
-            }.into())
+                reason: format!("EDN decode on pipe-channel recv: {}", msg)
+            } }.into())
         }
         // arc 170 Slice A — variant added; Slice B wires typed_recv to
         // produce it. In Slice A this arm is unreachable at runtime.
@@ -22490,22 +21942,20 @@ fn eval_kernel_try_recv(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::try-recv".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__Receiver(r) => r,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::try-recv".into(),
                 expected: "wat::kernel::Receiver",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
@@ -22531,11 +21981,10 @@ fn eval_kernel_try_recv(
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
         }
         crate::typed_channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError::MalformedForm {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::kernel::try-recv".into(),
-                reason: format!("EDN decode on pipe-channel try-recv: {}", msg),
-                span: list_span.clone(),
-            }.into())
+                reason: format!("EDN decode on pipe-channel try-recv: {}", msg)
+            } }.into())
         }
         // arc 170 Slice B — try-recv maps Shutdown to Err(Shutdown)
         // (same as recv's contract). Consistent: callers can distinguish
@@ -22574,12 +22023,11 @@ fn eval_kernel_drop(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::drop".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let handle = eval_inner(&args[0], env, sym)?.value_owned();
     match handle {
@@ -22590,12 +22038,11 @@ fn eval_kernel_drop(
             // enclosing scope releases its own binding.
             Ok(Value::Unit)
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::kernel::drop".into(),
             expected: "wat::kernel::Sender | wat::kernel::Receiver",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -22612,23 +22059,21 @@ fn eval_math_unary(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: format!(":wat::std::math::{}", op_name),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let x = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::f64(x) => x,
         Value::i64(n) => n as f64,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: format!(":wat::std::math::{}", op_name),
                 expected: "f64",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(Value::f64(f(x)))
@@ -22638,12 +22083,11 @@ fn eval_math_unary(
 /// Nullary. Backing: `std::f64::consts::PI`.
 fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::math::pi".into(),
             expected: 0,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     Ok(Value::f64(std::f64::consts::PI))
 }
@@ -22663,12 +22107,11 @@ fn eval_stat_mean(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::std::stat::mean";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if xs.is_empty() {
@@ -22679,13 +22122,12 @@ fn eval_stat_mean(
         match v {
             Value::f64(x) => sum += x,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
-                    span: args[0].span().clone(),
-                }.into());
+                    // arc 138: no — iterating over Vec<Value>; no per-element AST span
+                } }.into());
             }
         }
     }
@@ -22705,12 +22147,11 @@ fn eval_stat_variance(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::std::stat::variance";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     if xs.is_empty() {
@@ -22722,13 +22163,12 @@ fn eval_stat_variance(
         match v {
             Value::f64(x) => sum += x,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<f64>",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
-                    span: args[0].span().clone(),
-                }.into());
+                    // arc 138: no — iterating over Vec<Value>; no per-element AST span
+                } }.into());
             }
         }
     }
@@ -22753,12 +22193,11 @@ fn eval_stat_stddev(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::std::stat::stddev";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     match eval_stat_variance(args, env, sym, list_span)? {
         Value::Option(opt) => match &*opt {
@@ -22766,13 +22205,12 @@ fn eval_stat_stddev(
             Some(_) => unreachable!("variance returned a non-f64 inside Option"),
             None => Ok(Value::Option(Arc::new(None))),
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Option<f64> from inner variance",
             got: Box::new(ValueSnapshot::of(&other)),
-            // arc 138: no span — internal variance re-wrap; no originating AST element
-            span: list_span.clone(),
-        }.into()),
+            // arc 138: no — internal variance re-wrap; no originating AST element
+        } }.into()),
     }
 }
 
@@ -22792,33 +22230,30 @@ fn eval_handle_pool_new(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::HandlePool::new".into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let name = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::String(s) => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let handles = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::Vec(v) => v,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "wat::core::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let n = handles.len();
@@ -22852,34 +22287,31 @@ fn eval_handle_pool_pop(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::HandlePool::pop".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::HandlePool::pop".into(),
                 expected: "wat::kernel::HandlePool",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     match rx.try_recv() {
         Ok(v) => Ok(v),
-        Err(_) => Err(RuntimeError::MalformedForm {
+        Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::HandlePool::pop".into(),
             reason: format!(
                 "{}: no handles left to claim (pool drained or mis-counted at construction)",
                 name
-            ),
-            span: list_span.clone(),
-        }.into()),
+            )
+        } }.into()),
     }
 }
 
@@ -22897,34 +22329,31 @@ fn eval_handle_pool_finish(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::HandlePool::finish".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::HandlePool::finish".into(),
                 expected: "wat::kernel::HandlePool",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let remaining = rx.len();
     if remaining != 0 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::HandlePool::finish".into(),
             reason: format!(
                 "{}: {} orphaned handle(s) — deadlock risk (every handle must be claimed before finish)",
                 name, remaining
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     Ok(Value::Unit)
 }
@@ -22950,30 +22379,27 @@ fn eval_kernel_select(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::kernel::select".into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let items = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(v) => v,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::select".into(),
                 expected: "wat::core::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     if items.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::select".into(),
-            reason: "receivers vec cannot be empty — select would block forever".into(),
-            span: args[0].span().clone(),
-        }.into());
+            reason: "receivers vec cannot be empty — select would block forever".into()
+        } }.into());
     }
     // Extract Arc<Receiver<Value>> for each element; error on any
     // non-receiver Value so the typed-pipe contract is visible.
@@ -22993,25 +22419,23 @@ fn eval_kernel_select(
                 match crate::typed_channel::try_as_crossbeam_receiver(inner.as_ref()) {
                     Some(rx) => rxs.push(Arc::new(rx.clone())),
                     None => {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::kernel::select".into(),
                             reason: "select on a PipeFd-backed Receiver is not supported \
                                      (tier-2 select would require epoll/poll integration; \
                                      no consumer demand today)"
-                                .into(),
-                            span: args[0].span().clone(),
-                        }.into());
+                                .into()
+                        } }.into());
                     }
                 }
             }
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::kernel::select".into(),
                     expected: "wat::kernel::Receiver",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
-                    span: args[0].span().clone(),
-                }.into());
+                    // arc 138: no — iterating over Vec<Value>; no per-element AST span
+                } }.into());
             }
         }
     }
@@ -23123,23 +22547,21 @@ fn eval_kernel_process_join_result(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/join-result";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Process struct field order: stdin, stdout, stderr, join.
@@ -23147,13 +22569,12 @@ fn eval_kernel_process_join_result(
     let handle = match proc_struct.fields.get(3) {
         Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
     let value = match handle.as_ref() {
@@ -23212,23 +22633,21 @@ fn eval_kernel_process_drain_and_join(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/drain-and-join";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Process struct field order: stdin, stdout, stderr, join.
@@ -23238,12 +22657,11 @@ fn eval_kernel_process_drain_and_join(
     let handle = match proc_struct.fields.get(3) {
         Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     let value = match handle.as_ref() {
@@ -23299,12 +22717,11 @@ fn drain_process_reader_field(
                 2 => "Process.stderr (IOReader)",
                 _ => "Process.<reader-field> (IOReader)",
             };
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected,
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: subject_ast.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     loop {
@@ -23329,34 +22746,31 @@ fn eval_kernel_process_stdin(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/stdin";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Field 0: stdin IOWriter.
     match proc_struct.fields.get(0) {
         Some(Value::io__IOWriter(w)) => Ok(Value::io__IOWriter(w.clone())),
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Process.stdin (IOWriter)",
-            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+        } }.into()),
     }
 }
 
@@ -23372,34 +22786,31 @@ fn eval_kernel_process_stdout(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/stdout";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Field 1: stdout IOReader.
     match proc_struct.fields.get(1) {
         Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Process.stdout (IOReader)",
-            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+        } }.into()),
     }
 }
 
@@ -23415,34 +22826,31 @@ fn eval_kernel_process_stderr(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/stderr";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Field 2: stderr IOReader.
     match proc_struct.fields.get(2) {
         Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Process.stderr (IOReader)",
-            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+        } }.into()),
     }
 }
 
@@ -23478,27 +22886,25 @@ fn eval_kernel_spawn_thread(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-thread";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let body_fn = match &args[0] {
         WatAST::Keyword(k, kspan) => match sym.get(k) {
             Some(f) => f.clone(),
-            None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone()).into()),
+            None => return Err(RuntimeError { span: kspan.clone(), kind: RuntimeErrorKind::UnknownFunction(k.clone()) }.into()),
         },
         _ => match eval_inner(&args[0], env, sym)?.value_owned() {
             Value::wat__core__fn(f) => f,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "function keyword path or fn value",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[0].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         },
     };
@@ -23634,36 +23040,33 @@ fn eval_kernel_thread_join_result(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Thread/join-result";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let thread_value = eval_inner(&args[0], env, sym)?.value_owned();
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Thread",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Thread struct field order: input, output, join.
     let handle = match thread_struct.fields.get(2) {
         Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (ProgramHandle)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
     let value = match handle.as_ref() {
@@ -23684,13 +23087,12 @@ fn eval_kernel_thread_join_result(
             )))),
         },
         ProgramHandleInner::Forked(_) => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (InThread variant)",
                 got: Box::new(ValueSnapshot::unavailable("Forked variant on a Thread<I,O> — substrate bug")),
-                // arc 138: no span — internal substrate invariant; no AST source
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — internal substrate invariant; no AST source
+            } }.into());
         }
     };
     Ok(value)
@@ -23717,23 +23119,21 @@ fn eval_kernel_thread_drain_and_join(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Thread/drain-and-join";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let thread_value = eval_inner(&args[0], env, sym)?.value_owned();
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Thread",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Thread struct field order: input, output, join.
@@ -23743,12 +23143,11 @@ fn eval_kernel_thread_drain_and_join(
     let handle = match thread_struct.fields.get(2) {
         Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (ProgramHandle)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     let value = match handle.as_ref() {
@@ -23767,12 +23166,11 @@ fn eval_kernel_thread_drain_and_join(
             )))),
         },
         ProgramHandleInner::Forked(_) => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Thread.join (InThread variant)",
-                got: Box::new(ValueSnapshot::unavailable("Forked variant on a Thread<I,O> — substrate bug")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("Forked variant on a Thread<I,O> — substrate bug"))
+            } }.into());
         }
     };
     Ok(value)
@@ -23795,12 +23193,11 @@ fn drain_thread_output_channel(
     let receiver_inner = match thread_struct.fields.get(1) {
         Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Thread.output (Receiver)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: subject_ast.span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     loop {
@@ -23842,23 +23239,21 @@ fn eval_kernel_thread_readln(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Thread/readln";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
     let receiver_inner = match peer_struct.fields.first() {
         Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "ThreadPeer.rx (Receiver)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     match crate::typed_channel::typed_recv(
@@ -23869,17 +23264,15 @@ fn eval_kernel_thread_readln(
         crate::typed_channel::RecvOutcome::Value(v) => Ok(v),
         crate::typed_channel::RecvOutcome::Disconnected
         | crate::typed_channel::RecvOutcome::Shutdown => {
-            Err(RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: list_span.clone(),
-            }.into())
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } }.into())
         }
         crate::typed_channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError::MalformedForm {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("EDN decode on ThreadPeer.rx: {}", msg),
-                span: list_span.clone(),
-            }.into())
+                reason: format!("EDN decode on ThreadPeer.rx: {}", msg)
+            } }.into())
         }
     }
 }
@@ -23900,23 +23293,21 @@ fn eval_kernel_thread_println(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Thread/println";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let peer_struct = eval_thread_peer_struct(OP, &args[0], env, sym)?;
     let sender_inner = match peer_struct.fields.get(1) {
         Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "ThreadPeer.tx (Sender)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     let payload = eval_inner(&args[1], env, sym)?.value_owned();
@@ -23928,10 +23319,9 @@ fn eval_kernel_thread_println(
     ) {
         crate::typed_channel::SendOutcome::Ok => Ok(Value::Unit),
         crate::typed_channel::SendOutcome::Disconnected => {
-            Err(RuntimeError::ChannelDisconnected {
-                op: OP.into(),
-                span: list_span.clone(),
-            }.into())
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } }.into())
         }
     }
 }
@@ -23949,12 +23339,11 @@ fn eval_thread_peer_struct(
     let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ThreadPeer" => Ok(s),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::ThreadPeer",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: subject_ast.span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -23996,23 +23385,21 @@ fn eval_kernel_process_readln(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/readln";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
     let receiver_inner = match peer_struct.fields.first() {
         Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "ProcessPeer.rx (Receiver)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     match crate::typed_channel::typed_recv(
@@ -24030,11 +23417,10 @@ fn eval_kernel_process_readln(
             )))))
         }
         crate::typed_channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError::MalformedForm {
+            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("EDN decode on ProcessPeer.rx: {}", msg),
-                span: list_span.clone(),
-            }.into())
+                reason: format!("EDN decode on ProcessPeer.rx: {}", msg)
+            } }.into())
         }
     }
 }
@@ -24054,23 +23440,21 @@ fn eval_kernel_process_println(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Process/println";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
     let sender_inner = match peer_struct.fields.get(1) {
         Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "ProcessPeer.tx (Sender)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
+            } }.into());
         }
     };
     let payload = eval_inner(&args[1], env, sym)?.value_owned();
@@ -24102,12 +23486,11 @@ fn eval_process_peer_struct(
     let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
     match peer_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::ProcessPeer" => Ok(s),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::ProcessPeer",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: subject_ast.span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -24127,22 +23510,20 @@ fn eval_kernel_sender_from_pipe(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Sender/from-pipe";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let writer = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::io__IOWriter(w) => w,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::io::IOWriter",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(crate::typed_channel::sender_from_pipe(writer))
@@ -24163,22 +23544,20 @@ fn eval_kernel_receiver_from_pipe(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::Receiver/from-pipe";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let reader = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::io__IOReader(r) => r,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::io::IOReader",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     Ok(crate::typed_channel::receiver_from_pipe(reader))
@@ -24201,12 +23580,11 @@ fn eval_kernel_process_send(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::process-send";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let value = eval_inner(&args[1], env, sym)?.value_owned();
@@ -24214,24 +23592,22 @@ fn eval_kernel_process_send(
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let stdin_writer = match proc_struct.fields.first() {
         Some(Value::io__IOWriter(w)) => w.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stdin (IOWriter)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
 
@@ -24277,60 +23653,55 @@ fn eval_kernel_process_recv(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::process-recv";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
     let proc_struct = match proc_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     // Process struct field order: stdin, stdout, stderr, join.
     let stdout_reader = match proc_struct.fields.get(1) {
         Some(Value::io__IOReader(r)) => r.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stdout (IOReader)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
     let stderr_reader = match proc_struct.fields.get(2) {
         Some(Value::io__IOReader(r)) => r.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.stderr (IOReader)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
     let handle = match proc_struct.fields.get(3) {
         Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
                 got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no span — struct field lookup; no per-field AST
-                span: args[0].span().clone(),
-            }.into());
+                // arc 138: no — struct field lookup; no per-field AST
+            } }.into());
         }
     };
 
@@ -24740,12 +24111,11 @@ fn eval_died_error_message(
     let op_string = format!("{}/message", expected_type_path);
     let op: &str = &op_string;
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
@@ -24756,13 +24126,12 @@ fn eval_died_error_message(
                 "Panic" | "RuntimeError" | "StartupError" | "EntryFormFailure"
                 | "MainSignature" | "BadReturn" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(Value::String(s.clone())),
-                    _ => Err(RuntimeError::TypeMismatch {
+                    _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: "String inside *DiedError variant",
                         got: Box::new(ValueSnapshot::unavailable("non-String payload")),
-                        // arc 138: no span — matching on Value::Enum fields; no AST element
-                        span: args[0].span().clone(),
-                    }.into()),
+                        // arc 138: no — matching on Value::Enum fields; no AST element
+                    } }.into()),
                 },
                 "ChannelDisconnected" => {
                     Ok(Value::String(Arc::new("channel disconnected".to_string())))
@@ -24771,21 +24140,19 @@ fn eval_died_error_message(
                 "Shutdown" => {
                     Ok(Value::String(Arc::new("process shutdown".to_string())))
                 }
-                _ => Err(RuntimeError::TypeMismatch {
+                _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "*DiedError variant",
                     got: Box::new(ValueSnapshot::unavailable("unknown *DiedError variant")),
-                    // arc 138: no span — matching on Value::Enum variant_name; no AST element
-                    span: args[0].span().clone(),
-                }.into()),
+                    // arc 138: no — matching on Value::Enum variant_name; no AST element
+                } }.into()),
             }
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::*DiedError",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -24860,22 +24227,20 @@ fn eval_kernel_extract_panics(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::extract-panics";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let lines = match eval_inner(&args[0], env, sym)?.value_owned() {
         Value::Vec(items) => items,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            }.into());
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
         }
     };
     let types = sym.types().map(|a| a.as_ref());
@@ -24919,12 +24284,11 @@ fn eval_died_error_to_failure(
     let op_string = format!("{}/to-failure", expected_type_path);
     let op: &str = &op_string;
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     let val = eval_inner(&args[0], env, sym)?.value_owned();
     match val {
@@ -24933,13 +24297,12 @@ fn eval_died_error_to_failure(
                 "Panic" => {
                     let msg = match ev.fields.first() {
                         Some(Value::String(s)) => (**s).clone(),
-                        _ => return Err(RuntimeError::TypeMismatch {
+                        _ => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "String at Panic.message",
                             got: Box::new(ValueSnapshot::unavailable("non-String at field 0")),
-                            // arc 138: no span — matching on Value::Enum fields; no AST element
-                            span: args[0].span().clone(),
-                        }.into()),
+                            // arc 138: no — matching on Value::Enum fields; no AST element
+                        } }.into()),
                     };
                     // Field 1 is declared `Option<Failure>`. The
                     // EDN reader's reconstruct_struct + Tagged
@@ -24961,13 +24324,12 @@ fn eval_died_error_to_failure(
                 "RuntimeError" | "StartupError" | "EntryFormFailure"
                 | "MainSignature" | "BadReturn" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(message_only_failure((**s).clone())),
-                    _ => Err(RuntimeError::TypeMismatch {
+                    _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
                         expected: "String at *DiedError.message",
                         got: Box::new(ValueSnapshot::unavailable("non-String at field 0")),
-                        // arc 138: no span — matching on Value::Enum fields; no AST element
-                        span: args[0].span().clone(),
-                    }.into()),
+                        // arc 138: no — matching on Value::Enum fields; no AST element
+                    } }.into()),
                 },
                 "ChannelDisconnected" => {
                     Ok(message_only_failure("channel disconnected".to_string()))
@@ -24976,21 +24338,19 @@ fn eval_died_error_to_failure(
                 "Shutdown" => {
                     Ok(message_only_failure("process shutdown".to_string()))
                 }
-                _ => Err(RuntimeError::TypeMismatch {
+                _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "*DiedError variant",
                     got: Box::new(ValueSnapshot::unavailable("unknown *DiedError variant")),
-                    // arc 138: no span — matching on Value::Enum variant_name; no AST element
-                    span: args[0].span().clone(),
-                }.into()),
+                    // arc 138: no — matching on Value::Enum variant_name; no AST element
+                } }.into()),
             }
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::kernel::*DiedError",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -25019,51 +24379,51 @@ fn message_only_failure(message: String) -> Value {
 /// `:wat::core::EvalError`.
 fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
     let (kind, message): (&'static str, String) = match err {
-        RuntimeError::EvalVerificationFailed { err } => {
+        RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
             ("verification-failed", format!("{}", err))
         }
-        RuntimeError::EvalForbidsMutationForm { head, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { head, .. }, .. } => (
             "mutation-form-refused",
             format!("eval refused mutation form: {}", head),
         ),
-        RuntimeError::UnknownFunction(path, _) => {
+        RuntimeError { kind: RuntimeErrorKind::UnknownFunction(path), .. } => {
             ("unknown-function", format!("unknown function: {}", path))
         }
-        RuntimeError::UnboundSymbol(name, _) => {
+        RuntimeError { kind: RuntimeErrorKind::UnboundSymbol(name), .. } => {
             ("unbound-symbol", format!("unbound symbol: {}", name))
         }
-        RuntimeError::TypeMismatch { op, expected, got, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, got, .. }, .. } => (
             "type-mismatch",
             format!("{}: expected {}, got {}", op, expected, got),
         ),
-        RuntimeError::ArityMismatch { op, expected, got, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::ArityMismatch { op, expected, got, .. }, .. } => (
             "arity-mismatch",
             format!("{}: expected {} args, got {}", op, expected, got),
         ),
-        RuntimeError::ChannelDisconnected { op, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::ChannelDisconnected { op, .. }, .. } => (
             "channel-disconnected",
             format!("{}: channel disconnected", op),
         ),
-        RuntimeError::BadCondition { got, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::BadCondition { got, .. }, .. } => {
             ("bad-condition", format!("if/when condition not :bool; got {}", got))
         }
-        RuntimeError::DivisionByZero(_) => ("division-by-zero", "division by zero".into()),
-        RuntimeError::PatternMatchFailed { value_type, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::DivisionByZero, .. } => ("division-by-zero", "division by zero".into()),
+        RuntimeError { kind: RuntimeErrorKind::PatternMatchFailed { value_type, .. }, .. } => (
             "pattern-match-failed",
             format!("no match arm fired for {} scrutinee", value_type),
         ),
-        RuntimeError::EffectfulInStep { op, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::EffectfulInStep { op, .. }, .. } => (
             "effectful-in-step",
             format!("eval-step! refuses effectful op: {}", op),
         ),
-        RuntimeError::NoStepRule { op, .. } => (
+        RuntimeError { kind: RuntimeErrorKind::NoStepRule { op, .. }, .. } => (
             "no-step-rule",
             format!("eval-step! has no rule for op: {}", op),
         ),
-        RuntimeError::MalformedForm { head, reason, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. } => {
             ("malformed-form", format!("{}: {}", head, reason))
         }
-        RuntimeError::NotCallable { got, .. } => {
+        RuntimeError { kind: RuntimeErrorKind::NotCallable { got, .. }, .. } => {
             ("not-callable", format!("not callable: {}", got))
         }
         // Fallback for variants that don't deserve a dedicated kind.
@@ -25109,14 +24469,13 @@ fn eval_form_ast(
     // eval-ast! reached from a path that skipped the check (unlikely
     // but possible).
     if args.len() != 1 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::eval-ast!".into(),
             reason: format!(
                 "(:wat::eval-ast! <ast-value>) takes exactly 1 argument; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     // From here, any RuntimeError (except TryPropagate) becomes an
     // `EvalError` in the Err slot of the returned Value::Result. The
@@ -25128,12 +24487,11 @@ fn eval_form_ast(
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::eval-ast!".into(),
                     expected: "Ast",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[0].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
         // Arc 102 — return the bare Value (revert arc 066's
@@ -25179,14 +24537,13 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, EvalBreak> {
         // would force callers to unwrap a depth they didn't ask for.
         Value::holon__HolonAST(h) => return Ok(Value::holon__HolonAST(h)),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "form whose terminal value has a HolonAST \
                            representation (primitive or HolonAST)",
                 got: Box::new(ValueSnapshot::of(&other)),
-                // arc 138: no span — receives a Value, no originating AST in scope
-                span: Span::unknown(),
-            }.into());
+                // arc 138: no — receives a Value, no originating AST in scope
+            } }.into());
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(h)))
@@ -25243,26 +24600,24 @@ fn eval_form_step(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::eval-step!".into(),
             reason: format!(
                 "(:wat::eval-step! <ast-value>) takes exactly 1 argument; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let value = eval_inner(&args[0], env, sym)?.value_owned();
         let ast = match value {
             Value::wat__WatAST(a) => a,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::eval-step!".into(),
                     expected: "wat::WatAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[0].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
         let stepped = step_form(&ast, env, sym)?;
@@ -25299,26 +24654,24 @@ fn eval_walk(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::eval::walk";
     if args.len() != 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "(:wat::eval::walk form init visit) takes exactly 3 args; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let form_value = eval_inner(&args[0], env, sym)?.value_owned();
         let mut current_form: Arc<WatAST> = match form_value {
             Value::wat__WatAST(a) => a,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::WatAST",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[0].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
         let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
@@ -25326,12 +24679,11 @@ fn eval_walk(
         let visit_func = match visit_value {
             Value::wat__core__fn(f) => f,
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::core::fn — visitor (acc, form, step) → WalkStep<A>",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    span: args[2].span().clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&other))
+                } }.into());
             }
         };
         loop {
@@ -25360,39 +24712,36 @@ fn eval_walk(
             let (variant_name, fields) = match walkstep_value {
                 Value::Enum(ev) => {
                     if ev.type_path != ":wat::eval::WalkStep" {
-                        return Err(RuntimeError::TypeMismatch {
+                        return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::eval::WalkStep<A>",
                             got: Box::new(ValueSnapshot::unavailable("different enum")),
-                            // arc 138: no span — Value::Enum result from visitor; no originating AST
-                            span: args[2].span().clone(),
-                        }.into());
+                            // arc 138: no — Value::Enum result from visitor; no originating AST
+                        } }.into());
                     }
                     let ev = (*ev).clone();
                     (ev.variant_name, ev.fields)
                 }
                 other => {
-                    return Err(RuntimeError::TypeMismatch {
+                    return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "wat::eval::WalkStep<A>",
                         got: Box::new(ValueSnapshot::of(&other)),
-                        // arc 138: no span — visitor return value; no originating AST
-                        span: args[2].span().clone(),
-                    }.into());
+                        // arc 138: no — visitor return value; no originating AST
+                    } }.into());
                 }
             };
             match variant_name.as_str() {
                 "Continue" => {
                     if fields.len() != 1 {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
                                 "WalkStep::Continue takes exactly 1 field (acc); got {}",
                                 fields.len()
                             ),
-                            // arc 138: no span — WalkStep field count from visitor return; no AST
-                            span: args[2].span().clone(),
-                        }.into());
+                            // arc 138: no — WalkStep field count from visitor return; no AST
+                        } }.into());
                     }
                     let mut iter = fields.into_iter();
                     acc = iter.next().expect("length checked");
@@ -25409,15 +24758,14 @@ fn eval_walk(
                 }
                 "Skip" => {
                     if fields.len() != 2 {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
                                 "WalkStep::Skip takes exactly 2 fields (terminal, acc); got {}",
                                 fields.len()
                             ),
-                            // arc 138: no span — WalkStep field count from visitor return; no AST
-                            span: args[2].span().clone(),
-                        }.into());
+                            // arc 138: no — WalkStep field count from visitor return; no AST
+                        } }.into());
                     }
                     let mut iter = fields.into_iter();
                     let terminal_v = iter.next().expect("length checked");
@@ -25425,13 +24773,12 @@ fn eval_walk(
                     let terminal_h = match terminal_v {
                         Value::holon__HolonAST(h) => h,
                         other => {
-                            return Err(RuntimeError::TypeMismatch {
+                            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                                 op: OP.into(),
                                 expected: "wat::holon::HolonAST (Skip's terminal field)",
                                 got: Box::new(ValueSnapshot::of(&other)),
-                                // arc 138: no span — visitor return value field; no AST
-                                span: args[2].span().clone(),
-                            }.into());
+                                // arc 138: no — visitor return value field; no AST
+                            } }.into());
                         }
                     };
                     return Ok(Value::Tuple(Arc::new(vec![
@@ -25440,15 +24787,14 @@ fn eval_walk(
                     ])));
                 }
                 other => {
-                    return Err(RuntimeError::MalformedForm {
+                    return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
                             "WalkStep variant must be Continue or Skip; got {}",
                             other
                         ),
-                        // arc 138: no span — visitor return value variant; no AST
-                        span: args[2].span().clone(),
-                    }.into());
+                        // arc 138: no — visitor return value variant; no AST
+                    } }.into());
                 }
             }
         }
@@ -25514,28 +24860,25 @@ fn step_form(
         // didn't reach it — an unbound free variable. Surface as
         // NoStepRule so the consumer falls back to eval-ast! (which
         // would have raised UnboundSymbol there too).
-        WatAST::Symbol(ident, sym_span) => Err(RuntimeError::NoStepRule {
-            op: format!("symbol-ref:{}", ident.name),
-            span: sym_span.clone(),
-        }.into()),
+        WatAST::Symbol(ident, sym_span) => Err(RuntimeError { span: sym_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: format!("symbol-ref:{}", ident.name)
+        } }.into()),
         WatAST::List(items, span) => step_list(items, span, env, sym),
         // Arc 167 slice 1 — vector literals reaching the stepper
         // means a binding-position consumer hasn't intercepted
         // them. Surface as NoStepRule so the consumer falls back
         // to eval, which raises the canonical "vector literals at
         // value position" error.
-        WatAST::Vector(_, vec_span) => Err(RuntimeError::NoStepRule {
-            op: "<vector literal>".into(),
-            span: vec_span.clone(),
-        }.into()),
+        WatAST::Vector(_, vec_span) => Err(RuntimeError { span: vec_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: "<vector literal>".into()
+        } }.into()),
         // Arc 169 slice 1 — same shape: brace-forms reaching the
         // stepper escaped the let consumer. Surface as NoStepRule;
         // eval will raise the canonical "struct-pattern at value
         // position" error.
-        WatAST::StructPattern(_, sp_span) => Err(RuntimeError::NoStepRule {
-            op: "<struct-pattern>".into(),
-            span: sp_span.clone(),
-        }.into()),
+        WatAST::StructPattern(_, sp_span) => Err(RuntimeError { span: sp_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: "<struct-pattern>".into()
+        } }.into()),
     }
 }
 
@@ -25710,10 +25053,9 @@ fn step_list(
 ) -> Result<StepValue, EvalBreak> {
     let head = match items.first() {
         Some(h) => h,
-        None => return Err(RuntimeError::NoStepRule {
-            op: "()".into(),
-            span: list_span.clone(),
-        }.into()),
+        None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: "()".into()
+        } }.into()),
     };
     let head_kw = match head {
         WatAST::Keyword(k, _) => k.clone(),
@@ -25721,24 +25063,21 @@ fn step_list(
             // Bare-symbol heads (inline fn call sites, let-bound
             // function values) need a higher-order step rule that
             // hasn't shipped yet. Phase 3 territory.
-            return Err(RuntimeError::NoStepRule {
-                op: format!("symbol-head:{}", ident.name),
-                span: sym_span.clone(),
-            }.into());
+            return Err(RuntimeError { span: sym_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+                op: format!("symbol-head:{}", ident.name)
+            } }.into());
         }
         _ => {
-            return Err(RuntimeError::NoStepRule {
-                op: "<non-keyword-head>".into(),
-                span: head.span().clone(),
-            }.into());
+            return Err(RuntimeError { span: head.span().clone(), kind: RuntimeErrorKind::NoStepRule {
+                op: "<non-keyword-head>".into()
+            } }.into());
         }
     };
 
     if is_effectful_op(&head_kw) {
-        return Err(RuntimeError::EffectfulInStep {
-            op: head_kw,
-            span: head.span().clone(),
-        }.into());
+        return Err(RuntimeError { span: head.span().clone(), kind: RuntimeErrorKind::EffectfulInStep {
+            op: head_kw
+        } }.into());
     }
 
     let args = &items[1..];
@@ -25821,10 +25160,9 @@ fn step_list(
             if sym.functions.contains_key(&head_kw) {
                 step_user_call(items, list_span, env, sym, &head_kw)
             } else {
-                Err(RuntimeError::NoStepRule {
-                    op: head_kw,
-                    span: list_span.clone(),
-                }.into())
+                Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+                    op: head_kw
+                } }.into())
             }
         }
     }
@@ -25946,12 +25284,11 @@ fn step_holon_descend_then_fire(
         Value::Result(r) => match Arc::try_unwrap(r).unwrap_or_else(|a| (*a).clone()) {
             Ok(inner) => inner,
             Err(err_val) => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::eval-step!".into(),
                     expected: "successful holon construction",
-                    got: Box::new(ValueSnapshot::of(&err_val)),
-                    span: list_span.clone(),
-                }.into());
+                    got: Box::new(ValueSnapshot::of(&err_val))
+                } }.into());
             }
         },
         other => other,
@@ -26021,14 +25358,13 @@ fn step_if(
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
     if args.len() != 5 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
                 "expected (:wat::core::if cond -> :T then else); got {} args",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     let cond = &args[0];
     match cond {
@@ -26072,14 +25408,13 @@ fn step_let(
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
                 "expected (:wat::core::let bindings body ...); got {} args",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
 
     // Outer shape is the canonical flat-Vector (arc 168). Desugar into
@@ -26088,14 +25423,13 @@ fn step_let(
     let pairs: Vec<(WatAST, WatAST)> = match &args[0] {
         WatAST::Vector(items, _) => {
             if items.len() % 2 != 0 {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: bindings_form_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::let".into(),
                     reason: format!(
                         "let bindings vector must have an even number of elements; got {}",
                         items.len()
-                    ),
-                    span: bindings_form_span.clone(),
-                }.into());
+                    )
+                } }.into());
             }
             items
                 .chunks_exact(2)
@@ -26103,11 +25437,10 @@ fn step_let(
                 .collect()
         }
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
-                reason: "let bindings must be a flat vector `[name expr ...]`".into(),
-                span: other.span().clone(),
-            }.into());
+                reason: "let bindings must be a flat vector `[name expr ...]`".into()
+            } }.into());
         }
     };
 
@@ -26127,13 +25460,12 @@ fn step_let(
     let name_ident: crate::identifier::Identifier = match binder {
         WatAST::Symbol(ident, _) => ident.clone(),
         _ => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason:
                     "step_let only handles Symbol binders; destructure goes through eval_let"
-                        .into(),
-                span: binder.span().clone(),
-            }.into());
+                        .into()
+            } }.into());
         }
     };
 
@@ -26222,11 +25554,10 @@ fn rebuild_let_with_first_rhs(
             }
             Ok(WatAST::Vector(flat, outer_span))
         }
-        other => Err(RuntimeError::MalformedForm {
+        other => Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
-            reason: "let bindings carrier must be a vector `[name expr ...]`".into(),
-            span: other.span().clone(),
-        }.into()),
+            reason: "let bindings carrier must be a vector `[name expr ...]`".into()
+        } }.into()),
     }
 }
 
@@ -26249,11 +25580,10 @@ fn step_do(
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::do".into(),
-            reason: "do form requires at least one form; got zero".into(),
-            span: list_span.clone(),
-        }.into());
+            reason: "do form requires at least one form; got zero".into()
+        } }.into());
     }
     if args.len() == 1 {
         return Ok(StepValue::Next(args[0].clone()));
@@ -26288,14 +25618,13 @@ fn step_match(
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
     if args.len() < 4 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: format!(
                 "expected (:wat::core::match scrut -> :T arm1 ...); got {} args",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     let scrut = &args[0];
     if !is_match_canonical(scrut) {
@@ -26311,11 +25640,10 @@ fn step_match(
         let arm_items = match arm {
             WatAST::List(p, _) if p.len() == 2 => p,
             _ => {
-                return Err(RuntimeError::MalformedForm {
+                return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
-                    reason: "arm shape must be (pattern body)".into(),
-                    span: arm.span().clone(),
-                }.into());
+                    reason: "arm shape must be (pattern body)".into()
+                } }.into());
             }
         };
         let pattern = &arm_items[0];
@@ -26325,10 +25653,9 @@ fn step_match(
             return Ok(StepValue::Next(new_body));
         }
     }
-    Err(RuntimeError::PatternMatchFailed {
-        value_type: scrut.variant_name(),
-        span: scrut.span().clone(),
-    }.into())
+    Err(RuntimeError { span: scrut.span().clone(), kind: RuntimeErrorKind::PatternMatchFailed {
+        value_type: scrut.variant_name()
+    } }.into())
 }
 
 /// Match canonicity — Phase 2 admits primitive literals, keyword
@@ -26434,11 +25761,10 @@ fn try_match_pattern_ast(
         // Arc 167 slice 1 — vector sub-patterns are not admitted
         // in arc 167. Slice 2 wires fn / defn signature consumers;
         // pattern positions remain illegal.
-        WatAST::Vector(_, _) => Err(RuntimeError::MalformedForm {
+        WatAST::Vector(_, _) => Err(RuntimeError { span: pattern.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "vector sub-patterns are not supported in arc 167".into(),
-            span: pattern.span().clone(),
-        }.into()),
+            reason: "vector sub-patterns are not supported in arc 167".into()
+        } }.into()),
         // Arc 234 Stone 234.4.match / Arc 169 slice 1 — StructPattern.
         //
         // Hash-destructure form `{var :field ...}` (items[1] is Keyword):
@@ -26460,11 +25786,10 @@ fn try_match_pattern_ast(
                 // Arm does not match at AST level.
                 Ok(None)
             } else {
-                Err(RuntimeError::MalformedForm {
+                Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
-                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-                    span: span.clone(),
-                }.into())
+                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into()
+                } }.into())
             }
         }
     }
@@ -26530,22 +25855,20 @@ fn step_user_call(
 ) -> Result<StepValue, EvalBreak> {
     let func = match sym.get(head_kw) {
         Some(f) => f.clone(),
-        None => return Err(RuntimeError::UnknownFunction(head_kw.to_string(), list_span.clone()).into()),
+        None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownFunction(head_kw.to_string()) }.into()),
     };
     if func.closed_env.is_some() {
-        return Err(RuntimeError::NoStepRule {
-            op: format!("{} (closure-bearing — Phase 3)", head_kw),
-            span: list_span.clone(),
-        }.into());
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: format!("{} (closure-bearing — Phase 3)", head_kw)
+        } }.into());
     }
     let args = &items[1..];
     if args.len() != func.params.len() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head_kw.into(),
             expected: func.params.len(),
-            got: args.len(),
-            span: list_span.clone(),
-        }.into());
+            got: args.len()
+        } }.into());
     }
     for (idx, arg) in args.iter().enumerate() {
         if !is_step_canonical(arg) {
@@ -26577,14 +25900,13 @@ fn eval_form_edn(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::eval-edn!".into(),
             reason: format!(
                 "(:wat::eval-edn! <source>) takes exactly 1 argument; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let source = expect_string_value(":wat::eval-edn!", &args[0], env, sym)?;
@@ -26603,14 +25925,13 @@ fn eval_form_file(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::eval-file!".into(),
             reason: format!(
                 "(:wat::eval-file! <path>) takes exactly 1 argument; got {}",
                 args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let source = read_source_via_loader(":wat::eval-file!", &args[0], env, sym)?;
@@ -26660,14 +25981,13 @@ fn eval_form_digest_shared(
     };
     if args.len() != 4 {
         let shape = if is_string { "<source>" } else { "<path>" };
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "({} {} :wat::verify::digest-<algo> :wat::verify::<iface> <hex>) takes exactly 4 arguments; got {}",
                 op, shape, args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let source = if is_string {
@@ -26678,7 +25998,7 @@ fn eval_form_digest_shared(
         let algo = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         parse_and_run(&source, env, sym)
     })())
 }
@@ -26727,14 +26047,13 @@ fn eval_form_signed_shared(
     };
     if args.len() != 6 {
         let shape = if is_string { "<source>" } else { "<path>" };
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "({} {} :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly 6 arguments; got {}",
                 op, shape, args.len()
-            ),
-            span: list_span.clone(),
-        }.into());
+            )
+        } }.into());
     }
     wrap_as_eval_result((|| -> Result<Value, EvalBreak> {
         let source = if is_string {
@@ -26747,7 +26066,7 @@ fn eval_form_signed_shared(
         let pk_b64 = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast = parse_program(&source, op)?;
         crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
-            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         run_program(&ast, env, sym)
     })())
 }
@@ -26763,12 +26082,11 @@ fn expect_string_value(
 ) -> Result<String, EvalBreak> {
     match eval_inner(arg, env, sym)?.value_owned() {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: Box::new(ValueSnapshot::of(&other)),
-            span: arg.span().clone(),
-        }.into()),
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
 
@@ -26784,18 +26102,16 @@ fn read_source_via_loader(
     let path = expect_string_value(op, arg, env, sym)?;
     let loader = sym
         .source_loader()
-        .ok_or_else(|| RuntimeError::NoSourceLoader {
-            op: op.into(),
-            span: arg.span().clone(),
-        })?;
+        .ok_or_else(|| RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::NoSourceLoader {
+            op: op.into()
+        } })?;
     loader
         .fetch_source_file(&path, None)
         .map(|loaded| loaded.source)
-        .map_err(|e| EvalBreak::from(RuntimeError::MalformedForm {
+        .map_err(|e| EvalBreak::from(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
-            reason: format!("read {:?}: {:?}", path, e),
-            span: arg.span().clone(),
-        }))
+            reason: format!("read {:?}: {:?}", path, e)
+        } }))
 }
 
 // Arc 028 slice 3 — resolve_eval_source retired alongside the
@@ -26816,66 +26132,59 @@ fn resolve_verify_payload(
     let iface = match iface_ast {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: iface_ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::verify::<iface>".into(),
                 reason: format!(
                     "verify payload interface must be a :wat::verify::<iface> keyword; got {}",
                     other.variant_name()
-                ),
-                span: iface_ast.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     match iface {
         ":wat::verify::string" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => Ok((*s).clone()),
-            other => Err(RuntimeError::TypeMismatch {
+            other => Err(RuntimeError { span: locator_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::verify::string".into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: locator_ast.span().clone(),
-            }.into()),
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
         },
         ":wat::verify::file-path" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => {
                 let loader = sym.source_loader().ok_or_else(|| {
-                    RuntimeError::NoSourceLoader {
-                        op: ":wat::verify::file-path".into(),
-                        span: locator_ast.span().clone(),
-                    }
+                    RuntimeError { span: locator_ast.span().clone(), kind: RuntimeErrorKind::NoSourceLoader {
+                        op: ":wat::verify::file-path".into()
+                    } }
                 })?;
                 loader.fetch_payload_file(&s, None)
-                    .map_err(|e| EvalBreak::from(RuntimeError::MalformedForm {
+                    .map_err(|e| EvalBreak::from(RuntimeError { span: locator_ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::verify::file-path".into(),
-                        reason: format!("read {:?}: {:?}", s, e),
-                        span: locator_ast.span().clone(),
-                    }))
+                        reason: format!("read {:?}: {:?}", s, e)
+                    } }))
             }
-            other => Err(RuntimeError::TypeMismatch {
+            other => Err(RuntimeError { span: locator_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::verify::file-path".into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
-                span: locator_ast.span().clone(),
-            }.into()),
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
         },
         ":wat::verify::http-path" | ":wat::verify::s3-path" => {
-            Err(RuntimeError::MalformedForm {
+            Err(RuntimeError { span: iface_ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: iface.to_string(),
                 reason: format!(
                     "verify payload interface {} is reserved but not implemented in this build",
                     iface
-                ),
-                span: iface_ast.span().clone(),
-            }.into())
+                )
+            } }.into())
         }
-        other => Err(RuntimeError::MalformedForm {
+        other => Err(RuntimeError { span: iface_ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: iface.to_string(),
             reason: format!(
                 "unknown verify payload interface {}; expected :wat::verify::string or :wat::verify::file-path",
                 other
-            ),
-            span: iface_ast.span().clone(),
-        }.into()),
+            )
+        } }.into()),
     }
 }
 
@@ -26890,54 +26199,49 @@ fn parse_verify_algo_keyword(
     let kw = match ast {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: form.into(),
                 reason: format!(
                     "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
                     other.variant_name()
-                ),
-                span: ast.span().clone(),
-            }.into());
+                )
+            } }.into());
         }
     };
     let stripped = kw.strip_prefix(":wat::verify::").ok_or_else(|| {
-        RuntimeError::MalformedForm {
+        RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: form.into(),
             reason: format!(
                 "verification algorithm keyword must start with :wat::verify::; got {}",
                 kw
-            ),
-            span: ast.span().clone(),
-        }
+            )
+        } }
     })?;
     let algo = stripped.strip_prefix(expected_kind).ok_or_else(|| {
-        RuntimeError::MalformedForm {
+        RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: form.into(),
             reason: format!(
                 "this form expects a :wat::verify::{}<algo> keyword; got {}",
                 expected_kind, kw
-            ),
-            span: ast.span().clone(),
-        }
+            )
+        } }
     })?;
     if algo.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: form.into(),
-            reason: format!("no algorithm named after {}", expected_kind),
-            span: ast.span().clone(),
-        }.into());
+            reason: format!("no algorithm named after {}", expected_kind)
+        } }.into());
     }
     Ok(algo.to_string())
 }
 
 /// Parse a source string into one or more top-level forms.
 fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, EvalBreak> {
-    crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| EvalBreak::from(RuntimeError::MalformedForm {
+    crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| EvalBreak::from(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: form.into(),
         reason: format!("parse error: {}", e),
-        // arc 138: no span — parsing a raw string; no WatAST call-site in scope
-        span: Span::unknown(),
-    }))
+        // arc 138: no — parsing a raw string; no WatAST call-site in scope
+    } }))
 }
 
 /// Parse a source string and evaluate all forms in sequence under the
@@ -26981,10 +26285,9 @@ fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), EvalBreak> {
     if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_head(head) {
-                return Err(RuntimeError::EvalForbidsMutationForm {
-                    head: head.clone(),
-                    span: list_span.clone(),
-                }.into());
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalForbidsMutationForm {
+                    head: head.clone()
+                } }.into());
             }
         }
         for child in items {
@@ -27308,13 +26611,13 @@ mod tests {
         // Users commit to the numeric tier at the call site; users who
         // want float math reach for the :wat::core::f64 namespace ops.
         let err = eval_expr("(:wat::core::i64::*'2 3 2.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn f64_mul_refuses_i64_arg() {
         let err = eval_expr("(:wat::core::f64::*'2 3.0 2)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -27329,7 +26632,7 @@ mod tests {
     fn divide_by_zero_errors() {
         assert!(matches!(
             eval_expr("(:wat::core::i64::/'2 5 0)"),
-            Err(EvalBreak::Diagnostic(RuntimeError::DivisionByZero(_)))
+            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::DivisionByZero }))
         ));
     }
 
@@ -27472,7 +26775,7 @@ mod tests {
     fn f64_round_rejects_negative_digits() {
         let err = eval_expr("(:wat::core::f64::round 15.0 -1)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError::MalformedForm { head, reason, .. }) => {
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
                 assert_eq!(head, ":wat::core::f64::round");
                 assert!(reason.contains("non-negative"), "got: {}", reason);
             }
@@ -27483,7 +26786,7 @@ mod tests {
     #[test]
     fn f64_round_arity_mismatch() {
         let err = eval_expr("(:wat::core::f64::round 1.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── f64::max / min / abs / clamp + math::exp (arc 046) ───────────────
@@ -27530,7 +26833,7 @@ mod tests {
     #[test]
     fn f64_abs_rejects_i64() {
         let err = eval_expr("(:wat::core::f64::abs 5)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -27569,7 +26872,7 @@ mod tests {
     fn f64_clamp_rejects_lo_greater_than_hi() {
         let err = eval_expr("(:wat::core::f64::clamp 0.0 1.0 -1.0)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError::MalformedForm { head, reason, .. }) => {
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
                 assert_eq!(head, ":wat::core::f64::clamp");
                 assert!(reason.contains("lo must be"), "got: {}", reason);
             }
@@ -27580,7 +26883,7 @@ mod tests {
     #[test]
     fn f64_clamp_arity_mismatch() {
         let err = eval_expr("(:wat::core::f64::clamp 1.0 0.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
@@ -27674,9 +26977,9 @@ mod tests {
         // handlers also reject wrong-type inputs defensively. Call
         // through the raw dispatch to bypass check.
         let err = eval_expr("(:wat::core::i64::to-string 2.5)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
         let err = eval_expr(r#"(:wat::core::f64::to-string "abc")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── Comparison ─────────────────────────────────────────────────────
@@ -27753,7 +27056,7 @@ mod tests {
     fn if_non_bool_rejected() {
         assert!(matches!(
             eval_expr("(:wat::core::if 42 -> :i64 1 2)"),
-            Err(EvalBreak::Diagnostic(RuntimeError::BadCondition { .. }))
+            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::BadCondition { .. }, .. }))
         ));
     }
 
@@ -27817,7 +27120,7 @@ mod tests {
             r#"(:wat::core::defn :wat::holon::Bogus [x <- :wat::core::i64] -> :wat::core::i64 x)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ReservedPrefix(_, _))));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::ReservedPrefix(_) })));
     }
 
     #[test]
@@ -27844,7 +27147,7 @@ mod tests {
     fn undefined_function_errors() {
         assert!(matches!(
             eval_expr("(:my::app::missing 1)"),
-            Err(EvalBreak::Diagnostic(RuntimeError::UnknownFunction(_, _)))
+            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(_) }))
         ));
     }
 
@@ -27976,7 +27279,7 @@ mod tests {
             r#"(:wat::holon::Bundle (:wat::holon::to-holon "a"))"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── Program-level integration ──────────────────────────────────────
@@ -28152,7 +27455,7 @@ mod tests {
         let err = eval_expr("(:wat::core::quote 1 2)").unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError::ArityMismatch { op, expected: 1, got: 2, .. })
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { op, expected: 1, got: 2, .. }, .. })
                 if op == ":wat::core::quote"
         ));
     }
@@ -28253,7 +27556,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError::TypeMismatch { op, .. }) if op == ":wat::holon::from-holon"
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, .. }, .. }) if op == ":wat::holon::from-holon"
         ));
     }
 
@@ -28436,13 +27739,13 @@ mod tests {
         // Arc 225 Stone 225.1 — to-holon lifts string primitive.
         let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::to-holon "a"))"#).unwrap();
         let err = eval_inner(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
     fn dot_refuses_non_holon() {
         let err = eval_with_ctx(r#"(:wat::holon::dot 1 2)"#, 1024).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -28819,7 +28122,7 @@ mod tests {
             1024,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
@@ -29248,7 +28551,7 @@ mod tests {
         let err = eval_inner(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(RuntimeError::NoEncodingCtx { op, .. }) if op == ":wat::holon::cosine"
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::NoEncodingCtx { op, .. }, .. }) if op == ":wat::holon::cosine"
         ));
     }
 
@@ -29340,7 +28643,7 @@ mod tests {
         // Arity fires BEFORE the EvalError wrap — structural /
         // caller-syntactic error, not a runtime evaluation failure.
         let err = eval_expr(r#"(:wat::eval-edn! "foo" "bar")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -29622,11 +28925,11 @@ mod tests {
             reset_user_signals();
             assert!(matches!(
                 eval_expr("(:wat::kernel::sigusr1? 1)"),
-                Err(EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. }))
+                Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
             ));
             assert!(matches!(
                 eval_expr("(:wat::kernel::reset-sigusr1! true)"),
-                Err(EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. }))
+                Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. }))
             ));
         });
     }
@@ -29665,14 +28968,14 @@ mod tests {
     #[test]
     fn first_refuses_non_tuple() {
         let err = eval_with_binding("(:wat::core::first v)", "v", Value::i64(42)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn first_index_out_of_range_on_empty_tuple() {
         let t = Value::Tuple(Arc::new(vec![]));
         let err = eval_with_binding("(:wat::core::first t)", "t", t).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -29694,7 +28997,7 @@ mod tests {
         "#;
         let p = pair(Value::i64(1), Value::i64(2));
         let err = eval_with_binding(src, "p", p).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -29703,7 +29006,7 @@ mod tests {
             (:wat::core::let [[a b] v] a)
         "#;
         let err = eval_with_binding(src, "v", Value::i64(42)).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── make-bounded-channel / make-unbounded-channel ─────────────────
@@ -29759,19 +29062,19 @@ mod tests {
     #[test]
     fn make_bounded_queue_refuses_non_keyword_type_arg() {
         let err = eval_expr("(:wat::kernel::make-bounded-channel 42 1)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
     fn make_bounded_queue_refuses_negative_capacity() {
         let err = eval_expr("(:wat::kernel::make-bounded-channel :i64 -1)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
     fn make_bounded_queue_wrong_arity() {
         let err = eval_expr("(:wat::kernel::make-bounded-channel :i64)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── Vector primitives (Round 4a) ───────────────────────────────
@@ -30085,7 +29388,7 @@ mod tests {
     #[test]
     fn rest_of_empty_errors() {
         let err = eval_expr("(:wat::core::rest (:wat::core::Vector :i64))").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -30128,7 +29431,7 @@ mod tests {
     #[test]
     fn hashmap_constructor_odd_arity_errors() {
         let err = eval_expr(r#"(:wat::core::HashMap :String :i64 "a" 1 "b")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -30214,7 +29517,7 @@ mod tests {
         // MalformedForm (no-arm-match from define-dispatch, arc 146 slice 3).
         let err = eval_expr(r#"(:wat::core::get 42 "k")"#).unwrap_err();
         assert!(
-            matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })),
+            matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })),
             "expected TypeMismatch (eval_get else-arm); got {:?}",
             err
         );
@@ -30282,7 +29585,7 @@ mod tests {
     #[test]
     fn assoc_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::assoc 42 "k" 1)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30291,7 +29594,7 @@ mod tests {
             r#"(:wat::core::assoc (:wat::core::HashMap :String :i64) "k")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── Vec concat (arc 059, arc 146 slice 4) ───────────────────────────
@@ -30392,14 +29695,14 @@ mod tests {
             r#"(:wat::core::concat (:wat::core::Vector :i64 1) 42)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn concat_zero_arg_rejected() {
         // Post-slice-4 the alias has arity 2; zero-arg → ArityMismatch.
         let err = eval_expr(r#"(:wat::core::concat)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── HashMap completion (arc 058) — dissoc / keys / values ───────────
@@ -30462,7 +29765,7 @@ mod tests {
     #[test]
     fn dissoc_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::dissoc 42 "k")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30471,7 +29774,7 @@ mod tests {
             r#"(:wat::core::dissoc (:wat::core::HashMap :String :i64))"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30524,7 +29827,7 @@ mod tests {
     #[test]
     fn keys_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::keys 42)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30533,7 +29836,7 @@ mod tests {
             r#"(:wat::core::keys (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30582,7 +29885,7 @@ mod tests {
     #[test]
     fn values_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::core::values 42)"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -30591,7 +29894,7 @@ mod tests {
             r#"(:wat::core::values (:wat::core::HashMap :String :i64) "extra")"#,
         )
         .unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── empty? polymorphism extension (arc 058) ─────────────────────────
@@ -30711,7 +30014,7 @@ mod tests {
             (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
         assert!(
-            matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { ref op, .. })
+            matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { ref op, .. }, .. })
                      if op == ":wat::core::assoc"),
             "expected :wat::core::assoc TypeMismatch on Vec; got {:?}",
             err
@@ -30826,7 +30129,7 @@ mod tests {
             .expect("Thread::Builder::spawn failed");
         let child_result = handle.join().unwrap();
         assert!(
-            matches!(child_result, Err(RuntimeError::MalformedForm { .. })),
+            matches!(child_result, Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })),
             "expected cross-thread access to error, got {:?}",
             child_result
         );
@@ -30899,7 +30202,7 @@ mod tests {
               (:wat::core::fn [x <- :i64] -> :i64 x))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -31076,13 +30379,13 @@ mod tests {
     #[test]
     fn drop_refuses_non_handle() {
         let err = eval_expr("(:wat::kernel::drop 42)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn try_recv_wrong_arity() {
         let err = eval_expr("(:wat::kernel::try-recv)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── spawn + join + join-result deleted in arc 114 ─────────────────
@@ -31231,13 +30534,13 @@ mod tests {
     #[test]
     fn vector_bytes_arity_mismatch() {
         let err = eval_expr("(:wat::holon::vector-bytes)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
     fn bytes_vector_arity_mismatch() {
         let err = eval_expr("(:wat::holon::bytes-vector)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
@@ -31368,13 +30671,13 @@ mod tests {
     #[test]
     fn bytes_to_hex_arity_mismatch() {
         let err = eval_expr("(:wat::core::Bytes::to-hex)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
     fn bytes_from_hex_arity_mismatch() {
         let err = eval_expr("(:wat::core::Bytes::from-hex)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── show — polymorphic rendering (arc 064) ─────────────────────────
@@ -31496,7 +30799,7 @@ mod tests {
     #[test]
     fn show_arity_mismatch() {
         let err = eval_expr("(:wat::core::show)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── leaf / from-wat (arc 065; renamed from-watast → from-wat at arc 225) ──────────────────────────────────
@@ -31536,7 +30839,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError::TypeMismatch { op, expected, .. }) => {
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
                 assert_eq!(op, ":wat::holon::leaf");
                 assert!(
                     expected.contains(":wat::holon::Atom"),
@@ -31615,7 +30918,7 @@ mod tests {
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let err = eval_expr("(:wat::holon::from-wat 42)").unwrap_err();
         match err {
-            EvalBreak::Diagnostic(RuntimeError::TypeMismatch { op, expected, .. }) => {
+            EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
                 assert_eq!(op, ":wat::holon::from-wat");
                 assert!(
                     expected.contains(":wat::holon::leaf"),
@@ -31668,14 +30971,14 @@ mod tests {
     #[test]
     fn leaf_arity_mismatch() {
         let err = eval_expr("(:wat::holon::leaf)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
     fn from_watast_arity_mismatch() {
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let err = eval_expr("(:wat::holon::from-wat)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── eval-ast! returns bare Value (arc 102 — reverts arc 066's wrap) ──
@@ -32093,7 +31396,7 @@ mod tests {
         let err = eval_expr("(:wat::eval-step!)").unwrap_err();
         // arity is checked BEFORE the wrap_as_eval_result block, so
         // it surfaces as an EvalBreak::Diagnostic.
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -32657,7 +31960,7 @@ mod tests {
             (:wat::kernel::select (:wat::core::Vector :rust::crossbeam_channel::Receiver<i64>))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -32666,7 +31969,7 @@ mod tests {
             (:wat::kernel::select (:wat::core::Vector :i64 1 2 3))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // ─── HandlePool ────────────────────────────────────────────────────
@@ -32699,7 +32002,7 @@ mod tests {
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -32712,7 +32015,7 @@ mod tests {
               0)
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::MalformedForm { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
     }
 
     #[test]
@@ -32796,13 +32099,13 @@ mod tests {
     #[test]
     fn math_ln_wrong_arity() {
         let err = eval_expr("(:wat::std::math::ln 1.0 2.0)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::ArityMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     #[test]
     fn math_ln_refuses_non_number() {
         let err = eval_expr(r#"(:wat::std::math::ln "nope")"#).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
@@ -32811,7 +32114,7 @@ mod tests {
             (:wat::kernel::HandlePool::new 42 (:wat::core::Vector :i64))
         "#;
         let err = eval_expr(src).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError::TypeMismatch { .. })));
+        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     // queue roundtrip across threads — covered by tests/wat_spawn_fn.rs
@@ -32857,7 +32160,7 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError::SandboxScopeLeak { offending_name, .. })) => {
+            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::SandboxScopeLeak { offending_name, .. }, .. })) => {
                 assert_eq!(offending_name, ":my::helper");
             }
             Err(other) => panic!(
@@ -32887,10 +32190,10 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError::UnknownFunction(name, _))) => {
+            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(name) })) => {
                 assert_eq!(name, ":totally::made::up::name");
             }
-            Err(EvalBreak::Diagnostic(RuntimeError::SandboxScopeLeak { .. })) => panic!(
+            Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::SandboxScopeLeak { .. }, .. })) => panic!(
                 "SandboxScopeLeak misfired on a genuinely-unknown name"
             ),
             other => panic!("expected UnknownFunction; got {:?}", other),
@@ -32912,7 +32215,7 @@ mod tests {
         let result = eval_inner(&call, &env, &inner_sym);
 
         match result {
-            Err(EvalBreak::Diagnostic(RuntimeError::UnknownFunction(name, _))) => {
+            Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::UnknownFunction(name) })) => {
                 assert_eq!(name, ":my::helper");
             }
             other => panic!("expected UnknownFunction; got {:?}", other),

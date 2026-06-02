@@ -35,7 +35,7 @@ use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::io::{WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::runtime::{eval, Environment, RuntimeError, StructValue, Value};
+use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, Value};
 use wat::span::Span;
 use wat::typed_channel::{
     make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
@@ -720,7 +720,7 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
     let select_ast = wat::parse_one!("(:wat::kernel::select rxs)").expect("parse");
     let outcome = eval(&select_ast, &env, world.symbols());
     match outcome {
-        Err(RuntimeError::MalformedForm { reason, .. }) => {
+        Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
             assert!(
                 reason.contains("PipeFd") || reason.to_lowercase().contains("pipefd"),
                 "expected PipeFd-rejection diagnostic, got: {}",

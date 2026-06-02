@@ -143,13 +143,12 @@ fn emit_dispatch_fn(
     // Arity guard.
     let arity_guard = quote! {
         if args.len() != #arity {
-            return Err(::wat::runtime::RuntimeError::ArityMismatch {
+            return Err(::wat::runtime::RuntimeError { span: ::wat::span::Span::unknown(), kind: ::wat::runtime::RuntimeErrorKind::ArityMismatch {
                 op: #wat_path.into(),
                 expected: #arity,
                 got: args.len(),
-                // arc 138: no span — proc-macro emit at compile time; runtime span emerges from caller AST
-                span: ::wat::span::Span::unknown(),
-            });
+                // arc 138: no — proc-macro emit at compile time; runtime span emerges from caller AST
+            } });
         }
     };
 

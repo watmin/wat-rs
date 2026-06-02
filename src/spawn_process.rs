@@ -72,7 +72,7 @@ use crate::freeze::{
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
 use crate::runtime::{
-    eval, Environment, ProgramHandleInner, RuntimeError, StructValue, SymbolTable, Value,
+    eval, Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value,
 };
 
 use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
@@ -97,12 +97,11 @@ pub fn eval_kernel_spawn_process(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-process";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
 
     // Slice 6 — evaluate the program arg to Vec<WatAST>. Same shape as
@@ -116,24 +115,22 @@ pub fn eval_kernel_spawn_process(
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
-                        return Err(RuntimeError::TypeMismatch {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                            span: args[0].span().clone(),
-                        });
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                        } });
                     }
                 }
             }
             out
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<wat::WatAST>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -219,11 +216,10 @@ pub fn eval_kernel_spawn_process(
             lifeline_r,
         );
     })
-    .map_err(|err| RuntimeError::MalformedForm {
+    .map_err(|err| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("spawn_lifelined: {}", err),
-        span: crate::span::Span::unknown(),
-    })?;
+        reason: format!("spawn_lifelined: {}", err)
+    } })?;
 
     // ── PARENT BRANCH ────────────────────────────────────────────
     // Close child-side fds (parent still holds kernel copies via raw fds;

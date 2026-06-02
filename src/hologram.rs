@@ -51,7 +51,7 @@
 //! Value variant wraps this in `ThreadOwnedCell` for scope safety
 //! with zero Mutex.
 
-use crate::runtime::{apply_function, Function, RuntimeError, SymbolTable, Value};
+use crate::runtime::{apply_function, Function, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::vm_registry::EncoderRegistry;
 use holon::{encode, HolonAST, Similarity, Vector};
@@ -155,14 +155,13 @@ impl Hologram {
                 let pass_b = match pass {
                     Value::bool(b) => b,
                     other => {
-                        return Err(RuntimeError::MalformedForm {
+                        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::holon::Hologram/find".into(),
                             reason: format!(
                                 "filter returned non-bool: {}",
                                 other.type_name()
-                            ),
-                            span: span.clone(),
-                        })
+                            )
+                        } })
                     }
                 };
                 if !pass_b {

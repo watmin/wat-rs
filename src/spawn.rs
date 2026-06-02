@@ -35,7 +35,7 @@ use crate::freeze::{
 // inside `eval_kernel_spawn_program_ast`.
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::runtime::{
-    eval, extract_panic_payload, Environment, RuntimeError, SpawnOutcome, StructValue, SymbolTable,
+    eval, extract_panic_payload, Environment, RuntimeError, RuntimeErrorKind, SpawnOutcome, StructValue, SymbolTable,
     TrackedValue, Value,
 };
 use crate::sandbox::resolve_sandbox_loader;
@@ -269,12 +269,11 @@ fn spawn_with_world_into_result(
 
 fn arity_2(op: &str, args: &[WatAST], list_span: &crate::span::Span) -> Result<(), RuntimeError> {
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
+            got: args.len()
+        } });
     }
     Ok(())
 }
@@ -282,12 +281,11 @@ fn arity_2(op: &str, args: &[WatAST], list_span: &crate::span::Span) -> Result<(
 fn expect_string(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<String, RuntimeError> {
     match tv.value_owned() {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span,
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }
 
@@ -299,20 +297,18 @@ fn expect_option_string(
     match tv.value_owned() {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Ok(Some((**s).clone())),
-            Some(other) => Err(RuntimeError::TypeMismatch {
+            Some(other) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: span.clone(),
-            }),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } }),
             None => Ok(None),
         },
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span,
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }
 
@@ -325,22 +321,20 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
                         // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
-                        return Err(RuntimeError::TypeMismatch {
+                        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                            span: span.clone(),
-                        });
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                        } });
                     }
                 }
             }
             Ok(out)
         }
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span,
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }

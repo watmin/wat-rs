@@ -28,7 +28,7 @@ use crate::freeze::{
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, ScopedLoader, SourceLoader};
-use crate::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
 use crate::span::Span;
 
 use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
@@ -291,22 +291,20 @@ pub fn eval_kernel_wait_child(
     const OP: &str = ":wat::kernel::wait-child";
     if args.len() != 1 {
         // arc 138: no span — eval_kernel_wait_child has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
     let handle = match eval(&args[0], env, sym)?.value_owned() {
         Value::wat__kernel__ChildHandle(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::ChildHandle",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -323,11 +321,10 @@ pub fn eval_kernel_wait_child(
     if ret < 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — waitpid OS error; no WatAST context after args evaluation
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("waitpid({}): {}", handle.pid, err),
-            span: crate::span::Span::unknown(),
-        });
+            reason: format!("waitpid({}): {}", handle.pid, err)
+        } });
     }
 
     let code = extract_exit_code(status);
@@ -355,11 +352,10 @@ pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     if ret != 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — make_pipe OS error; no WatAST context available
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
-            reason: format!("pipe2(2): {}", err),
-            span: crate::span::Span::unknown(),
-        });
+            reason: format!("pipe2(2): {}", err)
+        } });
     }
     let r = unsafe { OwnedFd::from_raw_fd(fds[0]) };
     let w = unsafe { OwnedFd::from_raw_fd(fds[1]) };
@@ -572,12 +568,11 @@ pub fn eval_kernel_fork_program_ast(
     const OP: &str = ":wat::kernel::fork-program-ast";
     if args.len() != 1 {
         // arc 138: no span — eval_kernel_fork_program_ast has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
 
     // Evaluate the forms argument — same unwrap pattern as
@@ -590,24 +585,22 @@ pub fn eval_kernel_fork_program_ast(
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
                         // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                        return Err(RuntimeError::TypeMismatch {
+                        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                            span: crate::span::Span::unknown(),
-                        });
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                        } });
                     }
                 }
             }
             out
         }
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<wat::WatAST>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -676,11 +669,10 @@ pub fn eval_kernel_fork_program_ast(
             lifeline_r,
         );
     })
-    .map_err(|err| RuntimeError::MalformedForm {
+    .map_err(|err| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("spawn_lifelined: {}", err),
-        span: crate::span::Span::unknown(),
-    })?;
+        reason: format!("spawn_lifelined: {}", err)
+    } })?;
 
     // ── PARENT BRANCH ────────────────────────────────────────────
     // Close child-side fds (parent still holds kernel copies via raw fds;
@@ -1081,11 +1073,10 @@ pub fn fork_program_from_source(
             lifeline_r,
         );
     })
-    .map_err(|err| RuntimeError::MalformedForm {
+    .map_err(|err| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("spawn_lifelined: {}", err),
-        span: crate::span::Span::unknown(),
-    })?;
+        reason: format!("spawn_lifelined: {}", err)
+    } })?;
 
     // ── PARENT BRANCH ────────────────────────────────────────────
     // Close child-side fds (parent still holds kernel copies via raw fds;
@@ -1136,23 +1127,21 @@ pub fn eval_kernel_fork_program(
     const OP: &str = ":wat::kernel::fork-program";
     if args.len() != 2 {
         // arc 138: no span — eval_kernel_fork_program has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
 
     let src = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -1160,22 +1149,20 @@ pub fn eval_kernel_fork_program(
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Some((**s).clone()),
             Some(other) => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Option<String>",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    span: args[1].span().clone(),
-                });
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                } });
             }
             None => None,
         },
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Option<String>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -1188,11 +1175,10 @@ pub fn eval_kernel_fork_program(
     let loader: Arc<dyn SourceLoader> = match scope_opt.as_deref() {
         Some(path) => {
             // arc 138: no span — ScopedLoader error; scope_opt is plain String, no WatAST trace
-            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError::MalformedForm {
+            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("scope path {:?}: {}", path, e),
-                span: crate::span::Span::unknown(),
-            })?;
+                reason: format!("scope path {:?}: {}", path, e)
+            } })?;
             Arc::new(scoped)
         }
         None => Arc::new(InMemoryLoader::new()),

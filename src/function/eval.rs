@@ -14,7 +14,7 @@ use crate::ast::WatAST;
 use crate::function::metadata::peel_metadata_preamble;
 use crate::function::parse::parse_fn_signature;
 use crate::function::FN_HEAD;
-use crate::runtime::{Environment, Function, RuntimeError, Value, synthesize_fn_body};
+use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
 use crate::span::Span;
 use std::sync::Arc;
 
@@ -41,11 +41,10 @@ pub(crate) fn eval_fn(
     // Note: sister sequence in `src/function/infer.rs` (infer_fn).
     let sig_args = peel_metadata_preamble(args);
     if sig_args.len() < 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: FN_HEAD.into(),
-            reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len()),
-            span: list_span.clone(),
-        });
+            reason: format!("expected [name <- :T ...] -> :Ret body ...; got {} element(s)", sig_args.len())
+        } });
     }
     let body = synthesize_fn_body(&sig_args[3..]);
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix

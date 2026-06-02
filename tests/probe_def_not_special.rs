@@ -32,7 +32,7 @@ use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, ProgramHandleInner, RuntimeError, Value};
+use wat::runtime::{Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, Value};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -158,7 +158,7 @@ fn probe_def_at_expression_position_emits_position_error_at_runtime() {
     let env = Environment::new();
     let result = eval_in_frozen(&call, &world, &env);
     match result {
-        Err(RuntimeError::DeclarationInExpressionPosition(ref head, _)) => {
+        Err(RuntimeError { span: _, kind: RuntimeErrorKind::DeclarationInExpressionPosition(ref head) }) => {
             assert_eq!(
                 head, ":wat::core::def",
                 "expected head ':wat::core::def'; got: {}",

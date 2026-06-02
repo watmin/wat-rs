@@ -31,7 +31,7 @@
 //! is public for that reason.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, SymbolTable, TrackedValue, Value};
+use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
 use crate::span::Span;
 
 /// Structured payload panic'd by [`eval_kernel_assertion_failed`] and
@@ -106,23 +106,21 @@ pub fn eval_kernel_assertion_failed(
 
     if args.len() != 3 {
         // arc 138: no span — eval_kernel_assertion_failed has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
-            got: args.len(),
-            span: crate::span::Span::unknown(),
-        });
+            got: args.len()
+        } });
     }
 
     let message = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
 
@@ -165,19 +163,17 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
             None => Ok(None),
             Some(Value::String(s)) => Ok(Some((**s).clone())),
             // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
-            Some(other) => Err(RuntimeError::TypeMismatch {
+            Some(other) => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: crate::span::Span::unknown(),
-            }),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } }),
         },
         // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span: crate::span::Span::unknown(),
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }

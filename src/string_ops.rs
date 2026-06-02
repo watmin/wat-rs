@@ -22,7 +22,7 @@
 //! (`:wat::core::uuid::v4` + `v5`) were retired in arc 207 slice 3.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use std::sync::Arc;
 
@@ -101,11 +101,10 @@ pub fn eval_string_split(
     const OP: &str = ":wat::core::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym)?;
     if sep.is_empty() {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: "separator must not be empty".into(),
-            span: args[1].span().clone(),
-        });
+            reason: "separator must not be empty".into()
+        } });
     }
     let pieces: Vec<Value> = hay
         .split(sep.as_str())
@@ -130,33 +129,30 @@ pub fn eval_string_join(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(crate::span::Span::unknown);
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
-            got: args.len(),
-            span,
-        });
+            got: args.len()
+        } });
     }
     let sep = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     let pieces = match eval(&args[1], env, sym)?.value_owned() {
         Value::Vec(items) => items,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     let mut pieces_owned: Vec<String> = Vec::with_capacity(pieces.len());
@@ -165,12 +161,11 @@ pub fn eval_string_join(
             Value::String(s) => pieces_owned.push((**s).clone()),
             other => {
                 // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    span: crate::span::Span::unknown(),
-                });
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                } });
             }
         }
     }
@@ -198,12 +193,11 @@ pub fn eval_string_concat(
     const OP: &str = ":wat::core::string::concat";
     if args.is_empty() {
         // arc 138: no span — args is empty, no WatAST span available; cross-file broadening out of scope
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: 0,
-            span: crate::span::Span::unknown(),
-        });
+            got: 0
+        } });
     }
     let mut total = 0usize;
     let mut pieces: Vec<Arc<String>> = Vec::with_capacity(args.len());
@@ -214,12 +208,11 @@ pub fn eval_string_concat(
                 pieces.push(s);
             }
             other => {
-                return Err(RuntimeError::TypeMismatch {
+                return Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                    span: arg.span().clone(),
-                });
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+                } });
             }
         }
     }
@@ -270,12 +263,11 @@ pub fn eval_uuid_typed_v4(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/v4";
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 0,
-            got: args.len(),
-            span: args[0].span().clone(),
-        });
+            got: args.len()
+        } });
     }
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
 }
@@ -293,39 +285,36 @@ pub fn eval_uuid_typed_v5(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/v5";
     if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-            span: if args.is_empty() {
+        return Err(RuntimeError { span: if args.is_empty() {
                 crate::span::Span::unknown()
             } else {
                 args[0].span().clone()
-            },
-        });
+            }, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        } });
     }
     let ns_val = eval(&args[0], env, sym)?.value_owned();
     let name_val = eval(&args[1], env, sym)?.value_owned();
     let ns_uuid = match &ns_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid".into(),
-                got: Box::new(crate::runtime::ValueSnapshot::of(&ns_val)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&ns_val))
+            } });
         }
     };
     let name_str = match &name_val {
         Value::String(s) => s.as_str().to_string(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String".into(),
-                got: Box::new(crate::runtime::ValueSnapshot::of(&name_val)),
-                span: args[1].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&name_val))
+            } });
         }
     };
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v5(ns_uuid, &name_str)))
@@ -344,27 +333,25 @@ pub fn eval_uuid_typed_from_string(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/from-string";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-            span: if args.is_empty() {
+        return Err(RuntimeError { span: if args.is_empty() {
                 crate::span::Span::unknown()
             } else {
                 args[0].span().clone()
-            },
-        });
+            }, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } });
     }
     let s_val = eval(&args[0], env, sym)?.value_owned();
     let s = match &s_val {
         Value::String(s) => s.as_str().to_string(),
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String".into(),
-                got: Box::new(crate::runtime::ValueSnapshot::of(&s_val)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&s_val))
+            } });
         }
     };
     let result = if is_canonical_uuid_string(&s) {
@@ -386,27 +373,25 @@ pub fn eval_uuid_typed_to_string(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/to-string";
     if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-            span: if args.is_empty() {
+        return Err(RuntimeError { span: if args.is_empty() {
                 crate::span::Span::unknown()
             } else {
                 args[0].span().clone()
-            },
-        });
+            }, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } });
     }
     let u_val = eval(&args[0], env, sym)?.value_owned();
     let u = match &u_val {
         Value::wat__core__Uuid(u) => *u,
         _ => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::Uuid".into(),
-                got: Box::new(crate::runtime::ValueSnapshot::of(&u_val)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
+            } });
         }
     };
     Ok(Value::String(Arc::new(u.to_string())))
@@ -423,12 +408,11 @@ pub fn eval_uuid_typed_nil(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Uuid/nil";
     if !args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 0,
-            got: args.len(),
-            span: args[0].span().clone(),
-        });
+            got: args.len()
+        } });
     }
     Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
 }
@@ -465,57 +449,52 @@ pub fn eval_char_of(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(crate::span::Span::unknown);
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
-            got: args.len(),
-            span,
-        });
+            got: args.len()
+        } });
     }
     let val = eval(&args[0], env, sym)?.value_owned();
     let s = match val {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     let mut chars = s.chars();
     let c = match chars.next() {
         None => {
-            return Err(RuntimeError::MalformedForm {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: "expected a length-1 String; got empty string".into(),
-                span: args[0].span().clone(),
-            });
+                reason: "expected a length-1 String; got empty string".into()
+            } });
         }
         Some(c) => c,
     };
     if chars.next().is_some() {
         let len = s.chars().count();
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "expected a length-1 String; got length-{} string {:?}",
                 len, s
-            ),
-            span: args[0].span().clone(),
-        });
+            )
+        } });
     }
     if (c as u32) > 0xFFFF {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "supplementary-plane codepoint U+{:X} not supported; \
                  wat::core::char is BMP-only (U+0000–U+FFFF)",
                 c as u32
-            ),
-            span: args[0].span().clone(),
-        });
+            )
+        } });
     }
     Ok(Value::wat__core__Char(c))
 }
@@ -555,11 +534,10 @@ pub fn eval_regex_matches(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
     let (pattern, haystack) = two_strings(OP, args, env, sym)?;
-    let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError::MalformedForm {
+    let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
-        reason: format!("invalid regex: {}", e),
-        span: args[0].span().clone(),
-    })?;
+        reason: format!("invalid regex: {}", e)
+    } })?;
     Ok(Value::bool(re.is_match(haystack.as_str())))
 }
 
@@ -576,21 +554,19 @@ fn one_string(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(crate::span::Span::unknown);
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
-            got: args.len(),
-            span,
-        });
+            got: args.len()
+        } });
     }
     match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(RuntimeError::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-            span: args[0].span().clone(),
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
     }
 }
 
@@ -605,33 +581,30 @@ fn two_strings(
             .first()
             .map(|a| a.span().clone())
             .unwrap_or_else(crate::span::Span::unknown);
-        return Err(RuntimeError::ArityMismatch {
+        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
-            got: args.len(),
-            span,
-        });
+            got: args.len()
+        } });
     }
     let a = match eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[0].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     let b = match eval(&args[1], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: args[1].span().clone(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     Ok((a, b))

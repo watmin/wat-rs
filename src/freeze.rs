@@ -61,7 +61,7 @@ use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EvalBreak, EncodingCtx, Environment,
-    RuntimeError, SymbolTable, TrackedValue, Value,
+    RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
 };
 use crate::span::Span;
 use crate::thread_io::ThreadId;
@@ -969,7 +969,7 @@ fn invoke_user_main_orchestrated(
             runtime.symbols(),
             crate::rust_caller_span!(),
         ),
-        None => Err(RuntimeError::UserMainMissing),
+        None => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UserMainMissing }),
     };
 
     // Steps 6–8: cleanup runs in ProcessRuntime::drop when `runtime`
@@ -993,7 +993,7 @@ fn spawn_service(
 ) -> Result<(Value, crossbeam_channel::Sender<Value>), RuntimeError> {
     let spawn_fn = sym
         .get(spawn_fn_path)
-        .ok_or_else(|| RuntimeError::UnknownFunction(spawn_fn_path.into(), Span::unknown()))?
+        .ok_or_else(|| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UnknownFunction(spawn_fn_path.into()) })?
         .clone();
     let spawn_result = apply_function(
         spawn_fn,
@@ -1013,23 +1013,21 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
     let thread_struct = match thread_value {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::Thread",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     if thread_struct.fields.len() != 3 {
-        return Err(RuntimeError::MalformedForm {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: label.to_string(),
             reason: format!(
                 "service Thread carries {} fields; expected 3",
                 thread_struct.fields.len()
-            ),
-            span: Span::unknown(),
-        });
+            )
+        } });
     }
     // Field 2 is the ProgramHandle; we recv the SpawnOutcome
     // directly. Field 1 (the Receiver<O>) is unused by the
@@ -1044,12 +1042,11 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
     let handle_inner = match handle_value {
         Value::wat__kernel__ProgramHandle(h) => h,
         other => {
-            return Err(RuntimeError::TypeMismatch {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
                 expected: "wat::kernel::ProgramHandle (service Thread.join slot)",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                span: Span::unknown(),
-            });
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
         }
     };
     match handle_inner.as_ref() {
@@ -1057,27 +1054,24 @@ fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeE
             Ok(crate::runtime::SpawnOutcome::Ok(_)) => Ok(()),
             Ok(crate::runtime::SpawnOutcome::RuntimeErr(e)) => Err(e),
             Ok(crate::runtime::SpawnOutcome::Panic { message, .. }) => {
-                Err(RuntimeError::MalformedForm {
+                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
                     head: label.to_string(),
-                    reason: format!("service thread panicked: {}", message),
-                    span: Span::unknown(),
-                })
+                    reason: format!("service thread panicked: {}", message)
+                } })
             }
             Err(_) => {
                 // Channel disconnected without a SpawnOutcome —
                 // substrate-level corruption; surface honestly.
-                Err(RuntimeError::ChannelDisconnected {
-                    op: label.to_string(),
-                    span: Span::unknown(),
-                })
+                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                    op: label.to_string()
+                } })
             }
         },
-        crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError::TypeMismatch {
+        crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: label.to_string(),
             expected: "InThread variant for service Thread",
-            got: Box::new(crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug")),
-            span: Span::unknown(),
-        }),
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug"))
+        } }),
     }
 }
 
@@ -1266,7 +1260,7 @@ pub fn eval_digest_in_frozen(
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
-        RuntimeError::EvalVerificationFailed { err }
+        RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } }
     })?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1296,7 +1290,7 @@ pub fn eval_signed_in_frozen(
     pubkey_b64: &str,
 ) -> Result<TrackedValue, RuntimeError> {
     crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
-        |err| RuntimeError::EvalVerificationFailed { err },
+        |err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } },
     )?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1314,10 +1308,9 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
-                return Err(RuntimeError::EvalForbidsMutationForm {
-                    head: head.clone(),
-                    span: list_span.clone(),
-                });
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EvalForbidsMutationForm {
+                    head: head.clone()
+                } });
             }
         }
     }
@@ -1602,7 +1595,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let err = invoke_user_main(&world, Vec::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::UserMainMissing));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::UserMainMissing, .. }));
     }
 
     // LocalCache stdlib-composition test retired in arc 013 slice 4b
@@ -1675,7 +1668,7 @@ mod tests {
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
         match err {
-            RuntimeError::EvalForbidsMutationForm { head, .. } => {
+            RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { head, .. }, .. } => {
                 assert_eq!(head, ":wat::core::defstruct");
             }
             other => panic!("expected EvalForbidsMutationForm, got {:?}", other),
@@ -1694,7 +1687,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1710,7 +1703,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1724,7 +1717,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::defenum :evil::E :A :B)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1737,7 +1730,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1750,7 +1743,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1765,7 +1758,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1780,7 +1773,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1795,7 +1788,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1808,7 +1801,7 @@ mod tests {
         let ast =
             crate::parse_one!(r#"(:wat::config::set-dims! 8192)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     #[test]
@@ -1830,7 +1823,7 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 
     // ─── Digest-verified eval ───────────────────────────────────────────
@@ -1873,7 +1866,7 @@ mod tests {
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong)
                 .unwrap_err();
         match err {
-            RuntimeError::EvalVerificationFailed { err } => {
+            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
                 assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
             }
             other => panic!("expected EvalVerificationFailed, got {:?}", other),
@@ -1892,7 +1885,7 @@ mod tests {
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123")
                 .unwrap_err();
         match err {
-            RuntimeError::EvalVerificationFailed { err } => {
+            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
                 assert!(matches!(err, crate::hash::HashError::UnsupportedAlgorithm { .. }));
             }
             other => panic!("expected EvalVerificationFailed, got {:?}", other),
@@ -1956,7 +1949,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            RuntimeError::EvalVerificationFailed { err } => {
+            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
                 assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
             }
             other => panic!("expected SignatureMismatch, got {:?}", other),
@@ -1981,7 +1974,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            RuntimeError::EvalVerificationFailed { err } => {
+            RuntimeError { kind: RuntimeErrorKind::EvalVerificationFailed { err }, .. } => {
                 assert!(matches!(
                     err,
                     crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
@@ -2012,6 +2005,6 @@ mod tests {
         let err =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
                 .unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
     }
 }

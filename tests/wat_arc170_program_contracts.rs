@@ -29,7 +29,7 @@ use wat::freeze::{
     expected_user_main_signature, invoke_user_main, startup_from_source, validate_user_main_signature,
 };
 use wat::load::InMemoryLoader;
-use wat::runtime::{eval, Environment, RuntimeError, Value};
+use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::types::TypeExpr;
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -526,7 +526,7 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
                 wat::span::Span::unknown(),
             );
             match result {
-                Err(RuntimeError::MalformedForm { reason, .. }) => {
+                Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
                     assert!(
                         reason.contains("non-portable")
                             || reason.contains("NonPortableCapture")

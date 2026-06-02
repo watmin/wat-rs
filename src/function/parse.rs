@@ -34,7 +34,7 @@
 use crate::argspec::{parse_argspec_triples, ArgSpec, ArgSpecErrorKind, ParseOptions};
 use crate::ast::WatAST;
 use crate::function::FN_HEAD;
-use crate::runtime::RuntimeError;
+use crate::runtime::{RuntimeError, RuntimeErrorKind};
 use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeErrorKind, TypeExpr};
 
@@ -186,11 +186,10 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
-    parse_fn_signature_prefix(args).map_err(|step| RuntimeError::MalformedForm {
+    parse_fn_signature_prefix(args).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
-        reason: step.kind.reason(),
-        span: step.span,
-    })
+        reason: step.kind.reason()
+    } })
 }
 
 /// Arc 167 — mirror of `parse_fn_signature` for the check pass.

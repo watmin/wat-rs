@@ -29,7 +29,8 @@
 //! `EvalBreak::Diagnostic` (not `Error`) avoids "error of error" and makes the
 //! Diagnostic/Signal pair read as user-directed vs evaluator-directed.
 
-use wat::runtime::{EvalBreak, EvalSignal, RuntimeError};
+use wat::runtime::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
+use wat::span::Span;
 
 /// Contract 1: `EvalSignal` holds exactly the three eval-loop control signals.
 /// Referenced via an exhaustive match so the compiler verifies all three
@@ -52,7 +53,7 @@ fn signal_enum_holds_the_trio() {
 /// (user-directed `Diagnostic`, evaluator-directed `Signal`).
 #[test]
 fn evalbreak_wraps_diagnostic_and_signal() {
-    let diag: EvalBreak = EvalBreak::Diagnostic(RuntimeError::UserMainMissing);
+    let diag: EvalBreak = EvalBreak::Diagnostic(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UserMainMissing });
     let signal: EvalBreak = EvalBreak::Signal(EvalSignal::OptionPropagate);
 
     assert!(matches!(diag, EvalBreak::Diagnostic(_)));
@@ -64,7 +65,7 @@ fn evalbreak_wraps_diagnostic_and_signal() {
 /// `Result<_, RuntimeError>` (they never change signature; `?` converts).
 #[test]
 fn from_runtimeerror_lifts_to_evalbreak() {
-    let re = RuntimeError::UserMainMissing;
+    let re = RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UserMainMissing };
     let lifted: EvalBreak = re.into();
     assert!(
         matches!(lifted, EvalBreak::Diagnostic(_)),
@@ -86,6 +87,6 @@ fn runtimeerror_is_diagnostic_only() {
     // A representative diagnostic still constructs on RuntimeError — proving the
     // diagnostic variants are untouched by the channel split (shape retrofit is
     // 243.7c). The signals are gone (Contract 1 owns them on EvalSignal).
-    let diag = RuntimeError::UserMainMissing;
-    assert!(matches!(diag, RuntimeError::UserMainMissing));
+    let diag = RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UserMainMissing };
+    assert!(matches!(diag, RuntimeError { kind: RuntimeErrorKind::UserMainMissing, .. }));
 }
