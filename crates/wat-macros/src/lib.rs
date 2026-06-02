@@ -497,11 +497,11 @@ pub fn main(input: TokenStream) -> TokenStream {
                     dyn ::wat::load::SourceLoader,
                 > = ::std::sync::Arc::new(
                     ::wat::load::ScopedLoader::new(__wat_loader_root).map_err(|e| {
-                        ::wat::harness::HarnessError::Startup(
+                        ::wat::harness::HarnessError::Startup(::std::boxed::Box::new(
                             ::wat::freeze::StartupError::Load(
                                 ::wat::load::LoadError::from(e),
                             ),
-                        )
+                        ))
                     })?,
                 );
                 ::wat::compose_and_run_with_loader(

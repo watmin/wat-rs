@@ -66,7 +66,7 @@ pub struct Outcome {
 /// type.
 #[derive(Debug)]
 pub enum HarnessError {
-    Startup(StartupError),
+    Startup(Box<StartupError>),
     MainSignature(String),
     Runtime(Box<RuntimeError>),
     StdioSnapshot(String),
@@ -100,7 +100,7 @@ impl Harness {
         src: &str,
         loader: Arc<dyn SourceLoader>,
     ) -> Result<Self, HarnessError> {
-        let world = startup_from_source(src, None, loader).map_err(HarnessError::Startup)?;
+        let world = startup_from_source(src, None, loader).map_err(|e| HarnessError::Startup(Box::new(e)))?;
         validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
         Ok(Self { world })
     }
@@ -162,7 +162,7 @@ impl Harness {
         let _ = source::install_dep_sources(dep_sources.to_vec());
 
         let world =
-            startup_from_source(src, None, loader).map_err(HarnessError::Startup)?;
+            startup_from_source(src, None, loader).map_err(|e| HarnessError::Startup(Box::new(e)))?;
         validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
         Ok(Self { world })
     }

@@ -183,7 +183,7 @@ pub fn compose_and_run_with_loader(
     let _ = source::install_dep_sources(dep_sources.to_vec());
 
     let world = startup_from_source(source, None, loader)
-        .map_err(HarnessError::Startup)?;
+        .map_err(|e| HarnessError::Startup(Box::new(e)))?;
 
     validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
 

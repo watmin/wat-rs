@@ -157,3 +157,55 @@ ls: cannot access 'tools': No such file or directory
   eval-signed paths. LoadError::VerificationFailed gets span via LoadError outer struct (#3).
 - HashError: unchanged flat enum. Wrappers carry location.
 - 895/0/1 before and after.
+
+---
+
+## Post-stone follow-up: result_large_err boxing (zero pre-existing hits)
+
+Stone 243.7e reshaped `LoadError`, `StartupError`, and related types to Pattern-A structs,
+growing them ~24 bytes each. This pushed `HarnessError::Startup(StartupError)` — the wrapper
+that holds `StartupError` — past clippy's `result_large_err` threshold (128+ bytes), generating
+7 warnings across `src/compose.rs` and `src/harness.rs` (all pointed at the same variant).
+
+### Variant boxed
+
+`HarnessError::Startup` in `src/harness.rs`:
+
+```rust
+// before
+Startup(StartupError),
+
+// after
+Startup(Box<StartupError>),
+```
+
+### Construction sites updated (3 in wat crate + 1 in wat-macros)
+
+- `src/harness.rs:103` — `from_source_with_loader`: `.map_err(HarnessError::Startup)` → `.map_err(|e| HarnessError::Startup(Box::new(e)))`
+- `src/harness.rs:165` — `from_source_with_deps_and_loader`: same pattern
+- `src/compose.rs:186` — `compose_and_run_with_loader`: same pattern
+- `crates/wat-macros/src/lib.rs:500` — `wat::main!` macro expanded construction: `HarnessError::Startup(StartupError::Load(...))` → `HarnessError::Startup(Box::new(StartupError::Load(...)))`
+
+Display match arm (`HarnessError::Startup(e) => write!(f, "startup: {}", e)`) is unchanged —
+`Box<T>` derefs transparently for `Display`.
+
+Test match pattern (`matches!(err, HarnessError::Startup(_))`) is unchanged — pattern matching
+works through the Box.
+
+### Verify results (verbatim)
+
+```
+cargo build --release -p wat
+Finished `release` profile [optimized] target(s) in 20.62s
+
+cargo test --release --lib -p wat
+test result: ok. 895 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+cargo build --release --tests
+Finished `release` profile [optimized] target(s)
+
+cargo clippy --release -p wat  (result_large_err grep)
+(0 hits)
+```
+
+`result_large_err` count: 0. Behavior-preserving; no message/text changes.
