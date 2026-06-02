@@ -3,3 +3,7 @@ Cargo.lock
 
 # Harness state — never operate on. See docs/COMPACTION-AMNESIA-RECOVERY.md § FM 7-bis.
 .claude/worktrees/
+
+# Ephemeral arc/stone cascade tooling (build → use → delete). Repo-local scratch
+# pad — the sandbox firewall denies /tmp/. See docs/DUNGEON-CRAWL.md § cascade.
+/tools/

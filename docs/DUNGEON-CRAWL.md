@@ -156,7 +156,13 @@ Cargo binary; do NOT use Python or shell — they are blocked in this
 environment."* Rust is the toolchain the Shadowdancer is already *built on* and
 *allowed* to wield — it builds a Cargo binary that parses+rewrites, runs it, and
 **deletes it before the commit** (build → use → delete; the tool never lands in
-the substrate). Confirmed at three stones: 241.10
+the substrate). **The scratch pad is repo-local `tools/` (gitignored), NEVER
+`/tmp/`.** The sandbox firewall DENIES `/tmp/` (and shell redirects into it,
+`> /tmp/...`) — so the ephemeral crate, its `target/` build dir, AND any
+intermediate / redirected output ALL live under `tools/<name>/` inside the repo
+(never `crates/` — that is for real workspace crates). State this in the spawn
+prompt alongside the Rust imperative: *"build the tool + all scratch under
+repo-local `tools/`; `/tmp/` is firewall-blocked."* Confirmed at three stones: 241.10
 `fix-defines` + 241.11 `fix-remedies` (wat-surface migrations) and 243.6a
 `transform-checkerror`, which **attacked Rust syntax itself** (the CheckError
 Pattern-A reshape) — proving the move is not wat-surface-bound: a clean substrate
@@ -164,8 +170,18 @@ is programmatically refactorable at the *implementation* layer too. Sanction it
 in the cascade BRIEF as **method-guidance** (*"an ephemeral Cargo tool that
 drives the transform is the preferred path"*) — NEVER as tool-reassurance
 (*"cargo works"*), which trips the same FM-16 skepticism. The orchestrator
-verifies the tool's deletion at the kill (`git status` = deliverable + cascade,
-no scratch crate). (Memory: `feedback_cascade_ephemeral_tool`; chronicle: Song
+verifies the tool's deletion at the kill via `ls tools/` (empty) — `tools/` is
+gitignored, so `git status` alone will not surface a forgotten tool. **The tool
+MUST be SURGICAL, not a whole-file rewrite: `fs::read_to_string` → targeted
+`str::replace`/regex preserving every other byte → `fs::write`; NEVER char-by-char
+rebuild.** A whole-file round-trip can SILENTLY corrupt content the structural
+gates cannot see — Stone 243.7c attempt 1 dropped **5720 non-ASCII chars**
+(—/→/─/∀/σ/…) from `runtime.rs` while cargo + `895/0/1` stayed FALSE-GREEN (the
+suite asserts variants, not message strings). **Permanent gate for tool-driven
+cascades:** the agent self-checks `non-ASCII-count(after)==before` per file (any
+delta → STOP), AND the orchestrator independently scans the non-ASCII histogram
+before/after at scoring (`git show <base>:f | grep -oP '[^\x00-\x7F]' | wc -l`).
+Content-integrity is a SEPARATE axis from structural-green. (Memory: `feedback_cascade_ephemeral_tool`; chronicle: Song
 #58 *First Kill*.)
 
 ## Closure — INSCRIPTION = DONE
