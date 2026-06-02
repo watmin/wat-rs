@@ -1,6 +1,10 @@
 # Arc 237 — PAUSE-CONTEXT (2026-05-27 night)
 
-**Status:** PAUSED at 237.8b. Awaiting arc 241 (function-signature parser unification) closure to unblock the chain.
+**Status:** PAUSED at 237.8b — **RE-PARKED 2026-06-02.** Arc 241 (function-signature parser unification) **closed** (`5d2e3db1`), so the `&` rest-binder is ready (Gate 1 green since 241.5 `639b4862`). But the first attempt to resume 237.8b surfaced a NEW failure domain — the substrate **synthesizes a nil VALUE as the `:wat::core::nil` TYPE keyword**, which arc 242's doctrine correctly rejects — so the probe fails on the nil heresy, NOT on `&`. Spawned **arc 244 (nil-literal-canonicalization)** to annihilate it. 237 now awaits arc 244's closure.
+
+Chain: **237 ⇠ 241 (closed) ⇠ 244 (open).** See `docs/arc/2026/06/244-nil-literal-canonicalization/DESIGN.md` + the locked repro `tests/probe_nil_return_value_position_bug.rs`. The "How to resume" steps below hold once 244 closes (both `&` and the nil-value form will then be sound).
+
+**Original pause note (arc 241 gate) preserved below as historical record.**
 
 ## Why paused
 
