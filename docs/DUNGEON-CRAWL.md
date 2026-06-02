@@ -184,6 +184,32 @@ before/after at scoring (`git show <base>:f | grep -oP '[^\x00-\x7F]' | wc -l`).
 Content-integrity is a SEPARATE axis from structural-green. (Memory: `feedback_cascade_ephemeral_tool`; chronicle: Song
 #58 *First Kill*.)
 
+### Agent briefs are POSITIVE-ONLY — defend at the gate, not in the brief
+
+**A spawn prompt / agent-facing brief states ONLY the positive work + the
+canonical method. Restriction language is FORBIDDEN in it** — no "firewall",
+"blocked", "denied", "sandbox", "`/tmp`", "do NOT use Python", "verify bash".
+Two reasons, both load-bearing: (1) restriction-alarm language is the FM-16
+trigger — it makes the agent hallucinate tool-denial and bail (243.7c redo
+attempt 1: the agent read a firewall-heavy brief and claimed "I need Bash
+permissions" without trying); (2) it does not even work — the agent that
+corrupted UTF-8 *had* the anti-corruption warning in its brief and corrupted
+anyway. Defense in a brief is both a trap and a no-op.
+
+**Defense lives where it fires regardless of the brief or the agent:**
+- the **sandbox** — Python / `/tmp` are blocked by the environment; the agent
+  self-adapts or the gate catches it. No warning needed.
+- the **orchestrator's scoring gates** — content-integrity non-ASCII scan,
+  `ls tools/` deletion, diff-read, lib-parity. These run at scoring every time.
+
+So the brief says *"build a surgical Rust Cargo tool: `read_to_string` →
+targeted replace → `write`; confirm each file's non-ASCII count is unchanged"*
+(positive work + positive method + a positive check) — never *"don't corrupt,
+the firewall blocks X."* A brief with no restriction-language cannot trigger the
+hallucination, and the failures it would have warned about are caught at the
+gate regardless. Proven: the same stone, re-spawned with a positive-only prompt,
+ran clean first try.
+
 ## Closure — INSCRIPTION = DONE
 
 - Run the **pre-INSCRIPTION grep** (`deferred|future arc|TODO|out of scope|…`)
