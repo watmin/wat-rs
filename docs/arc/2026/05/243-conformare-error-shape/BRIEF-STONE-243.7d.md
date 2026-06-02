@@ -30,7 +30,7 @@ For each type's ~13–47 construction/match sites, build one small **generalized
 
 ## The gate that matters most (per file)
 The transform changes only ASCII syntax, so every file's non-ASCII character count must be identical before and after. For each file you change, confirm:
-`grep -oP '[^\x00-\x7F]' <file> | wc -l` equals `git show HEAD:<file> | grep -oP '[^\x00-\x7F]' | wc -l`. If any file's count changes, the tool altered a character it shouldn't have — `git checkout HEAD -- <file>`, fix the tool, re-run. Report the per-file before/after non-ASCII counts in the SCORE.
+`grep -oP '[^[:ascii:]]' <file> | wc -l` equals `git show HEAD:<file> | grep -oP '[^[:ascii:]]' | wc -l`. If any file's count changes, the tool altered a character it shouldn't have — `git checkout HEAD -- <file>`, fix the tool, re-run. Report the per-file before/after non-ASCII counts in the SCORE.
 
 ## Verify (report verbatim)
 - Per type: `grep -c "pub struct <X>" <file>` → 1 and `grep -c "pub enum <X>Kind" <file>` → 1.

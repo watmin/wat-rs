@@ -180,7 +180,7 @@ gates cannot see — Stone 243.7c attempt 1 dropped **5720 non-ASCII chars**
 suite asserts variants, not message strings). **Permanent gate for tool-driven
 cascades:** the agent self-checks `non-ASCII-count(after)==before` per file (any
 delta → STOP), AND the orchestrator independently scans the non-ASCII histogram
-before/after at scoring (`git show <base>:f | grep -oP '[^\x00-\x7F]' | wc -l`).
+before/after at scoring (`git show <base>:f | grep -oP '[^[:ascii:]]' | wc -l`).
 Content-integrity is a SEPARATE axis from structural-green. (Memory: `feedback_cascade_ephemeral_tool`; chronicle: Song
 #58 *First Kill*.)
 
