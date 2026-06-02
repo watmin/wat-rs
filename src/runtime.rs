@@ -9458,16 +9458,13 @@ fn eval_list_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        // arc 138: no span — leaf helper; threading list_span here would
-        // require updating ~150 dispatcher arms.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector".into(),
             expected: 1,
             got: 0
         } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        // arc 138: no span — same rationale.
         return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Vector".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into()
@@ -9617,7 +9614,7 @@ fn eval_vector_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: 1,
             got: args.len()
@@ -9634,7 +9631,7 @@ fn eval_hashmap_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: 1,
             got: args.len()
@@ -9651,7 +9648,7 @@ fn eval_hashset_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: 1,
             got: args.len()
@@ -9730,7 +9727,7 @@ fn eval_vector_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: 1,
             got: args.len()
@@ -9747,7 +9744,7 @@ fn eval_hashmap_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: 1,
             got: args.len()
@@ -9764,7 +9761,7 @@ fn eval_hashset_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: 1,
             got: args.len()
@@ -9855,7 +9852,7 @@ fn eval_vector_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: 2,
             got: args.len()
@@ -9873,7 +9870,7 @@ fn eval_hashmap_contains_key_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: 2,
             got: args.len()
@@ -9891,7 +9888,7 @@ fn eval_hashset_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: 2,
             got: args.len()
@@ -9990,7 +9987,7 @@ fn eval_vector_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: 2,
             got: args.len()
@@ -10008,7 +10005,7 @@ fn eval_hashmap_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: 2,
             got: args.len()
@@ -10028,7 +10025,7 @@ fn eval_list_length(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/length".into(),
             expected: 1,
             got: args.len()
@@ -10045,7 +10042,7 @@ fn eval_list_empty_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: 1,
             got: args.len()
@@ -10062,7 +10059,7 @@ fn eval_list_contains_q(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: 2,
             got: args.len()
@@ -10080,7 +10077,7 @@ fn eval_list_get(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/get".into(),
             expected: 2,
             got: args.len()
@@ -10098,7 +10095,7 @@ fn eval_list_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/conj".into(),
             expected: 2,
             got: args.len()
@@ -10261,7 +10258,7 @@ fn eval_program_env_get(
     const OP: &str = ":wat::program::Env/get";
     // args layout: [env, key, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
             got: args.len()
@@ -10287,7 +10284,7 @@ fn eval_program_env_expect_get(
     const OP: &str = ":wat::program::Env/expect-get";
     // args layout: [env, key, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
             got: args.len()
@@ -10335,7 +10332,7 @@ fn eval_program_env_get_default(
     const OP: &str = ":wat::program::Env/get-default";
     // args layout: [env, key, default, ->, :T]
     if args.len() != 5 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 5,
             got: args.len()
@@ -10474,7 +10471,7 @@ fn eval_program_env_dig(
     const OP: &str = ":wat::program::Env/dig";
     // args layout: [env, path, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
             got: args.len()
@@ -10522,7 +10519,7 @@ fn eval_program_env_expect_dig(
     const OP: &str = ":wat::program::Env/expect-dig";
     // args layout: [env, path, ->, :T]
     if args.len() != 4 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 4,
             got: args.len()
@@ -10590,7 +10587,7 @@ fn eval_program_env_dig_default(
     const OP: &str = ":wat::program::Env/dig-default";
     // args layout: [env, path, default, ->, :T]
     if args.len() != 5 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 5,
             got: args.len()
@@ -10699,7 +10696,7 @@ fn eval_vector_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: 2,
             got: args.len()
@@ -10717,7 +10714,7 @@ fn eval_hashset_conj(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: 2,
             got: args.len()
@@ -10869,7 +10866,7 @@ fn eval_hashmap_assoc(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/assoc".into(),
             expected: 3,
             got: args.len()
@@ -10888,7 +10885,7 @@ fn eval_hashmap_dissoc(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/dissoc".into(),
             expected: 2,
             got: args.len()
@@ -10906,7 +10903,7 @@ fn eval_hashmap_keys(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/keys".into(),
             expected: 1,
             got: args.len()
@@ -10923,7 +10920,7 @@ fn eval_hashmap_values(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/values".into(),
             expected: 1,
             got: args.len()
@@ -10940,7 +10937,7 @@ fn eval_vector_concat(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/concat".into(),
             expected: 2,
             got: args.len()
@@ -11290,7 +11287,7 @@ fn eval_vec_sort_by(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -11371,7 +11368,7 @@ fn eval_vec_map(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::map".into(),
             expected: 2,
             got: args.len()
@@ -11408,7 +11405,7 @@ fn eval_vec_foldl(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldl".into(),
             expected: 3,
             got: args.len()
@@ -11445,7 +11442,7 @@ fn eval_vec_foldr(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldr".into(),
             expected: 3,
             got: args.len()
@@ -11481,7 +11478,7 @@ fn eval_vec_filter(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::filter".into(),
             expected: 2,
             got: args.len()
@@ -11896,7 +11893,7 @@ fn eval_quasiquote(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12033,7 +12030,7 @@ fn eval_struct_to_form(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12605,7 +12602,7 @@ fn eval_lookup_define(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::lookup-define";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12702,7 +12699,7 @@ fn eval_signature_of_defn(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-defn";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12806,7 +12803,7 @@ fn eval_signature_of_fn(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-fn";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12844,7 +12841,7 @@ fn eval_body_of(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::body-of";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -12902,13 +12899,13 @@ fn eval_body_of(
 #[allow(clippy::mutable_key_type)]
 fn eval_metadata_of(
     args: &[WatAST],
-    _list_span: &Span,
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::metadata-of";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13011,7 +13008,7 @@ fn eval_rename_callable_name(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::rename-callable-name";
     if args.len() != 3 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len()
@@ -13138,7 +13135,7 @@ fn eval_extract_arg_names(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-names";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13218,7 +13215,7 @@ fn eval_extract_arg_types(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-types";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13285,7 +13282,7 @@ fn eval_bundle_children(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/children";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13331,7 +13328,7 @@ fn eval_bundle_first(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/first";
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13394,7 +13391,7 @@ fn eval_form_matches(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -13673,7 +13670,7 @@ fn eval_macroexpand_1(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13713,7 +13710,7 @@ fn eval_macroexpand(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -13845,7 +13842,7 @@ fn eval_vec_find_last_index(
     if args.len() != 2 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -14372,7 +14369,7 @@ fn eval_kernel_raise(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -17806,7 +17803,7 @@ fn eval_hologram_capacity(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -19894,7 +19891,7 @@ fn eval_show(
     if args.len() != 1 {
         // arc 138: no span — leaf helper without list_span; threading
         // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()

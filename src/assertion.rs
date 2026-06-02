@@ -105,8 +105,7 @@ pub fn eval_kernel_assertion_failed(
     const OP: &str = ":wat::kernel::assertion-failed!";
 
     if args.len() != 3 {
-        // arc 138: no span — eval_kernel_assertion_failed has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len()

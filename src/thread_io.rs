@@ -174,9 +174,10 @@ fn require_one_arg(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len()
@@ -196,7 +197,7 @@ pub fn eval_kernel_println(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::println";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write(&edn);
     with_thread_io(OP, |io| {
@@ -224,7 +225,7 @@ pub fn eval_kernel_eprintln(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::eprintln";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write(&edn);
     with_thread_io(OP, |io| {
@@ -279,7 +280,7 @@ pub fn eval_kernel_readln(
     const OP: &str = ":wat::kernel::readln";
     // Annotation shape: `(readln -> :T)` → args = [Symbol("->"), Keyword(":T")].
     if args.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "expected (:wat::kernel::readln -> :T) — 2 args (arrow + type keyword); got {}",

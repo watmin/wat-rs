@@ -675,10 +675,9 @@ impl WatWriter for PipeWriter {
 // These are invoked from `runtime::eval`'s dispatch match on the head
 // keyword; the runtime arm is a one-line call into here.
 
-fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
+fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), RuntimeError> {
     if args.len() != n {
-        // arc 138: no span — helper receives raw args slice, no list_span; cross-file broadening OOS
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: n,
             got: args.len()
@@ -772,7 +771,7 @@ pub fn eval_ioreader_from_bytes(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/from-bytes";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let bytes = expect_vec_u8(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_bytes(bytes));
     Ok(Value::io__IOReader(reader))
@@ -786,7 +785,7 @@ pub fn eval_ioreader_from_string(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/from-string";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let s = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string((*s).clone()));
     Ok(Value::io__IOReader(reader))
@@ -802,7 +801,7 @@ pub fn eval_ioreader_read(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let n = expect_i64(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     if n < 0 {
@@ -823,7 +822,7 @@ pub fn eval_ioreader_read_all(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-all";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = reader.read_all(list_span.clone())?;
     Ok(bytes_to_vec_u8_value(bytes))
@@ -837,7 +836,7 @@ pub fn eval_ioreader_read_line(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-line";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let line = reader.read_line(list_span.clone())?;
     Ok(Value::Option(Arc::new(
@@ -853,7 +852,7 @@ pub fn eval_ioreader_rewind(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/rewind";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     reader.rewind(list_span.clone())?;
     Ok(Value::Unit)
@@ -869,7 +868,7 @@ pub fn eval_iowriter_new(
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/new";
-    arity(op, args, 0)?;
+    arity(op, args, 0, list_span)?;
     let writer: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
     Ok(Value::io__IOWriter(writer))
 }
@@ -895,7 +894,7 @@ pub fn eval_iowriter_open_file(
 ) -> Result<Value, RuntimeError> {
     use std::os::fd::OwnedFd;
     let op = ":wat::io::IOWriter/open-file";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
         Value::String(s) => (*s).clone(),
         other => {
@@ -927,7 +926,7 @@ pub fn eval_iowriter_to_bytes(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/to-bytes";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let writer_value = eval(&args[0], env, sym)?;
     let writer = expect_writer(op, writer_value, args[0].span().clone())?;
     let bytes = snapshot_writer(op, &writer)?;
@@ -943,7 +942,7 @@ pub fn eval_iowriter_to_string(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/to-string";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = snapshot_writer(op, &writer)?;
     let decoded = String::from_utf8(bytes).ok();
@@ -984,7 +983,7 @@ pub fn eval_iowriter_write(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let n = writer.write(&bytes, list_span.clone())?;
@@ -999,7 +998,7 @@ pub fn eval_iowriter_write_all(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-all";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(&bytes, list_span.clone())?;
@@ -1018,7 +1017,7 @@ pub fn eval_iowriter_write_string(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-string";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let bytes = s.as_bytes();
@@ -1038,7 +1037,7 @@ pub fn eval_iowriter_print(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/print";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(s.as_bytes(), list_span.clone())?;
@@ -1055,7 +1054,7 @@ pub fn eval_iowriter_println(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/println";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let mut bytes = s.as_bytes().to_vec();
@@ -1073,7 +1072,7 @@ pub fn eval_iowriter_writeln(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/writeln";
-    arity(op, args, 2)?;
+    arity(op, args, 2, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let mut bytes = s.as_bytes().to_vec();
@@ -1091,7 +1090,7 @@ pub fn eval_iowriter_flush(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/flush";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.flush(list_span.clone())?;
     Ok(Value::Unit)
@@ -1119,7 +1118,7 @@ pub fn eval_iowriter_close(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/close";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.close(list_span.clone())?;
     Ok(Value::Unit)
@@ -1141,7 +1140,7 @@ pub fn eval_iowriter_close(
 pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     use std::os::fd::FromRawFd;
     let op = ":wat::kernel::pipe";
-    arity(op, args, 0)?;
+    arity(op, args, 0, list_span)?;
     let mut fds = [0i32; 2];
     // pipe2(O_CLOEXEC): atomic CLOEXEC at creation. Belt for any future exec
     // path; in fork-without-exec the flag doesn't fire (no exec to clear it).
@@ -1281,7 +1280,7 @@ pub fn eval_io_temp_file_path(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempFile/path";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let v = eval(&args[0], env, sym)?.value_owned();
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
@@ -1310,7 +1309,7 @@ pub fn eval_io_temp_dir_path(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempDir/path";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let v = eval(&args[0], env, sym)?.value_owned();
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
@@ -1341,7 +1340,7 @@ pub fn eval_io_read_file(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::read-file";
-    arity(op, args, 1)?;
+    arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     // arc 138: no span — host configuration error; no WatAST context at loader-lookup depth
     let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {

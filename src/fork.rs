@@ -285,13 +285,13 @@ fn extract_exit_code(status: libc::c_int) -> i64 {
 /// returns the cached code from the first call (sub-fog 2c).
 pub fn eval_kernel_wait_child(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::wait-child";
     if args.len() != 1 {
-        // arc 138: no span — eval_kernel_wait_child has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -567,8 +567,7 @@ pub fn eval_kernel_fork_program_ast(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program-ast";
     if args.len() != 1 {
-        // arc 138: no span — eval_kernel_fork_program_ast has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
@@ -584,8 +583,8 @@ pub fn eval_kernel_fork_program_ast(
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
-                        // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                        // Vec element iteration over Values — per-element WatAST span unavailable; list_span is the best available location
+                        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
                             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -1126,8 +1125,7 @@ pub fn eval_kernel_fork_program(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program";
     if args.len() != 2 {
-        // arc 138: no span — eval_kernel_fork_program has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()

@@ -66,7 +66,7 @@ pub fn eval_edn_write(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::write(&edn))))
 }
@@ -79,7 +79,7 @@ pub fn eval_edn_write_pretty(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-pretty";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::write_pretty(&edn))))
 }
@@ -93,7 +93,7 @@ pub fn eval_edn_write_json(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
 }
@@ -103,10 +103,10 @@ fn require_one_arg(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &crate::span::Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — require_one_arg has no list_span; callers in runtime.rs don't pass it; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len()
@@ -131,7 +131,7 @@ pub fn eval_edn_write_notag(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-notag";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = value_to_edn_notag(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::write(&edn))))
 }
@@ -155,7 +155,7 @@ pub fn eval_edn_write_json_natural(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::edn::write-json-natural";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = value_to_json_natural(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
 }
@@ -185,28 +185,25 @@ pub fn eval_edn_read(
     sym: &SymbolTable,
 ) -> Result<crate::runtime::TrackedValue, RuntimeError> {
     const OP: &str = ":wat::edn::read";
-    let v = require_one_arg(OP, args, env, sym)?;
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            // arc 138: no span — eval_edn_read receives evaluated Value via require_one_arg, no WatAST trace
-            return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::core::String",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
             } });
         }
     };
-    // arc 138: no span — s is a plain String extracted from Value; no WatAST span to thread
-    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("EDN parse error: {e}")
     } })?;
     // Arc 233 Stone 233.2.c — wrap result in Tracked with RuntimeBuilt provenance
     // so that errors flowing from edn::read-produced Values surface the producer origin.
     let result = edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
-        // arc 138: no span — edn_to_value errors on parsed EDN, no originating WatAST
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: e.to_string()
         } }

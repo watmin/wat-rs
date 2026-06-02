@@ -33,7 +33,7 @@ pub fn eval_string_contains(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, needle) = two_strings(":wat::core::string::contains?", args, env, sym)?;
+    let (hay, needle) = two_strings(":wat::core::string::contains?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.contains(needle.as_str())))
 }
 
@@ -44,7 +44,7 @@ pub fn eval_string_starts_with(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, prefix) = two_strings(":wat::core::string::starts-with?", args, env, sym)?;
+    let (hay, prefix) = two_strings(":wat::core::string::starts-with?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.starts_with(prefix.as_str())))
 }
 
@@ -55,7 +55,7 @@ pub fn eval_string_ends_with(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, suffix) = two_strings(":wat::core::string::ends-with?", args, env, sym)?;
+    let (hay, suffix) = two_strings(":wat::core::string::ends-with?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.ends_with(suffix.as_str())))
 }
 
@@ -70,7 +70,7 @@ pub fn eval_string_length(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::length", args, env, sym)?;
+    let s = one_string(":wat::core::string::length", args, env, sym, list_span)?;
     Ok(Value::i64(s.chars().count() as i64))
 }
 
@@ -81,7 +81,7 @@ pub fn eval_string_trim(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::trim", args, env, sym)?;
+    let s = one_string(":wat::core::string::trim", args, env, sym, list_span)?;
     Ok(Value::String(Arc::new(s.trim().to_string())))
 }
 
@@ -99,7 +99,7 @@ pub fn eval_string_split(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::split";
-    let (hay, sep) = two_strings(OP, args, env, sym)?;
+    let (hay, sep) = two_strings(OP, args, env, sym, list_span)?;
     if sep.is_empty() {
         return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
@@ -128,7 +128,7 @@ pub fn eval_string_join(
         let span = args
             .first()
             .map(|a| a.span().clone())
-            .unwrap_or_else(crate::span::Span::unknown);
+            .unwrap_or_else(|| list_span.clone());
         return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
@@ -160,8 +160,8 @@ pub fn eval_string_join(
         match item {
             Value::String(s) => pieces_owned.push((**s).clone()),
             other => {
-                // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
-                return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                // Vec element iteration over Values — per-element WatAST span unavailable; list_span is the best available location
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -192,8 +192,7 @@ pub fn eval_string_concat(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::concat";
     if args.is_empty() {
-        // arc 138: no span — args is empty, no WatAST span available; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: 0
@@ -286,7 +285,7 @@ pub fn eval_uuid_typed_v5(
     const OP: &str = ":wat::core::Uuid/v5";
     if args.len() != 2 {
         return Err(RuntimeError { span: if args.is_empty() {
-                crate::span::Span::unknown()
+                list_span.clone()
             } else {
                 args[0].span().clone()
             }, kind: RuntimeErrorKind::ArityMismatch {
@@ -334,7 +333,7 @@ pub fn eval_uuid_typed_from_string(
     const OP: &str = ":wat::core::Uuid/from-string";
     if args.len() != 1 {
         return Err(RuntimeError { span: if args.is_empty() {
-                crate::span::Span::unknown()
+                list_span.clone()
             } else {
                 args[0].span().clone()
             }, kind: RuntimeErrorKind::ArityMismatch {
@@ -374,7 +373,7 @@ pub fn eval_uuid_typed_to_string(
     const OP: &str = ":wat::core::Uuid/to-string";
     if args.len() != 1 {
         return Err(RuntimeError { span: if args.is_empty() {
-                crate::span::Span::unknown()
+                list_span.clone()
             } else {
                 args[0].span().clone()
             }, kind: RuntimeErrorKind::ArityMismatch {
@@ -448,7 +447,7 @@ pub fn eval_char_of(
         let span = args
             .first()
             .map(|a| a.span().clone())
-            .unwrap_or_else(crate::span::Span::unknown);
+            .unwrap_or_else(|| list_span.clone());
         return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
@@ -533,7 +532,7 @@ pub fn eval_regex_matches(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
-    let (pattern, haystack) = two_strings(OP, args, env, sym)?;
+    let (pattern, haystack) = two_strings(OP, args, env, sym, list_span)?;
     let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("invalid regex: {}", e)
@@ -548,12 +547,13 @@ fn one_string(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<String, RuntimeError> {
     if args.len() != 1 {
         let span = args
             .first()
             .map(|a| a.span().clone())
-            .unwrap_or_else(crate::span::Span::unknown);
+            .unwrap_or_else(|| list_span.clone());
         return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
@@ -575,12 +575,13 @@ fn two_strings(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<(String, String), RuntimeError> {
     if args.len() != 2 {
         let span = args
             .first()
             .map(|a| a.span().clone())
-            .unwrap_or_else(crate::span::Span::unknown);
+            .unwrap_or_else(|| list_span.clone());
         return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,

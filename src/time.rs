@@ -74,17 +74,16 @@ pub(crate) fn eval_time_at(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::at";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_at has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
         } });
     }
-    let secs = require_i64(OP, eval(&args[0], env, sym)?)?;
+    let secs = require_i64(OP, eval(&args[0], env, sym)?, list_span)?;
     let dt = Utc.timestamp_opt(secs, 0).single().ok_or_else(|| {
-        // arc 138: no span — chrono range error; secs is plain i64 from evaluated Value, no WatAST trace
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — secs is a plain i64 from an evaluated Value; list_span is the best available location
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "epoch-seconds in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range i64"))
@@ -102,17 +101,16 @@ pub(crate) fn eval_time_at_millis(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::at-millis";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_at_millis has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
         } });
     }
-    let ms = require_i64(OP, eval(&args[0], env, sym)?)?;
+    let ms = require_i64(OP, eval(&args[0], env, sym)?, list_span)?;
     let dt = Utc.timestamp_millis_opt(ms).single().ok_or_else(|| {
-        // arc 138: no span — chrono range error; ms is plain i64 from evaluated Value, no WatAST trace
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — ms is a plain i64 from an evaluated Value; list_span is the best available location
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "epoch-ms in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range i64"))
@@ -131,14 +129,13 @@ pub(crate) fn eval_time_at_nanos(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::at-nanos";
     if args.len() != 1 {
-        // arc 138: no span — eval_time_at_nanos has no list_span; cross-file broadening out of scope
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
         } });
     }
-    let ns = require_i64(OP, eval(&args[0], env, sym)?)?;
+    let ns = require_i64(OP, eval(&args[0], env, sym)?, list_span)?;
     Ok(Value::Instant(Utc.timestamp_nanos(ns)))
 }
 
@@ -159,7 +156,7 @@ pub(crate) fn eval_time_from_iso8601(
             got: args.len()
         } });
     }
-    let s = require_string(OP, eval(&args[0], env, sym)?)?;
+    let s = require_string(OP, eval(&args[0], env, sym)?, list_span)?;
     let parsed = DateTime::parse_from_rfc3339(&s)
         .ok()
         .map(|dt| dt.with_timezone(&Utc));
@@ -186,8 +183,8 @@ pub(crate) fn eval_time_to_iso8601(
             got: args.len()
         } });
     }
-    let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
-    let digits_raw = require_i64(OP, eval(&args[1], env, sym)?)?;
+    let inst = require_instant(OP, eval(&args[0], env, sym)?, list_span)?;
+    let digits_raw = require_i64(OP, eval(&args[1], env, sym)?, list_span)?;
     let digits = digits_raw.clamp(0, 9) as u32;
     let formatted = if digits == 0 {
         // SecondsFormat::Secs already drops the fractional part and
@@ -228,7 +225,7 @@ pub(crate) fn eval_time_epoch_seconds(
             got: args.len()
         } });
     }
-    let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
+    let inst = require_instant(OP, eval(&args[0], env, sym)?, list_span)?;
     Ok(Value::i64(inst.timestamp()))
 }
 
@@ -247,7 +244,7 @@ pub(crate) fn eval_time_epoch_millis(
             got: args.len()
         } });
     }
-    let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
+    let inst = require_instant(OP, eval(&args[0], env, sym)?, list_span)?;
     Ok(Value::i64(inst.timestamp_millis()))
 }
 
@@ -268,10 +265,10 @@ pub(crate) fn eval_time_epoch_nanos(
             got: args.len()
         } });
     }
-    let inst = require_instant(OP, eval(&args[0], env, sym)?)?;
+    let inst = require_instant(OP, eval(&args[0], env, sym)?, list_span)?;
     let ns = inst.timestamp_nanos_opt().ok_or_else(|| {
-        // arc 138: no span — chrono range error on evaluated Instant value, no WatAST trace
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — inst is a plain DateTime from an evaluated Value; list_span is the best available location
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "instant in i64-nanosecond range (~1677 to ~2262)",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range instant"))
@@ -315,7 +312,7 @@ fn unit_constructor(
             got: args.len()
         } });
     }
-    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    let n = require_i64(op, eval(&args[0], env, sym)?, list_span)?;
     if n < 0 {
         panic!(
             "({} {}): Duration must be non-negative; use ago / from-now \
@@ -449,7 +446,7 @@ pub(crate) fn eval_time_sub(
     }
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?.value_owned();
-    let a_inst = require_instant(OP, a)?;
+    let a_inst = require_instant(OP, a, list_span)?;
     match b {
         Value::Duration(ns) => {
             // Instant - Duration -> Instant.
@@ -457,8 +454,8 @@ pub(crate) fn eval_time_sub(
             // by adding chrono::Duration::nanoseconds(-ns).
             let new_inst = a_inst
                 .checked_sub_signed(chrono::Duration::nanoseconds(ns))
-                // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-                .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+                .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "result-Instant in chrono representable range",
                     got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"))
@@ -471,8 +468,8 @@ pub(crate) fn eval_time_sub(
             // per §2.
             let dur = a_inst.signed_duration_since(b_inst);
             let ns = dur.num_nanoseconds().ok_or_else(|| {
-                // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-                RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+                RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "elapsed nanoseconds in i64 range",
                     got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range duration"))
@@ -489,8 +486,8 @@ pub(crate) fn eval_time_sub(
             }
             Ok(Value::Duration(ns))
         }
-        // arc 138: no span — b is evaluated Value; no WatAST trace available at match point
-        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // b is an evaluated Value with no AST trace at match point; list_span is the best available location
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::time::Duration or wat::time::Instant",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -515,12 +512,12 @@ pub(crate) fn eval_time_add(
     }
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?.value_owned();
-    let a_inst = require_instant(OP, a)?;
+    let a_inst = require_instant(OP, a, list_span)?;
     let ns = match b {
         Value::Duration(ns) => ns,
         other => {
-            // arc 138: no span — b is evaluated Value; no WatAST trace available at match point
-            return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            // b is an evaluated Value with no AST trace at match point; list_span is the best available location
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::time::Duration",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -529,8 +526,8 @@ pub(crate) fn eval_time_add(
     };
     let new_inst = a_inst
         .checked_add_signed(chrono::Duration::nanoseconds(ns))
-        // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-        .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+        .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition"))
@@ -560,12 +557,12 @@ pub(crate) fn eval_time_ago(
             got: args.len()
         } });
     }
-    let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
+    let ns = require_duration(OP, eval(&args[0], env, sym)?, list_span)?;
     let now = Utc::now();
     let result = now
         .checked_sub_signed(chrono::Duration::nanoseconds(ns))
-        // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-        .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+        .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"))
@@ -589,12 +586,12 @@ pub(crate) fn eval_time_from_now(
             got: args.len()
         } });
     }
-    let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
+    let ns = require_duration(OP, eval(&args[0], env, sym)?, list_span)?;
     let now = Utc::now();
     let result = now
         .checked_add_signed(chrono::Duration::nanoseconds(ns))
-        // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-        .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+        .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "result-Instant in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition"))
@@ -629,7 +626,7 @@ fn unit_ago(
             got: args.len()
         } });
     }
-    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    let n = require_i64(op, eval(&args[0], env, sym)?, list_span)?;
     if n < 0 {
         panic!(
             "({} {}): count must be non-negative; \
@@ -649,8 +646,8 @@ fn unit_ago(
     });
     let result = Utc::now()
         .checked_sub_signed(chrono::Duration::nanoseconds(nanos))
-        // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-        .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+        .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "result-Instant in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range subtraction"))
@@ -673,7 +670,7 @@ fn unit_from_now(
             got: args.len()
         } });
     }
-    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    let n = require_i64(op, eval(&args[0], env, sym)?, list_span)?;
     if n < 0 {
         panic!(
             "({} {}): count must be non-negative; \
@@ -693,8 +690,8 @@ fn unit_from_now(
     });
     let result = Utc::now()
         .checked_add_signed(chrono::Duration::nanoseconds(nanos))
-        // arc 138: no span — chrono range error on evaluated Values; no WatAST trace
-        .ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        // chrono range error — evaluated Values have no AST trace; list_span is the best available location
+        .ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "result-Instant in chrono representable range",
             got: Box::new(crate::runtime::ValueSnapshot::unavailable("out-of-range addition"))
@@ -897,11 +894,10 @@ pub(crate) fn eval_time_days_from_now(
 
 // ─── Helpers — local to this module ─────────────────────────────────
 
-fn require_i64(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> {
+fn require_i64(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
     match tv.value_owned() {
         Value::i64(n) => Ok(n),
-        // arc 138: no span — require_i64 receives evaluated Value, no WatAST trace available
-        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -909,11 +905,10 @@ fn require_i64(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> 
     }
 }
 
-fn require_string(op: &'static str, tv: TrackedValue) -> Result<String, RuntimeError> {
+fn require_string(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<String, RuntimeError> {
     match tv.value_owned() {
         Value::String(s) => Ok((*s).clone()),
-        // arc 138: no span — require_string receives evaluated Value, no WatAST trace available
-        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -921,11 +916,10 @@ fn require_string(op: &'static str, tv: TrackedValue) -> Result<String, RuntimeE
     }
 }
 
-fn require_instant(op: &'static str, tv: TrackedValue) -> Result<DateTime<Utc>, RuntimeError> {
+fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<DateTime<Utc>, RuntimeError> {
     match tv.value_owned() {
         Value::Instant(dt) => Ok(dt),
-        // arc 138: no span — require_instant receives evaluated Value, no WatAST trace available
-        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Instant",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
@@ -933,11 +927,10 @@ fn require_instant(op: &'static str, tv: TrackedValue) -> Result<DateTime<Utc>, 
     }
 }
 
-fn require_duration(op: &'static str, tv: TrackedValue) -> Result<i64, RuntimeError> {
+fn require_duration(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
     match tv.value_owned() {
         Value::Duration(ns) => Ok(ns),
-        // arc 138: no span — require_duration receives evaluated Value, no WatAST trace available
-        other => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Duration",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))

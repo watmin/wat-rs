@@ -97,7 +97,7 @@ pub fn eval_kernel_spawn_process(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-process";
     if args.len() != 1 {
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len()
