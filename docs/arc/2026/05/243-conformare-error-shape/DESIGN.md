@@ -1,6 +1,6 @@
 # Arc 243 — conformare: error-shape class elimination
 
-**Status:** ACTIVE. Opened 2026-05-30 immediately after Stone 241.18a SHIPPED (`4d9b963e`). Conformare is the disciplined response to the catastrophic-failure class surfaced during Stone 241.18a's vigilia.
+**Status:** ✅ **CLOSED 2026-06-02** (`26d95c74`). Opened 2026-05-30 immediately after Stone 241.18a SHIPPED (`4d9b963e`); conformare was the disciplined response to the catastrophic-failure class surfaced during Stone 241.18a's vigilia. All eleven stones (243.1 → 243.M) shipped; the **error-shape class is structurally annihilated** — every error type Pattern A or affirmatively-scoped, every span meaningful, the spanless shape uncompilable. Closing chronicle + the honest record of the four-day campaign (and the six doctrines forged in it): **`INSCRIPTION.md`** (FM-11 clean — DONE, no deferral). The stone-chain table below preserves the ORIGINAL plan-time statuses as historical record; authoritative closure is the per-stone `SCORE-STONE-*.md` docs + the `INSCRIPTION.md`.
 
 ## Why this arc
 
