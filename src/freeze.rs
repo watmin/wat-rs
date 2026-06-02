@@ -1260,7 +1260,7 @@ pub fn eval_digest_in_frozen(
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
-        RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } }
+        RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } }
     })?;
     eval_in_frozen(ast, frozen, env)
 }
@@ -1290,7 +1290,7 @@ pub fn eval_signed_in_frozen(
     pubkey_b64: &str,
 ) -> Result<TrackedValue, RuntimeError> {
     crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
-        |err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } },
+        |err| RuntimeError { span: ast.span().clone(), kind: RuntimeErrorKind::EvalVerificationFailed { err } },
     )?;
     eval_in_frozen(ast, frozen, env)
 }

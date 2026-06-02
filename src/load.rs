@@ -83,6 +83,7 @@
 
 use crate::ast::WatAST;
 use crate::parser::{parse_all_with_file, ParseError};
+use crate::span::Span;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -218,8 +219,18 @@ impl fmt::Display for LoadFetchError {
 impl std::error::Error for LoadFetchError {}
 
 /// Errors raised by the load-resolution driver.
+/// Pattern A (Stone 243.7e): span at the outer struct level; variant data
+/// in [`LoadErrorKind`].
 #[derive(Debug)]
-pub enum LoadError {
+pub struct LoadError {
+    pub span: Span,
+    pub kind: LoadErrorKind,
+}
+
+/// Variant data for [`LoadError`]. The span lives in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug)]
+pub enum LoadErrorKind {
     /// The load form was malformed — wrong arity, wrong interface
     /// keyword, wrong value type, unknown verification algorithm, etc.
     MalformedLoadForm { reason: String },
@@ -246,13 +257,13 @@ pub enum LoadError {
     },
 }
 
-impl fmt::Display for LoadError {
+impl fmt::Display for LoadErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LoadError::MalformedLoadForm { reason } => {
+            LoadErrorKind::MalformedLoadForm { reason } => {
                 write!(f, "malformed load form: {}", reason)
             }
-            LoadError::SetterInLoadedFile {
+            LoadErrorKind::SetterInLoadedFile {
                 loaded_path,
                 setter_head,
             } => write!(
@@ -260,22 +271,30 @@ impl fmt::Display for LoadError {
                 "config setter {} in loaded file {}; setters belong in the entry file only",
                 setter_head, loaded_path
             ),
-            LoadError::DuplicateLoad { path } => write!(
+            LoadErrorKind::DuplicateLoad { path } => write!(
                 f,
                 "path {} loaded more than once; each path may be loaded at most once",
                 path
             ),
-            LoadError::CycleDetected { cycle } => {
+            LoadErrorKind::CycleDetected { cycle } => {
                 write!(f, "load cycle detected: {}", cycle.join(" -> "))
             }
-            LoadError::Fetch(e) => write!(f, "{}", e),
-            LoadError::Parse { path, err } => {
+            LoadErrorKind::Fetch(e) => write!(f, "{}", e),
+            LoadErrorKind::Parse { path, err } => {
                 write!(f, "parse error in loaded file {}: {}", path, err)
             }
-            LoadError::VerificationFailed { path, err } => {
+            LoadErrorKind::VerificationFailed { path, err } => {
                 write!(f, "verification failed for {}: {}", path, err)
             }
         }
+    }
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use crate::span::span_prefix;
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 
@@ -283,7 +302,7 @@ impl std::error::Error for LoadError {}
 
 impl From<LoadFetchError> for LoadError {
     fn from(e: LoadFetchError) -> Self {
-        LoadError::Fetch(e)
+        LoadError { span: Span::unknown(), kind: LoadErrorKind::Fetch(e) }
     }
 }
 
@@ -325,8 +344,9 @@ fn process_forms(
     stack: &mut Vec<String>,
 ) -> Result<(), LoadError> {
     for form in forms {
-        if let Some(load_spec) = match_load_form(&form)? {
-            process_single_load(load_spec, base_canonical, loader, visited, stack, out)?;
+        let form_span = form.span().clone();
+        if let Some(load_spec) = match_load_form(&form, form_span.clone())? {
+            process_single_load(load_spec, form_span, base_canonical, loader, visited, stack, out)?;
         } else {
             out.push(form);
         }
@@ -336,6 +356,7 @@ fn process_forms(
 
 fn process_single_load(
     spec: LoadSpec,
+    form_span: Span,
     base_canonical: Option<&str>,
     loader: &dyn SourceLoader,
     visited: &mut HashSet<String>,
@@ -347,7 +368,7 @@ fn process_single_load(
     if stack.iter().any(|p| p == &fetched.canonical_path) {
         let mut cycle = stack.clone();
         cycle.push(fetched.canonical_path.clone());
-        return Err(LoadError::CycleDetected { cycle });
+        return Err(LoadError { span: form_span.clone(), kind: LoadErrorKind::CycleDetected { cycle } });
     }
 
     // Arc 027 slice 1 — canonical-path dedup. A previously loaded
@@ -367,9 +388,12 @@ fn process_single_load(
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
-    let loaded_forms = parse_all_with_file(&fetched.source, &fetched.canonical_path).map_err(|err| LoadError::Parse {
-        path: fetched.canonical_path.clone(),
-        err,
+    let loaded_forms = parse_all_with_file(&fetched.source, &fetched.canonical_path).map_err(|err| LoadError {
+        span: Span::unknown(),
+        kind: LoadErrorKind::Parse {
+            path: fetched.canonical_path.clone(),
+            err,
+        },
     })?;
     reject_setters_in_loaded(&loaded_forms, &fetched.canonical_path)?;
 
@@ -382,6 +406,7 @@ fn process_single_load(
         loader,
     )?;
 
+    // Inner process_forms derives each nested form's span from the form itself.
     process_forms(
         out,
         loaded_forms,
@@ -448,9 +473,12 @@ fn verify_pre_parse(
             let hex = fetch_payload(payload, base_canonical, loader)?;
             let hex_trimmed = hex.trim();
             crate::hash::verify_source_hash(fetched.source.as_bytes(), algo, hex_trimmed).map_err(
-                |err| LoadError::VerificationFailed {
-                    path: fetched.canonical_path.clone(),
-                    err,
+                |err| LoadError {
+                    span: Span::unknown(),
+                    kind: LoadErrorKind::VerificationFailed {
+                        path: fetched.canonical_path.clone(),
+                        err,
+                    },
                 },
             )
         }
@@ -476,9 +504,12 @@ fn verify_post_parse(
                 sig_b64.trim(),
                 pk_b64.trim(),
             )
-            .map_err(|err| LoadError::VerificationFailed {
-                path: canonical_path.to_string(),
-                err,
+            .map_err(|err| LoadError {
+                span: Span::unknown(),
+                kind: LoadErrorKind::VerificationFailed {
+                    path: canonical_path.to_string(),
+                    err,
+                },
             })
         }
     }
@@ -487,7 +518,7 @@ fn verify_post_parse(
 // ─── Form matching ──────────────────────────────────────────────────────
 
 /// Attempt to interpret `form` as one of the three load forms.
-fn match_load_form(form: &WatAST) -> Result<Option<LoadSpec>, LoadError> {
+fn match_load_form(form: &WatAST, form_span: Span) -> Result<Option<LoadSpec>, LoadError> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => return Ok(None),
@@ -503,27 +534,30 @@ fn match_load_form(form: &WatAST) -> Result<Option<LoadSpec>, LoadError> {
         // form per (source-shape × integrity-shape) cell. Future
         // network variants (load-http!, load-s3!, etc.) land as
         // more named siblings following the same shape.
-        ":wat::load-file!" => parse_unverified_load(&items[1..]).map(Some),
-        ":wat::load-string!" => parse_unverified_load_string(&items[1..]).map(Some),
-        ":wat::digest-load!" => parse_digest_load_file(&items[1..]).map(Some),
-        ":wat::digest-load-string!" => parse_digest_load_string(&items[1..]).map(Some),
-        ":wat::signed-load!" => parse_signed_load_file(&items[1..]).map(Some),
-        ":wat::signed-load-string!" => parse_signed_load_string(&items[1..]).map(Some),
+        ":wat::load-file!" => parse_unverified_load(&items[1..], form_span.clone()).map(Some),
+        ":wat::load-string!" => parse_unverified_load_string(&items[1..], form_span.clone()).map(Some),
+        ":wat::digest-load!" => parse_digest_load_file(&items[1..], form_span.clone()).map(Some),
+        ":wat::digest-load-string!" => parse_digest_load_string(&items[1..], form_span.clone()).map(Some),
+        ":wat::signed-load!" => parse_signed_load_file(&items[1..], form_span.clone()).map(Some),
+        ":wat::signed-load-string!" => parse_signed_load_string(&items[1..], form_span).map(Some),
         _ => Ok(None),
     }
 }
 
 /// `(:wat::load-file! <path>)` — file-path load, single arg.
-fn parse_unverified_load(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
+fn parse_unverified_load(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
     if args.len() != 1 {
-        return Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "(:wat::load-file! <path>) takes exactly one argument; got {}",
-                args.len()
-            ),
+        return Err(LoadError {
+            span: form_span.clone(),
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "(:wat::load-file! <path>) takes exactly one argument; got {}",
+                    args.len()
+                ),
+            },
         });
     }
-    let source = expect_string_arg(&args[0], ":wat::load-file!", "path")?;
+    let source = expect_string_arg(&args[0], ":wat::load-file!", "path", form_span)?;
     Ok(LoadSpec {
         source: SourceInterface::FilePath(source),
         verification: None,
@@ -531,28 +565,31 @@ fn parse_unverified_load(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
 }
 
 /// `(:wat::load-string! <source>)` — inline-source load, single arg.
-fn parse_unverified_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
+fn parse_unverified_load_string(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
     if args.len() != 1 {
-        return Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "(:wat::load-string! <source>) takes exactly one argument; got {}",
-                args.len()
-            ),
+        return Err(LoadError {
+            span: form_span.clone(),
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "(:wat::load-string! <source>) takes exactly one argument; got {}",
+                    args.len()
+                ),
+            },
         });
     }
-    let source = expect_string_arg(&args[0], ":wat::load-string!", "source")?;
+    let source = expect_string_arg(&args[0], ":wat::load-string!", "source", form_span)?;
     Ok(LoadSpec {
         source: SourceInterface::String(source),
         verification: None,
     })
 }
 
-fn parse_digest_load_file(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_digest_load_shared(args, ":wat::digest-load!", false)
+fn parse_digest_load_file(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
+    parse_digest_load_shared(args, ":wat::digest-load!", false, form_span)
 }
 
-fn parse_digest_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_digest_load_shared(args, ":wat::digest-load-string!", true)
+fn parse_digest_load_string(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
+    parse_digest_load_shared(args, ":wat::digest-load-string!", true, form_span)
 }
 
 /// Shared parser for `digest-load!` (file) and `digest-load-string!`
@@ -562,19 +599,23 @@ fn parse_digest_load_shared(
     args: &[WatAST],
     op: &'static str,
     is_string: bool,
+    form_span: Span,
 ) -> Result<LoadSpec, LoadError> {
     if args.len() != 4 {
         let shape = if is_string { "<source>" } else { "<path>" };
-        return Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "({} {} :wat::verify::digest-<algo> :wat::verify::<iface> <payload>) takes exactly four arguments; got {}",
-                op, shape, args.len()
-            ),
+        return Err(LoadError {
+            span: form_span.clone(),
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "({} {} :wat::verify::digest-<algo> :wat::verify::<iface> <payload>) takes exactly four arguments; got {}",
+                    op, shape, args.len()
+                ),
+            },
         });
     }
-    let source = expect_string_arg(&args[0], op, if is_string { "source" } else { "path" })?;
-    let algo = parse_verify_algo(&args[1], "digest-")?;
-    let payload = parse_payload_interface(&args[2], &args[3])?;
+    let source = expect_string_arg(&args[0], op, if is_string { "source" } else { "path" }, form_span.clone())?;
+    let algo = parse_verify_algo(&args[1], "digest-", form_span.clone())?;
+    let payload = parse_payload_interface(&args[2], &args[3], form_span)?;
     let source_iface = if is_string {
         SourceInterface::String(source)
     } else {
@@ -586,12 +627,12 @@ fn parse_digest_load_shared(
     })
 }
 
-fn parse_signed_load_file(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_signed_load_shared(args, ":wat::signed-load!", false)
+fn parse_signed_load_file(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
+    parse_signed_load_shared(args, ":wat::signed-load!", false, form_span)
 }
 
-fn parse_signed_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_signed_load_shared(args, ":wat::signed-load-string!", true)
+fn parse_signed_load_string(args: &[WatAST], form_span: Span) -> Result<LoadSpec, LoadError> {
+    parse_signed_load_shared(args, ":wat::signed-load-string!", true, form_span)
 }
 
 /// Shared parser for `signed-load!` and `signed-load-string!`. Six args:
@@ -601,20 +642,24 @@ fn parse_signed_load_shared(
     args: &[WatAST],
     op: &'static str,
     is_string: bool,
+    form_span: Span,
 ) -> Result<LoadSpec, LoadError> {
     if args.len() != 6 {
         let shape = if is_string { "<source>" } else { "<path>" };
-        return Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "({} {} :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly six arguments; got {}",
-                op, shape, args.len()
-            ),
+        return Err(LoadError {
+            span: form_span.clone(),
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "({} {} :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly six arguments; got {}",
+                    op, shape, args.len()
+                ),
+            },
         });
     }
-    let source = expect_string_arg(&args[0], op, if is_string { "source" } else { "path" })?;
-    let algo = parse_verify_algo(&args[1], "signed-")?;
-    let sig = parse_payload_interface(&args[2], &args[3])?;
-    let pubkey = parse_payload_interface(&args[4], &args[5])?;
+    let source = expect_string_arg(&args[0], op, if is_string { "source" } else { "path" }, form_span.clone())?;
+    let algo = parse_verify_algo(&args[1], "signed-", form_span.clone())?;
+    let sig = parse_payload_interface(&args[2], &args[3], form_span.clone())?;
+    let pubkey = parse_payload_interface(&args[4], &args[5], form_span)?;
     let source_iface = if is_string {
         SourceInterface::String(source)
     } else {
@@ -633,14 +678,18 @@ fn expect_string_arg(
     arg: &WatAST,
     op: &'static str,
     arg_name: &'static str,
+    form_span: Span,
 ) -> Result<String, LoadError> {
     match arg {
         WatAST::StringLit(s, _) => Ok(s.clone()),
-        other => Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "{}: {} must be a string literal; got {:?}",
-                op, arg_name, other
-            ),
+        other => Err(LoadError {
+            span: form_span,
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "{}: {} must be a string literal; got {:?}",
+                    op, arg_name, other
+                ),
+            },
         }),
     }
 }
@@ -653,44 +702,57 @@ fn expect_string_arg(
 fn parse_payload_interface(
     iface_ast: &WatAST,
     locator_ast: &WatAST,
+    form_span: Span,
 ) -> Result<PayloadInterface, LoadError> {
     let iface = match iface_ast {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(LoadError::MalformedLoadForm {
-                reason: format!(
-                    "payload interface must be a :wat::verify::<iface> keyword; got {}",
-                    variant_name(other)
-                ),
+            return Err(LoadError {
+                span: form_span.clone(),
+                kind: LoadErrorKind::MalformedLoadForm {
+                    reason: format!(
+                        "payload interface must be a :wat::verify::<iface> keyword; got {}",
+                        variant_name(other)
+                    ),
+                },
             });
         }
     };
     let locator = match locator_ast {
         WatAST::StringLit(s, _) => s.clone(),
         other => {
-            return Err(LoadError::MalformedLoadForm {
-                reason: format!(
-                    "payload value after {} must be a string literal; got {}",
-                    iface,
-                    variant_name(other)
-                ),
+            return Err(LoadError {
+                span: form_span.clone(),
+                kind: LoadErrorKind::MalformedLoadForm {
+                    reason: format!(
+                        "payload value after {} must be a string literal; got {}",
+                        iface,
+                        variant_name(other)
+                    ),
+                },
             });
         }
     };
     match iface {
         ":wat::verify::string" => Ok(PayloadInterface::String(locator)),
         ":wat::verify::file-path" => Ok(PayloadInterface::FilePath(locator)),
-        ":wat::verify::http-path" | ":wat::verify::s3-path" => Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "payload interface {} is reserved but not implemented in this build; use :wat::verify::string or :wat::verify::file-path",
-                iface
-            ),
+        ":wat::verify::http-path" | ":wat::verify::s3-path" => Err(LoadError {
+            span: form_span.clone(),
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "payload interface {} is reserved but not implemented in this build; use :wat::verify::string or :wat::verify::file-path",
+                    iface
+                ),
+            },
         }),
-        other => Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "unknown payload interface {}; expected :wat::verify::string or :wat::verify::file-path",
-                other
-            ),
+        other => Err(LoadError {
+            span: form_span,
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "unknown payload interface {}; expected :wat::verify::string or :wat::verify::file-path",
+                    other
+                ),
+            },
         }),
     }
 }
@@ -698,46 +760,58 @@ fn parse_payload_interface(
 /// Parse an algorithm keyword like `:wat::verify::digest-sha256` or
 /// `:wat::verify::signed-ed25519`. `expected_prefix` is the kind marker
 /// (`"digest-"` or `"signed-"`) the form requires.
-fn parse_verify_algo(ast: &WatAST, expected_prefix: &str) -> Result<String, LoadError> {
+fn parse_verify_algo(ast: &WatAST, expected_prefix: &str, form_span: Span) -> Result<String, LoadError> {
     let keyword = match ast {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(LoadError::MalformedLoadForm {
-                reason: format!(
-                    "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
-                    variant_name(other)
-                ),
+            return Err(LoadError {
+                span: form_span.clone(),
+                kind: LoadErrorKind::MalformedLoadForm {
+                    reason: format!(
+                        "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
+                        variant_name(other)
+                    ),
+                },
             });
         }
     };
     let stripped = match keyword.strip_prefix(":wat::verify::") {
         Some(s) => s,
         None => {
-            return Err(LoadError::MalformedLoadForm {
-                reason: format!(
-                    "verification algorithm keyword must start with :wat::verify::; got {}",
-                    keyword
-                ),
+            return Err(LoadError {
+                span: form_span.clone(),
+                kind: LoadErrorKind::MalformedLoadForm {
+                    reason: format!(
+                        "verification algorithm keyword must start with :wat::verify::; got {}",
+                        keyword
+                    ),
+                },
             });
         }
     };
     let algo = match stripped.strip_prefix(expected_prefix) {
         Some(a) => a,
         None => {
-            return Err(LoadError::MalformedLoadForm {
-                reason: format!(
-                    "this load form expects a :wat::verify::{}<algo> keyword; got {}",
-                    expected_prefix, keyword
-                ),
+            return Err(LoadError {
+                span: form_span.clone(),
+                kind: LoadErrorKind::MalformedLoadForm {
+                    reason: format!(
+                        "this load form expects a :wat::verify::{}<algo> keyword; got {}",
+                        expected_prefix, keyword
+                    ),
+                },
             });
         }
     };
     if algo.is_empty() {
-        return Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "verification algorithm keyword names no algorithm after {}; got {}",
-                expected_prefix, keyword
-            ),
+        return Err(LoadError {
+            span: form_span,
+            kind: LoadErrorKind::MalformedLoadForm {
+                reason: format!(
+                    "verification algorithm keyword names no algorithm after {}; got {}",
+                    expected_prefix, keyword
+                ),
+            },
         });
     }
     Ok(algo.to_string())
@@ -759,9 +833,12 @@ fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             if k.starts_with(":wat::config::set-") && k.ends_with('!') {
-                return Err(LoadError::SetterInLoadedFile {
-                    loaded_path: path.to_string(),
-                    setter_head: k.clone(),
+                return Err(LoadError {
+                    span: form.span().clone(),
+                    kind: LoadErrorKind::SetterInLoadedFile {
+                        loaded_path: path.to_string(),
+                        setter_head: k.clone(),
+                    },
                 });
             }
         }
@@ -1182,7 +1259,7 @@ mod tests {
         );
         let err = resolve_mem(&entry, &[("lib.wat", r#"(:wat::holon::Atom "ok")"#)])
             .unwrap_err();
-        assert!(matches!(err, LoadError::VerificationFailed { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::VerificationFailed { .. }, .. }));
     }
 
     #[test]
@@ -1192,7 +1269,7 @@ mod tests {
                          :wat::verify::string "abc")"#;
         let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::holon::Atom "ok")"#)]).unwrap_err();
         match err {
-            LoadError::VerificationFailed { err, .. } => {
+            LoadError { kind: LoadErrorKind::VerificationFailed { err, .. }, .. } => {
                 assert!(matches!(
                     err,
                     crate::hash::HashError::UnsupportedAlgorithm { .. }
@@ -1269,7 +1346,7 @@ mod tests {
         );
         let err = resolve_mem(&entry, &[("lib.wat", tampered_source)]).unwrap_err();
         match err {
-            LoadError::VerificationFailed { err, .. } => {
+            LoadError { kind: LoadErrorKind::VerificationFailed { err, .. }, .. } => {
                 assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
             }
             other => panic!("expected SignatureMismatch, got {:?}", other),
@@ -1284,7 +1361,7 @@ mod tests {
                          :wat::verify::string "cGstcGxhY2Vob2xkZXI=")"#;
         let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::holon::Atom "x")"#)]).unwrap_err();
         match err {
-            LoadError::VerificationFailed { err, .. } => {
+            LoadError { kind: LoadErrorKind::VerificationFailed { err, .. }, .. } => {
                 assert!(matches!(
                     err,
                     crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
@@ -1310,7 +1387,7 @@ mod tests {
             &[("lib.wat", "")],
         )
         .unwrap_err();
-        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::MalformedLoadForm { .. }, .. }));
     }
 
     // Arc 028 slice 1 retired `load_unsupported_source_iface_rejected`.
@@ -1327,7 +1404,7 @@ mod tests {
                          :wat::verify::signed-ed25519
                          :wat::verify::string "abc")"#;
         let err = resolve_mem(entry, &[("lib.wat", "")]).unwrap_err();
-        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::MalformedLoadForm { .. }, .. }));
     }
 
     #[test]
@@ -1337,7 +1414,7 @@ mod tests {
                          :wat::verify::string "sig"
                          :wat::verify::string "pk")"#;
         let err = resolve_mem(entry, &[("lib.wat", "")]).unwrap_err();
-        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::MalformedLoadForm { .. }, .. }));
     }
 
     #[test]
@@ -1346,7 +1423,7 @@ mod tests {
                          :wat::verify::signed-ed25519
                          :wat::verify::string "sig-only")"#;
         let err = resolve_mem(entry, &[("lib.wat", "")]).unwrap_err();
-        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::MalformedLoadForm { .. }, .. }));
     }
 
     #[test]
@@ -1356,7 +1433,7 @@ mod tests {
             &[],
         )
         .unwrap_err();
-        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::MalformedLoadForm { .. }, .. }));
     }
 
     // ─── Commit-once / cycles / setters ────────────────────────────────
@@ -1368,7 +1445,7 @@ mod tests {
             &[],
         )
         .unwrap_err();
-        assert!(matches!(err, LoadError::Fetch(LoadFetchError::NotFound(_))));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::Fetch(LoadFetchError::NotFound(_)), .. }));
     }
 
     #[test]
@@ -1382,7 +1459,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            LoadError::CycleDetected { cycle } => {
+            LoadError { kind: LoadErrorKind::CycleDetected { cycle }, .. } => {
                 assert!(cycle.iter().any(|p| p == "a.wat"));
                 assert!(cycle.iter().any(|p| p == "b.wat"));
             }
@@ -1397,7 +1474,7 @@ mod tests {
             &[("a.wat", r#"(:wat::load-file! "a.wat")"#)],
         )
         .unwrap_err();
-        assert!(matches!(err, LoadError::CycleDetected { .. }));
+        assert!(matches!(err, LoadError { kind: LoadErrorKind::CycleDetected { .. }, .. }));
     }
 
     // Arc 027 slice 1 — what used to be `duplicate_load_halts` now
@@ -1465,10 +1542,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            LoadError::SetterInLoadedFile {
-                loaded_path,
-                setter_head,
-            } => {
+            LoadError { kind: LoadErrorKind::SetterInLoadedFile { loaded_path, setter_head }, .. } => {
                 assert_eq!(loaded_path, "bad.wat");
                 assert_eq!(setter_head, ":wat::config::set-dims!");
             }

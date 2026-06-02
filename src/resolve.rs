@@ -42,9 +42,12 @@
 use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use crate::span::Span;
 use std::fmt;
 
 /// One unresolved reference, with context about where it appeared.
+/// Stone 243.7e: each reference carries its source span so the collection
+/// is location-complete without an outer span on [`ResolveError`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnresolvedReference {
     /// The keyword path that didn't resolve.
@@ -52,6 +55,9 @@ pub struct UnresolvedReference {
     /// Human-friendly context: a short phrase like "call head" or
     /// "macro call (not expanded)".
     pub context: &'static str,
+    /// Source location of the offending keyword reference. `Span::unknown()`
+    /// when the site genuinely has no recoverable location.
+    pub span: Span,
 }
 
 /// Name-resolution errors.
@@ -68,7 +74,11 @@ impl fmt::Display for ResolveError {
             ResolveError::UnresolvedReferences(list) => {
                 writeln!(f, "{} unresolved reference(s):", list.len())?;
                 for r in list {
-                    writeln!(f, "  - {} ({})", r.path, r.context)?;
+                    if r.span.is_unknown() {
+                        writeln!(f, "  - {} ({})", r.path, r.context)?;
+                    } else {
+                        writeln!(f, "  - {} at {} ({})", r.path, r.span, r.context)?;
+                    }
                 }
                 Ok(())
             }
@@ -123,7 +133,7 @@ fn collect_use_declarations(
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
             if head == ":wat::core::use!" {
                 // Expect exactly one keyword argument.
                 if items.len() != 2 {
@@ -131,14 +141,16 @@ fn collect_use_declarations(
                         path: head.clone(),
                         context:
                             "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
+                        span: head_span.clone(),
                     });
                     return;
                 }
-                if let WatAST::Keyword(path, _) = &items[1] {
+                if let WatAST::Keyword(path, path_span) = &items[1] {
                     if !registry.has_type(path) {
                         unresolved.push(UnresolvedReference {
                             path: path.clone(),
                             context: "rust symbol not available in wat; declare it via its shim",
+                            span: path_span.clone(),
                         });
                         return;
                     }
@@ -147,6 +159,7 @@ fn collect_use_declarations(
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),
                         context: "(:wat::core::use! ...) argument must be a keyword path",
+                        span: head_span.clone(),
                     });
                 }
             }
@@ -164,7 +177,7 @@ fn check_form(
     // Walker-specific List-head logic: call-head resolution and quote-family
     // boundary guards apply only to List forms with Keyword heads.
     if let WatAST::List(items, _) = form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
+        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
             if !is_resolvable_call_head(head, sym, macros) {
                 unresolved.push(UnresolvedReference {
                     path: head.clone(),
@@ -173,6 +186,7 @@ fn check_form(
                     } else {
                         "call head — not a builtin, not a registered function"
                     },
+                    span: head_span.clone(),
                 });
             }
 
@@ -190,6 +204,7 @@ fn check_form(
                         path: head.clone(),
                         context:
                             ":rust::* reference not covered by any (:wat::core::use! ...) declaration",
+                        span: head_span.clone(),
                     });
                 }
             }

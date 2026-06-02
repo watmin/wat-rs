@@ -18,6 +18,7 @@
 use crate::ast::WatAST;
 use crate::parser::parse_all_with_file;
 use crate::source::{installed_dep_sources, WatSource};
+use crate::span::Span;
 
 /// Every stdlib source baked into the binary. Order here determines
 /// registration order during startup — later files may reference
@@ -250,16 +251,22 @@ const STDLIB_FILES: &[WatSource] = &[
 pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
     for file in stdlib_files() {
-        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::ParseFailed {
-            path: file.path,
-            source: format!("{}", e),
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
+            span: Span::unknown(),
+            kind: StdlibErrorKind::ParseFailed {
+                path: file.path,
+                source: format!("{}", e),
+            },
         })?;
         all.extend(forms);
     }
     for file in installed_dep_sources().iter().flat_map(|slice| slice.iter()) {
-        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::ParseFailed {
-            path: file.path,
-            source: format!("{}", e),
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
+            span: Span::unknown(),
+            kind: StdlibErrorKind::ParseFailed {
+                path: file.path,
+                source: format!("{}", e),
+            },
         })?;
         all.extend(forms);
     }
@@ -267,21 +274,38 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
 }
 
 /// Loader-level failure when a stdlib file can't be parsed.
+/// Pattern A (Stone 243.7e): span at the outer struct level; variant data
+/// in [`StdlibErrorKind`].
 #[derive(Debug)]
-pub enum StdlibError {
+pub struct StdlibError {
+    pub span: Span,
+    pub kind: StdlibErrorKind,
+}
+
+/// Variant data for [`StdlibError`]. The span lives in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug)]
+pub enum StdlibErrorKind {
     ParseFailed {
         path: &'static str,
         source: String,
     },
 }
 
-impl std::fmt::Display for StdlibError {
+impl std::fmt::Display for StdlibErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StdlibError::ParseFailed { path, source } => {
+            StdlibErrorKind::ParseFailed { path, source } => {
                 write!(f, "stdlib file {} failed to parse: {}", path, source)
             }
         }
+    }
+}
+
+impl std::fmt::Display for StdlibError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Span::unknown() - baked stdlib has no wat-source span; elide.
+        write!(f, "{}", self.kind)
     }
 }
 

@@ -140,64 +140,78 @@ pub enum Token {
 /// line/column reconstruction a diagnostic needs.
 pub type Position = usize;
 
-/// Lex error with byte offset.
+/// Lex error. Pattern A (Stone 243.7e): position at the outer struct level;
+/// variant data in [`LexErrorKind`]. Every constructor demands the position
+/// so silent omission is uncompilable.
 #[derive(Debug, Clone, PartialEq)]
-pub enum LexError {
-    UnexpectedChar(char, Position),
-    UnterminatedString(Position),
-    UnknownEscape(char, Position),
-    InvalidNumber(String, Position),
+pub struct LexError {
+    pub position: Position,
+    pub kind: LexErrorKind,
+}
+
+/// Variant data for [`LexError`]. The byte position lives in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LexErrorKind {
+    UnexpectedChar(char),
+    UnterminatedString,
+    UnknownEscape(char),
+    InvalidNumber(String),
     /// Whitespace inside an unclosed `(` in a keyword. The spec forbids
     /// internal whitespace in keywords; if we hit one while parens are
     /// still open, the keyword is malformed.
-    UnclosedBracketInKeyword(Position),
+    UnclosedBracketInKeyword,
     /// Comma inside a keyword body at depth 0 (not inside `(...)` or
     /// `<...>`). Comma as keyword-body separator was retired in arc 171;
     /// `'` (apostrophe) is now the canonical dispatch / discriminator
     /// separator. Example: `:wat::core::op'2` (arity),
     /// `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` /
     /// `,i64-f64` shape was swept in arc 171 slice 2 (~440 sites).
-    CommaInKeywordBody(Position),
+    CommaInKeywordBody,
     /// Invalid character literal. Arc 220 slice 2: `\c` form error
     /// (empty body, supplementary-plane codepoint, unknown named char,
     /// or backslash followed by whitespace).
-    InvalidChar(String, Position),
+    InvalidChar(String),
+}
+
+impl fmt::Display for LexErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LexErrorKind::UnexpectedChar(c) => {
+                write!(f, "unexpected character {:?}", c)
+            }
+            LexErrorKind::UnterminatedString => {
+                write!(f, "unterminated string literal")
+            }
+            LexErrorKind::UnknownEscape(c) => {
+                write!(f, "unknown escape sequence \\{}", c)
+            }
+            LexErrorKind::InvalidNumber(s) => {
+                write!(f, "invalid numeric literal {:?}", s)
+            }
+            LexErrorKind::UnclosedBracketInKeyword => write!(
+                f,
+                "whitespace inside unclosed bracket in keyword — keywords cannot contain whitespace"
+            ),
+            LexErrorKind::CommaInKeywordBody => write!(
+                f,
+                "comma inside keyword body retired (arc 171); use apostrophe `'` as \
+                the dispatch / discriminator separator. Example: `:wat::core::op'2` (arity), \
+                `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` / `,i64-f64` \
+                shape was swept in arc 171 slice 2 (~440 sites)."
+            ),
+            LexErrorKind::InvalidChar(msg) => write!(
+                f,
+                "invalid character literal: {}",
+                msg
+            ),
+        }
+    }
 }
 
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LexError::UnexpectedChar(c, p) => {
-                write!(f, "unexpected character {:?} at byte {}", c, p)
-            }
-            LexError::UnterminatedString(p) => {
-                write!(f, "unterminated string literal starting at byte {}", p)
-            }
-            LexError::UnknownEscape(c, p) => {
-                write!(f, "unknown escape sequence \\{} at byte {}", c, p)
-            }
-            LexError::InvalidNumber(s, p) => {
-                write!(f, "invalid numeric literal {:?} at byte {}", s, p)
-            }
-            LexError::UnclosedBracketInKeyword(p) => write!(
-                f,
-                "whitespace inside unclosed bracket in keyword at byte {} — keywords cannot contain whitespace",
-                p
-            ),
-            LexError::CommaInKeywordBody(p) => write!(
-                f,
-                "comma inside keyword body at byte {} retired (arc 171); use apostrophe `'` as \
-                the dispatch / discriminator separator. Example: `:wat::core::op'2` (arity), \
-                `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` / `,i64-f64` \
-                shape was swept in arc 171 slice 2 (~440 sites).",
-                p
-            ),
-            LexError::InvalidChar(msg, p) => write!(
-                f,
-                "invalid character literal at byte {}: {}",
-                p, msg
-            ),
-        }
+        write!(f, "lex error at byte {}: {}", self.position, self.kind)
     }
 }
 
@@ -446,7 +460,7 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
         }
         if c == '\\' {
             let (esc_offset, esc) =
-                chars.next().ok_or(LexError::UnterminatedString(start))?;
+                chars.next().ok_or(LexError { position: start, kind: LexErrorKind::UnterminatedString })?;
             match esc {
                 '"' => out.push('"'),
                 '\\' => out.push('\\'),
@@ -454,14 +468,14 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 't' => out.push('\t'),
                 'r' => out.push('\r'),
                 '0' => out.push('\0'),
-                _ => return Err(LexError::UnknownEscape(esc, start + 1 + esc_offset)),
+                _ => return Err(LexError { position: start + 1 + esc_offset, kind: LexErrorKind::UnknownEscape(esc) }),
             }
             continue;
         }
         out.push(c);
     }
 
-    Err(LexError::UnterminatedString(start))
+    Err(LexError { position: start, kind: LexErrorKind::UnterminatedString })
 }
 
 /// Lex a character literal starting at `start` (pointing at `\`).
@@ -485,14 +499,13 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
 
     // Backslash cannot be followed by end-of-input or whitespace.
     if pos >= bytes.len() {
-        return Err(LexError::InvalidChar("empty char literal".into(), start));
+        return Err(LexError { position: start, kind: LexErrorKind::InvalidChar("empty char literal".into()) });
     }
     let first = bytes[pos];
     if (first as char).is_whitespace() {
-        return Err(LexError::InvalidChar(
+        return Err(LexError { position: start, kind: LexErrorKind::InvalidChar(
             "backslash followed by whitespace".into(),
-            start,
-        ));
+        ) });
     }
 
     // Single non-alphanumeric character (e.g. `\(`, `\;`, `\é`).
@@ -501,17 +514,16 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
         // Decode one UTF-8 scalar at pos.
         let rest = &src[pos..];
         let c = rest.chars().next().ok_or_else(|| {
-            LexError::InvalidChar("incomplete UTF-8 sequence".into(), start)
+            LexError { position: start, kind: LexErrorKind::InvalidChar("incomplete UTF-8 sequence".into()) }
         })?;
         if (c as u32) > 0xFFFF {
-            return Err(LexError::InvalidChar(
+            return Err(LexError { position: start, kind: LexErrorKind::InvalidChar(
                 format!(
                     "\\{}: supplementary-plane codepoint U+{:X} not supported; \
                      wat char literals are BMP-only (U+0000–U+FFFF)",
                     c, c as u32
                 ),
-                start,
-            ));
+            ) });
         }
         pos += c.len_utf8();
         return Ok((c, pos));
@@ -537,25 +549,23 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
     if body.len() == 5 && body.starts_with('u') {
         let hex = &body[1..];
         let acc = u32::from_str_radix(hex, 16).map_err(|_| {
-            LexError::InvalidChar(format!("\\{}: invalid hex escape", body), start)
+            LexError { position: start, kind: LexErrorKind::InvalidChar(format!("\\{}: invalid hex escape", body)) }
         })?;
         let c = char::from_u32(acc).ok_or_else(|| {
-            LexError::InvalidChar(
+            LexError { position: start, kind: LexErrorKind::InvalidChar(
                 format!("\\{}: not a valid Unicode scalar value", body),
-                start,
-            )
+            ) }
         })?;
         // Supplementary plane check (structurally impossible with 4 hex digits,
         // but explicit per BMP-only discipline).
         if (c as u32) > 0xFFFF {
-            return Err(LexError::InvalidChar(
+            return Err(LexError { position: start, kind: LexErrorKind::InvalidChar(
                 format!(
                     "\\{}: supplementary-plane codepoint U+{:X} not supported; \
                      wat char literals are BMP-only",
                     body, c as u32
                 ),
-                start,
-            ));
+            ) });
         }
         return Ok((c, pos));
     }
@@ -569,10 +579,9 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
     }
 
     // Unrecognised body (e.g. `\xyz`, `\newlines`).
-    Err(LexError::InvalidChar(
+    Err(LexError { position: start, kind: LexErrorKind::InvalidChar(
         format!("unrecognised char literal \\{}", body),
-        start,
-    ))
+    ) })
 }
 
 /// Lex a keyword token starting at `start` (pointing at `:`).
@@ -622,7 +631,7 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
 
         if c.is_whitespace() {
             if paren_depth > 0 || angle_depth > 0 {
-                return Err(LexError::UnclosedBracketInKeyword(i));
+                return Err(LexError { position: i, kind: LexErrorKind::UnclosedBracketInKeyword });
             }
             break;
         }
@@ -718,7 +727,7 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 // handled by the fall-through. Commas at depth 0 are
                 // the retired keyword-body separator shape.
                 if paren_depth == 0 && angle_depth == 0 {
-                    return Err(LexError::CommaInKeywordBody(i));
+                    return Err(LexError { position: i, kind: LexErrorKind::CommaInKeywordBody });
                 }
                 out.push(c);
             }
@@ -748,7 +757,7 @@ fn lex_numeric_or_symbol(src: &str, start: usize) -> Result<(Token, usize), LexE
     if let Ok(x) = raw.parse::<f64>() {
         return Ok((Token::Float(x), i));
     }
-    Err(LexError::InvalidNumber(raw.to_string(), start))
+    Err(LexError { position: start, kind: LexErrorKind::InvalidNumber(raw.to_string()) })
 }
 
 /// Lex a bare symbol (including bools `true` / `false`, which the caller
@@ -855,7 +864,7 @@ mod tests {
     fn string_unterminated() {
         assert!(matches!(
             lex_tokens("\"oops"),
-            Err(LexError::UnterminatedString(_))
+            Err(LexError { kind: LexErrorKind::UnterminatedString, .. })
         ));
     }
 
@@ -1090,12 +1099,12 @@ mod tests {
         // Comma as keyword-body separator retired; `'` is canonical.
         assert!(matches!(
             lex_tokens(":wat::core::op,2"),
-            Err(LexError::CommaInKeywordBody(_))
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
         ));
         // Depth-0 comma mid-body is also rejected.
         assert!(matches!(
             lex_tokens(":foo,bar"),
-            Err(LexError::CommaInKeywordBody(_))
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
         ));
         // Commas inside `(...)` (tuple types) are still valid.
         assert_eq!(

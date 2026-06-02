@@ -138,9 +138,9 @@ pub use freeze::{
 pub use harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use identifier::{fresh_scope, Identifier, ScopeId};
-pub use lexer::LexError;
+pub use lexer::{LexError, LexErrorKind};
 pub use load::{
-    resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadFetchError, LoadSpec, LoadedSource,
+    resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadErrorKind, LoadFetchError, LoadSpec, LoadedSource,
     PayloadInterface, SourceInterface, SourceLoader, VerificationSpec,
 };
 pub use lower::{lower, LowerError};
