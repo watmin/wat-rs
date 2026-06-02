@@ -1,6 +1,6 @@
 # Arc 241 — function-signature parser unification (one canonical argspec parser)
 
-**Status:** OPEN 2026-05-27 night. Arc 237 PAUSED at 237.8b (DESIGN + probe committed `49e2e13b`); resumes when 241 closes.
+**Status:** ✅ **CLOSED 2026-06-02** (`INSCRIPTION.md`). Opened 2026-05-27 night (`09fb8c63`). Eighteen stones (241.0 → 241.18a) shipped; the four-parser divergence class structurally annihilated (one canonical `parse_argspec_triples`, every binding site routed through it); the whole `define` family laid to rest; three warded homes minted (`src/argspec/`, `src/remedy/`, `src/function/`). Both spawned children — arc 242 (lexeme-role-doctrine) + arc 243 (conformare-error-shape) — closed first, as the winding demands. Closing chronicle + the honest record of the campaign: **`INSCRIPTION.md`** (FM-11 clean). **Arc 237 now resumes at 237.8b** (Gate 1 GREEN since `639b4862`). The stone-chain and origin notes below are preserved as historical record.
 
 **Origin:** Stone 237.8b's FM-2-bis probe (`tests/probe_arc237_8b_defclause_arithmetic.rs` Gate 1) surfaced that `defclause`'s argspec parser doesn't support `&` rest-binders. The user pushed: *"why isn't this using the tooling that fn and defn use?"* — the right question.
 
