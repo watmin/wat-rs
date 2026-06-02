@@ -147,7 +147,7 @@ pub use lower::{lower, LowerError};
 pub use macros::{
     expand_all, register_defmacros, MacroDef, MacroError, MacroRegistry,
 };
-pub use parser::{parse_all_with_file, parse_one_with_file, ParseError};
+pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErrorKind};
 // The parse_one! and parse_all! macros are exported at crate root via
 // #[macro_export] in parser.rs — consumers call them as `wat::parse_one!(src)`.
 

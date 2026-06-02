@@ -34,7 +34,7 @@
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::runtime::{Function, StructValue, SymbolTable, Value};
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
@@ -61,7 +61,8 @@ pub struct ClosurePackage {
     pub entry_form: WatAST,
 }
 
-/// Errors surfaced during extraction.
+/// Errors surfaced during extraction. Pattern A (Stone 243.7d): span
+/// at the outer struct level; variant data in `ExtractionErrorKind`.
 ///
 /// `NonPortableCapture` is the substrate-as-teacher rejection: a
 /// captured value whose type is channel-bearing / IO / process-handle
@@ -70,8 +71,17 @@ pub struct ClosurePackage {
 /// type, the field path inside (when nested), and points the user at
 /// pipes / restructure.
 #[derive(Debug, Clone)]
-pub enum ExtractionError {
+pub struct ExtractionError {
+    pub span: Span,
+    pub kind: ExtractionErrorKind,
+}
+
+/// Variant data for [`ExtractionError`]. Spans live in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug, Clone)]
+pub enum ExtractionErrorKind {
     /// A captured value of a non-portable type was found.
+    /// No span — constructs with outer `Span::unknown()`.
     NonPortableCapture {
         /// The let-scope name of the offending capture.
         name: String,
@@ -83,17 +93,17 @@ pub enum ExtractionError {
     },
     /// A free symbol could not be resolved against the parent's symbol
     /// table or treated as a substrate primitive.
-    UnresolvedSymbol { name: String, span: Span },
+    UnresolvedSymbol { name: String },
     /// An internal invariant was violated. Not user-actionable; surfaces
     /// programmer bugs (e.g., `Function` carries no body span when one
-    /// was expected).
+    /// was expected). No span — constructs with outer `Span::unknown()`.
     Internal(String),
 }
 
-impl std::fmt::Display for ExtractionError {
+impl std::fmt::Display for ExtractionErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtractionError::NonPortableCapture {
+            ExtractionErrorKind::NonPortableCapture {
                 name,
                 type_name,
                 path,
@@ -112,13 +122,20 @@ impl std::fmt::Display for ExtractionError {
                     name, type_name, path_suffix
                 )
             }
-            ExtractionError::UnresolvedSymbol { name, span } => write!(
+            ExtractionErrorKind::UnresolvedSymbol { name } => write!(
                 f,
-                "free symbol `{}` does not resolve to a parent define or substrate primitive (span: {})",
-                name, span
+                "free symbol `{}` does not resolve to a parent define or substrate primitive",
+                name
             ),
-            ExtractionError::Internal(msg) => write!(f, "closure-extract internal: {}", msg),
+            ExtractionErrorKind::Internal(msg) => write!(f, "closure-extract internal: {}", msg),
         }
+    }
+}
+
+impl std::fmt::Display for ExtractionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 
@@ -140,10 +157,13 @@ pub fn extract_closure(
     let func = match fn_value {
         Value::wat__core__fn(f) => f.clone(),
         other => {
-            return Err(ExtractionError::Internal(format!(
-                "extract_closure expected Value::wat__core__fn, got {}",
-                other.type_name()
-            )))
+            return Err(ExtractionError {
+                span: crate::span::Span::unknown(),
+                kind: ExtractionErrorKind::Internal(format!(
+                    "extract_closure expected Value::wat__core__fn, got {}",
+                    other.type_name()
+                )),
+            })
         }
     };
 
@@ -219,7 +239,7 @@ pub fn extract_closure(
 
     // Surface the first unresolved (others would cascade similar errors).
     if let Some((name, span)) = state.really_unresolved.first().cloned() {
-        return Err(ExtractionError::UnresolvedSymbol { name, span });
+        return Err(ExtractionError { span, kind: ExtractionErrorKind::UnresolvedSymbol { name } });
     }
 
     // Recursively extract user deps + user types. Walks each dep AST
@@ -566,10 +586,13 @@ fn walk_free_symbols(
             // tests reveal the gap; else silently skip — this keyword
             // may be a user-typed keyword literal at value position.
             if state.parent_symbols.runtime_def_values.contains_key(k) {
-                return Err(ExtractionError::Internal(format!(
-                    "captured `def`-bound name {} not yet supported by closure extraction (slice 1)",
-                    k
-                )));
+                return Err(ExtractionError {
+                    span: crate::span::Span::unknown(),
+                    kind: ExtractionErrorKind::Internal(format!(
+                        "captured `def`-bound name {} not yet supported by closure extraction (slice 1)",
+                        k
+                    )),
+                });
             }
             // Treat as a keyword literal at value position (no
             // resolution required).
@@ -1179,7 +1202,7 @@ fn extract_user_deps_to_fixpoint(
                 .captured_deps
                 .get(&name)
                 .cloned()
-                .ok_or_else(|| ExtractionError::Internal(format!("dep {} vanished", name)))?;
+                .ok_or_else(|| ExtractionError { span: crate::span::Span::unknown(), kind: ExtractionErrorKind::Internal(format!("dep {} vanished", name)) })?;
             let mut dep_locals: BTreeSet<String> =
                 dep_func.params.iter().cloned().collect();
             if let Some(rest) = &dep_func.rest_param {
@@ -1213,9 +1236,11 @@ fn extract_user_deps_to_fixpoint(
                 state.really_unresolved.push((fname, fspan));
             }
             if let Some((n, sp)) = state.really_unresolved.first().cloned() {
-                return Err(ExtractionError::UnresolvedSymbol {
-                    name: n,
+                return Err(ExtractionError {
                     span: sp,
+                    kind: ExtractionErrorKind::UnresolvedSymbol {
+                        name: n,
+                    },
                 });
             }
         }
@@ -1241,7 +1266,7 @@ fn extract_user_types_to_fixpoint(
                 .captured_types
                 .get(&name)
                 .cloned()
-                .ok_or_else(|| ExtractionError::Internal(format!("type {} vanished", name)))?;
+                .ok_or_else(|| ExtractionError { span: crate::span::Span::unknown(), kind: ExtractionErrorKind::Internal(format!("type {} vanished", name)) })?;
             // Walk fields / variants / inner / alias-target for further
             // type refs. Each found type-ref becomes an edge from
             // `name` to that type.
@@ -1710,29 +1735,38 @@ fn encode_value_with_path(
         | Value::Reckoner(_)
         | Value::Engram(_)
         | Value::EngramLibrary(_)
-        | Value::Hologram(_) => Err(ExtractionError::NonPortableCapture {
-            name: binding_name.to_string(),
-            type_name: v.type_name().to_string(),
-            path: path.clone(),
+        | Value::Hologram(_) => Err(ExtractionError {
+            span: crate::span::Span::unknown(),
+            kind: ExtractionErrorKind::NonPortableCapture {
+                name: binding_name.to_string(),
+                type_name: v.type_name().to_string(),
+                path: path.clone(),
+            },
         }),
         // Arc 234 Stone 234.1 — wat__holon__Record: no closure-extract encoding yet.
         // Stone 234.2 ships defrecord macro + constructor; closure-extract
         // for wat__holon__Record lands when the constructor form is available.
         // Stone S-C.2c — wat__Record (base): same placeholder (base unconstructed at wat surface).
         Value::wat__holon__Record { .. } | Value::wat__Record { .. } => {
-            Err(ExtractionError::Internal(format!(
-                "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
-                v.type_name()
-            )))
+            Err(ExtractionError {
+                span: crate::span::Span::unknown(),
+                kind: ExtractionErrorKind::Internal(format!(
+                    "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
+                    v.type_name()
+                )),
+            })
         }
 
         // Stone 237.2 — wat__core__clauses: no closure-extract encoding for
         // multi-arity dispatchers yet. Clause bodies are evaluated at dispatch
         // time; the dispatcher itself is a top-level registration (not a closure).
-        Value::wat__core__clauses(_) => Err(ExtractionError::Internal(format!(
-            "encoding for captured Value of kind {} not implemented (Stone 237.2 — defclause is top-level)",
-            v.type_name()
-        ))),
+        Value::wat__core__clauses(_) => Err(ExtractionError {
+            span: crate::span::Span::unknown(),
+            kind: ExtractionErrorKind::Internal(format!(
+                "encoding for captured Value of kind {} not implemented (Stone 237.2 — defclause is top-level)",
+                v.type_name()
+            )),
+        }),
 
         // ─── arms slice 1 doesn't yet encode ──────────────────────────
         // These are portable in principle; surface as Internal so a
@@ -1744,10 +1778,13 @@ fn encode_value_with_path(
         | Value::RustOpaque(_)
         | Value::Vector(_)
         | Value::Instant(_)
-        | Value::Duration(_) => Err(ExtractionError::Internal(format!(
-            "encoding for captured Value of kind {} not implemented in slice 1",
-            v.type_name()
-        ))),
+        | Value::Duration(_) => Err(ExtractionError {
+            span: crate::span::Span::unknown(),
+            kind: ExtractionErrorKind::Internal(format!(
+                "encoding for captured Value of kind {} not implemented in slice 1",
+                v.type_name()
+            )),
+        }),
     }
 }
 

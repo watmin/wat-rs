@@ -11846,12 +11846,12 @@ fn check_comparison(
 }
 
 fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: Span) -> CheckError {
-    use crate::form_match::ClauseGrammarError as G;
-    let reason = match e {
-        G::NotAList(_) => "clause must be a list `(head ...)`".to_string(),
-        G::EmptyList(_) => "empty clause `()` — clauses need a head".to_string(),
-        G::NonKeywordHead(_) => "clause head must be a keyword (=, <, and, where, ...)".to_string(),
-        G::UnknownHead(h, _) => format!(
+    use crate::form_match::ClauseGrammarErrorKind as G;
+    let reason = match e.kind {
+        G::NotAList => "clause must be a list `(head ...)`".to_string(),
+        G::EmptyList => "empty clause `()` — clauses need a head".to_string(),
+        G::NonKeywordHead => "clause head must be a keyword (=, <, and, where, ...)".to_string(),
+        G::UnknownHead(h) => format!(
             "unknown matcher head: {}; recognized: =, <, >, <=, >=, not=, and, or, not, where",
             h
         ),

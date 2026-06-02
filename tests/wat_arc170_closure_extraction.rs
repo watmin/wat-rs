@@ -30,7 +30,7 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError};
+use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError, ExtractionErrorKind};
 use wat::freeze::{startup_from_forms, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{apply_function, eval, Environment, Value};
@@ -528,7 +528,7 @@ fn t8_lambda_captures_sender_is_non_portable() {
     let lambda = synth_lambda(&parent, ":my::make-snd");
     let err = extract_err(&parent, &lambda, None);
     match &err {
-        ExtractionError::NonPortableCapture { name, type_name, path: _ } => {
+        ExtractionError { kind: ExtractionErrorKind::NonPortableCapture { name, type_name, path: _ }, .. } => {
             assert_eq!(name, "tx");
             assert!(type_name.contains("Sender"), "type_name={}", type_name);
         }
@@ -584,7 +584,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
     let lambda = synth_lambda(&parent, ":my::make-pack");
     let err = extract_err(&parent, &lambda, None);
     match err {
-        ExtractionError::NonPortableCapture { name: _, type_name, path } => {
+        ExtractionError { kind: ExtractionErrorKind::NonPortableCapture { name: _, type_name, path }, .. } => {
             assert!(type_name.contains("Sender"), "type_name={}", type_name);
             assert!(!path.is_empty(), "expected nested path naming the offending field");
         }

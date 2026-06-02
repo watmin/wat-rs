@@ -108,6 +108,6 @@ impl From<ArgSpecError> for crate::macros::MacroError {
         // e.head is not threaded: MalformedDefmacro is defmacro-specific by variant name,
         // so the form identity is structural here (unlike the generic MalformedForm/
         // MalformedDecl variants that carry head because they serve many forms).
-        crate::macros::MacroError::MalformedDefmacro { reason, span: e.span }
+        crate::macros::MacroError { span: e.span, kind: crate::macros::MacroErrorKind::MalformedDefmacro { reason } }
     }
 }

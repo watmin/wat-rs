@@ -17,33 +17,43 @@
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::lexer::{lex, LexError, SpannedToken, Token};
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 use std::fmt;
 use std::sync::Arc;
 
-/// Parse error.
+/// Parse error. Pattern A (Stone 243.7d): span at the outer struct
+/// level; variant data in `ParseErrorKind`. Every constructor demands
+/// the span — silent omission is uncompilable.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ParseError {
+pub struct ParseError {
+    pub span: Span,
+    pub kind: ParseErrorKind,
+}
+
+/// Variant data for [`ParseError`]. Spans live in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseErrorKind {
     /// Lex failure — the input couldn't be tokenized.
     Lex(LexError),
     /// A `)` was found with no matching `(`. Span is the location of
     /// the unmatched `)` so the user can jump straight to it instead
     /// of bisecting the file by hand.
-    UnexpectedRParen(Span),
+    UnexpectedRParen,
     /// An opening `(` was never closed before end of input. Span is
     /// the location of the orphan `(` (not end-of-file) — points the
     /// user at the form they forgot to close.
-    UnclosedParen(Span),
+    UnclosedParen,
     /// A `]` was found with no matching `[`. Arc 167 slice 1.
-    UnexpectedRBracket(Span),
+    UnexpectedRBracket,
     /// An opening `[` was never closed before end of input. Arc 167
     /// slice 1.
-    UnclosedBracket(Span),
+    UnclosedBracket,
     /// A `}` was found with no matching `{`. Arc 169 slice 1.
-    UnexpectedRBrace(Span),
+    UnexpectedRBrace,
     /// An opening `{` was never closed before end of input. Arc 169
     /// slice 1.
-    UnclosedBrace(Span),
+    UnclosedBrace,
     /// A struct-destructure brace-form carried a non-Symbol child.
     /// Arc 169 slice 1 — parse-time shape rule: every child of `{}`
     /// in struct-destructure position must be a bare Symbol, and at
@@ -54,8 +64,6 @@ pub enum ParseError {
     /// variant fires only when the struct-destructure branch (bare
     /// Symbol head) encounters a non-Symbol inside the brace-form.
     MalformedStructPattern {
-        /// The `{` opening span.
-        span: Span,
         /// Diagnostic naming the offending shape.
         reason: String,
     },
@@ -67,43 +75,48 @@ pub enum ParseError {
     /// - First child was neither Keyword (map literal) nor bare Symbol
     ///   (struct destructure) — i.e., an integer, list, etc.
     MalformedBraceLiteral {
-        /// The `{` opening span.
-        span: Span,
         /// Diagnostic naming the offending shape.
         reason: String,
     },
     /// `parse_one` expected exactly one form; got trailing content after
     /// the first complete form. Span points at the first trailing token.
-    TrailingContent(Span),
+    TrailingContent,
     /// `parse_one` expected a form but the input was empty (all whitespace).
     Empty,
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for ParseErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ParseError::Lex(e) => write!(f, "lex error: {}", e),
-            ParseError::UnexpectedRParen(span) => write!(f, "unexpected ')' at {}", span),
-            ParseError::UnclosedParen(span) => write!(f, "unclosed '(' at {}", span),
-            ParseError::UnexpectedRBracket(span) => write!(f, "unexpected ']' at {}", span),
-            ParseError::UnclosedBracket(span) => write!(f, "unclosed '[' at {}", span),
-            ParseError::UnexpectedRBrace(span) => write!(f, "unexpected '}}' at {}", span),
-            ParseError::UnclosedBrace(span) => write!(f, "unclosed '{{' at {}", span),
-            ParseError::MalformedStructPattern { span, reason } => write!(
+            ParseErrorKind::Lex(e) => write!(f, "lex error: {}", e),
+            ParseErrorKind::UnexpectedRParen => write!(f, "unexpected ')'"),
+            ParseErrorKind::UnclosedParen => write!(f, "unclosed '('"),
+            ParseErrorKind::UnexpectedRBracket => write!(f, "unexpected ']'"),
+            ParseErrorKind::UnclosedBracket => write!(f, "unclosed '['"),
+            ParseErrorKind::UnexpectedRBrace => write!(f, "unexpected '}}'"),
+            ParseErrorKind::UnclosedBrace => write!(f, "unclosed '{{'"),
+            ParseErrorKind::MalformedStructPattern { reason } => write!(
                 f,
-                "malformed struct-destructure brace-form at {}: {}",
-                span, reason
+                "malformed struct-destructure brace-form: {}",
+                reason
             ),
-            ParseError::MalformedBraceLiteral { span, reason } => write!(
+            ParseErrorKind::MalformedBraceLiteral { reason } => write!(
                 f,
-                "malformed brace-literal at {}: {}",
-                span, reason
+                "malformed brace-literal: {}",
+                reason
             ),
-            ParseError::TrailingContent(span) => {
-                write!(f, "trailing content at {} (parse_one expected a single top-level form)", span)
+            ParseErrorKind::TrailingContent => {
+                write!(f, "trailing content (parse_one expected a single top-level form)")
             }
-            ParseError::Empty => write!(f, "empty input — expected a form"),
+            ParseErrorKind::Empty => write!(f, "empty input — expected a form"),
         }
+    }
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 
@@ -111,7 +124,7 @@ impl std::error::Error for ParseError {}
 
 impl From<LexError> for ParseError {
     fn from(e: LexError) -> Self {
-        ParseError::Lex(e)
+        ParseError { span: Span::unknown(), kind: ParseErrorKind::Lex(e) }
     }
 }
 
@@ -154,10 +167,10 @@ pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> 
     let mut cursor = Cursor::new(&tokens);
     let node = match cursor.parse_form()? {
         Some(node) => node,
-        None => return Err(ParseError::Empty),
+        None => return Err(ParseError { span: Span::unknown(), kind: ParseErrorKind::Empty }),
     };
     if let Some(tok) = cursor.peek() {
-        return Err(ParseError::TrailingContent(tok.span.clone()));
+        return Err(ParseError { span: tok.span.clone(), kind: ParseErrorKind::TrailingContent });
     }
     Ok(node)
 }
@@ -210,7 +223,7 @@ impl<'a> Cursor<'a> {
                 let list = self.parse_list_body(span.clone())?;
                 Ok(Some(WatAST::List(list, span)))
             }
-            Token::RParen => Err(ParseError::UnexpectedRParen(span)),
+            Token::RParen => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRParen }),
             Token::LBracket => {
                 // Arc 167 slice 1 — bracketed forms parse as
                 // `WatAST::Vector`. `[]` parses as an empty Vector
@@ -218,7 +231,7 @@ impl<'a> Cursor<'a> {
                 let items = self.parse_vector_body(span.clone())?;
                 Ok(Some(WatAST::Vector(items, span)))
             }
-            Token::RBracket => Err(ParseError::UnexpectedRBracket(span)),
+            Token::RBracket => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBracket }),
             Token::LBrace => {
                 // Arc 214 P2 — content-shape dispatch. The parser
                 // reads the body content-agnostically, then branches
@@ -286,7 +299,7 @@ impl<'a> Cursor<'a> {
                     }
                 }
             }
-            Token::RBrace => Err(ParseError::UnexpectedRBrace(span)),
+            Token::RBrace => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBrace }),
             Token::LHashBrace => {
                 // Arc 215 stone 1 — `#{x y z ...}` set literal.
                 // Desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
@@ -332,7 +345,7 @@ impl<'a> Cursor<'a> {
         head_keyword: &str,
         span: Span,
     ) -> Result<Option<WatAST>, ParseError> {
-        let inner = self.parse_form()?.ok_or(ParseError::Empty)?;
+        let inner = self.parse_form()?.ok_or(ParseError { span: Span::unknown(), kind: ParseErrorKind::Empty })?;
         Ok(Some(WatAST::List(
             vec![WatAST::Keyword(head_keyword.to_string(), span.clone()), inner],
             span,
@@ -357,14 +370,14 @@ impl<'a> Cursor<'a> {
                     // is a delimiter mismatch. Surface as
                     // `UnexpectedRBracket` pointing at the `]`.
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRBracket(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBracket });
                 }
                 Some(Token::RBrace) => {
                     // Arc 169 slice 1 — a `}` inside a list body
                     // is a delimiter mismatch. Surface as
                     // `UnexpectedRBrace` pointing at the `}`.
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRBrace(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBrace });
                 }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
@@ -372,7 +385,7 @@ impl<'a> Cursor<'a> {
                         "parse_form returned None but peek() had a token"
                     ),
                 },
-                None => return Err(ParseError::UnclosedParen(open_span)),
+                None => return Err(ParseError { span: open_span, kind: ParseErrorKind::UnclosedParen }),
             }
         }
     }
@@ -393,13 +406,13 @@ impl<'a> Cursor<'a> {
                     // A `)` inside a vector body is a delimiter
                     // mismatch — surface as `UnexpectedRParen`.
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRParen(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRParen });
                 }
                 Some(Token::RBrace) => {
                     // Arc 169 slice 1 — a `}` inside a vector body
                     // is a delimiter mismatch.
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRBrace(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBrace });
                 }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
@@ -407,7 +420,7 @@ impl<'a> Cursor<'a> {
                         "parse_form returned None but peek() had a token"
                     ),
                 },
-                None => return Err(ParseError::UnclosedBracket(open_span)),
+                None => return Err(ParseError { span: open_span, kind: ParseErrorKind::UnclosedBracket }),
             }
         }
     }
@@ -432,11 +445,11 @@ impl<'a> Cursor<'a> {
                 }
                 Some(Token::RParen) => {
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRParen(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRParen });
                 }
                 Some(Token::RBracket) => {
                     let span = self.peek().expect("guard").span.clone();
-                    return Err(ParseError::UnexpectedRBracket(span));
+                    return Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBracket });
                 }
                 Some(_) => match self.parse_form()? {
                     Some(child) => children.push(child),
@@ -444,7 +457,7 @@ impl<'a> Cursor<'a> {
                         "parse_form returned None but peek() had a token"
                     ),
                 },
-                None => return Err(ParseError::UnclosedBrace(open_span)),
+                None => return Err(ParseError { span: open_span, kind: ParseErrorKind::UnclosedBrace }),
             }
         }
     }
@@ -473,12 +486,14 @@ impl<'a> Cursor<'a> {
     ) -> Result<Option<WatAST>, ParseError> {
         // Even-count rule: body must alternate key/value pairs.
         if !items.len().is_multiple_of(2) {
-            return Err(ParseError::MalformedBraceLiteral {
+            return Err(ParseError {
                 span: open_span,
-                reason: format!(
-                    "map-literal body must alternate key + value pairs; got {} forms",
-                    items.len()
-                ),
+                kind: ParseErrorKind::MalformedBraceLiteral {
+                    reason: format!(
+                        "map-literal body must alternate key + value pairs; got {} forms",
+                        items.len()
+                    ),
+                },
             });
         }
 
@@ -566,12 +581,14 @@ impl<'a> Cursor<'a> {
         // ensures `Some(WatAST::Symbol(_, _))` is the first child.
         for item in &items {
             if !matches!(item, WatAST::Symbol(_, _)) {
-                return Err(ParseError::MalformedStructPattern {
+                return Err(ParseError {
                     span: item.span().clone(),
-                    reason: format!(
-                        "struct-destructure brace-form must contain only bare symbols (field names); got a {} — write `{{field1 field2 ...}}` with bare names only",
-                        ast_variant_label(item)
-                    ),
+                    kind: ParseErrorKind::MalformedStructPattern {
+                        reason: format!(
+                            "struct-destructure brace-form must contain only bare symbols (field names); got a {} — write `{{field1 field2 ...}}` with bare names only",
+                            ast_variant_label(item)
+                        ),
+                    },
                 });
             }
         }
@@ -600,13 +617,15 @@ impl<'a> Cursor<'a> {
     ) -> Result<Option<WatAST>, ParseError> {
         // Even count required — each var needs a keyword partner.
         if !items.len().is_multiple_of(2) {
-            return Err(ParseError::MalformedStructPattern {
+            return Err(ParseError {
                 span: open_span.clone(),
-                reason: format!(
-                    "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {} item{}",
-                    items.len(),
-                    if items.len() == 1 { "" } else { "s" }
-                ),
+                kind: ParseErrorKind::MalformedStructPattern {
+                    reason: format!(
+                        "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {} item{}",
+                        items.len(),
+                        if items.len() == 1 { "" } else { "s" }
+                    ),
+                },
             });
         }
         // Must have at least one pair (len >= 2 — guaranteed by even check
@@ -616,25 +635,29 @@ impl<'a> Cursor<'a> {
             if i % 2 == 0 {
                 // Even positions: bare Symbol (binding name).
                 if !matches!(item, WatAST::Symbol(_, _)) {
-                    return Err(ParseError::MalformedStructPattern {
+                    return Err(ParseError {
                         span: item.span().clone(),
-                        reason: format!(
-                            "hash-destructure: expected a bare symbol (binding name) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
-                            i,
-                            ast_variant_label(item)
-                        ),
+                        kind: ParseErrorKind::MalformedStructPattern {
+                            reason: format!(
+                                "hash-destructure: expected a bare symbol (binding name) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
+                                i,
+                                ast_variant_label(item)
+                            ),
+                        },
                     });
                 }
             } else {
                 // Odd positions: Keyword (field name).
                 if !matches!(item, WatAST::Keyword(_, _)) {
-                    return Err(ParseError::MalformedStructPattern {
+                    return Err(ParseError {
                         span: item.span().clone(),
-                        reason: format!(
-                            "hash-destructure: expected a keyword (field name, e.g. `:field`) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
-                            i,
-                            ast_variant_label(item)
-                        ),
+                        kind: ParseErrorKind::MalformedStructPattern {
+                            reason: format!(
+                                "hash-destructure: expected a keyword (field name, e.g. `:field`) at position {}; got a {} — write `{{var :field  var2 :field2 ...}}`",
+                                i,
+                                ast_variant_label(item)
+                            ),
+                        },
                     });
                 }
             }
@@ -813,7 +836,7 @@ mod tests {
 
     #[test]
     fn unexpected_rparen_at_start() {
-        assert!(matches!(crate::parse_one!(")"), Err(ParseError::UnexpectedRParen(_))));
+        assert!(matches!(crate::parse_one!(")"), Err(ParseError { kind: ParseErrorKind::UnexpectedRParen, .. })));
     }
 
     #[test]
@@ -821,7 +844,7 @@ mod tests {
         // `(a))` — `(a)` parses fine; the extra `)` is trailing content.
         assert!(matches!(
             crate::parse_one!("(a))"),
-            Err(ParseError::TrailingContent(_))
+            Err(ParseError { kind: ParseErrorKind::TrailingContent, .. })
         ));
     }
 
@@ -831,25 +854,25 @@ mod tests {
         // via parse_all, which treats it as UnexpectedRParen.
         assert!(matches!(
             crate::parse_all!("(a)) foo"),
-            Err(ParseError::UnexpectedRParen(_))
+            Err(ParseError { kind: ParseErrorKind::UnexpectedRParen, .. })
         ));
     }
 
     #[test]
     fn unclosed_paren() {
-        assert!(matches!(crate::parse_one!("("), Err(ParseError::UnclosedParen(_))));
-        assert!(matches!(crate::parse_one!("(a b"), Err(ParseError::UnclosedParen(_))));
+        assert!(matches!(crate::parse_one!("("), Err(ParseError { kind: ParseErrorKind::UnclosedParen, .. })));
+        assert!(matches!(crate::parse_one!("(a b"), Err(ParseError { kind: ParseErrorKind::UnclosedParen, .. })));
         assert!(matches!(
             crate::parse_one!("(a (b)"),
-            Err(ParseError::UnclosedParen(_))
+            Err(ParseError { kind: ParseErrorKind::UnclosedParen, .. })
         ));
     }
 
     #[test]
     fn empty_input_errors_in_parse_one() {
-        assert!(matches!(crate::parse_one!(""), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!("   "), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!("; comment"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!(""), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
+        assert!(matches!(crate::parse_one!("   "), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
+        assert!(matches!(crate::parse_one!("; comment"), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
     }
 
     #[test]
@@ -862,7 +885,7 @@ mod tests {
     fn trailing_content_rejected_by_parse_one() {
         assert!(matches!(
             crate::parse_one!("1 2"),
-            Err(ParseError::TrailingContent(_))
+            Err(ParseError { kind: ParseErrorKind::TrailingContent, .. })
         ));
     }
 
@@ -872,7 +895,7 @@ mod tests {
         // unclosed-bracket-in-keyword error — whitespace inside an
         // unclosed `(` in a keyword body.
         let e = crate::parse_one!(":fn(T ").unwrap_err();
-        assert!(matches!(e, ParseError::Lex(_)));
+        assert!(matches!(e, ParseError { kind: ParseErrorKind::Lex(_), .. }));
     }
 
     #[test]
@@ -1005,9 +1028,9 @@ mod tests {
     fn reader_macro_without_following_form_errors() {
         // Arc 172 slice 1: `,` is now whitespace (no longer a reader macro);
         // `~` and `~@` are the canonical unquote characters.
-        assert!(matches!(crate::parse_one!("`"), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!("~"), Err(ParseError::Empty)));
-        assert!(matches!(crate::parse_one!("~@"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("`"), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
+        assert!(matches!(crate::parse_one!("~"), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
+        assert!(matches!(crate::parse_one!("~@"), Err(ParseError { kind: ParseErrorKind::Empty, .. })));
     }
 
     #[test]

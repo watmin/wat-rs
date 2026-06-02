@@ -15,7 +15,7 @@
 //! "valid" means without forking the grammar.
 
 use crate::ast::WatAST;
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 
 /// Six-way comparison on bound `?var`s and literals.
 ///
@@ -76,80 +76,80 @@ pub enum RawClause<'a> {
     Where(&'a WatAST),
 }
 
-/// Why a clause failed structural classification. Each variant
-/// carries enough information for either side to surface a
-/// diagnostic naming the offending shape.
+/// Why a clause failed structural classification. Pattern A (Stone
+/// 243.7d): span at the outer struct level; variant data in
+/// `ClauseGrammarErrorKind`.
 #[derive(Debug, Clone)]
-pub enum ClauseGrammarError {
-    /// The clause wasn't a list — e.g. a bare literal or symbol
-    /// where a `(head ...)` form was expected.
-    NotAList(Span),
-    /// The clause was the empty list `()`. Pattern clauses must
-    /// have a head.
-    EmptyList(Span),
-    /// The head wasn't a keyword. Clauses always start with a
-    /// keyword head (`=`, `<`, `and`, `where`, ...).
-    NonKeywordHead(Span),
-    /// Head keyword wasn't in the recognized vocabulary. Carries
-    /// the exact head string so the walker can render it.
-    UnknownHead(String, Span),
-    /// `(not clause)` got a different number of args.
-    NotArity { got: usize, span: Span },
-    /// `(where expr)` got a different number of args.
-    WhereArity { got: usize, span: Span },
-    /// `(<op> L R)` got a different number of args.
-    BinaryArity { op: CompareOp, got: usize, span: Span },
+pub struct ClauseGrammarError {
+    pub span: Span,
+    pub kind: ClauseGrammarErrorKind,
 }
 
-/// Prefix `"<file>:<line>:<col>: "` when span is known; empty string
-/// when unknown. Mirrors `src/check.rs::span_prefix` and
-/// `src/types.rs::span_prefix` exactly.
-fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
+/// Variant data for [`ClauseGrammarError`]. Spans live in the outer
+/// struct; variants carry ONLY data unique to each failure kind.
+#[derive(Debug, Clone)]
+pub enum ClauseGrammarErrorKind {
+    /// The clause wasn't a list — e.g. a bare literal or symbol
+    /// where a `(head ...)` form was expected.
+    NotAList,
+    /// The clause was the empty list `()`. Pattern clauses must
+    /// have a head.
+    EmptyList,
+    /// The head wasn't a keyword. Clauses always start with a
+    /// keyword head (`=`, `<`, `and`, `where`, ...).
+    NonKeywordHead,
+    /// Head keyword wasn't in the recognized vocabulary. Carries
+    /// the exact head string so the walker can render it.
+    UnknownHead(String),
+    /// `(not clause)` got a different number of args.
+    NotArity { got: usize },
+    /// `(where expr)` got a different number of args.
+    WhereArity { got: usize },
+    /// `(<op> L R)` got a different number of args.
+    BinaryArity { op: CompareOp, got: usize },
+}
+
+impl std::fmt::Display for ClauseGrammarErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClauseGrammarErrorKind::NotAList => {
+                write!(f, "clause must be a list `(head ...)`")
+            }
+            ClauseGrammarErrorKind::EmptyList => {
+                write!(f, "empty clause `()` — clauses need a head")
+            }
+            ClauseGrammarErrorKind::NonKeywordHead => {
+                write!(f, "clause head must be a keyword (=, <, and, where, ...)")
+            }
+            ClauseGrammarErrorKind::UnknownHead(h) => write!(
+                f,
+                "unknown matcher head: {}; recognized: =, <, >, <=, >=, not=, and, or, not, where",
+                h
+            ),
+            ClauseGrammarErrorKind::NotArity { got } => write!(
+                f,
+                "`not` takes exactly 1 sub-clause; got {}",
+                got
+            ),
+            ClauseGrammarErrorKind::WhereArity { got } => write!(
+                f,
+                "`where` takes exactly 1 expression; got {}",
+                got
+            ),
+            ClauseGrammarErrorKind::BinaryArity { op, got } => write!(
+                f,
+                "`{}` takes exactly 2 args; got {}",
+                op.as_str(),
+                got
+            ),
+        }
     }
 }
 
 impl std::fmt::Display for ClauseGrammarError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClauseGrammarError::NotAList(span) => {
-                write!(f, "{}clause must be a list `(head ...)`", span_prefix(span))
-            }
-            ClauseGrammarError::EmptyList(span) => {
-                write!(f, "{}empty clause `()` — clauses need a head", span_prefix(span))
-            }
-            ClauseGrammarError::NonKeywordHead(span) => {
-                write!(f, "{}clause head must be a keyword (=, <, and, where, ...)", span_prefix(span))
-            }
-            ClauseGrammarError::UnknownHead(h, span) => write!(
-                f,
-                "{}unknown matcher head: {}; recognized: =, <, >, <=, >=, not=, and, or, not, where",
-                span_prefix(span),
-                h
-            ),
-            ClauseGrammarError::NotArity { got, span } => write!(
-                f,
-                "{}`not` takes exactly 1 sub-clause; got {}",
-                span_prefix(span),
-                got
-            ),
-            ClauseGrammarError::WhereArity { got, span } => write!(
-                f,
-                "{}`where` takes exactly 1 expression; got {}",
-                span_prefix(span),
-                got
-            ),
-            ClauseGrammarError::BinaryArity { op, got, span } => write!(
-                f,
-                "{}`{}` takes exactly 2 args; got {}",
-                span_prefix(span),
-                op.as_str(),
-                got
-            ),
-        }
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 
@@ -165,13 +165,13 @@ impl std::fmt::Display for ClauseGrammarError {
 pub fn classify_clause(ast: &WatAST) -> Result<RawClause<'_>, ClauseGrammarError> {
     let (items, list_span) = match ast {
         WatAST::List(items, span) => (items, span),
-        _ => return Err(ClauseGrammarError::NotAList(ast.span().clone())), // Pattern A
+        _ => return Err(ClauseGrammarError { span: ast.span().clone(), kind: ClauseGrammarErrorKind::NotAList }), // Pattern A
     };
-    let head = items.first().ok_or_else(|| ClauseGrammarError::EmptyList(list_span.clone()))?; // Pattern B
+    let head = items.first().ok_or_else(|| ClauseGrammarError { span: list_span.clone(), kind: ClauseGrammarErrorKind::EmptyList })?; // Pattern B
     let head_str = match head {
         WatAST::Keyword(k, _) => k.as_str(),
         WatAST::Symbol(ident, _) => ident.as_str(),
-        _ => return Err(ClauseGrammarError::NonKeywordHead(head.span().clone())), // Pattern D
+        _ => return Err(ClauseGrammarError { span: head.span().clone(), kind: ClauseGrammarErrorKind::NonKeywordHead }), // Pattern D
     };
     let rest = &items[1..];
 
@@ -196,25 +196,25 @@ pub fn classify_clause(ast: &WatAST) -> Result<RawClause<'_>, ClauseGrammarError
         "or" => Ok(RawClause::Or(rest)),
         "not" => {
             if rest.len() != 1 {
-                Err(ClauseGrammarError::NotArity { got: rest.len(), span: list_span.clone() }) // Pattern B
+                Err(ClauseGrammarError { span: list_span.clone(), kind: ClauseGrammarErrorKind::NotArity { got: rest.len() } }) // Pattern B
             } else {
                 Ok(RawClause::Not(&rest[0]))
             }
         }
         "where" => {
             if rest.len() != 1 {
-                Err(ClauseGrammarError::WhereArity { got: rest.len(), span: list_span.clone() }) // Pattern B
+                Err(ClauseGrammarError { span: list_span.clone(), kind: ClauseGrammarErrorKind::WhereArity { got: rest.len() } }) // Pattern B
             } else {
                 Ok(RawClause::Where(&rest[0]))
             }
         }
-        _ => Err(ClauseGrammarError::UnknownHead(head_str.to_string(), head.span().clone())), // Pattern D
+        _ => Err(ClauseGrammarError { span: head.span().clone(), kind: ClauseGrammarErrorKind::UnknownHead(head_str.to_string()) }), // Pattern D
     }
 }
 
 fn binary(rest: &[WatAST], op: CompareOp, list_span: Span) -> Result<(&WatAST, &WatAST), ClauseGrammarError> {
     if rest.len() != 2 {
-        return Err(ClauseGrammarError::BinaryArity { op, got: rest.len(), span: list_span }); // Pattern F: caller-propagated list span
+        return Err(ClauseGrammarError { span: list_span, kind: ClauseGrammarErrorKind::BinaryArity { op, got: rest.len() } }); // Pattern F: caller-propagated list span
     }
     Ok((&rest[0], &rest[1]))
 }
@@ -301,7 +301,7 @@ mod tests {
     fn rejects_unknown_head() {
         let ast = list(vec![kw(":foo"), sym("?x")]);
         match classify_clause(&ast) {
-            Err(ClauseGrammarError::UnknownHead(h, _)) => assert_eq!(h, ":foo"),
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::UnknownHead(h), .. }) => assert_eq!(h, ":foo"),
             other => panic!("expected UnknownHead, got {:?}", other),
         }
     }
@@ -310,7 +310,7 @@ mod tests {
     fn rejects_non_list() {
         assert!(matches!(
             classify_clause(&WatAST::IntLit(5, Span::unknown())),
-            Err(ClauseGrammarError::NotAList(_))
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::NotAList, .. })
         ));
     }
 
@@ -318,7 +318,7 @@ mod tests {
     fn rejects_empty_list() {
         assert!(matches!(
             classify_clause(&list(vec![])),
-            Err(ClauseGrammarError::EmptyList(_))
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::EmptyList, .. })
         ));
     }
 
@@ -334,17 +334,17 @@ mod tests {
         let bad_eq = list(vec![kw(":="), sym("?x")]);
         assert!(matches!(
             classify_clause(&bad_eq),
-            Err(ClauseGrammarError::BinaryArity { op: CompareOp::Eq, got: 1, .. })
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::BinaryArity { op: CompareOp::Eq, got: 1, .. }, .. })
         ));
         let bad_not = list(vec![kw(":not"), sym("?a"), sym("?b")]);
         assert!(matches!(
             classify_clause(&bad_not),
-            Err(ClauseGrammarError::NotArity { got: 2, .. })
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::NotArity { got: 2, .. }, .. })
         ));
         let bad_where = list(vec![kw(":where")]);
         assert!(matches!(
             classify_clause(&bad_where),
-            Err(ClauseGrammarError::WhereArity { got: 0, .. })
+            Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::WhereArity { got: 0, .. }, .. })
         ));
     }
 
@@ -367,7 +367,7 @@ mod tests {
             rendered
         );
         assert!(
-            matches!(err, ClauseGrammarError::UnknownHead(_, _)),
+            matches!(err, ClauseGrammarError { kind: ClauseGrammarErrorKind::UnknownHead(_), .. }),
             "expected UnknownHead, got: {:?}",
             err
         );

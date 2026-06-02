@@ -44,7 +44,7 @@
 //!   annotations against body positions in its own phase.
 
 use crate::ast::WatAST;
-use crate::span::Span;
+use crate::span::{span_prefix, Span};
 use crate::identifier::{fresh_scope, ScopeId};
 use crate::runtime::{Environment, SymbolTable};
 use std::collections::HashMap;
@@ -100,13 +100,13 @@ impl MacroRegistry {
     /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if crate::resolve::is_reserved_prefix(&def.name) {
-            return Err(MacroError::ReservedPrefix(def.name, def.span.clone()));
+            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) });
         }
         if let Some(existing) = self.macros.get(&def.name) {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            return Err(MacroError::DuplicateMacro(def.name, def.span.clone()));
+            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -125,7 +125,7 @@ impl MacroRegistry {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            return Err(MacroError::DuplicateMacro(def.name, def.span.clone()));
+            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -142,101 +142,101 @@ fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
     a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
 }
 
-/// Errors during macro registration / expansion.
+/// Errors during macro registration / expansion. Pattern A (Stone
+/// 243.7d): span at the outer struct level; variant data in
+/// `MacroErrorKind`.
 #[derive(Debug)]
-pub enum MacroError {
+pub struct MacroError {
+    pub span: Span,
+    pub kind: MacroErrorKind,
+}
+
+/// Variant data for [`MacroError`]. Spans live in the outer struct;
+/// variants carry ONLY data unique to each failure kind.
+#[derive(Debug)]
+pub enum MacroErrorKind {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.
-    DuplicateMacro(String, Span),
+    DuplicateMacro(String),
     /// A user macro declared under a reserved `:wat::...` prefix.
-    ReservedPrefix(String, Span),
+    ReservedPrefix(String),
     /// A `defmacro` form was malformed.
-    MalformedDefmacro { reason: String, span: Span },
+    MalformedDefmacro { reason: String },
     /// The macro's body wasn't a quasiquote template — this slice only
     /// supports quasiquote bodies.
-    UnsupportedBody { name: String, reason: String, span: Span },
+    UnsupportedBody { name: String, reason: String },
     /// A macro call passed the wrong number of arguments.
     ArityMismatch {
         name: String,
         expected: usize,
         got: usize,
-        span: Span,
     },
     /// An `unquote` reference named a parameter the macro didn't declare.
-    UnboundMacroParam { name: String, span: Span },
+    UnboundMacroParam { name: String },
     /// `unquote-splicing` was applied to a non-sequence argument.
     /// Accepts `WatAST::List` and `WatAST::Vector` (arc 200 made splice
     /// symmetric across both); fires for any other shape (Atom, Symbol,
     /// non-Vec runtime value, etc.). wat has no user-facing List runtime
     /// type — sequence here means "splice-compatible AST shape or runtime
     /// Vec value."
-    SpliceNotSequence { name: String, got: &'static str, span: Span },
+    SpliceNotSequence { name: String, got: &'static str },
     /// Expansion depth exceeded a sanity limit — probably an infinite
     /// recursive macro.
-    ExpansionDepthExceeded { limit: usize, span: Span },
+    ExpansionDepthExceeded { limit: usize },
     /// Other malformation in a macro invocation or template.
-    MalformedTemplate { reason: String, span: Span },
+    MalformedTemplate { reason: String },
 }
 
-/// Prefix `"<file>:<line>:<col>: "` when span is known; empty string
-/// when unknown. Mirrors `src/check.rs::span_prefix` and
-/// `src/types.rs::span_prefix` exactly.
-fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
+impl fmt::Display for MacroErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MacroErrorKind::DuplicateMacro(n) => {
+                write!(f, "duplicate macro registration: {}", n)
+            }
+            MacroErrorKind::ReservedPrefix(n) => write!(
+                f,
+                "cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
+                n,
+                crate::resolve::reserved_prefix_list()
+            ),
+            MacroErrorKind::MalformedDefmacro { reason } => {
+                write!(f, "malformed defmacro: {}", reason)
+            }
+            MacroErrorKind::UnsupportedBody { name, reason } => write!(
+                f,
+                "macro {} body not supported: {} (this slice handles quasiquote-template bodies only)",
+                name, reason
+            ),
+            MacroErrorKind::ArityMismatch { name, expected, got } => {
+                write!(
+                    f,
+                    "macro {} expects {} arguments; got {}",
+                    name, expected, got
+                )
+            }
+            MacroErrorKind::UnboundMacroParam { name } => {
+                write!(f, "unquote references unbound macro parameter: {}", name)
+            }
+            MacroErrorKind::SpliceNotSequence { name, got } => write!(
+                f,
+                "unquote-splicing (~@{}) requires a sequence (List/Vector AST or Vec value); got {}",
+                name, got
+            ),
+            MacroErrorKind::ExpansionDepthExceeded { limit } => write!(
+                f,
+                "macro expansion exceeded depth limit {} — likely infinite recursion",
+                limit
+            ),
+            MacroErrorKind::MalformedTemplate { reason } => {
+                write!(f, "malformed template: {}", reason)
+            }
+        }
     }
 }
 
 impl fmt::Display for MacroError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MacroError::DuplicateMacro(n, span) => {
-                write!(f, "{}duplicate macro registration: {}", span_prefix(span), n)
-            }
-            MacroError::ReservedPrefix(n, span) => write!(
-                f,
-                "{}cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
-                span_prefix(span),
-                n,
-                crate::resolve::reserved_prefix_list()
-            ),
-            MacroError::MalformedDefmacro { reason, span } => {
-                write!(f, "{}malformed defmacro: {}", span_prefix(span), reason)
-            }
-            MacroError::UnsupportedBody { name, reason, span } => write!(
-                f,
-                "{}macro {} body not supported: {} (this slice handles quasiquote-template bodies only)",
-                span_prefix(span),
-                name, reason
-            ),
-            MacroError::ArityMismatch { name, expected, got, span } => {
-                write!(
-                    f,
-                    "{}macro {} expects {} arguments; got {}",
-                    span_prefix(span),
-                    name, expected, got
-                )
-            }
-            MacroError::UnboundMacroParam { name, span } => {
-                write!(f, "{}unquote references unbound macro parameter: {}", span_prefix(span), name)
-            }
-            MacroError::SpliceNotSequence { name, got, span } => write!(
-                f,
-                "{}unquote-splicing (~@{}) requires a sequence (List/Vector AST or Vec value); got {}",
-                span_prefix(span),
-                name, got
-            ),
-            MacroError::ExpansionDepthExceeded { limit, span } => write!(
-                f,
-                "{}macro expansion exceeded depth limit {} — likely infinite recursion",
-                span_prefix(span),
-                limit
-            ),
-            MacroError::MalformedTemplate { reason, span } => {
-                write!(f, "{}malformed template: {}", span_prefix(span), reason)
-            }
-        }
+        let prefix = span_prefix(&self.span);
+        write!(f, "{}{}", prefix, self.kind)
     }
 }
 
@@ -347,10 +347,12 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
         _ => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "expected list form".into(),
+            return Err(MacroError {
                 // arc 138: no span — form was not a List, no span to extract.
                 span: Span::unknown(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "expected list form".into(),
+                },
             })
         }
     };
@@ -360,9 +362,11 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     // Per `feedback_hard_cut_admits_no_bypasses` — no shim; no backward compat path.
     if items.len() == 3 {
         if matches!(items.get(1), Some(WatAST::List(_, _))) {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "old defmacro signature shape (paren-pair-with-type) is retired (Stone 241.17); use canonical Vector-of-triples form: (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)".into(),
+            return Err(MacroError {
                 span: list_span,
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: "old defmacro signature shape (paren-pair-with-type) is retired (Stone 241.17); use canonical Vector-of-triples form: (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)".into(),
+                },
             });
         }
     }
@@ -394,12 +398,12 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
                 (name, argvec, arrow, rettype, body)
             }
             n => {
-                return Err(MacroError::MalformedDefmacro {
-                    reason: format!(
+                return Err(MacroError {
+                    span: list_span,
+                    kind: MacroErrorKind::MalformedDefmacro { reason: format!(
                         "expected (:wat::core::defmacro :name [arg <- :T ...] -> :Ret body) — 6 items (or 7 with metadata-map); got {} elements",
                         n
-                    ),
-                    span: list_span,
+                    ) },
                 });
             }
         };
@@ -408,10 +412,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let name = match name_item {
         WatAST::Keyword(k, _) => k,
         other => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into(),
-                span: other.span().clone(),
-            });
+            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "macro name (item 1) must be a keyword-path (e.g. `:my::macro`)".into() } });
         }
     };
 
@@ -419,29 +420,20 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let (argvec_items, argvec_span) = match argvec_item {
         WatAST::Vector(items, span) => (items, span),
         other => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "argspec must be a Vector `[name <- :T ...]`".into(),
-                span: other.span().clone(),
-            });
+            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "argspec must be a Vector `[name <- :T ...]`".into() } });
         }
     };
 
     // Arrow symbol `->` must follow argspec.
     if !arrow_item.is_bare_symbol("->") {
-        return Err(MacroError::MalformedDefmacro {
-            reason: "expected `->` symbol after argspec Vector".into(),
-            span: arrow_item.span().clone(),
-        });
+        return Err(MacroError { span: arrow_item.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected `->` symbol after argspec Vector".into() } });
     }
 
     // Return-type keyword.
     match &rettype_item {
         WatAST::Keyword(_, _) => {}
         other => {
-            return Err(MacroError::MalformedDefmacro {
-                reason: "expected return-type keyword after `->`".into(),
-                span: other.span().clone(),
-            });
+            return Err(MacroError { span: other.span().clone(), kind: MacroErrorKind::MalformedDefmacro { reason: "expected return-type keyword after `->`".into() } });
         }
     }
 
@@ -520,9 +512,9 @@ fn expand_form(
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     if depth > EXPANSION_DEPTH_LIMIT {
-        return Err(MacroError::ExpansionDepthExceeded {
-            limit: EXPANSION_DEPTH_LIMIT,
+        return Err(MacroError {
             span: form.span().clone(), // Pattern B: the form being expanded
+            kind: MacroErrorKind::ExpansionDepthExceeded { limit: EXPANSION_DEPTH_LIMIT },
         });
     }
 
@@ -638,13 +630,15 @@ fn construct_keyword_of(
     // We need children[1] (parametric head) + children[2+] (args).
     if children.len() < 3 {
         // Need at least: keyword/of-head + parametric-head + 1 arg.
-        return Err(MacroError::MalformedTemplate {
-            reason: format!(
-                "keyword/of requires at least 2 arguments (head keyword + ≥1 arg keyword); \
-                 got {} argument(s)",
-                children.len().saturating_sub(1)
-            ),
+        return Err(MacroError {
             span,
+            kind: MacroErrorKind::MalformedTemplate {
+                reason: format!(
+                    "keyword/of requires at least 2 arguments (head keyword + ≥1 arg keyword); \
+                     got {} argument(s)",
+                    children.len().saturating_sub(1)
+                ),
+            },
         });
     }
 
@@ -670,12 +664,14 @@ fn construct_keyword_of(
             k.strip_prefix(':').unwrap_or(k.as_str()).to_string()
         }
         other => {
-            return Err(MacroError::MalformedTemplate {
-                reason: format!(
-                    "keyword/of: head (arg 1) must be a keyword AST; got {}",
-                    ast_kind(other)
-                ),
+            return Err(MacroError {
                 span,
+                kind: MacroErrorKind::MalformedTemplate {
+                    reason: format!(
+                        "keyword/of: head (arg 1) must be a keyword AST; got {}",
+                        ast_kind(other)
+                    ),
+                },
             });
         }
     };
@@ -690,13 +686,15 @@ fn construct_keyword_of(
                 arg_texts.push(text);
             }
             other => {
-                return Err(MacroError::MalformedTemplate {
-                    reason: format!(
-                        "keyword/of: argument {} must be a keyword AST; got {}",
-                        i + 1,
-                        ast_kind(other)
-                    ),
+                return Err(MacroError {
                     span,
+                    kind: MacroErrorKind::MalformedTemplate {
+                        reason: format!(
+                            "keyword/of: argument {} must be a keyword AST; got {}",
+                            i + 1,
+                            ast_kind(other)
+                        ),
+                    },
                 });
             }
         }
@@ -727,21 +725,25 @@ fn expand_macro_call(
     match &def.rest_param {
         None => {
             if args.len() != fixed_arity {
-                return Err(MacroError::ArityMismatch {
-                    name: def.name.clone(),
-                    expected: fixed_arity,
-                    got: args.len(),
+                return Err(MacroError {
                     span: call_site_span.clone(), // Pattern B: macro call-site span
+                    kind: MacroErrorKind::ArityMismatch {
+                        name: def.name.clone(),
+                        expected: fixed_arity,
+                        got: args.len(),
+                    },
                 });
             }
         }
         Some(_) => {
             if args.len() < fixed_arity {
-                return Err(MacroError::ArityMismatch {
-                    name: def.name.clone(),
-                    expected: fixed_arity,
-                    got: args.len(),
+                return Err(MacroError {
                     span: call_site_span.clone(), // Pattern B: macro call-site span
+                    kind: MacroErrorKind::ArityMismatch {
+                        name: def.name.clone(),
+                        expected: fixed_arity,
+                        got: args.len(),
+                    },
                 });
             }
         }
@@ -786,18 +788,22 @@ fn expand_template(
         WatAST::List(items, _) if items.len() == 2 => match items.first() {
             Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => &items[1],
             _ => {
-                return Err(MacroError::UnsupportedBody {
-                    name: macro_name.into(),
-                    reason: "body must be a quasiquote template (`X form)".into(),
+                return Err(MacroError {
                     span: call_site_span.clone(), // Pattern B: call-site span
+                    kind: MacroErrorKind::UnsupportedBody {
+                        name: macro_name.into(),
+                        reason: "body must be a quasiquote template (`X form)".into(),
+                    },
                 })
             }
         },
         _ => {
-            return Err(MacroError::UnsupportedBody {
-                name: macro_name.into(),
-                reason: "body must be a quasiquote template (`X form)".into(),
+            return Err(MacroError {
                 span: call_site_span.clone(), // Pattern B: call-site span
+                kind: MacroErrorKind::UnsupportedBody {
+                    name: macro_name.into(),
+                    reason: "body must be a quasiquote template (`X form)".into(),
+                },
             })
         }
     };
@@ -1093,9 +1099,9 @@ fn unquote_argument(
     match arg {
         WatAST::Symbol(ident, sym_span) => match bindings.get(&ident.name) {
             Some(bound) => Ok(bound.clone()),
-            None => Err(MacroError::UnboundMacroParam {
-                name: ident.name.clone(),
+            None => Err(MacroError {
                 span: sym_span.clone(), // Pattern A: symbol span
+                kind: MacroErrorKind::UnboundMacroParam { name: ident.name.clone() },
             }),
         },
         // Arc 143 slice 2: a List whose head is a Keyword is a
@@ -1109,15 +1115,19 @@ fn unquote_argument(
         {
             let substituted = substitute_bindings(arg, bindings);
             let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
-                MacroError::MalformedTemplate {
-                    reason: format!("computed unquote eval failed: {}", e),
+                MacroError {
                     span: span.clone(),
+                    kind: MacroErrorKind::MalformedTemplate {
+                        reason: format!("computed unquote eval failed: {}", e),
+                    },
                 }
             })?.value_owned();
             crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| {
-                MacroError::MalformedTemplate {
-                    reason: format!("computed unquote value_to_watast failed: {}", e),
+                MacroError {
                     span: span.clone(),
+                    kind: MacroErrorKind::MalformedTemplate {
+                        reason: format!("computed unquote value_to_watast failed: {}", e),
+                    },
                 }
             })
         }
@@ -1149,9 +1159,9 @@ fn splice_argument(
         WatAST::Symbol(ident, sym_span) => {
             let bound = bindings
                 .get(&ident.name)
-                .ok_or_else(|| MacroError::UnboundMacroParam {
-                    name: ident.name.clone(),
+                .ok_or_else(|| MacroError {
                     span: sym_span.clone(), // Pattern A: symbol span
+                    kind: MacroErrorKind::UnboundMacroParam { name: ident.name.clone() },
                 })?;
             match bound {
                 WatAST::List(items, _) => Ok(items.clone()),
@@ -1160,10 +1170,12 @@ fn splice_argument(
                 // whether `xs` was captured from a `(...)` or a `[...]`
                 // sub-form at the call site.
                 WatAST::Vector(items, _) => Ok(items.clone()),
-                other => Err(MacroError::SpliceNotSequence {
-                    name: ident.name.clone(),
-                    got: other.variant_name(),
+                other => Err(MacroError {
                     span: other.span().clone(), // Pattern A: bound value's span
+                    kind: MacroErrorKind::SpliceNotSequence {
+                        name: ident.name.clone(),
+                        got: other.variant_name(),
+                    },
                 }),
             }
         }
@@ -1177,12 +1189,14 @@ fn splice_argument(
         {
             let substituted = substitute_bindings(arg, bindings);
             let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
-                MacroError::MalformedTemplate {
-                    reason: format!(
-                        "macro {} — computed unquote-splicing eval failed: {}",
-                        macro_name, e
-                    ),
+                MacroError {
                     span: span.clone(),
+                    kind: MacroErrorKind::MalformedTemplate {
+                        reason: format!(
+                            "macro {} — computed unquote-splicing eval failed: {}",
+                            macro_name, e
+                        ),
+                    },
                 }
             })?.value_owned();
             // Result must be a Vec; extract elements, convert each to WatAST.
@@ -1196,38 +1210,44 @@ fn splice_argument(
                                 v.clone(),
                                 span.clone(),
                             )
-                            .map_err(|e| MacroError::MalformedTemplate {
-                                reason: format!(
-                                    "macro {} — computed unquote-splicing element conversion failed: {}",
-                                    macro_name, e
-                                ),
+                            .map_err(|e| MacroError {
                                 span: span.clone(),
+                                kind: MacroErrorKind::MalformedTemplate {
+                                    reason: format!(
+                                        "macro {} — computed unquote-splicing element conversion failed: {}",
+                                        macro_name, e
+                                    ),
+                                },
                             })
                         })
                         .collect();
                     ast_elems
                 }
-                other => Err(MacroError::MalformedTemplate {
-                    reason: format!(
-                        "macro {} — computed unquote-splicing ',@(expr)' evaluated to {}; \
-                         expected a Vec",
-                        macro_name,
-                        other.type_name()
-                    ),
+                other => Err(MacroError {
                     span: span.clone(),
+                    kind: MacroErrorKind::MalformedTemplate {
+                        reason: format!(
+                            "macro {} — computed unquote-splicing ',@(expr)' evaluated to {}; \
+                             expected a Vec",
+                            macro_name,
+                            other.type_name()
+                        ),
+                    },
                 }),
             }
         }
         // Already-substituted list value.
         WatAST::List(items, _) => Ok(items.clone()),
-        other => Err(MacroError::MalformedTemplate {
-            reason: format!(
-                "macro {} — unquote-splicing ',@X' requires a list (parameter \
-                 or already-substituted value); got {}",
-                macro_name,
-                other.variant_name()
-            ),
+        other => Err(MacroError {
             span: other.span().clone(), // Pattern A: offending node's span
+            kind: MacroErrorKind::MalformedTemplate {
+                reason: format!(
+                    "macro {} — unquote-splicing ',@X' requires a list (parameter \
+                     or already-substituted value); got {}",
+                    macro_name,
+                    other.variant_name()
+                ),
+            },
         }),
     }
 }
@@ -1508,7 +1528,7 @@ mod tests {
             r#"(:wat::core::defmacro :wat::std::MyMacro [x <- :AST] -> :AST `~x)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::ReservedPrefix(_, _)));
+        assert!(matches!(err, MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }));
     }
 
     #[test]
@@ -1524,7 +1544,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::DuplicateMacro(_, _)));
+        assert!(matches!(err, MacroError { kind: MacroErrorKind::DuplicateMacro(_), .. }));
     }
 
     #[test]
@@ -1554,7 +1574,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::ArityMismatch { .. }));
+        assert!(matches!(err, MacroError { kind: MacroErrorKind::ArityMismatch { .. }, .. }));
     }
 
     #[test]
@@ -1569,7 +1589,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::UnsupportedBody { .. }));
+        assert!(matches!(err, MacroError { kind: MacroErrorKind::UnsupportedBody { .. }, .. }));
     }
 
     #[test]
@@ -1581,7 +1601,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::SpliceNotSequence { .. }));
+        assert!(matches!(err, MacroError { kind: MacroErrorKind::SpliceNotSequence { .. }, .. }));
     }
 
     // ─── Non-macro forms pass through unchanged ─────────────────────────
@@ -1870,7 +1890,7 @@ mod tests {
             rendered
         );
         assert!(
-            matches!(err, MacroError::ArityMismatch { .. }),
+            matches!(err, MacroError { kind: MacroErrorKind::ArityMismatch { .. }, .. }),
             "expected ArityMismatch, got: {:?}",
             err
         );

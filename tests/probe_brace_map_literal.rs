@@ -32,7 +32,7 @@
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::parser::ParseError;
+use wat::parser::{ParseError, ParseErrorKind};
 use wat::runtime::{Environment, Value};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
 fn probe_7_odd_count_rejected_at_parse() {
     let result = wat::parse_one!("{:foo}");
     assert!(
-        matches!(result, Err(ParseError::MalformedBraceLiteral { .. })),
+        matches!(result, Err(ParseError { kind: ParseErrorKind::MalformedBraceLiteral { .. }, .. })),
         "odd-count brace-form must produce MalformedBraceLiteral; got: {:?}",
         result
     );
