@@ -2767,8 +2767,8 @@ pub fn register_defines(
                     if !crate::resolve::is_reserved_prefix(&name)
                         && !sym.functions.contains_key(&name)
                     {
-                        let stub_body =
-                            WatAST::Keyword(":wat::core::nil".into(), form.span().clone());
+                        // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
+                        let stub_body = WatAST::NilLit(form.span().clone());
                         let stub_fn = Arc::new(Function {
                             name: Some(name.clone()),
                             params: vec![],
@@ -3736,7 +3736,8 @@ fn register_defalias(
     // Case 3: unknown target — register a minimal stub so the alias name is
     // "known" at check time, but the UnresolvedReference will surface at the
     // first actual call-site. The target itself will also surface as an error.
-    let stub_body = WatAST::Keyword(":wat::core::nil".into(), span.clone());
+    // Arc 244 — use NilLit (canonical nil value literal) not Keyword.
+    let stub_body = WatAST::NilLit(span.clone());
     let stub_fn = Arc::new(Function {
         name: Some(alias.to_string()),
         params: vec![],
@@ -5012,6 +5013,11 @@ pub(crate) fn eval_inner(
         )),
         WatAST::StringLit(s, span) => Ok(TrackedValue::new(
             Value::String(Arc::new(s.clone())),
+            Provenance::Literal { span: span.clone() },
+        )),
+        // Arc 244 — NilLit is the canonical nil VALUE literal; evals to Value::Unit.
+        WatAST::NilLit(span) => Ok(TrackedValue::new(
+            Value::Unit,
             Provenance::Literal { span: span.clone() },
         )),
         // Arc 215 stone 2 — `[...]` vector literals at expression position.
@@ -6536,16 +6542,18 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
 /// reused at call sites that want the same rule (let, fn,
 /// `try_parse_fn_shape_def`).
 ///
-/// - Empty body → `:wat::core::nil` keyword (singleton). The fn's
+/// - Empty body → `NilLit` (canonical nil value literal). The fn's
 ///   declared `-> :T` constrains `:T` to be `:wat::core::nil` for
 ///   this to type-check; substrate allows it, idiom doesn't
-///   encourage it.
+///   encourage it. Arc 244: was the nil-type Keyword heresy;
+///   now `WatAST::nil()`.
 /// - Single form → the form itself (zero-overhead pass-through;
 ///   pre-arc-168 code shape preserved exactly).
 /// - Multi-form → wrap in `(:wat::core::do f1 f2 ... fN)`.
 pub(crate) fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
     if forms.is_empty() {
-        return WatAST::Keyword(":wat::core::nil".into(), Span::unknown());
+        // Arc 244 — canonical nil value literal (not the type keyword).
+        return WatAST::nil();
     }
     if forms.len() == 1 {
         return forms[0].clone();
@@ -11990,12 +11998,14 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::f64(x) => Ok(WatAST::FloatLit(x, span)),
         Value::bool(b) => Ok(WatAST::BoolLit(b, span)),
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
+        // Arc 244 — Value::Unit (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
+        Value::Unit => Ok(WatAST::NilLit(span)),
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
         Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
         other => Err(RuntimeError { span: span, kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
+            expected: "primitive (i64/f64/bool/String/keyword/nil) or :wat::WatAST",
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }
@@ -15022,6 +15032,11 @@ fn try_match_pattern(
                 } }.into())
             }
         }
+        // Arc 244 — NilLit pattern matches Value::Unit (the nil value).
+        WatAST::NilLit(_) => match value {
+            Value::Unit => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
     }
 }
 
@@ -17127,6 +17142,9 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         WatAST::FloatLit(x, _) => HolonAST::f64(*x),
         WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
         WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
+        // Arc 244 — NilLit lowers to HolonAST::symbol("nil") — the HolonAST nil
+        // representation (symmetric with the HolonAST→Value path at runtime.rs:15048).
+        WatAST::NilLit(_) => HolonAST::symbol("nil"),
         // Arc 221 Stone 221.4b — Keyword lowers to HolonAST::Keyword, not Symbol.
         // HolonAST::keyword() strips the leading colon stored in WatAST::Keyword.
         WatAST::Keyword(k, _) => HolonAST::keyword(k.as_str()),
@@ -17888,9 +17906,9 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
     // before the generic match so the Bind arm handles generic compositions.
     // Symbol composition: bare identifier or colon-prefixed keyword.
     if let Some(s) = h.as_symbol() {
-        // nil is a Symbol composition — round-trip as :wat::core::nil.
+        // Arc 244 — nil is a Symbol composition; round-trip as NilLit (not the type keyword).
         if s == "nil" {
-            return WatAST::Keyword(":wat::core::nil".into(), Span::unknown());
+            return WatAST::NilLit(Span::unknown());
         }
         // Colon-prefixed → keyword; bare → symbol identifier.
         if s.starts_with(':') {
@@ -24850,6 +24868,8 @@ fn step_form(
         WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
+        // Arc 244 — NilLit terminal step → HolonAST::symbol("nil") (nil HolonAST representation).
+        WatAST::NilLit(_) => Ok(StepValue::Terminal(HolonAST::symbol("nil"))),
         // Arc 221 Stone 221.4b — Keyword literal terminal → HolonAST::Keyword leaf.
         // Pre-arc-221 used HolonAST::symbol(k.as_str()); retired per arc 221 doctrine.
         WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::keyword(k.as_str()))),
@@ -25023,6 +25043,9 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                 }
             }
         }
+        // Arc 244 — NilLit is a value literal (evaluates to nil / Unit).
+        // Recognized as a terminal value for the stepper.
+        WatAST::NilLit(_) => Some(HolonAST::symbol("nil")),
         // Arc 167 slice 1 — vectors are not value-shape forms
         // for the stepper. They live in binding-position grammar
         // (slice 2's fn / defn signatures); the stepper sees an
@@ -25513,14 +25536,17 @@ fn step_let(
 }
 
 /// Collapse an implicit-do body of N forms into a single AST. Arc 168
-/// — implicit-do is purely additive: no body forms means
-/// `:wat::core::nil`; one form means the form itself; many forms get
-/// wrapped in `(:wat::core::do f1 f2 ... fN)` for uniform downstream
-/// handling. Used by step_let and step_let_drop_canonical when they
-/// peel away all bindings.
+/// — implicit-do is purely additive: no body forms means nil; one
+/// form means the form itself; many forms get wrapped in
+/// `(:wat::core::do f1 f2 ... fN)` for uniform downstream handling.
+/// Arc 244: empty body was the nil-type Keyword heresy;
+/// now `NilLit` (canonical nil value literal).
+/// Used by step_let and step_let_drop_canonical when they peel away
+/// all bindings.
 fn synthesize_let_body(forms: &[WatAST], outer_span: &Span) -> WatAST {
     if forms.is_empty() {
-        return WatAST::Keyword(":wat::core::nil".into(), outer_span.clone());
+        // Arc 244 — canonical nil value literal (not the type keyword).
+        return WatAST::NilLit(outer_span.clone());
     }
     if forms.len() == 1 {
         return forms[0].clone();
@@ -25762,6 +25788,11 @@ fn try_match_pattern_ast(
             head: ":wat::core::match".into(),
             reason: "vector sub-patterns are not supported in arc 167".into()
         } }.into()),
+        // Arc 244 — NilLit pattern at AST level: matches another NilLit.
+        WatAST::NilLit(_) => Ok(match scrutinee {
+            WatAST::NilLit(_) => Some(Vec::new()),
+            _ => None,
+        }),
         // Arc 234 Stone 234.4.match / Arc 169 slice 1 — StructPattern.
         //
         // Hash-destructure form `{var :field ...}` (items[1] is Keyword):

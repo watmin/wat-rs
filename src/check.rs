@@ -3286,6 +3286,8 @@ pub(crate) fn infer(
         WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::f64".into())),
         WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
         WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
+        // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
+        WatAST::NilLit(_) => CheckResult::ok(TypeExpr::Path(":wat::core::nil".into())),
         // `:None` / `:wat::core::None` — nullary constructor of the
         // built-in :Option<T> enum. Infers as `:Option<T>` with a
         // fresh T; unification against the expected type sharpens T
@@ -6985,6 +6987,22 @@ fn check_subpattern(
         }
         // Arc 169 slice 1 — struct-pattern brace-forms are
         // consumed only at let binding-position. Match
+        // Arc 244 — NilLit is a literal pattern; valid at :wat::core::nil position
+        // (catches the single nil value exhaustively), type-error otherwise.
+        WatAST::NilLit(_) => match expected_ty {
+            TypeExpr::Path(p) if p == ":wat::core::nil" => Some(true),
+            other => {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "nil literal pattern in {} position",
+                        format_type(other)
+                    ),
+                    remedies: vec![],
+                } });
+                None
+            }
+        },
         // sub-pattern position is not one of them.
         WatAST::StructPattern(_, _) => {
             errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
@@ -7434,12 +7452,13 @@ fn infer_let(
 
     // Body is args[1..]. Arc 168 — implicit-do over trailing forms.
     // The deadlock check needs a single body AST; for empty body we
-    // synthesize the nil keyword, for multi-body we synthesize a do
+    // synthesize the nil literal, for multi-body we synthesize a do
     // form over the trailing forms (mirrors the runtime
     // `synthesize_let_body` semantics).
+    // Arc 244: empty body was the nil-type Keyword heresy; now NilLit.
     let body_forms = &args[1..];
     let body_ast: WatAST = if body_forms.is_empty() {
-        WatAST::Keyword(":wat::core::nil".into(), Span::unknown())
+        WatAST::nil()
     } else if body_forms.len() == 1 {
         body_forms[0].clone()
     } else {
@@ -10709,6 +10728,7 @@ fn infer_make_queue(
                         WatAST::List(_, _) => "list",
                         WatAST::Vector(_, _) => "vector",
                         WatAST::StructPattern(_, _) => "struct-pattern",
+                        WatAST::NilLit(_) => "nil",
                         WatAST::Keyword(_, _) => unreachable!(),
                     }
                 ),

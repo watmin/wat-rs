@@ -617,6 +617,7 @@ fn variant_name(ast: &WatAST) -> &'static str {
         WatAST::FloatLit(_, _) => "float literal",
         WatAST::BoolLit(_, _) => "bool literal",
         WatAST::StringLit(_, _) => "string literal",
+        WatAST::NilLit(_) => "nil literal",
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",

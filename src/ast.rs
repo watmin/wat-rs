@@ -45,6 +45,15 @@ pub enum WatAST {
     /// applied.
     StringLit(String, Span),
 
+    /// Nil literal, as in bare `nil` — the unit / absent value.
+    ///
+    /// Arc 244 — nil joins `int / float / bool / string` as a first-class
+    /// literal variant; the asymmetry (nil-as-Symbol while every other
+    /// scalar is a *Lit variant) is annihilated. The parser produces
+    /// `NilLit(span)` for bare `nil`. Synthesized nil values use the
+    /// `WatAST::nil()` constructor.
+    NilLit(Span),
+
     /// Keyword token, as in `:foo`, `:wat::holon::Atom`,
     /// `:wat::holon::Holons`, `:fn(T,U)->R`. The leading `:` is part of the
     /// stored string. Used both as keyword literals (payloads for wat
@@ -107,6 +116,7 @@ impl WatAST {
             | WatAST::FloatLit(_, s)
             | WatAST::BoolLit(_, s)
             | WatAST::StringLit(_, s)
+            | WatAST::NilLit(s)
             | WatAST::Keyword(_, s)
             | WatAST::Symbol(_, s)
             | WatAST::List(_, s)
@@ -128,6 +138,13 @@ impl WatAST {
     }
     pub fn string(s: impl Into<String>) -> Self {
         WatAST::StringLit(s.into(), Span::unknown())
+    }
+    /// Synthetic nil literal with [`Span::unknown`] — the canonical
+    /// constructor for synthesized nil values. Arc 244: nil joins the
+    /// int/float/bool/string value-constructor family; use this (not
+    /// `Keyword` with the nil type path) in all synthesis paths.
+    pub fn nil() -> Self {
+        WatAST::NilLit(Span::unknown())
     }
     pub fn keyword(k: impl Into<String>) -> Self {
         WatAST::Keyword(k.into(), Span::unknown())
@@ -204,6 +221,7 @@ impl WatAST {
             WatAST::FloatLit(_, _) => "float",
             WatAST::BoolLit(_, _) => "bool",
             WatAST::StringLit(_, _) => "string",
+            WatAST::NilLit(_) => "nil",
             WatAST::Keyword(_, _) => "keyword",
             WatAST::Symbol(_, _) => "symbol",
             WatAST::List(_, _) => "list",
@@ -249,6 +267,8 @@ impl std::hash::Hash for WatAST {
             WatAST::FloatLit(x, _) => x.to_bits().hash(state),
             WatAST::BoolLit(b, _) => b.hash(state),
             WatAST::StringLit(s, _) => s.hash(state),
+            // NilLit: leaf literal — discriminant (above) fully identifies it.
+            WatAST::NilLit(_) => {}
             WatAST::Keyword(k, _) => k.hash(state),
             WatAST::Symbol(ident, _) => ident.hash(state),
             WatAST::List(items, _) => items.hash(state),

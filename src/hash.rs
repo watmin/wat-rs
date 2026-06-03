@@ -84,6 +84,9 @@ const TAG_VECTOR: u8 = 0x18;
 /// hash to different bytes (each surface form is structurally
 /// distinct in canonical-EDN).
 const TAG_STRUCT_PATTERN: u8 = 0x19;
+/// Arc 244 — nil literal tag. Distinct from every other tag so
+/// `NilLit` does not hash-collide with e.g. `BoolLit(false)`.
+const TAG_NIL: u8 = 0x1a;
 
 /// Ed25519 signature length in bytes.
 const ED25519_SIG_LEN: usize = 64;
@@ -140,6 +143,10 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
             let bytes = s.as_bytes();
             out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
             out.extend_from_slice(bytes);
+        }
+        // Arc 244 — NilLit is a leaf; tag byte alone is the full encoding.
+        WatAST::NilLit(_) => {
+            out.push(TAG_NIL);
         }
         WatAST::Keyword(k, _) => {
             out.push(TAG_KEYWORD);

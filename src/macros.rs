@@ -650,6 +650,8 @@ fn construct_keyword_of(
             WatAST::FloatLit(_, _)    => "float-literal",
             WatAST::BoolLit(_, _)     => "bool-literal",
             WatAST::StringLit(_, _)   => "string-literal",
+            // Arc 244 — NilLit joins the literal group.
+            WatAST::NilLit(_)         => "nil-literal",
             WatAST::Symbol(_, _)      => "symbol",
             WatAST::List(_, _)        => "list",
             WatAST::Vector(_, _)      => "vector",

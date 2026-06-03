@@ -312,6 +312,7 @@ impl<'a> Cursor<'a> {
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone(), span))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),
+            Token::Symbol(s) if s == "nil" => Ok(Some(WatAST::NilLit(span))),
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
             Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
             Token::Quote => self.parse_reader_macro(":wat::core::quote", span),
@@ -680,6 +681,8 @@ fn ast_variant_label(ast: &WatAST) -> &'static str {
         WatAST::FloatLit(_, _) => "float literal",
         WatAST::BoolLit(_, _) => "boolean literal",
         WatAST::StringLit(_, _) => "string literal",
+        // Arc 244 — NilLit joins the literal group.
+        WatAST::NilLit(_) => "nil literal",
         WatAST::Keyword(_, _) => "keyword",
         WatAST::Symbol(_, _) => "symbol",
         WatAST::List(_, _) => "list",

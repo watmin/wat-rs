@@ -525,7 +525,9 @@ fn walk_free_symbols(
         WatAST::IntLit(..)
         | WatAST::FloatLit(..)
         | WatAST::BoolLit(..)
-        | WatAST::StringLit(..) => Ok(()),
+        | WatAST::StringLit(..)
+        // Arc 244 — NilLit is a leaf literal; no free symbols to collect.
+        | WatAST::NilLit(..) => Ok(()),
 
         WatAST::Symbol(ident, span) => {
             let name = ident.name.clone();
@@ -973,11 +975,12 @@ fn collect_pattern_bindings(
     state: &mut ExtractState<'_>,
 ) -> Result<(), ExtractionError> {
     match pattern {
-        // Literals — no binding.
+        // Literals — no binding. Arc 244: NilLit joins the literal group.
         WatAST::IntLit(..)
         | WatAST::FloatLit(..)
         | WatAST::BoolLit(..)
-        | WatAST::StringLit(..) => Ok(()),
+        | WatAST::StringLit(..)
+        | WatAST::NilLit(..) => Ok(()),
         // Symbol pattern: `_` wildcard binds nothing; any other bare
         // symbol binds that name to the matched scrutinee.
         WatAST::Symbol(ident, _) => {
@@ -1544,9 +1547,9 @@ fn encode_value_with_path(
             }
             Ok(WatAST::List(out, span))
         }
-        // Stone 242.2 — Doctrine 1: bare `nil` is the value form; `:wat::core::nil` is the
-        // TYPE keyword. Reflection emitters must produce the value form here.
-        Value::Unit => Ok(WatAST::Symbol(Identifier::bare("nil".to_string()), span)),
+        // Stone 242.2 / Arc 244 — Doctrine 1: bare `nil` is the value form; `:wat::core::nil`
+        // is the TYPE keyword. Arc 244 canonicalizes this to NilLit (not Symbol("nil")).
+        Value::Unit => Ok(WatAST::NilLit(span)),
 
         // ─── containers ────────────────────────────────────────────────
         Value::Vec(items) => {
@@ -1991,7 +1994,8 @@ fn split_body_prelude(body: WatAST) -> (Vec<WatAST>, WatAST) {
     let residual_body = match residual_children.len() {
         0 => {
             // Only prelude forms in the do; body is implicitly nil.
-            WatAST::Keyword(":wat::core::nil".into(), span)
+            // Arc 244 — use NilLit(span) (canonical nil value literal).
+            WatAST::NilLit(span)
         }
         1 => {
             // Single residual expression — no do wrapper needed.
@@ -2038,6 +2042,8 @@ fn rewrite_with_scope(
         | WatAST::FloatLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
+        // Arc 244 — NilLit is a leaf; no scope rewrite needed.
+        | WatAST::NilLit(_)
         | WatAST::Keyword(_, _) => node.clone(),
 
         WatAST::Symbol(ident, span) => {
