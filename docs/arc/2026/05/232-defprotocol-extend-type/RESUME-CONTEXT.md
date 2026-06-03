@@ -27,6 +27,8 @@ The original 232.1 sub-DESIGN (2026-05-23) built defprotocol as a macro over han
 - **arc 246** — `src/collection/` warded home (OPEN; 246.0 DESIGN done).
 - **arc 245** — wat-corpus warding (unblocked, not yet opened).
 
-**Wind: 246 → 245 → THEN rejoin here (232.1).** Also 237-gated and downstream of 232: **arc 235** (records-with-rich-VSA-encodings — waits on 237's `:guard` for per-field validation; a future *opening*, after 232).
+**Wind: 246 → 245 → THEN rejoin here (232.1).**
+
+> *Correction 2026-06-04:* **arc 235** (records-with-rich-VSA) is **NOT downstream of 232** — an earlier draft wrongly chained it here. 235 extends **arc 234**'s record hologram (adds Thermometer/Blend/Permute encodings) + consumes **237**'s `:guard`; it is independent of defprotocol. Both 234 and 237 are closed, so 235 is itself unblocked — a *separate* post-237 forward arc (PROPOSED/notes-form), not part of 232's queue.
 
 *Marked 2026-06-04 at 237's close, so the rejoin doesn't cost a crawl.*
