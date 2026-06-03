@@ -78,6 +78,16 @@ caveats (atomics, `OnceLock`, `Arc` are not the tiers but not violations
 either). Read it before writing your first concurrent wat program.
 Read it before reaching for a lock.
 
+**[`DISPATCH.md`](./DISPATCH.md)** — the polymorphism partition. wat
+has two mechanisms for polymorphic ops — `defclause` (monomorphic:
+concrete args, fixed return, no type-variable flow) and Rust intrinsics
+(type-level computation) — and which one an op uses is decided by a
+*checkable* property, not taste. The doc states the rule (intrinsic = a
+type variable must flow: **projective**, args→return, like `get`; or
+**relational**, between args, like `=`), the worked classifications, the
+three in-source declaration sites, and the trap of reading only the
+return type. Read it before adding or reclassifying a polymorphic op.
+
 ## Arc docs — dated slice design notes
 
 Living planning and postmortem notes for individual slices of work,
