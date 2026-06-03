@@ -16,19 +16,25 @@ The original 232.1 sub-DESIGN (2026-05-23) built defprotocol as a macro over han
 
 237 consolidated the substrate's dispatch into **defclause** (monomorphic ops) + **intrinsics** (type-level computation) — see `docs/DISPATCH.md`. That is the foundation defprotocol should build on now. Striking the pre-237 design would build defprotocol on a classifier-cond mechanism that 237 superseded.
 
-## ON REJOIN — do this, in order
+## THE GATE — 232 HOLDS these closures (rejoin only when ALL FOUR close)
 
-1. **Revisit the 232.1 design in light of 237.** Does defprotocol now dispatch via **defclause** (open-extension: adding clauses to a defclause name after declaration — flagged in the 237 DESIGN's out-of-scope as "deferred to arc 232.1 territory") rather than hand-rolled classifier-cond? Confirm the reduced scope (~2-3 stones). The probe (`f38e120`) may need re-aiming at the defclause path.
-2. Re-settle DESIGN-STONE-232.1 → re-BRIEF → strike → SCORE → 232.3 (built-in-type extension) → 232.5 INSCRIPTION (arc 232 closes).
+Builder's decision 2026-06-04: **four arcs resolve before 232.1 re-opens.** 232 is the *holder*; it does not rejoin until the gate is empty.
 
-## Queue — 232 is the rejoin target, but NOT next
+| Arc | What | State | Why it precedes 232 |
+|---|---|---|---|
+| **246** | `src/collection/` warded home | OPEN (246.0 DESIGN done) | forward-arc from 237's death; current |
+| **245** | wat-corpus warding | STUB (needs 245.0 instrument design) | forward-arc from 237's death |
+| **249** | `->>` thread-last macro | BANKED (no dir yet; sibling of arc 247) | builder: do before 232 |
+| **235** | records-with-rich-VSA | PROPOSED/notes | builder's **choice — NOT a dependency** (235 is independent of 232: it extends arc 234 + uses 237's `:guard`); deliberately sequenced here |
 
-237's death (2026-06-04) opened two forward-arcs being resolved **first** (builder's call):
-- **arc 246** — `src/collection/` warded home (OPEN; 246.0 DESIGN done).
-- **arc 245** — wat-corpus warding (unblocked, not yet opened).
+Suggested order: **246 → 245 → 249 → 235 → rejoin 232.**
 
-**Wind: 246 → 245 → THEN rejoin here (232.1).**
+**Spawn-block hope (and rule):** we *expect* these four to spawn no new arcs. If any does, the new arc **joins this gate** — 232 stays parked until the gate is empty (`feedback_spawn_block_winding`).
 
-> *Correction 2026-06-04:* **arc 235** (records-with-rich-VSA) is **NOT downstream of 232** — an earlier draft wrongly chained it here. 235 extends **arc 234**'s record hologram (adds Thermometer/Blend/Permute encodings) + consumes **237**'s `:guard`; it is independent of defprotocol. Both 234 and 237 are closed, so 235 is itself unblocked — a *separate* post-237 forward arc (PROPOSED/notes-form), not part of 232's queue.
+## ON REJOIN to 232 — three jobs
 
-*Marked 2026-06-04 at 237's close, so the rejoin doesn't cost a crawl.*
+1. **Revisit 232.1 for the defclause foundation** (see "Why it waited" above). Does defprotocol now dispatch via **defclause** (open-extension on a defclause name — flagged in the 237 DESIGN as "232.1 territory") rather than hand-rolled classifier-cond? Confirm the reduced scope (~2-3 stones); the probe (`f38e120`) may need re-aiming at the defclause path.
+2. **Strike the chain:** re-settle DESIGN-STONE-232.1 → re-BRIEF → strike → SCORE → 232.3 (built-in-type extension) → 232.5 INSCRIPTION (arc 232 closes).
+3. **Identify who 232 blocks — THE MAIN QUEST.** 232 (defprotocol) is the floor of the substrate side-quest stack; below it is the consumer/application work it was built *for*. 232's own DESIGN names the trigger: *"likely surfaced by Truth Engine, MTG enterprise, or trading-lab v2"* (`DESIGN.md` § "Open trigger"). Confirm the real main quest when we arrive — that is what all these side-quests served.
+
+*Marked 2026-06-04 at 237's close; restructured to the holder-gate per builder direction. So the rejoin doesn't cost a crawl.*
