@@ -20,18 +20,20 @@ You need both because wat now has both shapes (247 made the seq-HOFs fn-first; t
 
 The "`->` thread-first exists" claim originated as an **unverified session assertion** and propagated into 247's docs. 247's DESIGN (`:33`) correctly *hedged*; the SCORE stated it as fact without verifying. 247's SCORE is immutable (`feedback_inscription_immutable`) — **this STUB forward-corrects it.** (Same failure class as the 235↔232 mis-coupling caught the same day: assert-without-grounding.)
 
-## The real design question — an ASYMMETRIC glyph collision
+## The `->` "collision" — RESOLVED by Clojure precedent (positional)
 
-The two forms are NOT symmetric in difficulty:
+This is **Clojure's own situation, not a novel wat hazard** — an earlier draft over-framed it. In the Clojure ecosystem `->` already does double duty:
 
-- **`->>` (thread-last) — glyph is FREE.** `->>` is unused; mintable cleanly as a call-head macro. No collision.
-- **`->` (thread-first) — COLLIDES.** `->` is already the type-arrow. A thread-first `->` contends directly for a taken glyph.
+- **`clojure.core/->`** = the thread-first macro (call-head: `(-> x f g)`).
+- **core.typed's function-type syntax** = `[Params -> Return]` — `->` is the function/return arrow *inside a type annotation*.
 
-So the design hinges on thread-first. Positions differ (type-arrow is *infix* in argspec `[…] -> :Ret`; threading `->` is a *call-head* `(-> val …)`), so positional disambiguation MIGHT parse — but same-glyph-two-meanings is a cold-read hazard (anti `intueri`/LLM-first). Options (246.0-style four-questions, ideally an `intueri` cast):
+They coexist by **context** (call-head vs type-annotation position); no actual clash. wat's `->` is the core.typed-style return arrow (`[args] -> :Ret`; established earlier this session: `<-` ≈ `:-`, `->` = the fn arrow). So wat **inherits Clojure's resolution**: `->` as a *form-head* = thread-first macro; `->` *infix in a signature* = type arrow. Positionally unambiguous — the type arrow is never a form-head. Per *Clojure-faithfulness-includes-its-warts*, wat follows suit.
 
-1. **Mint `->>` (clean) + positional-disambiguate `->`** — both Clojure-faithful; `->` overloaded by position.
-2. **Mint `->>` (clean) + a non-colliding name for thread-first** — keep threading, drop the `->` glyph clash (less Clojure-faithful on the glyph, honest on the collision).
-3. **Don't add threading at all** — LOW value (builder rarely threads) + the collision cost; a four-questions verdict to *skip it* is a legitimate "resolved," not a cop-out.
+So the **HOW is settled** (the Clojure precedent), not an open verdict:
+- `->>` (thread-last) — glyph free; mint it.
+- `->` (thread-first) — double-duty by position, exactly as Clojure; no new mechanism, just parse a `(-> …)` form-head as threading.
+
+The **only remaining open question is WHETHER to build threading at all** — LOW value (the builder rarely threads). A small four-questions verdict: faithfully mint both, or skip as not-worth-it. The glyph is no longer a reason to skip.
 
 ## Why it's in the pre-232 gate
 
