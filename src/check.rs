@@ -4614,13 +4614,14 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 050 — polymorphic comparison/equality. Always returns :bool.
+            // Arc 050 — polymorphic equality. Always returns :bool.
             // Stone 237.8b — `<`/`>`/`<=`/`>=` HARD CUT from this arm: those now
             // route through wat defclauses (registered in env.defclause_registrations).
-            // `=`/`not=` stay here until 237.8c migrates them.
+            // Stone 237.8c — `infer_comparison` renamed to `infer_equality`; equality
+            // stays structural (Shape B: universal + recursive + subtype-compatible).
             ":wat::core::="
             | ":wat::core::not=" => {
-                let (val, mut errs) = infer_comparison(k, head_span, args, env, locals, fresh, subst).into_parts();
+                let (val, mut errs) = infer_equality(k, head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -11107,7 +11108,7 @@ fn infer_hashset_constructor(
 /// function IS the check-side `:wat::core::<` family inference;
 /// nothing about it is anti-pattern. Per-Type comparison leaves
 /// retired in the same slice.
-fn infer_comparison(
+fn infer_equality(
     op: &str,
     head_span: &Span,
     args: &[WatAST],
@@ -11174,8 +11175,8 @@ fn infer_comparison(
 // Rust handler needed.
 //
 // `infer_comparison`'s `<`/`>`/`<=`/`>=` arms also deleted (same stone);
-// those ops route through wat defclauses. The `=`/`not=` arms stay
-// until 237.8c migrates them.
+// those ops route through wat defclauses. `infer_comparison` renamed to
+// `infer_equality` in Stone 237.8c (only `=`/`not=` remain as tenants).
 
 /// Arc 237 Stone S-C.3 — BASE record constructor inference.
 ///
@@ -13773,6 +13774,22 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::f64::>",
         ":wat::core::f64::<=",
         ":wat::core::f64::>=",
+    ] {
+        env.register(
+            op_name.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), f64_ty()],
+                ret: bool_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    // Stone 237.8c — f64 equality family (type-locked aliases to the structural engine).
+    // Mirrors the i64 equality pair above; routes to eval_eq / eval_not_eq at runtime.
+    for op_name in &[
+        ":wat::core::f64::=",
+        ":wat::core::f64::not=",
     ] {
         env.register(
             op_name.to_string(),

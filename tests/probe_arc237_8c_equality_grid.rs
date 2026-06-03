@@ -98,21 +98,18 @@ fn regression_cross_type_is_check_error() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "Stone 237.8c: un-ignore after :wat::core::f64::= is minted"]
 fn mint_f64_eq_works() {
     assert_eq!(eval_bool_expr("(:wat::core::f64::= 1.0 1.0)").unwrap(), Value::bool(true));
     assert_eq!(eval_bool_expr("(:wat::core::f64::= 2.0 3.0)").unwrap(), Value::bool(false));
 }
 
 #[test]
-#[ignore = "Stone 237.8c: un-ignore after :wat::core::f64::= type-locking is minted"]
 fn mint_f64_eq_type_locks() {
     // The per-Type leaf accepts only f64 pairs; i64 args are a check error.
     assert!(!checks_ok("(:wat::core::f64::= 1 2)"), ":f64::= must type-lock to f64");
 }
 
 #[test]
-#[ignore = "Stone 237.8c: un-ignore after :wat::core::f64::not= is minted"]
 fn mint_f64_not_eq_works() {
     assert_eq!(eval_bool_expr("(:wat::core::f64::not= 1.0 2.0)").unwrap(), Value::bool(true));
     assert_eq!(eval_bool_expr("(:wat::core::f64::not= 1.0 1.0)").unwrap(), Value::bool(false));

@@ -5674,6 +5674,10 @@ fn dispatch_keyword_head_value(
         ":wat::core::f64::>" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a > b),
         ":wat::core::f64::<=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a <= b),
         ":wat::core::f64::>=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a >= b),
+        // Stone 237.8c — f64 equality family (type-locked aliases to the structural engine).
+        // Mirrors :i64::= / :i64::not= above; routes to the same eval_eq / eval_not_eq.
+        ":wat::core::f64::=" => eval_eq(head, args, list_span, env, sym),
+        ":wat::core::f64::not=" => eval_not_eq(head, args, list_span, env, sym),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),
@@ -8917,15 +8921,9 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::i64(x), Value::i64(y)) => Some(x == y),
         (Value::u8(x), Value::u8(y)) => Some(x == y),
         (Value::f64(x), Value::f64(y)) => Some(x == y),
-        // Arc 050 — numeric cross-type equality. Promote i64 to f64
-        // before comparison. Reachable when the polymorphic
-        // `:wat::core::=` gets mixed-numeric args. Per arc 148 slice
-        // 5, the per-Type comparison leaves are retired; strict
-        // type-locking now lives at call-site param types, so
-        // mismatched pairs are rejected at the binding site before
-        // reaching here.
-        (Value::i64(x), Value::f64(y)) => Some((*x as f64) == *y),
-        (Value::f64(x), Value::i64(y)) => Some(*x == (*y as f64)),
+        // Stone 237.8c — the (i64,f64)/(f64,i64) cross-numeric arms (arc 050) deleted.
+        // THE DECISION (237.8a): the checker rejects mixed-numeric `=` before eval;
+        // these arms are unreachable. HARD CUT.
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
