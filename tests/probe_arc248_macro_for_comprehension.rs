@@ -61,7 +61,6 @@ fn regression_variadic_splice() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "Arc 248: un-ignore after `for` template comprehension is minted"]
 fn mint_for_yields_elements() {
     let src = r#"
       (:wat::core::defmacro :my::vof
@@ -83,7 +82,6 @@ fn mint_for_yields_elements() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "Arc 248: un-ignore after `for` template instantiation is minted"]
 fn mint_for_transforms_per_element() {
     let src = r#"
       (:wat::core::defmacro :my::inc-vof
