@@ -1589,6 +1589,41 @@ If this question opens for slice work, the four-questions interrogation should e
 - [[wat-llm-first-design]] — Clojure-familiarity argument
 - [[fqdn-is-the-namespace]] — FQDN type names regardless of which annotation marker
 - [[encoding-doctrine]] — `^Type` is metadata, not value; encoding doctrine governs how metadata attaches to AST nodes
+
+### N.4 — HARDCORE: full Clojure-symbol FQDN rendering (`::` → `.` / `/`, drop the keyword `:`)
+
+**Surfaced 2026-06-03** (user, during the N.3 `:-` discussion). The most foundational naming reshape on the table — supersedes/subsumes N.2 and most of N.3's mechanics.
+
+**Current:** `(:wat::core::i64::+ 1 2)` — leading `:` keyword-marker, Rust `::` separators throughout.
+
+**Proposed:** Clojure symbol shape — dotted namespace path + one `/` before the final name, no leading `:`:
+```
+(:wat::core::i64::+ 1 2)   →   (wat.core.i64/+ 1 2)
+```
+
+**The grounding (Clojure symbols are `namespace/name`):** the `.` builds the namespace *path*; a single `/` marks the boundary to the *name* (`clojure.core/map`, `clojure.core.typed/Int`). `t/Int` = ns `clojure.core.typed` + name `Int`.
+
+**The key structural insight — a Type IS a namespace for its operations.** `i64` appears in two roles:
+- as a **type**: `wat.core/i64` (name `i64` in `wat.core`)
+- as a **namespace**: `wat.core.i64/+`, `wat.core.i64/<` (names `+`/`<` in `wat.core.i64`)
+
+This is exactly the per-Type-primitive structure (`i64::+` = "the `+` *of* i64") — a Type doubling as the namespace of its operations, like a class is a type + method-namespace. The `/` rendering makes it legible.
+
+**"No namespaces" resolves cleanly — two separable things wear that word:**
+- namespace **SYSTEM** (resolution / aliasing / `require`) — NOT wanted. Everything FQDN, no aliases. Drop it.
+- the **`/` separator** — purely structural (name↔namespace inside one symbol). COMPATIBLE with always-FQDN: write `wat.core.i64/+` in full, never alias. The `/` does no resolution; it honestly says `+` belongs to `wat.core.i64`.
+
+**The fork:**
+- **`wat.core.i64/+`** (Clojure `/`) — the `/` truthfully marks the op↔type boundary (the boundary is real: the op belongs to the type). Maximal Clojure symbol fidelity. **Lean.**
+- **`wat.core.i64.+`** (all dots) — flat, boundary erased; simpler glyph but obscures the real name↔namespace structure; less Clojure.
+
+**Pairs with N.3's `:-`:** dropping the keyword `:` aligns with `:-` ascription, since Schema/core.typed type-ascribe *bare symbols* (`[a :- wat.core/i64]`), not keywords.
+
+**The honest snag (four-questions fight):** types are `:keywords` today *because keywords are first-class values* per [[encoding-doctrine]]. Making them bare symbols is a real semantic move (how does the AST carry a type that is no longer a value?), not cosmetic. Must be settled before this opens.
+
+**Scope:** FOUNDATIONAL — every symbol in `src/` (lexer/parser/resolver), `wat/`, `wat-tests/`, `tests/`, `examples/`, every doc. An order of magnitude past N.1 (HOF order) / N.3 (type glyph). A dedicated multi-stone arc with a heavy substrate-as-teacher cascade; almost certainly its own arc, not a slice.
+
+**Status:** open, banked. Recorded so the hardcore option isn't lost. Decide via four-questions when the naming surface opens; resolve the keyword-as-value snag first.
 - Grok research notes (user-shared 2026-05-23 evening) — verbatim Clojure type-hint precedent + multi-arity examples
 
 ## O. Diagnostic message richness — include value content alongside type names
