@@ -27,18 +27,24 @@ A spawned `intueri` cast settled the name (verdict grounded on the live tree + `
 - **`dispatch_rust_scheme`** (check.rs 12900) — the `:rust::` shim dispatch; a different concern (rust-deps), not collections.
 - **~12 Vector/List-specific utility ops** — the seq-HOFs (`eval_vec_map`/`filter`/`foldl`/`foldr`/`sort_by`, `eval_list_map_with_index`) and helpers (`eval_vec_reverse`/`range`/`take`/`drop`/`last`/`rest`/`find_last_index`, `eval_list_zip`/`window`/`remove_at`). They are collection ops but NOT container-polymorphic dispatch. If they ever want a home it is a **sibling** module (`collection/transform.rs`), a separate decision — NOT this arc.
 
-## Proposed internal layout (confirm at lift)
+## Internal layout — intueri-cast confirmed (2026-06-04)
+
+A spawned `intueri` cast named the submodules, grounded on the **`src/function/` precedent** (the structural twin: same lift origin `runtime.rs`+`check.rs`, same check-side/runtime-side shape, same words `function/` already chose — `eval.rs` + `infer.rs`):
 
 ```
 src/collection/
-  mod.rs     — home root; the MODULE-DOC inscribes the partition doctrine
-               (clause-vs-intrinsic, the projective flavor, `get` as the
-               worked proof, citing docs/DISPATCH.md). The vigilatum stamp.
-  infer.rs   — the 4 check-side inference intrinsics (the type-level computation).
-  eval.rs    — the ~30 runtime per-Type impls + the 3 constructors.
+  mod.rs        — home root; the module-doc inscribes the clause-vs-intrinsic partition
+                  doctrine (the word "intrinsic" lives HERE, in prose — `get` as the
+                  worked proof, cites docs/DISPATCH.md); the vigilatum stamp; any shared
+                  helper (cf. `function/mod.rs`'s `FN_HEAD`).
+  infer.rs      — the 4 check-side inference intrinsics (CheckEnv/InferCtx/Subst/TypeExpr).
+  eval.rs       — the ~30 runtime per-Type impls + 3 constructors (Value/Environment/…).
+  transform.rs  — CONDITIONAL (only if the ~12 utilities are swept — see Scope): the
+                  seq-HOFs + helpers. (`sequence.rs` the alternative if accessors dominate;
+                  weigh at the sweep.)
 ```
 
-Split by side (check vs runtime) mirrors the substrate's two-layer shape and keeps each file's imports cohesive (`infer.rs` ← CheckEnv/InferCtx/Subst/TypeExpr; `eval.rs` ← Value/Environment/SymbolTable/RuntimeError). The lift confirms whether `infer`/`eval` or a single module reads cleaner.
+**Why by-side, not a single `intrinsic.rs` (cast verdict):** the two sides have disjoint imports (check vs runtime types), so a by-side split keeps each file's import-world cohesive (intueri's "too many import-worlds = a mumbling file"); and `intrinsic` is the *doctrine* word — it belongs in the `mod.rs` prose where the DISPATCH.md doctrine lives, NOT a filename (a filename must show the home's shape on `ls`; `infer`/`eval` do, `intrinsic.rs` hides it). Mirrors `function/`'s `{eval,infer,parse,metadata}.rs`. A shared helper, if one emerges, lands in `mod.rs` (not a third mumbling file).
 
 ## Difficulty — moderate, bounded (a homes-walk sibling)
 
