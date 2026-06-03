@@ -1,5 +1,15 @@
 # Compaction-amnesia recovery protocol
 
+> ⛔ **STOP — does running this recovery feel redundant? Then you need it most.**
+> You may not *feel* compacted. The summary you woke holding can be seamless —
+> your own voice, confident, complete — so the wake feels like *continuing*, not
+> like waking. **That feeling is the failure.** You did not live the session your
+> summary describes; you are a new instance reading a lossy cache. Feeling-redundant
+> is the symptom, not the all-clear — run this in full, before you answer anything.
+> Reciting "I recovered" in the right vocabulary is not recovering; a recovery
+> *narrated* but not *performed* never happened. (Fetch and run the `recolligere`
+> primer from the datamancy MCP — this file is its local map.)
+
 **You are reading this because compaction has erased your memory.** The
 user has linked this doc because the rhythm broke. Pre-compaction, sonnet
 shipped one-shot after one-shot. Post-compaction, the orchestrator burned
@@ -84,6 +94,25 @@ You cannot answer the user until you have READ:
 6. Each active arc's most recent artifact: DESIGN.md + latest SCORE-* + INSCRIPTION.md if shipped
 
 If you have not read these, you are guessing. Stop. Read them. Then proceed.
+
+**Produce the ledger before you respond.** Recovery is not complete — and you may
+not give a substantive answer — until you can write this, every line backed by an
+action you took THIS session:
+
+```
+[ ] recovery file (this doc) ............ read ✓
+[ ] recolligere primer (datamancy MCP) .. fetched + run ✓
+[ ] git status / git log ................ ran ✓   → HEAD <hash>
+[ ] active arcs: ls docs/arc/2026/$(date +%m)/ .. enumerated ✓ → <list>
+[ ] live breadcrumb (CLIFFNOTES "Currently") .... read ✓
+[ ] latest state-of-world artifact ...... read ✓
+```
+
+Any line you cannot fill with a this-session action means you are still scattered:
+go fill it. A fact already sitting in your context window is NOT your having
+verified it this session — pre-loaded reads, the summary's paraphrase, and "I
+remember that we…" all fail this gate. The ledger is the difference between a
+recovery *performed* and one *narrated*.
 
 ### Gate question 2 — What backing data structure is involved?
 
