@@ -1630,7 +1630,18 @@ This is exactly the per-Type-primitive structure (`i64::+` = "the `+` *of* i64")
 
 **Entanglement:** option 3 means **N.4 (FQDN rendering) and arc 185 (english arith names) cannot be fully settled independently** — the symbol shape and whether operators keep math glyphs are one decision. The `/`-collision is the proof. Sequence them together when this opens.
 
-**Status:** open, banked. Recorded so the hardcore option isn't lost. Decide via four-questions when the naming surface opens; resolve the keyword-as-value snag first, and co-sequence with arc 185 (english op-names) per the `/`-collision entanglement.
+**DECIDED 2026-06-03 — glyphs locked toward maximal Clojure; one snag remains.**
+
+User: *"I want to be as clojure as we can be — if double slash is how division is declared then so be it."* This resolves every glyph fork at once:
+- **Rendering → the `/` shape** (Option Y). Accepting the `//` wart *is* choosing `/` over all-dots (all-dots never produces `//`).
+- **Division → `wat.core.i64//`** (Option 1, accept). It is verbatim `clojure.core//`.
+- **N.4 ⊗ 185 → keep the Clojure math glyphs** (`+ - * /`). "As Clojure as we can be" means Clojure's operators, so **arc 185 (english op-names) is CONTRAINDICATED** by this stance — `//` is the accepted cost of keeping `/`; `div`/`add` lose their rationale.
+
+**The principle (worth keeping):** *Clojure-faithfulness includes Clojure's warts.* Cherry-picking only the pretty parts would be the dishonesty — selective fidelity is a lie about the dialect (the same be-what-you-claim ethos as the rest of the substrate). `clojure.core//` is real; so `wat.core.i64//` stands.
+
+**STILL OPEN — the one real gate:** the keyword-as-value snag. Types are `:keywords` because keywords are first-class *values* ([[encoding-doctrine]]); dropping the `:` to make them bare symbols means the AST must carry a type that is no longer a value. Glyphs are decided; this semantic move is the four-questions gate.
+
+**Status:** glyphs DECIDED (`/` rendering, math ops, accept `//`); blocked only on the keyword-as-value gate; foundational rename, its own future arc. Co-sequencing with 185 no longer needed — the "as Clojure" stance contraindicates 185.
 - Grok research notes (user-shared 2026-05-23 evening) — verbatim Clojure type-hint precedent + multi-arity examples
 
 ## O. Diagnostic message richness — include value content alongside type names
