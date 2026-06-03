@@ -1623,7 +1623,14 @@ This is exactly the per-Type-primitive structure (`i64::+` = "the `+` *of* i64")
 
 **Scope:** FOUNDATIONAL — every symbol in `src/` (lexer/parser/resolver), `wat/`, `wat-tests/`, `tests/`, `examples/`, every doc. An order of magnitude past N.1 (HOF order) / N.3 (type glyph). A dedicated multi-stone arc with a heavy substrate-as-teacher cascade; almost certainly its own arc, not a slice.
 
-**Status:** open, banked. Recorded so the hardcore option isn't lost. Decide via four-questions when the naming surface opens; resolve the keyword-as-value snag first.
+**The `/`-operator collision (surfaced 2026-06-03):** when the op name IS `/` (division), the `/` rendering doubles: `wat.core.i64//` (namespace `wat.core.i64`, name `/`). This is **legal** — it is *exactly* Clojure's own qualified division, `clojure.core//` (the reader special-cases a trailing `/` as the name; `(clojure.core// 10 2)` → 5). But it is a known **wart** — `//` reads like an empty name / typo. Three resolutions:
+1. **Accept it** — it is literally `clojure.core//`; "damn near clojure" includes the ugly corner.
+2. **All-dots** (`wat.core.i64./`) — `.` separator + name `/`, no doubling; cleaner *here*, but erases the op↔type boundary everywhere else (the all-dots fork above).
+3. **English op-names (arc 185 — `arith-english-names`)** — if division is `div` not `/`, it renders `wat.core.i64/div`, dead clean, and the collision *vanishes* (same for `+`→`add` etc.).
+
+**Entanglement:** option 3 means **N.4 (FQDN rendering) and arc 185 (english arith names) cannot be fully settled independently** — the symbol shape and whether operators keep math glyphs are one decision. The `/`-collision is the proof. Sequence them together when this opens.
+
+**Status:** open, banked. Recorded so the hardcore option isn't lost. Decide via four-questions when the naming surface opens; resolve the keyword-as-value snag first, and co-sequence with arc 185 (english op-names) per the `/`-collision entanglement.
 - Grok research notes (user-shared 2026-05-23 evening) — verbatim Clojure type-hint precedent + multi-arity examples
 
 ## O. Diagnostic message richness — include value content alongside type names
