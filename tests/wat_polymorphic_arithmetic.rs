@@ -321,14 +321,14 @@ fn poly_add_string_rejected_at_check() {
 
 #[test]
 fn typed_strict_arithmetic_coexists() {
-    // Existing :wat::core::i64::+'2 / :wat::core::f64::+'2 still work
-    // and reject cross-type. Polymorphic + works alongside.
+    // Stone 237.8b — per-Type binary primitives drop '2 suffix.
+    // Cross-type arithmetic rejected at check; callers homogenize explicitly.
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [a (:wat::core::i64::+'2 1 2)
-                       b (:wat::core::f64::+'2 1.0 2.0)
-                       c (:wat::core::+ 1 2.5)]
+                      [a (:wat::core::i64::+ 1 2)
+                       b (:wat::core::f64::+ 1.0 2.0)
+                       c (:wat::core::+ 1 2)]
                       (:wat::kernel::println a)))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);
@@ -477,13 +477,8 @@ fn slice4_mixed_type_leaf_directly_callable() {
     assert_eq!(run(src), vec!["3.0".to_string()]);
 }
 
-#[test]
-fn slice4_binary_dispatch_directly_callable() {
-    // The binary Dispatch entity at :wat::core::+'2 routes by type.
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let [s (:wat::core::+'2 1 2.0)]
-                      (:wat::kernel::println s)))
-    "##;
-    assert_eq!(run(src), vec!["3.0".to_string()]);
-}
+// Stone 237.8b HARD CUT: bare :wat::core::+'2 (Dispatch entity) was deleted in 237.8a.
+// Per-Type binary primitives now use unsuffixed names (:i64::+, :f64::+).
+// Cross-type calls rejected by defclause clause-absence. Test removed.
+// #[test]
+// fn slice4_binary_dispatch_directly_callable() { ... }

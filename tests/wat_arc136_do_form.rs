@@ -89,8 +89,8 @@ fn do_multi_form_evaluates_left_to_right_returns_final() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::do
-                      (:wat::core::i64::+'2 1 0)
-                      (:wat::core::i64::+'2 2 0)
+                      (:wat::core::i64::+ 1 0)
+                      (:wat::core::i64::+ 2 0)
                       99))
     "#;
     assert_eq!(unwrap_i64(run(src)), 99);
@@ -106,7 +106,7 @@ fn do_recipient_unifies_with_final_form_type() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::i64
           (:wat::core::do
-                      (:wat::core::i64::+'2 1 1)
+                      (:wat::core::i64::+ 1 1)
                       42))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::probe))
@@ -125,7 +125,7 @@ fn do_recipient_mismatch_fires_type_mismatch() {
     let src = r#"
         (:wat::core::defn :my::probe [] -> :wat::core::String
           (:wat::core::do
-                      (:wat::core::i64::+'2 1 1)
+                      (:wat::core::i64::+ 1 1)
                       42))
 
         (:wat::core::defn :user::compute [] -> :wat::core::String (:my::probe))
@@ -151,7 +151,7 @@ fn do_non_final_type_is_unconstrained() {
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::do
                       "string-not-unit"
-                      (:wat::core::i64::+'2 1 1)
+                      (:wat::core::i64::+ 1 1)
                       42))
     "#;
     assert_eq!(unwrap_i64(run(src)), 42);
@@ -203,8 +203,8 @@ fn do_in_tail_position_preserves_tail_call() {
                       -> :wat::core::i64
                       n
                       (:wat::core::do
-                        (:wat::core::i64::+'2 n 0)
-                        (:my::countdown (:wat::core::i64::-'2 n 1)))))
+                        (:wat::core::i64::+ n 0)
+                        (:my::countdown (:wat::core::i64::- n 1)))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::countdown 100000))
     "#;
@@ -221,7 +221,7 @@ fn do_nested_compose_cleanly() {
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::do
                       (:wat::core::do
-                        (:wat::core::i64::+'2 0 0)
+                        (:wat::core::i64::+ 0 0)
                         1)
                       2))
     "#;
@@ -242,7 +242,7 @@ fn do_inside_let_body_composes_types_cleanly() {
           (:wat::core::let
                       [x 7]
                       (:wat::core::do
-                        (:wat::core::i64::+'2 x 1)
+                        (:wat::core::i64::+ x 1)
                         x)))
     "#;
     assert_eq!(unwrap_i64(run(src)), 7);

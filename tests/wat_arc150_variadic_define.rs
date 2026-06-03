@@ -57,7 +57,7 @@ fn variadic_define_with_zero_rest_args_binds_empty_vec() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of 100))
     "#;
@@ -73,7 +73,7 @@ fn variadic_define_with_one_rest_arg() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of 10 5))
     "#;
@@ -89,7 +89,7 @@ fn variadic_define_with_many_rest_args() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of 100 1 2 3 4 5))
     "#;
@@ -107,7 +107,7 @@ fn variadic_define_with_no_fixed_params_only_rest() {
         (:wat::core::defn :my::sum [_a <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs 0
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum 7 8 9 10))
     "#;
@@ -121,7 +121,7 @@ fn variadic_define_with_no_fixed_params_zero_args_returns_seed() {
         (:wat::core::defn :my::sum [_a <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs 0
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum))
     "#;
@@ -155,7 +155,7 @@ fn variadic_define_arity_error_below_fixed_arity() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of))
     "#;
@@ -177,7 +177,7 @@ fn variadic_define_type_error_on_mismatched_rest_arg() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of 10 1 "two" 3))
     "#;
@@ -204,7 +204,7 @@ fn signature_of_defn_variadic_define_returns_rest_shape() {
         (:wat::core::defn :my::sum-of [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::String
           (:wat::core::let
@@ -257,7 +257,7 @@ fn variadic_define_uses_foldl_over_rest_args() {
         (:wat::core::defn :my::add-all [seed <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs seed
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::add-all 0 1 2 3 4 5 6 7 8 9 10))
     "#;
@@ -330,7 +330,7 @@ fn strict_arity_define_unchanged_by_arc150() {
     // additions.
     let src = r#"
 
-        (:wat::core::defn :my::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :my::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::add 40 2))
     "#;
@@ -343,7 +343,7 @@ fn strict_arity_define_arity_error_still_strict() {
     // must NOT fire when `rest_param.is_none()`.
     let src = r#"
 
-        (:wat::core::defn :my::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :my::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::add 40 2 99))
     "#;

@@ -208,7 +208,7 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
         (:wat::core::defn :my::invoke [] -> :wat::core::i64
           (:user::apply
                       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 x 1))
+                        (:wat::core::i64::+ x 1))
                       10))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -237,7 +237,7 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::i64
           ((:wat::core::lambda (() -> :wat::core::i64)
-                       (:wat::core::i64::+'2 1 2))
+                       (:wat::core::i64::+ 1 2))
                      ))
     "#;
     let err = startup_err(src);
@@ -258,7 +258,7 @@ fn fn_body_in_tail_position_type_checks() {
     // the former `infer_lambda`.
     // Main is canonical nil (arc 170 slice 1f-ζ migration).
     let src = r#"
-        (:wat::core::defn :user::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :user::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
 
         (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
@@ -284,7 +284,7 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
         (:wat::core::defn :my::invoke [] -> :wat::core::i64
           (:user::apply
                       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 x 1))
+                        (:wat::core::i64::+ x 1))
                       5))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -304,8 +304,8 @@ fn fn_body_with_let_type_checks() {
         (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::let
-                         [a (:wat::core::i64::+'2 x 5)
-                          b (:wat::core::i64::*'2 a 2)]
+                         [a (:wat::core::i64::+ x 5)
+                          b (:wat::core::i64::* a 2)]
                          b))
                      3))
 
@@ -326,7 +326,7 @@ fn reflection_fn_registry_entry_exists() {
     let src = r#"
         (:wat::core::defn :my::apply [] -> :wat::core::i64
           ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::+'2 a b))
+                       (:wat::core::i64::+ a b))
                      10 20))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)

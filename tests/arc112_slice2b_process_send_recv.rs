@@ -42,7 +42,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
           [] -> :wat::core::nil
           (:wat::core::let
             [n (:wat::kernel::readln -> :wat::core::i64)
-             _ (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
+             _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
             nil))
 
         ;; Parent: spawn-process + wrap pipes + send/recv via Stone C wrappers.

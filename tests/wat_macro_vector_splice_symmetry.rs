@@ -102,7 +102,7 @@ fn splice_of_vector_bound_symbol_succeeds() {
 /// binds to a `WatAST::List`) and splices them into a `[~@params]`
 /// Vector template that becomes a `fn` signature. The macro expands to
 /// a `(:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-///   (:wat::core::i64::+'2 a b))` after the splice fires.
+///   (:wat::core::i64::+ a b))` after the splice fires.
 #[test]
 fn splice_inside_vector_template_fires() {
     // The fn signature lives in a Vector template. The splice dispatch
@@ -114,7 +114,7 @@ fn splice_inside_vector_template_fires() {
           [& params <- :AST<wat::core::Vector<wat::WatAST>>]
           -> :AST<wat::core::nil>
           `(:wat::core::fn [~@params] -> :wat::core::i64
-              (:wat::core::i64::+'2 a b)))
+              (:wat::core::i64::+ a b)))
 
         (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
 
@@ -151,7 +151,7 @@ fn vector_splice_round_trip_matches_list_splice() {
           `(:wat::core::i64::+ ~@xs))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::i64::-'2
+          (:wat::core::i64::-
                       (:my::sum-vec [1 2 3 4])
                       (:my::sum-list 1 2 3 4)))
     "#;

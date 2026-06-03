@@ -331,7 +331,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
     // surface needs separate coverage (a future follow-up that bypasses
     // spawn-sandbox or threads a Scoped loader into the child).
     let scope = ScopeDir::new();
-    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+'2 40 2)");
+    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+ 40 2)");
     let src = format!(
         r##"
 

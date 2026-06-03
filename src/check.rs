@@ -23,7 +23,7 @@
 //! # What this catches today
 //!
 //! - Arity mismatches in user-function and built-in calls at startup.
-//! - Type mismatches: `(:wat::core::i64::+'2 "hello" 3)`, `(:wat::core::< 1 "x")`
+//! - Type mismatches: `(:wat::core::i64::+ "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
 //! - Polymorphic failures: `(:wat::core::Vector 1 "two" 3)` — list
 //!   elements must unify to a common element type.
@@ -4614,17 +4614,12 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 050 — polymorphic comparison/equality. Same-type
-            // for non-numeric, cross-numeric promotion for (i64, f64)
-            // pairs. Always returns :bool. `not=` (Clojure tradition)
-            // shares the inference path with `=` since the rules are
-            // identical; only the runtime differs.
+            // Arc 050 — polymorphic comparison/equality. Always returns :bool.
+            // Stone 237.8b — `<`/`>`/`<=`/`>=` HARD CUT from this arm: those now
+            // route through wat defclauses (registered in env.defclause_registrations).
+            // `=`/`not=` stay here until 237.8c migrates them.
             ":wat::core::="
-            | ":wat::core::not="
-            | ":wat::core::<"
-            | ":wat::core::>"
-            | ":wat::core::<="
-            | ":wat::core::>=" => {
+            | ":wat::core::not=" => {
                 let (val, mut errs) = infer_comparison(k, head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -4632,24 +4627,8 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 148 slice 4 — polymorphic variadic arithmetic. All
-            // args must be numeric (i64 or f64); result type is f64 if
-            // any arg is f64 (or 1-ary `-`/`/` with f64 arg), else
-            // i64. Lisp/Clojure arity rules per DESIGN § "Arity rules":
-            // `+`/`*` 0-ary returns `:i64`; `-`/`/` 0-ary errors.
-            // 1-ary `-`/`/` insert identity-on-left (negation/recip);
-            // 1-ary `+`/`*` return arg unchanged. 2+-ary folds left.
-            ":wat::core::+"
-            | ":wat::core::-"
-            | ":wat::core::*"
-            | ":wat::core::/" => {
-                let (val, mut errs) = infer_arithmetic(k, head_span, args, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
+            // Stone 237.8b — `+`/`-`/`*`/`/` HARD CUT from this arm: those now
+            // route through wat defclauses (registered in env.defclause_registrations).
             // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
             // type depends on the RHS variant:
             //   Instant - Duration -> Instant
@@ -7728,7 +7707,7 @@ fn infer_defclause(
     all_items.extend_from_slice(args);
     let form = WatAST::List(all_items, head_span.clone());
 
-    let cs = match crate::runtime::parse_defclause_form(&form) {
+    let cs = match crate::runtime::parse_defclause_form(&form, false) {
         Ok((_name, cs)) => cs,
         Err(e) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -8052,7 +8031,7 @@ fn collect_and_register_splice_defs(
 /// parse fails or the name is already registered (when `idempotent=true`).
 fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: bool) -> bool {
     let span = form.span().clone();
-    let (name, cs) = match crate::runtime::parse_defclause_form(form) {
+    let (name, cs) = match crate::runtime::parse_defclause_form(form, false) {
         Ok(pair) => pair,
         Err(_) => return false,
     };
@@ -11188,138 +11167,15 @@ fn infer_comparison(
     if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
 }
 
-/// Arc 148 slice 4 — polymorphic variadic arithmetic inference.
-///
-/// For `:wat::core::+`, `-`, `*`, `/`. Renamed from
-/// `infer_polymorphic_arith` per slice 5 precedent: the polymorphic-
-/// handler anti-pattern framing was the issue; the function itself
-/// is honest substrate. Custom inference is the right shape because
-/// no wat type expresses "Vector of homogeneous numerics" — Vector<T>
-/// can't unify across i64/f64; an untyped vector would lose all
-/// check-time safety.
-///
-/// arc 237 Stone 237.8a — THE DECISION (`feedback_no_implicit_coercion`):
-/// no implicit numeric coercion. All numeric args MUST be the same
-/// type. `(+ 1 2.0)` → TypeMismatch at check. Callers homogenize
-/// explicitly via `:wat::core::i64::to-f64` (or `:f64::to-i64`).
-/// Mixed-type Dispatch entity arms and leaves DELETED; same-type
-/// routes directly through per-Type leaves.
-///
-/// All args must be numeric (`:i64` or `:f64`) and same-type. Result
-/// is `:i64` if all args are `:i64`; `:f64` if all are `:f64`. Mixed
-/// (i64 + f64) → TypeMismatch; callers homogenize explicitly.
-///
-/// Lisp/Clojure arity rules per DESIGN § "Arity rules":
-/// - `+`/`*` 0-ary returns `:i64` (identity 0/1)
-/// - `-`/`/` 0-ary is ARITY ERROR
-/// - 1-ary `+`/`*` returns the arg unchanged (preserves type)
-/// - 1-ary `-`/`/` inserts identity-on-left (negation/reciprocal;
-///   preserves type)
-/// - 2+-ary folds left via per-Type leaves (same-type only)
-fn infer_arithmetic(
-    op: &str,
-    head_span: &Span,
-    args: &[WatAST],
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
-    let f64_ty = TypeExpr::Path(":wat::core::f64".into());
-
-    // 0-ary: `+`/`*` return identity `:i64`; `-`/`/` reject.
-    if args.is_empty() {
-        if op == ":wat::core::+" || op == ":wat::core::*" {
-            // HARVEST (236.2): silent-by-intent — 0-ary identity returns i64.
-            return CheckResult::ok(i64_ty);
-        }
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: op.into(),
-            expected: 1,
-            got: 0
-        } });
-        // HARVEST (236.2): existing diagnostic; return f64 fallback.
-        return CheckResult::partial_with(f64_ty, local_errors);
-    }
-
-    // Type-check every arg (fold-left consumes them all).
-    let arg_types: Vec<Option<TypeExpr>> = args
-        .iter()
-        .map(|a| infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
-        .collect();
-    let resolved: Vec<Option<TypeExpr>> = arg_types
-        .iter()
-        .map(|o| o.as_ref().map(|t| apply_subst(t, subst)))
-        .collect();
-
-    // Push diagnostic for any non-numeric arg.
-    for (i, t_opt) in resolved.iter().enumerate() {
-        if let Some(t) = t_opt {
-            if !is_numeric(t) {
-                local_errors.push(CheckError { span: args[i].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: op.into(),
-                    param: format!("#{}", i + 1),
-                    expected: ":i64 or :f64".into(),
-                    got: format_type(t)
-                } });
-            }
-        }
-    }
-
-    // 1-ary: result type = arg type (`+`/`*` return arg; `-`/`/`
-    // insert identity-on-left preserving the arg's type per
-    // DESIGN § "Type preservation for 1-ary").
-    if args.len() == 1 {
-        let ty = match &resolved[0] {
-            Some(t) if is_i64(t) => i64_ty,
-            Some(t) if is_numeric(t) => f64_ty,
-            // Non-numeric or unknown: fall back to f64 to keep
-            // downstream inference quiet (a TypeMismatch was pushed
-            // above).
-            _ => f64_ty,
-        };
-        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
-    }
-
-    // 2+-ary: THE DECISION — all args MUST be the same numeric type.
-    // Mixed (i64 + f64) is rejected at check; callers homogenize
-    // explicitly via `:i64::to-f64` (or vice versa).
-    let all_i64 = resolved.iter().all(|o| matches!(o, Some(t) if is_i64(t)));
-    let all_f64 = resolved.iter().all(|o| matches!(o, Some(t) if is_numeric(t) && !is_i64(t)));
-    let ty = match (all_i64, all_f64) {
-        (true, _) => i64_ty,
-        (_, true) => f64_ty,
-        _ => {
-            // Mixed or unknown — push TypeMismatch naming the first
-            // arg whose type differs from arg #1 (the canonical offender).
-            if let Some(Some(first_ty)) = resolved.first() {
-                for (i, t_opt) in resolved.iter().enumerate().skip(1) {
-                    if let Some(t) = t_opt {
-                        if unify(t, first_ty, subst, env.types()).is_err() {
-                            local_errors.push(CheckError { span: args[i].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: op.into(),
-                                param: format!("#{}", i + 1),
-                                expected: format_type(first_ty),
-                                got: format_type(t)
-                            } });
-                            break;
-                        }
-                    }
-                }
-            }
-            // Fallback return type; the error was pushed above.
-            f64_ty
-        }
-    };
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
-
-/// Arc 050 — predicate. Recognizes `:i64` and `:f64` paths.
-fn is_numeric(t: &TypeExpr) -> bool {
-    matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64" || p == ":wat::core::f64")
-}
+// Stone 237.8b — HARD CUT: `infer_arithmetic` and `is_numeric` deleted.
+// `:wat::core::+`/`-`/`*`/`/` now route through wat defclauses (registered
+// in env.defclause_registrations). The defclause call-site checker
+// (infer_defclause, line ~5262) handles arity + type-dispatch. No custom
+// Rust handler needed.
+//
+// `infer_comparison`'s `<`/`>`/`<=`/`>=` arms also deleted (same stone);
+// those ops route through wat defclauses. The `=`/`not=` arms stay
+// until 237.8c migrates them.
 
 /// Arc 237 Stone S-C.3 — BASE record constructor inference.
 ///
@@ -13693,14 +13549,14 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Integer arithmetic — strict i64 × i64 → i64 under the
-    // `:wat::core::i64` namespace. Arc 148 slice 2: renamed to
-    // `,2` arity-tagged form so slice 4 can place variadic wat
-    // wrappers at the bare names.
+    // `:wat::core::i64` namespace. Stone 237.8b — drop '2 suffix;
+    // per-Type binary primitives are strictly 2-ary Rust intrinsics;
+    // variadic surface now lives in wat defclauses.
     for op in &[
-        ":wat::core::i64::+'2",
-        ":wat::core::i64::-'2",
-        ":wat::core::i64::*'2",
-        ":wat::core::i64::/'2",
+        ":wat::core::i64::+",
+        ":wat::core::i64::-",
+        ":wat::core::i64::*",
+        ":wat::core::i64::/",
     ] {
         env.register(
             op.to_string(),
@@ -13713,13 +13569,12 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     // Float arithmetic — strict f64 × f64 → f64 under the
-    // `:wat::core::f64` namespace. Users commit to int or float at
-    // the call site; no implicit promotion.
+    // `:wat::core::f64` namespace. Stone 237.8b — drop '2 suffix.
     for op in &[
-        ":wat::core::f64::+'2",
-        ":wat::core::f64::-'2",
-        ":wat::core::f64::*'2",
-        ":wat::core::f64::/'2",
+        ":wat::core::f64::+",
+        ":wat::core::f64::-",
+        ":wat::core::f64::*",
+        ":wat::core::f64::/",
     ] {
         env.register(
             op.to_string(),
@@ -13736,7 +13591,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
     // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
     // +'f64'i64, -'f64'i64, *'f64'i64, /'f64'i64 — all retired.
-    // Per-Type leaves (i64::+'2 etc.) remain (irreducible primitives).
+    // Per-Type leaves (i64::+ etc.) remain (irreducible primitives).
     // Arc 019 — f64 rounding primitive. `(round v digits) -> f64`
     // rounds `v` to `digits` decimal places using round-half-away-
     // from-zero. `digits=0` rounds to the nearest integer;
@@ -13889,23 +13744,41 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Stone 237.3 — per-type i64 comparison aliases.
-    // `:wat::core::i64::{=,<,>,<=,!=}` were retired in arc 148 slice 5;
-    // re-registered here so defclause :guard expressions may use
-    // type-qualified comparison forms. Runtime delegates to the same
-    // polymorphic eval_compare / eval_eq implementations.
+    // Stone 237.3 — per-type i64 comparison primitives.
+    // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
+    // f64 ordering family minted.
     for op_name in &[
         ":wat::core::i64::=",
         ":wat::core::i64::>",
         ":wat::core::i64::<",
         ":wat::core::i64::>=",
-        ":wat::core::i64::!=",
+        // Stone 237.8b — minted (was missing from i64 ordering set).
+        ":wat::core::i64::<=",
+        // Stone 237.8b — renamed from `:i64::!=` (HARD CUT old name).
+        ":wat::core::i64::not=",
     ] {
         env.register(
             op_name.to_string(),
             TypeScheme {
                 type_params: vec![],
                 params: vec![i64_ty(), i64_ty()],
+                ret: bool_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    // Stone 237.8b — f64 ordering family (NaN-correct; 4 primitives).
+    for op_name in &[
+        ":wat::core::f64::<",
+        ":wat::core::f64::>",
+        ":wat::core::f64::<=",
+        ":wat::core::f64::>=",
+    ] {
+        env.register(
+            op_name.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), f64_ty()],
                 ret: bool_ty(),
                 rest_param_type: None,
             },
@@ -17728,7 +17601,7 @@ mod tests {
 
     #[test]
     fn correct_arity_passes() {
-        assert!(check("(:wat::core::i64::+'2 1 2)").is_ok());
+        assert!(check("(:wat::core::i64::+ 1 2)").is_ok());
         assert!(check("(:wat::core::not true)").is_ok());
         // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
         // to-holon for integer literals (the polymorphic UP verb).
@@ -17737,7 +17610,7 @@ mod tests {
 
     #[test]
     fn too_few_args_rejected() {
-        let err = check("(:wat::core::i64::+'2 1)").unwrap_err();
+        let err = check("(:wat::core::i64::+ 1)").unwrap_err();
         assert!(err
             .0
             .iter()
@@ -17757,7 +17630,7 @@ mod tests {
 
     #[test]
     fn string_to_add_rejected() {
-        let err = check(r#"(:wat::core::i64::+'2 "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -17768,7 +17641,7 @@ mod tests {
     /// carry coordinates" doctrine.
     #[test]
     fn type_mismatch_message_carries_span() {
-        let err = check(r#"(:wat::core::i64::+'2 "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),
@@ -17804,7 +17677,7 @@ mod tests {
         // assertion (SandboxScopeLeak fires) no longer holds under
         // the new deftest expansion; the test will fail if un-ignored.
         let src = r#"
-            (:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2))
+            (:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
 
             (:wat::test::deftest :test::leaky
               ()
@@ -17830,7 +17703,7 @@ mod tests {
     fn sandbox_scope_no_leak_when_in_prelude() {
         let src = r#"
             (:wat::test::deftest :test::clean
-              ((:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2)))
+              ((:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2)))
               (:wat::test::assert-eq (:my::helper 21) 42))
         "#;
         // No outer-scope :my::helper define exists; the only define
@@ -17849,7 +17722,7 @@ mod tests {
 
     #[test]
     fn bool_to_add_rejected() {
-        let err = check("(:wat::core::i64::+'2 true 3)").unwrap_err();
+        let err = check("(:wat::core::i64::+ true 3)").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -17876,7 +17749,15 @@ mod tests {
 
     #[test]
     fn less_than_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::< 1 "x")"#).unwrap_err();
+        // Stone 237.8b — `<` is now a wat defclause; in unit test context the stdlib
+        // defclauses aren't pre-registered in the check env, so the call site errors
+        // with UnknownCallee (not TypeMismatch). The key invariant preserved: the call
+        // REJECTS at check time (check returns Err). Use per-Type primitive for unit tests
+        // that need check-time type precision.
+        let result = check(r#"(:wat::core::i64::< 1 2)"#);
+        assert!(result.is_ok(), "i64::< 1 2 should pass");
+        // Per-type with wrong arg type still TypeMismatches:
+        let err = check(r#"(:wat::core::i64::< 1 "x")"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -17941,7 +17822,7 @@ mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x y))"#
+            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))"#
         )
         .is_ok());
     }
@@ -17949,7 +17830,7 @@ mod tests {
     #[test]
     fn user_define_body_wrong_return_rejected() {
         let err = check(
-            r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::core::i64::+'2 x y))"#,
+            r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::core::i64::+ x y))"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. })));
@@ -17981,7 +17862,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let [x 42] (:wat::core::i64::+'2 x 1))"#
+            r#"(:wat::core::let [x 42] (:wat::core::i64::+ x 1))"#
         )
         .is_ok());
     }
@@ -17993,7 +17874,7 @@ mod tests {
                  [x 1
                   y 2
                   z 3]
-                 (:wat::core::i64::+'2 (:wat::core::i64::+'2 x y) z))"#
+                 (:wat::core::i64::+ (:wat::core::i64::+ x y) z))"#
         )
         .is_ok());
     }
@@ -18007,7 +17888,7 @@ mod tests {
             r#"(:wat::core::let
                  [doubler
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+'2 x x))]
+                     (:wat::core::i64::+ x x))]
                  true)"#
         )
         .is_ok());
@@ -18045,7 +17926,7 @@ mod tests {
 
     #[test]
     fn multiple_errors_reported() {
-        let err = check(r#"(:wat::core::i64::+'2 "s" 1) (:wat::core::not 42)"#).unwrap_err();
+        let err = check(r#"(:wat::core::i64::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
         assert!(err.0.len() >= 2, "expected >=2 errors, got {}", err.0.len());
     }
 

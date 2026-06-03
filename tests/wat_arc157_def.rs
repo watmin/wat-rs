@@ -84,12 +84,12 @@ fn def_basic_float_literal() {
 /// Test 2 — computed `def`: `:b` references `:a` which was bound first.
 /// Sequential processing means `:a` is in `env.defined_values` when
 /// `:b`'s expr is type-checked; `:b`'s inferred type is `:wat::core::i64`
-/// (result of `(:wat::core::i64::+'2 :a 1)`).
+/// (result of `(:wat::core::i64::+ :a 1)`).
 #[test]
 fn def_computed_value_references_prior_def() {
     let src = r#"
         (:wat::core::def :a 1)
-        (:wat::core::def :b (:wat::core::i64::+'2 :a 1))
+        (:wat::core::def :b (:wat::core::i64::+ :a 1))
     "#;
     startup_ok(src);
 }
@@ -106,7 +106,7 @@ fn def_type_mismatch_via_registered_type() {
     // (arc 170 slice 1f-ζ migration).
     let src = r#"
         (:wat::core::def :pi 3.14159)
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::i64::+'2 :pi 1))
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::i64::+ :pi 1))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let err = startup_err(src);
@@ -125,7 +125,7 @@ fn def_type_mismatch_via_registered_type() {
 fn def_type_error_in_expr() {
     // Unambiguous type error: passing a String where the helper expects i64.
     let src = r#"
-        (:wat::core::defn :user::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
+        (:wat::core::defn :user::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))
         (:wat::core::def :bad (:user::helper "not-an-int"))
     "#;
     let err = startup_err(src);
@@ -191,7 +191,7 @@ fn def_position_legal_recursive_let_do_nesting() {
           [x 1]
           (:wat::core::do
             (:wat::core::def :a x)
-            (:wat::core::def :b (:wat::core::i64::*'2 x 2))))
+            (:wat::core::def :b (:wat::core::i64::* x 2))))
     "#;
     startup_ok(src);
 }
@@ -310,7 +310,7 @@ fn def_runtime_pi_in_let_addition() {
         (:wat::core::defn :my::compute [] -> :wat::core::f64
           (:wat::core::let
                       [x 2.0]
-                      (:wat::core::f64::+'2 x :pi)))
+                      (:wat::core::f64::+ x :pi)))
     "#;
     let v = run(src);
     match v {

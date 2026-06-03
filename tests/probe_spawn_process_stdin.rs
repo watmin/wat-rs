@@ -76,7 +76,7 @@ fn probe_spawn_process_stdin() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [n    (:wat::kernel::readln -> :wat::core::i64)
-                       _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
+                       _out (:wat::kernel::println (:wat::core::i64::+ n 1))]
                       :wat::core::nil))
     "#;
     let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")

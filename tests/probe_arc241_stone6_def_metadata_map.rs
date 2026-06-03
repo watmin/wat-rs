@@ -93,7 +93,7 @@ fn contract_03_defn_with_metadata_inherits_via_macro() {
         (:wat::core::defn :my::f
           {:doc "doubles its input"}
           [x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+'2 x x))
+          (:wat::core::i64::+ x x))
     "#;
     let result = try_startup(src);
     assert!(

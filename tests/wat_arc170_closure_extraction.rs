@@ -251,7 +251,7 @@ fn fn_form_param_pairs(shape: &FnFormShape) -> Vec<(String, String)> {
 #[test]
 fn t1_toplevel_defn_no_deps_no_captures() {
     let src = r#"
-        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);
@@ -279,7 +279,7 @@ fn t1_toplevel_defn_no_deps_no_captures() {
 #[test]
 fn t2_toplevel_defn_calls_other_defns() {
     let src = r#"
-        (:wat::core::defn :my::times-two [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :my::times-two [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
         (:wat::core::defn :my::times-four [n <- :wat::core::i64] -> :wat::core::i64 (:my::times-two (:my::times-two n)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -319,7 +319,7 @@ fn t3_toplevel_defn_uses_user_types() {
           :Right)
         (:wat::core::newtype :my::PriceUsd :wat::core::f64)
         (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::core::i64::+'2 (:my::Point/x p) (:my::Point/y p)))
+        (:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::core::i64::+ (:my::Point/x p) (:my::Point/y p)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);
@@ -366,7 +366,7 @@ fn t4_inline_lambda_no_captures() {
     let src = r#"
         (:wat::core::defn :my::factory [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                      (:wat::core::i64::+'2 n 7)))
+                      (:wat::core::i64::+ n 7)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);
@@ -407,7 +407,7 @@ fn t5_inline_lambda_captures_let_scope_struct() {
           (:wat::core::let
                       [cfg (:my::Config/new 10)]
                       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
+                        (:wat::core::i64::+ n (:my::Config/offset cfg)))))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);
@@ -449,8 +449,8 @@ fn t6_lambda_captures_multiple_mixed_types() {
                        cfg (:my::Cfg/new "ok")
                        xs (:wat::core::Vector :wat::core::i64 1 2 3)]
                       (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 m
-                          (:wat::core::i64::+'2 n
+                        (:wat::core::i64::+ m
+                          (:wat::core::i64::+ n
                             (:wat::core::Vector/length xs))))))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -484,7 +484,7 @@ fn t7_factory_pattern() {
           [val <- :wat::core::i64])
         (:wat::core::defn :my::factory [config <- :my::Cfg] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                      (:wat::core::i64::+'2 n (:my::Cfg/val config))))
+                      (:wat::core::i64::+ n (:my::Cfg/val config))))
         (:wat::core::defn :my::make [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64 (:my::factory (:my::Cfg/new 100)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -598,7 +598,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
 fn t10_captures_with_type_alias() {
     let src = r#"
         (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::defn :my::compute [c <- :my::Coord] -> :wat::core::i64 (:wat::core::i64::+'2 c 1))
+        (:wat::core::defn :my::compute [c <- :my::Coord] -> :wat::core::i64 (:wat::core::i64::+ c 1))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);
@@ -689,7 +689,7 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
           [x <- :AST]
           -> :AST
           (:wat::core::quasiquote
-            (:wat::core::i64::*'2 (:wat::core::unquote x) 3)))
+            (:wat::core::i64::* (:wat::core::unquote x) 3)))
         (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -717,7 +717,7 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
 #[test]
 fn t14_transitive_three_level_dep_chain() {
     let src = r#"
-        (:wat::core::defn :my::a [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::a [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
         (:wat::core::defn :my::b [n <- :wat::core::i64] -> :wat::core::i64 (:my::a (:my::a n)))
         (:wat::core::defn :my::c [n <- :wat::core::i64] -> :wat::core::i64 (:my::b (:my::b n)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -751,7 +751,7 @@ fn t15_behavior_equivalence_across_shapes() {
     //
     // T1 — top-level defn no captures.
     let src1 = r#"
-        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let p1 = freeze(src1);
@@ -774,7 +774,7 @@ fn t15_behavior_equivalence_across_shapes() {
           (:wat::core::let
                       [cfg (:my::Config/new 99)]
                       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 n (:my::Config/offset cfg)))))
+                        (:wat::core::i64::+ n (:my::Config/offset cfg)))))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let p5 = freeze(src5);
@@ -935,7 +935,7 @@ fn t19_match_arm_body_with_inner_let() {
           (:wat::core::match opt -> :wat::core::i64
                       ((:wat::core::Some i)
                        (:wat::core::let
-                         [s (:wat::core::i64::+'2 i 1)]
+                         [s (:wat::core::i64::+ i 1)]
                          s))
                       (:wat::core::None 0)))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -980,8 +980,8 @@ fn t20_match_user_enum_variant_records_type_dep() {
           :Circle [r <- :wat::core::i64])
         (:wat::core::defn :my::shape-area [s <- :my::Shape] -> :wat::core::i64
           (:wat::core::match s -> :wat::core::i64
-                      ((:my::Shape::Rect w h) (:wat::core::i64::*'2 w h))
-                      ((:my::Shape::Circle r) (:wat::core::i64::*'2 r r))))
+                      ((:my::Shape::Rect w h) (:wat::core::i64::* w h))
+                      ((:my::Shape::Circle r) (:wat::core::i64::* r r))))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let parent = freeze(src);

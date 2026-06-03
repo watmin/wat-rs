@@ -799,7 +799,27 @@ fn startup_from_forms_post_config(
     //    defines still go through register_defines where the gate
     //    blocks mis-namespaced user source.
     let mut symbols = SymbolTable::new();
-    let _stdlib_function_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
+    // Stone 237.8b — capture stdlib residue so defclause forms reach register_runtime_defs.
+    // The stdlib residue is NOT included in the user `residue` (it hasn't been through
+    // resolver step 7). Instead, we:
+    //   (a) pre-register defclause stubs so the checker sees them as callable names
+    //   (b) extract just the defclause forms for processing by register_runtime_defs
+    let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
+    // (a) Pre-register stubs into sym.functions so checker sees them.
+    for form in &stdlib_residue {
+        crate::runtime::preregister_stdlib_defclause_stub(form, &mut symbols);
+    }
+    // (b) Extract only defclause forms from stdlib residue (other stdlib forms
+    // already processed; defclauses need runtime registration via runtime_defs).
+    let stdlib_defclause_forms: Vec<crate::ast::WatAST> = stdlib_residue.into_iter()
+        .filter(|form| {
+            if let crate::ast::WatAST::List(items, _) = form {
+                matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause")
+            } else {
+                false
+            }
+        })
+        .collect();
     let residue = register_defines(post_types, &mut symbols)?;
 
     // 6a. Struct auto-methods. For every `(:wat::core::defstruct ...)`
@@ -884,6 +904,14 @@ fn startup_from_forms_post_config(
     // FrozenWorld::freeze at step 9 would be too late).
     symbols.redef_allowed = config.redef_allowed;
     symbols.eval_redef_allowed = config.eval_redef_allowed;
+
+    // 7.6 Stone 237.8b — register stdlib defclauses into runtime_def_values.
+    // Uses a privileged parser that bypasses the reserved-prefix check
+    // (`:wat::core::+` etc. live under :wat::core::* which is reserved from
+    // user code but legal for the stdlib). These forms have already been
+    // through macro-expansion at step 4; they're stdlib-privileged.
+    crate::runtime::register_stdlib_defclauses(&stdlib_defclause_forms, &mut symbols)
+        .map_err(|e| StartupError::Runtime(Box::new(e)))?;
 
     // 8. Type check.
     check_program(&residue, &symbols, &types)?;
@@ -1423,7 +1451,7 @@ mod tests {
     fn user_define_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x y))
+            (:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.symbols().get(":my::app::add").is_some());
@@ -1488,7 +1516,7 @@ mod tests {
         // Passing :i64 to a define that declared :bool — type mismatch.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::i64::+'2 "hello" 1)
+            (:wat::core::i64::+ "hello" 1)
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Check(_)));
@@ -1548,7 +1576,7 @@ mod tests {
         let mut loader = InMemoryLoader::new();
         loader.add_source(
             "lib.wat",
-            r#"(:wat::core::defn :lib::square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x x))"#,
+            r#"(:wat::core::defn :lib::square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x x))"#,
         );
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
@@ -1622,7 +1650,7 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :my::app::triple [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 3))
+            (:wat::core::defn :my::app::triple [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 3))
         "#,
         );
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
@@ -1844,7 +1872,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+'2 20 22)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
         let hex = digest_hex_for(&ast);
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
@@ -1859,7 +1887,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parse_one!(r#"(:wat::core::i64::+'2 1 1)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let err =
@@ -1915,7 +1943,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parse_one!(r#"(:wat::core::i64::+'2 40 2)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&ast);
         let result = eval_signed_in_frozen(
             &ast,
@@ -1936,8 +1964,8 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let original = crate::parse_one!(r#"(:wat::core::i64::+'2 1 1)"#).unwrap();
-        let tampered = crate::parse_one!(r#"(:wat::core::i64::+'2 99 99)"#).unwrap();
+        let original = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
+        let tampered = crate::parse_one!(r#"(:wat::core::i64::+ 99 99)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&original);
         let err = eval_signed_in_frozen(
             &tampered,

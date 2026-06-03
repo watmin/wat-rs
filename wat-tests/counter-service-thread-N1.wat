@@ -145,7 +145,7 @@
                        state)))
                  ;; Increment — compute new state; reply Ok(new-n); recur
                  ((:counter::UserReq::Increment n)
-                   (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
+                   (:wat::core::let [new-n (:wat::core::i64::+ state n)]
                      (:wat::core::Result/expect -> :wat::core::nil
                        (:wat::kernel::send user-resp-tx
                          (:counter::UserResp::Ok new-n))

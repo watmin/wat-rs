@@ -90,7 +90,7 @@ fn gate_1_defclause_supports_rest_binder() {
             (:wat::core::foldl rest first
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+'2 acc n)))))
+                (:wat::core::i64::+ acc n)))))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
     "#;
     let result = try_compute(src);
@@ -136,9 +136,9 @@ fn gate_2_cross_no_matching_clause() {
     let src = r#"
         (:wat::core::defclause :my::add
           ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+'2 x y))
+            (:wat::core::i64::+ x y))
           ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64
-            (:wat::core::f64::+'2 x y)))
+            (:wat::core::f64::+ x y)))
         (:wat::core::defn :user::compute [] -> :wat::core::f64 (:my::add 1 2.0))
     "#;
     let result = try_startup(src);
@@ -190,7 +190,6 @@ fn gate_4a_i64_ordering_works() {
 /// **Mint-confirmer**: `:wat::core::f64::<` doesn't exist at HEAD; sonnet
 /// mints it. Post-mint: `1.0 < NaN` returns false (IEEE 754).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :wat::core::f64::< is minted"]
 fn gate_4b_f64_nan_ordering() {
     // 0.0 / 0.0 produces NaN
     let src = r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::f64::< 1.0 (:wat::core::f64::/ 0.0 0.0)))"#;
@@ -272,7 +271,6 @@ fn regression_cross_type_lt_rejected() {
 
 /// `:wat::core::i64::<=` MUST exist + work (currently missing from i64 set).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :wat::core::i64::<= is minted (completing i64 ordering set)"]
 fn mint_i64_lte_works() {
     assert_eq!(
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::<= 5 5))"#),
@@ -287,7 +285,6 @@ fn mint_i64_lte_works() {
 
 /// `:wat::core::f64::<` etc. MUST be minted (entire f64 ordering family).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after f64 ordering primitives minted"]
 fn mint_f64_ordering_basic() {
     assert_eq!(
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::f64::< 1.0 2.0))"#),
@@ -301,7 +298,6 @@ fn mint_f64_ordering_basic() {
 
 /// `:wat::core::i64::not=` MUST exist (rename from `:i64::!=` per Q-naming).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :i64::!= renamed to :i64::not="]
 fn mint_i64_not_eq_renamed() {
     assert_eq!(
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::not= 1 2))"#),
@@ -311,7 +307,6 @@ fn mint_i64_not_eq_renamed() {
 
 /// The 0-ary `+` returning 0 (Lisp identity) via wat-defclause clause.
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :wat::core::+ becomes a wat defclause"]
 fn mint_arith_zero_ary_plus_identity() {
     assert_eq!(
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::+))"#),
@@ -322,7 +317,6 @@ fn mint_arith_zero_ary_plus_identity() {
 
 /// The 0-ary `*` returning 1 (Lisp multiplicative identity).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :wat::core::* becomes a wat defclause"]
 fn mint_arith_zero_ary_star_identity() {
     assert_eq!(
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::*))"#),
@@ -333,7 +327,6 @@ fn mint_arith_zero_ary_star_identity() {
 
 /// 0-ary `-` ERRORS (no clause matches; :NoMatchingClause).
 #[test]
-#[ignore = "Stone 237.8b: un-ignore after :wat::core::- becomes a wat defclause with NO 0-ary clause"]
 fn mint_arith_zero_ary_minus_errors() {
     let result = try_startup(
         r#"(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::-))"#,

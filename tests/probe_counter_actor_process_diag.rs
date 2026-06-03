@@ -115,7 +115,7 @@ fn probe_counter_subprocess_with_defn() {
                  (:wat::kernel::println (:counter::Response::Value state))
                  (:counter/dispatch state)))
             ((:counter::Request::Increment n)
-               (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
+               (:wat::core::let [new-n (:wat::core::i64::+ state n)]
                  (:wat::kernel::println (:counter::Response::Ok new-n))
                  (:counter/dispatch new-n)))
             (:counter::Request::Reset
@@ -165,7 +165,7 @@ fn probe_counter_subprocess_full_process_peer() {
                  (:wat::kernel::println (:counter::Response::Value state))
                  (:counter/dispatch state)))
             ((:counter::Request::Increment n)
-               (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
+               (:wat::core::let [new-n (:wat::core::i64::+ state n)]
                  (:wat::kernel::println (:counter::Response::Ok new-n))
                  (:counter/dispatch new-n)))
             (:counter::Request::Reset

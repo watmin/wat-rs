@@ -90,7 +90,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
 #[test]
 fn walk_visitor_signature_matches_at_use_site() {
     let src = r#"
-        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match

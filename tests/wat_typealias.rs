@@ -49,7 +49,7 @@ fn simple_alias_unifies_with_its_expansion() {
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
-        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::*'2 x 2.0))
+        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::* x 2.0))
 
         (:wat::core::defn :my::compute [] -> :wat::core::f64 (:app::double 21.0))
     "#;
@@ -68,7 +68,7 @@ fn alias_of_alias_chain_expands_to_root() {
         (:wat::core::typealias :my::B :wat::core::f64)
         (:wat::core::typealias :my::A :my::B)
 
-        (:wat::core::defn :app::inc [x <- :my::A] -> :my::A (:wat::core::f64::+'2 x 1.0))
+        (:wat::core::defn :app::inc [x <- :my::A] -> :my::A (:wat::core::f64::+ x 1.0))
 
         (:wat::core::defn :my::compute [] -> :wat::core::f64 (:app::inc 41.0))
     "#;
@@ -116,7 +116,7 @@ fn alias_preserves_type_mismatches() {
 
         (:wat::core::typealias :my::Amount :wat::core::f64)
 
-        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::*'2 x 2.0))
+        (:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::* x 2.0))
 
         (:wat::core::defn :my::probe [] -> :my::Amount (:app::double "not a number"))
 

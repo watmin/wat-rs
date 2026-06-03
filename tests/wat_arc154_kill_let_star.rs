@@ -68,7 +68,7 @@ fn let_accepts_sequential_bindings() {
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
                       [a 5
-                       b (:wat::core::i64::+'2 a 1)]
+                       b (:wat::core::i64::+ a 1)]
                       b))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -152,7 +152,7 @@ fn let_in_tail_position_threads_through_eval_let_tail() {
                       :wat::core::i64
                       n
                       (:wat::core::let
-                        [m (:wat::core::i64::-'2 n 1)]
+                        [m (:wat::core::i64::- n 1)]
                         (:user::countdown m))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -173,7 +173,7 @@ fn nested_lets_compose_with_outer_visible_to_inner() {
           (:wat::core::let
                       [a 10]
                       (:wat::core::let
-                        [b (:wat::core::i64::+'2 a 5)]
+                        [b (:wat::core::i64::+ a 5)]
                         b)))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -192,7 +192,7 @@ fn fn_body_with_let_preserves_sequential() {
           ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::let
                          [a x
-                          b (:wat::core::i64::+'2 a 5)]
+                          b (:wat::core::i64::+ a 5)]
                          b))
                      x))
 
@@ -297,7 +297,7 @@ fn reflection_lookup_form_finds_canonical_let() {
         (:wat::core::defn :my::lookup-probe [] -> :wat::core::i64
           (:wat::core::let
                       [a 1
-                       b (:wat::core::i64::+'2 a 2)]
+                       b (:wat::core::i64::+ a 2)]
                       b))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -111,7 +111,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
     // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
     let src = r#"
 
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "(:wat::core::i64::+'2 1"))
+        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "(:wat::core::i64::+ 1"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "malformed-form");

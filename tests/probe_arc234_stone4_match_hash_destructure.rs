@@ -68,7 +68,7 @@ fn probe_2_match_record_multi_field() {
   (:wat::core::let
       [pt (:myapp::Point 3 4)]
       (:wat::core::match pt -> :wat::core::i64
-        ({px :x  py :y} (:wat::core::+'2 px py))
+        ({px :x  py :y} (:wat::core::+ px py))
         (_ 0))))
 "#;
     match run_compute(src) {

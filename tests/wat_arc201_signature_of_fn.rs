@@ -120,7 +120,7 @@ fn signature_of_fn_emits_anonymous_head() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [f   (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-                             (:wat::core::i64::+'2 a b))
+                             (:wat::core::i64::+ a b))
                        sig (:wat::runtime::signature-of-fn f)
                        rendered (:wat::edn::write sig)]
                       (:wat::kernel::println rendered)))

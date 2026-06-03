@@ -43,7 +43,7 @@ fn named_define_is_a_function_value() {
     // Arc 170 slice 1f-ζ: returns i64 (42) via :my::compute.
     let src = r##"
 
-        (:wat::core::defn :my::double [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 x 2))
+        (:wat::core::defn :my::double [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
@@ -67,7 +67,7 @@ fn named_define_passes_to_higher_order_fn() {
     // Arc 170 slice 1f-ζ: returns i64 (7) via :my::compute.
     let src = r##"
 
-        (:wat::core::defn :my::inc [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 n 1))
+        (:wat::core::defn :my::inc [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
 
         (:wat::core::defn :my::apply-twice [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f (f x)))
 
@@ -133,7 +133,7 @@ fn named_define_as_stream_map_fn() {
     // Arc 170 slice 1f-ζ: returns i64 via :my::compute (first doubled value = 2).
     let src = r##"
 
-        (:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n 2))
+        (:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let

@@ -2053,7 +2053,7 @@ impl ValueSnapshot {
 impl std::fmt::Display for ValueSnapshot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Type name followed by rendered content in backticks.
-        // Example: "wat::core::keyword `:wat::core::i64::+'2`"
+        // Example: "wat::core::keyword `:wat::core::i64::+`"
         write!(f, "{} `{}`", self.type_name, self.rendered)?;
         // Arc 233 Stone 233.2.b: render Provenance inline when not Unknown.
         match &self.provenance {
@@ -2763,7 +2763,7 @@ pub fn register_defines(
                 //
                 // Mirror pattern from try_parse_fn_shape_def (arc 166) + the
                 // preregister_fn_defs_in_do (arc 170 Gap C) stubs.
-                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form) {
+                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form, false) {
                     if !crate::resolve::is_reserved_prefix(&name)
                         && !sym.functions.contains_key(&name)
                     {
@@ -2790,6 +2790,61 @@ pub fn register_defines(
         }
     }
     Ok(rest)
+}
+
+/// Stone 237.8b — register stdlib defclause forms into runtime_def_values.
+/// Passes allow_reserved=true to permit the `:wat::core::*` prefix on stdlib names.
+/// For use ONLY with stdlib forms that live under :wat::core::* (reserved).
+pub fn register_stdlib_defclauses(
+    forms: &[WatAST],
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    for form in forms {
+        if let crate::ast::WatAST::List(items, _) = form {
+            if !matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause") {
+                continue;
+            }
+        } else {
+            continue;
+        }
+        let (name, cs) = parse_defclause_form(form, true)?;
+        let value = Value::wat__core__clauses(cs);
+        sym.functions.remove(&name); // remove stub if pre-registered
+        sym.runtime_def_values.insert(name, value);
+    }
+    Ok(())
+}
+
+/// Stone 237.8b — pre-register a stdlib defclause form as a minimal stub Function
+/// into `sym.functions`. Required so the type checker (`CheckEnv::from_symbols`)
+/// can find the defclause name and dispatch call sites through the defclause
+/// inference path rather than erroring with UnknownCallee.
+///
+/// Stdlib defclauses live under `:wat::core::*` (reserved prefix) and are
+/// excluded from the user-side `preregister_defclause_in_env` path which guards
+/// against reserved-prefix pollution. Uses allow_reserved=true for stdlib-only.
+///
+/// The stub has 0 params and unit return type — same shape as the user-side stubs
+/// in `register_defines`. The real ClauseSet lands in `runtime_def_values` via
+/// `register_runtime_defs` at freeze time.
+pub fn preregister_stdlib_defclause_stub(form: &WatAST, sym: &mut SymbolTable) {
+    if let Ok((name, _cs)) = parse_defclause_form(form, true) {
+        if !sym.functions.contains_key(&name) {
+            let stub_body = WatAST::NilLit(form.span().clone());
+            let stub_fn = Arc::new(Function {
+                name: Some(name.clone()),
+                params: vec![],
+                type_params: vec![],
+                param_types: vec![],
+                ret_type: crate::types::TypeExpr::Tuple(vec![]),
+                rest_param: None,
+                rest_param_type: None,
+                body: Arc::new(stub_body),
+                closed_env: None,
+            });
+            sym.functions.insert(name, stub_fn);
+        }
+    }
 }
 
 /// Stdlib-registration variant of [`register_defines`] that bypasses
@@ -3605,7 +3660,7 @@ fn register_runtime_defs_form(
         // so dispatch falls through to runtime_def_values and picks up the real
         // ClauseSet rather than the 0-param stub.
         ":wat::core::defclause" => {
-            let (name, cs) = parse_defclause_form(form)?;
+            let (name, cs) = parse_defclause_form(form, false)?;
             let value = Value::wat__core__clauses(cs);
             sym.functions.remove(&name); // remove stub if pre-registered (Stone 237.3)
             sym.runtime_def_values.insert(name, value);
@@ -5479,16 +5534,19 @@ fn dispatch_keyword_head_value(
         // Wrapping on overflow (matches `eval_poly_arith`'s i64
         // semantics; protects against debug-mode panics on hash-
         // derived inputs like `:wat::holon::simhash`).
-        ":wat::core::i64::+'2" => {
+        // Stone 237.8b — drop '2 suffix; per-Type binary primitives are
+        // strictly 2-ary Rust intrinsics; suffix was arity-disambiguation
+        // scaffolding now superseded by defclause polymorphic surface.
+        ":wat::core::i64::+" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_add(b)))
         }
-        ":wat::core::i64::-'2" => {
+        ":wat::core::i64::-" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_sub(b)))
         }
-        ":wat::core::i64::*'2" => {
+        ":wat::core::i64::*" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_mul(b)))
         }
-        ":wat::core::i64::/'2" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+        ":wat::core::i64::/" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
             if b == 0 {
                 Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
             } else {
@@ -5537,16 +5595,14 @@ fn dispatch_keyword_head_value(
         ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, list_span, env, sym).map_err(Into::into),
 
         // Float arithmetic — strict f64. No promotion from i64.
-        ":wat::core::f64::+'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b)),
-        ":wat::core::f64::-'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b)),
-        ":wat::core::f64::*'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b)),
-        ":wat::core::f64::/'2" => eval_f64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-            if b == 0.0 {
-                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
-            } else {
-                Ok(a / b)
-            }
-        }),
+        // Stone 237.8b — drop '2 suffix (same rationale as i64 above).
+        // IEEE 754 semantics: f64 division by 0.0 produces ±Inf or NaN (not an error).
+        // This is correct per the probe gate_4b_f64_nan_ordering (0.0 / 0.0 → NaN,
+        // then 1.0 < NaN → false). Only i64 division by zero is a runtime error.
+        ":wat::core::f64::+" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b)),
+        ":wat::core::f64::-" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b)),
+        ":wat::core::f64::*" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b)),
+        ":wat::core::f64::/" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a / b)),
 
         // arc 237 Stone 237.8a — mixed-type binary leaf arms DELETED
         // under THE DECISION (`feedback_no_implicit_coercion`).
@@ -5591,14 +5647,10 @@ fn dispatch_keyword_head_value(
         // ":wat::core::keyword/from-string" is routed by dispatch_keyword_head directly (producer).
 
         // Comparison — return :bool
+        // Stone 237.8b — `=`/`not=` stay here (migrate to 8c defclauses later).
+        // `<`/`>`/`<=`/`>=` HARD CUT: now wat defclauses → dispatch via `other =>`.
         ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
         ":wat::core::not=" => eval_not_eq(head, args, list_span, env, sym),
-        ":wat::core::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
-        ":wat::core::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
-        ":wat::core::<=" => eval_compare(head, args, list_span, env, sym, |o| {
-            o != std::cmp::Ordering::Greater
-        }),
-        ":wat::core::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
 
         // Arc 148 slice 5 — per-Type comparison leaves
         // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) were RETIRED.
@@ -5606,11 +5658,22 @@ fn dispatch_keyword_head_value(
         // ops so defclause :guard expressions can use type-qualified
         // forms (`:wat::core::i64::> x 0` etc.). Runtime delegates to
         // the same eval_compare / eval_eq implementations.
+        // Stone 237.3 aliases — per-Type i64 comparison primitives.
+        // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
+        // f64 ordering family minted.
         ":wat::core::i64::=" => eval_eq(head, args, list_span, env, sym),
         ":wat::core::i64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
         ":wat::core::i64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
         ":wat::core::i64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
-        ":wat::core::i64::!=" => eval_not_eq(head, args, list_span, env, sym),
+        // Stone 237.8b — minted (was missing from the i64 ordering set).
+        ":wat::core::i64::<=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Greater),
+        // Stone 237.8b — renamed from `:i64::!=` (HARD CUT old name).
+        ":wat::core::i64::not=" => eval_not_eq(head, args, list_span, env, sym),
+        // Stone 237.8b — f64 ordering family (NaN-correct via eval_f64_compare).
+        ":wat::core::f64::<" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a < b),
+        ":wat::core::f64::>" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a > b),
+        ":wat::core::f64::<=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a <= b),
+        ":wat::core::f64::>=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a >= b),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),
@@ -5641,28 +5704,11 @@ fn dispatch_keyword_head_value(
             }
         }
 
-        // Arc 148 slice 4 — polymorphic variadic arithmetic. Per the
-        // locked DESIGN: each op is variadic over numeric pairs;
-        // reduces left-to-right via per-pair dispatch (i64+i64 → i64;
-        // f64+f64 → f64; mixed → f64). Lisp/Clojure arity tradition:
-        // `+`/`*` have identity 0/1 for 0-ary; `-`/`/` reject 0-ary.
-        // 1-ary inserts identity-on-left for `-`/`/` (negation/
-        // reciprocal) and returns the arg unchanged for `+`/`*`.
-        //
-        // Same-type variadic at `:wat::core::<Type>::<v>` is a wat
-        // function (declared in `wat/core.wat`); the binary Dispatch
-        // entity at `:wat::core::<v>,2` (also wat-declared) is the
-        // routing layer the per-pair fold consumes.
-        //
-        // The polymorphic variadic STAYS as a substrate primitive
-        // (Path C of slice 4's BRIEF) because no wat type expresses
-        // "Vector of mixed numerics with f64-promoting fold." Custom
-        // inference (`infer_arithmetic`) is honest substrate; the
-        // anti-pattern framing is what the rename retires.
-        ":wat::core::+" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Add),
-        ":wat::core::-" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Sub),
-        ":wat::core::*" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Mul),
-        ":wat::core::/" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Div),
+        // Stone 237.8b — HARD CUT: explicit `+`/`-`/`*`/`/` arms removed.
+        // These ops are now wat defclauses (registered in runtime_def_values)
+        // and dispatched via the `other =>` fallback arm below.
+        // The `<`/`>`/`<=`/`>=` arms were never explicit here (they routed
+        // through eval_compare); those ops are now defclauses too.
 
         // Boolean
         ":wat::core::not" => eval_not(args, list_span, env, sym),
@@ -6810,6 +6856,7 @@ fn parse_defclause_clause(
 /// Returns the name + Arc<ClauseSet> on success.
 pub fn parse_defclause_form(
     form: &WatAST,
+    allow_reserved: bool,
 ) -> Result<(String, Arc<ClauseSet>), RuntimeError> {
     const HEAD: &str = ":wat::core::defclause";
     let form_span = form.span().clone();
@@ -6848,8 +6895,9 @@ pub fn parse_defclause_form(
         }
     };
 
-    // Check for reserved prefix on :name.
-    if crate::resolve::is_reserved_prefix(&name) {
+    // Check for reserved prefix on :name (user-code guard; skipped for privileged stdlib calls
+    // via allow_reserved=true). Stone 237.8b: stdlib defclauses live under :wat::core::*.
+    if !allow_reserved && crate::resolve::is_reserved_prefix(&name) {
         return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) }.into());
     }
 
@@ -9205,182 +9253,56 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     Ok(Value::bool(pred(order)))
 }
 
-/// Arc 148 slice 4 — polymorphic arithmetic dispatch tag.
+/// Stone 237.8b — NaN-correct f64 ordering primitive.
 ///
-/// One per arithmetic operator. The variadic eval helper folds
-/// left-to-right via the per-pair impl selected by Rust matching
-/// on the operand value tags — the same routing the binary Dispatch
-/// entity at `:wat::core::<v>,2` (declared in `wat/core.wat`)
-/// performs structurally. Kept private to runtime.rs; callers
-/// reach the ops via the `:wat::core::+` / `-` / `*` / `/` keyword
-/// paths.
-#[derive(Clone, Copy)]
-enum ArithOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-}
-
-impl ArithOp {
-    /// Identity element for the op (Lisp/Clojure tradition):
-    /// `+` → 0, `*` → 1, `-` → 0 (only used for 1-ary negation),
-    /// `/` → 1 (only used for 1-ary reciprocal).
-    fn identity_i64(self) -> i64 {
-        match self {
-            ArithOp::Add | ArithOp::Sub => 0,
-            ArithOp::Mul | ArithOp::Div => 1,
-        }
-    }
-
-    /// Lisp/Clojure 0-ary rule: `+`/`*` return identity; `-`/`/`
-    /// reject 0-ary (no meaningful identity-for-self interpretation).
-    fn allows_zero_ary(self) -> bool {
-        matches!(self, ArithOp::Add | ArithOp::Mul)
-    }
-
-    /// Lisp/Clojure 1-ary rule: `+`/`*` return arg unchanged;
-    /// `-`/`/` insert identity-on-left (negation, reciprocal).
-    fn one_ary_inserts_identity(self) -> bool {
-        matches!(self, ArithOp::Sub | ArithOp::Div)
-    }
-}
-
-/// Apply a single binary arithmetic step between two numeric values,
-/// promoting per the (i64, i64) → i64 / mixed → f64 / (f64, f64) → f64
-/// rule. This IS the per-pair routing the binary Dispatch entity at
-/// `:wat::core::<v>,2` performs structurally — kept here as a Rust
-/// fold step so the polymorphic variadic doesn't need to round-trip
-/// through eval_dispatch_call per pair.
-fn apply_arith_pair(
-    op: ArithOp,
-    head: &str,
-    a: &Value,
-    b: &Value,
-    a_span: &Span,
-    b_span: &Span,
-) -> Result<Value, EvalBreak> {
-    match (a, b) {
-        (Value::i64(x), Value::i64(y)) => match op {
-            ArithOp::Add => Ok(Value::i64(x.wrapping_add(*y))),
-            ArithOp::Sub => Ok(Value::i64(x.wrapping_sub(*y))),
-            ArithOp::Mul => Ok(Value::i64(x.wrapping_mul(*y))),
-            ArithOp::Div => {
-                if *y == 0 {
-                    Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
-                } else {
-                    Ok(Value::i64(x.wrapping_div(*y)))
-                }
-            }
-        },
-        (Value::f64(x), Value::f64(y)) => match op {
-            ArithOp::Add => Ok(Value::f64(x + y)),
-            ArithOp::Sub => Ok(Value::f64(x - y)),
-            ArithOp::Mul => Ok(Value::f64(x * y)),
-            ArithOp::Div => {
-                if *y == 0.0 {
-                    Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
-                } else {
-                    Ok(Value::f64(x / y))
-                }
-            }
-        },
-        // arc 237 Stone 237.8a — THE DECISION: cross-type promotion arms
-        // DELETED. Mixed (i64, f64) and (f64, i64) are TypeMismatch at
-        // runtime (defense-in-depth; check-time tightening in
-        // `infer_arithmetic` is the primary gate). Callers homogenize
-        // explicitly via `:wat::core::i64::to-f64` before calling.
-        _ => Err(RuntimeError { span: a_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: head.into(),
-            expected: "matching numeric pair (i64, i64) or (f64, f64)",
-            got: Box::new(ValueSnapshot::of(&a))
-        } }.into()),
-    }
-}
-
-/// Arc 148 slice 4 — polymorphic variadic arithmetic evaluator.
-///
-/// `(:wat::core::+ x y z ...)` walks left-to-right reducing via
-/// `apply_arith_pair`. Lisp/Clojure arity rules:
-///
-/// | Op      | 0-ary           | 1-ary                                  | 2+-ary    |
-/// | ------- | --------------- | -------------------------------------- | --------- |
-/// | `:+`    | `:i64 0`        | arg unchanged                          | reduce    |
-/// | `:*`    | `:i64 1`        | arg unchanged                          | reduce    |
-/// | `:-`    | ARITY ERROR     | `(- x)` → `(- 0 x)` = `-x` (negation)  | reduce    |
-/// | `:/`    | ARITY ERROR     | `(/ x)` → `(/ 1 x)` = `1/x` (reciproc.)| reduce    |
-///
-/// Implicit identity for 1-ary `-`/`/` takes the SAME TYPE as the
-/// arg (`(- 5)` → `0:i64`; `(- 5.0)` → `0:f64`). Integer reciprocal
-/// `(/ 5)` returns `0:i64` (i64 truncation honest about i64
-/// semantics — see DESIGN § "Type preservation for 1-ary").
-///
-/// Non-numeric args raise TypeMismatch. The type checker
-/// (`infer_arithmetic`) rejects non-numerics before reaching here;
-/// the runtime arm is defense-in-depth.
-fn eval_arithmetic_variadic(
+/// Uses direct f64 IEEE 754 comparison predicates rather than routing through
+/// `values_compare` (which maps NaN→Equal via `unwrap_or`). IEEE 754 guarantees:
+/// - any ordered comparison involving NaN returns false
+/// - `a < NaN` = false, `NaN < a` = false, `NaN <= NaN` = false, etc.
+/// This is correct per the DESIGN gate `gate_4b_f64_nan_ordering`.
+fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
-    op: ArithOp,
+    pred: F,
 ) -> Result<Value, EvalBreak> {
-    // 0-ary handling.
-    if args.is_empty() {
-        if op.allows_zero_ary() {
-            return Ok(Value::i64(op.identity_i64()));
-        }
+    if args.len() != 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: head.into(),
-            expected: 1,
-            got: 0
+            expected: 2,
+            got: args.len()
         } }.into());
     }
-
-    // 1-ary handling.
-    if args.len() == 1 {
-        let arg_span = args[0].span().clone();
-        let v = eval_inner(&args[0], env, sym)?.value_owned();
-        if op.one_ary_inserts_identity() {
-            // Build identity matching the arg's type, then run a
-            // single binary pair (identity OP arg).
-            let identity = match &v {
-                Value::i64(_) => Value::i64(op.identity_i64()),
-                Value::f64(_) => Value::f64(op.identity_i64() as f64),
-                _ => {
-                    return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
-                        op: head.into(),
-                        expected: "i64 or f64",
-                        got: Box::new(ValueSnapshot::of(&v))
-                    } }.into());
-                }
-            };
-            return apply_arith_pair(op, head, &identity, &v, &arg_span, &arg_span);
-        }
-        // `+` / `*` 1-ary return arg unchanged (after type check).
-        match &v {
-            Value::i64(_) | Value::f64(_) => Ok(v),
-            _ => Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
-                op: head.into(),
-                expected: "i64 or f64",
-                got: Box::new(ValueSnapshot::of(&v))
-            } }.into()),
-        }
-    } else {
-        // 2+-ary: fold left.
-        let first_span = args[0].span().clone();
-        let mut acc = eval_inner(&args[0], env, sym)?.value_owned();
-        let mut acc_span = first_span;
-        for arg in &args[1..] {
-            let arg_span = arg.span().clone();
-            let v = eval_inner(arg, env, sym)?.value_owned();
-            acc = apply_arith_pair(op, head, &acc, &v, &acc_span, &arg_span)?;
-            acc_span = arg_span;
-        }
-        Ok(acc)
+    let a_span = args[0].span().clone();
+    let b_span = args[1].span().clone();
+    let a = eval_inner(&args[0], env, sym)?.value_owned();
+    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    match (a, b) {
+        (Value::f64(x), Value::f64(y)) => Ok(Value::bool(pred(x, y))),
+        (other, _) => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: head.into(),
+            expected: "f64",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
 }
+
+// Stone 237.8b — HARD CUT:
+//   - ArithOp enum + impl (Add/Sub/Mul/Div, allows_zero_ary, one_ary_inserts_identity, identity_i64)
+//   - apply_arith_pair (binary step for variadic fold)
+//   - eval_arithmetic_variadic (the variadic evaluator itself)
+//
+// All replaced by wat defclauses in wat/core.wat. The defclause clauses fold
+// over per-Type binary primitives (i64::+, f64::+ etc.) which remain as
+// 2-ary Rust intrinsics. No variadic arithmetic dispatch needed at Rust level.
+//
+// Tombstone for grep-history only (search these names to find this comment):
+//   ArithOp, apply_arith_pair, eval_arithmetic_variadic
+//   allows_zero_ary, one_ary_inserts_identity, identity_i64
+
+// (tombstone end)
 
 fn eval_not(
     args: &[WatAST],
@@ -11085,18 +11007,18 @@ pub(crate) fn dispatch_substrate_impl(
         // arc 237 Stone 237.8a — 4 same-type i64-i64 + 4 same-type
         // f64-f64 = 8 leaves. Mixed-type leaves (+'i64'f64 etc.)
         // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
-        ":wat::core::i64::+'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_add(b)))),
-        ":wat::core::i64::-'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_sub(b)))),
-        ":wat::core::i64::*'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_mul(b)))),
-        ":wat::core::i64::/'2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
+        // Stone 237.8b — drop '2 suffix from per-Type binary primitives.
+        ":wat::core::i64::+" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_add(b)))),
+        ":wat::core::i64::-" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_sub(b)))),
+        ":wat::core::i64::*" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_mul(b)))),
+        ":wat::core::i64::/" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
             if b == 0 { Err(()) } else { Ok(a.wrapping_div(b)) }
         })),
-        ":wat::core::f64::+'2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
-        ":wat::core::f64::-'2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
-        ":wat::core::f64::*'2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
-        ":wat::core::f64::/'2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| {
-            if b == 0.0 { Err(()) } else { Ok(a / b) }
-        })),
+        ":wat::core::f64::+" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
+        ":wat::core::f64::-" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
+        ":wat::core::f64::*" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
+        // Stone 237.8b — IEEE 754: f64 / 0.0 = ±Inf or NaN; not an error.
+        ":wat::core::f64::/" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a / b))),
         _ => None,
     }
 }
@@ -25125,16 +25047,17 @@ fn step_list(
         | ":wat::core::not"
         | ":wat::core::and"
         | ":wat::core::or"
-        | ":wat::core::i64::+'2"
-        | ":wat::core::i64::-'2"
-        | ":wat::core::i64::*'2"
-        | ":wat::core::i64::/'2"
+        // Stone 237.8b — drop '2 suffix from per-Type binary primitives.
+        | ":wat::core::i64::+"
+        | ":wat::core::i64::-"
+        | ":wat::core::i64::*"
+        | ":wat::core::i64::/"
         | ":wat::core::i64::to-string"
         | ":wat::core::i64::to-f64"
-        | ":wat::core::f64::+'2"
-        | ":wat::core::f64::-'2"
-        | ":wat::core::f64::*'2"
-        | ":wat::core::f64::/'2"
+        | ":wat::core::f64::+"
+        | ":wat::core::f64::-"
+        | ":wat::core::f64::*"
+        | ":wat::core::f64::/"
         | ":wat::core::f64::abs"
         | ":wat::core::f64::max"
         | ":wat::core::f64::min"
@@ -26619,7 +26542,7 @@ mod tests {
     #[test]
     fn add_ints() {
         assert!(matches!(
-            eval_expr("(:wat::core::i64::+'2 2 3)").unwrap(),
+            eval_expr("(:wat::core::i64::+ 2 3)").unwrap(),
             Value::i64(5)
         ));
     }
@@ -26627,7 +26550,7 @@ mod tests {
     #[test]
     fn subtract_ints() {
         assert!(matches!(
-            eval_expr("(:wat::core::i64::-'2 10 4)").unwrap(),
+            eval_expr("(:wat::core::i64::- 10 4)").unwrap(),
             Value::i64(6)
         ));
     }
@@ -26638,19 +26561,19 @@ mod tests {
         // namespace ops refuse any f64 argument — no silent promotion.
         // Users commit to the numeric tier at the call site; users who
         // want float math reach for the :wat::core::f64 namespace ops.
-        let err = eval_expr("(:wat::core::i64::*'2 3 2.0)").unwrap_err();
+        let err = eval_expr("(:wat::core::i64::* 3 2.0)").unwrap_err();
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn f64_mul_refuses_i64_arg() {
-        let err = eval_expr("(:wat::core::f64::*'2 3.0 2)").unwrap_err();
+        let err = eval_expr("(:wat::core::f64::* 3.0 2)").unwrap_err();
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
     }
 
     #[test]
     fn f64_mul_float_times_float() {
-        match eval_expr("(:wat::core::f64::*'2 3.0 2.0)").unwrap() {
+        match eval_expr("(:wat::core::f64::* 3.0 2.0)").unwrap() {
             Value::f64(x) => assert_eq!(x, 6.0),
             v => panic!("expected float, got {:?}", v),
         }
@@ -26659,7 +26582,7 @@ mod tests {
     #[test]
     fn divide_by_zero_errors() {
         assert!(matches!(
-            eval_expr("(:wat::core::i64::/'2 5 0)"),
+            eval_expr("(:wat::core::i64::/ 5 0)"),
             Err(EvalBreak::Diagnostic(RuntimeError { span: _, kind: RuntimeErrorKind::DivisionByZero }))
         ));
     }
@@ -26757,13 +26680,9 @@ mod tests {
 
     #[test]
     fn f64_to_i64_rejects_nan() {
-        // f64::/ with 0.0/0.0 errors with DivisionByZero, so
-        // manufacture NaN via an arithmetic chain the runtime
-        // doesn't intercept: sqrt-style NaN isn't available, but
-        // 0.0 * (1.0 / 0.0) would hit the zero-divisor guard.
-        // Easiest: feed a value past i64::MAX (as f64) and confirm
-        // the range check rejects it. i64::MAX ≈ 9.22e18; 1e19 is
-        // safely past.
+        // Stone 237.8b — f64::/ now follows IEEE 754 (0.0/0.0 → NaN, no error).
+        // Use i64::MAX overflow to test to-i64 range rejection instead.
+        // i64::MAX ≈ 9.22e18; 1e19 is safely past.
         expect_none(eval_expr("(:wat::core::f64::to-i64 1e19)").unwrap());
         // And past i64::MIN on the negative side.
         expect_none(eval_expr("(:wat::core::f64::to-i64 -1e19)").unwrap());
@@ -27026,12 +26945,13 @@ mod tests {
 
     #[test]
     fn less_than() {
+        // Stone 237.8b — polymorphic `<` is now a defclause; use per-Type primitive in unit test.
         assert!(matches!(
-            eval_expr("(:wat::core::< 2 3)").unwrap(),
+            eval_expr("(:wat::core::i64::< 2 3)").unwrap(),
             Value::bool(true)
         ));
         assert!(matches!(
-            eval_expr("(:wat::core::< 3 2)").unwrap(),
+            eval_expr("(:wat::core::i64::< 3 2)").unwrap(),
             Value::bool(false)
         ));
     }
@@ -27092,7 +27012,7 @@ mod tests {
     fn let_binds_parallel() {
         assert!(matches!(
             eval_expr(
-                r#"(:wat::core::let [x 2 y 3] (:wat::core::i64::+'2 x y))"#
+                r#"(:wat::core::let [x 2 y 3] (:wat::core::i64::+ x y))"#
             )
             .unwrap(),
             Value::i64(5)
@@ -27117,7 +27037,7 @@ mod tests {
     fn define_and_call() {
         let result = run(
             r#"
-            (:wat::core::defn :my::app::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
+            (:wat::core::defn :my::app::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))
             (:my::app::inc 41)
             "#,
         )
@@ -27132,7 +27052,7 @@ mod tests {
             (:wat::core::defn :my::app::fact [n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                                 1
-                                (:wat::core::i64::*'2 n (:my::app::fact (:wat::core::i64::-'2 n 1)))))
+                                (:wat::core::i64::* n (:my::app::fact (:wat::core::i64::- n 1)))))
             (:my::app::fact 5)
             "#,
         )
@@ -27164,7 +27084,7 @@ mod tests {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 x)
-            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 x 1))
+            (:wat::core::defn :foo [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))
             (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
         "#;
         let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
@@ -27186,7 +27106,7 @@ mod tests {
         // The fn produces a callable; invoking it inline.
         let result = eval_expr(
             r#"((:wat::core::fn [x <- :i64 y <- :i64] -> :i64
-                  (:wat::core::i64::+'2 x y))
+                  (:wat::core::i64::+ x y))
                 3 4)"#,
         )
         .unwrap();
@@ -27199,7 +27119,7 @@ mod tests {
             r#"(:wat::core::let
                  [adder
                    (:wat::core::fn [x <- :i64] -> :i64
-                     (:wat::core::i64::+'2 x 10))]
+                     (:wat::core::i64::+ x 10))]
                  (adder 5))"#,
         )
         .unwrap();
@@ -27214,7 +27134,7 @@ mod tests {
             r#"(:wat::core::let [n 100]
                  (:wat::core::let [f
                                   (:wat::core::fn [x <- :i64] -> :i64
-                                    (:wat::core::i64::+'2 x n))]
+                                    (:wat::core::i64::+ x n))]
                    (:wat::core::let [n 999]
                      (f 1))))"#,
         )
@@ -27294,7 +27214,7 @@ mod tests {
                  (:wat::holon::to-holon "x")
                  (:wat::holon::to-holon "y")
                  1
-                 (:wat::core::i64::-'2 0 1))"#,
+                 (:wat::core::i64::- 0 1))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::holon__HolonAST(_)));
@@ -27410,7 +27330,7 @@ mod tests {
         // → Value::i64(42); the polymorphic Result<:T, :EvalError>
         // scheme has T = i64 here. Caller match-arm gets the
         // bare i64 directly.
-        let program = crate::parse_one!("(:wat::core::i64::+'2 40 2)").unwrap();
+        let program = crate::parse_one!("(:wat::core::i64::+ 40 2)").unwrap();
         let result =
             run_with_ast_local("(:wat::eval-ast! program)", program).unwrap();
         let inner = eval_ok_inner(result);
@@ -27460,15 +27380,15 @@ mod tests {
     fn quote_captures_unevaluated_ast() {
         // (quote (+ 1 2)) returns a WatAST; does NOT evaluate the +.
         let result =
-            eval_expr("(:wat::core::quote (:wat::core::i64::+'2 1 2))").unwrap();
+            eval_expr("(:wat::core::quote (:wat::core::i64::+ 1 2))").unwrap();
         match result {
             Value::wat__WatAST(ast) => {
-                // The captured AST should be a List whose head is :wat::core::i64::+'2
+                // The captured AST should be a List whose head is :wat::core::i64::+
                 match &*ast {
                     WatAST::List(items, _) => {
                         assert!(matches!(
                             items.first(),
-                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::i64::+'2"
+                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::i64::+"
                         ));
                     }
                     other => panic!("expected List AST, got {:?}", other),
@@ -27494,7 +27414,7 @@ mod tests {
         // Old: (Atom (quote form)) — Atom accepted WatAST (polymorphic, now retired).
         // New: (from-wat (quote form)) — the honest directional verb.
         let result = eval_expr(
-            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 1 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+ 1 2)))",
         )
         .unwrap();
         assert!(matches!(result, Value::holon__HolonAST(_)));
@@ -27521,15 +27441,15 @@ mod tests {
         // substrate-side prerequisite for the cache-as-coordinate-tree
         // and for Reckoner labels on intermediary forms.
         //
-        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
-        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+ 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+"), ...])`.
         // `watast_to_holon` at Stone 221.4b now maps `WatAST::Keyword(k) →
-        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+")`
         // (leading colon stripped). Assertions flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST inputs.
         let v = eval_expr(
-            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+ 40 2)))",
         )
         .unwrap();
         let h = match v {
@@ -27540,7 +27460,7 @@ mod tests {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3, "expected 3-item Bundle, got {}", items.len());
                 // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
-                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+"));
                 assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
@@ -27624,15 +27544,15 @@ mod tests {
         // who want the value walk the form themselves (or use a future cache
         // layer that records the form → value edge).
         //
-        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
-        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+ 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+"), ...])`.
         // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
-        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+")`
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         //
         // Arc 225 Stone 225.1 — from-wat replaces Atom for WatAST (quoted form) inputs.
         let v = eval_expr(
-            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+'2 40 2)))",
+            "(:wat::holon::from-wat (:wat::core::quote (:wat::core::i64::+ 40 2)))",
         )
         .unwrap();
         let h = match v {
@@ -27643,7 +27563,7 @@ mod tests {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3);
                 // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
-                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+"));
                 assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
@@ -28231,8 +28151,8 @@ mod tests {
         // coincident? fires true.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-coincident?
-                 (:wat::core::quote (:wat::core::i64::+'2 2 2))
-                 (:wat::core::quote (:wat::core::i64::*'2 1 4)))"#,
+                 (:wat::core::quote (:wat::core::i64::+ 2 2))
+                 (:wat::core::quote (:wat::core::i64::* 1 4)))"#,
             1024,
         )
         .unwrap();
@@ -28327,8 +28247,8 @@ mod tests {
         // Atom-lift identically → coincident? fires.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+'2 2 2)"
- "(:wat::core::i64::*'2 1 4)")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::* 1 4)")"#,
             1024,
         )
         .unwrap();
@@ -28339,8 +28259,8 @@ mod tests {
     fn eval_edn_coincident_q_false_for_different_sources() {
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+'2 2 2)"
- "(:wat::core::i64::+'2 2 3)")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::+ 2 3)")"#,
             1024,
         )
         .unwrap();
@@ -28353,8 +28273,8 @@ mod tests {
         // kind="malformed-form" propagates.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+'2 2 2)"
- "(:wat::core::i64::+'2 2")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::+ 2")"#,
             1024,
         )
         .unwrap();
@@ -28376,8 +28296,8 @@ mod tests {
 
     #[test]
     fn eval_digest_coincident_q_true_for_equivalent_verified_sources() {
-        let src_a = "(:wat::core::i64::+'2 2 2)";
-        let src_b = "(:wat::core::i64::*'2 1 4)";
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
         let h_a = sha256_hex(src_a);
         let h_b = sha256_hex(src_b);
         let program = format!(
@@ -28397,8 +28317,8 @@ mod tests {
     fn eval_digest_coincident_q_err_on_bad_digest() {
         // Side A digest is wrong → verification fails before parse;
         // EvalError with kind="verification-failed" propagates.
-        let src_a = "(:wat::core::i64::+'2 2 2)";
-        let src_b = "(:wat::core::i64::*'2 1 4)";
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
         let h_b = sha256_hex(src_b);
         let bogus = "0".repeat(64);
         let program = format!(
@@ -28454,13 +28374,15 @@ mod tests {
         // deftests). If these source strings diverge from what's in
         // the .wat file, the sig constants below will not match — fix
         // by regenerating both.
-        const SRC_A: &str = "(:wat::core::i64::+'2 2 2)";
-        const SRC_B: &str = "(:wat::core::i64::*'2 1 4)";
+        const SRC_A: &str = "(:wat::core::i64::+ 2 2)";
+        const SRC_B: &str = "(:wat::core::i64::* 1 4)";
 
         // Embedded constants — if a wat-tests/ file changes a source,
         // update these AND the string literals in that file together.
-        const EXPECTED_SRC_A_SIG: &str = "HaTLEiKRCLtGasU1EN2OGV7lQaAqBa0hDfoIxTluHPHVw+DaVDFpDZz+lVImDFDUCqohngJr/C1fB2v4vaOdBg==";
-        const EXPECTED_SRC_B_SIG: &str = "m1rJF1VB4dEPzoF8hwc/F70+DTxDoXEHno1MiV4wW1QZbvbGgeiSXA2sK1RO5tdFPen+NF8MJQttEQveDlmOBA==";
+        // Stone 237.8b — regenerated after +'2 → + rename in source strings.
+        const EXPECTED_SRC_A_SIG: &str = "ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA==";
+        // Stone 237.8b — regenerated after *'2 → * rename in source strings.
+        const EXPECTED_SRC_B_SIG: &str = "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw==";
         const EXPECTED_PK: &str = "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=";
 
         let (sig_a, pk_a) = sign_src_ed25519(SRC_A);
@@ -28486,8 +28408,8 @@ mod tests {
 
     #[test]
     fn eval_signed_coincident_q_true_for_equivalent_verified_sources() {
-        let src_a = "(:wat::core::i64::+'2 2 2)";
-        let src_b = "(:wat::core::i64::*'2 1 4)";
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
         let (sig_a, pk_a) = sign_src_ed25519(src_a);
         let (sig_b, pk_b) = sign_src_ed25519(src_b);
         let program = format!(
@@ -28507,8 +28429,8 @@ mod tests {
 
     #[test]
     fn eval_signed_coincident_q_err_on_bad_signature() {
-        let src_a = "(:wat::core::i64::+'2 2 2)";
-        let src_b = "(:wat::core::i64::*'2 1 4)";
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
         let (_sig_a, pk_a) = sign_src_ed25519(src_a);
         let (sig_b, pk_b) = sign_src_ed25519(src_b);
         // Side A carries a signature for a DIFFERENT source (src_b's
@@ -28653,7 +28575,7 @@ mod tests {
     #[test]
     fn eval_edn_bang_inline_string_runs() {
         let result = eval_expr(
-            r#"(:wat::eval-edn! "(:wat::core::i64::+'2 40 2)")"#,
+            r#"(:wat::eval-edn! "(:wat::core::i64::+ 40 2)")"#,
         )
         .unwrap();
         let inner = eval_ok_inner(result);
@@ -28693,7 +28615,7 @@ mod tests {
     #[test]
     fn eval_digest_bang_valid_hex_runs() {
         use sha2::Digest as _;
-        let source = r#"(:wat::core::i64::+'2 1 1)"#;
+        let source = r#"(:wat::core::i64::+ 1 1)"#;
         let mut hasher = sha2::Sha256::new();
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
@@ -28715,7 +28637,7 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000000";
         let form = format!(
             r#"(:wat::eval-digest-string!
- "(:wat::core::i64::+'2 1 1)"
+ "(:wat::core::i64::+ 1 1)"
                 :wat::verify::digest-sha256
                 :wat::verify::string "{}")"#,
             wrong
@@ -28728,7 +28650,7 @@ mod tests {
     #[test]
     fn eval_digest_bang_unknown_algo_refused() {
         let form = r#"(:wat::eval-digest-string!
- "(:wat::core::i64::+'2 1 1)"
+ "(:wat::core::i64::+ 1 1)"
             :wat::verify::signed-ed25519
             :wat::verify::string "abc")"#;
         let result = eval_expr(form).unwrap();
@@ -28743,7 +28665,7 @@ mod tests {
         use base64::engine::general_purpose::STANDARD as B64;
         use base64::Engine;
         use ed25519_dalek::{Signer, SigningKey};
-        let source = r#"(:wat::core::i64::+'2 20 22)"#;
+        let source = r#"(:wat::core::i64::+ 20 22)"#;
         let sk = SigningKey::from_bytes(&[17u8; 32]);
         let forms = crate::parse_all!(source).unwrap();
         let hash = crate::hash::hash_canonical_program(&forms);
@@ -28768,8 +28690,8 @@ mod tests {
         use base64::engine::general_purpose::STANDARD as B64;
         use base64::Engine;
         use ed25519_dalek::{Signer, SigningKey};
-        let signed_source = r#"(:wat::core::i64::+'2 20 22)"#;
-        let tampered_source = r#"(:wat::core::i64::+'2 99 99)"#;
+        let signed_source = r#"(:wat::core::i64::+ 20 22)"#;
+        let tampered_source = r#"(:wat::core::i64::+ 99 99)"#;
         let sk = SigningKey::from_bytes(&[17u8; 32]);
         let forms = crate::parse_all!(signed_source).unwrap();
         let hash = crate::hash::hash_canonical_program(&forms);
@@ -28793,7 +28715,7 @@ mod tests {
     fn eval_signed_bang_wrong_algo_kind_refused() {
         // digest-sha256 in a signed slot is a grammar error.
         let form = r#"(:wat::eval-signed-string!
- "(:wat::core::i64::+'2 1 1)"
+ "(:wat::core::i64::+ 1 1)"
             :wat::verify::digest-sha256
             :wat::verify::string "sig"
             :wat::verify::string "pk")"#;
@@ -28824,7 +28746,7 @@ mod tests {
 
     #[test]
     fn eval_file_bang_runs() {
-        let path = write_temp("(:wat::core::i64::+'2 10 11)", "wat");
+        let path = write_temp("(:wat::core::i64::+ 10 11)", "wat");
         let form = format!(
             r#"(:wat::eval-file! "{}")"#,
             path.display()
@@ -28846,7 +28768,7 @@ mod tests {
     #[test]
     fn eval_digest_bang_sidecar_file_runs() {
         use sha2::Digest as _;
-        let source = "(:wat::core::i64::*'2 6 7)";
+        let source = "(:wat::core::i64::* 6 7)";
         let source_path = write_temp(source, "wat");
         let mut hasher = sha2::Sha256::new();
         hasher.update(source.as_bytes());
@@ -29009,7 +28931,7 @@ mod tests {
     #[test]
     fn let_destructures_a_pair() {
         let src = r#"
-            (:wat::core::let [[a b] p] (:wat::core::i64::+'2 a b))
+            (:wat::core::let [[a b] p] (:wat::core::i64::+ a b))
         "#;
         let p = pair(Value::i64(3), Value::i64(4));
         match eval_with_binding(src, "p", p).unwrap() {
@@ -29225,7 +29147,7 @@ mod tests {
         let src = r#"
             (:wat::core::map
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::*'2 x 2)))
+              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -29249,7 +29171,7 @@ mod tests {
               (:wat::core::Vector :i64 1 2 3 4)
               10
               (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
-                (:wat::core::i64::+'2 acc x)))
+                (:wat::core::i64::+ acc x)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(20) => {}
@@ -29339,7 +29261,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 5 12 3 18 7)
-              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 10)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::i64::> x 10)))
         "#;
         let v = expect_some(eval_expr(src).unwrap());
         assert_eq!(expect_i64(v), 3); // index of 18 (last x > 10)
@@ -29350,7 +29272,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 99)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::i64::> x 99)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -29360,7 +29282,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::Vector :i64)
-              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::> x 0)))
+              (:wat::core::fn [x <- :i64] -> :bool (:wat::core::i64::> x 0)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -29425,7 +29347,7 @@ mod tests {
             (:wat::std::list::map-with-index
               (:wat::core::Vector :i64 10 20 30)
               (:wat::core::fn [x <- :i64 i <- :i64] -> :i64
-                (:wat::core::i64::+'2 x i)))
+                (:wat::core::i64::+ x i)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -29662,7 +29584,7 @@ mod tests {
                   (:wat::core::Vector :i64 4)))
               0
               (:wat::core::fn [acc <- :i64 n <- :i64] -> :i64
-                (:wat::core::i64::+'2 acc n)))
+                (:wat::core::i64::+ acc n)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -29902,7 +29824,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "a" 10 "b" 20 "c" 30))
               0
               (:wat::core::fn [acc <- :i64 v <- :i64] -> :i64
-                (:wat::core::i64::+'2 acc v)))
+                (:wat::core::i64::+ acc v)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(60) => {}
@@ -30175,7 +30097,7 @@ mod tests {
               (:wat::core::Vector :i64 1 2 3)
               0
               (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
-                (:wat::core::i64::-'2 x acc)))
+                (:wat::core::i64::- x acc)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -30191,7 +30113,7 @@ mod tests {
               (:wat::core::Vector :i64 1 2 3)
               0
               (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
-                (:wat::core::i64::-'2 acc x)))
+                (:wat::core::i64::- acc x)))
         "#;
         match eval_expr(src_l).unwrap() {
             Value::i64(-6) => {}
@@ -30201,11 +30123,12 @@ mod tests {
 
     #[test]
     fn filter_keeps_true_predicates() {
+        // Stone 237.8b — polymorphic `>` is now a defclause; use per-Type primitive in unit test.
         let src = r#"
             (:wat::core::filter
               (:wat::core::Vector :i64 1 2 3 4 5)
               (:wat::core::fn [x <- :i64] -> :bool
-                (:wat::core::> x 2)))
+                (:wat::core::i64::> x 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -30886,15 +30809,15 @@ mod tests {
         // structural lowering; head keyword is now HolonAST::Keyword
         // per arc 221 Stone 221.4b).
         //
-        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+'2 40 2))`
-        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+'2"), ...])`.
+        // Arc 221 Stone 221.4b cascade — `(:wat::core::quote (:wat::core::i64::+ 40 2))`
+        // produces `WatAST::List([WatAST::Keyword(":wat::core::i64::+"), ...])`.
         // `watast_to_holon` at Stone 221.4b maps `WatAST::Keyword(k) →
-        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+'2")`
+        // HolonAST::keyword(k.as_str())` → `HolonAST::Keyword("wat::core::i64::+")`
         // (leading colon stripped). Assertion flipped from as_symbol() to as_keyword().
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let src = r#"
             (:wat::holon::from-wat
-              (:wat::core::quote (:wat::core::i64::+'2 40 2)))
+              (:wat::core::quote (:wat::core::i64::+ 40 2)))
         "#;
         let v = eval_expr(src).unwrap();
         let h = match v {
@@ -30905,7 +30828,7 @@ mod tests {
             HolonAST::Bundle(items) => {
                 assert_eq!(items.len(), 3);
                 // Stone 221.4b: WatAST::Keyword → HolonAST::Keyword; content without leading colon.
-                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+'2"));
+                assert_eq!(items[0].as_keyword(), Some("wat::core::i64::+"));
                 assert_eq!(items[0].as_symbol(), None, "must NOT be Symbol after arc 221");
                 assert_eq!(items[1].as_i64(), Some(40));
                 assert_eq!(items[2].as_i64(), Some(2));
@@ -31020,7 +30943,7 @@ mod tests {
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
-                (:wat::core::quote (:wat::core::i64::+'2 2 2)))
+                (:wat::core::quote (:wat::core::i64::+ 2 2)))
               -> :i64
               ((:wat::core::Ok n) n)
               ((:wat::core::Err _) -1))
@@ -31033,10 +30956,11 @@ mod tests {
 
     #[test]
     fn eval_ast_returns_bare_bool_result() {
+        // Stone 237.8b — polymorphic `>` is now a defclause; use per-Type primitive in unit test.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
-                (:wat::core::quote (:wat::core::> 5 3)))
+                (:wat::core::quote (:wat::core::i64::> 5 3)))
               -> :bool
               ((:wat::core::Ok b) b)
               ((:wat::core::Err _) false))
@@ -31176,7 +31100,7 @@ mod tests {
     /// Used to drive walks that should run to natural terminal.
     fn walk_count_prelude() -> &'static str {
         r#"
-        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+'2 acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
         "#
     }
 
@@ -31191,7 +31115,7 @@ mod tests {
             {}
             (:wat::core::match
               (:wat::eval::walk
-                (:wat::core::quote (:wat::core::i64::+'2 (:wat::core::i64::+'2 1 2) 3))
+                (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
                 0
                 :my::test::count-visit)
               -> :wat::core::i64
@@ -31203,8 +31127,8 @@ mod tests {
                    ;; encode (value, count) as one i64: value * 1000 + count.
                    ;; sufficient for a chain of length < 1000.
                    packed
-                    (:wat::core::i64::+'2
-                      (:wat::core::i64::*'2 value 1000)
+                    (:wat::core::i64::+
+                      (:wat::core::i64::* value 1000)
                       count)]
                   packed))
               ((:wat::core::Err _) -1))
@@ -31265,10 +31189,10 @@ mod tests {
         (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64>
           (:wat::eval::WalkStep::Skip
                       (:wat::holon::leaf 999)
-                      (:wat::core::i64::+'2 acc 1)))
+                      (:wat::core::i64::+ acc 1)))
         (:wat::core::match
           (:wat::eval::walk
-            (:wat::core::quote (:wat::core::i64::+'2 (:wat::core::i64::+'2 1 2) 3))
+            (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
             0
             :my::test::skip-on-first)
           -> :wat::core::i64
@@ -31383,7 +31307,7 @@ mod tests {
         // return StepTerminal, not AlreadyTerminal — the variant
         // distinction matters. `(+ 2 2)` fires a real reduction.
         let s = step_to_show(
-            "(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+'2 2 2)))",
+            "(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))",
         );
         assert!(
             s.contains("StepTerminal"),
@@ -31529,24 +31453,24 @@ mod tests {
     #[test]
     fn step_arith_single_redex() {
         // `(+ 2 2)` — args canonical, fire on first step.
-        let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+'2 2 2)))");
+        let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))");
         assert!(s.contains("StepTerminal"), "got: {}", s);
         // Drive to terminal: same form, full chain → HolonAST::I64(4).
-        let h = step_drive_to_terminal("(:wat::core::i64::+'2 2 2)");
+        let h = step_drive_to_terminal("(:wat::core::i64::+ 2 2)");
         assert_eq!(h.as_i64(), Some(4));
     }
 
     #[test]
     fn step_arith_left_descent() {
         // `(+ (+ 1 2) 3)` — first step descends inner; second step fires outer.
-        let h = step_drive_to_terminal("(:wat::core::i64::+'2 (:wat::core::i64::+'2 1 2) 3)");
+        let h = step_drive_to_terminal("(:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)");
         assert_eq!(h.as_i64(), Some(6));
     }
 
     #[test]
     fn step_arith_right_descent() {
         // `(+ 5 (+ 1 2))` — left arg already canonical; descend right.
-        let h = step_drive_to_terminal("(:wat::core::i64::+'2 5 (:wat::core::i64::+'2 1 2))");
+        let h = step_drive_to_terminal("(:wat::core::i64::+ 5 (:wat::core::i64::+ 1 2))");
         assert_eq!(h.as_i64(), Some(8));
     }
 
@@ -31555,7 +31479,7 @@ mod tests {
         // `(let ((x 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
-            "(:wat::core::let [x 5] (:wat::core::i64::*'2 x x))",
+            "(:wat::core::let [x 5] (:wat::core::i64::* x x))",
         );
         assert_eq!(h.as_i64(), Some(25));
     }
@@ -31566,7 +31490,7 @@ mod tests {
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::let [a (:wat::core::i64::+'2 1 1) b a] b)",
+            "(:wat::core::let [a (:wat::core::i64::+ 1 1) b a] b)",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -31610,7 +31534,7 @@ mod tests {
         // `(match (+ 1 1) -> :wat::core::i64 (n n))` — scrutinee is arithmetic,
         // descend until canonical, then arm selection.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::i64::+'2 1 1) -> :wat::core::i64 (n n))",
+            "(:wat::core::match (:wat::core::i64::+ 1 1) -> :wat::core::i64 (n n))",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -31621,7 +31545,7 @@ mod tests {
         let src = format!(
             r#"
             {}
-            (:wat::core::defn :my::test::square [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::*'2 n n))
+            (:wat::core::defn :my::test::square [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n n))
             (:my::test::step-to-terminal
               (:wat::core::quote (:my::test::square 3)))
             "#,
@@ -31656,10 +31580,10 @@ mod tests {
         // result. Same HolonAST out either way (arc 066's wrap aligns
         // step's terminal with eval-ast!'s Ok-arm).
         let forms = [
-            ("(:wat::core::i64::+'2 2 2)", 4),
-            ("(:wat::core::i64::*'2 3 7)", 21),
+            ("(:wat::core::i64::+ 2 2)", 4),
+            ("(:wat::core::i64::* 3 7)", 21),
             ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
-            ("(:wat::core::let [x 5] (:wat::core::i64::+'2 x 1))", 6),
+            ("(:wat::core::let [x 5] (:wat::core::i64::+ x 1))", 6),
             ("(:wat::core::match (:wat::core::Some 7) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
         ];
         for (form, expected) in forms {
@@ -31704,14 +31628,14 @@ mod tests {
             (:wat::core::defn :my::test::sum-to [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                               acc
-                              (:my::test::sum-to (:wat::core::i64::-'2 n 1)
-                                                 (:wat::core::i64::+'2 acc n))))
+                              (:my::test::sum-to (:wat::core::i64::- n 1)
+                                                 (:wat::core::i64::+ acc n))))
             (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::match (:wat::eval-step! form) -> :wat::core::i64
                               ((:wat::core::Ok r)
                                 (:wat::core::match r -> :wat::core::i64
                                   ((:wat::eval::StepResult::StepNext next)
-                                    (:my::test::step-count next (:wat::core::i64::+'2 n 1)))
+                                    (:my::test::step-count next (:wat::core::i64::+ n 1)))
                                   ((:wat::eval::StepResult::StepTerminal h) n)
                                   ((:wat::eval::StepResult::AlreadyTerminal h) n)))
                               ((:wat::core::Err e) -1)))
@@ -31852,7 +31776,7 @@ mod tests {
         // outer list's parsed span, run one step (which descends the
         // inner `(+ 1 2)`), and assert the rebuilt outer form carries
         // the same span. Direct Rust access — no eval-step! wrap.
-        let src = "(:wat::core::i64::+'2 (:wat::core::i64::+'2 1 2) 3)";
+        let src = "(:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)";
         let ast = crate::parse_one!(src).expect("parse");
         let outer_span = ast.span().clone();
         let (sym, _, _) = stdlib_loaded();
@@ -31880,7 +31804,7 @@ mod tests {
             (:wat::core::let
               [form
                 (:wat::holon::from-wat
-                  (:wat::core::quote (:wat::core::i64::+'2 40 2)))
+                  (:wat::core::quote (:wat::core::i64::+ 40 2)))
                ast (:wat::holon::to-wat form)]
               (:wat::core::match (:wat::eval-ast! ast) -> :i64
                 ((:wat::core::Ok n) n)
@@ -32012,7 +31936,7 @@ mod tests {
                b (:wat::kernel::HandlePool::pop pool)
                c (:wat::kernel::HandlePool::pop pool)
                _ (:wat::kernel::HandlePool::finish pool)]
-              (:wat::core::i64::+'2 (:wat::core::i64::+'2 a b) c))
+              (:wat::core::i64::+ (:wat::core::i64::+ a b) c))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(6) => {}
@@ -32295,7 +32219,7 @@ mod tests {
     #[test]
     fn arc159_new_shape_basic_addition() {
         let src = r#"
-            (:wat::core::let [x 2] (:wat::core::i64::+'2 x 1))
+            (:wat::core::let [x 2] (:wat::core::i64::+ x 1))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -32313,7 +32237,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [a 1
-               b (:wat::core::i64::+'2 a 1)]
+               b (:wat::core::i64::+ a 1)]
               b)
         "#;
         match eval_expr(src).unwrap() {
@@ -32346,8 +32270,8 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [a 1
-               b (:wat::core::i64::+'2 a 1)]
-              (:wat::core::i64::+'2 a b))
+               b (:wat::core::i64::+ a 1)]
+              (:wat::core::i64::+ a b))
         "#;
         // a=1, b=2, a+b=3
         match eval_expr(src).unwrap() {
@@ -32365,7 +32289,7 @@ mod tests {
             (:wat::core::let
               [x 10]
               (:wat::core::let
-                [y (:wat::core::i64::+'2 x 5)]
+                [y (:wat::core::i64::+ x 5)]
                 y))
         "#;
         match eval_expr(src).unwrap() {
@@ -32389,7 +32313,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [[a b] p]
-              (:wat::core::i64::+'2 a b))
+              (:wat::core::i64::+ a b))
         "#;
         let p = pair(Value::i64(3), Value::i64(4));
         match eval_with_binding(src, "p", p).unwrap() {
@@ -32411,7 +32335,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [[a b c] tup]
-              (:wat::core::i64::+'2 a (:wat::core::i64::+'2 b c)))
+              (:wat::core::i64::+ a (:wat::core::i64::+ b c)))
         "#;
         let tup = Value::Tuple(std::sync::Arc::new(vec![
             Value::i64(1),
@@ -32435,7 +32359,7 @@ mod tests {
             (:wat::core::let
               [q p
                [a b] q]
-              (:wat::core::i64::+'2 a b))
+              (:wat::core::i64::+ a b))
         "#;
         let p = pair(Value::i64(5), Value::i64(6));
         match eval_with_binding(src, "p", p).unwrap() {

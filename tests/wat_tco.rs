@@ -63,7 +63,7 @@ fn self_recursion_via_if_at_million_depth() {
         (:wat::core::defn :app::countdown [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                       acc
-                      (:app::countdown (:wat::core::i64::-'2 n 1) (:wat::core::i64::+'2 acc 1))))
+                      (:app::countdown (:wat::core::i64::- n 1) (:wat::core::i64::+ acc 1))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::countdown 1000000 0))
     "#;
@@ -89,7 +89,7 @@ fn self_recursion_via_match_at_high_depth() {
                         :wat::core::None)
                       -> :wat::core::i64
                       ((:wat::core::Some v)
-                        (:app::drain (:wat::core::i64::-'2 v 1) (:wat::core::i64::+'2 acc 1)))
+                        (:app::drain (:wat::core::i64::- v 1) (:wat::core::i64::+ acc 1)))
                       (:wat::core::None acc)))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::drain 100000 0))
@@ -109,12 +109,12 @@ fn mutual_recursion_between_two_defines() {
         (:wat::core::defn :app::is-even [n <- :wat::core::i64] -> :wat::core::bool
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
                       true
-                      (:app::is-odd (:wat::core::i64::-'2 n 1))))
+                      (:app::is-odd (:wat::core::i64::- n 1))))
 
         (:wat::core::defn :app::is-odd [n <- :wat::core::i64] -> :wat::core::bool
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
                       false
-                      (:app::is-even (:wat::core::i64::-'2 n 1))))
+                      (:app::is-even (:wat::core::i64::- n 1))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::bool (:app::is-even 100000))
     "#;
@@ -133,7 +133,7 @@ fn tail_call_inside_let_body_propagates() {
 
         (:wat::core::defn :app::loop [n <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::let
-                      [next (:wat::core::i64::-'2 n 1)]
+                      [next (:wat::core::i64::- n 1)]
                       (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
                         0
                         (:app::loop next))))
@@ -160,7 +160,7 @@ fn non_tail_recursion_modest_depth_correct() {
         (:wat::core::defn :app::pow2 [n <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                       1
-                      (:wat::core::i64::*'2 2 (:app::pow2 (:wat::core::i64::-'2 n 1)))))
+                      (:wat::core::i64::* 2 (:app::pow2 (:wat::core::i64::- n 1)))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::pow2 20))
     "#;
@@ -191,7 +191,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
                       [valid (:wat::core::Result/try (:app::check n))]
                       (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
                         (:wat::core::Ok 0)
-                        (:app::loop (:wat::core::i64::-'2 valid 1)))))
+                        (:app::loop (:wat::core::i64::- valid 1)))))
 
         (:wat::core::defn :user::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::loop 50000))
     "#;
@@ -216,9 +216,9 @@ fn try_inside_tail_recursive_function_propagates_err() {
         (:wat::core::defn :app::loop [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
           (:wat::core::let
                       [valid (:wat::core::Result/try (:app::check n))]
-                      (:wat::core::if (:wat::core::<= valid (:wat::core::i64::-'2 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
+                      (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
                         (:wat::core::Ok 0)
-                        (:app::loop (:wat::core::i64::-'2 valid 1)))))
+                        (:app::loop (:wat::core::i64::- valid 1)))))
 
         ;; Start at -1 so `check` immediately returns Err and `try`
         ;; propagates.
@@ -265,7 +265,7 @@ fn inline_fn_literal_tail_call() {
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::*'2 n 2))
+                       (:wat::core::i64::* n 2))
                      21))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
@@ -285,7 +285,7 @@ fn named_define_tail_calls_fn_param() {
           (:wat::core::let
                       [double
                         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                          (:wat::core::i64::*'2 x 2))]
+                          (:wat::core::i64::* x 2))]
                       (:app::invoke double 21)))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
@@ -314,7 +314,7 @@ fn inline_fn_named_alternation_at_high_depth() {
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                       state
                       ((:wat::core::fn [s <- :wat::core::i64 k <- :wat::core::i64] -> :wat::core::i64
-                         (:app::go (:wat::core::i64::+'2 s 1) (:wat::core::i64::-'2 k 1)))
+                         (:app::go (:wat::core::i64::+ s 1) (:wat::core::i64::- k 1)))
                        state n)))
 
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::go 0 100000))

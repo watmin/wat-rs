@@ -138,7 +138,7 @@ fn t2_canonical_main_with_let_body_returns_nil() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [_ (:wat::core::i64::+'2 1 2)]
+                      [_ (:wat::core::i64::+ 1 2)]
                       :wat::core::nil))
     "#;
     let world = freeze_ok(src);
@@ -261,7 +261,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [n    (:wat::kernel::readln -> :wat::core::i64)
-                       _out (:wat::kernel::println (:wat::core::i64::+'2 n 1))]
+                       _out (:wat::kernel::println (:wat::core::i64::+ n 1))]
                       :wat::core::nil))
     "#,
     );
@@ -347,7 +347,7 @@ fn t5_spawn_process_inline_lambda_round_trips() {
                         (:wat::core::defn :user::main [] -> :wat::core::nil
                           (:wat::core::let
                             [n    (:wat::kernel::readln -> :wat::core::i64)
-                             _out (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
+                             _out (:wat::kernel::println (:wat::core::i64::* n 2))]
                             nil)))))
     "#;
     let world = freeze_ok(src);
@@ -418,7 +418,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
                                     (:wat::core::let
                                       [n    (:wat::kernel::readln -> :wat::core::i64)
                                        _out (:wat::kernel::println
-                                              (:wat::core::i64::+'2 n ~offset))]
+                                              (:wat::core::i64::+ n ~offset))]
                                       nil))]
                       (:wat::kernel::spawn-process
                         (:wat::core::Vector :wat::WatAST main-form))))
@@ -645,7 +645,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
           -> :wat::core::nil
           (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
             ((:wat::core::Ok (:wat::core::Some n))
-              (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::*'2 n 2)) -> :wat::core::nil
+              (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::* n 2)) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))
             ((:wat::core::Ok :wat::core::None) :wat::core::nil)
@@ -850,7 +850,7 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
 //
 // Surface form exercised:
 //   (:wat::test::run-hermetic
-//     (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4))
+//     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 //
 // The function is defined at :my::test::two-plus-two; invoked with
 // apply_function (zero args); RunResult.failure must be None.
@@ -865,7 +865,7 @@ fn t17_run_hermetic_layer1_passing_assertion() {
     let src = r#"
         (:wat::core::defn :my::test::two-plus-two [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-                      (:wat::test::assert-eq (:wat::core::i64::+'2 2 2) 4)))
+                      (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -915,7 +915,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     let src = r#"
         (:wat::core::defn :my::test::one-neq-two [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-                      (:wat::test::assert-eq (:wat::core::i64::+'2 1 0) 2)))
+                      (:wat::test::assert-eq (:wat::core::i64::+ 1 0) 2)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -1004,7 +1004,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
                       (:wat::core::Vector :wat::core::i64 21)
                       (:wat::core::let
                         [n (:wat::kernel::readln -> :wat::core::i64)
-                         _ (:wat::kernel::println (:wat::core::i64::*'2 n 2))]
+                         _ (:wat::kernel::println (:wat::core::i64::* n 2))]
                         :wat::core::nil)))
     "#;
     let world = freeze_ok(src);

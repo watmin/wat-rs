@@ -113,7 +113,7 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     // (head + at least one arg pair) by EDN-rendering the Vec.
     let src = r##"
 
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -171,7 +171,7 @@ fn bundle_children_walks_parametric_type_slot() {
         (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -238,7 +238,7 @@ fn bundle_first_returns_head_keyword_of_signature() {
     // EDN-rendering it should produce the function name keyword.
     let src = r##"
 
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -271,7 +271,7 @@ fn bundle_first_composes_with_atom_value() {
     // This test proves the two surfaces interoperate.
     let src = r##"
 
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+'2 a b))
+        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let

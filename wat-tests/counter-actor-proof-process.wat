@@ -193,7 +193,7 @@
                     (:counter/dispatch state)))
                ;; Mutate-computed — let-bind new state; reply + recur
                ((:counter::Request::Increment n)
-                  (:wat::core::let [new-n (:wat::core::i64::+'2 state n)]
+                  (:wat::core::let [new-n (:wat::core::i64::+ state n)]
                     (:wat::kernel::println (:counter::Response::Ok new-n))
                     (:counter/dispatch new-n)))
                ;; Mutate-literal — reply 0; recur with literal

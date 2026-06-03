@@ -55,14 +55,14 @@ fn run_compute(src: &str) -> Result<Value, String> {
 // NotCallable because eval_list's regular dispatch doesn't handle
 // Symbol-bound keyword Values.
 //
-// Error message should include ":wat::core::i64::+'2" (the rendered
+// Error message should include ":wat::core::i64::+" (the rendered
 // keyword content), not just "wat::core::keyword" (the type name).
 #[test]
 fn probe_1_not_callable_renders_offending_keyword() {
     let src = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [plus :wat::core::i64::+'2]
+      [plus :wat::core::i64::+]
       (plus 2 3)))
 "#;
     match run_compute(src) {
@@ -75,7 +75,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
                 e
             );
             assert!(
-                e.contains(":wat::core::i64::+'2"),
+                e.contains(":wat::core::i64::+"),
                 "Probe 1: error should include the RENDERED keyword content; got: {}",
                 e
             );
@@ -159,7 +159,7 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
 #[test]
 fn probe_4_type_mismatch_renders_non_vector_spread() {
     let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+") 42))
 "#;
     match run_compute(src) {
         Ok(v) => panic!("Probe 4: expected TypeMismatch; got {:?}", v),

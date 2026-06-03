@@ -54,78 +54,140 @@
 (:wat::core::defalias :wat::core::values  :wat::core::HashMap/values)
 (:wat::core::defalias :wat::core::concat  :wat::core::Vector/concat)
 
-;; ─── Arc 148 slice 4 — Numeric arithmetic ────────────────────────────
+;; ─── Arc 148 slice 4 / Stone 237.8b — Numeric arithmetic (recipe-lock) ──────
 ;;
-;; arc 237 Stone 237.8a — `:wat::core::<op>'2` define-dispatch decls
-;; retired under THE DECISION (`feedback_no_implicit_coercion`);
-;; same-type arithmetic routes directly through per-Type leaves
-;; (`:wat::core::i64::+'2` / `:wat::core::f64::+'2`); cross-type is
-;; rejected at check by `infer_arithmetic` (no longer f64-promoting).
-;; Mixed-type Rust leaves (`+'i64'f64` etc.) deleted from substrate.
+;; Stone 237.8b — THE RECIPE locked:
 ;;
-;; Each of `+`, `-`, `*`, `/` remains a polymorphic surface at the
-;; variadic level. Two layers remain per THE DECISION:
+;;   Layer 1 (Rust): per-Type binary primitive — :wat::core::<Type>::<op>
+;;                   ALWAYS 2-ary; irreducible; one fn per Type per op.
+;;                   '2 suffix DROPPED (Stone 237.8b HARD CUT).
 ;;
-;;   1. Polymorphic variadic at `:wat::core::<v>` (bare name) — STAYS
-;;      as a substrate primitive with same-type-only discipline.
-;;      Custom inference (`infer_arithmetic`) rejects mixed numeric
-;;      pairs at check time; callers homogenize explicitly via
-;;      `:wat::core::i64::to-f64` (or vice versa).
+;;   Layer 2 (wat):  polymorphic defclause — :wat::core::<op>
+;;                   Clauses dispatch by arity (0/1/2/3+) × arg-Type.
+;;                   Per-op identity defaults via Lisp tradition.
+;;                   Variadic via 3+-ary clause with & rest-binder folding
+;;                   the per-Type binary primitive over rest.
 ;;
-;;   2. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>'2`
-;;      — registered in `register_builtins` (src/runtime.rs +
-;;      src/check.rs). Reachable per the no-privacy doctrine.
-;;      Mixed-type leaves (`+'i64'f64` etc.) DELETED.
+;; Per-Type variadic wat fns (:wat::core::i64::+, :wat::core::f64::+ etc.)
+;; DELETED (Stone 237.8b HARD CUT) — absorbed by defclause clauses.
+;; infer_arithmetic + eval_arithmetic_variadic + is_numeric DELETED from Rust.
 ;;
-;; Same-type variadic wat fns at `:wat::core::<Type>::<v>` (the bare
-;; per-Type name) wrap the per-Type binary leaf via arc 150's variadic
-;; define + `:wat::core::foldl` — declared after this comment block.
+;; Cross-type rejection via CLAUSE ABSENCE — no mixed-type clause exists,
+;; so (:wat::core::+ 1 2.0) → :NoMatchingClause (enforced by defclause
+;; first-match semantics). No special-case Rust check needed.
+;;
+;; Lisp/Clojure arity rules (per Stone 237.8b DESIGN):
+;;   `+`/`*`: 0-ary → identity (0 / 1); 1-ary → arg unchanged; 2-ary → binary; 3+ → fold
+;;   `-`/`/`: 0-ary → :NoMatchingClause (no clause); 1-ary → identity-on-left
+;;            (negate / reciprocal); 2-ary → binary; 3+ → fold
 
-;; ─── Same-type variadic wat fns (8 total) ─────────────────────────────
-;;
-;; Per-Type variadic wrappers using arc 150's variadic define syntax.
-;; Each folds left over the per-Type binary leaf.
-;;
-;; Lisp/Clojure arity rules per DESIGN § "Arity rules":
-;;   `+`/`*` — 0-ary returns identity; 1-ary returns arg unchanged
-;;   `-`/`/` — 0-ary errors via 1-arity-min substrate enforcement;
-;;             1-ary inserts identity-on-left (negation/reciprocal)
-;;
-;; The 0-ary case for `:i64::+`/`:i64::*` is expressed as the foldl
-;; seed when the variadic surface receives zero rest args. For
-;; `-`/`/`, the 0-ary case is enforced by requiring at least one
-;; fixed parameter (the variadic accepts >= 1 arg via the (first
-;; rest) convention — see DESIGN § "Variadic semantics").
+;; ─── Polymorphic arithmetic defclauses ────────────────────────────────────────
 
-;; i64 same-type variadic — :+/:*/:- / :/  fold over per-Type binary leaf.
+(:wat::core::defclause :wat::core::+
+  ;; 0-ary identity: i64 0 (Lisp additive identity)
+  ([] -> :wat::core::i64 0)
+  ;; 1-ary: per-Type arg unchanged
+  ([x <- :wat::core::i64] -> :wat::core::i64 x)
+  ([x <- :wat::core::f64] -> :wat::core::f64 x)
+  ;; 2-ary: direct per-Type binary call
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::+ x y))
+  ;; 3+-ary: per-Type fold over rest
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64
+    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    (:wat::core::foldl rest (:wat::core::i64::+ x y)
+      (:wat::core::fn [acc <- :wat::core::i64
+                       n <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::+ acc n))))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64
+    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    (:wat::core::foldl rest (:wat::core::f64::+ x y)
+      (:wat::core::fn [acc <- :wat::core::f64
+                       n <- :wat::core::f64] -> :wat::core::f64
+        (:wat::core::f64::+ acc n)))))
 
-(:wat::core::defn :wat::core::i64::+ [& xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-  (:wat::core::foldl xs 0
-      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::+'2 acc x))))
+(:wat::core::defclause :wat::core::-
+  ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
+  ;; 1-ary per-Type: negate (identity-on-left = 0)
+  ([x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::- 0 x))
+  ([x <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::- 0.0 x))
+  ;; 2-ary
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::- x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::- x y))
+  ;; 3+-ary fold
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64
+    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    (:wat::core::foldl rest (:wat::core::i64::- x y)
+      (:wat::core::fn [acc <- :wat::core::i64
+                       n <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::- acc n))))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64
+    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    (:wat::core::foldl rest (:wat::core::f64::- x y)
+      (:wat::core::fn [acc <- :wat::core::f64
+                       n <- :wat::core::f64] -> :wat::core::f64
+        (:wat::core::f64::- acc n)))))
 
-(:wat::core::defn :wat::core::i64::* [& xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-  (:wat::core::foldl xs 1
-      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::*'2 acc x))))
+(:wat::core::defclause :wat::core::*
+  ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
+  ([] -> :wat::core::i64 1)
+  ;; 1-ary: per-Type arg unchanged
+  ([x <- :wat::core::i64] -> :wat::core::i64 x)
+  ([x <- :wat::core::f64] -> :wat::core::f64 x)
+  ;; 2-ary
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::* x y))
+  ;; 3+-ary fold
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64
+    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    (:wat::core::foldl rest (:wat::core::i64::* x y)
+      (:wat::core::fn [acc <- :wat::core::i64
+                       n <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::* acc n))))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64
+    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    (:wat::core::foldl rest (:wat::core::f64::* x y)
+      (:wat::core::fn [acc <- :wat::core::f64
+                       n <- :wat::core::f64] -> :wat::core::f64
+        (:wat::core::f64::* acc n)))))
 
-;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
-;; rest. 1-ary inserts identity-on-left; 2+-ary folds. The arity
-;; checker rejects 0-ary via the fixed-param requirement.
-
-(:wat::core::defn :wat::core::i64::- [first <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-      (:wat::core::i64::-'2 0 first)
-      (:wat::core::foldl xs first
-        (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::-'2 acc x)))))
-
-(:wat::core::defn :wat::core::i64::/ [first <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
-      (:wat::core::i64::/'2 1 first)
-      (:wat::core::foldl xs first
-        (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::/'2 acc x)))))
+(:wat::core::defclause :wat::core::/
+  ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
+  ;; 1-ary per-Type: reciprocal (identity-on-left = 1)
+  ([x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::/ 1 x))
+  ([x <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::/ 1.0 x))
+  ;; 2-ary
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::/ x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::/ x y))
+  ;; 3+-ary fold
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64
+    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    (:wat::core::foldl rest (:wat::core::i64::/ x y)
+      (:wat::core::fn [acc <- :wat::core::i64
+                       n <- :wat::core::i64] -> :wat::core::i64
+        (:wat::core::i64::/ acc n))))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64
+    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    (:wat::core::foldl rest (:wat::core::f64::/ x y)
+      (:wat::core::fn [acc <- :wat::core::f64
+                       n <- :wat::core::f64] -> :wat::core::f64
+        (:wat::core::f64::/ acc n)))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
@@ -192,28 +254,33 @@
 ;;
 ;; The HARD-CUT arm at check.rs fires for any residual caller of either retired form.
 
-;; f64 same-type variadic — :+/:*/:- / :/
+;; ─── Polymorphic ordering defclauses (Stone 237.8b) ──────────────────────────
+;;
+;; 2-ary only: no variadic ordering this stone. Each clause calls the
+;; per-Type ordering primitive (i64 routes through eval_compare; f64 routes
+;; through NaN-correct eval_f64_compare). Cross-type → :NoMatchingClause
+;; via clause absence.
 
-(:wat::core::defn :wat::core::f64::+ [& xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-  (:wat::core::foldl xs 0.0
-      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::+'2 acc x))))
+(:wat::core::defclause :wat::core::<
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::< x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::< x y)))
 
-(:wat::core::defn :wat::core::f64::* [& xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-  (:wat::core::foldl xs 1.0
-      (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::*'2 acc x))))
+(:wat::core::defclause :wat::core::>
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::> x y)))
 
-(:wat::core::defn :wat::core::f64::- [first <- :wat::core::f64 & xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-      (:wat::core::f64::-'2 0.0 first)
-      (:wat::core::foldl xs first
-        (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-          (:wat::core::f64::-'2 acc x)))))
+(:wat::core::defclause :wat::core::<=
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::<= x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::<= x y)))
 
-(:wat::core::defn :wat::core::f64::/ [first <- :wat::core::f64 & xs <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
-      (:wat::core::f64::/'2 1.0 first)
-      (:wat::core::foldl xs first
-        (:wat::core::fn [acc <- :wat::core::f64 x <- :wat::core::f64] -> :wat::core::f64
-          (:wat::core::f64::/'2 acc x)))))
+(:wat::core::defclause :wat::core::>=
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::>= x y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::>= x y)))

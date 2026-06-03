@@ -418,8 +418,8 @@ mod tests {
 
     #[test]
     fn core_arithmetic_resolves() {
-        assert!(resolve(r#"(:wat::core::i64::+'2 1 2)"#).is_ok());
-        assert!(resolve(r#"(:wat::core::i64::*'2 (:wat::core::i64::+'2 1 2) 3)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::i64::+ 1 2)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::i64::* (:wat::core::i64::+ 1 2) 3)"#).is_ok());
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod tests {
         // form) to directly test the resolver without requiring macro expansion.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+'2 x 1)))
+            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
             (:my::app::inc 41)
             "#,
         )
@@ -456,8 +456,8 @@ mod tests {
         // since the resolve() test helper does not load stdlib macros.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+'2 x 1)))
-            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::*'2 x 2)))
+            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
+            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2)))
             (:my::app::add-one (:my::app::double 10))
             "#,
         )
@@ -483,7 +483,7 @@ mod tests {
             r#"
             (:my::app::missing-a 1)
             (:my::app::missing-b 2)
-            (:wat::core::i64::+'2 (:my::app::missing-c) (:my::app::missing-d))
+            (:wat::core::i64::+ (:my::app::missing-c) (:my::app::missing-d))
             "#,
         )
         .unwrap_err();

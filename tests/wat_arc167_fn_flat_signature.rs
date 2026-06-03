@@ -80,7 +80,7 @@ fn fn_with_flat_shape_compiles_and_runs() {
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
                        -> :wat::core::i64
-                       (:wat::core::i64::+'2 x y))
+                       (:wat::core::i64::+ x y))
                      2 3))
     "#;
     let v = run(src);
@@ -102,7 +102,7 @@ fn defn_with_flat_shape_compiles_and_runs() {
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64]
           -> :wat::core::i64
-          (:wat::core::i64::+'2 x y))
+          (:wat::core::i64::+ x y))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add 2 3))
     "#;
@@ -128,7 +128,7 @@ fn recursive_defn_with_flat_shape() {
           -> :wat::core::i64
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             1
-            (:wat::core::i64::*'2 n (:user::fact (:wat::core::i64::-'2 n 1)))))
+            (:wat::core::i64::* n (:user::fact (:wat::core::i64::- n 1)))))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::fact 5))
     "#;
@@ -218,7 +218,7 @@ fn reflection_on_flat_defn_resolves() {
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64]
           -> :wat::core::i64
-          (:wat::core::i64::+'2 x y))
+          (:wat::core::i64::+ x y))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match

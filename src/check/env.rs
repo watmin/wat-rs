@@ -119,6 +119,24 @@ impl<'a> CheckEnv<'a> {
                 env.register(path.clone(), scheme);
             }
         }
+        // Stone 237.8b — also load defclauses from runtime_def_values so the checker
+        // can dispatch calls to stdlib defclauses (:wat::core::+, -, *, /, <, >, <=, >=).
+        // Previously, stdlib ops were Rust intrinsics (infer_arithmetic etc.); now they
+        // are defclauses that live in runtime_def_values after register_stdlib_defclauses.
+        for (name, value) in &sym.runtime_def_values {
+            if let crate::runtime::Value::wat__core__clauses(cs) = value {
+                let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs.clauses.iter()
+                    .map(|clause| {
+                        let arg_types: Vec<TypeExpr> = clause.args.iter()
+                            .map(|(_, t)| t.clone())
+                            .collect();
+                        let has_rest = clause.rest_param.is_some();
+                        (arg_types, clause.return_type.clone(), has_rest)
+                    })
+                    .collect();
+                env.defclause_registrations.insert(name.clone(), clauses);
+            }
+        }
         // Arc 157 slice 1a-ii — mirror the redef-allowed flag from the
         // SymbolTable carrier (populated from Config at freeze time) so
         // `infer_def` can gate the collision check without needing direct

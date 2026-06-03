@@ -63,7 +63,7 @@ fn probe_let_defn_via_expansion() {
 #[test]
 fn probe_let_with_real_bindings_then_defn() {
     let src = r#"
-        (:wat::core::let [x (:wat::core::i64::+'2 1 1)]
+        (:wat::core::let [x (:wat::core::i64::+ 1 1)]
           (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
           (:wat::core::defn :my::main [] -> :wat::core::i64 (:my::helper)))
     "#;

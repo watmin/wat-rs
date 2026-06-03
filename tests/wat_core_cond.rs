@@ -187,7 +187,7 @@ fn cond_preserves_tail_call() {
           (:wat::core::cond -> :wat::core::i64
                       ((:wat::core::= n 0) 0)
                       ((:wat::core::< n 0) -1)
-                      (:else (:my::countdown (:wat::core::i64::-'2 n 1)))))
+                      (:else (:my::countdown (:wat::core::i64::- n 1)))))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::countdown 100000))
     "#;

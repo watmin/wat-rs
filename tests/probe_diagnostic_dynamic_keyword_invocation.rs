@@ -51,7 +51,7 @@ fn probe_1_bound_keyword_invokes_substrate_verb() {
     let src = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [plus :wat::core::i64::+'2]
+      [plus :wat::core::i64::+]
       (:wat::core::apply -> :wat::core::i64 plus [2 3])))
 "#;
     match run_compute(src) {
@@ -79,7 +79,7 @@ fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
     let src = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [plus (:wat::core::keyword/from-string "wat::core::i64::+'2")]
+      [plus (:wat::core::keyword/from-string "wat::core::i64::+")]
       (:wat::core::apply -> :wat::core::i64 plus [2 3])))
 "#;
     match run_compute(src) {
@@ -138,9 +138,9 @@ fn probe_4_apply_with_leading_args_and_tail_vec() {
     let src = r#"
 (:wat::core::defn :ns::add4 [a <- :wat::core::i64 b <- :wat::core::i64 c <- :wat::core::i64 d <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::do
-      (:wat::core::i64::+'2
-        (:wat::core::i64::+'2 a b)
-        (:wat::core::i64::+'2 c d))))
+      (:wat::core::i64::+
+        (:wat::core::i64::+ a b)
+        (:wat::core::i64::+ c d))))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 :ns::add4 1 2 [3 4]))
 "#;
@@ -242,7 +242,7 @@ fn probe_7_apply_rejects_non_keyword_head() {
 #[test]
 fn probe_8_apply_rejects_non_vector_last_arg() {
     let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+'2") 42))
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+") 42))
 "#;
     match run_compute(src) {
         Ok(v) => panic!(

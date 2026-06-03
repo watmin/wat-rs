@@ -52,7 +52,7 @@ fn failure_message(result: &Value) -> String {
 fn probe_runtime_error_produces_structured_edn() {
     // Stone C: children have ambient stdio (bootstrap). To hit
     // Ok(Err(runtime_err)) in the child branch, we use integer division
-    // by zero — (:wat::core::i64::/'2 1 0) — which produces
+    // by zero — (:wat::core::i64::/ 1 0) — which produces
     // RuntimeError::DivisionByZero (not a Rust panic). This passes the
     // type-checker (valid expression) but fails at runtime, flowing
     // through apply_function as Err(RuntimeError) and landing in the
@@ -63,7 +63,7 @@ fn probe_runtime_error_produces_structured_edn() {
                       ;; Division by zero → RuntimeError::DivisionByZero.
                       ;; Passes type-check; fails at child runtime.
                       ;; Hits Ok(Err(runtime_err)) arm in spawn_process_child_branch.
-                      (:wat::core::let [_ (:wat::core::i64::/'2 1 0)] :wat::core::nil)))
+                      (:wat::core::let [_ (:wat::core::i64::/ 1 0)] :wat::core::nil)))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

@@ -141,7 +141,7 @@ fn probe_6_multiple_destructures_in_same_let() {
   (:wat::core::let
       [{m :magnitude} (:myapp::Voltage 3.5)
        {c :count}     (:myapp::Counter 7)]
-      (:wat::core::+'2 m (:wat::core::i64/to-f64 c))))
+      (:wat::core::+ m (:wat::core::i64/to-f64 c))))
 "#;
     match run_compute(src) {
         Ok(Value::f64(f)) => assert!((f - 10.5).abs() < 1e-9, "got {}", f),

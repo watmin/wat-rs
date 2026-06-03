@@ -106,7 +106,7 @@ fn try_chains_two_bindings_in_let() {
           (:wat::core::let
                       [a (:wat::core::Result/try (:wat::core::Ok 10))
                        b (:wat::core::Result/try (:wat::core::Ok 32))]
-                      (:wat::core::Ok (:wat::core::i64::+'2 a b))))
+                      (:wat::core::Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -127,7 +127,7 @@ fn try_short_circuits_let_on_first_err() {
           (:wat::core::let
                       [a (:wat::core::Result/try (:wat::core::Err "early"))
                        b (:wat::core::Result/try (:wat::core::Ok 99))]
-                      (:wat::core::Ok (:wat::core::i64::+'2 a b))))
+                      (:wat::core::Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {

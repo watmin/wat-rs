@@ -67,7 +67,7 @@ fn contract_02_defn_with_metadata_returns_some() {
         (:wat::core::defn :my::f
           {:doc "doubles x"}
           [x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+'2 x x))
+          (:wat::core::i64::+ x x))
         (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64> (:wat::runtime::metadata-of :my::f))
     "#;
     let result = try_compute(src).expect("defn-with-metadata metadata-of must not error");

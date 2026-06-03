@@ -99,13 +99,13 @@
        [~@(:wat::core::let
              [fields-h  (:wat::holon::from-wat (:wat::core::quote fields))
               n         (:wat::holon::statement-length fields-h)
-              nf        (:wat::core::i64::/'2 n 3)
+              nf        (:wat::core::i64::/ n 3)
               children  (:wat::holon::Bundle/children fields-h)
               name-strs (:wat::core::map
                           (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
-                              [idx    (:wat::core::i64::*'2 fi 3)
+                              [idx    (:wat::core::i64::* fi 3)
                                name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                         (:wat::core::Vector/get children idx)
                                         "Record::def: field name index out of range (recordtype emission)")
@@ -119,13 +119,13 @@
          [~@(:wat::core::let
                [fields-h (:wat::holon::from-wat (:wat::core::quote fields))
                 n        (:wat::holon::statement-length fields-h)
-                nf       (:wat::core::i64::/'2 n 3)
+                nf       (:wat::core::i64::/ n 3)
                 children (:wat::holon::Bundle/children fields-h)
                 syms     (:wat::core::map
                            (:wat::core::range 0 nf)
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
-                               [idx   (:wat::core::i64::*'2 fi 3)
+                               [idx   (:wat::core::i64::* fi 3)
                                 name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                          (:wat::core::Vector/get children idx)
                                          "Record::def: struct_form field name index out of range")
@@ -135,14 +135,14 @@
      ~@(:wat::core::let
            [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
             n           (:wat::holon::statement-length fields-h)
-            nf          (:wat::core::i64::/'2 n 3)
+            nf          (:wat::core::i64::/ n 3)
             children    (:wat::holon::Bundle/children fields-h)
             fqdn-str    (:wat::core::keyword/to-string fqdn)
             accessors   (:wat::core::map
                           (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
-                              [idx          (:wat::core::i64::*'2 fi 3)
+                              [idx          (:wat::core::i64::* fi 3)
                                name-h       (:wat::core::Option/expect -> :wat::holon::HolonAST
                                               (:wat::core::Vector/get children idx)
                                               "Record::def: field name index out of range")
@@ -150,7 +150,7 @@
                                               (:wat::holon::from-holon name-h))
                                type-h       (:wat::core::Option/expect -> :wat::holon::HolonAST
                                               (:wat::core::Vector/get children
-                                                (:wat::core::i64::+'2 idx 2))
+                                                (:wat::core::i64::+ idx 2))
                                               "Record::def: field type index out of range")
                                type-w       (:wat::holon::to-wat type-h)
                                accessor-name (:wat::core::keyword/from-string
@@ -196,13 +196,13 @@
        [~@(:wat::core::let
              [fields-h  (:wat::holon::from-wat (:wat::core::quote fields))
               n         (:wat::holon::statement-length fields-h)
-              nf        (:wat::core::i64::/'2 n 3)
+              nf        (:wat::core::i64::/ n 3)
               children  (:wat::holon::Bundle/children fields-h)
               name-strs (:wat::core::map
                           (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
-                              [idx    (:wat::core::i64::*'2 fi 3)
+                              [idx    (:wat::core::i64::* fi 3)
                                name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                         (:wat::core::Vector/get children idx)
                                         "Record::def: field name index out of range (recordtype emission)")
@@ -216,13 +216,13 @@
          [~@(:wat::core::let
                [fields-h (:wat::holon::from-wat (:wat::core::quote fields))
                 n        (:wat::holon::statement-length fields-h)
-                nf       (:wat::core::i64::/'2 n 3)
+                nf       (:wat::core::i64::/ n 3)
                 children (:wat::holon::Bundle/children fields-h)
                 syms     (:wat::core::map
                            (:wat::core::range 0 nf)
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
-                               [idx   (:wat::core::i64::*'2 fi 3)
+                               [idx   (:wat::core::i64::* fi 3)
                                 name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                          (:wat::core::Vector/get children idx)
                                          "Record::def: struct_form field name index out of range")
@@ -236,13 +236,13 @@
                [~@(:wat::core::let
                      [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
                       n           (:wat::holon::statement-length fields-h)
-                      nf          (:wat::core::i64::/'2 n 3)
+                      nf          (:wat::core::i64::/ n 3)
                       children    (:wat::holon::Bundle/children fields-h)
                       field-binds (:wat::core::map
                                     (:wat::core::range 0 nf)
                                     (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                                       (:wat::core::let
-                                        [idx    (:wat::core::i64::*'2 fi 3)
+                                        [idx    (:wat::core::i64::* fi 3)
                                          name-h (:wat::core::Option/expect -> :wat::holon::HolonAST
                                                   (:wat::core::Vector/get children idx)
                                                   "Record::def: field name index out of range")
@@ -265,14 +265,14 @@
      ~@(:wat::core::let
            [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
             n           (:wat::holon::statement-length fields-h)
-            nf          (:wat::core::i64::/'2 n 3)
+            nf          (:wat::core::i64::/ n 3)
             children    (:wat::holon::Bundle/children fields-h)
             fqdn-str    (:wat::core::keyword/to-string fqdn)
             accessors   (:wat::core::map
                           (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
-                              [idx          (:wat::core::i64::*'2 fi 3)
+                              [idx          (:wat::core::i64::* fi 3)
                                name-h       (:wat::core::Option/expect -> :wat::holon::HolonAST
                                               (:wat::core::Vector/get children idx)
                                               "Record::def: field name index out of range")
@@ -280,7 +280,7 @@
                                               (:wat::holon::from-holon name-h))
                                type-h       (:wat::core::Option/expect -> :wat::holon::HolonAST
                                               (:wat::core::Vector/get children
-                                                (:wat::core::i64::+'2 idx 2))
+                                                (:wat::core::i64::+ idx 2))
                                               "Record::def: field type index out of range")
                                type-w       (:wat::holon::to-wat type-h)
                                accessor-name (:wat::core::keyword/from-string

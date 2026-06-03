@@ -120,7 +120,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
         (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl xs init
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+'2 acc x))))
+                        (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -168,9 +168,9 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
 fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     // All-Path types remain single keyword Symbols — slice 1 only
     // restructures Parametric / Tuple / Fn shapes; Path stays atomic.
-    // `:wat::core::i64::+'2` is a substrate primitive whose scheme is
+    // `:wat::core::i64::+` is a substrate primitive whose scheme is
     // monomorphic (`:i64 :i64 -> :i64`); it exercises the all-Path path.
-    let line = render_signature(":wat::core::i64::+'2");
+    let line = render_signature(":wat::core::i64::+");
     assert!(
         line.contains(":wat::core::i64"),
         "expected ':wat::core::i64' in rendered atomic-type signature; got: {}",

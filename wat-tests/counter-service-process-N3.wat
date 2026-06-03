@@ -263,7 +263,7 @@
                                   estate (:wat::core::second entry)
                                   match? (:wat::core::= eid target)
                                   new-found (:wat::core::if match? -> :wat::core::i64 estate found)
-                                  new-seen  (:wat::core::i64::+'2 seen 1)]
+                                  new-seen  (:wat::core::i64::+ seen 1)]
                                  (:wat::core::Tuple new-found new-seen))))]
                   (:wat::core::first result)))
 
@@ -292,7 +292,7 @@
                                               (:wat::core::Tuple eid new-state)
                                               entry)
                                   next-vec (:wat::core::conj new-vec updated)
-                                  next-pos (:wat::core::i64::+'2 pos 1)]
+                                  next-pos (:wat::core::i64::+ pos 1)]
                                  (:wat::core::Tuple next-vec next-pos))))]
                   (:wat::core::first result)))
 
@@ -324,7 +324,7 @@
                       [user-id   (:wat::core::Uuid/v4)
                        new-entry (:wat::core::Tuple user-id initial)
                        new-reg   (:wat::core::conj registry new-entry)
-                       next-next (:wat::core::i64::+'2 next-id 1)]
+                       next-next (:wat::core::i64::+ next-id 1)]
                       (:wat::kernel::println
                         (:counter::WireResp::Admin (:counter::AdminResp::Provisioned user-id)))
                       (:sub::dispatch new-reg next-next)))
@@ -357,7 +357,7 @@
                   ((:counter::UserReq::Increment n)
                     (:wat::core::let
                       [old-state (:sub::find-state registry uid)
-                       new-state (:wat::core::i64::+'2 old-state n)
+                       new-state (:wat::core::i64::+ old-state n)
                        new-reg   (:sub::update-state registry uid new-state)]
                       (:wat::kernel::println
                         (:counter::WireResp::User (:counter::UserResp::Ok new-state)))

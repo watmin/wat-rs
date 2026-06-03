@@ -27,7 +27,7 @@
   ()
   (:wat::core::let
     [result (:wat::test::run-thread
-              (:wat::test::assert-eq 4 (:wat::core::i64::+'2 2 2)))]
+              (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2)))]
     (:wat::core::match (:wat::kernel::RunResult/failure result)
       -> :wat::core::nil
       (:wat::core::None :wat::core::nil)
@@ -42,7 +42,7 @@
   ()
   (:wat::core::let
     [result (:wat::test::run-thread
-              (:wat::test::assert-eq 99 (:wat::core::i64::+'2 2 2)))]
+              (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2)))]
     (:wat::core::match (:wat::kernel::RunResult/failure result)
       -> :wat::core::nil
       ((:wat::core::Some _f) :wat::core::nil)

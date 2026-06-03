@@ -11,24 +11,31 @@ like `u8`/`u32`) follow the recipe with zero re-thinking.
 ordering for i64, f64) — the smallest demonstration that the doctrine is
 reusable, not just one-shot.
 
-## STATUS (post-probe, 2026-05-27 night)
+## STATUS (RESUMING 2026-06-03 — Gate 1 GREEN, unblocked)
 
-**FM-2-bis probe `tests/probe_arc237_8b_defclause_arithmetic.rs` ran at HEAD `3e3acbbb`+.** Empirical findings:
+**The `&` blocker is gone, and no precursor stone is needed.** The original probe (2026-05-27, HEAD `3e3acbbb`) found Gate 1 RED — defclause's argspec parser rejected `&` rest-binders — and proposed a precursor sub-stone (237.8b-prep) to mint that support. **That precursor was SUPERSEDED by arc 241** (function-signature unification), which consolidated the four divergent argspec parsers into one canonical parser and extended *that* with `&` (green since 241.5 `639b4862`; arc 241 closed `5d2e3db1`). The `&` work the prep-stone would have done was absorbed — and done once, across all four call sites — by 241. **237.8b ships directly; the two-stone block is moot.**
+
+**The first resume attempt (2026-06-02) surfaced a *different* blocker** — the nil-value-as-type-keyword heresy — which spawned arc 244 and was **annihilated** (`WatAST::NilLit`; closed `ebf440c4`). Chain: **237 ⇠ 241 (closed) ⇠ 244 (closed)** — all children closed; 237 resumes clean.
+
+**Probe re-run 2026-06-03** (`tests/probe_arc237_8b_defclause_arithmetic.rs`): **12 passed / 0 failed / 7 ignored.**
 
 | Gate | State | Notes |
 |---|---|---|
-| 1 (defclause `&` rest-binder support) | **RED** — defclause's argspec parser rejects `&`: *"defclause arg-vector triple at position 1 must be `name <- :T`; got symbol where `<-` was expected"* | **8b BLOCKED until precursor ships.** Stone **237.8b-prep** required: mint defclause `&` rest-binder support (parser extension + clause-matching + binding-to-Vector<T> at eval). The recipe's 3+-ary fold clauses need this. |
-| 2 (defclause first-match by arg-`<-`-Type) | GREEN | defclause CAN dispatch on arg-Type with `<-` annotation; no `:guard` required. |
-| 2-cross (cross-type → :NoMatchingClause) | GREEN | Mixed (i64, f64) args yield `:NoMatchingClause` correctly. **THE DECISION enforced via clause-absence, no special-case logic.** |
-| 3 (0-ary clause body literal `0` infers as `:i64`) | GREEN | `([] -> :wat::core::i64 0)` works; Lisp identity defaults trivial. |
-| 4a (i64 ordering primitives correctness) | GREEN | Existing 237.3 aliases (`:i64::<`, `:i64::>`, `:i64::>=`) work correctly. |
-| 4b (f64 NaN ordering) | IGNORED (mint-confirmer) | Awaiting `:wat::core::f64::<` mint. |
+| 1 (defclause `&` rest-binder support) | **GREEN** | `gate_1_defclause_supports_rest_binder` passes — the `&` is live via arc 241. The recipe's 3+-ary fold clauses are now expressible. |
+| 2 (defclause first-match by arg-`<-`-Type) | GREEN | defclause dispatches on arg-Type with `<-`; no `:guard` required. |
+| 2-cross (cross-type → :NoMatchingClause) | GREEN | Mixed (i64, f64) args yield `:NoMatchingClause`. THE DECISION enforced by clause-ABSENCE, no special-case logic. |
+| 3 (0-ary clause body literal `0` infers `:i64`) | GREEN | `([] -> :wat::core::i64 0)` works; Lisp identity defaults trivial. |
+| 4a (i64 ordering primitives) | GREEN | 237.3 aliases (`:i64::<`, `:i64::>`, `:i64::>=`) correct. |
+| 4b + the 6 mint-confirmers | IGNORED (await THIS stone's mints) | The 7 ignored gates ARE this stone's spec — see below. |
 
-**Strategy revision**: 8b becomes a TWO-STONE block:
-- **237.8b-prep** — mint defclause `&` rest-binder support. Substrate stone. Small surface (parser + check-time + eval-time additions; ~30-50 lines). FM-2-bis probe = existing `probe_arc237_8b_defclause_arithmetic.rs` Gate 1 (un-ignore after extension lands).
-- **237.8b** — the recipe-lock + numeric grid (this stone), shipped AFTER 8b-prep makes Gate 1 green.
+**The 7 ignored gates are the work order** (each annotated in the probe with its un-ignore mint):
+- `mint_i64_lte_works` → mint `:wat::core::i64::<=` (completes the i64 ordering set)
+- `mint_f64_ordering_basic` + `gate_4b_f64_nan_ordering` → mint the f64 ordering family (`:f64::<` `>` `<=` `>=`; NaN-correct)
+- `mint_i64_not_eq_renamed` → rename `:i64::!=` → `:i64::not=` (HARD CUT)
+- `mint_arith_zero_ary_plus_identity` / `..._star_identity` → migrate `+`/`*` to wat defclauses with a 0-ary identity clause
+- `mint_arith_zero_ary_minus_errors` → migrate `-` (and `/`) to wat defclauses with NO 0-ary clause (0-ary → `:NoMatchingClause`)
 
-Per the spawn-block winding discipline: parent stone (8b) cannot close until precursor (8b-prep) closes. 8b-prep ships first; 8b uses the just-shipped capability.
+**Remaining work = the 16 substrate changes (§Crawl) + the defclause migration + the Rust-handler deletes (`infer_arithmetic`, `eval_arithmetic_variadic`, `is_numeric`, `infer_comparison`'s ordering arms) + the per-Type variadic wat-fn deletes + the consumer cascade.** Strategy is now ONE stone. Proceed: update this STATUS (✓ done) → draft BRIEF + EXPECTATIONS → baseline re-run → spawn Shadowdancer.
 
 ## Locked decisions (per dialogue 2026-05-27 night)
 

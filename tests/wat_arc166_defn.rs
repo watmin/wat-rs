@@ -69,7 +69,7 @@ fn defn_simple_compiles_and_runs() {
     let src = r#"
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+'2 x y))
+          (:wat::core::i64::+ x y))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add 2 3))
     "#;
@@ -111,7 +111,7 @@ fn defn_recursive_factorial_works() {
           [n <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             1
-            (:wat::core::i64::*'2 n (:user::fact (:wat::core::i64::-'2 n 1)))))
+            (:wat::core::i64::* n (:user::fact (:wat::core::i64::- n 1)))))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::fact 5))
     "#;
@@ -132,7 +132,7 @@ fn defn_at_top_level_position() {
     let src = r#"
         (:wat::core::defn :user::double
           [x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::*'2 x 2))
+          (:wat::core::i64::* x 2))
     "#;
     startup_ok(src);
 }
@@ -149,10 +149,10 @@ fn defn_inside_top_level_do_works() {
         (:wat::core::do
           (:wat::core::defn :user::inc
             [x <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+'2 x 1))
+            (:wat::core::i64::+ x 1))
           (:wat::core::defn :user::dec
             [x <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::-'2 x 1)))
+            (:wat::core::i64::- x 1)))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::inc (:user::dec 10)))
     "#;
@@ -176,7 +176,7 @@ fn defn_inside_top_level_let_body_works() {
           [offset 10]
           (:wat::core::defn :user::add-offset
             [x <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+'2 x offset)))
+            (:wat::core::i64::+ x offset)))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add-offset 5))
     "#;
@@ -272,7 +272,7 @@ fn defn_redef_same_name_forbidden_by_default() {
           x)
         (:wat::core::defn :user::f
           [x <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+'2 x 1))
+          (:wat::core::i64::+ x 1))
     "#;
     let err = startup_err(src);
     assert!(
@@ -322,7 +322,7 @@ fn defn_reflection_lookup_define_resolves() {
     let src = r#"
         (:wat::core::defn :user::add
           [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+'2 x y))
+          (:wat::core::i64::+ x y))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::match

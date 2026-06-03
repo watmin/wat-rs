@@ -218,7 +218,7 @@
                     ;; Unchanged
                     entry)
                 next-vec (:wat::core::conj new-vec updated-entry)
-                next-pos (:wat::core::i64::+'2 cur-pos 1)]
+                next-pos (:wat::core::i64::+ cur-pos 1)]
                (:wat::core::Tuple next-vec next-pos))))]
        (:wat::core::first result)))
 
@@ -364,7 +364,7 @@
                (:counter::dispatch3
                  admin-wire-rx admin-resp-tx
                  new-registry
-                 (:wat::core::i64::+'2 next-id 1))))
+                 (:wat::core::i64::+ next-id 1))))
            ;; Deprovision: filter registry, release server-tx, respond
            ((:counter::AdminReq::Deprovision dep-id)
              (:wat::core::let
@@ -431,7 +431,7 @@
                    ;; Increment: compute new-n; reply Ok(new-n); update state; recur
                    ((:counter::UserReq::Increment n)
                      (:wat::core::let
-                       [new-n     (:wat::core::i64::+'2 state n)
+                       [new-n     (:wat::core::i64::+ state n)
                         _sent
                           (:wat::core::Result/expect -> :wat::core::nil
                             (:wat::kernel::send server-tx

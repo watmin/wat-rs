@@ -107,7 +107,7 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
               (:wat::core::Vector :wat::core::i64 ~@items)
               ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+'2 acc x))))
+                (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::sum-of 100 1 2 3))
     "#;
@@ -131,7 +131,7 @@ fn variadic_macro_requires_at_least_fixed_arity() {
               (:wat::core::Vector :wat::core::i64 ~@items)
               ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+'2 acc x))))
+                (:wat::core::i64::+ acc x))))
 
         (:wat::core::defn :user::main [] -> :wat::core::i64 (:my::sum-of))
     "#;
@@ -170,7 +170,7 @@ fn rest_marker_without_binder_refused_at_registration() {
           [x <- :AST<wat::core::i64>
            &]
           -> :AST<wat::holon::HolonAST>
-          `(:wat::core::i64::+'2 ~x 0))
+          `(:wat::core::i64::+ ~x 0))
 
         (:wat::core::defn :user::main [] -> :wat::core::i64 0)
     "#;

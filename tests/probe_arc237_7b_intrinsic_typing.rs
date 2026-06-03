@@ -73,7 +73,7 @@ fn get_vector_precise_element_typing() {
         eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
                                     -> :wat::core::i64
-                                    ((:wat::core::Some x) (:wat::core::i64::+'2 x 5))
+                                    ((:wat::core::Some x) (:wat::core::i64::+ x 5))
                                     (:wat::core::None -1)))"#),
         Value::i64(25),
         "get index 1 -> Some(20); 20 + 5 = 25 — proves element x is typed i64",
