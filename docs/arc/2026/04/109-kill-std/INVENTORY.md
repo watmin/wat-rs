@@ -1639,7 +1639,16 @@ User: *"I want to be as clojure as we can be — if double slash is how division
 
 **The principle (worth keeping):** *Clojure-faithfulness includes Clojure's warts.* Cherry-picking only the pretty parts would be the dishonesty — selective fidelity is a lie about the dialect (the same be-what-you-claim ethos as the rest of the substrate). `clojure.core//` is real; so `wat.core.i64//` stands.
 
-**STILL OPEN — the one real gate:** the keyword-as-value snag. Types are `:keywords` because keywords are first-class *values* ([[encoding-doctrine]]); dropping the `:` to make them bare symbols means the AST must carry a type that is no longer a value. Glyphs are decided; this semantic move is the four-questions gate.
+**The keyword-as-value gate — DIRECTION ANSWERED 2026-06-03 (user); the *how* is the arc.** User: wants to *"shift away from keywords as func names"* — has been calling the current `:wat::core::*` forms **"colon quoted symbols."** That name is the diagnosis: `:wat::core::+` is keyword *syntax* (`:foo` = a self-evaluating *value* in EDN/Clojure) wearing symbol *semantics* (a *name* that resolves to a function). Keyword-shaped, symbol-souled — the same glyph-lies-about-semantics defect as `^`-for-mandatory.
+
+Clojure's line is bright: **symbols NAME (they resolve — `clojure.core/+` → the fn); keywords are VALUES (`:status`, `:ok` — keys/tags, self-evaluating).** You never name a function with a keyword. So the gate dissolves rather than blocks:
+- Function names → **symbols** (`wat.core/+`)
+- Type names → **symbols** (`wat.core/i64`)
+- `:keyword` → retires to **pure values** only (map keys, enum tags) — exactly Clojure's job for it
+
+The gate was "types are `:keywords` *because* keywords are values" — the answer is **stop overloading keywords**: names become symbols, keywords stay values, the keyword/symbol distinction becomes Clojure-honest.
+
+**The real work (the four-questions fight) is the evaluation-model shift, not the direction:** a symbol in head position must *resolve to a function and apply* (standard Lisp), retiring the keyword-head special-case the evaluator runs today. How the reader/resolver/AST carry a name that now *evaluates* (vs the current self-evaluating keyword) is the arc's substance. Annotation-position symbols (`[a :- wat.core/i64]`) are read as type-literals, not evaluated — position determines meaning, as in any Lisp.
 
 **Status:** glyphs DECIDED (`/` rendering, math ops, accept `//`); blocked only on the keyword-as-value gate; foundational rename, its own future arc. Co-sequencing with 185 no longer needed — the "as Clojure" stance contraindicates 185.
 - Grok research notes (user-shared 2026-05-23 evening) — verbatim Clojure type-hint precedent + multi-arity examples
