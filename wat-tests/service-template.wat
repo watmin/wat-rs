@@ -213,19 +213,21 @@
      (:wat::core::let
             [pairs
               (:wat::core::map
-                (:wat::core::range 0 count)
                 (:wat::core::fn [_i <- :wat::core::i64] -> :wat::kernel::Channel<svc::Request>
-                  (:wat::kernel::make-bounded-channel :svc::Request 1)))
+                  (:wat::kernel::make-bounded-channel :svc::Request 1))
+                (:wat::core::range 0 count))
 
              req-txs
-              (:wat::core::map pairs
+              (:wat::core::map
                 (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqTx
-                  (:wat::core::first p)))
+                  (:wat::core::first p))
+                pairs)
 
              req-rxs
-              (:wat::core::map pairs
+              (:wat::core::map
                 (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqRx
-                  (:wat::core::second p)))
+                  (:wat::core::second p))
+                pairs)
 
              pool
               (:wat::kernel::HandlePool::new "svc-template" req-txs)

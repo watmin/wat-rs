@@ -71,21 +71,18 @@ fn regression_variadic_plus_via_foldl() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "Arc 247: un-ignore after `map` flips to fn-first (map f xs)"]
 fn mint_map_fn_first() {
     let body = format!("(:wat::core::= (:wat::core::map {INC} [1 2 3]) [2 3 4])");
     assert_eq!(eval_bool_expr(&body).unwrap(), Value::bool(true));
 }
 
 #[test]
-#[ignore = "Arc 247: un-ignore after `filter` flips to fn-first (filter pred xs)"]
 fn mint_filter_fn_first() {
     let body = format!("(:wat::core::= (:wat::core::filter {GT1} [1 2 3]) [2 3])");
     assert_eq!(eval_bool_expr(&body).unwrap(), Value::bool(true));
 }
 
 #[test]
-#[ignore = "Arc 247: un-ignore after `foldl` flips to fn-first (foldl f init xs)"]
 fn mint_foldl_fn_first() {
     let body = format!("(:wat::core::= (:wat::core::foldl {ADD} 0 [1 2 3]) 6)");
     assert_eq!(eval_bool_expr(&body).unwrap(), Value::bool(true));
@@ -97,7 +94,6 @@ fn mint_foldl_fn_first() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "Arc 247: un-ignore after coll-first `(map xs f)` is HARD CUT"]
 fn mint_map_coll_first_is_gone() {
     let body = format!("(:wat::core::= (:wat::core::map [1 2 3] {INC}) [2 3 4])");
     assert!(!checks_ok(&body), "coll-first `(map xs f)` must be a check error after the flip");

@@ -1,6 +1,6 @@
 # Arc 247 — Clojure-honest seq-HOF order (fn-first)
 
-**Status:** OPEN 2026-06-03. Spawned from arc 237's wind-down — child of the generative-macro need (237.8c's equality wants a macro-generated defclause; the generator is a comprehension; the generative layer must stand on a `map` that tells the truth about the dialect). Spawn chain: **237 ⇠ (generative macros) ⇠ 247 (this — the Clojure-honest foundation).** Deepest dependency; built first.
+**Status:** ✅ CLOSED 2026-06-03 (`SCORE.md` — REMARKABLE, no R2; probe 5/0/0, lib 895/0/1; ~65 sites swept; coll-first HARD CUT; resolves arc 109 § N.1; sibling `->>` banked as arc 248). Spawned from arc 237's wind-down — child of the generative-macro need (237.8c's equality wants a macro-generated defclause; the generator is a comprehension; the generative layer must stand on a `map` that tells the truth about the dialect). Spawn chain: **237 ⇠ (generative macros) ⇠ 247 (this — the Clojure-honest foundation).** Deepest dependency; built first.
 
 **Implements arc 109 INVENTORY § N.1** — *"`:wat::core::map` arg order is backwards"* (`docs/arc/2026/04/109-kill-std/INVENTORY.md:1389`). Banked during 109's wind-down; the divergence surfaced at the **arc 232.0** research probe (sonnet wrote `(map xs fn)` and needed a separate note to remember the order — the natural reach is fn-first). N.1's target is exactly this arc's: `(map f xs)`, *"audit should sweep the family, not just map"* (map/filter/reduce/for-each). **Closing 247 resolves N.1** — mark it RESOLVED in 109's INVENTORY when this arc lands.
 

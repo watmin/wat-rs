@@ -104,10 +104,10 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
            & items <- :AST<wat::holon::Holons>]
           -> :AST<wat::holon::HolonAST>
           `(:wat::core::foldl
-              (:wat::core::Vector :wat::core::i64 ~@items)
-              ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))))
+                (:wat::core::i64::+ acc x))
+              ~init
+              (:wat::core::Vector :wat::core::i64 ~@items)))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::sum-of 100 1 2 3))
     "#;
@@ -128,10 +128,10 @@ fn variadic_macro_requires_at_least_fixed_arity() {
            & items <- :AST<wat::holon::Holons>]
           -> :AST<wat::holon::HolonAST>
           `(:wat::core::foldl
-              (:wat::core::Vector :wat::core::i64 ~@items)
-              ~init
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))))
+                (:wat::core::i64::+ acc x))
+              ~init
+              (:wat::core::Vector :wat::core::i64 ~@items)))
 
         (:wat::core::defn :user::main [] -> :wat::core::i64 (:my::sum-of))
     "#;

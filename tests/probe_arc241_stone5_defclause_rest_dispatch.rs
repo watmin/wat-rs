@@ -74,10 +74,12 @@ fn contract_01_variadic_min_with_rest_succeeds() {
         (:wat::core::defclause :my::sum-all
           ([first <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl rest first
+            (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n)))))
+                (:wat::core::i64::+ acc n))
+              first
+              rest)))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
     "#;
     let result = try_compute(src);
@@ -95,10 +97,12 @@ fn contract_02_empty_rest_succeeds() {
         (:wat::core::defclause :my::sum-all
           ([first <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl rest first
+            (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n)))))
+                (:wat::core::i64::+ acc n))
+              first
+              rest)))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 42))
     "#;
     let result = try_compute(src);
@@ -153,10 +157,12 @@ fn contract_05_rest_element_type_mismatch_errors() {
         (:wat::core::defclause :my::sum-all
           ([first <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl rest first
+            (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n)))))
+                (:wat::core::i64::+ acc n))
+              first
+              rest)))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 "three"))
     "#;
     // Either startup fails (type-check catches it) OR compute fails (dispatch
@@ -220,10 +226,12 @@ fn contract_08_mixed_clause_set_first_match_wins() {
           ([x <- :wat::core::i64] -> :wat::core::i64 x)
           ([first <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl rest first
+            (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n)))))
+                (:wat::core::i64::+ acc n))
+              first
+              rest)))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::flex 10 20 30))
     "#;
     let result = try_compute(src);

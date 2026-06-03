@@ -161,11 +161,12 @@
    (:wat::core::defn :counter::registry-rxs
      [registry-vec <- :counter::RegistryVec]
      -> :wat::core::Vector<wat::kernel::Receiver<counter::Wire>>
-     (:wat::core::map registry-vec
+     (:wat::core::map
        (:wat::core::fn
          [entry <- :counter::RegistryEntry]
           -> :wat::kernel::Receiver<counter::Wire>
-         (:wat::core::second entry))))
+         (:wat::core::second entry))
+       registry-vec))
 
    (:wat::core::defn :counter::registry-provision
      [registry-vec <- :counter::RegistryVec
@@ -182,12 +183,13 @@
      [registry-vec <- :counter::RegistryVec
       id           <- :wat::core::Uuid]
      -> :counter::RegistryVec
-     (:wat::core::filter registry-vec
+     (:wat::core::filter
        (:wat::core::fn
          [entry <- :counter::RegistryEntry]
           -> :wat::core::bool
          (:wat::core::not
-           (:wat::core::= (:wat::core::first entry) id)))))
+           (:wat::core::= (:wat::core::first entry) id)))
+       registry-vec))
 
    (:wat::core::defn :counter::registry-update-state
      [registry-vec <- :counter::RegistryVec
@@ -199,7 +201,7 @@
                (:wat::core::Vector :counter::RegistryEntry)
                0)
         result
-         (:wat::core::foldl registry-vec init
+         (:wat::core::foldl
            (:wat::core::fn
              [acc   <- :(wat::core::Vector<counter::RegistryEntry>,wat::core::i64)
               entry <- :counter::RegistryEntry]
@@ -218,7 +220,9 @@
                     entry)
                 next-vec (:wat::core::conj new-vec updated-entry)
                 next-pos (:wat::core::i64::+ cur-pos 1)]
-               (:wat::core::Tuple next-vec next-pos))))]
+               (:wat::core::Tuple next-vec next-pos)))
+           init
+           registry-vec)]
        (:wat::core::first result)))
 
    ;; ─── Server dispatch loop ─────────────────────────────────────────────────

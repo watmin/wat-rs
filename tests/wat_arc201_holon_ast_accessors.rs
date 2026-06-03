@@ -169,9 +169,11 @@ fn bundle_children_walks_parametric_type_slot() {
     let src = r##"
 
         (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::foldl xs init
+          (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ acc x))))
+                        (:wat::core::i64::+ acc x))
+                      init
+                      xs))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let

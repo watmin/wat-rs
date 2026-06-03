@@ -104,11 +104,12 @@
 ;; the result corresponds to entry i in routing-vec).  The result is
 ;; fed to (:wat::kernel::select ...) alongside [control-rx].
 (:wat::core::defn :wat::kernel::services::StdInService/routing-rxs [routing-vec <- :wat::kernel::services::StdInService::RoutingVec] -> :wat::core::Vector<wat::kernel::services::StdInService::EventRx>
-  (:wat::core::map routing-vec
+  (:wat::core::map
       (:wat::core::fn
         [entry <- :wat::kernel::services::StdInService::RoutingEntry]
          -> :wat::kernel::services::StdInService::EventRx
-        (:wat::core::second entry))))
+        (:wat::core::second entry))
+      routing-vec))
 
 
 ;; ─── Helper: handle Event::Add ────────────────────────────────────────────
@@ -123,12 +124,13 @@
 ;;
 ;; Filters out the entry whose thread-id matches.  Returns the new vec.
 (:wat::core::defn :wat::kernel::services::StdInService/handle-remove [routing-vec <- :wat::kernel::services::StdInService::RoutingVec target-id <- :wat::kernel::ThreadId] -> :wat::kernel::services::StdInService::RoutingVec
-  (:wat::core::filter routing-vec
+  (:wat::core::filter
       (:wat::core::fn
         [entry <- :wat::kernel::services::StdInService::RoutingEntry]
          -> :wat::core::bool
         (:wat::core::not
-          (:wat::core::= (:wat::core::first entry) target-id)))))
+          (:wat::core::= (:wat::core::first entry) target-id)))
+      routing-vec))
 
 
 ;; ─── Helper: handle Event::Read at index idx ──────────────────────────────

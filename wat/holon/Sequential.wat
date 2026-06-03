@@ -32,8 +32,8 @@
      (:wat::core::match (:wat::core::first positioned) -> :wat::holon::HolonAST
        ((:wat::core::Some head)
          (:wat::core::foldl
-           (:wat::core::rest positioned)
-           head
            (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-             (:wat::holon::Bind acc x))))
+             (:wat::holon::Bind acc x))
+           head
+           (:wat::core::rest positioned)))
        (:wat::core::None (:wat::holon::to-holon "Sequential-empty-input")))))

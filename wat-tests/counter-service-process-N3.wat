@@ -251,7 +251,7 @@
                 -> :wat::core::i64
                 (:wat::core::let
                   [init   (:wat::core::Tuple -1 0)
-                   result (:wat::core::foldl registry init
+                   result (:wat::core::foldl
                              (:wat::core::fn
                                [acc   <- :(wat::core::i64,wat::core::i64)
                                 entry <- :sub::RegEntry]
@@ -264,7 +264,9 @@
                                   match? (:wat::core::= eid target)
                                   new-found (:wat::core::if match? -> :wat::core::i64 estate found)
                                   new-seen  (:wat::core::i64::+ seen 1)]
-                                 (:wat::core::Tuple new-found new-seen))))]
+                                 (:wat::core::Tuple new-found new-seen)))
+                             init
+                             registry)]
                   (:wat::core::first result)))
 
               ;; Update state for a given id in the registry; returns new registry
@@ -277,7 +279,7 @@
                   [init   (:wat::core::Tuple
                              (:wat::core::Vector :sub::RegEntry)
                              0)
-                   result (:wat::core::foldl registry init
+                   result (:wat::core::foldl
                              (:wat::core::fn
                                [acc   <- :(wat::core::Vector<sub::RegEntry>,wat::core::i64)
                                 entry <- :sub::RegEntry]
@@ -293,7 +295,9 @@
                                               entry)
                                   next-vec (:wat::core::conj new-vec updated)
                                   next-pos (:wat::core::i64::+ pos 1)]
-                                 (:wat::core::Tuple next-vec next-pos))))]
+                                 (:wat::core::Tuple next-vec next-pos)))
+                             init
+                             registry)]
                   (:wat::core::first result)))
 
               ;; Remove entry by id from registry
@@ -301,12 +305,13 @@
                 [registry <- :wat::core::Vector<sub::RegEntry>
                  target   <- :wat::core::Uuid]
                 -> :wat::core::Vector<sub::RegEntry>
-                (:wat::core::filter registry
+                (:wat::core::filter
                   (:wat::core::fn
                     [entry <- :sub::RegEntry]
                      -> :wat::core::bool
                     (:wat::core::not
-                      (:wat::core::= (:wat::core::first entry) target)))))
+                      (:wat::core::= (:wat::core::first entry) target)))
+                  registry))
 
               ;; ── Admin handler ──────────────────────────────────────────
               ;; Called from dispatch when Wire::Admin received AND server-id matches.

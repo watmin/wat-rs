@@ -58,11 +58,11 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold
-                      (:wat::core::Vector :wat::core::i64 1 2 3 4)
-                      0
                       (:wat::core::fn
                         [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::+ acc x))))
+                        (:wat::core::+ acc x))
+                      0
+                      (:wat::core::Vector :wat::core::i64 1 2 3 4)))
     "##;
     match run(src) {
         Value::i64(n) => assert_eq!(n, 10, "expected alias of foldl to sum [1,2,3,4] from 0 → 10; got {}", n),

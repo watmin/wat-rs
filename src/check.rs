@@ -16826,7 +16826,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 056 — sort-by with user-supplied less-than predicate.
-    // `(sort-by xs less?) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
+    // Arc 247: fn-first — `(sort-by less? xs) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
     // The user owns asc vs desc via the predicate; key-extraction is
     // the predicate composing inner accessors. Common Lisp tradition.
     env.register(
@@ -16834,73 +16834,77 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
-                vec_of(t_var()),
                 TypeExpr::Fn {
                     args: vec![t_var(), t_var()],
                     ret: Box::new(TypeExpr::Path(":wat::core::bool".into())),
                 },
+                vec_of(t_var()),
             ],
             ret: vec_of(t_var()),
             rest_param_type: None,
         },
     );
+    // Arc 247: fn-first — (map f xs) -> Vec<U>
     env.register(
         ":wat::core::map".into(),
         TypeScheme {
             type_params: vec!["T".into(), "U".into()],
             params: vec![
-                vec_of(t_var()),
                 TypeExpr::Fn {
                     args: vec![t_var()],
                     ret: Box::new(u_var()),
                 },
+                vec_of(t_var()),
             ],
             ret: vec_of(u_var()),
             rest_param_type: None,
         },
     );
+    // Arc 247: fn-first — (foldl f init xs) -> Acc
     env.register(
         ":wat::core::foldl".into(),
         TypeScheme {
             type_params: vec!["T".into(), "Acc".into()],
             params: vec![
-                vec_of(t_var()),
-                acc_var(),
                 TypeExpr::Fn {
                     args: vec![acc_var(), t_var()],
                     ret: Box::new(acc_var()),
                 },
+                acc_var(),
+                vec_of(t_var()),
             ],
             ret: acc_var(),
             rest_param_type: None,
         },
     );
+    // Arc 247: fn-first — (foldr f init xs) -> Acc
     env.register(
         ":wat::core::foldr".into(),
         TypeScheme {
             type_params: vec!["T".into(), "Acc".into()],
             params: vec![
-                vec_of(t_var()),
-                acc_var(),
                 TypeExpr::Fn {
                     args: vec![t_var(), acc_var()],
                     ret: Box::new(acc_var()),
                 },
+                acc_var(),
+                vec_of(t_var()),
             ],
             ret: acc_var(),
             rest_param_type: None,
         },
     );
+    // Arc 247: fn-first — (filter pred xs) -> Vec<T>
     env.register(
         ":wat::core::filter".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
-                vec_of(t_var()),
                 TypeExpr::Fn {
                     args: vec![t_var()],
                     ret: Box::new(bool_ty()),
                 },
+                vec_of(t_var()),
             ],
             ret: vec_of(t_var()),
             rest_param_type: None,

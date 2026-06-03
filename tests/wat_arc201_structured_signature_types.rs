@@ -118,9 +118,11 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     let src = r##"
 
         (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::foldl xs init
+          (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ acc x))))
+                        (:wat::core::i64::+ acc x))
+                      init
+                      xs))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -297,11 +299,11 @@ fn define_alias_round_trips_on_parametric_signature() {
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:user::my-fold
-                      (:wat::core::Vector :wat::core::i64 1 2 3 4)
-                      0
                       (:wat::core::fn
                         [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::+ acc x))))
+                        (:wat::core::+ acc x))
+                      0
+                      (:wat::core::Vector :wat::core::i64 1 2 3 4)))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println

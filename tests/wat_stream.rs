@@ -427,9 +427,11 @@ fn chunks_into_map_composes() {
                                 ())))
                           2)
                         (:wat::core::fn [batch <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-                          (:wat::core::foldl batch 0
+                          (:wat::core::foldl
                             (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                              (:wat::core::i64::+ acc x)))))))
+                              (:wat::core::i64::+ acc x))
+                            0
+                            batch)))))
     "#;
     assert_eq!(collected_i64(src), vec![3, 7, 5]);
 }

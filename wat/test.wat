@@ -144,9 +144,11 @@
 ;; Any line matching passes. Uses foldl over wat::core::Vector<String> to OR the
 ;; matches — a straightforward "any" without a new primitive.
 (:wat::core::defn :wat::test::any-line-matches [pattern <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
-  (:wat::core::foldl lines false
+  (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bool line <- :wat::core::String] -> :wat::core::bool
-        (:wat::core::or acc (:wat::core::regex::matches? pattern line)))))
+        (:wat::core::or acc (:wat::core::regex::matches? pattern line)))
+      false
+      lines))
 
 (:wat::core::defn :wat::test::assert-stderr-matches [result <- :wat::kernel::RunResult pattern <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let

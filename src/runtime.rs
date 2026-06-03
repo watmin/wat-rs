@@ -11232,12 +11232,13 @@ fn eval_vec_sort_by(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
+    // Arc 247: fn-first — (sort-by keyfn xs)
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
+    let xs = require_vec(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(&other))
@@ -11297,8 +11298,9 @@ fn eval_vec_sort_by(
     Ok(Value::Vec(Arc::new(sorted)))
 }
 
-/// `(:wat::core::map xs f)` → `Vec<U>`. Calls `f` on each element.
+/// `(:wat::core::map f xs)` → `Vec<U>`. Calls `f` on each element.
 /// `f` must be a callable Value (fn or define-registered).
+/// Arc 247: fn-first — (map f xs).
 fn eval_vec_map(
     args: &[WatAST],
     list_span: &Span,
@@ -11313,8 +11315,9 @@ fn eval_vec_map(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::map", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
+    // Arc 247: fn-first — (map f xs)
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
+    let xs = require_vec(":wat::core::map", eval_inner(&args[1], env, sym)?.value_owned())?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -11333,8 +11336,9 @@ fn eval_vec_map(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// `(:wat::core::foldl xs init f)` → acc. `f : (acc, item) → acc`.
+/// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
 /// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's driver.
+/// Arc 247: fn-first — (foldl f init xs).
 /// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
 fn eval_vec_foldl(
     args: &[WatAST],
@@ -11350,9 +11354,10 @@ fn eval_vec_foldl(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::foldl", eval_inner(&args[0], env, sym)?.value_owned())?;
+    // Arc 247: fn-first — (foldl f init xs)
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let f = eval_inner(&args[2], env, sym)?.value_owned();
+    let xs = require_vec(":wat::core::foldl", eval_inner(&args[2], env, sym)?.value_owned())?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -11370,9 +11375,10 @@ fn eval_vec_foldl(
     Ok(acc)
 }
 
-/// `(:wat::core::foldr xs init f)` → acc. Right-associative fold.
+/// `(:wat::core::foldr f init xs)` → acc. Right-associative fold.
 /// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the Vec in reverse
 /// so the call stack is bounded by iteration, not recursion.
+/// Arc 247: fn-first — (foldr f init xs).
 fn eval_vec_foldr(
     args: &[WatAST],
     list_span: &Span,
@@ -11387,9 +11393,10 @@ fn eval_vec_foldr(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::foldr", eval_inner(&args[0], env, sym)?.value_owned())?;
+    // Arc 247: fn-first — (foldr f init xs)
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let f = eval_inner(&args[2], env, sym)?.value_owned();
+    let xs = require_vec(":wat::core::foldr", eval_inner(&args[2], env, sym)?.value_owned())?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -11407,8 +11414,9 @@ fn eval_vec_foldr(
     Ok(acc)
 }
 
-/// `(:wat::core::filter xs pred)` → `Vec<T>`. Keeps elements for
+/// `(:wat::core::filter pred xs)` → `Vec<T>`. Keeps elements for
 /// which `pred` returns `:bool true`. `pred` signature: `T -> :bool`.
+/// Arc 247: fn-first — (filter pred xs).
 fn eval_vec_filter(
     args: &[WatAST],
     list_span: &Span,
@@ -11423,8 +11431,9 @@ fn eval_vec_filter(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::filter", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
+    // Arc 247: fn-first — (filter pred xs)
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
+    let xs = require_vec(":wat::core::filter", eval_inner(&args[1], env, sym)?.value_owned())?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -29155,8 +29164,8 @@ mod tests {
     fn map_doubles_every_element() {
         let src = r#"
             (:wat::core::map
-              (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2)))
+              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2))
+              (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -29177,10 +29186,10 @@ mod tests {
     fn foldl_sums_with_init() {
         let src = r#"
             (:wat::core::foldl
-              (:wat::core::Vector :i64 1 2 3 4)
-              10
               (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
-                (:wat::core::i64::+ acc x)))
+                (:wat::core::i64::+ acc x))
+              10
+              (:wat::core::Vector :i64 1 2 3 4))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(20) => {}
@@ -29584,16 +29593,16 @@ mod tests {
         // concats instead.
         let src = r#"
             (:wat::core::foldl
+              (:wat::core::fn [acc <- :i64 n <- :i64] -> :i64
+                (:wat::core::i64::+ acc n))
+              0
               (:wat::core::concat
                 (:wat::core::concat
                   (:wat::core::Vector :i64 1)
                   (:wat::core::Vector :i64 2))
                 (:wat::core::concat
                   (:wat::core::Vector :i64 3)
-                  (:wat::core::Vector :i64 4)))
-              0
-              (:wat::core::fn [acc <- :i64 n <- :i64] -> :i64
-                (:wat::core::i64::+ acc n)))
+                  (:wat::core::Vector :i64 4))))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(10) => {}
@@ -29829,11 +29838,11 @@ mod tests {
         // Order-agnostic — sum of values is a stable invariant.
         let src = r#"
             (:wat::core::foldl
-              (:wat::core::values
-                (:wat::core::HashMap :String :i64 "a" 10 "b" 20 "c" 30))
-              0
               (:wat::core::fn [acc <- :i64 v <- :i64] -> :i64
-                (:wat::core::i64::+ acc v)))
+                (:wat::core::i64::+ acc v))
+              0
+              (:wat::core::values
+                (:wat::core::HashMap :String :i64 "a" 10 "b" 20 "c" 30)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(60) => {}
@@ -30100,13 +30109,13 @@ mod tests {
 
     #[test]
     fn foldr_is_right_associative() {
-        // (foldr [1 2 3] 0 -) = 1 - (2 - (3 - 0)) = 1 - (2 - 3) = 1 - (-1) = 2
+        // (foldr f init xs) = f(x0, f(x1, f(x2, init))) = 1-(2-(3-0)) = 2
         let src = r#"
             (:wat::core::foldr
-              (:wat::core::Vector :i64 1 2 3)
-              0
               (:wat::core::fn [x <- :i64 acc <- :i64] -> :i64
-                (:wat::core::i64::- x acc)))
+                (:wat::core::i64::- x acc))
+              0
+              (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(2) => {}
@@ -30116,13 +30125,13 @@ mod tests {
 
     #[test]
     fn foldl_vs_foldr_differ_on_nonassoc_op() {
-        // (foldl [1 2 3] 0 -) = ((0 - 1) - 2) - 3 = -6
+        // (foldl f init xs) where f = - : ((0 - 1) - 2) - 3 = -6
         let src_l = r#"
             (:wat::core::foldl
-              (:wat::core::Vector :i64 1 2 3)
-              0
               (:wat::core::fn [acc <- :i64 x <- :i64] -> :i64
-                (:wat::core::i64::- acc x)))
+                (:wat::core::i64::- acc x))
+              0
+              (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src_l).unwrap() {
             Value::i64(-6) => {}
@@ -30135,9 +30144,9 @@ mod tests {
         // Stone 237.8b — polymorphic `>` is now a defclause; use per-Type primitive in unit test.
         let src = r#"
             (:wat::core::filter
-              (:wat::core::Vector :i64 1 2 3 4 5)
               (:wat::core::fn [x <- :i64] -> :bool
-                (:wat::core::i64::> x 2)))
+                (:wat::core::i64::> x 2))
+              (:wat::core::Vector :i64 1 2 3 4 5))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {

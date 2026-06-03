@@ -98,17 +98,21 @@
   ([x <- :wat::core::i64
     y <- :wat::core::i64
     & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-    (:wat::core::foldl rest (:wat::core::i64::+ x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::+ acc n))))
+        (:wat::core::i64::+ acc n))
+      (:wat::core::i64::+ x y)
+      rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
     & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-    (:wat::core::foldl rest (:wat::core::f64::+ x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::+ acc n)))))
+        (:wat::core::f64::+ acc n))
+      (:wat::core::f64::+ x y)
+      rest)))
 
 (:wat::core::defclause :wat::core::-
   ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
@@ -124,17 +128,21 @@
   ([x <- :wat::core::i64
     y <- :wat::core::i64
     & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-    (:wat::core::foldl rest (:wat::core::i64::- x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::- acc n))))
+        (:wat::core::i64::- acc n))
+      (:wat::core::i64::- x y)
+      rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
     & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-    (:wat::core::foldl rest (:wat::core::f64::- x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::- acc n)))))
+        (:wat::core::f64::- acc n))
+      (:wat::core::f64::- x y)
+      rest)))
 
 (:wat::core::defclause :wat::core::*
   ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
@@ -151,17 +159,21 @@
   ([x <- :wat::core::i64
     y <- :wat::core::i64
     & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-    (:wat::core::foldl rest (:wat::core::i64::* x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::* acc n))))
+        (:wat::core::i64::* acc n))
+      (:wat::core::i64::* x y)
+      rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
     & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-    (:wat::core::foldl rest (:wat::core::f64::* x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::* acc n)))))
+        (:wat::core::f64::* acc n))
+      (:wat::core::f64::* x y)
+      rest)))
 
 (:wat::core::defclause :wat::core::/
   ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
@@ -177,17 +189,21 @@
   ([x <- :wat::core::i64
     y <- :wat::core::i64
     & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-    (:wat::core::foldl rest (:wat::core::i64::/ x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::/ acc n))))
+        (:wat::core::i64::/ acc n))
+      (:wat::core::i64::/ x y)
+      rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
     & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
-    (:wat::core::foldl rest (:wat::core::f64::/ x y)
+    (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
-        (:wat::core::f64::/ acc n)))))
+        (:wat::core::f64::/ acc n))
+      (:wat::core::f64::/ x y)
+      rest)))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;

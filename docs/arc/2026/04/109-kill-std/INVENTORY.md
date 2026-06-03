@@ -1388,6 +1388,8 @@ entities + EDN-strict-conformance chain landed.
 
 ### N.1 — `:wat::core::map` arg order is backwards
 
+**✅ RESOLVED 2026-06-03 — arc 247** (`docs/arc/2026/06/247-clojure-hof-order/`). The flip shipped: `(map f xs)` plus the full family the note demanded — `filter`/`foldl`/`foldr`/`sort-by` all fn-first; HARD CUT of coll-first (now a check error); ~65 call sites swept; probe 5/0/0, lib 895/0/1, build clean. The "sweep the family, not just `map`" mandate honored. (Surfaced a sibling — thread-last `->>`, banked as arc 248.) Original analysis preserved below.
+
 **Current:** `(:wat::core::map <vector> <fn>)` — items before function.
 
 **Problem:** items-before-function doesn't read naturally for a higher-

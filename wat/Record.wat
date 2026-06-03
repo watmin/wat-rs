@@ -102,7 +102,6 @@
               nf        (:wat::core::i64::/ n 3)
               children  (:wat::holon::Bundle/children fields-h)
               name-strs (:wat::core::map
-                          (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
                               [idx    (:wat::core::i64::* fi 3)
@@ -111,7 +110,8 @@
                                         "Record::def: field name index out of range (recordtype emission)")
                                name-s (:wat::core::keyword/to-string
                                         (:wat::holon::from-holon name-h))]
-                              (:wat::holon::to-wat (:wat::holon::to-holon name-s)))))]
+                              (:wat::holon::to-wat (:wat::holon::to-holon name-s))))
+                          (:wat::core::range 0 nf))]
              name-strs)])
      (:wat::core::defn ~fqdn [~@fields] -> :wat::Record
        (:wat::Record::of
@@ -122,7 +122,6 @@
                 nf       (:wat::core::i64::/ n 3)
                 children (:wat::holon::Bundle/children fields-h)
                 syms     (:wat::core::map
-                           (:wat::core::range 0 nf)
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
@@ -130,7 +129,8 @@
                                          (:wat::core::Vector/get children idx)
                                          "Record::def: struct_form field name index out of range")
                                 var-w (:wat::holon::to-wat name-h)]
-                               var-w)))]
+                               var-w))
+                           (:wat::core::range 0 nf))]
                syms)]))
      ~@(:wat::core::let
            [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
@@ -139,7 +139,6 @@
             children    (:wat::holon::Bundle/children fields-h)
             fqdn-str    (:wat::core::keyword/to-string fqdn)
             accessors   (:wat::core::map
-                          (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
                               [idx          (:wat::core::i64::* fi 3)
@@ -182,7 +181,8 @@
                                       (:wat::core::string::concat
                                         (:wat::core::unquote msg-prefix)
                                         (:wat::core::type v)))
-                                    (:wat::core::unquote fi)))))))]
+                                    (:wat::core::unquote fi))))))
+                          (:wat::core::range 0 nf))]
            accessors)))
 
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
@@ -199,7 +199,6 @@
               nf        (:wat::core::i64::/ n 3)
               children  (:wat::holon::Bundle/children fields-h)
               name-strs (:wat::core::map
-                          (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
                               [idx    (:wat::core::i64::* fi 3)
@@ -208,7 +207,8 @@
                                         "Record::def: field name index out of range (recordtype emission)")
                                name-s (:wat::core::keyword/to-string
                                         (:wat::holon::from-holon name-h))]
-                              (:wat::holon::to-wat (:wat::holon::to-holon name-s)))))]
+                              (:wat::holon::to-wat (:wat::holon::to-holon name-s))))
+                          (:wat::core::range 0 nf))]
              name-strs)])
      (:wat::core::defn ~fqdn [~@fields] -> :wat::holon::Record
        (:wat::holon::Record::of
@@ -219,7 +219,6 @@
                 nf       (:wat::core::i64::/ n 3)
                 children (:wat::holon::Bundle/children fields-h)
                 syms     (:wat::core::map
-                           (:wat::core::range 0 nf)
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
@@ -227,7 +226,8 @@
                                          (:wat::core::Vector/get children idx)
                                          "Record::def: struct_form field name index out of range")
                                 var-w (:wat::holon::to-wat name-h)]
-                               var-w)))]
+                               var-w))
+                           (:wat::core::range 0 nf))]
                syms)]
          (:wat::holon::Bind
            (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/to-string fqdn)))
@@ -239,7 +239,6 @@
                       nf          (:wat::core::i64::/ n 3)
                       children    (:wat::holon::Bundle/children fields-h)
                       field-binds (:wat::core::map
-                                    (:wat::core::range 0 nf)
                                     (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                                       (:wat::core::let
                                         [idx    (:wat::core::i64::* fi 3)
@@ -256,7 +255,8 @@
                                                 (:wat::core::unquote name-s)))
                                             (:wat::holon::Atom
                                               (:wat::holon::to-holon
-                                                (:wat::core::unquote var-w))))))))]
+                                                (:wat::core::unquote var-w)))))))
+                                    (:wat::core::range 0 nf))]
                      field-binds)])
              ~(:wat::core::string::concat
                  "Record::def "
@@ -269,7 +269,6 @@
             children    (:wat::holon::Bundle/children fields-h)
             fqdn-str    (:wat::core::keyword/to-string fqdn)
             accessors   (:wat::core::map
-                          (:wat::core::range 0 nf)
                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                             (:wat::core::let
                               [idx          (:wat::core::i64::* fi 3)
@@ -312,5 +311,6 @@
                                       (:wat::core::string::concat
                                         (:wat::core::unquote msg-prefix)
                                         (:wat::core::type v)))
-                                    (:wat::core::unquote fi)))))))]
+                                    (:wat::core::unquote fi))))))
+                          (:wat::core::range 0 nf))]
            accessors)))

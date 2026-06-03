@@ -87,10 +87,12 @@ fn gate_1_defclause_supports_rest_binder() {
         (:wat::core::defclause :my::sum-all
           ([first <- :wat::core::i64
             & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl rest first
+            (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64
                                n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n)))))
+                (:wat::core::i64::+ acc n))
+              first
+              rest)))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
     "#;
     let result = try_compute(src);
