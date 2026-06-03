@@ -2,6 +2,8 @@
 
 **Status:** OPEN 2026-06-03. Spawned from arc 237's wind-down — child of the generative-macro need (237.8c's equality wants a macro-generated defclause; the generator is a comprehension; the generative layer must stand on a `map` that tells the truth about the dialect). Spawn chain: **237 ⇠ (generative macros) ⇠ 247 (this — the Clojure-honest foundation).** Deepest dependency; built first.
 
+**Implements arc 109 INVENTORY § N.1** — *"`:wat::core::map` arg order is backwards"* (`docs/arc/2026/04/109-kill-std/INVENTORY.md:1389`). Banked during 109's wind-down; the divergence surfaced at the **arc 232.0** research probe (sonnet wrote `(map xs fn)` and needed a separate note to remember the order — the natural reach is fn-first). N.1's target is exactly this arc's: `(map f xs)`, *"audit should sweep the family, not just map"* (map/filter/reduce/for-each). **Closing 247 resolves N.1** — mark it RESOLVED in 109's INVENTORY when this arc lands.
+
 ## Why — dialect honesty, not preference
 
 The substrate **claims** clojure-on-rust (CLAUDE.md: "Clojure-faithful data literals; same family as Ruby-on-C / Clojure-on-Java"). Clojure's seq higher-order functions are **fn-first** — `(map f coll)`, `(filter pred coll)`, `(reduce f init coll)`, `(sort-by keyfn coll)` — used with thread-last `->>`. The substrate's are **coll-first** (`(map xs f)` …). That is the substrate **lying about what it is** — the same conformare ethos that drove arc 243 (be what you claim) and the nil/equality reckonings this session: an identity the code contradicts is a defect, full stop. The user's call: *"we are clojure on rust … we make map dialect compliant."*
