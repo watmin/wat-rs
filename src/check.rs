@@ -4893,6 +4893,21 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // ═══ PARTITION — CLAUSE vs INTRINSIC (the declaration site) ═══════════════
+            // The collection ops below (`conj`/`get`/`assoc`/`contains`/`length`/`empty?`)
+            // are DECLARED INTRINSIC here — routed to custom `infer_*` fns — because their
+            // type requires TYPE-LEVEL COMPUTATION: the return is a function of the
+            // container's type parameters (`get`: Vector<T> → Option<T>; HashMap<K,V> + K
+            // → Option<V>; the key-arg type IS the container's K). A `defclause` clause is
+            // MONOMORPHIC (concrete arg-match, fixed return, no type-variable flow); it
+            // cannot project/flow T/K/V, so collections CANNOT be clauses (they'd need one
+            // clause per concrete instantiation — an infinite open set).
+            //   THE DISCRIMINANT: needs type-level computation → INTRINSIC (declared here);
+            //   monomorphic (numerics, equality) → `defclause`. The per-Type impls live in
+            //   runtime.rs (`eval_<container>_<op>`, routed by `dispatch_keyword_head`).
+            //   Warded home for all of this: arc 246 (`src/collection/`). Doctrine: 237.9
+            //   + memory `project_dispatch_clause_vs_intrinsic`. DO NOT make these clauses.
+            // ══════════════════════════════════════════════════════════════════════════
             // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference.
             // Tier B: element-typing enforced via infer_conj; type-preserving return (Vector<T>/HashSet<T>).
             // Custom arm because plain ∀ scheme can't enforce arg1 matches collection's element type

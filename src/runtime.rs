@@ -5736,6 +5736,17 @@ fn dispatch_keyword_head_value(
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
         ":wat::core::Tuple" => eval_tuple_ctor(args, list_span, env, sym),
+        // ═══ PARTITION (runtime side) — see the CLAUSE vs INTRINSIC marker in
+        // check.rs `infer_list`. The per-Type collection impls below
+        // (`eval_<container>_<op>`) are the runtime arm of the INTRINSIC dispatch:
+        // type-level-computing ops (`get`/`conj`/`assoc`/`contains`/`length`/`empty?`)
+        // whose type depends on the container's parameters — a `defclause` clause
+        // cannot express them. Warded home: arc 246 (`src/collection/`); doctrine:
+        // 237.9 + memory `project_dispatch_clause_vs_intrinsic`.
+        // NOTE: the "now a Dispatch declared in `wat/core.wat`" wording below is STALE
+        // — arc 241.13 retired `:wat::core::define-dispatch`; routing is via
+        // `dispatch_keyword_head` + the custom `infer_*` arms, not a wat-declared entity.
+        // ══════════════════════════════════════════════════════════════════════════
         // Arc 146 slice 2 — `:wat::core::length` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch routes to one of
         // these per-Type impls by inspecting the arg's value tag.
