@@ -120,25 +120,21 @@ fn regression_cross_type_is_check_error() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore = "237.8d: un-ignore after the per-Type equality aliases are cut"]
 fn cut_i64_eq_gone() {
     assert!(!checks_ok("(:wat::core::i64::= 1 1)"), ":i64::= must be cut (unknown keyword)");
 }
 
 #[test]
-#[ignore = "237.8d: un-ignore after the per-Type equality aliases are cut"]
 fn cut_i64_not_eq_gone() {
     assert!(!checks_ok("(:wat::core::i64::not= 1 2)"), ":i64::not= must be cut");
 }
 
 #[test]
-#[ignore = "237.8d: un-ignore after the per-Type equality aliases are cut"]
 fn cut_f64_eq_gone() {
     assert!(!checks_ok("(:wat::core::f64::= 1.0 1.0)"), ":f64::= must be cut");
 }
 
 #[test]
-#[ignore = "237.8d: un-ignore after the per-Type equality aliases are cut"]
 fn cut_f64_not_eq_gone() {
     assert!(!checks_ok("(:wat::core::f64::not= 1.0 2.0)"), ":f64::not= must be cut");
 }

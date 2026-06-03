@@ -92,25 +92,7 @@ fn regression_cross_type_is_check_error() {
     assert!(!checks_ok(r#"(:wat::core::= 1 "x")"#), "cross-type `=` must be a check error");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MINT-CONFIRMERS — `:f64::=` / `:f64::not=` do not exist at HEAD. RED → `#[ignore]`.
-// Un-ignore after the f64 equality leaves are minted (Stone 237.8c).
-// ═══════════════════════════════════════════════════════════════════════════
-
-#[test]
-fn mint_f64_eq_works() {
-    assert_eq!(eval_bool_expr("(:wat::core::f64::= 1.0 1.0)").unwrap(), Value::bool(true));
-    assert_eq!(eval_bool_expr("(:wat::core::f64::= 2.0 3.0)").unwrap(), Value::bool(false));
-}
-
-#[test]
-fn mint_f64_eq_type_locks() {
-    // The per-Type leaf accepts only f64 pairs; i64 args are a check error.
-    assert!(!checks_ok("(:wat::core::f64::= 1 2)"), ":f64::= must type-lock to f64");
-}
-
-#[test]
-fn mint_f64_not_eq_works() {
-    assert_eq!(eval_bool_expr("(:wat::core::f64::not= 1.0 2.0)").unwrap(), Value::bool(true));
-    assert_eq!(eval_bool_expr("(:wat::core::f64::not= 1.0 1.0)").unwrap(), Value::bool(false));
-}
+// Stone 237.8d — the per-Type alias mint tests (`:f64::=` / `:f64::not=`) were
+// removed here. Those aliases are HARD CUT: equality is a RELATIONAL intrinsic;
+// the canonical uniform `:wat::core::=` / `:wat::core::not=` are the only paths.
+// The regression_* tests above exercise `=`/`not=` over f64 via the uniform ops.

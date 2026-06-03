@@ -123,7 +123,7 @@ fn probe_04_factorial_demo_via_guards() {
     // Per scratch 017 ADDENDUM Demo 1 — Factorial (Erlang spirit via Path C).
     let src = r#"
         (:wat::core::defclause :my::factorial
-          ([n <- :wat::core::i64] :guard (:wat::core::i64::= n 0) -> :wat::core::i64 1)
+          ([n <- :wat::core::i64] :guard (:wat::core::= n 0) -> :wat::core::i64 1)
           ([n <- :wat::core::i64] :guard (:wat::core::i64::> n 0) -> :wat::core::i64
             (:wat::core::i64::* n (:my::factorial (:wat::core::i64::- n 1)))))
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::factorial 5))

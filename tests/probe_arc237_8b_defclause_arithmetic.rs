@@ -298,11 +298,11 @@ fn mint_f64_ordering_basic() {
     );
 }
 
-/// `:wat::core::i64::not=` MUST exist (rename from `:i64::!=` per Q-naming).
+/// `:wat::core::not=` (uniform relational intrinsic) works over i64 pairs.
 #[test]
 fn mint_i64_not_eq_renamed() {
     assert_eq!(
-        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::i64::not= 1 2))"#),
+        eval_value(r#"(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::not= 1 2))"#),
         Value::bool(true),
     );
 }

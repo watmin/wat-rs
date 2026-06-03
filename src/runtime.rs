@@ -5653,31 +5653,26 @@ fn dispatch_keyword_head_value(
         ":wat::core::not=" => eval_not_eq(head, args, list_span, env, sym),
 
         // Arc 148 slice 5 — per-Type comparison leaves
-        // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) were RETIRED.
+        // (`:wat::core::{i64,f64}::{<,>,<=,>=}`) were RETIRED.
         // Stone 237.3 re-introduces them as aliases to the polymorphic
         // ops so defclause :guard expressions can use type-qualified
         // forms (`:wat::core::i64::> x 0` etc.). Runtime delegates to
-        // the same eval_compare / eval_eq implementations.
+        // the same eval_compare / eval_f64_compare implementations.
         // Stone 237.3 aliases — per-Type i64 comparison primitives.
         // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
         // f64 ordering family minted.
-        ":wat::core::i64::=" => eval_eq(head, args, list_span, env, sym),
+        // Stone 237.8d — `:i64::=` / `:i64::not=` / `:f64::=` / `:f64::not=` HARD CUT:
+        // equality is a RELATIONAL intrinsic (uniform `=`/`not=` are the canonical path).
         ":wat::core::i64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
         ":wat::core::i64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
         ":wat::core::i64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
         // Stone 237.8b — minted (was missing from the i64 ordering set).
         ":wat::core::i64::<=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Greater),
-        // Stone 237.8b — renamed from `:i64::!=` (HARD CUT old name).
-        ":wat::core::i64::not=" => eval_not_eq(head, args, list_span, env, sym),
         // Stone 237.8b — f64 ordering family (NaN-correct via eval_f64_compare).
         ":wat::core::f64::<" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a < b),
         ":wat::core::f64::>" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a > b),
         ":wat::core::f64::<=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a <= b),
         ":wat::core::f64::>=" => eval_f64_compare(head, args, list_span, env, sym, |a, b| a >= b),
-        // Stone 237.8c — f64 equality family (type-locked aliases to the structural engine).
-        // Mirrors :i64::= / :i64::not= above; routes to the same eval_eq / eval_not_eq.
-        ":wat::core::f64::=" => eval_eq(head, args, list_span, env, sym),
-        ":wat::core::f64::not=" => eval_not_eq(head, args, list_span, env, sym),
 
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),
@@ -5737,15 +5732,22 @@ fn dispatch_keyword_head_value(
         // check.rs handles any remaining consumer sites at type-check.
         ":wat::core::Tuple" => eval_tuple_ctor(args, list_span, env, sym),
         // ═══ PARTITION (runtime side) — see the CLAUSE vs INTRINSIC marker in
-        // check.rs `infer_list`. The per-Type collection impls below
-        // (`eval_<container>_<op>`) are the runtime arm of the INTRINSIC dispatch:
-        // type-level-computing ops (`get`/`conj`/`assoc`/`contains`/`length`/`empty?`)
-        // whose type depends on the container's parameters — a `defclause` clause
-        // cannot express them. Warded home: arc 246 (`src/collection/`); doctrine:
-        // 237.9 + memory `project_dispatch_clause_vs_intrinsic`.
-        // NOTE: the "now a Dispatch declared in `wat/core.wat`" wording below is STALE
-        // — arc 241.13 retired `:wat::core::define-dispatch`; routing is via
-        // `dispatch_keyword_head` + the custom `infer_*` arms, not a wat-declared entity.
+        // check.rs `infer_list`. INTRINSIC = type-level computation; two flavors.
+        // See `docs/DISPATCH.md`.
+        //
+        //   PROJECTIVE — type flows from argument type parameters into the return.
+        //   The per-Type collection impls below (`eval_<container>_<op>`, routed by
+        //   `dispatch_keyword_head`) are the runtime arm: `get`/`conj`/`assoc`/
+        //   `contains`/`length`/`empty?` whose return depends on the container's
+        //   type params — a `defclause` cannot express them. Warded home: arc 246
+        //   (`src/collection/`).
+        //
+        //   RELATIONAL — a constraint flows between the arguments (∀T). Equality
+        //   (`eval_eq` / `eval_not_eq`, via `:wat::core::=` / `:wat::core::not=`
+        //   above) is the runtime arm: `values_equal` handles all T structurally.
+        //
+        //   NOTE: arc 241.13 retired `:wat::core::define-dispatch`; routing is via
+        //   `dispatch_keyword_head` + custom `infer_*` arms, not a wat-declared entity.
         // ══════════════════════════════════════════════════════════════════════════
         // Arc 146 slice 2 — `:wat::core::length` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch routes to one of

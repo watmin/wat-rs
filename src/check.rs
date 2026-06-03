@@ -4628,6 +4628,20 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Stone 237.8d — HARD CUT: per-Type equality aliases removed. Equality is a
+            // RELATIONAL intrinsic (see `docs/DISPATCH.md`); the canonical uniform
+            // `:wat::core::=` / `:wat::core::not=` are the only paths. These explicit
+            // arms surface the cut at check time so call sites fail with UnknownCallee
+            // rather than silently passing through the unregistered-scheme fallback.
+            ":wat::core::i64::="
+            | ":wat::core::i64::not="
+            | ":wat::core::f64::="
+            | ":wat::core::f64::not=" => {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::UnknownCallee {
+                    callee: k.clone()
+                }});
+                return CheckResult::errs(local_errors);
+            }
             // Stone 237.8b — `+`/`-`/`*`/`/` HARD CUT from this arm: those now
             // route through wat defclauses (registered in env.defclause_registrations).
             // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
@@ -4894,19 +4908,26 @@ fn infer_list(
                 };
             }
             // ═══ PARTITION — CLAUSE vs INTRINSIC (the declaration site) ═══════════════
-            // The collection ops below (`conj`/`get`/`assoc`/`contains`/`length`/`empty?`)
-            // are DECLARED INTRINSIC here — routed to custom `infer_*` fns — because their
-            // type requires TYPE-LEVEL COMPUTATION: the return is a function of the
-            // container's type parameters (`get`: Vector<T> → Option<T>; HashMap<K,V> + K
-            // → Option<V>; the key-arg type IS the container's K). A `defclause` clause is
-            // MONOMORPHIC (concrete arg-match, fixed return, no type-variable flow); it
-            // cannot project/flow T/K/V, so collections CANNOT be clauses (they'd need one
-            // clause per concrete instantiation — an infinite open set).
-            //   THE DISCRIMINANT: needs type-level computation → INTRINSIC (declared here);
-            //   monomorphic (numerics, equality) → `defclause`. The per-Type impls live in
-            //   runtime.rs (`eval_<container>_<op>`, routed by `dispatch_keyword_head`).
-            //   Warded home for all of this: arc 246 (`src/collection/`). Doctrine: 237.9
-            //   + memory `project_dispatch_clause_vs_intrinsic`. DO NOT make these clauses.
+            // INTRINSIC = type-level computation; two flavors. See `docs/DISPATCH.md`.
+            //
+            //   PROJECTIVE — a type flows from an argument's type parameters into the
+            //   return (or another argument). Collections live here: `get: Vector<T> →
+            //   Option<T>`; `HashMap<K,V> + K → Option<V>`. A `defclause` is MONOMORPHIC
+            //   (no type-variable flow), so it cannot project T/K/V — would need one clause
+            //   per concrete instantiation, an infinite open set. Routed to `infer_<op>`.
+            //
+            //   RELATIONAL — a constraint flows *between* the arguments via a type variable
+            //   (∀T). Equality lives here: `= : a:T, b:T → bool`. The clause matcher checks
+            //   each position against a FIXED named type INDEPENDENTLY — it never unifies
+            //   arg0's type with arg1's. `infer_equality` does exactly that (`unify(a, b)`).
+            //   Routed to `infer_equality`; runtime: `eval_eq` / `eval_not_eq`.
+            //
+            //   MONOMORPHIC (neither) → `defclause`. Numerics (`+`, `-`, `<`, `>`, …) live
+            //   there: concrete args, fixed per-type return, no type-variable flow anywhere.
+            //
+            //   The per-Type collection impls live in runtime.rs (`eval_<container>_<op>`,
+            //   routed by `dispatch_keyword_head`). Warded home: arc 246 (`src/collection/`).
+            //   DO NOT make these clauses.
             // ══════════════════════════════════════════════════════════════════════════
             // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference.
             // Tier B: element-typing enforced via infer_conj; type-preserving return (Vector<T>/HashSet<T>).
@@ -11123,6 +11144,8 @@ fn infer_hashset_constructor(
 /// function IS the check-side `:wat::core::<` family inference;
 /// nothing about it is anti-pattern. Per-Type comparison leaves
 /// retired in the same slice.
+// PARTITION — RELATIONAL flavor of the intrinsic dispatch: `unify(a, b)` ties
+// the two args' types ∀T, which a monomorphic clause cannot express. See `docs/DISPATCH.md`.
 fn infer_equality(
     op: &str,
     head_span: &Span,
@@ -13763,15 +13786,14 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stone 237.3 — per-type i64 comparison primitives.
     // Stone 237.8b — `!=` renamed to `not=` (HARD CUT); `<=` minted;
     // f64 ordering family minted.
+    // Stone 237.8d — `:i64::=` / `:i64::not=` HARD CUT: equality is a RELATIONAL
+    // intrinsic; uniform `:wat::core::=` / `:wat::core::not=` are the canonical path.
     for op_name in &[
-        ":wat::core::i64::=",
         ":wat::core::i64::>",
         ":wat::core::i64::<",
         ":wat::core::i64::>=",
         // Stone 237.8b — minted (was missing from i64 ordering set).
         ":wat::core::i64::<=",
-        // Stone 237.8b — renamed from `:i64::!=` (HARD CUT old name).
-        ":wat::core::i64::not=",
     ] {
         env.register(
             op_name.to_string(),
@@ -13784,27 +13806,13 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     // Stone 237.8b — f64 ordering family (NaN-correct; 4 primitives).
+    // Stone 237.8d — `:f64::=` / `:f64::not=` HARD CUT: equality is a RELATIONAL
+    // intrinsic; uniform `:wat::core::=` / `:wat::core::not=` are the canonical path.
     for op_name in &[
         ":wat::core::f64::<",
         ":wat::core::f64::>",
         ":wat::core::f64::<=",
         ":wat::core::f64::>=",
-    ] {
-        env.register(
-            op_name.to_string(),
-            TypeScheme {
-                type_params: vec![],
-                params: vec![f64_ty(), f64_ty()],
-                ret: bool_ty(),
-                rest_param_type: None,
-            },
-        );
-    }
-    // Stone 237.8c — f64 equality family (type-locked aliases to the structural engine).
-    // Mirrors the i64 equality pair above; routes to eval_eq / eval_not_eq at runtime.
-    for op_name in &[
-        ":wat::core::f64::=",
-        ":wat::core::f64::not=",
     ] {
         env.register(
             op_name.to_string(),
