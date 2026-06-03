@@ -24,7 +24,7 @@ Builder's decision 2026-06-04: **four arcs resolve before 232.1 re-opens.** 232 
 |---|---|---|---|
 | **246** | `src/collection/` warded home | OPEN (246.0 DESIGN done) | forward-arc from 237's death; current |
 | **245** | wat-corpus warding | STUB (needs 245.0 instrument design) | forward-arc from 237's death |
-| **249** | `->>` thread-last macro | BANKED (no dir yet; sibling of arc 247) | builder: do before 232 |
+| **249** | threading macros: `->` + `->>` (BOTH forms) | STUB on disk (promoted from thread-last-only — neither form exists) | builder: do before 232 |
 | **235** | records-with-rich-VSA | PROPOSED/notes | builder's **choice — NOT a dependency** (235 is independent of 232: it extends arc 234 + uses 237's `:guard`); deliberately sequenced here |
 
 Suggested order: **246 → 245 → 249 → 235 → rejoin 232.**
