@@ -5522,10 +5522,10 @@ fn dispatch_keyword_head_value(
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
         }
         // Vec last + find-last-index. Arc 047.
-        ":wat::core::last" => eval_vec_last(args, list_span, env, sym),
-        ":wat::core::find-last-index" => eval_vec_find_last_index(args, list_span, env, sym),
-        ":wat::core::rest" => eval_vec_rest(args, list_span, env, sym),
-        ":wat::std::list::map-with-index" => eval_list_map_with_index(args, list_span, env, sym),
+        ":wat::core::last" => crate::collection::transform::eval_vec_last(args, list_span, env, sym),
+        ":wat::core::find-last-index" => crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym),
+        ":wat::core::rest" => crate::collection::transform::eval_vec_rest(args, list_span, env, sym),
+        ":wat::std::list::map-with-index" => crate::collection::transform::eval_list_map_with_index(args, list_span, env, sym),
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
@@ -5720,7 +5720,7 @@ fn dispatch_keyword_head_value(
         // arms retired. Type-checker Pattern 2 poison (check.rs:3840,
         // 3858) still surfaces friendly redirect for users typing
         // legacy keywords; runtime arm gone for defense-in-depth.
-        ":wat::core::Vector" => eval_list_ctor(args, list_span, env, sym),
+        ":wat::core::Vector" => crate::collection::eval::eval_list_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
         // guard above intercepts before reaching this arm; the
@@ -5754,29 +5754,29 @@ fn dispatch_keyword_head_value(
         // these per-Type impls by inspecting the arg's value tag.
         // Direct calls to the per-Type names are also legal and
         // bypass the dispatch hop.
-        ":wat::core::Vector/length" => eval_vector_length(args, list_span, env, sym),
-        ":wat::core::HashMap/length" => eval_hashmap_length(args, list_span, env, sym),
-        ":wat::core::HashSet/length" => eval_hashset_length(args, list_span, env, sym),
+        ":wat::core::Vector/length" => crate::collection::eval::eval_vector_length(args, list_span, env, sym),
+        ":wat::core::HashMap/length" => crate::collection::eval::eval_hashmap_length(args, list_span, env, sym),
+        ":wat::core::HashSet/length" => crate::collection::eval::eval_hashset_length(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List per-Type ops.
-        ":wat::core::List/length" => eval_list_length(args, list_span, env, sym),
+        ":wat::core::List/length" => crate::collection::eval::eval_list_length(args, list_span, env, sym),
         // Arc 146 slice 3 — empty? / contains? / get / conj are now
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
         // intercepts the polymorphic surface name first.
-        ":wat::core::Vector/empty?" => eval_vector_empty_q(args, list_span, env, sym),
-        ":wat::core::HashMap/empty?" => eval_hashmap_empty_q(args, list_span, env, sym),
-        ":wat::core::HashSet/empty?" => eval_hashset_empty_q(args, list_span, env, sym),
+        ":wat::core::Vector/empty?" => crate::collection::eval::eval_vector_empty_q(args, list_span, env, sym),
+        ":wat::core::HashMap/empty?" => crate::collection::eval::eval_hashmap_empty_q(args, list_span, env, sym),
+        ":wat::core::HashSet/empty?" => crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List empty?
-        ":wat::core::List/empty?" => eval_list_empty_q(args, list_span, env, sym),
-        ":wat::core::Vector/contains?" => eval_vector_contains_q(args, list_span, env, sym),
-        ":wat::core::HashMap/contains-key?" => eval_hashmap_contains_key_q(args, list_span, env, sym),
-        ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, list_span, env, sym),
+        ":wat::core::List/empty?" => crate::collection::eval::eval_list_empty_q(args, list_span, env, sym),
+        ":wat::core::Vector/contains?" => crate::collection::eval::eval_vector_contains_q(args, list_span, env, sym),
+        ":wat::core::HashMap/contains-key?" => crate::collection::eval::eval_hashmap_contains_key_q(args, list_span, env, sym),
+        ":wat::core::HashSet/contains?" => crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List contains?
-        ":wat::core::List/contains?" => eval_list_contains_q(args, list_span, env, sym),
-        ":wat::core::Vector/get" => eval_vector_get(args, list_span, env, sym),
-        ":wat::core::HashMap/get" => eval_hashmap_get(args, list_span, env, sym),
+        ":wat::core::List/contains?" => crate::collection::eval::eval_list_contains_q(args, list_span, env, sym),
+        ":wat::core::Vector/get" => crate::collection::eval::eval_vector_get(args, list_span, env, sym),
+        ":wat::core::HashMap/get" => crate::collection::eval::eval_hashmap_get(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List get
-        ":wat::core::List/get" => eval_list_get(args, list_span, env, sym),
+        ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
         // Arc 214 Slice 4 Stone 4.2 — :wat::program::Env accessor trio.
         ":wat::program::Env/get" => eval_program_env_get(args, list_span, env, sym),
         ":wat::program::Env/expect-get" => eval_program_env_expect_get(args, list_span, env, sym),
@@ -5785,34 +5785,34 @@ fn dispatch_keyword_head_value(
         ":wat::program::Env/dig" => eval_program_env_dig(args, list_span, env, sym),
         ":wat::program::Env/expect-dig" => eval_program_env_expect_dig(args, list_span, env, sym),
         ":wat::program::Env/dig-default" => eval_program_env_dig_default(args, list_span, env, sym),
-        ":wat::core::Vector/conj" => eval_vector_conj(args, list_span, env, sym),
-        ":wat::core::HashSet/conj" => eval_hashset_conj(args, list_span, env, sym),
+        ":wat::core::Vector/conj" => crate::collection::eval::eval_vector_conj(args, list_span, env, sym),
+        ":wat::core::HashSet/conj" => crate::collection::eval::eval_hashset_conj(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
-        ":wat::core::List/conj" => eval_list_conj(args, list_span, env, sym),
+        ":wat::core::List/conj" => crate::collection::eval::eval_list_conj(args, list_span, env, sym),
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
         // Single-impl-per-container ops. Surface short names
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
         // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
         // impls (each is also directly callable as `:HashMap/assoc` etc.).
-        ":wat::core::HashMap/assoc" => eval_hashmap_assoc(args, list_span, env, sym),
-        ":wat::core::HashMap/dissoc" => eval_hashmap_dissoc(args, list_span, env, sym),
-        ":wat::core::HashMap/keys" => eval_hashmap_keys(args, list_span, env, sym),
-        ":wat::core::HashMap/values" => eval_hashmap_values(args, list_span, env, sym),
-        ":wat::core::Vector/concat" => eval_vector_concat(args, list_span, env, sym),
-        ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
-        ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
-        ":wat::core::take" => eval_vec_take(args, list_span, env, sym),
-        ":wat::core::drop" => eval_vec_drop(args, list_span, env, sym),
-        ":wat::core::sort-by" => eval_vec_sort_by(args, list_span, env, sym),
-        ":wat::core::map" => eval_vec_map(args, list_span, env, sym),
-        ":wat::core::foldl" => eval_vec_foldl(args, list_span, env, sym),
-        ":wat::core::foldr" => eval_vec_foldr(args, list_span, env, sym),
-        ":wat::core::filter" => eval_vec_filter(args, list_span, env, sym),
-        ":wat::std::list::zip" => eval_list_zip(args, list_span, env, sym),
-        ":wat::std::list::window" => eval_list_window(args, list_span, env, sym),
-        ":wat::std::list::remove-at" => eval_list_remove_at(args, list_span, env, sym),
-        ":wat::core::HashMap" => eval_hashmap_ctor(args, list_span, env, sym),
-        ":wat::core::HashSet" => eval_hashset_ctor(args, list_span, env, sym),
+        ":wat::core::HashMap/assoc" => crate::collection::eval::eval_hashmap_assoc(args, list_span, env, sym),
+        ":wat::core::HashMap/dissoc" => crate::collection::eval::eval_hashmap_dissoc(args, list_span, env, sym),
+        ":wat::core::HashMap/keys" => crate::collection::eval::eval_hashmap_keys(args, list_span, env, sym),
+        ":wat::core::HashMap/values" => crate::collection::eval::eval_hashmap_values(args, list_span, env, sym),
+        ":wat::core::Vector/concat" => crate::collection::eval::eval_vector_concat(args, list_span, env, sym),
+        ":wat::core::reverse" => crate::collection::transform::eval_vec_reverse(args, list_span, env, sym),
+        ":wat::core::range" => crate::collection::transform::eval_vec_range(args, list_span, env, sym),
+        ":wat::core::take" => crate::collection::transform::eval_vec_take(args, list_span, env, sym),
+        ":wat::core::drop" => crate::collection::transform::eval_vec_drop(args, list_span, env, sym),
+        ":wat::core::sort-by" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),
+        ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
+        ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
+        ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
+        ":wat::core::filter" => crate::collection::transform::eval_vec_filter(args, list_span, env, sym),
+        ":wat::std::list::zip" => crate::collection::transform::eval_list_zip(args, list_span, env, sym),
+        ":wat::std::list::window" => crate::collection::transform::eval_list_window(args, list_span, env, sym),
+        ":wat::std::list::remove-at" => crate::collection::transform::eval_list_remove_at(args, list_span, env, sym),
+        ":wat::core::HashMap" => crate::collection::eval::eval_hashmap_ctor(args, list_span, env, sym),
+        ":wat::core::HashSet" => crate::collection::eval::eval_hashset_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
         // are now Dispatches (declared in `wat/core.wat`). The
         // dispatch_keyword_head guard above intercepts them; the
@@ -9386,38 +9386,6 @@ fn eval_or(
     Ok(Value::bool(false))
 }
 
-/// `(:wat::core::Vector :T x1 x2 ...)` —
-/// typed list/vec constructor. First argument is a TYPE KEYWORD read by
-/// the type checker; the runtime transports any `Value`. Remaining args
-/// are element values. Matches the `make-bounded-channel` precedent for
-/// resource-like constructors — explicit `:T` is required even when
-/// elements could drive inference, so the shape never depends on context.
-fn eval_list_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector".into(),
-            expected: 1,
-            got: 0
-        } }.into());
-    }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::Vector".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into()
-        } }.into());
-    }
-    let items = args[1..]
-        .iter()
-        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Value::Vec(Arc::new(items)))
-}
-
 // Arc 146 slice 3 — `eval_conj` retired. The polymorphism is honest
 // now: a Dispatch (declared in `wat/core.wat`) routes
 // `:wat::core::conj` to `:Vector/conj` and `:HashSet/conj` per-Type
@@ -9454,7 +9422,7 @@ fn eval_tuple_ctor(
 
 /// Require a `Vec` argument. Used by list primitives that take one
 /// Vec as their sole / first arg.
-fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, EvalBreak> {
+pub(crate) fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(xs),
         // arc 138: no span — require_vec is a value-level helper without
@@ -9470,7 +9438,7 @@ fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, EvalBreak>
 
 /// Require an `i64` argument. Used by list primitives whose second
 /// arg is a count / index.
-fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> {
+pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> {
     match v {
         Value::i64(n) => Ok(n),
         // arc 138: no span — same rationale as `require_vec` above.
@@ -9548,57 +9516,6 @@ fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-fn eval_vector_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/length".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_length_inner(&v)
-}
-
-fn eval_hashmap_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/length".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_length_inner(&v)
-}
-
-fn eval_hashset_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/length".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_length_inner(&v)
-}
-
 // ─── Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls ────────
 //
 // Mirrors slice 2's per-Type-length shape. Each primitive has an inner
@@ -9659,57 +9576,6 @@ fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }
-}
-
-fn eval_vector_empty_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/empty?".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_empty_q_inner(&v)
-}
-
-fn eval_hashmap_empty_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/empty?".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_empty_q_inner(&v)
-}
-
-fn eval_hashset_empty_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/empty?".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_empty_q_inner(&v)
 }
 
 // ─── contains? — MIXED VERBS ────────────────────────────────────────────────
@@ -9784,60 +9650,6 @@ fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, Ev
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }
-}
-
-fn eval_vector_contains_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/contains?".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_contains_q_inner(&container, &item)
-}
-
-fn eval_hashmap_contains_key_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/contains-key?".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_contains_key_q_inner(&container, &key)
-}
-
-fn eval_hashset_contains_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/contains?".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_contains_q_inner(&container, &item)
 }
 
 // ─── get — return type varies per arm (Option<T> vs Option<V>) ──────────────
@@ -9919,132 +9731,6 @@ fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak>
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }
-}
-
-fn eval_vector_get(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/get".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_get_inner(&container, &index)
-}
-
-fn eval_hashmap_get(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/get".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let key = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_get_inner(&container, &key)
-}
-
-// ─── Arc 220 Stone 220.4 — List eval wrappers ────────────────────────────────
-
-fn eval_list_length(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/length".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_length_inner(&v)
-}
-
-fn eval_list_empty_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/empty?".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_empty_q_inner(&v)
-}
-
-fn eval_list_contains_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/contains?".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_contains_q_inner(&container, &item)
-}
-
-fn eval_list_get(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/get".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    list_get_inner(&container, &index)
-}
-
-fn eval_list_conj(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_conj_inner(&container, &item)
 }
 
 // ─── :wat::program::Env accessor trio — arc 214 Slice 4 Stone 4.2 ───────────
@@ -10630,42 +10316,6 @@ fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBrea
     }
 }
 
-fn eval_vector_conj(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/conj".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_conj_inner(&container, &item)
-}
-
-fn eval_hashset_conj(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/conj".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_conj_inner(&container, &item)
-}
-
 // ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─
 //
 // Single-impl-per-container ops migrated to honest per-Type names. The
@@ -10800,95 +10450,6 @@ fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> 
     Ok(Value::Vec(Arc::new(out)))
 }
 
-fn eval_hashmap_assoc(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/assoc".into(),
-            expected: 3,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    let v = eval_inner(&args[2], env, sym)?.value_owned();
-    hashmap_assoc_inner(&container, &k, &v)
-}
-
-fn eval_hashmap_dissoc(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/dissoc".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let k = eval_inner(&args[1], env, sym)?.value_owned();
-    hashmap_dissoc_inner(&container, &k)
-}
-
-fn eval_hashmap_keys(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/keys".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_keys_inner(&container)
-}
-
-fn eval_hashmap_values(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap/values".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    hashmap_values_inner(&container)
-}
-
-fn eval_vector_concat(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/concat".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let left = eval_inner(&args[0], env, sym)?.value_owned();
-    let right = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_concat_inner(&left, &right)
-}
-
 /// Arc 146 slice 2 — substrate-primitive impl dispatch from
 /// `eval_dispatch_call` when an arm's impl is NOT a user-define
 /// `Function` (i.e., not present in `sym.functions`). Routes to the
@@ -10912,77 +10473,78 @@ pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
 ) -> Option<Result<Value, EvalBreak>> {
+    use crate::collection::eval as ceval;
     match impl_name {
         ":wat::core::Vector/length" => {
-            Some(vector_length_inner(vals.first().expect("arity-checked")))
+            Some(ceval::vector_length_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::HashMap/length" => {
-            Some(hashmap_length_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashmap_length_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::HashSet/length" => {
-            Some(hashset_length_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashset_length_inner(vals.first().expect("arity-checked")))
         }
         // Arc 220 Stone 220.4 — List/length
         ":wat::core::List/length" => {
-            Some(list_length_inner(vals.first().expect("arity-checked")))
+            Some(ceval::list_length_inner(vals.first().expect("arity-checked")))
         }
         // empty? — 1 arg
         ":wat::core::Vector/empty?" => {
-            Some(vector_empty_q_inner(vals.first().expect("arity-checked")))
+            Some(ceval::vector_empty_q_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::HashMap/empty?" => {
-            Some(hashmap_empty_q_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashmap_empty_q_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::HashSet/empty?" => {
-            Some(hashset_empty_q_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashset_empty_q_inner(vals.first().expect("arity-checked")))
         }
         // Arc 220 Stone 220.4 — List/empty?
         ":wat::core::List/empty?" => {
-            Some(list_empty_q_inner(vals.first().expect("arity-checked")))
+            Some(ceval::list_empty_q_inner(vals.first().expect("arity-checked")))
         }
         // contains? — 2 args (mixed verbs)
-        ":wat::core::Vector/contains?" => Some(vector_contains_q_inner(
+        ":wat::core::Vector/contains?" => Some(ceval::vector_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/contains-key?" => Some(hashmap_contains_key_q_inner(
+        ":wat::core::HashMap/contains-key?" => Some(ceval::hashmap_contains_key_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashSet/contains?" => Some(hashset_contains_q_inner(
+        ":wat::core::HashSet/contains?" => Some(ceval::hashset_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/contains?
-        ":wat::core::List/contains?" => Some(list_contains_q_inner(
+        ":wat::core::List/contains?" => Some(ceval::list_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // get — 2 args (return type varies per arm: Option<T> vs Option<V>)
-        ":wat::core::Vector/get" => Some(vector_get_inner(
+        ":wat::core::Vector/get" => Some(ceval::vector_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/get" => Some(hashmap_get_inner(
+        ":wat::core::HashMap/get" => Some(ceval::hashmap_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/get
-        ":wat::core::List/get" => Some(list_get_inner(
+        ":wat::core::List/get" => Some(ceval::list_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // conj — 2 args (returns container type)
-        ":wat::core::Vector/conj" => Some(vector_conj_inner(
+        ":wat::core::Vector/conj" => Some(ceval::vector_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashSet/conj" => Some(hashset_conj_inner(
+        ":wat::core::HashSet/conj" => Some(ceval::hashset_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/conj (PREPEND semantic)
-        ":wat::core::List/conj" => Some(list_conj_inner(
+        ":wat::core::List/conj" => Some(ceval::list_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -10990,22 +10552,22 @@ pub(crate) fn dispatch_substrate_impl(
         // per-Type impls. Routed here so alias-expanded user-defines
         // resolve to the substrate impl when the body's call lands on
         // a per-Type primitive name.
-        ":wat::core::HashMap/assoc" => Some(hashmap_assoc_inner(
+        ":wat::core::HashMap/assoc" => Some(ceval::hashmap_assoc_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
             vals.get(2).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/dissoc" => Some(hashmap_dissoc_inner(
+        ":wat::core::HashMap/dissoc" => Some(ceval::hashmap_dissoc_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         ":wat::core::HashMap/keys" => {
-            Some(hashmap_keys_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashmap_keys_inner(vals.first().expect("arity-checked")))
         }
         ":wat::core::HashMap/values" => {
-            Some(hashmap_values_inner(vals.first().expect("arity-checked")))
+            Some(ceval::hashmap_values_inner(vals.first().expect("arity-checked")))
         }
-        ":wat::core::Vector/concat" => Some(vector_concat_inner(
+        ":wat::core::Vector/concat" => Some(ceval::vector_concat_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11107,453 +10669,6 @@ where
 // impl above. Variadic 1+ arg shape collapsed to honest binary; callers
 // nest for >2 args (or fold).
 
-/// `(:wat::core::reverse xs)` → `Vec<T>`. New Vec with elements
-/// reversed; input unchanged.
-fn eval_vec_reverse(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::reverse".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let mut out = (*xs).clone();
-    out.reverse();
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::core::range start end)` → `Vec<i64>`. Two-arg only; the
-/// spec-frozen shape maps to Rust's `start..end` exactly. Callers
-/// write `(range 0 n)` explicitly for 0..n.
-fn eval_vec_range(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::range".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let start = require_i64(":wat::core::range", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let end = require_i64(":wat::core::range", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let items: Vec<Value> = if start <= end {
-        (start..end).map(Value::i64).collect()
-    } else {
-        Vec::new()
-    };
-    Ok(Value::Vec(Arc::new(items)))
-}
-
-/// `(:wat::core::take xs n)` → `Vec<T>`. First `n` elements; if
-/// `n >= xs.len()`, returns the full Vec. Negative `n` clamps to 0
-/// (empty Vec).
-fn eval_vec_take(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::take".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-    let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::core::drop xs n)` → `Vec<T>`. Skip first `n` elements. If
-/// `n >= xs.len()`, returns an empty Vec. Negative `n` clamps to 0
-/// (returns the full Vec).
-fn eval_vec_drop(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::drop".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-    let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::core::sort-by xs less?)` → `Vec<T>`.
-///
-/// Returns a new Vec sorted by the user-supplied less-than predicate.
-/// `less?` is a callable `:fn(T, T) -> :bool`; it returns true iff
-/// the first arg is "less than" the second under the desired order.
-/// The user picks ascending vs descending by which way they compare:
-///
-///   asc:  `(fn (a b) -> :bool (:wat::core::< a b))`
-///   desc: `(fn (a b) -> :bool (:wat::core::> a b))`
-///   key:  `(fn (a b) -> :bool (:wat::core::< (:Foo/age a) (:Foo/age b)))`
-///
-/// Stable. Wraps Rust's `Vec::sort_by`. Common Lisp / Clojure
-/// tradition — predicate-driven ordering with the user owning the
-/// asc/desc choice. The two-sided test (calling `less?` for both
-/// `(a,b)` and `(b,a)` to distinguish Equal from Less/Greater) keeps
-/// stable-sort semantics honest; the doubled call count is amortized
-/// against O(n log n) — for the lab's bounded windows it's
-/// negligible.
-fn eval_vec_sort_by(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::sort-by";
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (sort-by keyfn xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut sorted: Vec<Value> = (*xs).clone();
-    let mut sort_err: Option<EvalBreak> = None;
-    sorted.sort_by(|a, b| {
-        use std::cmp::Ordering;
-        if sort_err.is_some() {
-            return Ordering::Equal;
-        }
-        let call = |x: &Value, y: &Value| -> Result<bool, EvalBreak> {
-            let v = apply_function(
-                func.clone(),
-                vec![x.clone(), y.clone()],
-                sym,
-                crate::rust_caller_span!(),
-            ).map_err(EvalBreak::from)?;
-            match v {
-                Value::bool(b) => Ok(b),
-                other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — inside sort_by closure, no AST args in scope
-                } }.into()),
-            }
-        };
-        let ab = match call(a, b) {
-            Ok(v) => v,
-            Err(e) => {
-                sort_err = Some(e);
-                return Ordering::Equal;
-            }
-        };
-        if ab {
-            return Ordering::Less;
-        }
-        let ba = match call(b, a) {
-            Ok(v) => v,
-            Err(e) => {
-                sort_err = Some(e);
-                return Ordering::Equal;
-            }
-        };
-        if ba {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
-    });
-    if let Some(e) = sort_err {
-        return Err(e);
-    }
-    Ok(Value::Vec(Arc::new(sorted)))
-}
-
-/// `(:wat::core::map f xs)` → `Vec<U>`. Calls `f` on each element.
-/// `f` must be a callable Value (fn or define-registered).
-/// Arc 247: fn-first — (map f xs).
-fn eval_vec_map(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::map".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (map f xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::map", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::map".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut out = Vec::with_capacity(xs.len());
-    for x in xs.iter() {
-        out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
-/// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's driver.
-/// Arc 247: fn-first — (foldl f init xs).
-/// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
-fn eval_vec_foldl(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::foldl".into(),
-            expected: 3,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (foldl f init xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::foldl", eval_inner(&args[2], env, sym)?.value_owned())?;
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::foldl".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    for x in xs.iter() {
-        acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
-    }
-    Ok(acc)
-}
-
-/// `(:wat::core::foldr f init xs)` → acc. Right-associative fold.
-/// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the Vec in reverse
-/// so the call stack is bounded by iteration, not recursion.
-/// Arc 247: fn-first — (foldr f init xs).
-fn eval_vec_foldr(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::foldr".into(),
-            expected: 3,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (foldr f init xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::foldr", eval_inner(&args[2], env, sym)?.value_owned())?;
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::foldr".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    for x in xs.iter().rev() {
-        acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
-    }
-    Ok(acc)
-}
-
-/// `(:wat::core::filter pred xs)` → `Vec<T>`. Keeps elements for
-/// which `pred` returns `:bool true`. `pred` signature: `T -> :bool`.
-/// Arc 247: fn-first — (filter pred xs).
-fn eval_vec_filter(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::filter".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (filter pred xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::filter", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::filter".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut out = Vec::with_capacity(xs.len());
-    for x in xs.iter() {
-        match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-            Value::bool(true) => out.push(x.clone()),
-            Value::bool(false) => {}
-            other => {
-                // arc 138: no span — leaf helper.
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::filter".into(),
-                    expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other))
-                } }.into());
-            }
-        }
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
-/// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
-fn eval_list_zip(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::zip".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::std::list::zip", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let ys = require_vec(":wat::std::list::zip", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let n = xs.len().min(ys.len());
-    let mut out = Vec::with_capacity(n);
-    for (x, y) in xs.iter().zip(ys.iter()).take(n) {
-        out.push(Value::Tuple(Arc::new(vec![x.clone(), y.clone()])));
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::std::list::window xs n)` → `Vec<Vec<T>>`. Sliding window
-/// of size `n`; maps to Rust's `slice.windows(n)`. `n <= 0` returns
-/// an empty Vec. `n > xs.len()` returns an empty Vec (no full
-/// window fits) — matches Rust's behavior.
-fn eval_list_window(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::window".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::std::list::window", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let n = require_i64(":wat::std::list::window", eval_inner(&args[1], env, sym)?.value_owned())?;
-    if n <= 0 {
-        return Ok(Value::Vec(Arc::new(Vec::new())));
-    }
-    let n = n as usize;
-    let out: Vec<Value> = xs
-        .windows(n)
-        .map(|w| Value::Vec(Arc::new(w.to_vec())))
-        .collect();
-    Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::std::list::remove-at xs i)` → `Vec<T>`. New Vec with
-/// the element at `i` removed. Out-of-range index returns the Vec
-/// unchanged (rather than erroring) — matches the inline select
-/// loop's "drop the disconnected receiver if it happens to be at
-/// index i" idiom without requiring a pre-check. Negative i also
-/// no-ops.
-fn eval_list_remove_at(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::remove-at".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::std::list::remove-at", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let i = require_i64(":wat::std::list::remove-at", eval_inner(&args[1], env, sym)?.value_owned())?;
-    if i < 0 || (i as usize) >= xs.len() {
-        return Ok(Value::Vec(xs));
-    }
-    let target = i as usize;
-    let mut out = Vec::with_capacity(xs.len() - 1);
-    for (idx, v) in xs.iter().enumerate() {
-        if idx != target {
-            out.push(v.clone());
-        }
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
-
 // Stone 216.5b — runtime hashability guard.
 // Returns `false` for the 14 opaque-handle `Value` variants that carry
 // `unreachable!()` in `impl Hash for Value`. These variants are not
@@ -11610,72 +10725,6 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 }
 
 
-/// `(:wat::core::HashMap :K :V k1 v1 k2 v2 ...)` — verb-equals-type
-/// constructor. First two args are separate type-keywords `:K` and
-/// `:V` (one per type parameter); arc 214 P1 retired the earlier
-/// `:(K,V)` tuple-keyword form in favor of this Vector-symmetric
-/// shape (Vector takes `:T`; HashMap takes `:K :V`; same pattern,
-/// one keyword per type-param).
-///
-/// Remaining args are alternating key/value pairs. Odd pair count
-/// emits MalformedForm. Duplicate keys: later entries overwrite
-/// earlier.
-fn eval_hashmap_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() < 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashMap".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into()
-        } }.into());
-    }
-    if !matches!(&args[1], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into()
-        } }.into());
-    }
-    let pairs = &args[2..];
-    if !pairs.len().is_multiple_of(2) {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashMap".into(),
-            reason: format!(
-                "arity after :K :V type args must be even (alternating key/value pairs); got {}",
-                pairs.len()
-            )
-        } }.into());
-    }
-    // Stone 216.5c — HashMap<Value, Value> native storage; hashmap_key crutch removed.
-    // Guard: reject opaque-handle keys before they reach Hash::hash (unreachable!()).
-    // Arc strategy: build map locally, wrap in Arc once.
-    #[allow(clippy::mutable_key_type)]
-    let mut map: std::collections::HashMap<Value, Value> =
-        std::collections::HashMap::with_capacity(pairs.len() / 2);
-    for pair in pairs.chunks(2) {
-        let k = eval_inner(&pair[0], env, sym)?.value_owned();
-        let v = eval_inner(&pair[1], env, sym)?.value_owned();
-        if !value_is_key_hashable(&k) {
-            return Err(RuntimeError { span: pair[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::HashMap".into(),
-                expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: Box::new(ValueSnapshot::of(&k))
-            } }.into());
-        }
-        map.insert(k, v);
-    }
-    Ok(Value::wat__std__HashMap(Arc::new(map)))
-}
-
 // Arc 146 slice 3 — `eval_get` retired. The polymorphism is honest
 // now: a Dispatch (declared in `wat/core.wat`) routes
 // `:wat::core::get` to `:Vector/get` (Vec×i64 → Option<T>) and
@@ -11731,50 +10780,6 @@ fn eval_assoc(
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
-}
-
-/// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
-/// keyword read by the checker; remaining args are elements. Duplicate
-/// elements collapse (last stored wins on the exact canonical key).
-// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
-// See comment on `hashset_conj_inner` for rationale.
-#[allow(clippy::mutable_key_type)]
-fn eval_hashset_ctor(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet".into(),
-            expected: 1,
-            got: 0
-        } }.into());
-    }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashSet".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into()
-        } }.into());
-    }
-    // Stone 216.5b — native HashSet<Value> insert. Value implements Hash + Eq
-    // (Stone 216.5a); dedupe is handled natively by HashSet::insert semantics.
-    // hashmap_key canonical-key crutch removed.
-    // Guard: reject opaque-handle variants (would hit unreachable!() in Hash).
-    let mut set: HashSet<Value> = HashSet::with_capacity(args.len() - 1);
-    for a in &args[1..] {
-        let v = eval_inner(a, env, sym)?.value_owned();
-        if !value_is_set_hashable(&v) {
-            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::HashSet".into(),
-                expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                got: Box::new(ValueSnapshot::of(&v))
-            } }.into());
-        }
-        set.insert(v);
-    }
-    Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
 
 // Arc 146 slice 3 — `eval_contains_q` retired. The polymorphism is
@@ -13758,84 +12763,6 @@ fn eval_positional_accessor(
     }
 }
 
-/// Arc 047 — `(:wat::core::last xs)` returns `Option<T>`. The
-/// natural pair to `first`-on-Vec post-arc-047 (both return Option
-/// honestly rather than erroring on empty). Empty Vec → `None`;
-/// non-empty → `Some(items[len - 1])`.
-fn eval_vec_last(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::last".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::core::last", eval_inner(&args[0], env, sym)?.value_owned())?;
-    Ok(Value::Option(Arc::new(xs.last().cloned())))
-}
-
-/// Arc 047 — `(:wat::core::find-last-index xs pred)` returns
-/// `Option<i64>`. Iterates `xs`, applies `pred` to each element,
-/// returns `Some(i)` for the rightmost `i` where `pred` returned
-/// `true`. Returns `None` if no element matched (or `xs` is empty).
-/// Mirrors Rust's `iter().rposition(pred)`.
-fn eval_vec_find_last_index(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::find-last-index";
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut last_idx: Option<i64> = None;
-    for (i, x) in xs.iter().enumerate() {
-        let result = apply_function(
-            func.clone(),
-            vec![x.clone()],
-            sym,
-            crate::rust_caller_span!(),
-        )?;
-        match result {
-            Value::bool(true) => last_idx = Some(i as i64),
-            Value::bool(false) => {}
-            other => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "bool (predicate result)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — predicate result from apply_function; no AST arg in scope
-                } }.into());
-            }
-        }
-    }
-    Ok(Value::Option(Arc::new(last_idx.map(Value::i64))))
-}
-
 /// Arc 047 — shared implementation for `:wat::core::f64::max-of`
 /// and `:wat::core::f64::min-of`. Reduces a `Vec<f64>` to its
 /// extreme value. Empty Vec → `None`. Non-empty → `Some(extreme)`.
@@ -13885,95 +12812,6 @@ fn eval_f64_reduce(
         }
     }
     Ok(Value::Option(Arc::new(Some(Value::f64(acc)))))
-}
-
-/// `(:wat::core::rest xs)` — everything after the first element of a
-/// Vec. Mirrors `slice[1..]`. Runtime error if `xs` is empty (there
-/// is no `rest` of an empty sequence). Tuples do NOT support rest —
-/// tuple arity is fixed at the type level.
-fn eval_vec_rest(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::rest".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Vec(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty Vec".into()
-                } }.into());
-            }
-            let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
-        // Maintains type identity: List/rest → List (not Vec).
-        Value::wat__core__List(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty List".into()
-                } }.into());
-            }
-            let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::wat__core__List(Arc::new(out)))
-        }
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::rest".into(),
-            expected: "Vec or List",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
-/// FOUNDATION-CHANGELOG 2026-04-18 stdlib list surface. `f` takes
-/// `(item, index)` and returns U. Used by Sequential's indexed fold.
-fn eval_list_map_with_index(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::std::list::map-with-index".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::std::list::map-with-index".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut out = Vec::with_capacity(xs.len());
-    for (i, x) in xs.iter().enumerate() {
-        out.push(apply_function(
-            func.clone(),
-            vec![x.clone(), Value::i64(i as i64)],
-            sym,
-            Span::unknown(),
-        )?);
-    }
-    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(Some <expr>)` — tagged constructor of the built-in `:Option<T>`

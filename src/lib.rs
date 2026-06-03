@@ -59,6 +59,7 @@ pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod closure_extract;
+pub(crate) mod collection;
 pub mod argspec;
 pub(crate) mod remedy;
 pub mod comms;
