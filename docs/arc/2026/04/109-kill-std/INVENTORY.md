@@ -1549,6 +1549,28 @@ If wat adopts `^Type` placement convention, does the return-type-BEFORE-arg-vect
 
 The Clojure-style position has reflection precedent (multi-arity allows different return types per arity; harder to express otherwise). wat may want the same expressive shape for future multi-arity work.
 
+**UPDATE 2026-06-03 — the `:-` thread (core.typed / Schema) resolves the honesty con; reframes the whole question.**
+
+The `^Type` candidate above dies on con #3 (line 1535): Clojure's `^` is an OPTIONAL hint (metadata, not checked); wat's types are MANDATORY (consumed by `check.rs`). Borrowing `^` would be syntax that LIES about the discipline — the same be-what-you-claim defect the substrate annihilates everywhere (conformare ethos, arc 243 + the 2026-06-03 nil/equality/dialect reckonings). So `^` is OUT.
+
+But the Clojure ecosystem already solved mandatory typing: its **typed dialects — core.typed AND Plumatic Schema — both use `:-`** for mandatory, checked type ascription, NOT `^`:
+
+```clojure
+(s/defn add :- s/Int [a :- s/Int  b :- s/Int] (+ a b))   ; Schema (ret BEFORE args)
+(t/defn add [a :- t/Int  b :- t/Int] :- t/Int (+ a b))   ; core.typed inline (ret AFTER args)
+(t/ann add [t/Int t/Int -> t/Int])                       ; core.typed ann — `->` is the fn arrow
+```
+
+**`:-` is the de-facto Clojure glyph for mandatory typing**, and it matches wat's semantics exactly (mandatory + checked) where `^` does not. And wat's CURRENT `<-`/`->` is already a near-isomorph: `<-` ≈ `:-` (arg ascription), `->` IS core.typed's function arrow verbatim, ret after args (matching core.typed inline). **wat is already core.typed-shaped** — it just spells the arg glyph `<-` where Clojure-typed spells it `:-`.
+
+**The question reframes.** It is NOT `^Type` vs `:Type` (optional-vs-mandatory — a false trail). It is: **adopt `:-` (the maximal-Clojure-honest glyph) or keep `<-` (directional, already ~`:-`)?**
+- **`:-` for args + `->` for return** → `[a :- :T b :- :T] -> :Ret`. Maximally core.typed/Schema-faithful, honest about mandatoriness, a SMALL targeted swap (`<-` → `:-`; `->` unchanged). Trades away wat's symmetric `<-`/`->` directional aesthetic — but Clojure-typed runs the `:-`/`->` asymmetry itself, so matching it IS the fidelity.
+- **`<-`/`->` (current)** → directional (arg-in / ret-out), symmetric, zero churn, already ~core.typed.
+
+`^Type` (N.3 candidate) and N.2's EDN tags are both OUT. The live decision is `:-` vs `<-`, both honest; the trade is Clojure-glyph-fidelity (`:-`) vs wat directional-symmetry (`<-`/`->`).
+
+**User intent (2026-06-03): "I want wat damn near clojure as much as we can."** That tilts toward **`:-`** — it is literally the glyph Clojure's typed dialects chose, and `^` (the instinct) turned out to be the *optional*-hint glyph, wrong for mandatory types. **Recommended when this surface opens: `[a :- :T] -> :Ret`** — `:-` args (Schema/core.typed), `->` return (the fn arrow); keep ret-after-args (core.typed inline) unless future multi-arity wants ret-before (Schema/hint style — see the position sub-question above). Supersedes N.3's `^` candidate and N.2's EDN-tag candidate.
+
 **Decision shape (deferred to four-questions evaluation):**
 
 If this question opens for slice work, the four-questions interrogation should evaluate:
