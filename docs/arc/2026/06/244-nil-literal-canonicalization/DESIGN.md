@@ -1,6 +1,6 @@
 # Arc 244 — nil-literal canonicalization
 
-**Status:** OPEN 2026-06-02. Spawned from arc 237 Stone 237.8b, which **parks again.** 237 paused for arc 241 (the `&` rest-binder); 241 closed; the instant we tried to resume 237.8b a NEW failure domain surfaced — a *synthesized type keyword sitting in value position*. Per spawn-block winding (`feedback_spawn_block_winding`), 237 cannot close until 244 closes; 237.8b's probe stays RED until this domain is annihilated.
+**Status:** ✅ **CLOSED 2026-06-02** (`INSCRIPTION.md`). Spawned from arc 237 Stone 237.8b. The nil-value-as-type-keyword heresy is **structurally annihilated** — `WatAST::NilLit` minted (nil joins the literal family; the asymmetry ends), all 9 synthesis sites swept through one canonical constructor, the heretical form removed from existence by a build-failing gate (`tests/gate_no_nil_keyword_synthesis.rs`). Repro `probe_nil_return_value_position_bug` 4/4; lib 895/0/1; the `check.rs:3375` doctrine intact; verified against the disk. **Affirmative scope-cuts:** the dead `Symbol("nil")` eval arm rides `runtime.rs`'s future ward (109-level `src/*.rs` reorg); the `WatAST::Keyword` type/value split is the named next-deeper arc (the `src/ast/` ward-enabler). Closing chronicle: **`INSCRIPTION.md`** (FM-11 clean). **237 unparks** — 237.8b's `&` ready since 241.5 (`639b4862`), the nil heresy now dead. Chain: 237 ⇠ 241 (closed) ⇠ 244 (closed).
 
 ## Why this arc — how the domain was found
 
