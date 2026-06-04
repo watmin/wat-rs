@@ -18,9 +18,9 @@
      :Sell [price  <- :wat::core::f64
             qty    <- :wat::core::i64
             reason <- :wat::core::String])
-   (:wat::core::struct :test::Wrapper<E>
-     (label :wat::core::String)
-     (value :E))))
+   (:wat::core::defstruct :test::Wrapper<E>
+     [label <- :wat::core::String
+      value <- :E])))
 
 
 ;; ─── Primitives ──────────────────────────────────────────────────
