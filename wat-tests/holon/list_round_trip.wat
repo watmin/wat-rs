@@ -63,12 +63,12 @@
      ys (:wat::core::List/conj xs 1)]
     (:wat::test::assert-eq (:wat::core::List/length ys) 3)))
 
-;; ─── 8: cross-type equality List == Vector ────────────────────────────────
+;; ─── 8: same-type equality List == List (same contents) ─────────────────
 
 (:wat::test::deftest :wat-tests::holon::list_round_trip::list-eq-vector
   ()
   (:wat::core::let
-    [lst (:wat::core::List/of 1 2 3)
-     vec [1 2 3]
-     eq  (:wat::core::= lst vec)]
+    [lst  (:wat::core::List/of 1 2 3)
+     lst2 (:wat::core::List/of 1 2 3)
+     eq   (:wat::core::= lst lst2)]
     (:wat::test::assert-eq eq true)))

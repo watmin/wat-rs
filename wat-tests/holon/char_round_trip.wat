@@ -9,8 +9,8 @@
 (:wat::test::deftest :wat-tests::holon::char_round_trip::char-of-constructor
   ()
   (:wat::core::let
-    [a (:wat::core::Char/of "a")
-     b (:wat::core::Char/of "a")]
+    [a (:wat::core::char/of "a")
+     b (:wat::core::char/of "a")]
     (:wat::test::assert-eq a b)))
 
 ;; ─── 2: `\c` literal equals Char/of ──────────────────────────────────────
@@ -19,7 +19,7 @@
   ()
   (:wat::core::let
     [lit \a
-     con (:wat::core::Char/of "a")]
+     con (:wat::core::char/of "a")]
     (:wat::test::assert-eq lit con)))
 
 ;; ─── 3: Named char `\newline` ─────────────────────────────────────────────
@@ -28,7 +28,7 @@
   ()
   (:wat::core::let
     [nl      \newline
-     nl-con  (:wat::core::Char/of "\n")]
+     nl-con  (:wat::core::char/of "\n")]
     (:wat::test::assert-eq nl nl-con)))
 
 ;; ─── 4: Named char `\space` ───────────────────────────────────────────────
@@ -37,7 +37,7 @@
   ()
   (:wat::core::let
     [sp     \space
-     sp-con (:wat::core::Char/of " ")]
+     sp-con (:wat::core::char/of " ")]
     (:wat::test::assert-eq sp sp-con)))
 
 ;; ─── 5: Different chars are not equal ────────────────────────────────────
