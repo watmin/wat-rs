@@ -1,0 +1,122 @@
+;; wat-tests/core/core-equality.wat — arc 245.2b runtime coverage for
+;; the :wat::core::= equality intrinsic.
+;;
+;; = is a RELATIONAL intrinsic (not a defclause): it unifies its two
+;; arguments to the same type ∀T, then compares by value. Cross-type
+;; (i64 vs f64) is a TYPE ERROR at check time — no promotion occurs
+;; post-arc-237.8b. The inference lives in check.rs `infer_equality`.
+;;
+;; Preserves the equality-related passing tests from the retired
+;; tests/wat_polymorphic_arithmetic.rs:
+;;   - poly_eq_strings_still_works
+;;   - typed_strict_i64_eq_homogeneous_works
+;;   - typed_strict_i64_eq_rejects_f64_arg
+;;
+;; Grounded on:
+;;   - deftest idiom:   wat-tests/core/list-fold-aliases.wat
+;;   - rejection idiom: run-hermetic (forked subprocess catches check errors)
+;;   - = intrinsic:     check.rs `infer_equality` + eval-side `eval_eq`
+;;   - nil value:       bare `nil` (arc 242 Doctrine 1: :wat::core::nil is TYPE only)
+;;   - bool literals:   true / false (as used in wat-tests/test.wat)
+
+;; ─── i64 equality ───────────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= 1 1) true))
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-not-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= 1 2) false))
+
+;; ─── f64 equality ───────────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= 1.5 1.5) true))
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-not-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= 1.5 2.5) false))
+
+;; ─── String equality ────────────────────────────────────────────────────
+;;
+;; Mirrors poly_eq_strings_still_works from the retired Rust file.
+;; Same-type string equality works via the = intrinsic.
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-string-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= "a" "a") true))
+
+(:wat::test::deftest :wat-tests::core::core-equality::eq-string-not-equal
+  ()
+  (:wat::test::assert-eq (:wat::core::= "a" "b") false))
+
+;; ─── i64 equality via typed helper ──────────────────────────────────────
+;;
+;; Mirrors typed_strict_i64_eq_homogeneous_works. A typed wrapper with
+;; i64-param bindings enforces same-type equality at the call site.
+
+(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-works
+  ((:wat::core::defn :wat-tests::core::core-equality::eq-i64
+     [a <- :wat::core::i64
+      b <- :wat::core::i64]
+     -> :wat::core::bool
+     (:wat::core::= a b)))
+  (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64 3 3) true))
+
+(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-false
+  ((:wat::core::defn :wat-tests::core::core-equality::eq-i64-b
+     [a <- :wat::core::i64
+      b <- :wat::core::i64]
+     -> :wat::core::bool
+     (:wat::core::= a b)))
+  (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64-b 3 4) false))
+
+;; ─── REJECTION: cross-type equality → check-time type error ─────────────
+;;
+;; Mirrors typed_strict_i64_eq_rejects_f64_arg. The = intrinsic unifies
+;; arg types; passing i64 and f64 is a type mismatch at check time (the
+;; intrinsic's relational constraint requires arg0 and arg1 to be the same
+;; type — no promotion). run-hermetic-with-prelude registers the helper
+;; in the child prelude; the call with mismatched types errors at freeze.
+
+(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-rejects-f64-arg
+  ()
+  (:wat::core::let
+    [r
+      (:wat::test::run-hermetic-with-prelude
+        ((:wat::core::defn :child::eq-i64
+           [a <- :wat::core::i64
+            b <- :wat::core::i64]
+           -> :wat::core::bool
+           (:wat::core::= a b)))
+        (:child::eq-i64 3 3.0))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      ((:wat::core::Some _f) nil)
+      (:wat::core::None
+        (:wat::kernel::assertion-failed!
+          "expected check-time error: f64 3.0 passed to i64-typed = helper"
+          :wat::core::None :wat::core::None)))))
+
+;; ─── REJECTION: direct cross-type = → check-time type error ─────────────
+;;
+;; (= 1 1.5) is a type mismatch: = unifies arg0 and arg1 to the SAME type;
+;; i64 and f64 are distinct types with no promotion path post-237.8b.
+;; The poly_eq_mixed_promotes Rust test (which expected "equal") was in the
+;; 13-failing list — the correct new behaviour is rejection.
+
+(:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
+  ()
+  (:wat::core::let
+    [r
+      (:wat::test::run-hermetic
+        (:wat::core::let [b (:wat::core::= 1 1.5)] b))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      ((:wat::core::Some _f) nil)
+      (:wat::core::None
+        (:wat::kernel::assertion-failed!
+          "expected check-time type error for (= 1 1.5)"
+          :wat::core::None :wat::core::None)))))
