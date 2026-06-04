@@ -1,0 +1,164 @@
+;; wat-tests/core/record-def.wat — deftest-green ward for :wat::Record::def (BASE)
+;; and :wat::holon::Record::def (HOLONIC), arc 245.3c-b.
+;;
+;; Grounded on:
+;;   - macro spec:     wat/Record.wat (expansion diagrams, accessor naming, class-guard)
+;;   - probe (Rust):   tests/probe_arc237_sC3_macro_split.rs (18/18 green)
+;;   - probe (Rust):   tests/probe_arc234_stone2b_defrecord_macro.rs (6/6 green)
+;;   - failure idiom:  wat-tests/core/option-expect.wat (run-thread + RunResult/failure)
+;;   - deftest idiom:  wat-tests/core/core-equality.wat (plain deftest, empty prelude)
+;;
+;; Coverage:
+;;   construct          — BASE construct returns correct field values via SLASH accessor
+;;   slash-accessor     — :test::rd::Pt/x SLASH form (not bare :x)
+;;   predicate-true     — (:test::rd::is-Pt? p) = true
+;;   predicate-false    — cross-call: wrong class -> false
+;;   class-guard        — accessor on wrong-class receiver panics with "got class"
+;;   holonic-construct  — HOLONIC construct + slash-accessor
+;;   holonic-to-holon   — (:wat::holon::to-holon h) succeeds for holonic, errors for base
+;;   liskov             — defn [v <- :wat::Record] accepts holonic instance
+;;
+;; Record types and helpers are declared at the FILE TOP LEVEL (not in any
+;; deftest prelude) so they appear exactly once in the compiled program.
+;; Deftests use empty preludes () and reference these top-level declarations.
+
+;; ─── Top-level type declarations ────────────────────────────────────────────
+
+;; BASE record: two i64 fields.
+(:wat::Record::def :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+
+;; Second BASE record (different class_fqdn, one field) — used in predicate-false
+;; and class-guard tests.
+(:wat::Record::def :test::rd::Box [w <- :wat::core::i64])
+
+;; HOLONIC record: two i64 fields.
+(:wat::holon::Record::def :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+
+;; Liskov helper: accepts ANY :wat::Record (base OR holonic) and returns true.
+(:wat::core::defn :test::rd::accepts-base? [v <- :wat::Record] -> :wat::core::bool true)
+
+
+;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::record-def::base-construct-x
+  ()
+  (:wat::core::let
+    [p (:test::rd::Pt 3 4)]
+    (:wat::test::assert-eq (:test::rd::Pt/x p) 3)))
+
+;; ─── BASE: slash-accessor (y) ────────────────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::record-def::base-construct-y
+  ()
+  (:wat::core::let
+    [p (:test::rd::Pt 3 4)]
+    (:wat::test::assert-eq (:test::rd::Pt/y p) 4)))
+
+;; ─── Predicate: true on matching class ──────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::record-def::predicate-true
+  ()
+  (:wat::core::let
+    [p (:test::rd::Pt 3 4)]
+    (:wat::test::assert-eq (:test::rd::is-Pt? p) true)))
+
+;; ─── Predicate: false on non-matching class ──────────────────────────────────
+;;
+;; Constructs a :test::rd::Box; calls :test::rd::is-Pt? on it; asserts false.
+;; Validates that predicate discriminates via class_fqdn, not struct shape.
+
+(:wat::test::deftest :wat-tests::core::record-def::predicate-false-cross-class
+  ()
+  (:wat::core::let
+    [b (:test::rd::Box 99)]
+    (:wat::test::assert-eq (:test::rd::is-Pt? b) false)))
+
+;; ─── Class-safety guard — wrong-class receiver panics with "got class" ───────
+;;
+;; The accessor (:test::rd::Pt/x v) checks (= (type v) "test::rd::Pt") at
+;; runtime and panics with a "got class" message on mismatch.
+;; This is the load-bearing ward: a regression removing the guard turns it RED.
+;;
+;; Uses a nested run-thread inside the deftest's outer run-thread to catch
+;; the runtime panic and surface it as RunResult/failure.
+;;
+;; Type-check: :test::rd::Box is also a :wat::Record, so passing it to
+;; :test::rd::Pt/x (which takes :wat::Record) passes type-check. The
+;; runtime class guard fires because Box is not Pt.
+
+(:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
+  ()
+  (:wat::core::let
+    [r
+      (:wat::test::run-thread
+        ;; Accessor returns i64; do discards it and returns nil.
+        ;; The class guard fires before the nil is reached — that's the point.
+        (:wat::core::do (:test::rd::Pt/x (:test::rd::Box 5)) ()))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      ((:wat::core::Some f)
+        (:wat::test::assert-contains
+          (:wat::kernel::Failure/message f)
+          "got class"))
+      (:wat::core::None
+        (:wat::kernel::assertion-failed!
+          "expected class-guard panic on wrong-class receiver; got Success"
+          :wat::core::None :wat::core::None)))))
+
+;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::core::record-def::holonic-construct-accessor
+  ()
+  (:wat::core::let
+    [h (:test::rd::HPt 7 8)]
+    (:wat::test::assert-eq (:test::rd::HPt/x h) 7)))
+
+;; ─── HOLONIC: to-holon succeeds ──────────────────────────────────────────────
+;;
+;; Holonic record has a holon_form; (:wat::holon::to-holon h) returns HolonAST.
+;; We discard the result (_h) and do a sentinel assert-eq true true.
+;; If to-holon panics the deftest's outer run-thread surfaces the failure.
+
+(:wat::test::deftest :wat-tests::core::record-def::holonic-to-holon-ok
+  ()
+  ;; to-holon returns HolonAST; do discards the result (non-nil position).
+  ;; If to-holon panics the deftest's run-thread surfaces the failure.
+  ;; Sentinel assert-eq true true confirms the no-panic path.
+  (:wat::core::do
+    (:wat::holon::to-holon (:test::rd::HPt 1 2))
+    (:wat::test::assert-eq true true)))
+
+;; ─── BASE: to-holon errors at runtime ────────────────────────────────────────
+;;
+;; Base record has no holon_form; to-holon fires a MalformedForm RuntimeError.
+;; run-thread catches the panic; match on failure; assert Some.
+
+(:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
+  ()
+  (:wat::core::let
+    [r
+      (:wat::test::run-thread
+        ;; to-holon panics at runtime on base record; do discards result and
+        ;; returns nil. The runtime error fires before the nil is reached.
+        (:wat::core::let
+          [p (:test::rd::Pt 3 4)]
+          (:wat::core::do (:wat::holon::to-holon p) ())))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      ((:wat::core::Some _f) nil)
+      (:wat::core::None
+        (:wat::kernel::assertion-failed!
+          "expected to-holon runtime error on BASE record; got Success"
+          :wat::core::None :wat::core::None)))))
+
+;; ─── Liskov: [v <- :wat::Record] accepts a HOLONIC instance ──────────────────
+;;
+;; :test::rd::accepts-base? takes v <- :wat::Record (declared at file top level).
+;; Passes a :test::rd::HPt (holonic) instance.
+;; If the call passes type-check (holonic <: base) and evaluates, returns true.
+
+(:wat::test::deftest :wat-tests::core::record-def::liskov-holonic-into-base
+  ()
+  (:wat::core::let
+    [h (:test::rd::HPt 5 6)]
+    (:wat::test::assert-eq (:test::rd::accepts-base? h) true)))

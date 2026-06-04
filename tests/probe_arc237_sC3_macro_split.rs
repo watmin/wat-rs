@@ -60,14 +60,14 @@ fn check(decls: &str) -> Result<(), String> {
 }
 
 // ─── BASE flavor (:my::Pt via :wat::Record::def) ──────────────────────────────
-#[test] fn base_construct_and_field() { assert_eq!(i64_field("(:x (:my::Pt 1 2))"), 1); }
+#[test] fn base_construct_and_field() { assert_eq!(i64_field("(:my::Pt/x (:my::Pt 1 2))"), 1); }
 #[test] fn base_accessor() { assert_eq!(i64_field("(:my::Pt/y (:my::Pt 1 2))"), 2); }
 #[test] fn base_predicate_true() { assert!(is_true("(:my::is-Pt? (:my::Pt 1 2))")); }
 #[test] fn base_predicate_false() { assert!(is_false("(:my::is-Pt? (:my::HPt 1 2))")); }
 #[test] fn base_eq_equal() { assert!(is_true("(:wat::core::= (:my::Pt 1 2) (:my::Pt 1 2))")); }
 #[test] fn base_eq_diff() { assert!(is_false("(:wat::core::= (:my::Pt 1 2) (:my::Pt 1 9))")); }
 #[test] fn base_same_data() { assert!(is_true("(:wat::Record/same-data? (:my::Pt 1 2) (:my::Pt 1 2))")); }
-#[test] fn base_assoc_then_read() { assert_eq!(i64_field("(:y (:wat::Record/assoc (:my::Pt 1 2) :y 9))"), 9); }
+#[test] fn base_assoc_then_read() { assert_eq!(i64_field("(:my::Pt/y (:wat::Record/assoc (:my::Pt 1 2) :y 9))"), 9); }
 #[test] fn base_to_holon_errors() {
     // base has NO holon flavor — to-holon must error (teaching error), not return Ok.
     let h = eval_typed("(:wat::holon::to-holon (:my::Pt 1 2))", ":wat::holon::HolonAST");
@@ -75,7 +75,7 @@ fn check(decls: &str) -> Result<(), String> {
 }
 
 // ─── HOLONIC flavor (:my::HPt via :wat::holon::Record::def) ────────────────────
-#[test] fn holonic_construct_field() { assert_eq!(i64_field("(:x (:my::HPt 7 8))"), 7); }
+#[test] fn holonic_construct_field() { assert_eq!(i64_field("(:my::HPt/x (:my::HPt 7 8))"), 7); }
 #[test] fn holonic_predicate_true() { assert!(is_true("(:my::is-HPt? (:my::HPt 7 8))")); }
 #[test] fn holonic_to_holon_ok() {
     // holonic HAS a holon flavor — to-holon works.
