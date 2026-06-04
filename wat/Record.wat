@@ -1,3 +1,5 @@
+;; vigilatum: 2026-06-04T05:50:09Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(record-def)
+;;
 ;; :wat::Record::def — BASE record macro.
 ;;
 ;; Defines a BASE record: struct_form only, NO holon_form.
@@ -58,7 +60,8 @@
 ;;         [x y]
 ;;         (:wat::holon::Bind ...)))
 ;;
-;;     ;; 3. Per-field accessor + Predicate
+;;     ;; 3. Per-field accessors (one per field; class-safety guarded, predicate
+;;     ;;    auto-minted elsewhere — same as BASE)
 ;;     )
 ;;
 ;; Naming rules (derived at macro-expand time via keyword/to-string + string manipulation):
