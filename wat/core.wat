@@ -3,8 +3,8 @@
 ;; wat/core.wat — the :wat::core::* stdlib surface: short-name aliases plus the
 ;; polymorphic arithmetic and ordering defclauses.
 ;;
-;; Loads before wat/runtime.wat so these forms are visible to any
-;; reflection-driven macro that references them.
+;; Loads early in the stdlib so these forms are visible to the later
+;; files that reference them.
 
 ;; The polymorphic-name collection ops — length / empty? / contains? / get /
 ;; conj / assoc — are Rust ∀T intrinsics: check-side inference lives in

@@ -211,25 +211,16 @@ const STDLIB_FILES: &[WatSource] = &[
     },
     // Arc 146 slice 2 — :wat::core::* dispatches. Routes polymorphic
     // primitive names (length, etc.) to per-Type impls. Loads BEFORE
-    // wat/runtime.wat so dispatches are visible to any reflection-driven
-    // macro that might reference them.
+    // collection forms so dispatches are visible to any file that
+    // references them.
     WatSource {
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
-    // Arc 143 slice 6 — :wat::runtime::* reflection-driven macros.
-    // Depends on substrate primitives from slices 1+2+3 (lookup-define,
-    // signature-of-defn, body-of, rename-callable-name, extract-arg-names,
-    // and computed-unquote in defmacro bodies). Loads last so all
-    // substrate dispatch is in place when this defmacro registers.
-    WatSource {
-        path: "wat/runtime.wat",
-        source: include_str!("../wat/runtime.wat"),
-    },
     // Arc 143 slice 7 — :wat::list::* list-operation aliases.
     // Stone 241.12 — uses :wat::core::defalias (native substrate form) to create
     // :wat::list::reduce and :wat::list::fold as aliases for :wat::core::foldl.
-    // No longer depends on wat/runtime.wat macro registration order.
+    // Loads after core.wat so all substrate dispatch is in place.
     WatSource {
         path: "wat/list.wat",
         source: include_str!("../wat/list.wat"),
