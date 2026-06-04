@@ -1,4 +1,6 @@
-;; :wat::holon::Reject — Gram-Schmidt reject step per 058-005.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Reject)
+;;
+;; :wat::holon::Reject — Gram-Schmidt reject step.
 ;;
 ;; (Reject x y) = x - ((x·y)/(y·y)) · y
 ;; The component of x orthogonal to y.
@@ -6,9 +8,9 @@
 ;; Expands to Blend with the second weight computed at runtime from
 ;; the dot-product ratio. The negation is spelled as binary
 ;; (:wat::core::- 0.0 ratio) since wat arith is binary — there is
-;; no unary negate. Polymorphic form used (arc 050); the typed
-;; strict :wat::core::f64::- remains available for callers who
-;; want the type-guard behavior.
+;; no unary negate. Polymorphic form used; the typed-strict
+;; :wat::core::f64::- remains available for callers who want the
+;; type-guard behavior.
 ;;
 ;; Production-cited: DDoS sidecar's core detection mechanism
 ;; (Challenge 010, F1=1.000) — reject(packet, baseline_subspace).

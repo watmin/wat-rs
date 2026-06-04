@@ -1,4 +1,6 @@
-;; :wat::holon::Bigram — pairs, per 058-013 (Ngram 2 xs shortcut).
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Bigram)
+;;
+;; :wat::holon::Bigram — pairs (Ngram 2 xs shortcut).
 ;;
 ;; n=2 is the most-used adjacency size (pair-wise transitions in
 ;; sequences, indicator A-then-B rhythms, before-and-after

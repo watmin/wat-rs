@@ -1,4 +1,6 @@
-;; :wat::holon::ReciprocalLog — arc 034 stdlib macro.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(ReciprocalLog)
+;;
+;; :wat::holon::ReciprocalLog — stdlib macro for symmetric ratio encoding.
 ;;
 ;; (ReciprocalLog n value) → Log with reciprocal bounds (1/n, n).
 ;;
@@ -22,11 +24,8 @@
 ;; Smallest member (N=2) is the default for gently-volatile
 ;; ratios; larger N widens the gradient before saturation.
 ;;
-;; Preconditions (per 058-017 Q2): n > 0, value > 0. Caller
-;; enforces; Thermometer over `ln(non-positive)` produces
-;; undefined behavior.
-;;
-;; Arc 034; named via `/gaze`.
+;; Preconditions: n > 0, value > 0. Caller enforces; Thermometer over
+;; `ln(non-positive)` produces undefined behavior.
 
 (:wat::core::defmacro :wat::holon::ReciprocalLog
   [n     <- :AST<wat::core::f64>

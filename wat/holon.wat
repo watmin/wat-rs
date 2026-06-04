@@ -1,3 +1,5 @@
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Filter)
+;;
 ;; wat/holon.wat — loose verbs in the :wat::holon::* namespace.
 ;;
 ;; The wat/holon/ subdirectory ships one named PascalCase holon per
@@ -11,36 +13,35 @@
 ;; FQDN doctrine. Future additions: any :wat::holon::* verb whose
 ;; name doesn't match a substrate-defined holon type lands here.
 ;;
-;; Currently shipped: three Hologram/get filter factories (originally
-;; wat/holon/Filter.wat — moved 2026-05-01 because the file shipped
-;; verbs, not a Filter type; per gaze ward's reading, the file's
-;; basename was lying about what it housed).
+;; Currently shipped: three filter factories for Hologram/get. These
+;; are verbs, not a Filter type — hence they live here rather than in
+;; a dedicated Filter.wat file whose basename would misrepresent what
+;; it houses.
 ;;
 ;; ─── Hologram/get filter factories ──────────────────────────────────
 ;;
-;; The arc-074 Hologram/get takes a user-supplied filter
-;; `:wat::core::Fn(:wat::core::f64) -> :wat::core::bool` that decides whether the
+;; `Hologram/get` takes a 2-arg call `(:wat::holon::Hologram/get store probe)`.
+;; The filter `:wat::core::Fn(:wat::core::f64) -> :wat::core::bool` is bound
+;; at construction via `Hologram/make` and decides whether the
 ;; highest-cosine candidate is "close enough" to return. The substrate
 ;; ships three opinionated factories so consumers don't have to
 ;; hand-roll the canonical thresholds.
 ;;
-;; Each factory takes the encoder dim `d` and returns a closure with
-;; the floor baked in. Pass the closure to Hologram/get's filter
-;; parameter.
-;;
 ;; Usage:
 ;;
-;;   ;; strict — only return when cosine clears the coincident floor
-;;   (:wat::holon::Hologram/get store pos probe
-;;     (:wat::holon::filter-coincident 10000))
+;;   ;; build the store once — filter is bound at construction
+;;   (def store (:wat::holon::Hologram/make (:wat::holon::filter-coincident)))
 ;;
-;;   ;; looser — return when there's any presence above the noise floor
-;;   (:wat::holon::Hologram/get store pos probe
-;;     (:wat::holon::filter-present 10000))
+;;   ;; strict — only return when cosine clears the coincident floor
+;;   (:wat::holon::Hologram/get store probe)
+;;
+;;   ;; looser store — build with filter-present instead
+;;   (def store (:wat::holon::Hologram/make (:wat::holon::filter-present)))
+;;   (:wat::holon::Hologram/get store probe)
 ;;
 ;;   ;; pure population readout — no gating; whatever scored highest wins
-;;   (:wat::holon::Hologram/get store pos probe
-;;     (:wat::holon::filter-accept-any))
+;;   (def store (:wat::holon::Hologram/make (:wat::holon::filter-accept-any)))
+;;   (:wat::holon::Hologram/get store probe)
 ;;
 ;; Why factories rather than plain functions: the floor depends on `d`
 ;; (the encoding dimension), and `d` is a per-store constant. Baking
@@ -57,10 +58,10 @@
 ;; semantics of `:wat::holon::coincident?` but works on a raw cosine
 ;; value instead of two HolonAST inputs.
 ;;
-;; Arc 076: d is read from the ambient `:wat::config::dim-count` rather
-;; than passed by the caller. The filter captures the floor at the
-;; call site's ambient d; pass through `Hologram/make` once and the
-;; entire store carries the same threshold.
+;; d is read from the ambient `:wat::config::dim-count` rather than
+;; passed by the caller. The filter captures the floor at the call
+;; site's ambient d; pass through `Hologram/make` once and the entire
+;; store carries the same threshold.
 (:wat::core::defn :wat::holon::filter-coincident [] -> :wat::core::Fn(wat::core::f64)->wat::core::bool
   (:wat::core::let
       [floor
@@ -75,7 +76,7 @@
 ;; Use when the cache is acting as a "best-known reasonable answer"
 ;; lookup rather than "did I see this exact form before."
 ;;
-;; Arc 076: d is read from the ambient `:wat::config::dim-count`.
+;; d is read from the ambient `:wat::config::dim-count`.
 (:wat::core::defn :wat::holon::filter-present [] -> :wat::core::Fn(wat::core::f64)->wat::core::bool
   (:wat::core::let
       [floor

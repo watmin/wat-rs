@@ -1,5 +1,6 @@
-;; :wat::holon::Sequential — bind-chain with positional Permute per
-;; 058-009's reframe.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Sequential)
+;;
+;; :wat::holon::Sequential — bind-chain with positional Permute.
 ;;
 ;; (Sequential [a])       = a
 ;; (Sequential [a b])     = Bind(a, Permute(b, 1))
@@ -11,10 +12,9 @@
 ;; (strict identity; exact sequence match). Two sequences with the
 ;; same items in different order produce different compound vectors.
 ;;
-;; Expansion strategy (deviation from proposal's conceptual sketch):
-;; use `map-with-index` to attach positions, then `foldl` to bind-chain
-;; over tail from head. Uses existing core + std::list combinators
-;; (no new primitives).
+;; Expansion strategy: use `map-with-index` to attach positions, then
+;; `foldl` to bind-chain over tail from head. Uses existing core +
+;; std::list combinators (no new primitives).
 
 (:wat::core::defmacro :wat::holon::Sequential
   [items <- :AST<List<wat::holon::HolonAST>>]
@@ -26,7 +26,7 @@
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
              (:wat::holon::Permute item i))))]
-     ;; first returns wat::core::Option<HolonAST> via arc 047. Sequential
+     ;; first returns wat::core::Option<HolonAST>. Sequential
      ;; expects non-empty input by contract; the :None arm is
      ;; unreachable but the type checker demands totality.
      (:wat::core::match (:wat::core::first positioned) -> :wat::holon::HolonAST

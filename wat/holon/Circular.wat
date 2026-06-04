@@ -1,4 +1,6 @@
-;; :wat::holon::Circular — stdlib macro per 058-018.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Circular)
+;;
+;; :wat::holon::Circular — stdlib macro for cyclic quantities.
 ;;
 ;; (Circular value period) encodes a cyclic quantity as a point on the
 ;; unit circle by Blending two reserved basis atoms (cos-basis and
@@ -7,16 +9,13 @@
 ;; (independent real-valued weights) is exactly what this needs —
 ;; cos(π/4) + sin(π/4) ≈ 1.414, not 1.
 ;;
-;; Deviations from the proposal's body shape:
-;;   - arith is binary: the proposal's `(* 2 pi (/ v p))` trinary form
-;;     becomes nested binary `(:wat::core::*` + `:wat::core::/`)
-;;     calls. Polymorphic forms used (arc 050); the typed strict
-;;     `:wat::core::f64::*` and `:wat::core::f64::/` remain available
-;;     when callers want the type-guard behavior.
-;;   - `:wat::std::math::pi` was written bare in the proposal; it's a
-;;     nullary primitive, called as `(:wat::std::math::pi)` here.
-;;   - let bindings carry explicit `:wat::core::f64` types.
-;; Same math, enforcement-correct wat.
+;; Arith is binary: `(* 2 pi (/ v p))` becomes nested binary
+;; `(:wat::core::*` + `:wat::core::/)` calls. Polymorphic forms used;
+;; the typed-strict `:wat::core::f64::*` and `:wat::core::f64::/`
+;; remain available when callers want the type-guard behavior.
+;; `:wat::std::math::pi` is a nullary primitive called as
+;; `(:wat::std::math::pi)`; let bindings carry explicit
+;; `:wat::core::f64` types.
 
 (:wat::core::defmacro :wat::holon::Circular
   [value  <- :AST<wat::core::f64>

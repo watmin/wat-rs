@@ -1,4 +1,6 @@
-;; :wat::holon::Project — Gram-Schmidt project step per 058-005.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Reject)
+;;
+;; :wat::holon::Project — Gram-Schmidt project step.
 ;;
 ;; (Project x y) = x's component along y's direction
 ;;               = x - Reject(x, y)

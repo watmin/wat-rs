@@ -1,4 +1,6 @@
-;; :wat::holon::Trigram — triples, per 058-013 (Ngram 3 xs shortcut).
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Trigram)
+;;
+;; :wat::holon::Trigram — triples (Ngram 3 xs shortcut).
 ;;
 ;; The canonical bind-chain rhythm shape — three-element windows
 ;; capture an A→B→C transition pattern that pairs miss (Bigrams

@@ -1,4 +1,6 @@
-;; :wat::holon::Ngram — n-wise adjacency per 058-013.
+;; vigilatum: 2026-06-04T06:49:40Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(Ngram)
+;;
+;; :wat::holon::Ngram — n-wise adjacency encoding.
 ;;
 ;; (Ngram n xs) = (Bundle (map (window xs n) Sequential))
 ;;
@@ -11,13 +13,13 @@
 ;; fn, so the emitted AST carries Sequential's let-foldl
 ;; directly with no runtime call hop.
 ;;
-;; Edge cases per Q2: n <= 0 produces an empty bundle (zero vector);
+;; Edge cases: n <= 0 produces an empty bundle (zero vector);
 ;; n > xs.len() produces an empty bundle (no window fits).
 
-;; Returns the Bundle's raw Result — caller handles capacity. Per
-;; the 2026-04-19 Bundle-Result slice: every stdlib form that expands
-;; to Bundle inherits Bundle's Result wrap. Callers either match
-;; explicitly or propagate with `:wat::core::Result/try`.
+;; Returns the Bundle's raw Result — caller handles capacity. Every
+;; stdlib form that expands to Bundle inherits Bundle's Result wrap.
+;; Callers either match explicitly or propagate with
+;; `:wat::core::Result/try`.
 
 (:wat::core::defmacro :wat::holon::Ngram
   [n  <- :AST<wat::core::i64>
