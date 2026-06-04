@@ -1,22 +1,11 @@
-;; :wat::Record::def — BASE record macro — arc 237 Stone S-C.3.
+;; :wat::Record::def — BASE record macro.
 ;;
 ;; Defines a BASE record: struct_form only, NO holon_form.
 ;; The unmarked name is the cheap common case.
 ;;
-;; :wat::holon::Record::def — HOLONIC record macro — arc 237 Stone S-C.3.
+;; :wat::holon::Record::def — HOLONIC record macro.
 ;;
 ;; Defines a HOLONIC record: struct_form + holon_form (opt-in for holon-ops).
-;;
-;; Probe references:
-;;   - tests/probe_arc237_sC3_macro_split.rs   (18 contracts; arc 237 Stone S-C.3)
-;;   - tests/probe_arc234_stone2b_defrecord_macro.rs   (commit 676e861)
-;;     6 contracts:
-;;       1. Single-field expansion + invocation: constructor returns Value::wat__Record
-;;       2. Per-field accessor returns the correct field value
-;;       3. Predicate true on matching class
-;;       4. Predicate false on non-matching class (two types defined; cross-call)
-;;       5. Multi-field (3 fields) expansion + all three accessors work in order
-;;       6. Zero-field expansion: constructor + predicate work
 ;;
 ;; Substrate primitives consumed:
 ;;   BASE:
@@ -46,11 +35,12 @@
 ;;         :myapp::Pt
 ;;         [x y]))
 ;;
-;;     ;; 3. Per-field accessor (one per declared field)
+;;     ;; 3. Per-field accessor (one per field), receiver class-safety guarded:
+;;     ;;    field-at runs only after (= (type v) :myapp::Pt) is checked.
 ;;     (:wat::core::defn :myapp::Pt/x [v <- :wat::Record] -> :wat::core::i64
-;;       (:wat::Record/field-at v 0))
+;;       (:wat::Record/field-at <class-checked v> 0))
 ;;
-;;     ;; 4. Predicate (auto-minted by arc 237.6; not emitted by macro)
+;;     ;; 4. Predicate (auto-minted elsewhere; NOT emitted by this macro)
 ;;     )
 ;;
 ;; Expansion shape for HOLONIC:
@@ -78,15 +68,20 @@
 ;;   | :myapp::Pt            | :myapp::Pt            | :myapp::is-Pt?             | "myapp::Pt"            |
 ;;   | :awesome::lib::Sensor | :awesome::lib::Sensor | :awesome::lib::is-Sensor?  | "awesome::lib::Sensor" |
 ;;
+;; (The Predicate column is shown for FQDN-derivation reference; the predicate is
+;;  auto-minted elsewhere, not emitted by this macro.)
+;;
 ;; Accessor naming: <class-fqdn>/<field-name> as keyword (e.g. :myapp::Pt/x).
 ;; Accessor signature: [v <- :wat::Record] -> :<declared-field-type>.
 ;;
 ;; FQDN doctrine (feedback_fqdn_is_the_namespace): users declare their own namespace.
 ;; The macro NEVER inserts into :user::* or any auto-namespace.
 ;;
-;; D10: Runtime class-safety check in accessor bodies is OUT OF SCOPE for this stone.
-;; D11: Field-type constraint enforcement at expand time is OUT OF SCOPE.
-;; D14: HARD CUT — no aliases. No single-arg form. Users MUST provide the field vector.
+;; Accessor bodies are class-safety guarded: each runs (:wat::Record/field-at …)
+;; only after checking (= (type v) <fqdn>), panicking with a "got class …" message
+;; on a mismatched receiver (see the accessor expansion in the macro body below).
+;; Field-type constraints are NOT enforced at expand time. No aliases, no single-arg
+;; form — users MUST provide the field vector.
 
 ;; ─── BASE macro (:wat::Record::def) ──────────────────────────────────────────
 
