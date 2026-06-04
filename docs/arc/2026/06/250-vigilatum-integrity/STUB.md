@@ -26,6 +26,17 @@ Make `vigilatum` **self-enforcing**: a gate re-verifies each stamped home's ward
 
 User 2026-06-04: *"we do not shy away from hard work — but we dislike having to deal with the same issue twice — how do we prevent this?"* The behavioral layers start now; **this arc is the structural one** — it turns "deal with it twice" into "can't recur silently." A stamp that cannot go false without screaming is the only honest stamp.
 
+## Proof sketch — leading candidate (2026-06-04; NOT yet locked — settle at design)
+
+A stamp promises two things; make the build re-check both so drift FAILS LOUD:
+
+1. **`#![deny(warnings)]` (+ curated `deny(clippy::…)`) on each warded home module.** Turns clippy-clean / dead-code-clean from a one-time *measurement* into a *forced invariant*: any rustc warning = compile error every build; any clippy lint = error under `cargo clippy`. The home can no longer accumulate drift. (All existing warded homes — `function/`, `check/`, `types/`, `remedy/`, `comms/`, `collection/` — should get this.)
+2. **A `vigilatum_integrity` cargo test for the duplication/fork class** (the one `deny` CANNOT catch — the 246.2 disaster had 23 `*_inner` reappear *live*, no warning). The test reads each stamped home's `fn` names and asserts **none are also `fn`-defined in the flat files** (`runtime.rs`/`check.rs`). A reappearing duplicate = same name in two places = test failure. This is the novel piece; it is exactly what would have screamed at `fc402545`.
+
+Together: a drifted stamp breaks `cargo test`/`cargo build`. "Warded" becomes an invariant the toolchain re-derives, not a comment to trust.
+
+**Still genuinely open (the design pass):** mechanism #2's edge cases — how a home *declares* its owned symbols (auto-grep its `fn`s vs. an explicit manifest), and false-positive handling for coincidentally-same-named fns across modules. (Q1/Q3 above.)
+
 ## Enabled-by / priority
 
 Not blocked — a meta/tooling arc, independent of the substrate spine. **NOT in the pre-232 resumption gate** (235/245/246/249); a separate banked arc, **priority = builder's call** (open it when a stamp-drift next bites, or when the spine clears). See `feedback_commit_milestones_and_invariant_gates` + `feedback_warded_means_annihilated`.
