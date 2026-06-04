@@ -1,6 +1,6 @@
 # Arc 245 — wat-corpus warding (STUB)
 
-**Status:** ⏸ **STUBBED — BLOCKED, enabled by arc 237's closure.** Not yet designed; this stub banks the intent. Opens when **237.9 (INSCRIPTION) ships** and the numeric+equality stdlib surface is stable. Stubbed 2026-06-03 from a dialogue at the close of Stone 237.8b.
+**Status:** ▶ **OPEN — the enabling gate cleared (237.9 INSCRIPTION shipped; numeric+equality stdlib surface stable). DESIGN SETTLED in `DESIGN-STONE-245.0.md` (2026-06-04) — read that for the instrument decision; this STUB is the historical banking record below.** Stubbed 2026-06-03 from a dialogue at the close of Stone 237.8b.
 
 ## Why this arc — the asymmetry it kills
 
