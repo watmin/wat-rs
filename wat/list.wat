@@ -1,17 +1,12 @@
+;; vigilatum: 2026-06-04T02:28:55Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(list-fold-aliases)
+;;
 ;; wat/list.wat — :wat::list::* — list operations.
 ;;
-;; Forward-looking namespace per arc 109's wind-down direction
-;; ("we need to move things to :wat::list::* then we can mirror
-;; that stuff for lazy seqs"). Houses two opinionated aliases for
-;; users who reach for `reduce` or `fold` — both delegate to the
-;; atomic `:wat::core::foldl` primitive. (`foldl` and `foldr`
-;; remain the atomic forms; `reduce` and `fold` are the helper
-;; names users reach for from Clojure / Haskell / Lisp / JS / Python /
-;; Ruby etc.)
-;;
-;; Future :wat::core::foldl → :wat::list::foldl rename in a
-;; follow-on arc; the aliases' TARGET updates without touching
-;; their NAMES.
+;; Two ergonomic aliases over the atomic fold primitive
+;; `:wat::core::foldl`: `reduce` and `fold` are the names users reach
+;; for from Clojure / Haskell / Lisp / JS / Python / Ruby. The alias
+;; layer also insulates callers from a future move of the target — the
+;; binding can be repointed without changing these names.
 
 ;; Stone 241.12 — migrated from :wat::runtime::define-alias to :wat::core::defalias.
 (:wat::core::defalias :wat::list::reduce :wat::core::foldl)

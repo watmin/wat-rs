@@ -8,7 +8,7 @@
 
 1. **The instrument is `vigilia` itself** — cast with wat-kind spell selection. **No new aggregator is minted.**
 2. **The stamp word stays `vigilatum`** — only the bar clause and comment syntax change.
-3. **The wat bar (L2 floor) is `checker-clean + suite-green`** — the wat analog of "clippy-clean in-home."
+3. **The wat bar (L2 floor) is `checker-clean + deftest-green(<name>)`** — the wat analog of "clippy-clean in-home."
 4. **The primary wat warding hazard is stale arc-archaeology comments** — wat's analog of Rust's borrow/clippy surface; the L1 floor must include a comment-fidelity pass.
 5. **`wat/core.wat` is FORBIDDEN from warding until its archaeology is reconciled** (a verified live lie sits in its header).
 
@@ -54,25 +54,29 @@ What the warding cast runs against a wat file, by whether the discipline transfe
 - **clippy** — there is no wat linter (see §6). Its slot in the bar is taken by `checker-clean` (§3).
 - **the `src/<noun>/` lift** — wat files are stdlib *source*, warded **in place**. There is no module to lift into a home; "home" framing does not apply. A wat file is warded where it lives.
 
-## §3 — The wat bar: `checker-clean + suite-green`
+## §3 — The wat bar: `checker-clean + deftest-green(<name>)`
+
+> ▶ **REFINED BY 245.1 (see `SCORE-STONE-245.1.md`).** This section originally read "checker-clean + **suite-green**." The first ward proved that phrase both *toothless* (a file can pass the suite while its own forms are never executed) and *false* (there is no green integration suite — `scripts/green-gate.sh:22-29` deliberately excludes the leaky `cargo test --test test` RUN pending arc 170). The behavioral clause is corrected below to the honest, per-file, named, run-level form.
 
 The Rust stamp's L2 phrase is "clippy-clean in-home." wat has no clippy, so the floor is rebuilt from what exists **now**:
 
-- **L2 — structural: `checker-clean`.** The wat type-checker accepts every form in the file with **zero warnings/diagnostics**. This is wat's clippy-analog: the language's own static gate passes clean on the file's forms.
-- **L2 — behavioral: `suite-green`.** Every `wat-tests/` test exercising the file's forms passes; the documented behavior is the tested behavior. wat needs this second L2 because the checker proves *less* about a Lisp stdlib than clippy+borrowck prove about Rust — the behavioral suite carries the weight the static gate can't.
-- **L1 — the spell convergence**, including a mandatory **comment-fidelity pass** (`cernere` + `conferre`) — see §5. L1 lies before L2 mumbles; a file with a stale-but-compiling comment is L1-divergent even at suite-green.
+- **L2 — structural: `checker-clean`.** The wat type-checker accepts every form in the file with **zero warnings/diagnostics** (verified via `stdlib::tests::every_stdlib_file_parses` inside the green lib gate). This is wat's clippy-analog: the language's own static gate passes clean on the file's forms.
+- **L2 — behavioral: `deftest-green(<name>)`.** The file's own forms are **exercised by a NAMED, deterministic, currently-green `:wat::test::deftest`** (runnable via `cargo test --release --test test <name>`). Not "suite-green" (overclaims a whole green suite that does not exist) and not bare "forms-exercised" (mumbles — drops the green-state and the artifact). Naming the deftest in the clause makes the stamp self-verifiable at source and loud on drift. wat needs this run-level L2 because the checker proves *less* about a Lisp stdlib than clippy+borrowck prove about Rust — and because `register_defalias`-style call-time-deferred errors mean a delegation can break while the static gate stays green.
+- **L1 — the spell convergence**, including a mandatory **comment-fidelity pass** (`cernere` + `conferre`) — see §5. L1 lies before L2 mumbles; a file with a stale-but-compiling comment is L1-divergent even when its deftest is green.
 
-`L1+L2=0` remains the measurement; the *bar clause* is what changes: **`checker-clean + suite-green`** (reads as a floor, not a goal — parallel in shape to "clippy-clean in-home").
+`L1+L2=0` remains the measurement; the *bar clause* is **`checker-clean + deftest-green(<name>)`** (reads as a floor, not a goal — parallel in shape to "clippy-clean in-home").
+
+**Routine-gating dependency (not a stamp claim):** the deftests are runnable + green now but live in the gate-*excluded* integration suite (arc-170 leaks), so nothing re-runs them routinely. That future-rot protection is task **#151** (non-leaky integration tier) + **arc 250** (self-enforcing stamps), not a present guarantee. The stamp attests only the stamp-time truth.
 
 ## §4 — The wat stamp
 
 The warding token stays `vigilatum` (the Latin past-participle "watched/guarded" — it names the language-independent **result** of vigilia, and keeps **one grep-able warding token** across the whole substrate, Rust and wat alike). Only the syntax (`;;` not `//!`) and the bar clause change:
 
 ```
-;; vigilatum: <UTC-ts> — vigilia <N>-spell L1+L2=0, checker-clean + suite-green
+;; vigilatum: <UTC-ts> — vigilia <N>-spell L1+L2=0, checker-clean + deftest-green(<name>)
 ```
 
-`<N>` records the actual count of spells cast on that file (the wat-kind selection varies: a pure leaf is fewer; a `kernel/` file adds `secare`). Placed at the top of the file, as the Rust stamp sits at the top of `mod.rs`.
+`<name>` is the wat-tests deftest file that exercises this file's forms (245.1 refinement — see §3). `<N>` records the actual count of spells cast on that file (the wat-kind selection varies: a pure leaf is fewer; a `kernel/` file adds `secare`). Placed at the top of the file, as the Rust stamp sits at the top of `mod.rs`.
 
 ## §5 — The primary wat warding hazard: stale arc-archaeology
 
@@ -89,7 +93,7 @@ The warding token stays `vigilatum` (the Latin past-participle "watched/guarded"
 
 There is **no wat linter today**, and warding does not wait for one. The linter is a deliberate downstream artifact (banked in `~/work/holon/scratch/`): it gets **built in wat**, which means **wat must be stable first** — the language a linter lints must settle before the linter (itself a wat program) can exist. Warding the corpus is part of what *gets* wat stable enough to build it.
 
-**The lineage (record it so it is not lost):** corpus-warding now (`checker-clean + suite-green`) → wat stabilizes → the wat-native linter is built in wat → it adds an **automated L2 gate** (the true clippy-analog) → at that point the wat stamp's bar clause **graduates** (a forward stone re-derives the stamps with the linter in the floor). Until then, `checker-clean + suite-green` is not a stopgap — it is *the* honest bar a language that cannot yet lint itself can promise.
+**The lineage (record it so it is not lost):** corpus-warding now (`checker-clean + deftest-green(<name>)`) → wat stabilizes → the wat-native linter is built in wat → it adds an **automated L2 gate** (the true clippy-analog) → at that point the wat stamp's bar clause **graduates** (a forward stone re-derives the stamps with the linter in the floor). Until then, `checker-clean + deftest-green(<name>)` is not a stopgap — it is *the* honest bar a language that cannot yet lint itself can promise.
 
 ## §7 — Scope, bar-by-kind, slicing
 
@@ -117,6 +121,6 @@ There is **no wat linter today**, and warding does not wait for one. The linter 
 
 ## Provenance
 
-- **intueri naming cast** (spawned 2026-06-04, embedded discipline, read `core.wat` / `holon/Log.wat` / `list.wat` / `src/collection/mod.rs` / this STUB): returned REUSE + `vigilatum`-stays + `checker-clean + suite-green` + the stale-archaeology catch. Verdict adopted in full.
+- **intueri naming cast** (spawned 2026-06-04, embedded discipline, read `core.wat` / `holon/Log.wat` / `list.wat` / `src/collection/mod.rs` / this STUB): returned REUSE + `vigilatum`-stays + `checker-clean + deftest-green(<name>)` + the stale-archaeology catch. Verdict adopted in full.
 - **Live verification** (orchestrator, same session, per `feedback_ground_against_right_target`): independently weighed the cast's absence-claim against the disk — `grep -rn DispatchRegistry src/` = 0 (lie confirmed), and sharpened it to the half-stale precise clause. The cast's flagship catch survived grounding against the LIVE target, not the cast's own re-search.
 - **User constraint** (2026-06-04): no wat linter today; it is built in wat once the language is stable → §6 deferred-enabler lineage.
