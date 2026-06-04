@@ -1,6 +1,8 @@
+;; vigilatum: 2026-06-04T05:00:02Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(newtypes)
+;;
 ;; :wat::edn::Tagged + :wat::edn::NoTag — newtype wrappers around
 ;; HolonAST that signal which EDN write strategy the substrate should
-;; use when binding to a TEXT column (sqlite auto-dispatch / arc 085).
+;; use when binding to a TEXT column (sqlite auto-dispatch).
 ;;
 ;; A field declared `:wat::edn::Tagged` carries a HolonAST that the
 ;; substrate writes via `:wat::edn::write` — round-trip-safe; readable
@@ -15,13 +17,13 @@
 ;; what queries match against.
 ;;
 ;; Both newtypes are the same shape at runtime — `Value::Struct`
-;; arity 1 carrying the inner HolonAST at field index 0 (per arc 049's
-;; tuple-struct compilation). The auto-dispatch shim looks at the field's
+;; arity 1 carrying the inner HolonAST at field index 0 (tuple-struct
+;; compilation). The auto-dispatch shim looks at the field's
 ;; declared type-name (`:wat::edn::Tagged` vs `:wat::edn::NoTag`) to
 ;; pick the write strategy. The Value's runtime payload is the same
 ;; HolonAST either way.
 ;;
-;; Constructors auto-derived per arc 049:
+;; Constructors auto-derived:
 ;;   `:wat::edn::Tagged/new` — `(:wat::core::Fn(:wat::holon::HolonAST) -> :wat::edn::Tagged)`
 ;;   `:wat::edn::NoTag/new`  — `(:wat::core::Fn(:wat::holon::HolonAST) -> :wat::edn::NoTag)`
 ;; Plus accessors `:wat::edn::Tagged/0` and `:wat::edn::NoTag/0` for the
