@@ -72,7 +72,6 @@ fn regression_fn_first_map_no_threading() {
 
 /// `(->> [1 2 3] (map INC))` → `(map INC [1 2 3])` → [2 3 4]. Collection lands LAST.
 #[test]
-#[ignore = "arc 249: threading not minted yet — un-ignore after the desugar lands"]
 fn mint_thread_last_single_step() {
     let body = format!("(:wat::core::= (->> [1 2 3] (:wat::core::map {INC})) [2 3 4])");
     assert_eq!(eval_bool_with("", &body).unwrap(), Value::bool(true));
@@ -81,7 +80,6 @@ fn mint_thread_last_single_step() {
 /// `(->> [1 2 3] (map INC) (filter GT2))` → `(filter GT2 (map INC [1 2 3]))`
 /// → filter(>2) [2 3 4] → [3 4]. The two-step pipeline — the arc-247 raison d'être.
 #[test]
-#[ignore = "arc 249: threading not minted yet — un-ignore after the desugar lands"]
 fn mint_thread_last_pipeline() {
     let body = format!(
         "(:wat::core::= (->> [1 2 3] (:wat::core::map {INC}) (:wat::core::filter {GT2})) [3 4])"
@@ -93,7 +91,6 @@ fn mint_thread_last_pipeline() {
 /// Also the disambiguation proof: `->` is the return-arrow in the `:user::compute`
 /// signature AND the thread-first head in the body — both in one form.
 #[test]
-#[ignore = "arc 249: threading not minted yet — un-ignore after the desugar lands"]
 fn mint_thread_first_injects_first() {
     let body = "(:wat::core::= (-> 5 (:wat::core::i64::- 3)) 2)";
     assert_eq!(eval_bool_with("", body).unwrap(), Value::bool(true));
@@ -102,7 +99,6 @@ fn mint_thread_first_injects_first() {
 /// `(->> 5 (i64::- 3))` → `(i64::- 3 5)` → -2. Injected LAST.
 /// With the prior gate this proves thread-first ≠ thread-last (2 vs -2).
 #[test]
-#[ignore = "arc 249: threading not minted yet — un-ignore after the desugar lands"]
 fn mint_thread_last_injects_last() {
     let body = "(:wat::core::= (->> 5 (:wat::core::i64::- 3)) -2)";
     assert_eq!(eval_bool_with("", body).unwrap(), Value::bool(true));
@@ -111,7 +107,6 @@ fn mint_thread_last_injects_last() {
 /// Bare-symbol step: `(-> 3 :my::inc)` → `(:my::inc 3)` → 4. A non-list step is
 /// wrapped into a 1-arg call of the accumulator.
 #[test]
-#[ignore = "arc 249: threading not minted yet — un-ignore after the desugar lands"]
 fn mint_bare_symbol_step() {
     let decls =
         "(:wat::core::defn :my::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))";
