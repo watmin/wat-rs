@@ -25,6 +25,7 @@ use std::collections::HashMap;
 /// - `Vector<T>` → arg1 must unify with T; returns `bool`.
 /// - `HashSet<T>` → arg1 must unify with T; returns `bool`.
 /// - `HashMap<K,V>` → arg1 must unify with **K** (contains? on HashMap is contains-key?); returns `bool`.
+///
 /// All other shapes produce a teaching TypeMismatch. Plain ∀ scheme is insufficient
 /// because element-typing must be enforced (probe contains_q_wrong_element_rejected_at_check).
 pub(crate) fn infer_contains(
@@ -104,6 +105,7 @@ pub(crate) fn infer_contains(
 /// Accepted collection shapes (2 only — HashMap uses `assoc`, not `conj`):
 /// - `Vector<T>` → arg1 must unify with T; returns `Vector<T>` (type-preserving).
 /// - `HashSet<T>` → arg1 must unify with T; returns `HashSet<T>` (type-preserving).
+///
 /// All other shapes (including HashMap) produce a teaching TypeMismatch.
 /// Plain ∀ scheme is insufficient: element-typing must be enforced AND the
 /// return is the collection type, not bool (probe conj_vector_preserves_collection_type).
@@ -193,6 +195,7 @@ pub(crate) fn infer_conj(
 ///   Returns `Option<T>`. Load-bearing twist: arg1 is i64, independent of T.
 /// - `HashMap<K,V>` → arg1 must unify with **`K`** (the key — NOT the value V).
 ///   Returns `Option<V>`.
+///
 /// All other shapes produce a teaching TypeMismatch.
 pub(crate) fn infer_get(
     args: &[WatAST],

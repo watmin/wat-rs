@@ -150,7 +150,7 @@ pub(crate) fn eval_vec_sort_by(
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -234,7 +234,7 @@ pub(crate) fn eval_vec_map(
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::map".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -274,7 +274,7 @@ pub(crate) fn eval_vec_foldl(
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -313,7 +313,7 @@ pub(crate) fn eval_vec_foldr(
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldr".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -350,7 +350,7 @@ pub(crate) fn eval_vec_filter(
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::filter".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -507,7 +507,7 @@ pub(crate) fn eval_vec_find_last_index(
             return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -608,7 +608,7 @@ pub(crate) fn eval_list_map_with_index(
             return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::std::list::map-with-index".into(),
                 expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };

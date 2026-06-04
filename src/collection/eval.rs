@@ -25,7 +25,7 @@ pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -37,7 +37,7 @@ pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/length".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -48,7 +48,7 @@ pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -59,7 +59,7 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -123,7 +123,7 @@ pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -134,7 +134,7 @@ pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -145,7 +145,7 @@ pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -157,7 +157,7 @@ pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -227,7 +227,7 @@ pub(crate) fn vector_contains_q_inner(container: &Value, item: &Value) -> Result
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -243,7 +243,7 @@ pub(crate) fn list_contains_q_inner(container: &Value, item: &Value) -> Result<V
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -262,7 +262,7 @@ pub(crate) fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Re
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -282,7 +282,7 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -352,7 +352,7 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
                     return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::Vector/get".into(),
                         expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other))
+                        got: Box::new(ValueSnapshot::of(other))
                     } }.into());
                 }
             };
@@ -365,7 +365,7 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -381,7 +381,7 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
                     return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::List/get".into(),
                         expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other))
+                        got: Box::new(ValueSnapshot::of(other))
                     } }.into());
                 }
             };
@@ -396,7 +396,7 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/get".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -417,7 +417,7 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -560,7 +560,7 @@ pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -578,7 +578,7 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/conj".into(),
             expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -600,7 +600,7 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
                 return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::HashSet/conj".into(),
                     expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&item))
+                    got: Box::new(ValueSnapshot::of(item))
                 } }.into());
             }
             let mut out: HashSet<Value> = (**s).clone();
@@ -610,7 +610,7 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -670,7 +670,7 @@ pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Re
                 return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&k))
+                    got: Box::new(ValueSnapshot::of(k))
                 } }.into());
             }
             let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
@@ -680,7 +680,7 @@ pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Re
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -706,7 +706,7 @@ pub(crate) fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -725,7 +725,7 @@ pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> 
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -741,7 +741,7 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
 }
@@ -754,7 +754,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
@@ -764,7 +764,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other))
+                got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };

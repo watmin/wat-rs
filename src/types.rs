@@ -669,7 +669,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Constructor verbs (`:wat::core::Vector`, `:wat::core::HashMap`,
     // `:wat::core::HashSet`) are still recognized by the runtime
-    // dispatcher (`runtime.rs eval_list_ctor`, etc.) and the
+    // dispatcher (`collection/eval.rs eval_vector_ctor`, etc.) and the
     // type-checker (`check.rs infer_*_constructor`). Pattern 2
     // poison still surfaces friendly redirects for legacy spellings
     // (`:wat::core::vec`, `:Option<T>` etc.) at type-check time.

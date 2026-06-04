@@ -1,3 +1,5 @@
+//! vigilatum: 2026-06-04T00:17:13Z — vigilia 8-spell L1+L2=0, clippy-clean in-home
+//!
 //! # Collection — namespaced home for the container-polymorphic dispatch core.
 //!
 //! ## Why this module exists
@@ -49,7 +51,7 @@
 //! - `eval.rs` — the ~30 runtime per-Type dispatch impls + 3 constructors
 //!   (`eval_<vector|hashmap|hashset|list>_<length|empty_q|contains_q|get|conj|assoc|dissoc|keys|values|concat>`
 //!   + `eval_list_ctor`, `eval_hashmap_ctor`, `eval_hashset_ctor`).
-//!   Import world: `Value`, `Environment`, `SymbolTable`, `RuntimeError`.
+//!     Import world: `Value`, `Environment`, `SymbolTable`, `RuntimeError`.
 //! - `transform.rs` — the ~16 Vector/List-specific utility ops
 //!   (`eval_vec_map`, `eval_vec_filter`, `eval_vec_foldl`, `eval_vec_foldr`,
 //!   `eval_vec_sort_by`, `eval_vec_reverse`, `eval_vec_range`, `eval_vec_take`,
