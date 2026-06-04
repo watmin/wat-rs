@@ -1,3 +1,5 @@
+;; vigilatum: 2026-06-04T04:01:56Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(core-arithmetic)
+;;
 ;; wat/core.wat — the :wat::core::* stdlib surface: short-name aliases plus the
 ;; polymorphic arithmetic and ordering defclauses.
 ;;
@@ -60,7 +62,7 @@
       rest)))
 
 (:wat::core::defclause :wat::core::-
-  ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
+  ;; NO 0-ary clause — :NoMatchingClause fires
   ;; 1-ary per-Type: negate (identity-on-left = 0)
   ([x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::- 0 x))
   ([x <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::- 0.0 x))
@@ -121,7 +123,7 @@
       rest)))
 
 (:wat::core::defclause :wat::core::/
-  ;; NO 0-ary clause — :NoMatchingClause fires via 237.4 rich error
+  ;; NO 0-ary clause — :NoMatchingClause fires
   ;; 1-ary per-Type: reciprocal (identity-on-left = 1)
   ([x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::/ 1 x))
   ([x <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::/ 1.0 x))
