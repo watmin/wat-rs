@@ -863,9 +863,62 @@ pub(crate) fn eval_vector_concat(
     vector_concat_inner(&left, &right)
 }
 
+// ─── Container-polymorphic sequence ops ─────────────────────────────────────
+
+/// `(:wat::core::rest xs)` — everything after the first element of a
+/// Vec or List. Mirrors `slice[1..]` for Vec. Runtime error if `xs` is
+/// empty. Branches on `Value::Vec` vs `Value::wat__core__List`
+/// (container-polymorphic dispatch); lives here beside the per-Type
+/// impls rather than `transform.rs` (which holds Vector/List-SPECIFIC
+/// seq-HOFs, not container-polymorphic dispatch).
+pub(crate) fn eval_vec_rest(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::rest".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    match v {
+        Value::Vec(xs) => {
+            if xs.is_empty() {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::rest".into(),
+                    reason: "cannot take rest of empty Vec".into()
+                } }.into());
+            }
+            let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
+        // Maintains type identity: List/rest → List (not Vec).
+        Value::wat__core__List(xs) => {
+            if xs.is_empty() {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::rest".into(),
+                    reason: "cannot take rest of empty List".into()
+                } }.into());
+            }
+            let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
+            Ok(Value::wat__core__List(Arc::new(out)))
+        }
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::rest".into(),
+            expected: "Vec or List",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+    }
+}
+
 // ─── Constructors ────────────────────────────────────────────────────────────
 
-pub(crate) fn eval_list_ctor(
+pub(crate) fn eval_vector_ctor(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,

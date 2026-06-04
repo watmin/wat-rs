@@ -19,7 +19,7 @@ A spawned `intueri` cast settled the name (verdict grounded on the live tree + `
 **IN** — the ops that dispatch over {Vector, HashMap, HashSet, List} and need type-level computation (the projective intrinsics):
 
 - **Check-side — 4 inference intrinsics** (`src/check.rs`): `infer_contains` (10371), `infer_conj` (10451), `infer_get` (10538), `infer_assoc` (12203). *(No separate `infer_length`/`infer_empty` exist — inferred inline; confirm whether their inline arms move or stay at lift.)*
-- **Runtime-side — ~30 per-Type impls** (`src/runtime.rs`): `eval_<vector|hashmap|hashset|list>_<length|empty_q|contains_q|get|conj|assoc|dissoc|keys|values|concat>` + the constructors `eval_list_ctor` / `eval_hashmap_ctor` / `eval_hashset_ctor`.
+- **Runtime-side — ~30 per-Type impls** (`src/runtime.rs`): `eval_<vector|hashmap|hashset|list>_<length|empty_q|contains_q|get|conj|assoc|dissoc|keys|values|concat>` + the constructors `eval_vector_ctor` / `eval_hashmap_ctor` / `eval_hashset_ctor`.
 
 **STAYS PUT, redirects** — the **110** `:wat::core::(Vector|HashMap|HashSet|List)/<op>` routing arms in `dispatch_keyword_head_value`. The central dispatch is NOT this home (its own future home is the 109-level `runtime.rs` reorg). Each arm becomes a mechanical `collection::eval_*` call.
 

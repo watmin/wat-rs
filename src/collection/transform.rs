@@ -535,55 +535,6 @@ pub(crate) fn eval_vec_find_last_index(
     Ok(Value::Option(Arc::new(last_idx.map(Value::i64))))
 }
 
-/// `(:wat::core::rest xs)` — everything after the first element of a
-/// Vec. Mirrors `slice[1..]`. Runtime error if `xs` is empty (there
-/// is no `rest` of an empty sequence). Tuples do NOT support rest —
-/// tuple arity is fixed at the type level.
-pub(crate) fn eval_vec_rest(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::rest".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Vec(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty Vec".into()
-                } }.into());
-            }
-            let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
-        // Maintains type identity: List/rest → List (not Vec).
-        Value::wat__core__List(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty List".into()
-                } }.into());
-            }
-            let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::wat__core__List(Arc::new(out)))
-        }
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::rest".into(),
-            expected: "Vec or List",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
 /// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
 /// FOUNDATION-CHANGELOG 2026-04-18 stdlib list surface. `f` takes
 /// `(item, index)` and returns U. Used by Sequential's indexed fold.

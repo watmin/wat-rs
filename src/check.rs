@@ -4925,7 +4925,7 @@ fn infer_list(
             //   MONOMORPHIC (neither) → `defclause`. Numerics (`+`, `-`, `<`, `>`, …) live
             //   there: concrete args, fixed per-type return, no type-variable flow anywhere.
             //
-            //   The per-Type collection impls live in runtime.rs (`eval_<container>_<op>`,
+            //   The per-Type collection impls live in `src/collection/eval.rs` (`eval_<container>_<op>`,
             //   routed by `dispatch_keyword_head`). Warded home: arc 246 (`src/collection/`).
             //   DO NOT make these clauses.
             // ══════════════════════════════════════════════════════════════════════════

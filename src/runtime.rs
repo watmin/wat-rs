@@ -5524,7 +5524,7 @@ fn dispatch_keyword_head_value(
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => crate::collection::transform::eval_vec_last(args, list_span, env, sym),
         ":wat::core::find-last-index" => crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym),
-        ":wat::core::rest" => crate::collection::transform::eval_vec_rest(args, list_span, env, sym),
+        ":wat::core::rest" => crate::collection::eval::eval_vec_rest(args, list_span, env, sym),
         ":wat::std::list::map-with-index" => crate::collection::transform::eval_list_map_with_index(args, list_span, env, sym),
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
@@ -5720,7 +5720,7 @@ fn dispatch_keyword_head_value(
         // arms retired. Type-checker Pattern 2 poison (check.rs:3840,
         // 3858) still surfaces friendly redirect for users typing
         // legacy keywords; runtime arm gone for defense-in-depth.
-        ":wat::core::Vector" => crate::collection::eval::eval_list_ctor(args, list_span, env, sym),
+        ":wat::core::Vector" => crate::collection::eval::eval_vector_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
         // (declared in `wat/core.wat`). The dispatch_keyword_head
         // guard above intercepts before reaching this arm; the
@@ -9450,289 +9450,6 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
     }
 }
 
-// ─── Arc 146 slice 2 — per-Type length impls ────────────────────────────────
-//
-// Retired: `eval_length` (single polymorphic-handler primitive). See
-// arc 146 DESIGN — the polymorphism became honest by promotion to a
-// Dispatch entity (declared in `wat/core.wat`) over per-Type rank-1
-// impls. The dispatch_keyword_head arm for `:wat::core::length` was
-// retired alongside the function (the dispatch path now intercepts
-// the call at `dispatch_keyword_head`'s top guard).
-//
-// `:wat::core::length` migrates from a single polymorphic-handler
-// primitive to a Dispatch (declared in `wat/core.wat`) over three
-// per-Type rank-1 impls. Each impl below is a clean substrate
-// primitive; the dispatch routes by inspecting the arg's value tag.
-//
-// The inner helpers (`vector_length_inner` / `hashmap_length_inner` /
-// `hashset_length_inner`) accept a pre-evaluated `Value` so the
-// dispatch path (which has already evaluated args for arm matching)
-// can invoke them WITHOUT re-evaluating ASTs (avoiding double side
-// effects). The outer `eval_*_length` wrappers do the AST-eval and
-// arity check for direct keyword calls.
-
-fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/length".into(),
-            expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// Arc 220 Stone 220.4 — `:wat::core::List/length` inner helper.
-fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__core__List(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/length".into(),
-            expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/length".into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/length".into(),
-            expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// ─── Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls ────────
-//
-// Mirrors slice 2's per-Type-length shape. Each primitive has an inner
-// helper that takes pre-evaluated `Value`(s) so the dispatch path
-// (which already evaluated args for arm matching) can invoke it
-// without re-evaluating ASTs (no double side effects). The outer
-// `eval_*` wrappers do the AST-eval and arity check for direct
-// keyword calls.
-//
-// Semantic note for `contains?`: per the arc 146 slice 3 BRIEF the
-// dispatch arms are now ELEMENT membership for Vector / HashSet and
-// KEY membership for HashMap (verb `contains-key?`). This corrects
-// the pre-arc-146 `eval_contains_q` which treated Vec×i64 as a
-// VALID-INDEX check; the new shape is honest membership-equality
-// matching HashSet semantics. In-runtime.rs unit tests updated in
-// the same sweep.
-
-fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/empty?".into(),
-            expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/empty?".into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/empty?".into(),
-            expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// Arc 220 Stone 220.4 — `:wat::core::List/empty?` inner helper.
-fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
-    match v {
-        Value::wat__core__List(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/empty?".into(),
-            expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// ─── contains? — MIXED VERBS ────────────────────────────────────────────────
-
-fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::Vec(xs) => {
-            // Stone 216.5d — native Value::PartialEq (impl PartialEq for Value, arc 216.5a).
-            // hashmap_key canonical-key crutch removed; Value: PartialEq + Eq is the contract.
-            // This corrects the pre-arc-146 Vec×i64 valid-index check.
-            let found = xs.iter().any(|x| x == item);
-            Ok(Value::bool(found))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/contains?".into(),
-            expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// Arc 220 Stone 220.4 — `:wat::core::List/contains?` inner helper.
-/// O(N) linear scan (LinkedList has no indexing).
-fn list_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__core__List(xs) => {
-            let found = xs.iter().any(|x| x == item);
-            Ok(Value::bool(found))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/contains?".into(),
-            expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — native HashMap::contains_key via Value: Hash + Eq.
-            // Guard: opaque-handle keys can't be in the map (rejected at insert);
-            // contains-key? on an unhashable key is always false (never inserted).
-            if !value_is_key_hashable(key) {
-                return Ok(Value::bool(false));
-            }
-            Ok(Value::bool(m.contains_key(key)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/contains-key?".into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__std__HashSet(s) => {
-            // Stone 216.5b — native HashSet::contains via Value: Hash + Eq.
-            // hashmap_key canonical-key crutch removed.
-            // Guard: opaque-handle items can't be in a HashSet (set rejects them at insert);
-            // contains? on an unhashable item is always false (never inserted).
-            if !value_is_set_hashable(item) {
-                return Ok(Value::bool(false));
-            }
-            Ok(Value::bool(s.contains(item)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/contains?".into(),
-            expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// ─── get — return type varies per arm (Option<T> vs Option<V>) ──────────────
-
-fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::Vec(xs) => {
-            let i = match index {
-                Value::i64(n) => *n,
-                other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::Vector/get".into(),
-                        expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other))
-                    } }.into());
-                }
-            };
-            if i < 0 || (i as usize) >= xs.len() {
-                Ok(Value::Option(Arc::new(None)))
-            } else {
-                Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
-            }
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/get".into(),
-            expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// Arc 220 Stone 220.4 — `:wat::core::List/get` inner helper.
-/// O(N) index walk (LinkedList has no random access). Returns `Option<T>`.
-fn list_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__core__List(xs) => {
-            let i = match index {
-                Value::i64(n) => *n,
-                other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::List/get".into(),
-                        expected: "i64 index",
-                        got: Box::new(ValueSnapshot::of(&other))
-                    } }.into());
-                }
-            };
-            if i < 0 || (i as usize) >= xs.len() {
-                Ok(Value::Option(Arc::new(None)))
-            } else {
-                Ok(Value::Option(Arc::new(
-                    xs.iter().nth(i as usize).cloned(),
-                )))
-            }
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/get".into(),
-            expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — native HashMap::get via Value: Hash + Eq.
-            // Guard: opaque-handle keys return None (they can never be inserted).
-            if !value_is_key_hashable(key) {
-                return Ok(Value::Option(Arc::new(None)));
-            }
-            match m.get(key) {
-                Some(v) => Ok(Value::Option(Arc::new(Some(v.clone())))),
-                None => Ok(Value::Option(Arc::new(None))),
-            }
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashMap/get".into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
 // ─── :wat::program::Env accessor trio — arc 214 Slice 4 Stone 4.2 ───────────
 //
 // Three single-step accessors over `:wat::program::Env`
@@ -10249,207 +9966,6 @@ fn eval_program_env_dig_default(
     }
 }
 
-// ─── conj — append element to growing collection ────────────────────────────
-
-fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::Vec(xs) => {
-            let mut out = (**xs).clone();
-            out.push(item.clone());
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::Vector/conj".into(),
-            expected: "Vec<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// Arc 220 Stone 220.4 — `:wat::core::List/conj` inner helper.
-/// **PREPEND** semantic per Clojure precedent (distinct from Vector/conj = APPEND).
-/// `conj` on a List adds the item to the FRONT, matching `cons` behavior.
-fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__core__List(xs) => {
-            let mut out = (**xs).clone();
-            out.push_front(item.clone());
-            Ok(Value::wat__core__List(Arc::new(out)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: "List<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
-// `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
-// which triggers the lint. The interior-mutability variants are opaque handles that never
-// appear as set elements (guarded by `value_is_set_hashable`). The lint is a false positive
-// for the Value variants actually used as HashSet elements (all structurally pure).
-#[allow(clippy::mutable_key_type)]
-fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
-    match container {
-        Value::wat__std__HashSet(s) => {
-            // Stone 216.5b — native HashSet insert via Value: Hash + Eq.
-            // Arc strategy: clone-then-new-Arc (functional; no aliased mutation).
-            // hashmap_key canonical-key crutch removed.
-            // Guard: reject opaque-handle variants before they reach Hash.
-            if !value_is_set_hashable(item) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::HashSet/conj".into(),
-                    expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&item))
-                } }.into());
-            }
-            let mut out: HashSet<Value> = (**s).clone();
-            out.insert(item.clone());
-            Ok(Value::wat__std__HashSet(Arc::new(out)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::HashSet/conj".into(),
-            expected: "HashSet<T>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─
-//
-// Single-impl-per-container ops migrated to honest per-Type names. The
-// surface short names (:assoc / :dissoc / :keys / :values / :concat)
-// become user-defines via `:wat::runtime::define-alias` declarations in
-// `wat/core-aliases.wat`; they delegate to these per-Type impls. Each
-// impl is also directly callable as `:wat::core::HashMap/assoc` etc.
-//
-// Pattern mirrors slice 2/3: inner helper (Value-only, span-free) +
-// eval wrapper (arity check + AST→Value evaluation). Inner helpers are
-// reused by `dispatch_substrate_impl` for fallback routing through
-// alias-expanded calls.
-
-// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
-// `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
-// which triggers the lint. The interior-mutability variants are opaque handles that never
-// appear as map keys (guarded by `value_is_key_hashable`). The lint is a false positive
-// for the Value variants actually used as HashMap keys (all structurally pure).
-#[allow(clippy::mutable_key_type)]
-fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::HashMap/assoc";
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — native HashMap insert via Value: Hash + Eq.
-            // Arc strategy: clone-then-new-Arc (functional; no aliased mutation; mirrors 216.5b).
-            // Guard: reject opaque-handle keys before they reach Hash::hash.
-            if !value_is_key_hashable(k) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
-                    got: Box::new(ValueSnapshot::of(&k))
-                } }.into());
-            }
-            let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
-            new_map.insert(k.clone(), v.clone());
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-// Stone 216.5c — suppress `mutable_key_type` for `HashMap<Value, Value>`.
-// See comment on `hashmap_assoc_inner` for rationale.
-#[allow(clippy::mutable_key_type)]
-fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::HashMap/dissoc";
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — native HashMap remove via Value: Hash + Eq.
-            // Arc strategy: clone-then-new-Arc (functional; mirrors hashmap_assoc_inner).
-            // Guard: opaque-handle keys can't be in the map; dissoc is a no-op.
-            if !value_is_key_hashable(k) {
-                // Nothing to remove — return the map unchanged.
-                return Ok(Value::wat__std__HashMap(m.clone()));
-            }
-            let mut new_map: std::collections::HashMap<Value, Value> = (**m).clone();
-            new_map.remove(k);
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::HashMap/keys";
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — SEMANTIC CORRECTION: returns actual K Values (not canonical String keys).
-            // Previously: m.values().map(|(k, _v)| k.clone()) — still returned original K Values
-            // (from the (canonical_key, (original_k, v)) tuple), which was correct by accident.
-            // Now: m.keys().cloned() — K is the direct HashMap key; no tuple indirection.
-            let ks: Vec<Value> = m.keys().cloned().collect();
-            Ok(Value::Vec(Arc::new(ks)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::HashMap/values";
-    match container {
-        Value::wat__std__HashMap(m) => {
-            // Stone 216.5c — native HashMap<Value, Value>; V is the direct map value.
-            let vs: Vec<Value> = m.values().cloned().collect();
-            Ok(Value::Vec(Arc::new(vs)))
-        }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Vector/concat";
-    let l = match left {
-        Value::Vec(xs) => xs.clone(),
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let r = match right {
-        Value::Vec(xs) => xs.clone(),
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
-    out.extend((*l).iter().cloned());
-    out.extend((*r).iter().cloned());
-    Ok(Value::Vec(Arc::new(out)))
-}
-
 /// Arc 146 slice 2 — substrate-primitive impl dispatch from
 /// `eval_dispatch_call` when an arm's impl is NOT a user-define
 /// `Function` (i.e., not present in `sym.functions`). Routes to the
@@ -10770,7 +10286,7 @@ fn eval_assoc(
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     let arg2_val = eval_inner(&args[2], env, sym)?.value_owned();
     match &arg0_val {
-        Value::wat__std__HashMap(_) => hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
+        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
         Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
             eval_record_assoc(args, list_span, env, sym)
         }
@@ -14126,9 +13642,9 @@ fn eval_contains(
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     match &arg0_val {
-        Value::Vec(_) => vector_contains_q_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashSet(_) => hashset_contains_q_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashMap(_) => hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
+        Value::Vec(_) => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
@@ -14165,8 +13681,8 @@ fn eval_conj(
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     match &arg0_val {
-        Value::Vec(_) => vector_conj_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashSet(_) => hashset_conj_inner(&arg0_val, &arg1_val),
+        Value::Vec(_) => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T> or HashSet<T>",
@@ -14203,8 +13719,8 @@ fn eval_get(
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     match &arg0_val {
-        Value::Vec(_) => vector_get_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashMap(_) => hashmap_get_inner(&arg0_val, &arg1_val),
+        Value::Vec(_) => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
+        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_get_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T> or HashMap<K,V>",

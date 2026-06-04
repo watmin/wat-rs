@@ -50,7 +50,7 @@
 //!   Import world: `CheckEnv`, `InferCtx`, `Subst`, `TypeExpr`.
 //! - `eval.rs` — the ~30 runtime per-Type dispatch impls + 3 constructors
 //!   (`eval_<vector|hashmap|hashset|list>_<length|empty_q|contains_q|get|conj|assoc|dissoc|keys|values|concat>`
-//!   + `eval_list_ctor`, `eval_hashmap_ctor`, `eval_hashset_ctor`).
+//!   + `eval_vector_ctor`, `eval_hashmap_ctor`, `eval_hashset_ctor`).
 //!     Import world: `Value`, `Environment`, `SymbolTable`, `RuntimeError`.
 //! - `transform.rs` — the ~16 Vector/List-specific utility ops
 //!   (`eval_vec_map`, `eval_vec_filter`, `eval_vec_foldl`, `eval_vec_foldr`,
