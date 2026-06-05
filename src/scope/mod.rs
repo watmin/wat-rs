@@ -1,4 +1,4 @@
-//! vigilatum: 2026-06-05 — UPDATED-vigilia 10-spell guard L1+L2=0 (universal-7:
+//! vigilatum: 2026-06-05T21:37:24Z — UPDATED-vigilia 10-spell guard L1+L2=0 (universal-7:
 //! intueri/solvere/conformare/purgare/struere/sequi/temperare + exigere +
 //! excusare + circumspicere-last; conditional triggers weighed: perspicere/mora
 //! not fired, secare not mustered — the lone AtomicU64 is a monotonic mint, no
