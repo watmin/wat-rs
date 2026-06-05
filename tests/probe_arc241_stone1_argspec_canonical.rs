@@ -66,7 +66,7 @@ fn contract_02_single_fixed_param() {
     let result = parse_triples("[x <- :wat::core::i64]", false);
     let spec = result.expect("single fixed param parses cleanly");
     assert_eq!(spec.fixed_params.len(), 1, "exactly one fixed param");
-    assert_eq!(spec.fixed_params[0].0, "x", "name slot is 'x'");
+    assert_eq!(spec.fixed_params[0].0.as_str(), "x", "name slot is 'x'");
     assert!(spec.rest_param.is_none(), "rest_param should be None");
 }
 
@@ -76,8 +76,8 @@ fn contract_03_multiple_fixed_params() {
     let result = parse_triples("[x <- :wat::core::i64 y <- :wat::core::i64]", false);
     let spec = result.expect("multi-param argspec parses cleanly");
     assert_eq!(spec.fixed_params.len(), 2, "two fixed params");
-    assert_eq!(spec.fixed_params[0].0, "x", "first name is 'x'");
-    assert_eq!(spec.fixed_params[1].0, "y", "second name is 'y'");
+    assert_eq!(spec.fixed_params[0].0.as_str(), "x", "first name is 'x'");
+    assert_eq!(spec.fixed_params[1].0.as_str(), "y", "second name is 'y'");
     assert!(spec.rest_param.is_none(), "rest_param should be None");
 }
 
@@ -178,7 +178,7 @@ fn contract_10_rest_only_succeeds() {
     let spec = result.expect("rest-only argspec parses cleanly when opted in");
     assert!(spec.fixed_params.is_empty(), "no fixed params");
     let (name, _ty) = spec.rest_param.expect("rest_param populated");
-    assert_eq!(name, "rest", "rest-binder name is 'rest'");
+    assert_eq!(name.as_str(), "rest", "rest-binder name is 'rest'");
 }
 
 #[test]
@@ -191,9 +191,9 @@ fn contract_11_fixed_plus_rest_succeeds() {
     );
     let spec = result.expect("fixed+rest argspec parses cleanly when opted in");
     assert_eq!(spec.fixed_params.len(), 1, "exactly one fixed param");
-    assert_eq!(spec.fixed_params[0].0, "x", "fixed name is 'x'");
+    assert_eq!(spec.fixed_params[0].0.as_str(), "x", "fixed name is 'x'");
     let (rest_name, _ty) = spec.rest_param.expect("rest_param populated");
-    assert_eq!(rest_name, "rest", "rest-binder name is 'rest'");
+    assert_eq!(rest_name.as_str(), "rest", "rest-binder name is 'rest'");
 }
 
 #[test]

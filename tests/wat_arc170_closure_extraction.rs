@@ -224,7 +224,7 @@ fn fn_form_param_pairs(shape: &FnFormShape) -> Vec<(String, String)> {
     let mut i = 0;
     while i + 2 < shape.params_vector.len() {
         let name = match &shape.params_vector[i] {
-            WatAST::Symbol(s, _) => s.name.clone(),
+            WatAST::Symbol(s, _) => s.as_str().to_owned(),
             other => panic!("fn-form param[{}] name must be Symbol; got {:?}", i / 3, other),
         };
         match &shape.params_vector[i + 1] {
