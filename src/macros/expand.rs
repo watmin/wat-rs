@@ -135,23 +135,6 @@ pub(super) fn expand_form(
                 }
             }
 
-            // Arc 249 Stone 249.3b — bare threading head → its :wat::core:: keyword macro.
-            // The desugar LOGIC now lives in wat/core.wat; this is the thin syntax-level
-            // seam (Clojure-faithful bare `->`/`->>` call surface). Re-dispatch hits the
-            // registered-macro path below (registry.get → expand_macro_call).
-            if let Some(WatAST::Symbol(head, head_span)) = expanded_children.first() {
-                let kw = match head.as_str() {
-                    "->" => Some(":wat::core::->"),
-                    "->>" => Some(":wat::core::->>"),
-                    _ => None,
-                };
-                if let Some(kw) = kw {
-                    let mut rewritten = expanded_children.clone();
-                    rewritten[0] = WatAST::Keyword(kw.to_string(), head_span.clone());
-                    return expand_form(WatAST::List(rewritten, list_span), registry, depth + 1, env, sym);
-                }
-            }
-
             // Is the (now-expanded) head a registered macro?
             if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
                 if let Some(def) = registry.get(head) {

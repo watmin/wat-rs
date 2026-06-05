@@ -1,23 +1,22 @@
-//! FM-2-bis probe for Arc 249 — threading macros `->` (thread-first) + `->>` (thread-last).
+//! FM-2-bis probe for Arc 249 — threading macros `:wat::core::->` (thread-first) +
+//! `:wat::core::->>` (thread-last).
 //!
-//! The missing capability: Clojure's threading forms. `(->> x s1 s2)` desugars to
-//! `(s2 (s1 x))` — a left fold of the accumulator through each step, injecting it
-//! as the LAST arg (`->>`) or FIRST arg (`->`) of each step form. This is a pure
-//! macro-expansion-time source-to-source rewrite (src/macros.rs `expand_form`,
-//! mirroring the `:wat::core::keyword/of` built-in at macros.rs:548-569); it
-//! desugars to ordinary nested calls BEFORE type-check, so the checker/runtime
-//! never see `->`/`->>` and need no changes.
+//! Threading is called FQDN, like every other macro in wat. The call surface is
+//! `(:wat::core::-> x s1 s2)` / `(:wat::core::->> x s1 s2)` — a normal registered-macro
+//! dispatch through `expand_form` → `registry.get`. No bare-symbol seam exists; the bare
+//! `->` symbol is ONLY the return-arrow marker in fn signatures, not a threading head.
+//!
+//! `(:wat::core::->> x s1 s2)` desugars to `(s2 (s1 x))` — a left fold of the
+//! accumulator through each step, injecting it as the LAST arg (`->>`) or FIRST arg
+//! (`->`) of each step form. This is a pure macro-expansion-time source-to-source
+//! rewrite; it desugars to ordinary nested calls BEFORE type-check, so the
+//! checker/runtime never see `->` / `->>` and need no changes.
 //!
 //! ROW STATUS:
 //!   - REGRESSION (GREEN at HEAD + after): plain fn-first `(map f xs)` — no threading.
 //!     Anchors the harness + the arc-247 fn-first map the threading sits on top of.
-//!   - MINT (RED at HEAD; `->`/`->>` are unrecognized bare-symbol heads → check/eval
-//!     error; `#[ignore]`'d): un-ignored by sonnet after the desugar lands.
-//!
-//! Disconfirmation at HEAD: run the mints explicitly —
-//!   cargo test --release --test probe_arc249_threading -- --ignored
-//! every mint must FAIL (threading does not exist yet). Done when all pass with
-//! zero `#[ignore]` and zero `-- --ignored` needed.
+//!   - MINT (GREEN): all 5 threading mints pass via FQDN registered-macro dispatch.
+//!     Zero `#[ignore]`.
 //!
 //! Run: cargo test --release --test probe_arc249_threading
 
@@ -70,46 +69,46 @@ fn regression_fn_first_map_no_threading() {
 // MINT — threading. RED at HEAD (`->`/`->>` unrecognized) → `#[ignore]`.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// `(->> [1 2 3] (map INC))` → `(map INC [1 2 3])` → [2 3 4]. Collection lands LAST.
+/// `(:wat::core::->> [1 2 3] (map INC))` → `(map INC [1 2 3])` → [2 3 4]. Collection lands LAST.
 #[test]
 fn mint_thread_last_single_step() {
-    let body = format!("(:wat::core::= (->> [1 2 3] (:wat::core::map {INC})) [2 3 4])");
+    let body = format!("(:wat::core::= (:wat::core::->> [1 2 3] (:wat::core::map {INC})) [2 3 4])");
     assert_eq!(eval_bool_with("", &body).unwrap(), Value::bool(true));
 }
 
-/// `(->> [1 2 3] (map INC) (filter GT2))` → `(filter GT2 (map INC [1 2 3]))`
+/// `(:wat::core::->> [1 2 3] (map INC) (filter GT2))` → `(filter GT2 (map INC [1 2 3]))`
 /// → filter(>2) [2 3 4] → [3 4]. The two-step pipeline — the arc-247 raison d'être.
 #[test]
 fn mint_thread_last_pipeline() {
     let body = format!(
-        "(:wat::core::= (->> [1 2 3] (:wat::core::map {INC}) (:wat::core::filter {GT2})) [3 4])"
+        "(:wat::core::= (:wat::core::->> [1 2 3] (:wat::core::map {INC}) (:wat::core::filter {GT2})) [3 4])"
     );
     assert_eq!(eval_bool_with("", &body).unwrap(), Value::bool(true));
 }
 
-/// `(-> 5 (i64::- 3))` → `(i64::- 5 3)` → 2. Accumulator injected FIRST.
-/// Also the disambiguation proof: `->` is the return-arrow in the `:user::compute`
-/// signature AND the thread-first head in the body — both in one form.
+/// `(:wat::core::-> 5 (i64::- 3))` → `(i64::- 5 3)` → 2. Accumulator injected FIRST.
+/// Threading is a normal FQDN macro (`registry.get(":wat::core::->")`) — entirely
+/// distinct from the bare `->` return-arrow marker in fn signatures; no overload exists.
 #[test]
 fn mint_thread_first_injects_first() {
-    let body = "(:wat::core::= (-> 5 (:wat::core::i64::- 3)) 2)";
+    let body = "(:wat::core::= (:wat::core::-> 5 (:wat::core::i64::- 3)) 2)";
     assert_eq!(eval_bool_with("", body).unwrap(), Value::bool(true));
 }
 
-/// `(->> 5 (i64::- 3))` → `(i64::- 3 5)` → -2. Injected LAST.
+/// `(:wat::core::->> 5 (i64::- 3))` → `(i64::- 3 5)` → -2. Injected LAST.
 /// With the prior gate this proves thread-first ≠ thread-last (2 vs -2).
 #[test]
 fn mint_thread_last_injects_last() {
-    let body = "(:wat::core::= (->> 5 (:wat::core::i64::- 3)) -2)";
+    let body = "(:wat::core::= (:wat::core::->> 5 (:wat::core::i64::- 3)) -2)";
     assert_eq!(eval_bool_with("", body).unwrap(), Value::bool(true));
 }
 
-/// Bare-symbol step: `(-> 3 :my::inc)` → `(:my::inc 3)` → 4. A non-list step is
-/// wrapped into a 1-arg call of the accumulator.
+/// Bare-keyword step: `(:wat::core::-> 3 :my::inc)` → `(:my::inc 3)` → 4. A non-list step
+/// is wrapped into a 1-arg call of the accumulator.
 #[test]
 fn mint_bare_symbol_step() {
     let decls =
         "(:wat::core::defn :my::inc [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))";
-    let body = "(:wat::core::= (-> 3 :my::inc) 4)";
+    let body = "(:wat::core::= (:wat::core::-> 3 :my::inc) 4)";
     assert_eq!(eval_bool_with(decls, body).unwrap(), Value::bool(true));
 }
