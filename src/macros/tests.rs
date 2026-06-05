@@ -325,8 +325,11 @@ fn macro_arity_mismatch() {
 
 #[test]
 fn non_quasiquote_body_rejected() {
-    // Body is a plain list, not a quasiquote — this slice doesn't
-    // evaluate arbitrary macro bodies.
+    // Arc 249 stone 249.2b-ii: a program body (non-quasiquote) IS now evaluated
+    // by macro_eval. A body that produces a non-AST result (e.g. a Vec) still
+    // errors — but now with MalformedTemplate (value_to_watast rejects Vec),
+    // not UnsupportedBody (which is the pre-249.2b-ii sentinel).
+    // The UnsupportedBody arm is now unreachable for the program-body dispatch.
     let err = expand(
         r#"
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST
@@ -335,7 +338,7 @@ fn non_quasiquote_body_rejected() {
         "#,
     )
     .unwrap_err();
-    assert!(matches!(err, MacroError { kind: MacroErrorKind::UnsupportedBody { .. }, .. }));
+    assert!(matches!(err, MacroError { kind: MacroErrorKind::MalformedTemplate { .. }, .. }));
 }
 
 #[test]

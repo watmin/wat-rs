@@ -1,8 +1,9 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::identifier::{fresh_scope, ScopeId};
-use crate::runtime::{Environment, SymbolTable};
+use crate::runtime::{Environment, SymbolTable, TrackedValue, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::error::{MacroError, MacroErrorKind};
 use super::registry::{MacroDef, MacroRegistry};
@@ -431,49 +432,247 @@ pub(super) fn expand_macro_call(
     }
 
     let macro_scope = fresh_scope();
-    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, env, sym)
+    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)
 }
 
 /// Walk a macro template, substituting `,param` and `,@param` at
 /// unquote sites and adding the macro scope to template-origin symbols.
 ///
-/// The template's top-level form is usually `(:wat::core::quasiquote X)`.
-/// If it's not a quasiquote, we error (this slice doesn't do arbitrary
-/// macro bodies).
+/// The template's top-level form is either:
+/// - a **bare quasiquote** `(:wat::core::quasiquote X)` — the existing hygienic path
+///   via `walk_template` (sets-of-scopes hygiene, UNCHANGED).
+/// - a **program body** (any other form) — the new `macro_eval` path introduced in
+///   arc 249 stone 249.2b-ii: params are bound as quoted form-values in a body env,
+///   `macro_eval` evaluates the body, and the result is converted back to a `WatAST`.
+///
+/// `rest_param` names the variadic rest parameter (if any) so the program path can
+/// bind it as `Value::Vec([watast...])` rather than a `WatAST::List` (which is the
+/// encoding used for the quasiquote-template walk-template path).
 fn expand_template(
     template: &WatAST,
     bindings: &HashMap<String, WatAST>,
     macro_scope: ScopeId,
     macro_name: &str,
     call_site_span: &Span,
+    rest_param: Option<&str>,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
+    // ── Dispatch: bare quasiquote (existing hygienic path) vs program body (new path) ──
     let quasi_body = match template {
         WatAST::List(items, _) if items.len() == 2 => match items.first() {
-            Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => &items[1],
-            _ => {
-                return Err(MacroError {
-                    span: call_site_span.clone(), // Pattern B: call-site span
-                    kind: MacroErrorKind::UnsupportedBody {
-                        name: macro_name.into(),
-                        reason: "body must be a quasiquote template (`X form)".into(),
-                    },
-                })
-            }
+            Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => Some(&items[1]),
+            _ => None,
         },
-        _ => {
-            return Err(MacroError {
-                span: call_site_span.clone(), // Pattern B: call-site span
-                kind: MacroErrorKind::UnsupportedBody {
-                    name: macro_name.into(),
-                    reason: "body must be a quasiquote template (`X form)".into(),
-                },
-            })
-        }
+        _ => None,
     };
 
-    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span, 1, env, sym)
+    if let Some(qb) = quasi_body {
+        // ── Existing hygienic path (bare quasiquote body) — UNCHANGED ──
+        // `walk_template` adds sets-of-scopes hygiene to template-origin symbols.
+        // This path is untouched: every existing stdlib macro goes through here.
+        return walk_template(qb, bindings, macro_scope, macro_name, call_site_span, 1, env, sym);
+    }
+
+    // ── New program-body path (arc 249 stone 249.2b-ii) ──
+    //
+    // Gate E — hygiene bound: refuse a program body whose quasiquote templates
+    // introduce a literal name in a binder position (`:wat::core::let` or
+    // `:wat::core::fn`). eval_quasiquote adds no hygiene scopes, so such a body
+    // could silently capture caller-site names. Default-deny; emit
+    // ProgramBodyIntroducesName so a future "allow" can't silently admit the
+    // capturing case.
+    check_program_body_hygiene(template, call_site_span, macro_name)?;
+
+    // Build a body env with params bound as quoted form-values.
+    //   - fixed param   → Value::wat__WatAST(Arc::new(arg_form))
+    //   - rest param    → Value::Vec(Arc::new([wat__WatAST(arg0), ...]))
+    // This is what lets `(foldl … nums)` fold over the arg-forms: each `n` is a
+    // `wat__WatAST` value, and `` `(:wat::core::i64::+ ~acc ~n) `` → eval_quasiquote
+    // evaluates `~n` → value_to_watast → the arg-form spliced in.
+    let mut builder = env.child();
+    for (name, ast_form) in bindings {
+        if rest_param == Some(name.as_str()) {
+            // The rest-param binding from expand_macro_call is WatAST::List(elems, _).
+            // Convert each element to Value::wat__WatAST and collect into Value::Vec.
+            let elems: &[WatAST] = match ast_form {
+                WatAST::List(items, _) => items.as_slice(),
+                _ => &[],
+            };
+            let vals: Vec<Value> = elems
+                .iter()
+                .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
+                .collect();
+            builder = builder.bind_unknown_span(
+                name.clone(),
+                TrackedValue::from(Value::Vec(Arc::new(vals))),
+            );
+        } else {
+            // Fixed param: bind as a quoted form-value (Value::wat__WatAST).
+            builder = builder.bind_unknown_span(
+                name.clone(),
+                TrackedValue::from(Value::wat__WatAST(Arc::new(ast_form.clone()))),
+            );
+        }
+    }
+    let body_env = builder.build();
+
+    // Evaluate the program body under the fenced evaluator.
+    // macro_eval runs validate_pure_total (DEFAULT-DENY purity gate) then runtime::eval.
+    let result_tv = crate::macros::eval::macro_eval(template, &body_env, sym)
+        .map_err(|e| MacroError {
+            span: call_site_span.clone(),
+            kind: MacroErrorKind::MalformedTemplate {
+                reason: format!("macro {} — program body eval failed: {}", macro_name, e),
+            },
+        })?;
+
+    // Convert the result Value to a WatAST expansion form.
+    // value_to_watast handles: i64/f64/bool/String/keyword/nil literals, wat__WatAST (direct),
+    // holon__HolonAST (via holon_to_watast). Other shapes (Struct/Enum/Vec/HashMap) error.
+    crate::runtime::value_to_watast(
+        &format!("macro {} body result", macro_name),
+        result_tv.value_owned(),
+        call_site_span.clone(),
+    )
+    .map_err(|e| MacroError {
+        span: call_site_span.clone(),
+        kind: MacroErrorKind::MalformedTemplate {
+            reason: format!(
+                "macro {} — program body result could not be converted to AST: {}",
+                macro_name, e
+            ),
+        },
+    })
+}
+
+// ─── Arc 249 Stone 249.2b-ii — Gate E: hygiene-bound check ──────────────────
+//
+// Refuse a program body whose quasiquote templates introduce a literal name
+// in a binder position. eval_quasiquote adds no hygiene scopes, so a literal
+// binder in a program-body quasiquote could capture caller-site names.
+//
+// Detection:
+//   Walk the program body; when a `(:wat::core::quasiquote inner)` form is
+//   found, walk `inner` to check for name-introducing binders:
+//     - `(:wat::core::let [binder val ...] ...)` — binders at even indices
+//       (0, 2, 4, …) of the binding vector; a literal `WatAST::Symbol` is refused.
+//     - `(:wat::core::fn [name <- :T ...] ...)` — param names at positions
+//       0, 3, 6, … (argspec triples) of the params vector; a literal
+//       `WatAST::Symbol` is refused.
+//
+// A `~-unquote` in a template appears as `(:wat::core::unquote X)` (a List),
+// NOT as a bare Symbol — so bare Symbol == literal name introduction.
+
+/// Walk the program body looking for quasiquote sub-forms, then check each
+/// quasiquote template for name-introducing binders.
+fn check_program_body_hygiene(
+    body: &WatAST,
+    call_site_span: &Span,
+    macro_name: &str,
+) -> Result<(), MacroError> {
+    match body {
+        WatAST::List(items, _) => {
+            if let Some(inner) = items_is_quasiquote(items) {
+                // Entered a quasiquote template: check it for literal-name binders.
+                check_quasiquote_for_literal_binders(inner, call_site_span, macro_name)?;
+            } else {
+                // Walk sub-forms recursively — quasiquote can appear at any depth in
+                // the program body (e.g., inside an `if` branch or a `fn` body).
+                for item in items {
+                    check_program_body_hygiene(item, call_site_span, macro_name)?;
+                }
+            }
+        }
+        WatAST::Vector(items, _) => {
+            for item in items {
+                check_program_body_hygiene(item, call_site_span, macro_name)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// If `items` is `(:wat::core::quasiquote X)` (2-element List with quasiquote head),
+/// return `Some(&X)`. Otherwise `None`.
+fn items_is_quasiquote(items: &[WatAST]) -> Option<&WatAST> {
+    if items.len() == 2 {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
+            if k == ":wat::core::quasiquote" {
+                return items.get(1);
+            }
+        }
+    }
+    None
+}
+
+/// Walk a quasiquote template body; refuse if any `let`/`fn` form introduces
+/// a literal name in binder position. Recurse into nested lists (but NOT into
+/// nested quasiquotes — those would be inside a deeper quasiquote context and
+/// their binders don't introduce names at this expansion level).
+fn check_quasiquote_for_literal_binders(
+    template: &WatAST,
+    call_site_span: &Span,
+    macro_name: &str,
+) -> Result<(), MacroError> {
+    if let WatAST::List(items, _) = template {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            // Stop recursion at nested quasiquotes — their content is data at this level.
+            if head == ":wat::core::quasiquote" {
+                return Ok(());
+            }
+            if head == ":wat::core::let" {
+                // args[0] is the binding vector: [binder val binder val ...]
+                // Binders are at even indices (0, 2, 4, …).
+                if let Some(binding_vec) = items.get(1) {
+                    if let WatAST::Vector(binder_items, _) = binding_vec {
+                        let mut i = 0;
+                        while i < binder_items.len() {
+                            if let WatAST::Symbol(ident, _) = &binder_items[i] {
+                                return Err(MacroError {
+                                    span: call_site_span.clone(),
+                                    kind: MacroErrorKind::ProgramBodyIntroducesName {
+                                        macro_name: macro_name.to_string(),
+                                        binder: ident.name.clone(),
+                                    },
+                                });
+                            }
+                            i += 2;
+                        }
+                    }
+                }
+            } else if head == ":wat::core::fn" {
+                // args[0] is the params vector: [name <- :T name <- :T ...]
+                // Param names are at positions 0, 3, 6, … (argspec triples).
+                if let Some(params_vec) = items.get(1) {
+                    if let WatAST::Vector(param_items, _) = params_vec {
+                        let mut i = 0;
+                        while i < param_items.len() {
+                            if let WatAST::Symbol(ident, _) = &param_items[i] {
+                                // Exclude `->` and `<-` and `&` markers.
+                                if ident.name != "->" && ident.name != "<-" && ident.name != "&" {
+                                    return Err(MacroError {
+                                        span: call_site_span.clone(),
+                                        kind: MacroErrorKind::ProgramBodyIntroducesName {
+                                            macro_name: macro_name.to_string(),
+                                            binder: ident.name.clone(),
+                                        },
+                                    });
+                                }
+                            }
+                            i += 1;
+                        }
+                    }
+                }
+            }
+        }
+        // Recurse into sub-forms.
+        for item in items {
+            check_quasiquote_for_literal_binders(item, call_site_span, macro_name)?;
+        }
+    }
+    Ok(())
 }
 
 /// Walk a slice of template children (items of a List or Vector),

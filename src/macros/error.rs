@@ -53,6 +53,14 @@ pub enum MacroErrorKind {
     /// totality, so "Impure" would assert a false cause for a non-total-but-pure
     /// head (a user-`defn` reference, `apply`, `eval-ast!`).
     RefusedInMacro { head: String },
+    /// A program-body quasiquote template introduces a literal name in a
+    /// binder position (`:wat::core::let` or `:wat::core::fn`), which could
+    /// capture caller-site names silently. Default-deny per the hygiene bound:
+    /// such bodies are refused until the substrate has eval-time-hygienic
+    /// quasiquote (named follow-on arc).
+    ///
+    /// Arc 249 Stone 249.2b-ii — gate E hygiene bound.
+    ProgramBodyIntroducesName { macro_name: String, binder: String },
 }
 
 impl fmt::Display for MacroErrorKind {
@@ -104,6 +112,14 @@ impl fmt::Display for MacroErrorKind {
                  allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total \
                  heads are permitted",
                 head
+            ),
+            MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder } => write!(
+                f,
+                "macro {} program body refused — quasiquote template introduces literal name \
+                 `{}` in binder position; this could capture caller-site names (hygiene bound \
+                 gate E, arc 249 stone 249.2b-ii); use ~-unquote to splice the name from a \
+                 macro parameter, or await eval-time-hygienic quasiquote",
+                macro_name, binder
             ),
         }
     }

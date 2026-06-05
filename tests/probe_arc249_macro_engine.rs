@@ -94,7 +94,6 @@ fn mint_impure_computed_unquote_rejected() {
 // After: `macro_eval` evaluates the `if`, returns the chosen quasiquote → expands.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "arc 249.2b: macro-eval engine not built — un-ignore after it lands"]
 fn mint_program_body_if() {
     // body is `(if (= 1 1) `(...) `(...))` — a program, not a bare quasiquote.
     let decls = "(:wat::core::defmacro :my::pick [x <- :wat::holon::HolonAST] \
@@ -113,7 +112,6 @@ fn mint_program_body_if() {
 // Quasiquote is the form-builder; `foldl` is the logic. RED at HEAD.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "arc 249.2b: macro-eval engine not built — un-ignore after it lands"]
 fn mint_program_body_fold() {
     let decls = "(:wat::core::defmacro :my::sum [& nums <- :AST<wat::holon::Holons>] \
                  -> :AST<wat::holon::HolonAST> \
@@ -124,4 +122,35 @@ fn mint_program_body_fold() {
                    nums))";
     let body = "(:wat::core::= (:my::sum 1 2 3) 6)";
     assert_eq!(eval_bool_with(decls, body).unwrap(), Value::bool(true));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E — HYGIENE BOUND: a program body whose quasiquote introduces a literal
+// name in a binder position is REFUSED (ProgramBodyIntroducesName). The gate
+// locks the hygiene bound so a future "allow program bodies" cannot silently
+// admit the capturing case. The `if` branches use `let` with `tmp` as a
+// literal binder — not `~`-unquoted — which could capture caller-site names.
+//
+// At HEAD (pre-249.2b-ii): refused as UnsupportedBody (non-quasiquote body).
+// After 249.2b-ii:         refused as ProgramBodyIntroducesName (hygiene gate E).
+// Either way: startup_ok must be FALSE — the gate locks the bound.
+// ═══════════════════════════════════════════════════════════════════════════
+#[test]
+fn hygiene_bound_program_body_literal_binder_refused() {
+    // The then-branch quasiquote `(:wat::core::let [tmp ~x] tmp)` introduces
+    // `tmp` as a literal name in the let binder position — not ~-unquoted.
+    // This could capture a caller-site `tmp` binding. The gate refuses it.
+    let src = "(:wat::core::defmacro :my::capturing \
+                 [x <- :wat::holon::HolonAST] \
+                 -> :AST<wat::holon::HolonAST> \
+                 (:wat::core::if (:wat::core::= 1 1) -> :AST<wat::holon::HolonAST> \
+                   `(:wat::core::let [tmp ~x] tmp) \
+                   `~x))\n\
+               (:wat::core::defn :user::probe [n <- :wat::core::i64] \
+                 -> :wat::core::i64 (:my::capturing n))";
+    assert!(
+        !startup_ok(src),
+        "a program body whose quasiquote introduces a literal let-binder name must be \
+         refused (hygiene bound gate E, arc 249 stone 249.2b-ii)"
+    );
 }
