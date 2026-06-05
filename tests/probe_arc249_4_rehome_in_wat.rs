@@ -40,6 +40,41 @@ fn eval_string_with(decls: &str, body: &str) -> Result<Value, String> {
         .map_err(|e| format!("eval: {:?}", e))
 }
 
+/// Eval an i64-returning `:user::compute`.
+fn eval_i64_with(decls: &str, body: &str) -> Result<Value, String> {
+    let src = format!(
+        "{decls}\n(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})",
+    );
+    let full = with_nil_main(&src);
+    let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
+        .map_err(|e| format!("startup: {:?}", e))?;
+    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env)
+        .map(|tv| tv.value_owned())
+        .map_err(|e| format!("eval: {:?}", e))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// C — first/rest over a VECTOR form. The `for` rehome `(for [x xs] tmpl)` must
+// decompose the `[x xs]` binder Vector form to extract x + xs. 249.3a-ii added
+// first/rest for wat__WatAST(List) ONLY — a Vector form `[10 20]` hits the
+// non-List arm → None. `(:test::vec-first [10 20])` → if first-over-Vector
+// works, expands to `(i64::+ 10 0)` → 10; if None, Option/expect panics → the
+// gap. Expected to FAIL until form-decomposition extends to Vector nodes.
+// ═══════════════════════════════════════════════════════════════════════════
+const VEC_FIRST_MACRO: &str = "(:wat::core::defmacro :test::vec-first \
+     [v <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+     `(:wat::core::i64::+ ~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first v) \"empty\") 0))";
+
+#[test]
+#[ignore = "249.4 diagnostic — run with --ignored to read the gap"]
+fn diag_first_over_vector_form() {
+    let result = eval_i64_with(VEC_FIRST_MACRO, "(:test::vec-first [10 20])");
+    println!("\n=== diag_first_over_vector_form ===\nexpect Ok(10):\n{:#?}\n", result);
+    let _ = result;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // A — keyword-form → text. Can a wat macro turn its keyword ARG (a wat__WatAST
 // Keyword form-value) into the keyword's text? `(:test::kw-text :foo::bar)`
