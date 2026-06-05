@@ -80,6 +80,33 @@ new mechanism — it is the existing effect namespace, withheld at expansion tim
   form (`&form`) and the lexical environment (`&env`) — wat already threads `env`/the call span to
   the expander but a template can't query them. (Later stone; v1 is the combinator body.)
 
+## The home (249.2a) — lift `macros.rs` before building the engine
+
+`src/macros.rs` is flat (2415 lines) with six responsibility clusters (registry, error, parse/
+register, the expander, the template walker, the built-ins). We are about to bolt a whole new
+subsystem (the engine) onto it. Four-questions verdict (2026-06-04) — **lift it to a warded home
+first, in-arc:**
+
+- **Obvious?** YES — lift the foundational, multi-responsibility file *before* growing it;
+  born-warded beats piled-into-a-bigger-flat-file.
+- **Simple?** YES — a no-behavior-change structural split (responsibility → submodule, re-export),
+  the proven homes-walk pattern (7 homes already stamped); it makes the engine *simpler* (a clean
+  new submodule, not a 1000-line addition to a 2415-line flat file).
+- **Honest?** YES, decisive — the DESIGN already concedes the threading change "rides macros.rs's
+  *future* ward." Doing major macro work on a flat un-warded file while invoking the warded-substrate
+  methodology is the asymmetry-as-defect the pattern names (arc 244 doctrine). Lift-first pays that
+  debt; build-then-lift means re-touching everything (churn).
+- **Good UX?** YES — the engine is born in an L1+L2=0 home; future macro work extends a stamped,
+  LLM-extensible federation, not a monolith.
+
+It *composes*: the engine is a new submodule the home gains, while 249.3/249.4 (threading + `for`/
+`keyword/of` → wat code) **cut** the Rust built-ins out — the home gains the engine and sheds the
+desugars in the same arc.
+
+**Scope guard:** only `macros.rs` is 249's to lift. The engine reuses `eval_in_frozen`/`Environment`
+from `runtime.rs`/`freeze.rs` — those are flat quarries with their own future arcs; the engine
+touches them via a small restricted-environment constructor, *not* a lift. We do not drag them in.
+
 ## Mechanism — two candidate engines (a real fork, analyzed not pre-decided)
 
 The macro body must *evaluate* at expansion time. wat already has an evaluator (`eval_in_frozen`,
@@ -119,17 +146,22 @@ refuse — so the redundancy-cut is **forced into the arc**, not chosen. But the
 *enables* (`cond->`, `when`, …) shadows nothing, so shipping it is not obligated — affirmatively
 scoped to follow-on.
 
-So **249 closes with:** the engine (249.2) + `->`/`->>` as wat code with the Rust desugar cut
-(249.3) + `for`/`keyword/of` rehomed/absorbed with their Rust built-ins cut (249.4). Library +
-`&form`/`&env` = named follow-on.
+So **249 closes with:** the warded `src/macros/` home + the engine (249.2a/b) + `->`/`->>` as wat
+code with the Rust desugar cut (249.3) + `for`/`keyword/of` rehomed/absorbed with their Rust
+built-ins cut (249.4). Library + `&form`/`&env` = named follow-on.
 
 ## Slicing (proposed — stepping stones)
 
 - **249.1 — threading verdict + Rust desugar. ✓ SHIPPED** (`6ba27ca0`, REMARKABLE one-shot). The
   canary. Becomes the behavioral contract for 249.3.
-- **249.2 — the macro-eval engine.** The fenced pure-combinator evaluator at expansion time
-  (mechanism (i)/(ii) per the strike probe). A macro body may be a combinator program returning a
-  form. Probe proves a *fold-shaped* macro expands (the minimal new power).
+- **249.2a — lift `src/macros.rs` → `src/macros/` warded home.** No behavior change; split the flat
+  2415-line file by responsibility into submodules (names via intueri cast), ward to L1+L2=0, earn
+  the `vigilatum` stamp. Pays the "rides macros.rs's future ward" debt and gives the engine a home
+  to be born in. Stepping stone: born-warded beats piled-into-a-bigger-flat-file. (See "The home"
+  below.)
+- **249.2b — the macro-eval engine** (in the new home). The fenced pure-combinator evaluator at
+  expansion time (mechanism (i)/(ii) per the strike probe). A macro body may be a combinator program
+  returning a form. Probe proves a *fold-shaped* macro expands (the minimal new power).
 - **249.3 — threading reborn as wat code.** Re-implement `->`/`->>` as wat macros over the engine;
   **`tests/probe_arc249_threading.rs` is the contract** (same five gates). HARD CUT the Rust
   `thread_desugar` once the wat version passes — threading proves the model.
