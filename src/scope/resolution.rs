@@ -61,8 +61,8 @@ use crate::scope::Identifier;
 ///   binder from capturing a caller-site variable of the same name.
 ///
 /// The return type is `Cow<'_, str>`: bare = borrowed (zero alloc — runs
-/// once per symbol lookup in every program); scoped = owned allocation
-/// (macro-expansion time only, never in the eval loop).
+/// once per symbol lookup in every program); scoped = owned single allocation
+/// (runs at both expansion time and on every scoped-symbol eval).
 ///
 /// A binder and all references that should resolve to it must carry
 /// the IDENTICAL scope set so they compute the same key. The expander
@@ -82,12 +82,25 @@ pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
         // BTreeSet iterates in ascending order → canonical encoding.
         // \u{1} (SOH) is chosen because lexer-produced identifier names never
         // contain it; the invariant is enforced at Identifier::bare construction.
-        // rune:temperare(simplicity-win) — the scoped path runs at macro-expansion
-        // time only (walk_template), never in the eval loop; scope sets are 1-2
-        // entries; cost ceiling = O(small const) allocations per template identifier
-        // at expand time.
-        let scopes: Vec<String> = ident.scopes().iter().map(|s| s.as_u64().to_string()).collect();
-        std::borrow::Cow::Owned(format!("{}\u{1}{}", ident.as_str(), scopes.join(",")))
+        // Single allocation: name + separator + comma-joined ascending scope ids.
+        // Scoped identifiers are evaluated post-expansion (every scoped-symbol
+        // eval calls env_key), so this path is not expansion-time-only — hence
+        // the single-alloc form rather than Vec+join.
+        let name = ident.as_str();
+        let mut key = String::with_capacity(name.len() + 16);
+        key.push_str(name);
+        key.push('\u{1}');
+        let mut first = true;
+        for s in ident.scopes() {
+            if !first {
+                key.push(',');
+            }
+            // itoa-style: write the u64 directly
+            use std::fmt::Write as _;
+            let _ = write!(key, "{}", s.as_u64());
+            first = false;
+        }
+        std::borrow::Cow::Owned(key)
     }
 }
 

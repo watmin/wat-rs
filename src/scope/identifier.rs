@@ -37,17 +37,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// `ScopeId`s are monotonically allocated by [`fresh_scope`] across the
 /// whole process. The numeric value is opaque for semantics (never inspect
 /// it for domain meaning). `hash.rs` consumes `ScopeId` via its derived
-/// `Hash`/`Eq` traits (not via `as_u64`). The only caller of `as_u64` is
-/// `resolution::env_key` for env-key string encoding.
+/// `Hash`/`Eq` traits (not via `as_u64`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
 
 impl ScopeId {
-    /// The raw `u64` token — used exclusively by `resolution::env_key` to
-    /// encode scoped environment keys as strings. `hash.rs` consumes
-    /// `ScopeId` via the derived `Hash`/`Eq` traits, not this method.
-    /// Do not interpret the value as domain state.
-    pub fn as_u64(self) -> u64 {
+    /// The raw `u64` token for env-key string encoding. Do not interpret
+    /// the value as domain state.
+    pub(crate) fn as_u64(self) -> u64 {
         self.0
     }
 }
@@ -57,6 +54,10 @@ impl ScopeId {
 // through all downstream call sites (expand.rs). The counter carries no domain
 // state — only process-unique scope identity; threading a mutable counter
 // through every expansion signature would pollute them for no sequi benefit.
+// rune:struere(host-constraint) — the global AtomicU64 is hidden from the
+// signature by design: threading a counter through every expansion call site
+// would pollute signatures for a value that carries no domain state; the
+// monotone increment is the entire contract.
 /// Allocate a fresh, unique [`ScopeId`].
 pub fn fresh_scope() -> ScopeId {
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -65,11 +66,10 @@ pub fn fresh_scope() -> ScopeId {
 
 /// A name-with-scopes reference.
 ///
-/// The name must never contain `\u{1}` (U+0001, ASCII SOH) — that byte is the
-/// separator used by `resolution::env_key` to encode scoped environment keys.
-/// The lexer's token rules never produce it (it is a control character; only
-/// whitespace and `()[]{}";,` are symbol breaks). Enforced at construction in
-/// debug builds via `Identifier::bare`.
+/// The name must never contain `\u{1}` (U+0001, ASCII SOH). The lexer's token
+/// rules never produce it; construction is guarded in debug builds at
+/// [`Identifier::bare`] — the single chokepoint. See `resolution`'s module
+/// doc for why.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Identifier {
     name: String,
@@ -81,11 +81,15 @@ impl Identifier {
     ///
     /// # Panics (debug builds only)
     ///
-    /// Asserts that `name` does not contain `\u{1}` (U+0001), which is
-    /// reserved as the env-key separator in `resolution::env_key`. The
-    /// lexer never produces names containing this byte.
+    /// Asserts that `name` does not contain `\u{1}` (U+0001). The lexer never
+    /// produces names containing this byte. See `resolution`'s module doc for why.
     pub fn bare(name: impl Into<String>) -> Self {
         let name = name.into();
+        // rune:struere(performance-hotspot) — release-mode validation here would
+        // put a contains() scan on every Identifier construction (the parse hot
+        // path); the debug-checked single chokepoint + the lexer's token rules are
+        // the chosen rung. Promote to a validated newtype if the invariant ever
+        // becomes security-load-bearing.
         debug_assert!(
             !name.contains('\u{1}'),
             "Identifier name must not contain U+0001 (env-key separator); got {:?}",
@@ -109,11 +113,16 @@ impl Identifier {
         }
     }
 
-    /// Borrow the bare name.
+    /// The bare name, scope-free. For env keying route through `env_key` —
+    /// the bare str alone is not a resolution key for scoped identifiers.
     pub fn as_str(&self) -> &str {
         &self.name
     }
 
+    // rune:struere(invariant-coupling) — &BTreeSet IS the contract: its sorted,
+    // deterministic iteration is load-bearing (env_key's canonical encoding and
+    // hash.rs's scope renumbering both depend on the ordering); an opaque iterator
+    // would hide the very guarantee consumers must rely on.
     /// Borrow the scope set — read-only. To add a scope, use [`add_scope`].
     ///
     /// [`add_scope`]: Self::add_scope
