@@ -162,6 +162,15 @@ built-ins cut (249.4). Library + `&form`/`&env` = named follow-on.
 - **249.2b — the macro-eval engine** (in the new home). The fenced pure-combinator evaluator at
   expansion time (mechanism (i)/(ii) per the strike probe). A macro body may be a combinator program
   returning a form. Probe proves a *fold-shaped* macro expands (the minimal new power).
+  **It MUST SUBSUME the existing computed-unquote eval** — the arc-143 `,(expr)` path
+  (`unquote_argument`/`splice_argument`) today calls full *unsandboxed* `runtime::eval` at expand
+  time (circumspicere finding F5 on the 249.2a ward: an impurity/determinism hole — an impure
+  `,(expr)` makes the canonical AST, hence the hash, depend on runtime state, breaking
+  hash-IS-identity). The engine gates expand-time eval to the pure-combinator set, closing F5 **by
+  enforcement** — not a pure path *beside* the impure one. **The `src/macros/` `vigilatum` stamp is
+  HELD until 249.2b closes F5 + the `env`/`sym` eval-context** (struere's wrong-level finding): a
+  stamp claims *annihilation*, and "the stdlib happens to be pure" is convention, not annihilation.
+  The 249.2a R2 sweep drives every *other* ward finding to zero; these two stand open, tracked here.
 - **249.3 — threading reborn as wat code.** Re-implement `->`/`->>` as wat macros over the engine;
   **`tests/probe_arc249_threading.rs` is the contract** (same five gates). HARD CUT the Rust
   `thread_desugar` once the wat version passes — threading proves the model.
