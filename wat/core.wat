@@ -169,6 +169,38 @@
 ;; Restrictions live as a :restricted-to key in the metadata-map on def/defn
 ;; (e.g. {:restricted-to [<prefix-kw>…]}); the substrate enforces it.
 
+;; ─── Threading macros `->` / `->>` ───────────────────────────────
+;;
+;; Thread-first `->`: inject acc as the FIRST arg of each step.
+;;   (-> x (f a b) g)  =>  (g (f x a b))
+;; A list step `(f a…)` => `(f acc a…)`; a bare symbol/keyword step `f` => `(f acc)`.
+(:wat::core::defmacro :wat::core::->
+  [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
+  -> :AST<wat::holon::HolonAST>
+  (:wat::core::foldl
+    (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
+       -> :wat::holon::HolonAST
+       (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST>
+          `(~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first step) "-> step has no head") ~a ~@(:wat::core::rest step))
+          `(~step ~a)))
+    acc
+    steps))
+
+;; Thread-last `->>`: inject acc as the LAST arg of each step.
+;;   (->> x (f a b) g)  =>  (g (f a b x))
+;; A list step `(f a…)` => `(f a… acc)`; a bare symbol/keyword step `f` => `(f acc)`.
+(:wat::core::defmacro :wat::core::->>
+  [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
+  -> :AST<wat::holon::HolonAST>
+  (:wat::core::foldl
+    (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
+       -> :wat::holon::HolonAST
+       (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST>
+          `(~@step ~a)
+          `(~step ~a)))
+    acc
+    steps))
+
 ;; ─── Polymorphic ordering defclauses ──────────────────────────────
 ;;
 ;; 2-ary per-Type (i64 / f64), NaN-correct for f64; cross-type rejected by

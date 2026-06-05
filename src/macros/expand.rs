@@ -135,21 +135,20 @@ pub(super) fn expand_form(
                 }
             }
 
-            // Arc 249 — threading macros `->` (thread-first) and `->>`
-            // (thread-last).  Recognized AFTER child recursion and BEFORE the
-            // registered-macro dispatch, mirroring the keyword/of built-in
-            // above.  The head is a bare WatAST::Symbol whose name is "->" or
-            // "->>"; in all other positions (e.g. the infix return-arrow in a
-            // defn signature) "->" is never a list head, so there is no clash.
-            if let Some(WatAST::Symbol(head, _)) = expanded_children.first() {
-                match head.as_str() {
-                    "->" => {
-                        return thread_desugar(&expanded_children[1..], false, list_span);
-                    }
-                    "->>" => {
-                        return thread_desugar(&expanded_children[1..], true, list_span);
-                    }
-                    _ => {}
+            // Arc 249 Stone 249.3b — bare threading head → its :wat::core:: keyword macro.
+            // The desugar LOGIC now lives in wat/core.wat; this is the thin syntax-level
+            // seam (Clojure-faithful bare `->`/`->>` call surface). Re-dispatch hits the
+            // registered-macro path below (registry.get → expand_macro_call).
+            if let Some(WatAST::Symbol(head, head_span)) = expanded_children.first() {
+                let kw = match head.as_str() {
+                    "->" => Some(":wat::core::->"),
+                    "->>" => Some(":wat::core::->>"),
+                    _ => None,
+                };
+                if let Some(kw) = kw {
+                    let mut rewritten = expanded_children.clone();
+                    rewritten[0] = WatAST::Keyword(kw.to_string(), head_span.clone());
+                    return expand_form(WatAST::List(rewritten, list_span), registry, depth + 1, env, sym);
                 }
             }
 
@@ -185,85 +184,6 @@ pub(super) fn expand_form(
         }
         other => Ok(other),
     }
-}
-
-// ─── Arc 249 — threading macros `->` / `->>` ────────────────────────────────
-//
-// `thread_desugar` is called from `expand_form` when the list head is the bare
-// symbol `->` (thread-first, `last=false`) or `->>` (thread-last, `last=true`).
-//
-// Contract:
-//   `acc_and_steps` = expanded_children[1..] from the threading form
-//                     (the head symbol itself has been consumed by the caller).
-//   `last`          = false → thread-first (inject acc as first arg of each step)
-//                     true  → thread-last  (inject acc as last  arg of each step)
-//   `list_span`     = the outer `->` / `->>` form's span; carried onto every
-//                     constructed WatAST::List node (call-site span convention,
-//                     matching how keyword/of / the macro-call path inherit it).
-//
-// Left-fold semantics:
-//   acc ← acc_and_steps[0]
-//   for each step in acc_and_steps[1..]:
-//     non-list step `f`        → new acc = (f acc)      [both forms identical]
-//     list step `(f a b …)`   → thread-first: (f acc a b …)
-//                              → thread-last:  (f a b … acc)
-//
-// Special cases:
-//   empty acc_and_steps (e.g. `(->)`)   → ArityMismatch error (≥1 form required)
-//   single-element (e.g. `(-> x)`)      → identity; return x unchanged.
-//
-fn thread_desugar(
-    acc_and_steps: &[WatAST],
-    last: bool,
-    list_span: Span,
-) -> Result<WatAST, MacroError> {
-    if acc_and_steps.is_empty() {
-        return Err(MacroError {
-            span: list_span,
-            kind: MacroErrorKind::ArityMismatch {
-                name: if last { "->>" } else { "->" }.to_string(),
-                expected: 1,
-                got: 0,
-            },
-        });
-    }
-
-    // acc starts as the first element (the initial value / accumulator).
-    let mut acc = acc_and_steps[0].clone();
-
-    // Fold each step left.
-    for step in &acc_and_steps[1..] {
-        acc = match step {
-            // Non-list step (bare Symbol or Keyword `f`) → `(f acc)` for both forms.
-            WatAST::Symbol(_, _) | WatAST::Keyword(_, _) => {
-                WatAST::List(vec![step.clone(), acc], list_span.clone())
-            }
-            // List step `(f a b …)`:
-            //   thread-first → `(f acc a b …)`
-            //   thread-last  → `(f a b … acc)`
-            WatAST::List(step_items, _) => {
-                let mut new_items = step_items.clone();
-                if last {
-                    // thread-last: inject acc at the end
-                    new_items.push(acc);
-                } else {
-                    // thread-first: inject acc after the head (position 1)
-                    if new_items.is_empty() {
-                        // Degenerate empty-list step `()` — treat as bare
-                        // application with no head; wrap as `(acc)`.
-                        new_items.push(acc);
-                    } else {
-                        new_items.insert(1, acc);
-                    }
-                }
-                WatAST::List(new_items, list_span.clone())
-            }
-            // Any other shape: wrap as a 1-arg call, same as the non-list branch.
-            other => WatAST::List(vec![other.clone(), acc], list_span.clone()),
-        };
-    }
-
-    Ok(acc)
 }
 
 // ─── Arc 170 slice 3 Gap A — keyword/of construction ────────────────────────
