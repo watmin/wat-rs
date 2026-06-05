@@ -18,12 +18,35 @@ Parametric type arguments today are **comma-separated with NO whitespace**:
 
 This is **not EDN-compliant.** In EDN, commas **are** whitespace (insignificant); a reader splits
 on whitespace and treats `,` as a no-op. Our brackets do the **inverse**: the comma is the
-*required, significant* separator and actual whitespace is *forbidden*. The EDN-natural form —
-`SomeThing<Foo Baz>` (whitespace-separated, comma optional) — is exactly the form the lexer
-rejects.
+*required, significant* separator and actual whitespace is *forbidden*.
 
-The user's framing: **`SomeThing<Foo,Baz>` ⇒ `SomeThing<Foo Baz>`** — let the angle brackets read
-like every other EDN collection.
+## The direction — pipe-separated: `<First|Second|Third>` (updated 2026-06-04)
+
+The user has been playing with syntax that **parses in Clojure**, and the direction is
+**`<First,Second,Third>` ⇒ `<First|Second|Third>`** — pipe-separated.
+
+**Why pipe — and why NOT whitespace (correcting this note's earlier `<Foo Baz>` proposal):** the goal
+is that the whole parametric type reads as **one Clojure token**. Clojure's *reader* treats both
+whitespace **and** comma (EDN-whitespace) as token *separators* — so `Thing<Foo Baz>` *and*
+`Thing<Foo,Baz>` each read as **two** tokens (`Thing<Foo` + `Baz>`), defeating "parses in Clojure."
+`|` is a valid Clojure/EDN **symbol-constituent** character with no whitespace, so
+`Thing<First|Second|Third>` reads as a **single** symbol/keyword. Pipe is the separator that keeps
+the generic type *atomic to Clojure's reader* — exactly what the earlier whitespace idea missed
+(whitespace is EDN-natural for *collections*, but it *splits* a *single-token* type).
+
+**It likely lexes cleanly today.** `|` is not in `is_symbol_break` (lexer.rs:428), so
+`:wat::core::HashMap<wat::core::String|wat::core::i64>` already lexes as one keyword token — no
+whitespace, no `UnclosedBracketInKeyword`. The change is then mostly in the keyword-body *parser*
+(read `|` as the arg separator instead of `,`) — a **smaller, more standalone** change than the
+whitespace form (which needed the lexer to stop erroring on spaces). So the pipe direction is *less*
+coupled to the keyword-as-type retirement than the whitespace idea was, though the broader cleanup
+(below) still applies.
+
+**One tension to weigh:** `|` conventionally reads as **union/or** in type syntax (`First | Second`
+= "First or Second"). Here it is the **positional** arg separator (`HashMap<K|V>` = key-type `K`,
+value-type `V` — *not* "K or V"). The pipe-as-separator choice trades that connotation for
+Clojure-reader-atomicity; the deciding arc should weigh whether that's acceptable, or whether `|`
+should be reserved for actual union types and a different glyph chosen for positional args.
 
 ## The current mechanism (grounded 2026-06-04)
 
@@ -66,21 +89,23 @@ decision, and it likely **dissolves this stickler for free:**
 1. Decide the **keyword-as-type retirement** first — what a type lexeme/form *becomes*.
 2. Let the generic-bracket syntax **fall out of** that representation (whitespace-separated EDN
    brackets should be a byproduct, not a separate lexer stone).
-3. Only if step 1 keeps types as keyword tokens for the foreseeable future do we treat
-   "allow whitespace in `<>`" as a standalone `lex_keyword` change (push whitespace at
-   `angle_depth/paren_depth > 0` instead of erroring; teach the keyword-body splitter that comma ≡
-   whitespace).
+3. Even while types stay keyword tokens, the **pipe separator is a tractable standalone change** —
+   `|` already lexes (not a symbol-break), so it's a keyword-body *parser* change (read `|` as the
+   arg separator), not a lexer rewrite. This is the one piece that can land *before* the
+   keyword-as-type retirement without being throwaway scaffolding — the parser survives the
+   representation change. (Contrast the old whitespace idea, which needed a lexer rewrite that the
+   retirement would then delete.)
 
 ## Open questions to resolve in the deciding arc
 
 - What does a type lexeme become post-keyword? (symbol? a `#`-tagged read form? a dedicated
   type-expression grammar?) This determines whether brackets stay in the lexer at all.
-- EDN says comma ≡ whitespace. Do we make comma **optional** (`<Foo Baz>` and `<Foo, Baz>` both
-  read identically), or **retire** the comma in type args entirely (one canonical path — the
-  whitespace form)? Lean: optional-but-discouraged now, lintable later (mirrors the threading
-  depth≥2 convention, arc 249), or retire outright per one-canonical-path.
-- The "solutions we have" for the current non-compliance are **comma-required workarounds**, not
-  the EDN-true form — they are tolerated debt, not the destination.
+- Separator: **`|` (pipe)** is the direction (it reads as one Clojure token; comma/whitespace split).
+  Do we **retire** comma entirely (one canonical path — `<First|Second>`) or allow both during a
+  transition? One-canonical-path → retire comma.
+- The **`|`-as-union tension**: positional-pipe (`HashMap<K|V>`) vs reserving `|` for union types
+  and choosing a different glyph for positional args. The deciding arc's call.
+- The current comma-required form is **tolerated debt**, not the destination.
 
 ## Refs
 
