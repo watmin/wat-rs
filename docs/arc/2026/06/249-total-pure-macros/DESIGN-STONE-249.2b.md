@@ -85,6 +85,36 @@ macro's args); no reachable path recurses unboundedly (the user-`defn` door is s
 **Purity by construction:** the only reachable heads are the blessed pure leaves (gate 1, default-deny).
 Neither is a flag that can be forgotten — both are the *shape of the allow-list*.
 
+## 2b-ii — the body-model build (grounded + four-questions, 2026-06-04)
+
+Generalizing `expand_template` (expand.rs:443): instead of *rejecting* a non-quasiquote body
+(`UnsupportedBody`), evaluate it as a program via `macro_eval`. **CRITICAL — no regression:** the
+**bare-quasiquote body keeps the existing hygienic `walk_template` path UNCHANGED** (every stdlib
+macro is a bare quasiquote; routing them through `macro_eval`/`eval_quasiquote` would strip their
+sets-of-scopes hygiene). Only a *non*-quasiquote (program) body takes the new `macro_eval` path. The
+user model stays "one body kind — a program"; the implementation keeps the degenerate-quasiquote
+fast-path for hygiene + backward-compat. So the dispatch is the *existing* `expand_template` check
+(`is the body a bare quasiquote?`) — quasiquote → `walk_template` (untouched); else → `macro_eval`.
+Grounded pieces (the new program path):
+- `eval` already handles **runtime quasiquote-with-unquote** (`:wat::core::quasiquote =>
+  eval_quasiquote`, runtime.rs:5449/:10357) — it evaluates `~expr` against the env (so a program
+  body's `` `(… ~acc …) `` resolves the fold-lambda's local `acc`) and materializes via
+  `value_to_watast`. This is the form-builder for program bodies.
+- **Params bind as VALUES** for the body eval. The variadic must bind as a **Vector** value (a
+  collection the HOFs iterate), not the current `List`-form binding (expand.rs:430) — else `foldl`
+  can't walk it.
+
+**Hygiene — four-questions verdict (C): refuse, don't silently drop.** A program-body quasiquote
+that *introduces a name* (`` `(let ((tmp ~x)) …) ``) needs a fresh scope; `eval_quasiquote` doesn't
+add one and `walk_template`'s macro-param-substitution model doesn't fit eval-locals. The honest +
+simple choice (matching the engine's whole default-deny doctrine): **`eval_quasiquote` for program
+bodies + a default-deny refusal of name-introducing program-body quasiquotes.** The idiomatic
+non-introducing family (threading, `cond->`, `when`) ships safely; a name-introducing program body
+(`as->`, `doto`) is *refused* (a clear error), never silently capture-prone; full eval-time-hygienic
+quasiquote is a **named follow-on** (let-need-reveal — build it when a name-introducing program
+macro actually surfaces). (A) build-full-hygiene-now passes Honest but loses on Simple + let-need-
+reveal; (B) eval_quasiquote-with-silent-no-hygiene FAILS Honest (latent capture bug).
+
 ## Representation (grounded 2026-06-04 — the open question, resolved + de-risked)
 
 The engine is **not a new evaluator** — it is a *fenced restriction of an existing, working
