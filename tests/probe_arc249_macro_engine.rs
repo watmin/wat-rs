@@ -77,7 +77,6 @@ fn regression_pure_computed_unquote_preserved() {
 // errors → startup fails → green.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "arc 249.2b: macro-eval engine not built — un-ignore after it lands"]
 fn mint_impure_computed_unquote_rejected() {
     let src = "(:wat::core::defmacro :my::impure-cu [] -> :AST<wat::holon::HolonAST> \
                `~(:wat::kernel::stopped?))\n\

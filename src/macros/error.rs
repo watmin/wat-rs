@@ -44,6 +44,15 @@ pub enum MacroErrorKind {
     ExpansionDepthExceeded { limit: usize },
     /// Other malformation in a macro invocation or template.
     MalformedTemplate { reason: String },
+    /// A computed-unquote expression named a keyword head that is not on the
+    /// blessed pure-combinator allow-list. Default-deny enforcement: the head
+    /// is not a pure-total prim, so expand-time eval is refused.
+    ///
+    /// Arc 249 Stone 249.2b-i — F5 closure. Named `RefusedInMacro` (intueri
+    /// cast): names the EVENT, not a cause — the refusal axis is purity AND
+    /// totality, so "Impure" would assert a false cause for a non-total-but-pure
+    /// head (a user-`defn` reference, `apply`, `eval-ast!`).
+    RefusedInMacro { head: String },
 }
 
 impl fmt::Display for MacroErrorKind {
@@ -89,6 +98,13 @@ impl fmt::Display for MacroErrorKind {
             MacroErrorKind::MalformedTemplate { reason } => {
                 write!(f, "malformed template: {}", reason)
             }
+            MacroErrorKind::RefusedInMacro { head } => write!(
+                f,
+                "keyword head `{}` refused at macro expand time — not on the pure-combinator \
+                 allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total \
+                 heads are permitted",
+                head
+            ),
         }
     }
 }

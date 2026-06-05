@@ -863,22 +863,12 @@ pub(super) fn unquote_argument(
                 .unwrap_or(false) =>
         {
             let substituted = substitute_bindings(arg, bindings);
-            // BEWARE (arc 249 finding F5 — HELD for stone 249.2b): this is full
-            // UNSANDBOXED expand-time eval. An impure `,(expr)` would make the
-            // canonical AST (hence the hash) depend on runtime state, breaking
-            // hash-IS-identity determinism. The total-pure macro-eval engine
-            // (249.2b) gates expand-time eval to the pure-combinator set BY
-            // ENFORCEMENT; until then it is trusted-pure by stdlib convention
-            // (every stdlib computed-unquote is pure arithmetic). See
-            // docs/arc/2026/06/249-total-pure-macros/DESIGN.md § 249.2b.
-            let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
-                MacroError {
-                    span: span.clone(),
-                    kind: MacroErrorKind::MalformedTemplate {
-                        reason: format!("computed unquote eval failed: {}", e),
-                    },
-                }
-            })?.value_owned();
+            // F5 CLOSED (arc 249 stone 249.2b-i): routed through `macro_eval`,
+            // the DEFAULT-DENY fenced evaluator. An impure `,(expr)` (any head
+            // not on the blessed pure-combinator allow-list) now errors here
+            // instead of running. Hash-IS-identity determinism is enforced by
+            // construction. See docs/arc/2026/06/249-total-pure-macros/DESIGN-STONE-249.2b.md.
+            let val = crate::macros::eval::macro_eval(&substituted, env, sym)?.value_owned();
             crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| {
                 MacroError {
                     span: span.clone(),
@@ -945,12 +935,11 @@ fn splice_argument(
                 .unwrap_or(false) =>
         {
             let substituted = substitute_bindings(arg, bindings);
-            // BEWARE (arc 249 finding F5 — HELD for stone 249.2b): unsandboxed
-            // expand-time eval (impurity/determinism hold; gated by the
-            // pure-combinator engine in 249.2b). See `unquote_argument` above +
-            // DESIGN.md § 249.2b.
-            let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
-                MacroError {
+            // F5 CLOSED (arc 249 stone 249.2b-i): routed through `macro_eval`,
+            // the DEFAULT-DENY fenced evaluator. An impure splice-expr is now
+            // refused. See `unquote_argument` above + DESIGN-STONE-249.2b.md.
+            let val = crate::macros::eval::macro_eval(&substituted, env, sym)
+                .map_err(|e| MacroError {
                     span: span.clone(),
                     kind: MacroErrorKind::MalformedTemplate {
                         reason: format!(
@@ -958,8 +947,8 @@ fn splice_argument(
                             macro_name, e
                         ),
                     },
-                }
-            })?.value_owned();
+                })?
+                .value_owned();
             // Result must be a Vec; extract elements, convert each to WatAST.
             match val {
                 crate::runtime::Value::Vec(elems) => {

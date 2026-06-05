@@ -12,6 +12,7 @@
 //! - `registry` — storage (`MacroDef`, `MacroRegistry`)
 //! - `parse`    — form → `MacroDef` + registration helpers
 //! - `expand`   — call-site → AST (template walk, hygiene, fixpoint)
+//! - `eval`     — the fenced expand-time evaluator (`macro_eval`; default-deny pure-total gate)
 //! - `error`    — `MacroError` / `MacroErrorKind`
 //!
 //! # Hygiene by construction
@@ -65,6 +66,7 @@ pub(crate) mod error;
 pub(crate) mod registry;
 pub(crate) mod parse;
 pub(crate) mod expand;
+pub(crate) mod eval;
 
 pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};
