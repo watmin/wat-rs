@@ -46,9 +46,6 @@
 //! - `keyword/of` special form: constructs parametric keywords
 //!   (e.g. `(:wat::core::keyword/of :Head :Arg)` → `:Head<Arg>`);
 //!   transitional in-pass Rust desugar, rehomed in arc 249.4.
-//! - Bounded `for`-comprehension in splice position:
-//!   `,@(:wat::core::for [x xs] tmpl)` — iterates a finite list and
-//!   instantiates the template per element (arc 248 slice 1).
 //! - Computed-unquote `,(expr)`: a List whose head is a Keyword is
 //!   evaluated at expand-time via `runtime::eval` with macro params
 //!   substituted (arc 143 slice 2).

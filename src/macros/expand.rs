@@ -477,63 +477,6 @@ fn splice_children(
                 match_unquote(child_items, ":wat::core::unquote-splicing")
             {
                 if depth == 1 {
-                    // Arc 248 slice 1 — bounded `for` comprehension in
-                    // splice position: `,@(:wat::core::for [x xs] tmpl)`.
-                    // Recognize BEFORE falling through to splice_argument.
-                    if let WatAST::List(for_items, for_span) = splice_arg {
-                        if let Some((binder_name, list_name, element_tmpl)) =
-                            match_for_comprehension(for_items)
-                        {
-                            // Resolve the list from the current bindings.
-                            let elements: Vec<WatAST> = match bindings.get(list_name) {
-                                Some(WatAST::List(elems, _)) => elems.clone(),
-                                Some(WatAST::Vector(elems, _)) => elems.clone(),
-                                Some(other) => {
-                                    return Err(MacroError {
-                                        span: for_span.clone(),
-                                        kind: MacroErrorKind::MalformedTemplate {
-                                            reason: format!(
-                                                "macro {} — `for` list binding `{}` \
-                                                 must be a List or Vector; got {}",
-                                                macro_name,
-                                                list_name,
-                                                other.variant_name()
-                                            ),
-                                        },
-                                    });
-                                }
-                                None => {
-                                    return Err(MacroError {
-                                        span: for_span.clone(),
-                                        kind: MacroErrorKind::UnboundMacroParam {
-                                            name: list_name.to_string(),
-                                        },
-                                    });
-                                }
-                            };
-                            // Iterate: bind binder per element, walk template,
-                            // collect results. Each iteration is independent —
-                            // the binder binding is local and does not persist.
-                            for element in &elements {
-                                let mut iter_bindings = bindings.clone();
-                                iter_bindings
-                                    .insert(binder_name.to_string(), element.clone());
-                                let expanded = walk_template(
-                                    element_tmpl,
-                                    &iter_bindings,
-                                    macro_scope,
-                                    macro_name,
-                                    call_site_span,
-                                    depth,
-                                    env,
-                                    sym,
-                                )?;
-                                out.push(expanded);
-                            }
-                            continue;
-                        }
-                    }
-                    // Not a `for` form — fire the regular splice.
                     let spliced =
                         splice_argument(splice_arg, bindings, macro_name, env, sym)?;
                     out.extend(spliced);
@@ -718,8 +661,6 @@ fn walk_template(
     }
 }
 
-// rune:solvere(historical-shape) — template-local recognizers kept beside their sole caller walk_template; match_for_comprehension rehomes with the for-comprehension in arc 249.4.
-
 /// If `items` is `(head arg)` for the given head keyword, return `arg`.
 fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
     if items.len() != 2 {
@@ -729,39 +670,6 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
         Some(WatAST::Keyword(k, _)) if k == head_kw => items.get(1),
         _ => None,
     }
-}
-
-/// If `items` is `(:wat::core::for [binder list-name] template)`, return
-/// `(binder_name, list_name, template)`. Returns `None` otherwise.
-///
-/// Arc 248 slice 1 — bounded template comprehension. The form is
-/// recognized in splice position inside `walk_template`; it iterates a
-/// finite list and instantiates a template per element (map, not eval).
-fn match_for_comprehension<'a>(
-    items: &'a [WatAST],
-) -> Option<(&'a str, &'a str, &'a WatAST)> {
-    if items.len() != 3 {
-        return None;
-    }
-    // Head must be `:wat::core::for`.
-    match items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::for" => {}
-        _ => return None,
-    }
-    // Second element: `[binder list-name]` — a Vector with exactly 2 Symbols.
-    let (binder_name, list_name) = match &items[1] {
-        WatAST::Vector(binder_vec, _) if binder_vec.len() == 2 => {
-            match (&binder_vec[0], &binder_vec[1]) {
-                (WatAST::Symbol(b, _), WatAST::Symbol(l, _)) => {
-                    (b.name.as_str(), l.name.as_str())
-                }
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
-    // Third element: the element template.
-    Some((binder_name, list_name, &items[2]))
 }
 
 /// Walk `form`, replacing every `WatAST::Symbol` whose name is a key
