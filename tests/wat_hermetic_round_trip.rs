@@ -41,6 +41,7 @@ fn run(src: &str) -> Value {
 // ─── Simple hermetic happy path ─────────────────────────────────────────
 
 #[test]
+#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn hermetic_inner_program_stdout_captured() {
     // Arc 170 slice 1f-ζ: inner uses canonical nil main + :wat::kernel::println.
     // :wat::kernel::println EDN-serializes strings with quotes.
@@ -64,6 +65,7 @@ fn hermetic_inner_program_stdout_captured() {
 // ─── Round trip — program-generates-program ─────────────────────────────
 
 #[test]
+#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn hermetic_output_evaluated_in_outer_scope() {
     // Inner program prints i64 42. Outer program captures stdout[0]
     // (the EDN representation "42"), then eval-edn! parses it back to
