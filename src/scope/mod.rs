@@ -1,3 +1,17 @@
+//! vigilatum: 2026-06-05 — UPDATED-vigilia 10-spell guard L1+L2=0 (universal-7:
+//! intueri/solvere/conformare/purgare/struere/sequi/temperare + exigere +
+//! excusare + circumspicere-last; conditional triggers weighed: perspicere/mora
+//! not fired, secare not mustered — the lone AtomicU64 is a monotonic mint, no
+//! parallel slot-writes), clippy-clean in-home. Two full inward rounds + the
+//! perimeter; every finding fought (the one stale-guard rune was FIXED out of
+//! existence, not reworded). Declared invariants, each enforced by a living
+//! gate: (1) only `env_key` + the canonical hasher read `.scopes()`
+//! (tests/probe_hygiene_scopes_reader_gate.rs); (2) walk_template scope-set
+//! uniformity — binder ≡ body-reference (macros/tests.rs); (3) 2-scope
+//! end-to-end resolution under nested expansion (tests/probe_macro_hygiene_capture.rs);
+//! (4) raw control characters rejected at lex — the U+0001 separator invariant
+//! is enforced, not conventional (src/lexer.rs).
+//!
 //! # Scope — warded home for wat's lexical-scope identity machinery.
 //!
 //! This home holds wat's lexical-scope machinery — the `Identifier`/`ScopeId`

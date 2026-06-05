@@ -36,12 +36,13 @@
 //! # Key-space collision safety
 //!
 //! The separator byte `\u{1}` (ASCII SOH) is chosen because identifier
-//! names produced by the lexer never contain it (it is a control character;
-//! `lexer::is_symbol_break` only breaks on whitespace and `()[]{}";,`).
-//! The invariant is enforced at construction in `Identifier::bare` (debug
-//! builds) — the single chokepoint for name admission. Scope IDs are `u64`
-//! integers joined by `,`; the `BTreeSet` iteration order is deterministic
-//! (ascending numeric), so the encoding is canonical.
+//! names produced by the lexer never contain it. The lexer now REJECTS all
+//! raw control characters in source (Stone 249 scope-closure), so this
+//! invariant is ENFORCED by the lexer, not merely conventional. Construction
+//! is additionally guarded in `Identifier::bare` (debug builds) — the single
+//! chokepoint for name admission. Scope IDs are `u64` integers joined by `,`;
+//! the `BTreeSet` iteration order is deterministic (ascending numeric), so
+//! the encoding is canonical.
 
 // PARTITION — CLAUSE vs INTRINSIC: `env_key` is a pure function (clause
 // territory in the dispatch sense — monomorphic, no type-var flow). It
@@ -80,9 +81,13 @@ pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
         std::borrow::Cow::Borrowed(ident.as_str())
     } else {
         // BTreeSet iterates in ascending order → canonical encoding.
-        // \u{1} (SOH) is chosen because lexer-produced identifier names never
-        // contain it; the invariant is enforced at Identifier::bare construction.
-        // Single allocation: name + separator + comma-joined ascending scope ids.
+        // \u{1} (SOH) is chosen because the lexer now REJECTS all raw control
+        // characters in source (Stone 249 scope-closure), so lexer-produced
+        // identifier names structurally cannot contain it; the invariant is
+        // additionally enforced at Identifier::bare construction (debug builds).
+        // Initial capacity sized for the common single-scope case (name length +
+        // separator byte + one scope id); identifiers with many or large-id scopes
+        // may reallocate (safely). BTreeSet ascending iteration → canonical encoding.
         // Scoped identifiers are evaluated post-expansion (every scoped-symbol
         // eval calls env_key), so this path is not expansion-time-only — hence
         // the single-alloc form rather than Vec+join.

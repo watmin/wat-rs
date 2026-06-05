@@ -187,6 +187,73 @@ fn template_identifier_carries_macro_scope() {
     );
 }
 
+// ─── walk_template uniformity: binder + body-ref carry identical scope sets ──
+//
+// This is the load-bearing premise for `env_key` exact-match resolution:
+// `walk_template` adds ONE macro scope uniformly to EVERY template-origin
+// identifier in a single pass; a binder (`let [tmp …]`) and every reference
+// to it in the same template (`tmp` in the body) must therefore carry EXACTLY
+// the SAME scope set — so `env_key(binder) == env_key(body_ref)` and the
+// runtime lookup succeeds.
+
+#[test]
+fn binder_and_reference_carry_identical_scope_sets() {
+    let forms = expand_src(
+        r#"
+        (:wat::core::defmacro :my::vocab::WalkUniformity
+          []
+          -> :AST
+          `(:wat::core::let ((tmp 1)) tmp))
+        (:my::vocab::WalkUniformity)
+        "#,
+    )
+    .unwrap();
+    // Expansion shape: (:wat::core::let ((tmp 1)) tmp)
+    //   list[0] = :wat::core::let keyword
+    //   list[1] = bindings list ((tmp 1))
+    //   list[2] = body reference `tmp`
+    let list = match &forms[0] {
+        WatAST::List(items, _) => items,
+        _ => panic!("expected let list"),
+    };
+    // Drill: list[1] = ((tmp 1)) — the bindings list
+    let bindings = match &list[1] {
+        WatAST::List(bs, _) => bs,
+        _ => panic!("expected bindings list"),
+    };
+    // Drill: bindings[0] = (tmp 1) — the binding pair
+    let pair = match &bindings[0] {
+        WatAST::List(b, _) => b,
+        _ => panic!("expected binding pair"),
+    };
+    // pair[0] = binder `tmp`
+    let binder = match &pair[0] {
+        WatAST::Symbol(i, _) => i,
+        _ => panic!("expected Symbol at binder position"),
+    };
+    // list[2] = body reference `tmp`
+    let body_ref = match &list[2] {
+        WatAST::Symbol(i, _) => i,
+        _ => panic!("expected Symbol at body-reference position"),
+    };
+    assert_eq!(binder.as_str(), "tmp");
+    assert_eq!(body_ref.as_str(), "tmp");
+    assert!(
+        !binder.scopes().is_empty(),
+        "binder `tmp` must carry the macro scope (non-empty scope set)"
+    );
+    assert!(
+        !body_ref.scopes().is_empty(),
+        "body-reference `tmp` must carry the macro scope (non-empty scope set)"
+    );
+    assert_eq!(
+        binder.scopes(),
+        body_ref.scopes(),
+        "binder and body-reference must carry IDENTICAL scope sets; \
+         any divergence means env_key(binder) ≠ env_key(body_ref) → lookup failure"
+    );
+}
+
 // ─── Argument identifiers are preserved unchanged ──────────────────
 
 #[test]

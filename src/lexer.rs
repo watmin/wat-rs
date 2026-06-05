@@ -172,6 +172,13 @@ pub enum LexErrorKind {
     /// (empty body, supplementary-plane codepoint, unknown named char,
     /// or backslash followed by whitespace).
     InvalidChar(String),
+    /// Raw control character in source. Stone 249 scope-closure:
+    /// identifier names must never contain U+0001 (the env-key separator
+    /// byte); the lexer rejects ALL raw control characters (except the
+    /// permitted structural whitespace `\t`, `\n`, `\r`) so this
+    /// invariant is ENFORCED by the lexer, not merely conventional.
+    /// The codepoint is reported as its `u32` value for diagnostics.
+    ControlCharacterInSource { codepoint: u32 },
 }
 
 impl fmt::Display for LexErrorKind {
@@ -204,6 +211,13 @@ impl fmt::Display for LexErrorKind {
                 f,
                 "invalid character literal: {}",
                 msg
+            ),
+            LexErrorKind::ControlCharacterInSource { codepoint } => write!(
+                f,
+                "raw control character U+{:04X} in source (only \\t, \\n, \\r are permitted \
+                 as structural whitespace; all other control bytes are rejected to enforce \
+                 the env-key separator invariant)",
+                codepoint
             ),
         }
     }
@@ -241,6 +255,21 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         if c.is_whitespace() {
             i += 1;
             continue;
+        }
+
+        // Raw control character rejection (Stone 249 scope-closure).
+        // `\t` (0x09), `\n` (0x0A), `\r` (0x0D) are permitted structural
+        // whitespace and are consumed by `c.is_whitespace()` above.
+        // ALL other control characters (C0 control range 0x00–0x1F plus
+        // DEL 0x7F) are rejected here — BEFORE any token dispatch arm —
+        // so the check fires regardless of token context (identifier,
+        // keyword, symbol, etc.). This makes the claim "the lexer never
+        // produces U+0001 in an identifier name" ENFORCED, not conventional.
+        if c.is_control() {
+            return Err(LexError {
+                position: i,
+                kind: LexErrorKind::ControlCharacterInSource { codepoint: c as u32 },
+            });
         }
 
         // Line comment — `;` to end of line
@@ -1268,6 +1297,65 @@ mod tests {
                 Token::Symbol("b".into()),
                 Token::Symbol("c".into()),
                 Token::RParen,
+            ]
+        );
+    }
+
+    // ─── Stone 249 scope-closure — control character rejection ───────────────
+    //
+    // The env-key separator is U+0001 (SOH). The lexer enforces the invariant
+    // "no identifier name contains U+0001" by REJECTING all raw control
+    // characters at the lex dispatch point. These tests prove the enforcement.
+
+    #[test]
+    fn control_character_u0001_in_source_is_rejected() {
+        // U+0001 (SOH) — the env-key separator byte — must be rejected.
+        // If the lexer absorbed it into a symbol name the separator invariant
+        // would collapse; ENFORCEMENT via rejection is the strongest rung.
+        let src = "\u{1}foo";
+        assert!(
+            matches!(
+                lex_tokens(src),
+                Err(LexError {
+                    kind: LexErrorKind::ControlCharacterInSource { codepoint: 1 },
+                    ..
+                })
+            ),
+            "U+0001 (SOH) in source must produce ControlCharacterInSource"
+        );
+    }
+
+    #[test]
+    fn control_character_general_rejected() {
+        // A range of other C0 control characters (BEL, BS, ESC, FS, GS, RS, US)
+        // must also be rejected.
+        for &cp in &[0x07u32, 0x08, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F] {
+            let src = format!("{}x", char::from_u32(cp).unwrap());
+            assert!(
+                matches!(
+                    lex_tokens(&src),
+                    Err(LexError {
+                        kind: LexErrorKind::ControlCharacterInSource { .. },
+                        ..
+                    })
+                ),
+                "control character U+{:04X} must be rejected", cp
+            );
+        }
+    }
+
+    #[test]
+    fn permitted_whitespace_still_lexes_fine() {
+        // \t (0x09), \n (0x0A), \r (0x0D) are structural whitespace — they must
+        // NOT be rejected by the control-character gate. Consuming them as
+        // whitespace is sufficient; the resulting token stream should be empty.
+        assert_eq!(lex_tokens("\t\n\r").unwrap(), vec![]);
+        // They also work inside token sequences.
+        assert_eq!(
+            lex_tokens("(\t)\n(\r)").unwrap(),
+            vec![
+                Token::LParen, Token::RParen,
+                Token::LParen, Token::RParen,
             ]
         );
     }

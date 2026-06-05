@@ -123,3 +123,50 @@ fn classic_macro_capture_is_prevented() {
         result
     );
 }
+
+/// 2-SCOPE END-TO-END PROBE — proves that an identifier that accumulates TWO
+/// scopes (one from an outer macro-generating-macro pass, one from the inner
+/// macro invocation) still resolves correctly at runtime.
+///
+/// Construction: an outer defmacro whose template contains a nested quasiquote
+/// that produces an inner defmacro. The inner defmacro's template has
+/// `(let [tmp 10] (i64::+ tmp ~x))`. Scope accumulation:
+///
+///   1. Outer expansion (walk_template at depth 2 inside nested quasiquote):
+///      `tmp` in the inner template gets OUTER_SCOPE added. The registered
+///      inner defmacro's body AST now has `tmp{outer_scope}`.
+///
+///   2. Inner invocation (walk_template at depth 1 with a fresh INNER_SCOPE):
+///      `tmp` — already carrying `{outer_scope}` — gets INNER_SCOPE added.
+///      Both the `let` binder `tmp` and the body-reference `tmp` end up with
+///      `{outer_scope, inner_scope}` (2 scopes). `env_key` encodes both,
+///      so `env_key(binder) == env_key(body_ref)` → bind-key == lookup-key.
+///
+/// The arithmetic `10 + 7 = 17` proves both resolution AND non-capture
+/// (the caller's `x` value 7 is correctly substituted via `~x`).
+///
+/// Shape: outer defmacro `make-add-inner` defines inner defmacro `inner-add`.
+/// Call outer → registers `inner-add`. Call inner with 7 → result 17.
+#[test]
+fn two_scope_identifier_resolves_correctly_end_to_end() {
+    let decls = "\
+        (:wat::core::defmacro :test::make-add-inner \
+          [] -> :AST<()> \
+          `(:wat::core::defmacro :test::inner-add \
+             [x <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+             `(:wat::core::let [tmp 10] (:wat::core::i64::+ tmp ~x)))) \
+        (:test::make-add-inner)";
+    let body = "(:test::inner-add 7)";
+    let result = eval_i64(decls, body).expect(
+        "2-scope identifier must resolve correctly; failure means \
+         bind-key (2-scope env_key) ≠ lookup-key or env_key encoding is broken"
+    );
+    assert_eq!(
+        result,
+        Value::i64(17),
+        "2-SCOPE: inner macro's let [tmp 10] + caller arg 7 must = 17. \
+         tmp carries {{outer_scope, inner_scope}}; env_key encodes both; \
+         bind-key == lookup-key is the contract. Got {:?}",
+        result
+    );
+}

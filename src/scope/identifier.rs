@@ -61,13 +61,18 @@ impl ScopeId {
 /// Allocate a fresh, unique [`ScopeId`].
 pub fn fresh_scope() -> ScopeId {
     static NEXT: AtomicU64 = AtomicU64::new(1);
+    // Ordering::Relaxed is correct: the counter synchronizes no other memory;
+    // uniqueness via atomic fetch_add is the entire contract; stronger orderings
+    // (Acquire/Release/SeqCst) buy nothing here.
     ScopeId(NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
 /// A name-with-scopes reference.
 ///
-/// The name must never contain `\u{1}` (U+0001, ASCII SOH). The lexer's token
-/// rules never produce it; construction is guarded in debug builds at
+/// The name must never contain `\u{1}` (U+0001, ASCII SOH). The lexer now
+/// REJECTS all raw control characters in source (Stone 249 scope-closure),
+/// so this invariant is ENFORCED by the lexer, not merely conventional.
+/// Construction is additionally guarded in debug builds at
 /// [`Identifier::bare`] — the single chokepoint. See `resolution`'s module
 /// doc for why.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -81,8 +86,11 @@ impl Identifier {
     ///
     /// # Panics (debug builds only)
     ///
-    /// Asserts that `name` does not contain `\u{1}` (U+0001). The lexer never
-    /// produces names containing this byte. See `resolution`'s module doc for why.
+    /// Asserts that `name` does not contain `\u{1}` (U+0001). The lexer now
+    /// REJECTS raw control characters in source (Stone 249 scope-closure), so
+    /// lexer-produced names structurally cannot contain this byte. This assert
+    /// guards the debug path for names constructed via other routes.
+    /// See `resolution`'s module doc for why.
     pub fn bare(name: impl Into<String>) -> Self {
         let name = name.into();
         // rune:struere(performance-hotspot) — release-mode validation here would
