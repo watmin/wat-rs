@@ -218,3 +218,34 @@ fn diag_program_body_quasiquote_impure_unquote_fenced() {
          (eval-time quasiquote purity); if accepted, the eval-time path is an F5-redux hole"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F — THREAD-FIRST feasibility (the 249.3b composition). `(-> 5 (i64::- 3))` →
+// `(i64::- 5 3)` → 2: inject acc as the FIRST arg, which needs the step
+// DECOMPOSED — head via `first`, tail via `rest` — then rebuilt `(head acc tail…)`.
+// Thread-last (rows A/B) needs only `~@step` splice; thread-first needs first+rest
+// OVER A FORM-VALUE in the program-body context. eval_positional_accessor
+// (runtime.rs:12311) + eval_vec_rest (collection/eval.rs:874) handle Vec/wat__core__List
+// but NOT wat__WatAST — so this is expected to FAIL until a form-decomposition
+// addendum lands. FM-2-bis: confirm the composition before briefing 249.3b.
+// ═══════════════════════════════════════════════════════════════════════════
+const THREAD_FIRST_MACRO: &str = "(:wat::core::defmacro :test::thread-first \
+     [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>] \
+     -> :AST<wat::holon::HolonAST> \
+     (:wat::core::foldl \
+        (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST] \
+           -> :wat::holon::HolonAST \
+           (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST> \
+              `(~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first step) \"head\") ~a ~@(:wat::core::rest step)) \
+              `(~step ~a))) \
+        acc \
+        steps))";
+
+#[test]
+#[ignore = "249.3b feasibility — run with --ignored to read the gap"]
+fn diag_thread_first() {
+    let body = "(:wat::core::= (:test::thread-first 5 (:wat::core::i64::- 3)) 2)";
+    let result = eval_bool_with(THREAD_FIRST_MACRO, body);
+    println!("\n=== diag_thread_first ===\n{:#?}\n", result);
+    assert_eq!(result.unwrap(), Value::bool(true));
+}
