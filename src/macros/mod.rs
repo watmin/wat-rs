@@ -7,6 +7,13 @@
 //! same canonical AST and the same hash — the substrate commit of
 //! hash-IS-identity holds.
 //!
+//! # File map
+//!
+//! - `registry` — storage (`MacroDef`, `MacroRegistry`)
+//! - `parse`    — form → `MacroDef` + registration helpers
+//! - `expand`   — call-site → AST (template walk, hygiene, fixpoint)
+//! - `error`    — `MacroError` / `MacroErrorKind`
+//!
 //! # Hygiene by construction
 //!
 //! A macro that introduces a name (`(let ((tmp ,x)) ...)`) cannot
@@ -32,26 +39,37 @@
 //! - Fixpoint expansion (macros expand to more macros until no more
 //!   remain). Depth limit prevents pathological infinite expansion.
 //! - Full hygiene for the classic capture pattern.
+//! - Threading macros `->` (thread-first) and `->>` (thread-last):
+//!   transitional in-pass Rust desugars, rehomed to wat code in arc
+//!   249.3/249.4.
+//! - `keyword/of` special form: constructs parametric keywords
+//!   (e.g. `(:wat::core::keyword/of :Head :Arg)` → `:Head<Arg>`);
+//!   transitional in-pass Rust desugar, rehomed in arc 249.4.
+//! - Bounded `for`-comprehension in splice position:
+//!   `,@(:wat::core::for [x xs] tmpl)` — iterates a finite list and
+//!   instantiates the template per element (arc 248 slice 1).
+//! - Computed-unquote `,(expr)`: a List whose head is a Keyword is
+//!   evaluated at expand-time via `runtime::eval` with macro params
+//!   substituted (arc 143 slice 2).
 //!
 //! # What's deferred
 //!
-//! - Arbitrary-Lisp macro bodies (computed conditional templates,
-//!   macro-authoring helpers beyond quasiquote). The spec admits them
-//!   but the common case — and every 058 stdlib macro — uses
-//!   quasiquote alone.
+//! - Arbitrary conditional macro bodies beyond quasiquote (conditionals,
+//!   recursive macro helpers). The spec admits them but the common case —
+//!   and every 058 stdlib macro — uses quasiquote alone.
 //! - Typed-macro checking (058-032). Macro parameters here are
 //!   positional AST arguments; the type checker validates `:AST<T>`
 //!   annotations against body positions in its own phase.
 
-pub mod error;
+pub(crate) mod error;
 pub(crate) mod registry;
 pub(crate) mod parse;
 pub(crate) mod expand;
 
 pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};
-pub use parse::{expand_once, register_defmacros, register_stdlib_defmacros};
-pub use expand::expand_all;
+pub use expand::{expand_all, expand_once};
+pub use parse::{register_defmacros, register_stdlib_defmacros};
 pub use parse::EXPANSION_DEPTH_LIMIT;
 
 #[cfg(test)]

@@ -92,6 +92,6 @@ impl MacroRegistry {
 /// registry key, identical by construction). `WatAST::PartialEq` is
 /// span-agnostic, so two ASTs parsed from different source paths
 /// compare equal iff their structural content matches.
-pub(crate) fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
+fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
     a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
 }

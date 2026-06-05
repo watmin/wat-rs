@@ -1,37 +1,10 @@
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::runtime::{Environment, SymbolTable};
 
 use super::error::{MacroError, MacroErrorKind};
 use super::registry::{MacroDef, MacroRegistry};
-use super::expand::expand_macro_call;
 
 pub const EXPANSION_DEPTH_LIMIT: usize = 512;
-
-/// One macro-expansion step. Arc 030 — the core of
-/// `:wat::core::macroexpand-1`. If `form` is a macro call (list
-/// whose head is a registered macro keyword), apply the macro's
-/// template with the call-site args and return the result. If
-/// `form` is not a macro call, return it unchanged.
-///
-/// Unlike [`expand_form`], does NOT recurse into children and does
-/// NOT fixpoint. Matches Common Lisp / Clojure `macroexpand-1`.
-pub fn expand_once(
-    form: WatAST,
-    registry: &MacroRegistry,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<WatAST, MacroError> {
-    if let WatAST::List(items, span) = &form {
-        if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if let Some(def) = registry.get(head) {
-                let args = items[1..].to_vec();
-                return expand_macro_call(def, args, span.clone(), env, sym);
-            }
-        }
-    }
-    Ok(form)
-}
 
 /// Walk `forms`, register every `(:wat::core::defmacro ...)` into
 /// `registry`, and return the remaining forms in order.
@@ -72,7 +45,7 @@ pub fn register_stdlib_defmacros(
     Ok(rest)
 }
 
-pub(crate) fn is_defmacro_form(form: &WatAST) -> bool {
+pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
@@ -107,7 +80,7 @@ pub(crate) fn is_defmacro_form(form: &WatAST) -> bool {
 ///
 /// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
 /// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
-pub(crate) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
+pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
         _ => {
@@ -139,34 +112,21 @@ pub(crate) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // 6-item canonical: head name argvec -> rettype body
     // 7-item with-metadata: head name meta argvec -> rettype body
     let (name_item, argvec_item, arrow_item, rettype_item, body_item) =
-        match items.len() {
-            6 => {
-                let mut it = items.into_iter();
-                let _head = it.next();
-                let name  = it.next().expect("len=6");
-                let argvec = it.next().expect("len=6");
-                let arrow  = it.next().expect("len=6");
-                let rettype = it.next().expect("len=6");
-                let body   = it.next().expect("len=6");
-                (name, argvec, arrow, rettype, body)
+        match items.as_slice() {
+            [_, name, argvec, arrow, rettype, body] => {
+                // 6-item canonical shape: arity enforced by the pattern.
+                (name.clone(), argvec.clone(), arrow.clone(), rettype.clone(), body.clone())
             }
-            7 => {
-                let mut it = items.into_iter();
-                let _head  = it.next();
-                let name   = it.next().expect("len=7");
-                let _meta  = it.next().expect("len=7"); // metadata-map — stored by binding_metadata discipline; ignored in macro parse
-                let argvec  = it.next().expect("len=7");
-                let arrow  = it.next().expect("len=7");
-                let rettype = it.next().expect("len=7");
-                let body   = it.next().expect("len=7");
-                (name, argvec, arrow, rettype, body)
+            [_, name, _meta, argvec, arrow, rettype, body] => {
+                // 7-item with-metadata: metadata-map stored by binding_metadata discipline; ignored in macro parse.
+                (name.clone(), argvec.clone(), arrow.clone(), rettype.clone(), body.clone())
             }
-            n => {
+            _ => {
                 return Err(MacroError {
                     span: list_span,
                     kind: MacroErrorKind::MalformedDefmacro { reason: format!(
                         "expected (:wat::core::defmacro :name [arg <- :T ...] -> :Ret body) — 6 items (or 7 with metadata-map); got {} elements",
-                        n
+                        items.len()
                     ) },
                 });
             }

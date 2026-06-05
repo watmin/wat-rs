@@ -919,3 +919,91 @@ fn keyword_of_non_keyword_child_error() {
         msg
     );
 }
+
+// ─── Stone 249.2a-R2 — three new guard tests ────────────────────────
+
+/// Depth-limit guard: a self-recursive macro expanded via `expand_all`
+/// must fail with `MacroErrorKind::ExpansionDepthExceeded`. This test
+/// goes red if the `depth > EXPANSION_DEPTH_LIMIT` check is removed.
+#[test]
+fn depth_limit_exceeded_on_self_recursive_macro() {
+    let err = expand(
+        r#"
+        (:wat::core::defmacro :my::inf [x <- :AST] -> :AST `(:my::inf ~x))
+        (:my::inf 1)
+        "#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::ExpansionDepthExceeded { .. }, .. }),
+        "expected ExpansionDepthExceeded; got: {:?}",
+        err
+    );
+}
+
+/// `expand_once` expands ONE step only — not to fixpoint.
+/// Register two chained macros; `expand_once` on the outer call
+/// returns a call to the inner macro, NOT the final value.
+#[test]
+fn expand_once_single_step_not_fixpoint() {
+    let forms = crate::parse_all!(
+        r#"
+        (:wat::core::defmacro :my::outer [x <- :AST] -> :AST `(:my::inner ~x))
+        (:wat::core::defmacro :my::inner [x <- :AST] -> :AST `(:wat::holon::Atom ~x))
+        (:my::outer 42)
+        "#
+    )
+    .expect("parse ok");
+    let mut reg = MacroRegistry::new();
+    let rest = register_defmacros(forms, &mut reg).unwrap();
+    let env = crate::runtime::Environment::default();
+    let sym = crate::runtime::SymbolTable::default();
+    // rest[0] is the (:my::outer 42) call.
+    let once = expand_once(rest[0].clone(), &reg, &env, &sym).unwrap();
+    // One step: (:my::outer ...) → (:my::inner 42), NOT (:wat::holon::Atom 42).
+    match &once {
+        WatAST::List(items, _) => {
+            assert!(
+                matches!(&items[0], WatAST::Keyword(k, _) if k == ":my::inner"),
+                "expand_once should produce (:my::inner …), not fixpoint; got head: {:?}",
+                items.first()
+            );
+        }
+        other => panic!("expected a List from expand_once; got {:?}", other),
+    }
+}
+
+/// `register_stdlib` bypasses the reserved-prefix gate and can register
+/// a `:wat::*` macro that `register` would reject.
+#[test]
+fn register_stdlib_bypasses_reserved_prefix_gate() {
+    let mut reg = MacroRegistry::new();
+    let env = crate::runtime::Environment::default();
+    let sym = crate::runtime::SymbolTable::default();
+
+    // Attempt via the normal path — must be rejected.
+    let user_forms = crate::parse_all!(
+        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- :AST] -> :AST `~x)"#
+    )
+    .expect("parse ok");
+    let err = register_defmacros(user_forms, &mut reg).unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }),
+        "expected ReservedPrefix for :wat::std::* via register; got {:?}",
+        err
+    );
+
+    // Same macro via the privileged stdlib path — must succeed.
+    let stdlib_forms = crate::parse_all!(
+        r#"(:wat::core::defmacro :wat::std::TestMacro [x <- :AST] -> :AST `~x)"#
+    )
+    .expect("parse ok");
+    register_stdlib_defmacros(stdlib_forms, &mut reg)
+        .expect("register_stdlib_defmacros should succeed for :wat::std::* prefix");
+
+    // The macro is now in the registry and expands correctly.
+    let call = crate::parse_all!(r#"(:wat::std::TestMacro 99)"#).expect("parse ok");
+    let out = expand_all(call, &mut reg, &env, &sym).unwrap();
+    assert_eq!(out.len(), 1);
+    assert!(matches!(&out[0], WatAST::IntLit(99, _)), "expected IntLit(99); got {:?}", out[0]);
+}

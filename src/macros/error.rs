@@ -12,7 +12,7 @@ pub struct MacroError {
 
 /// Variant data for [`MacroError`]. Spans live in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
-// NOTE: Must be `pub` (not `pub(crate)`) — re-exported from lib.rs as `wat::MacroError`.
+// MacroErrorKind is pub because it's the type of MacroError's pub `kind` field (no private-in-public).
 #[derive(Debug)]
 pub enum MacroErrorKind {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.
