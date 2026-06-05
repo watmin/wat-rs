@@ -79,12 +79,43 @@ pub(crate) fn macro_eval(
 ) -> Result<crate::runtime::TrackedValue, MacroError> {
     // Pre-walk validation — DEFAULT-DENY purity gate.
     validate_pure_total(form)?;
+    macro_eval_pre_validated(form, env, sym)
+}
+
+/// Evaluate a form that has ALREADY been validated by `validate_pure_total`
+/// at definition time (via `validate_macro_definition` in `parse_defmacro_form`).
+///
+/// WHY this variant exists: `expand_program_body` passes the immutable definition
+/// body to `macro_eval`. That body was validated ONCE at definition time (the
+/// hoist — arc 249 stone O). Re-running `validate_pure_total` on every invocation
+/// would be redundant. Substituted forms in `unquote_argument` and
+/// `splice_argument` are NOT definition-body forms — they carry fresh AST built
+/// at call time and MUST be validated; those sites use `macro_eval` (with
+/// validation).
+///
+/// INVARIANT: callers must guarantee the form was validated by
+/// `validate_pure_total` before calling this function. The only sanctioned
+/// call site is `expand_program_body`.
+pub(super) fn macro_eval_pre_validated(
+    form: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::runtime::TrackedValue, MacroError> {
     // Delegate to the existing evaluator — no new interpreter.
-    crate::runtime::eval(form, env, sym).map_err(|e| MacroError {
-        span: form.span().clone(),
-        kind: MacroErrorKind::MalformedTemplate {
-            reason: format!("macro_eval: runtime::eval failed: {}", e),
-        },
+    // Thread `e.span` (the runtime's precise failing-site span) into MacroError;
+    // fall back to `form.span()` only when `e.span` is the unknown sentinel.
+    crate::runtime::eval(form, env, sym).map_err(|e| {
+        let span = if e.span.is_unknown() {
+            form.span().clone()
+        } else {
+            e.span.clone()
+        };
+        MacroError {
+            span,
+            kind: MacroErrorKind::MalformedTemplate {
+                reason: format!("macro_eval: runtime::eval failed: {}", e),
+            },
+        }
     })
 }
 

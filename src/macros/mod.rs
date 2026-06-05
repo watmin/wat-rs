@@ -77,7 +77,7 @@ pub use parse::{register_defmacros, register_stdlib_defmacros};
 pub use expand::EXPANSION_DEPTH_LIMIT;
 
 /// A batch of expanded forms, or the macro error that stopped expansion.
-pub(crate) type ExpandBatch = Result<Vec<WatAST>, MacroError>;
+pub(super) type ExpandBatch = Result<Vec<WatAST>, MacroError>;
 
 #[cfg(test)]
 mod tests;

@@ -40,6 +40,72 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     Ok(out)
 }
 
+// ─── Quasiquote discriminant regression (item 1) ───────────────────
+
+/// A defmacro whose body is `(:wat::core::quasiquote a b)` (quasiquote head
+/// but wrong arity — 2 body forms instead of 1) must fail with
+/// `MalformedTemplate` at expansion time, not silently misroute to the
+/// program-body path. Regression for the parse-vs-expand discriminant unification.
+#[test]
+fn malformed_quasiquote_body_wrong_arity_fails_with_malformed_template() {
+    let err = expand_src(
+        r#"
+        (:wat::core::defmacro :my::bad-quasi
+          [x <- :AST]
+          -> :AST
+          (:wat::core::quasiquote a b))
+        (:my::bad-quasi 1)
+        "#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedTemplate { .. }, .. }),
+        "expected MalformedTemplate for (:wat::core::quasiquote a b) body (wrong arity); got: {:?}",
+        err
+    );
+}
+
+// ─── expand_keeping_defmacros contract ─────────────────────────────
+
+/// Contract: a source whose expansion emits a defmacro form shows up in
+/// `expand_keeping_defmacros`'s output but NOT in `expand_src`'s output.
+/// Also proves that `expand_keeping_defmacros` uses `expand_form` directly
+/// (not `expand_all`): the generated defmacro is preserved verbatim rather
+/// than being registered and stripped.
+#[test]
+fn expand_keeping_defmacros_keeps_vs_expand_src_strips() {
+    // A macro-generating-macro: invoking `:my::mkmac` produces a defmacro form.
+    let src = r#"
+    (:wat::core::defmacro :my::mkmac
+      [name <- :AST<()>]
+      -> :AST<()>
+      `(:wat::core::defmacro
+         ~name
+         []
+         -> :AST
+         `(:sentinel)))
+    (:my::mkmac :my::generated)
+    "#;
+
+    // expand_keeping_defmacros: the generated defmacro survives in output.
+    let kept = expand_keeping_defmacros(src).expect("expand_keeping_defmacros ok");
+    assert_eq!(kept.len(), 1, "one form in output (the generated defmacro)");
+    assert!(
+        matches!(&kept[0], WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmacro")),
+        "expand_keeping_defmacros must preserve the generated defmacro in output; got: {:?}",
+        kept[0]
+    );
+
+    // expand_src: the generated defmacro is registered and stripped — no output forms.
+    let stripped = expand_src(src).expect("expand_src ok");
+    assert_eq!(
+        stripped.len(), 0,
+        "expand_src must strip the generated defmacro (registers it instead); got: {:?}",
+        stripped
+    );
+}
+
 // ─── Pure alias macro ───────────────────────────────────────────────
 
 #[test]

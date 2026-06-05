@@ -77,11 +77,11 @@ pub fn expand_once(
 pub(super) fn expand_form(
     form: WatAST,
     registry: &MacroRegistry,
-    depth: usize,
+    expansion_depth: usize,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    if depth > EXPANSION_DEPTH_LIMIT {
+    if expansion_depth > EXPANSION_DEPTH_LIMIT {
         return Err(MacroError {
             span: form.span().clone(), // Pattern B: the form being expanded
             kind: MacroErrorKind::ExpansionDepthExceeded { limit: EXPANSION_DEPTH_LIMIT },
@@ -109,9 +109,9 @@ pub(super) fn expand_form(
             // Recurse into children first. This gives us the shape
             // (expanded-head expanded-args...) — any inner macro calls
             // resolved before we check the outer for a macro call.
-            let expanded_children: Result<Vec<_>, _> = items
+            let expanded_children: super::ExpandBatch = items
                 .into_iter()
-                .map(|c| expand_form(c, registry, depth + 1, env, sym))
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
                 .collect();
             let expanded_children = expanded_children?;
 
@@ -130,7 +130,7 @@ pub(super) fn expand_form(
                     let args = expanded_children[1..].to_vec();
                     let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
                     // Re-expand the result to fixpoint.
-                    return expand_form(expanded, registry, depth + 1, env, sym);
+                    return expand_form(expanded, registry, expansion_depth + 1, env, sym);
                 }
             }
 
@@ -143,9 +143,9 @@ pub(super) fn expand_form(
         // dispatch, so the macro-call detection arm at the head
         // doesn't apply.
         WatAST::Vector(items, vec_span) => {
-            let expanded_children: Result<Vec<_>, _> = items
+            let expanded_children: super::ExpandBatch = items
                 .into_iter()
-                .map(|c| expand_form(c, registry, depth + 1, env, sym))
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
                 .collect();
             Ok(WatAST::Vector(expanded_children?, vec_span))
         }
@@ -252,14 +252,41 @@ fn expand_template(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    let quasi_body = match template {
-        WatAST::List(items, _) => quasiquote_inner(items),
-        _ => None,
-    };
-
-    if let Some(body) = quasi_body {
-        expand_quasiquote_body(body, bindings, macro_scope, macro_name, call_site_span, env, sym)
+    // Head-only check: is this a quasiquote-headed form?
+    // Using `is_quasiquote_form` (head-only) ensures a malformed
+    // `(:wat::core::quasiquote a b)` (wrong arity) is caught here
+    // rather than silently misrouting to the program-body path.
+    if is_quasiquote_form(template) {
+        // Quasiquote path: consumes `macro_scope` for sets-of-scopes hygiene tagging;
+        // `rest_param` is unused here (rest-param semantics are baked into bindings by expand_macro_call).
+        // Arity check: a quasiquote template must have exactly one body form.
+        match template {
+            WatAST::List(items, _) => match quasiquote_inner(items) {
+                Some(body) => {
+                    // Well-formed: `(:wat::core::quasiquote X)`.
+                    expand_quasiquote_body(body, bindings, macro_scope, macro_name, call_site_span, env, sym)
+                }
+                None => {
+                    // Quasiquote-headed but wrong arity (0 or ≥2 body forms).
+                    Err(MacroError {
+                        span: call_site_span.clone(),
+                        kind: MacroErrorKind::MalformedTemplate {
+                            reason: format!(
+                                "macro {} — malformed quasiquote template: \
+                                 (:wat::core::quasiquote ...) requires exactly one body form, \
+                                 got {} element(s)",
+                                macro_name,
+                                items.len().saturating_sub(1),
+                            ),
+                        },
+                    })
+                }
+            },
+            _ => unreachable!("is_quasiquote_form guarantees List"),
+        }
     } else {
+        // Program-body path: consumes `rest_param` to bind the variadic rest as Value::Vec;
+        // `macro_scope` is unused here (no sets-of-scopes tagging; hygiene enforced by Gate E).
         expand_program_body(template, bindings, macro_name, call_site_span, rest_param, env, sym)
     }
 }
@@ -321,7 +348,9 @@ fn expand_program_body(
             // Convert each element to Value::wat__WatAST and collect into Value::Vec.
             let elems: &[WatAST] = match ast_form {
                 WatAST::List(items, _) => items.as_slice(),
-                _ => &[],
+                // expand_macro_call always wraps rest args in WatAST::List; any other
+                // shape means the caller violated the invariant.
+                _ => unreachable!("rest-param binding is always WatAST::List per expand_macro_call"),
             };
             let vals: Vec<Value> = elems
                 .iter()
@@ -341,9 +370,11 @@ fn expand_program_body(
     }
     let body_env = builder.build();
 
-    // Evaluate the program body under the fenced evaluator.
-    // macro_eval runs validate_pure_total (DEFAULT-DENY purity gate) then runtime::eval.
-    let result_tv = crate::macros::eval::macro_eval(template, &body_env, sym)
+    // Evaluate the program body using the pre-validated path. The template is the
+    // immutable definition body, already validated ONCE at definition time by
+    // validate_macro_definition (the hoist — arc 249 stone O). Skipping re-validation
+    // here is intentional; see macro_eval_pre_validated in eval.rs for the invariant.
+    let result_tv = crate::macros::eval::macro_eval_pre_validated(template, &body_env, sym)
         .map_err(|e| MacroError {
             span: call_site_span.clone(),
             kind: MacroErrorKind::MalformedTemplate {
@@ -418,8 +449,54 @@ pub(super) fn check_program_body_hygiene(
     Ok(())
 }
 
-/// If `items` is `(:wat::core::quasiquote X)` (2-element List with quasiquote head),
-/// return `Some(&X)`. Otherwise `None`.
+/// Single delegating entry point for definition-time validation of a defmacro body.
+///
+/// Hoist: validation runs ONCE at definition time (called by `parse_defmacro_form`)
+/// rather than per invocation, so a bad program-body macro fails at definition,
+/// not silently at first use — arc 249 stone O.
+///
+/// Only applies to program-body templates (non-quasiquote bodies);
+/// quasiquote bodies use the `walk_template` path which does not call
+/// `validate_pure_total`. Callers must check `is_quasiquote_form` before
+/// invoking this function (and skip it for quasiquote bodies).
+///
+/// Composes `check_program_body_hygiene` (Gate E: hygiene check, expand.rs) and
+/// `validate_pure_total` (default-deny purity gate, eval.rs). Both are pure
+/// predicates of the immutable body form; neither has side effects.
+pub(super) fn validate_macro_definition(
+    body: &WatAST,
+    defmacro_span: &Span,
+    macro_name: &str,
+) -> Result<(), MacroError> {
+    check_program_body_hygiene(body, defmacro_span, macro_name)?;
+    super::eval::validate_pure_total(body).map_err(|e| MacroError {
+        span: defmacro_span.clone(),
+        kind: MacroErrorKind::MalformedDefmacro {
+            reason: format!("program-body macro purity check failed at definition: {}", e.kind),
+        },
+    })
+}
+
+/// Returns `true` if `form` is a quasiquote-headed form (head-only check;
+/// arity is NOT required to be 2). Used by both the parse-time discriminant
+/// (is this a quasiquote template or a program body?) and the expand-time
+/// path-router (`expand_template`). Keeping the head-only test shared ensures
+/// that a malformed `(:wat::core::quasiquote a b)` (wrong arity) is treated
+/// consistently at both sites instead of silently misrouting at expand time.
+pub(super) fn is_quasiquote_form(form: &WatAST) -> bool {
+    matches!(
+        form,
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote")
+    )
+}
+
+/// If `items` is `(:wat::core::quasiquote X)` (exactly 2-element List with
+/// quasiquote head), return `Some(&X)`. Otherwise `None`.
+/// A 3-or-more element quasiquote-headed list returns `None` — the caller
+/// (`expand_template`) then routes to `expand_program_body`, which will fail
+/// with a meaningful `MalformedTemplate` error rather than silently
+/// misrouting. Use `is_quasiquote_form` to test the head alone.
 fn quasiquote_inner(items: &[WatAST]) -> Option<&WatAST> {
     if items.len() == 2 {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
@@ -480,13 +557,14 @@ fn check_quasiquote_for_literal_binders(
                     let mut i = 0;
                     while i < param_items.len() {
                         if let WatAST::Symbol(ident, _) = &param_items[i] {
+                            let s = ident.as_str();
                             // Exclude `->` and `<-` and `&` markers.
-                            if ident.as_str() != "->" && ident.as_str() != "<-" && ident.as_str() != "&" {
+                            if s != "->" && s != "<-" && s != "&" {
                                 return Err(MacroError {
                                     span: call_site_span.clone(),
                                     kind: MacroErrorKind::ProgramBodyIntroducesName {
                                         macro_name: macro_name.to_string(),
-                                        binder: ident.as_str().to_owned(),
+                                        binder: s.to_owned(),
                                     },
                                 });
                             }
@@ -504,7 +582,7 @@ fn check_quasiquote_for_literal_binders(
     Ok(())
 }
 
-/// Walk a slice of template children (items of a List or Vector),
+/// Flatten a slice of template children (items of a List or Vector),
 /// handling unquote-splicing inline. Returns the flat `Vec<WatAST>`
 /// for the parent to wrap in its own container
 /// (`WatAST::List` or `WatAST::Vector`).
@@ -514,10 +592,10 @@ fn check_quasiquote_for_literal_binders(
 // All eight are the genuine macro-invocation context (items, bindings,
 // scope, name, call-site span, depth, env, sym); none is removable
 // (arc 249 struere). clippy's 7-arg threshold is a heuristic this
-// hygiene-critical splice helper doesn't fit.
+// hygiene-critical flatten helper doesn't fit.
 // rune:struere(host-constraint) — all eight params are the genuine macro-invocation context; a context struct would cost more than it saves across the three walkers.
 #[allow(clippy::too_many_arguments)]
-fn splice_children(
+fn flatten_template_children(
     items: &[WatAST],
     bindings: &HashMap<String, WatAST>,
     macro_scope: ScopeId,
@@ -680,7 +758,7 @@ fn walk_template(
             }
 
             // Walk each child, handling unquote-splicing inline.
-            let out = splice_children(
+            let out = flatten_template_children(
                 items,
                 bindings,
                 macro_scope,
@@ -711,8 +789,8 @@ fn walk_template(
         // how `(~@xs)` works inside a List template.
         WatAST::Vector(items, _) => {
             // Arc 167 slice 1 / Arc 200 Gap 2 — Vector arm mirrors List arm;
-            // splice_children handles both identically.
-            let out = splice_children(
+            // flatten_template_children handles both identically.
+            let out = flatten_template_children(
                 items,
                 bindings,
                 macro_scope,
@@ -911,7 +989,7 @@ fn splice_argument(
             // Result must be a Vec; extract elements, convert each to WatAST.
             match val {
                 crate::runtime::Value::Vec(elems) => {
-                    let ast_elems: Result<Vec<WatAST>, _> = elems
+                    let ast_elems: super::ExpandBatch = elems
                         .iter()
                         .map(|v| {
                             crate::runtime::value_to_watast(

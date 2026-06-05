@@ -9,7 +9,7 @@ pub fn register_defmacros(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
 ) -> super::ExpandBatch {
-    let mut rest = Vec::new();
+    let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
@@ -30,7 +30,7 @@ pub fn register_stdlib_defmacros(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
 ) -> super::ExpandBatch {
-    let mut rest = Vec::new();
+    let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
@@ -65,7 +65,10 @@ pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
 /// Optional metadata-map shape (7 items):
 ///   items[0] = `:wat::core::defmacro` keyword (head)
 ///   items[1] = macro name keyword
-///   items[2] = metadata map (`{...}`) — stored per Stone 241.6 binding_metadata discipline
+///   items[2] = metadata map (`{...}`) — accepted in the form shape but NOT stored by
+///              macro parse (the `_meta` binding is intentionally dropped; `MacroDef` carries
+///              no metadata field). Metadata handling for defmacro forms, if any, lives
+///              downstream of macro registration.
 ///   items[3] = argspec Vector
 ///   items[4] = `->` symbol
 ///   items[5] = return-type keyword
@@ -78,19 +81,11 @@ pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
 /// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
 /// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
 pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
-    let form_span = form.span().clone();
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
-        _ => {
-            // Defensive arm: all call sites guard with is_defmacro_form (which requires a
-            // List); if we land here anyway, every WatAST variant carries a span we can use.
-            return Err(MacroError {
-                span: form_span,
-                kind: MacroErrorKind::MalformedDefmacro {
-                    reason: "expected list form".into(),
-                },
-            })
-        }
+        // All four call sites guard with `is_defmacro_form`, which requires WatAST::List.
+        // If this arm fires, the caller violated the contract.
+        _ => unreachable!("parse_defmacro_form: all call sites guard with is_defmacro_form (List required)"),
     };
 
     // HARD-CUT: 3-item old paren-pair form is REJECTED (Stone 241.17).
@@ -172,24 +167,14 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();
     let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
 
-    // temperare — parse-time hoist (arc 249 stone O):
-    // check_program_body_hygiene and validate_pure_total are pure predicates of the
-    // immutable MacroDef body. Run them ONCE here at definition time so a bad
-    // program-body macro fails at definition, not silently at first invocation.
-    // Only applies to program-body templates (non-quasiquote bodies); quasiquote
-    // bodies go through the walk_template path, which does not call validate_pure_total.
-    let is_program_body = !matches!(&body_item,
-        WatAST::List(items, _)
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote")
-    );
-    if is_program_body {
-        super::expand::check_program_body_hygiene(&body_item, &list_span, &name)?;
-        super::eval::validate_pure_total(&body_item).map_err(|e| MacroError {
-            span: list_span.clone(),
-            kind: MacroErrorKind::MalformedDefmacro {
-                reason: format!("program-body macro purity check failed at definition: {}", e.kind),
-            },
-        })?;
+    // Hoist: definition-time validation runs ONCE here (not per expansion call) — arc 249 stone O.
+    // `validate_macro_definition` checks hygiene (Gate E) and purity. Both are pure predicates
+    // of the immutable body; running once at definition means a bad program-body macro fails
+    // at definition, not silently at first invocation. Only applies to program-body templates
+    // (non-quasiquote bodies); quasiquote bodies use the walk_template path instead.
+    // `is_quasiquote_form` is the single shared head-only discriminant — see expand.rs.
+    if !super::expand::is_quasiquote_form(&body_item) {
+        super::expand::validate_macro_definition(&body_item, &list_span, &name)?;
     }
 
     Ok(MacroDef {
