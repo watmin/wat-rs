@@ -62,3 +62,37 @@ cargo clippy --release -p wat | grep src/macros   # clean
 2. circumspicere LAST (embed its text; hand it the inward coverage; hunt the surround — claims-vs-code on mod.rs's hygiene claims [now probe-backed], the engine's default-deny claims, unenforced invariants, negative space).
 3. Termination by judgment (no new L1, every L2 fought-or-ledgered) → apply the HELD `vigilatum` stamp to src/macros/mod.rs (mirror src/scope/mod.rs's stamp form: the 12-spell muster, conditional determinations, declared invariants w/ living gates).
 4. Then: collection/ re-earn (light) + wat/core.wat (spec/DSL set: cernere/probare/conferre + exigere + circumspicere; + the named threading deftest) → 249.N INSCRIPTION (FM-11 grep) → arc 249 CLOSED.
+
+## R2 — the convergence re-cast (2026-06-05, on the fixed tree at `6f57630e`)
+
+The A-W fight sweep landed (`6f57630e`, 25/25 applied, 3 L1 killed, lib 917/0/1).
+Nine fought lenses re-cast fresh-eyes (spell texts re-fetched from the signed
+channel, embedded verbatim; sequi/excusare/vocare stayed converged from R1, not
+re-cast). Verdict: **0 L1 + 13 L2 + ~9 L3; all 11 runes in the home audited
+CLEAR by their owning spells.**
+
+| spell | R2 verdict |
+|---|---|
+| exigere | CONVERGED 0+0 — every R1 L1 stayed dead; tests.rs ,,@ scope-bound verified affirmative |
+| solvere | 2 L2 — divergent quasiquote discriminant (parse.rs head-only `matches!` vs expand.rs `quasiquote_inner` exact-2; malformed `(qq a b)` misroutes); parse_defmacro_form braids hygiene+purity validation inline (hoist kept, delegation missing) |
+| conformare | 1 L2 — eval.rs ~83 coarsens `e.span` → `form.span()`; the runtime's precise span discarded at the mapping |
+| intueri | 3 L2 — `splice_children` names mechanism not contract (cast proposes `flatten_template_children`); parse.rs ~175 `temperare —` spell-jargon label; expand_template arm param-asymmetry invisible in the arms. +2 L3 declined (expand_setup 4-tuple; is_pure_total rename would desync the runtime-mirror rune language) |
+| perspicere | 0 L2 + 3 L3 — internal `Result<Vec<_>, _>` bindings should speak `ExpandBatch` (expand.rs ~112/~146/~914) |
+| temperare | 1 L2 — THE HOIST IS INCOMPLETE: macro_eval re-runs validate_pure_total on the definition-validated `def.body` per invocation (expand_program_body path); unquote/splice paths pass substituted forms and must KEEP validating. +2 L3 (as_str rebinding; with_capacity) |
+| purgare | 3 L2 — ExpandBatch pub(crate) has zero external consumers; two structurally-dead defensive arms unmarked (parse.rs `_ =>` guarded by is_defmacro_form at all 4 call sites; expand.rs `_ => &[]` silent-empty on an impossible shape) |
+| complectens | 1 L2 — expand_keeping_defmacros (only direct expand_form exerciser; keep-vs-strip semantics) lacks a sibling test. Rune tests.rs:740 audited CLEAR (outer bindings = 1, verified) |
+| struere | 2 L2 — parse.rs ~68 doc claims metadata "stored" (parse drops it); `depth` name collision (expand_form fixpoint guard usize vs quasiquote nesting u32 → rename `expansion_depth`). All 4 struere/sequi-adjacent runes re-verified CLEAR |
+
+**Orchestrator weighing — rejected findings (recorded, not fought):**
+- struere F4 ("complectens rune misfiled in struere's namespace") — PHANTOM: runes
+  are per-spell namespaced by design; tests.rs:740 belongs to complectens, whose
+  own cast audited it CLEAR this same round.
+- intueri's two L3 test-taste items — declined (L3 does not gate; the
+  is_pure_total rename would desync the rune prose mirroring the runtime
+  dispatch arm).
+- complectens' two L3s — the cast itself judged extraction costs more than it gains.
+
+**R2 fight sweep: 13 L2 + 4 mechanical L3 dispatched** (verify-claim-first,
+blocked-not-worked-around; gates = test-build + lib 917-baseline + 5 hygiene
+probes + macros-clippy-empty). On completion: re-run gates orchestrator-side,
+commit, then R3 convergence check → circumspicere LAST → the HELD stamp.
