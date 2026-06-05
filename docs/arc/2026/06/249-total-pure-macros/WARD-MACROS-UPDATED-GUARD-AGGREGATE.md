@@ -96,3 +96,37 @@ CLEAR by their owning spells.**
 blocked-not-worked-around; gates = test-build + lib 917-baseline + 5 hygiene
 probes + macros-clippy-empty). On completion: re-run gates orchestrator-side,
 commit, then R3 convergence check → circumspicere LAST → the HELD stamp.
+
+**R2 fight LANDED (`4e2a9aaf`): 17/17 verified-first, zero blocked.** Standouts:
+ONE quasiquote discriminant (`is_quasiquote_form`; malformed arity = clean
+MalformedTemplate, misroute killed, +regression test); `validate_macro_definition`
+(parse un-braided, hoist preserved); THE HOIST COMPLETED (`macro_eval_pre_validated`
+on the definition-body path at expand.rs:377; unquote:912/splice:978 keep
+validating); RuntimeError span threaded (unknown-span fallback);
+`flatten_template_children`; `expansion_depth`; two dead arms now `unreachable!`.
+Gates orchestrator-re-run: lib **919/0/1** (+2), probes 3+1+2+2+2, macros clippy
+empty. Inward TERMINATION BY JUDGMENT: two full rounds, 0 new L1 in R2, every L2
+fought — inward CONVERGED.
+
+## circumspicere — the perimeter (cast LAST, 2026-06-05, on `4e2a9aaf`)
+
+Verdict: **1 L1 + 3 L2 + 1 L3** + **8 claims verified CLEAN with enforcing sites
+named** (hygiene-by-construction → probes; default-deny allow-list →
+RefusedInMacro test; byte-equivalent re-registration; reserved-prefix gate +
+bounded stdlib bypass; fixpoint depth guard; scope-renumber hash determinism;
+qq-head non-recursion; program-body hygiene gate hoisted).
+
+| # | surround | finding | weighing |
+|---|---|---|---|
+| F1 | claim-vs-code | **L1**: mod.rs:4-8 ships "same canonical AST and the same hash" for macro aliases (058-031, hash-IS-identity) — NO living witness (hash probe = cross-RUN only; subtract test = SHAPE only). Orchestrator re-grounded the claim verbatim. | FIGHT: alias-vs-direct canonical-hash equality test |
+| F2 | invariant | L2: `macro_eval_pre_validated`'s "only sanctioned call site" contract is doc-only | FIGHT via the house caller-gate pattern (probe_hygiene_scopes_reader_gate precedent); newtype cascade judged heavier than the class; debug_assert dead under --release gates |
+| F3 | egress + negative space | L2: depth check fires at 513 while constant/message say 512; macroexpand's fixpoint loop (runtime.rs ~12303) has no infinite-recursion test | FIGHT off-by-one (constant == behavior) + add the macroexpand test. Dual error variants (ExpansionDepthExceeded vs MacroExpansionFailed) RULED HONEST-PER-MECHANISM (recursion depth vs fixpoint cap) — not merged |
+| F4 | invariant | L2: expand-before-register order is freeze-pipeline-enforced (canary in freeze.rs) but out-of-freeze `expand_all` call sites in runtime.rs harnesses carry no marker; gate 2 documented-conditional | FIGHT via mark-the-source comments at every out-of-freeze call site; gate 2 stays a documented conditional bound (fires only "if the order ever changes") |
+| F5 | negative space | L3: allow-list correctly excludes macroexpand/-1 in macro bodies; no deny witness | FIGHT: one refusal test |
+
+**Perimeter closure sweep dispatched** (5 items, verify-first). On completion:
+gates → commit → **the HELD-since-249.2a vigilatum stamp** on src/macros/mod.rs
+(mirror src/scope/mod.rs's form; 12-spell muster + perimeter, conditional
+determinations, declared invariants w/ living gates — and do NOT quote raw
+gate-token literals in stamp prose; the scope/ stamp tripped its own gate that
+way once).
