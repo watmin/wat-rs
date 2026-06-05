@@ -38,7 +38,6 @@ fn shared_scope_program(s: ScopeId) -> Vec<WatAST> {
 /// At HEAD they don't (the raw monotonic `ScopeId`s differ). Stone 249.5f renumbers
 /// scopes canonically before hashing. RED at HEAD; GREEN after.
 #[test]
-#[ignore = "RED until Stone 249.5f lands (canonical scope renumbering at hash time); the strike removes this #[ignore] and the test must then pass (renamed scopes hash equal)"]
 fn renamed_scopes_hash_equal() {
     let a = shared_scope_program(fresh_scope()); // scope N
     let b = shared_scope_program(fresh_scope()); // scope N+1 — different raw id

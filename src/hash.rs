@@ -41,35 +41,69 @@
 //! The modes have different semantic targets and different trust
 //! models. They are complementary, not alternatives.
 //!
-//! # Hygiene-scope caveat
+//! # Canonical scope renumbering (Stone 249.5f)
 //!
 //! Symbols in WatAST carry an [`Identifier`](crate::scope::Identifier)
-//! with a `BTreeSet<ScopeId>`. ScopeIds are monotonic u64s allocated
-//! per-process by `fresh_scope()`, so TWO RUNS of the same program
-//! produce different scope IDs, hence different canonical bytes and
-//! different hashes. This is fine for AST IDENTITY WITHIN a single
-//! process (the cache and symbol-table use case), but breaks the
-//! cross-node / cross-run determinism claim.
+//! with a `BTreeSet<ScopeId>`. Before emitting scope IDs into the
+//! canonical byte stream, `write_canonical_wat` renumbers them to
+//! **canonical first-appearance DFS indices** via a `ScopeRenumber`
+//! (a `HashMap<ScopeId, u64>` + a monotonic counter created once per
+//! top-level call and threaded through every recursive call).
 //!
-//! Stone 249.5b shipped scope-aware RUNTIME RESOLUTION: `src/scope/resolution.rs`
-//! provides `env_key` which encodes the full (name, scope-set) pair as the
-//! environment key, making the expander's scope tags load-bearing at eval time.
-//! The classic variable-capture defect is now structurally prevented
-//! (see `tests/probe_macro_hygiene_capture.rs::classic_macro_capture_is_prevented`).
+//! The first distinct `ScopeId` encountered in a DFS walk → index 0,
+//! the second → 1, and so on. Two programs that are identical up to an
+//! order-preserving scope renaming (the normal case across runs, because
+//! `fresh_scope()` is monotonic) produce identical canonical indices →
+//! **identical hashes across runs** (cross-node consensus and
+//! content-addressed caching now hold).
 //!
-//! What REMAINS deferred: canonical scope RENUMBERING at hash time. Because
-//! `ScopeId`s are monotonic per-process, the canonical-EDN encoding of scoped
-//! symbols differs across runs even for identical programs. The fix —
-//! renumber scope IDs in first-appearance DFS order before hashing — is a
-//! separable follow-on (not part of stone 249.5b). Until then, canonical-EDN
-//! is deterministic within a run but not across runs.
+//! The renumbering is a RENUMBER, not a strip: programs with distinct
+//! scope structure (e.g. shared-one-scope vs two-distinct-scopes) still
+//! produce distinct index sequences → distinct hashes. The
+//! discrimination guard `distinct_scope_structure_hashes_differently`
+//! in `tests/probe_hash_scope_renumber.rs` is the live witness.
+//!
+//! This closes the "Hygiene-scope caveat" that was previously documented
+//! as deferred (Stone 249.5f). The cross-run determinism claim now holds.
 
 use crate::ast::WatAST;
+use crate::scope::ScopeId;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use ed25519_dalek::{Signature, VerifyingKey};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fmt;
+
+/// Private scope-renumbering table for canonical-EDN serialization.
+///
+/// Created ONCE per `canonical_edn_wat` / `canonical_edn_program` call
+/// and threaded through every `write_canonical_wat` recursive call.
+/// Maps raw per-process `ScopeId`s to canonical first-appearance DFS
+/// indices (first distinct scope seen → 0, next → 1, …). Identical
+/// programs across runs (which differ by a constant scope-id OFFSET,
+/// because `fresh_scope()` is monotonic) produce identical indices →
+/// identical canonical bytes → identical hashes. Stone 249.5f.
+struct ScopeRenumber {
+    map: HashMap<ScopeId, u64>,
+    next: u64,
+}
+
+impl ScopeRenumber {
+    fn new() -> Self {
+        Self { map: HashMap::new(), next: 0 }
+    }
+
+    fn canonical(&mut self, s: ScopeId) -> u64 {
+        if let Some(&i) = self.map.get(&s) {
+            return i;
+        }
+        let i = self.next;
+        self.next += 1;
+        self.map.insert(s, i);
+        i
+    }
+}
 
 /// Variant tags in canonical-EDN byte stream. Distinct per variant so
 /// a `Keyword("foo")` cannot collide with a `StringLit("foo")`. The
@@ -112,7 +146,8 @@ const ED25519_PUBKEY_LEN: usize = 32;
 /// identity claim in FOUNDATION.
 pub fn canonical_edn_wat(ast: &WatAST) -> Vec<u8> {
     let mut out = Vec::new();
-    write_canonical_wat(ast, &mut out);
+    let mut renumber = ScopeRenumber::new();
+    write_canonical_wat(ast, &mut out, &mut renumber);
     out
 }
 
@@ -124,15 +159,16 @@ pub fn canonical_edn_wat(ast: &WatAST) -> Vec<u8> {
 /// and a single form `(A B C)` produce different bytes.
 pub fn canonical_edn_program(forms: &[WatAST]) -> Vec<u8> {
     let mut out = Vec::new();
+    let mut renumber = ScopeRenumber::new();
     out.push(TAG_PROGRAM);
     out.extend_from_slice(&(forms.len() as u32).to_le_bytes());
     for f in forms {
-        write_canonical_wat(f, &mut out);
+        write_canonical_wat(f, &mut out, &mut renumber);
     }
     out
 }
 
-fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
+fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>, renumber: &mut ScopeRenumber) {
     match ast {
         WatAST::IntLit(n, _) => {
             out.push(TAG_INT);
@@ -168,15 +204,18 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
             out.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
             out.extend_from_slice(name_bytes);
             out.extend_from_slice(&(ident.scopes().len() as u32).to_le_bytes());
+            // Stone 249.5f — emit canonical first-appearance DFS indices instead
+            // of raw per-process ScopeIds, so identical programs hash equally
+            // across runs (BTreeSet iteration is sorted → deterministic order).
             for scope in ident.scopes() {
-                out.extend_from_slice(&scope.as_u64().to_le_bytes());
+                out.extend_from_slice(&renumber.canonical(*scope).to_le_bytes());
             }
         }
         WatAST::List(items, _) => {
             out.push(TAG_LIST);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
-                write_canonical_wat(child, out);
+                write_canonical_wat(child, out, renumber);
             }
         }
         // Arc 167 slice 1 — distinct tag preserves the
@@ -185,7 +224,7 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
             out.push(TAG_VECTOR);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
-                write_canonical_wat(child, out);
+                write_canonical_wat(child, out, renumber);
             }
         }
         // Arc 169 slice 1 — distinct tag preserves the
@@ -194,7 +233,7 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
             out.push(TAG_STRUCT_PATTERN);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
-                write_canonical_wat(child, out);
+                write_canonical_wat(child, out, renumber);
             }
         }
     }
@@ -202,9 +241,10 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
 
 /// Hash a WatAST tree via canonical-EDN + SHA-256.
 ///
-/// Returns a 32-byte digest. Two ASTs of the same shape produce the
-/// same digest (within a single process, subject to the scope-ID
-/// caveat named in the module doc).
+/// Returns a 32-byte digest. Two ASTs of the same shape (identical up
+/// to per-process scope renaming) produce the same digest across runs
+/// (canonical scope renumbering is applied at serialization time —
+/// Stone 249.5f).
 pub fn hash_canonical_ast(ast: &WatAST) -> [u8; 32] {
     sha256_digest(&canonical_edn_wat(ast))
 }
