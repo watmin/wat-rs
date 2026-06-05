@@ -58,7 +58,7 @@ impl MacroRegistry {
             return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) });
         }
         if let Some(existing) = self.macros.get(&def.name) {
-            if macro_byte_equivalent(existing, &def) {
+            if macro_structurally_equivalent(existing, &def) {
                 return Ok(());
             }
             return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
@@ -77,7 +77,7 @@ impl MacroRegistry {
     /// re-registration is a no-op.
     pub fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if let Some(existing) = self.macros.get(&def.name) {
-            if macro_byte_equivalent(existing, &def) {
+            if macro_structurally_equivalent(existing, &def) {
                 return Ok(());
             }
             return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
@@ -87,12 +87,11 @@ impl MacroRegistry {
     }
 }
 
-/// Arc 054 — byte-equivalence check for two `MacroDef` values.
+/// Arc 054 — structural equivalence check for two `MacroDef` values.
 ///
-/// Compares params + rest_param + body AST. Ignores `name` (it's the
-/// registry key, identical by construction). `WatAST::PartialEq` is
-/// span-agnostic, so two ASTs parsed from different source paths
-/// compare equal iff their structural content matches.
-fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
+/// Compares params + rest_param + body AST for structural equivalence,
+/// span-agnostic. Ignores `name` (it's the registry key, identical by
+/// construction).
+fn macro_structurally_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
     a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
 }

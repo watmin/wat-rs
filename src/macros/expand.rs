@@ -208,6 +208,12 @@ pub(super) fn expand_macro_call(
         bindings.insert(rest_name.clone(), WatAST::List(rest, call_site_span.clone()));
     }
 
+    // rune:sequi(host-idiom) — fresh_scope() draws a process-global AtomicU64
+    // monotonic counter (identifier.rs); the ScopeId it returns is threaded
+    // explicitly downstream (expand_template → walk_template). The counter
+    // carries no domain state, only global hygiene-scope uniqueness; threading
+    // a mutable counter through the whole expansion tree would expose it
+    // through every caller's signature.
     let macro_scope = fresh_scope();
     expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)
 }
@@ -236,10 +242,7 @@ fn expand_template(
 ) -> Result<WatAST, MacroError> {
     // ── Dispatch: bare quasiquote vs program body ──────────────────────────
     let quasi_body = match template {
-        WatAST::List(items, _) if items.len() == 2 => match items.first() {
-            Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => Some(&items[1]),
-            _ => None,
-        },
+        WatAST::List(items, _) => as_quasiquote_body(items),
         _ => None,
     };
 
@@ -381,7 +384,7 @@ fn check_program_body_hygiene(
 ) -> Result<(), MacroError> {
     match body {
         WatAST::List(items, _) => {
-            if let Some(inner) = items_is_quasiquote(items) {
+            if let Some(inner) = as_quasiquote_body(items) {
                 // Entered a quasiquote template: check it for literal-name binders.
                 check_quasiquote_for_literal_binders(inner, call_site_span, macro_name)?;
             } else {
@@ -404,7 +407,7 @@ fn check_program_body_hygiene(
 
 /// If `items` is `(:wat::core::quasiquote X)` (2-element List with quasiquote head),
 /// return `Some(&X)`. Otherwise `None`.
-fn items_is_quasiquote(items: &[WatAST]) -> Option<&WatAST> {
+fn as_quasiquote_body(items: &[WatAST]) -> Option<&WatAST> {
     if items.len() == 2 {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             if k == ":wat::core::quasiquote" {
@@ -452,7 +455,10 @@ fn check_quasiquote_for_literal_binders(
                 }
             } else if head == ":wat::core::fn" {
                 // args[0] is the params vector: [name <- :T name <- :T ...]
-                // Param names are at positions 0, 3, 6, … (argspec triples).
+                // Scan every position; a Symbol that is not a `->`/`<-`/`&`
+                // marker is a param name being introduced. (Stepping by 1 +
+                // marker-exclusion handles the `&`-rest case, which breaks the
+                // positional triple-cadence.)
                 if let Some(params_vec) = items.get(1) {
                     if let WatAST::Vector(param_items, _) = params_vec {
                         let mut i = 0;

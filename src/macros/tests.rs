@@ -3,7 +3,7 @@ use super::expand;
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 
-fn expand(src: &str) -> Result<Vec<WatAST>, MacroError> {
+fn expand_src(src: &str) -> Result<Vec<WatAST>, MacroError> {
     let forms = crate::parse_all!(src).expect("parse ok");
     let mut reg = MacroRegistry::new();
     let rest = register_defmacros(forms, &mut reg)?;
@@ -32,7 +32,7 @@ fn expand_keeping_defmacros(src: &str) -> Result<Vec<WatAST>, MacroError> {
 
 #[test]
 fn alias_macro_expands_to_primitive() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::Concurrent
           [xs <- :AST<List<wat::holon::HolonAST>>]
@@ -57,7 +57,7 @@ fn alias_macro_expands_to_primitive() {
 
 #[test]
 fn subtract_macro_expansion() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::Subtract
           [x <- :AST<wat::holon::HolonAST>
@@ -86,7 +86,7 @@ fn subtract_macro_expansion() {
 
 #[test]
 fn splice_list_arg_into_template() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::SumAll
           [xs <- :AST<List<wat::holon::HolonAST>>]
@@ -113,7 +113,7 @@ fn splice_list_arg_into_template() {
 
 #[test]
 fn nested_macro_expands_to_fixpoint() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::outer [x <- :AST] -> :AST `(:my::inner ~x))
         (:wat::core::defmacro :my::inner [x <- :AST] -> :AST `(:wat::holon::Atom ~x))
@@ -136,7 +136,7 @@ fn nested_macro_expands_to_fixpoint() {
 
 #[test]
 fn template_identifier_carries_macro_scope() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::vocab::WithTmp
           [body <- :AST]
@@ -192,7 +192,7 @@ fn template_identifier_carries_macro_scope() {
 #[test]
 fn argument_identifiers_pass_through_unchanged() {
     // User passes a symbol; the macro should splice it verbatim.
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::wrap [v <- :AST] -> :AST `(:wat::holon::Atom ~v))
         (:my::wrap some-var)
@@ -219,7 +219,7 @@ fn argument_identifiers_pass_through_unchanged() {
 
 #[test]
 fn two_macro_invocations_get_distinct_scopes() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::twice
           [x <- :AST]
@@ -270,7 +270,7 @@ fn two_macro_invocations_get_distinct_scopes() {
 
 #[test]
 fn reserved_prefix_macro_rejected() {
-    let err = expand(
+    let err = expand_src(
         r#"(:wat::core::defmacro :wat::std::MyMacro [x <- :AST] -> :AST `~x)"#,
     )
     .unwrap_err();
@@ -283,7 +283,7 @@ fn duplicate_defmacro_with_divergent_body_rejected() {
     // separately). Divergent re-declaration still errors. This
     // test exercises the divergent-body path — same name, two
     // distinct templates.
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST `(:wat::core::Vector ~x))
@@ -298,7 +298,7 @@ fn duplicate_defmacro_byte_equivalent_is_noop() {
     // Arc 054: two byte-equivalent defmacro forms — same name,
     // params, body. Second registration is a no-op. The macro
     // expands normally afterward.
-    let result = expand(
+    let result = expand_src(
         r#"
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST `~x)
@@ -310,7 +310,7 @@ fn duplicate_defmacro_byte_equivalent_is_noop() {
 
 #[test]
 fn macro_arity_mismatch() {
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::two
           [x <- :AST y <- :AST]
@@ -324,11 +324,11 @@ fn macro_arity_mismatch() {
 }
 
 #[test]
-fn non_quasiquote_body_rejected() {
+fn program_body_producing_non_ast_rejected() {
     // Arc 249 stone 249.2b-ii: a program body (non-quasiquote) IS evaluated
     // by macro_eval. A body that produces a non-AST result (e.g. a Vec) still
     // errors — with MalformedTemplate (value_to_watast rejects Vec).
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::m [x <- :AST] -> :AST
           (:wat::core::Vector :bogus x))
@@ -341,7 +341,7 @@ fn non_quasiquote_body_rejected() {
 
 #[test]
 fn splice_non_list_arg_rejected() {
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::s [xs <- :AST] -> :AST `(:wat::core::Vector ~@xs))
         (:my::s 42)
@@ -355,7 +355,7 @@ fn splice_non_list_arg_rejected() {
 
 #[test]
 fn non_macro_forms_unchanged() {
-    let forms = expand(r#"(:wat::holon::Atom "hello") 42 "world""#).unwrap();
+    let forms = expand_src(r#"(:wat::holon::Atom "hello") 42 "world""#).unwrap();
     assert_eq!(forms.len(), 3);
     assert!(matches!(forms[1], WatAST::IntLit(42, _)));
     assert!(matches!(&forms[2], WatAST::StringLit(s, _) if s == "world"));
@@ -540,23 +540,17 @@ fn unquote_splicing_at_depth_two_preserves() {
 }
 
 // Note: ,,@X (double unquote-splicing) is NOT yet supported. The
-// combined shape (:wat::core::unquote (:wat::core::unquote-splicing X))
-// at depth 2 would need special-case handling that lets the outer
-// substitution hand a concrete list down to an outer-level splice
-// wrapper. `make-deftest`'s implementation uses `,,default-prelude`
-// (non-splicing double unquote) where the list value is placed as
-// deftest's prelude argument — the splicing happens inside deftest's
-// own template, not at make-deftest's level. If a future use case
-// forces `,,@`, extend `walk_template` to recognize
-// `(unquote (unquote-splicing X))` at depth 2 as "substitute + wrap
-// in unquote-splicing" (outer wrapper replaced by the inner).
+// `make-deftest` pattern uses `,,default-prelude` (non-splicing double
+// unquote) where the list value is placed as deftest's prelude argument
+// — the splicing happens inside deftest's own template, not at
+// make-deftest's level.
 
 #[test]
 fn make_deftest_shaped_template_expands_through_two_passes() {
     // The canonical forcing case — a macro-generating-macro that
     // configures dims + mode + default-prelude and registers a
     // new macro; then the user calls the new macro.
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::make-mac
           [name   <- :AST<()>
@@ -619,7 +613,7 @@ fn arc138_macro_error_message_carries_span() {
     // `<test>:<line>:<col>`. The MacroError Display arm prefixes the
     // span via `span_prefix`, so the rendered message must contain
     // `<test>:` when the variant's span is known.
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::two
           [x <- :AST
@@ -717,7 +711,7 @@ fn computed_unquote_non_keyword_head_list_is_literal() {
 /// which dispatches as a substrate primitive (no sym.functions needed).
 #[test]
 fn computed_unquote_evaluates_substrate_call() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::computed-test
           []
@@ -744,7 +738,7 @@ fn computed_unquote_evaluates_substrate_call() {
 /// `,(+ n 1)` — the substituted value is what gets evaluated.
 #[test]
 fn computed_unquote_substitutes_params_before_eval() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::succ
           [n <- :AST<i64>]
@@ -771,7 +765,7 @@ fn computed_unquote_substitutes_params_before_eval() {
 /// Uses `:wat::core::vec` to build the Vec at expand-time.
 #[test]
 fn computed_unquote_splicing_evaluates_and_splices() {
-    let forms = expand(
+    let forms = expand_src(
         r#"
         (:wat::core::defmacro :my::trio
           []
@@ -846,7 +840,7 @@ fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
 /// goes red if the `depth > EXPANSION_DEPTH_LIMIT` check is removed.
 #[test]
 fn depth_limit_exceeded_on_self_recursive_macro() {
-    let err = expand(
+    let err = expand_src(
         r#"
         (:wat::core::defmacro :my::inf [x <- :AST] -> :AST `(:my::inf ~x))
         (:my::inf 1)
@@ -890,6 +884,138 @@ fn expand_once_single_step_not_fixpoint() {
         }
         other => panic!("expected a List from expand_once; got {:?}", other),
     }
+}
+
+// ─── Arc 249 stone 249.2b-i — RefusedInMacro (F5 default-deny gate) ────────
+
+/// Computed-unquote `,(expr)` whose head is an impure `:wat::kernel::*`
+/// effectful verb is refused by the default-deny `macro_eval` gate.
+/// Exercises the F5-closure path: `unquote_argument` routes through
+/// `macro_eval` → `validate_pure_total` → `RefusedInMacro`.
+#[test]
+fn impure_computed_unquote_refused_with_refused_in_macro() {
+    let bindings = std::collections::HashMap::new();
+    let env = crate::runtime::Environment::default();
+    let sym = crate::runtime::SymbolTable::default();
+    let span = crate::span::Span::unknown();
+    // (:wat::kernel::send ...) — effectful head; NOT on the pure-total allow-list.
+    // unquote_argument routes through macro_eval for any list with a Keyword head.
+    let impure_form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+            WatAST::IntLit(1, span.clone()),
+        ],
+        span.clone(),
+    );
+    let err = expand::unquote_argument(&impure_form, &bindings, &env, &sym).unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        "expected RefusedInMacro for impure kernel head; got: {:?}",
+        err
+    );
+}
+
+// ─── UnboundMacroParam — zero coverage ──────────────────────────────────────
+
+/// A macro template that unquotes a typo'd param name (declared `x`,
+/// template references `,y`) errors with `UnboundMacroParam { name: "y" }`.
+#[test]
+fn unquote_of_typo_param_errors_unbound_macro_param() {
+    let err = expand_src(
+        r#"
+        (:wat::core::defmacro :my::typo
+          [x <- :AST]
+          -> :AST
+          `(:result ~y))
+        (:my::typo 42)
+        "#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            MacroError { kind: MacroErrorKind::UnboundMacroParam { name }, .. }
+            if name == "y"
+        ),
+        "expected UnboundMacroParam {{ name: \"y\" }}; got: {:?}",
+        err
+    );
+}
+
+// ─── MalformedDefmacro — 5 untested parse sites ──────────────────────────────
+
+/// (a) Wrong item count — not 6, 7, or the 3-item paren-pair.
+#[test]
+fn malformed_defmacro_wrong_item_count() {
+    let err = expand_src(
+        // Only 4 items: head name argvec body (missing -> and rettype).
+        r#"(:wat::core::defmacro :my::m [x <- :AST] `~x)"#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        "expected MalformedDefmacro for wrong item count; got: {:?}",
+        err
+    );
+}
+
+/// (b) Non-keyword macro name (e.g. a Symbol instead of a Keyword at item 1).
+#[test]
+fn malformed_defmacro_non_keyword_name() {
+    let err = expand_src(
+        // `my-macro` is a Symbol, not a Keyword — should fail.
+        r#"(:wat::core::defmacro my-macro [x <- :AST] -> :AST `~x)"#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        "expected MalformedDefmacro for non-keyword name; got: {:?}",
+        err
+    );
+}
+
+/// (c) Non-vector argspec (e.g. a List instead of a Vector).
+#[test]
+fn malformed_defmacro_non_vector_argspec() {
+    let err = expand_src(
+        // (x <- :AST) is a List, not a Vector.
+        r#"(:wat::core::defmacro :my::m (x <- :AST) -> :AST `~x)"#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        "expected MalformedDefmacro for non-vector argspec; got: {:?}",
+        err
+    );
+}
+
+/// (d) Missing/non-`->` arrow symbol (e.g. `=>` instead of `->`).
+#[test]
+fn malformed_defmacro_missing_arrow() {
+    let err = expand_src(
+        r#"(:wat::core::defmacro :my::m [x <- :AST] => :AST `~x)"#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        "expected MalformedDefmacro for missing -> arrow; got: {:?}",
+        err
+    );
+}
+
+/// (e) Non-keyword return-type (e.g. a Symbol instead of a Keyword after `->`).
+#[test]
+fn malformed_defmacro_non_keyword_return_type() {
+    let err = expand_src(
+        // `AST` is a Symbol, not a Keyword (missing `:` prefix).
+        r#"(:wat::core::defmacro :my::m [x <- :AST] -> AST `~x)"#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::MalformedDefmacro { .. }, .. }),
+        "expected MalformedDefmacro for non-keyword return type; got: {:?}",
+        err
+    );
 }
 
 /// `register_stdlib` bypasses the reserved-prefix gate and can register

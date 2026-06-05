@@ -30,7 +30,11 @@
 //!    `tmp[{macro-scope}]` and `tmp[{user-scope}]` resolve to distinct
 //!    bindings.
 //!
-//! Variable capture is structurally impossible, not discipline-enforced.
+//! Variable capture is structurally impossible (not discipline-enforced)
+//! for quasiquote-template bodies via the scope-set mechanism above.
+//! Program-body macros (arc 249.2b-ii) enforce hygiene by a default-deny
+//! refusal: `check_program_body_hygiene` (expand.rs, gate E) rejects any
+//! program body whose quasiquote introduces a literal binder name.
 //!
 //! # What this slice supports
 //!
@@ -48,8 +52,9 @@
 //!   ordinary registered wat macro in `wat/core.wat`; rehomed from Rust
 //!   desugar in arc 249.4.
 //! - Computed-unquote `,(expr)`: a List whose head is a Keyword is
-//!   evaluated at expand-time via `runtime::eval` with macro params
-//!   substituted (arc 143 slice 2).
+//!   evaluated at expand-time via `macro_eval` (the default-deny
+//!   pure-total fenced evaluator; arc 249.2b-i, building on the
+//!   arc 143 slice 2 computed-unquote path) with macro params substituted.
 //!
 //! # Scope
 //!
