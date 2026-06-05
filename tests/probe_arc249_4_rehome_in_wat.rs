@@ -76,6 +76,39 @@ fn diag_first_over_vector_form() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// D — `for` IS REDUNDANT: the canonical `~@(map (fn [x] `tmpl) items)` reproduces
+// the arc-248 `for` use case (mint_for_transforms_per_element): a variadic macro
+// maps a per-element template, splices the results. `(:my::inc-vof 10 20 30)` →
+// `(Vector i64 (i64::+ 10 1) (i64::+ 20 1) (i64::+ 30 1))` → first = 11. If this
+// is Ok(11), `for` is provably redundant with the engine → safe to annihilate.
+// ═══════════════════════════════════════════════════════════════════════════
+// Program-body form (the threading shape): compute the per-element map into a
+// binding, then splice the resulting Vec into the constructed form. Separates the
+// map (computed in the program) from the splice (in the quasiquote) — no nested
+// `~@(map …)`-in-bare-quasiquote level-threading.
+const CANONICAL_COMPREHENSION_MACRO: &str = "(:wat::core::defmacro :my::inc-vof \
+     [& items <- :AST<wat::holon::Holons>] -> :AST<wat::holon::HolonAST> \
+     (:wat::core::let [mapped (:wat::core::map \
+                                (:wat::core::fn [x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST \
+                                   `(:wat::core::i64::+ ~x 1)) \
+                                items)] \
+        `(:wat::core::Vector :wat::core::i64 ~@mapped)))";
+
+#[test]
+fn canonical_comprehension_replaces_for() {
+    let body = "(:wat::core::match (:wat::core::first (:my::inc-vof 10 20 30)) -> :wat::core::i64 \
+                  ((:wat::core::Some n) n) \
+                  (:wat::core::None -1))";
+    let result = eval_i64_with(CANONICAL_COMPREHENSION_MACRO, body);
+    println!("\n=== canonical_comprehension_replaces_for ===\nexpect Ok(11):\n{:#?}\n", result);
+    assert_eq!(
+        result.unwrap(),
+        Value::i64(11),
+        "the canonical `~@(map (fn [x] `tmpl) items)` MUST reproduce `for` — proving for is redundant"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // A — keyword-form → text. Can a wat macro turn its keyword ARG (a wat__WatAST
 // Keyword form-value) into the keyword's text? `(:test::kw-text :foo::bar)`
 // should expand to the string "foo::bar" (or ":foo::bar"). If keyword/to-string
