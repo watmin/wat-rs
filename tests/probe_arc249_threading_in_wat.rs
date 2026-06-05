@@ -43,6 +43,11 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
+/// True if startup (parse + macro-expand + check) ACCEPTS the program.
+fn startup_ok(src: &str) -> bool {
+    startup_from_source(&with_nil_main(src), None, Arc::new(InMemoryLoader::new())).is_ok()
+}
+
 fn with_nil_main(src: &str) -> String {
     format!(
         "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
@@ -168,4 +173,52 @@ fn diag_first_over_form() {
     println!("\n=== diag_first_over_form ===\n{:#?}\n", result);
     // Diagnostic only — read the shape; do not gate on it.
     let _ = result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E — PURITY of the eval-time quasiquote path. A PROGRAM body (an `if`) returns
+// a quasiquote whose computed unquote is IMPURE (`~(:wat::kernel::stopped?)`).
+//
+// The bare-quasiquote path is fenced (gate B of probe_arc249_macro_engine, via
+// expand-time walk_template→macro_eval). But a PROGRAM body runs through
+// runtime::eval, and its inner quasiquote is walked by eval-time
+// `walk_quasiquote` (runtime.rs:10380) whose unquote uses raw `eval_inner`
+// (10402), NOT the fenced `macro_eval` — and `validate_pure_total` SKIPS
+// quasiquote contents (eval.rs:99). So this path may run the impure unquote
+// UNFENCED — an F5-redux.
+//
+// EXPECTED IF FENCED: startup_ok == false (refused). EXPECTED IF HOLE:
+// startup_ok == true (the kernel call ran at expand time). This row asserts the
+// SAFE expectation; if it FAILS, 249.3a must close the eval-time purity hole
+// (route eval-time quasiquote unquote/splice through macro_eval in macro
+// context), not merely add splice.
+// ═══════════════════════════════════════════════════════════════════════════
+#[test]
+#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
+fn diag_program_body_quasiquote_impure_unquote_fenced() {
+    // TYPE-COMPATIBLE impure unquote (grounds against PURITY, not a type
+    // coincidence): `stopped?` returns bool; `(not ~bool)` is bool; the probe's
+    // return type is bool. If `stopped?` runs at expand time, the expansion
+    // type-checks and startup SUCCEEDS → the kernel call ran UNFENCED → HOLE.
+    // (Run 1 used `(i64::+ ~bool 1)` and got a TypeMismatch — a FALSE refusal:
+    // the impurity ran; the type error was a coincidence, not a purity fence.
+    // "Ground against the right target" — feedback_ground_against_right_target.)
+    let src = "(:wat::core::defmacro :test::impure-prog [] -> :AST<wat::holon::HolonAST> \
+                 (:wat::core::if (:wat::core::= 1 1) -> :AST<wat::holon::HolonAST> \
+                   `(:wat::core::not ~(:wat::kernel::stopped?)) \
+                   `false))\n\
+               (:wat::core::defn :user::probe [] -> :wat::core::bool (:test::impure-prog))";
+    let err = startup_from_source(&with_nil_main(src), None, Arc::new(InMemoryLoader::new()))
+        .err()
+        .map(|e| format!("{:?}", e));
+    let accepted = err.is_none();
+    println!(
+        "\n=== diag_program_body_quasiquote_impure_unquote_fenced ===\nstartup_ok = {} (false = fenced/safe, true = F5-redux HOLE)\nrefusal mechanism: {:#?}\n",
+        accepted, err
+    );
+    assert!(
+        !accepted,
+        "a program-body quasiquote with an impure computed unquote MUST be refused \
+         (eval-time quasiquote purity); if accepted, the eval-time path is an F5-redux hole"
+    );
 }
