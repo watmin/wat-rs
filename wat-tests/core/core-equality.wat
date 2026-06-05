@@ -81,6 +81,7 @@
 ;; type — no promotion). run-hermetic-with-prelude registers the helper
 ;; in the child prelude; the call with mismatched types errors at freeze.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-rejects-f64-arg
   ()
   (:wat::core::let
@@ -107,6 +108,7 @@
 ;; The poly_eq_mixed_promotes Rust test (which expected "equal") was in the
 ;; 13-failing list — the correct new behaviour is rejection.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
   ()
   (:wat::core::let

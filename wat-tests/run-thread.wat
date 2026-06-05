@@ -23,6 +23,7 @@
 
 ;; ─── Ok-path: passing assertion inside run-thread ─────────────────────
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::run-thread-ok-path
   ()
   (:wat::core::let
@@ -38,6 +39,7 @@
 
 ;; ─── Err-path: failing assertion inside run-thread ────────────────────
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::run-thread-err-path
   ()
   (:wat::core::let

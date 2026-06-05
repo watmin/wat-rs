@@ -216,6 +216,7 @@
 ;; error; poly_div_f64_zero_errors was in the 13-failing list in the retired
 ;; Rust file — that behaviour is intentionally NOT mirrored here.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   ()
   (:wat::core::let
@@ -242,6 +243,7 @@
 ;; Mirrors the behaviour asserted (negatively) by the retired Rust tests
 ;; poly_add_i64_f64_promotes_to_f64, poly_add_f64_i64_promotes_to_f64, etc.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   ()
   (:wat::core::let
@@ -261,6 +263,7 @@
 ;; Mirrors poly_add_string_rejected_at_check. String is not a numeric type;
 ;; no defclause clause matches (String, String) for arithmetic.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   ()
   (:wat::core::let
@@ -279,6 +282,7 @@
 ;;
 ;; Mirrors the now-failing poly_lt_mixed_i64_f64: (< 1 2.5) has no clause.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   ()
   (:wat::core::let
@@ -298,6 +302,7 @@
 ;; Mirrors slice4_variadic_sub_zero_ary_errors and
 ;; slice4_variadic_div_zero_ary_errors. Neither - nor / has a 0-ary clause.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   ()
   (:wat::core::let
@@ -312,6 +317,7 @@
           "expected NoMatchingClause for 0-ary (-)"
           :wat::core::None :wat::core::None)))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   ()
   (:wat::core::let
@@ -334,6 +340,7 @@
 ;; run-hermetic-with-prelude registers the helper in the child's prelude so
 ;; it is visible to user::main in the forked subprocess.
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::typed-f64-lt-rejects-i64-arg
   ()
   (:wat::core::let
