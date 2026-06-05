@@ -12341,6 +12341,16 @@ fn eval_positional_accessor(
         Value::wat__core__List(items) => Ok(Value::Option(Arc::new(
             items.iter().nth(index).cloned(),
         ))),
+        // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List is a
+        // sequence of child forms; positional access returns Option<wat__WatAST>
+        // (None for out-of-bounds or non-List form), matching the Vec arm's shape.
+        Value::wat__WatAST(ast) => match &*ast {
+            WatAST::List(children, _) => Ok(Value::Option(Arc::new(
+                children.get(index).cloned().map(|c| Value::wat__WatAST(Arc::new(c))),
+            ))),
+            // A non-List form has no positional children — None (matches Vec out-of-bounds shape).
+            _ => Ok(Value::Option(Arc::new(None))),
+        },
         other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "tuple, Vec, or List",

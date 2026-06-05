@@ -908,6 +908,27 @@ pub(crate) fn eval_vec_rest(
             let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
             Ok(Value::wat__core__List(Arc::new(out)))
         }
+        // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List/rest →
+        // a new WatAST::List of the tail. Maintains form identity (List/rest → List),
+        // mirroring the wat__core__List arm above. Empty form → MalformedForm;
+        // non-List form → TypeMismatch.
+        Value::wat__WatAST(ast) => match &*ast {
+            WatAST::List(children, span) => {
+                if children.is_empty() {
+                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::rest".into(),
+                        reason: "cannot take rest of empty form".into()
+                    } }.into());
+                }
+                let tail: Vec<WatAST> = children.iter().skip(1).cloned().collect();
+                Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
+            }
+            other_ast => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::rest".into(),
+                expected: "Vec, List, or list form",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other_ast.clone()))))
+            } }.into()),
+        },
         other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::rest".into(),
             expected: "Vec or List",

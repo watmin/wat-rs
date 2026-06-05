@@ -242,7 +242,6 @@ const THREAD_FIRST_MACRO: &str = "(:wat::core::defmacro :test::thread-first \
         steps))";
 
 #[test]
-#[ignore = "249.3b feasibility — run with --ignored to read the gap"]
 fn diag_thread_first() {
     let body = "(:wat::core::= (:test::thread-first 5 (:wat::core::i64::- 3)) 2)";
     let result = eval_bool_with(THREAD_FIRST_MACRO, body);
