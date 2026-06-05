@@ -29,9 +29,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      chunked
       (:wat::stream::chunks stream 3)
@@ -52,9 +52,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      chunked
       (:wat::stream::chunks stream 3)
@@ -72,7 +72,7 @@
   (:wat::core::let
     [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil nil))
      chunked
       (:wat::stream::chunks stream 3)
      collected (:wat::stream::collect chunked)
@@ -98,9 +98,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      initial :wat::core::None
      step
@@ -137,9 +137,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      step
       (:wat::core::fn [buf <- :wat::core::Vector<wat::core::i64> item <- :wat::core::i64] -> :(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>)
@@ -184,9 +184,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      id
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
@@ -213,9 +213,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      id
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
@@ -236,7 +236,7 @@
   (:wat::core::let
     [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil nil))
      id
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
      grouped
@@ -259,9 +259,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      windowed
       (:wat::stream::window stream 3)
@@ -285,9 +285,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      windowed
       (:wat::stream::window stream 3)
@@ -309,9 +309,9 @@
           (:wat::core::foldl
             (:wat::core::fn [_ <- :wat::core::nil item <- :wat::core::i64] -> :wat::core::nil
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            :wat::core::nil
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            nil
             source)))
      windowed
       (:wat::stream::window stream 3)
@@ -328,7 +328,7 @@
   (:wat::core::let
     [stream
       (:wat::stream::spawn-producer
-        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil :wat::core::nil))
+        (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil nil))
      windowed
       (:wat::stream::window stream 3)
      collected (:wat::stream::collect windowed)

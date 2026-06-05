@@ -72,15 +72,17 @@
 ;;   never passes both halves to a single function call — so arc 126 does
 ;;   not fire, and all deftests pass cleanly without :should-panic.
 
+(:wat::config::set-redef! true)
+
 (:wat::test::make-deftest :deftest
   (;; State — the domain accumulator the loop carries between
    ;; iterations. Each handler returns a NEW state (values discipline;
    ;; never mutate in place). Two counter fields here demonstrate the
    ;; pattern; in your service, these are your real domain fields
    ;; (an LRU map, a treasury record, a registry table, etc.).
-   (:wat::core::struct :svc::State
-     (push-count :wat::core::i64)
-     (ack-count  :wat::core::i64))
+   (:wat::core::defstruct :svc::State
+     [push-count <- :wat::core::i64
+      ack-count  <- :wat::core::i64])
 
    (:wat::core::defn :svc::State::fresh [] -> :svc::State (:svc::State/new 0 0))
 

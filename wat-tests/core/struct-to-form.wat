@@ -12,14 +12,13 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
-  ()
+  ((:wat::core::defstruct :my::Pair
+     [a <- :wat::core::i64
+      b <- :wat::core::i64]))
   (:wat::core::let
     [_outcome
       (:wat::test::run-thread
         (:wat::core::do
-          (:wat::core::struct :my::Pair
-            (a :wat::core::i64)
-            (b :wat::core::i64))
           (:wat::core::let
             [p (:my::Pair/new 7 9)
              form (:wat::core::struct->form p)
