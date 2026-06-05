@@ -3637,7 +3637,7 @@ fn register_runtime_defs_form(
                 let binder = &vector_items[i];
                 let rhs = &vector_items[i + 1];
                 if let WatAST::Symbol(ident, _) = binder {
-                    let binding_name = ident.name.clone();
+                    let binding_name = crate::scope::env_key(ident);
                     let sym_ref: &SymbolTable = sym;
                     let tv = eval_inner(rhs, &scope, sym_ref)?;
                     scope = scope.child().bind_unknown_span(binding_name, tv).build();
@@ -4158,6 +4158,50 @@ fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
     Some(meta)
 }
 
+/// Extract scope-aware parameter name keys from a flat argspec vector.
+///
+/// Stone 249.5b — `parse_fn_signature` / `parse_argspec_triples` return bare
+/// `ident.name` strings (kept that way so the type-checker's bare-name binding
+/// is unaffected). Runtime `Function.params` must use `env_key` so that
+/// macro-template fn-params (`window{scope}`) bind and look up under the same
+/// key in the `Environment`. This helper re-walks the args `WatAST::Vector` and
+/// rebuilds the `Vec<String>` with `env_key` applied to each name symbol.
+///
+/// `triples_vec` must be the `[name <- :T name <- :T ...]` args vector element
+/// extracted from the fn form. If parsing fails (malformed), falls back to the
+/// already-computed bare `fallback` list (preserves existing error semantics).
+fn scoped_params_from_args_vec(triples_vec: &WatAST, fallback: Vec<String>) -> Vec<String> {
+    let items = match triples_vec {
+        WatAST::Vector(items, _) => items.as_slice(),
+        _ => return fallback,
+    };
+    // Walk in triples (name <- :T).  `& rest <- :T` rest-binders share the
+    // same structure; env_key applies to all.  If the count is not a multiple
+    // of 3 we fall back (malformed, type checker will catch it separately).
+    if items.len() % 3 != 0 {
+        return fallback;
+    }
+    let mut out = Vec::with_capacity(items.len() / 3);
+    let mut i = 0;
+    while i + 2 < items.len() {
+        // Skip `&` rest-marker if present at this position.
+        let name_item = if items[i].is_bare_symbol("&") {
+            // rest binder: the name follows the `&`.
+            if i + 3 >= items.len() { return fallback; }
+            i += 1;
+            &items[i]
+        } else {
+            &items[i]
+        };
+        match name_item {
+            WatAST::Symbol(ident, _) => out.push(crate::scope::env_key(ident)),
+            _ => return fallback,
+        }
+        i += 3;
+    }
+    out
+}
+
 /// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
 /// a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
 fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Option<HashMap<String, WatAST>>)> {
@@ -4255,7 +4299,11 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
         fn_items[sig_start + 1].clone(),
         fn_items[sig_start + 2].clone(),
     ];
-    let (params, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
+    let (params_bare, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
+    // Stone 249.5b: convert bare param names to scope-aware env keys so that a
+    // macro-template fn-param (`window{scope}`) binds and resolves consistently
+    // with its body references.  Non-scoped params (bare idents) are unaffected.
+    let params = scoped_params_from_args_vec(&fn_items[sig_start], params_bare);
     Some((
         name.clone(),
         Arc::new(Function {
@@ -4352,9 +4400,26 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     if spec.rest_param.is_none() {
         return None;
     }
-    let (fixed_params, fixed_param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
+    let (fixed_params_bare, fixed_param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
-    let (rest_name, rest_ty) = spec.rest_param?;
+    // Stone 249.5b: scope-aware param keys (macro-template fn-params).
+    let fixed_params = scoped_params_from_args_vec(&fn_items[1], fixed_params_bare);
+    let (rest_name_bare, rest_ty) = spec.rest_param?;
+    // Derive scope-aware rest-param name from the args vector.
+    // The rest-binder follows the `& rest <- :T` triple; scoped_params_from_args_vec
+    // covers it via the `&`-skip branch.
+    let rest_name = {
+        // Re-extract the rest-binder name with env_key from the WatAST directly.
+        // Walk the args_vec looking for `&` followed by a Symbol.
+        let rest_scoped = args_vec.iter()
+            .position(|item| item.is_bare_symbol("&"))
+            .and_then(|amp_pos| args_vec.get(amp_pos + 1))
+            .and_then(|name_item| match name_item {
+                WatAST::Symbol(ident, _) => Some(crate::scope::env_key(ident)),
+                _ => None,
+            });
+        rest_scoped.unwrap_or(rest_name_bare)
+    };
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Some((
@@ -4759,7 +4824,7 @@ fn eval_tail(
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
         WatAST::Symbol(ident, span) => {
-            if let Some(tv) = env.lookup(ident.as_str(), span) {
+            if let Some(tv) = env.lookup(&crate::scope::env_key(ident), span) {
                 if let Value::wat__core__fn(f) = tv.value() {
                     emit_tail_call(f.clone(), args, env, sym, list_span)
                 } else {
@@ -5183,7 +5248,7 @@ pub(crate) fn eval_inner(
             Ok(TrackedValue::new(Value::Unit, Provenance::Literal { span: span.clone() }))
         }
         WatAST::Symbol(ident, span) => env
-            .lookup(ident.as_str(), span)
+            .lookup(&crate::scope::env_key(ident), span)
             .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })
             .map_err(EvalBreak::from),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
@@ -5271,7 +5336,7 @@ fn eval_list(
             // preserve producer provenance (of_tracked reads provenance intact).
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
-                .lookup(ident.as_str(), span)
+                .lookup(&crate::scope::env_key(ident), span)
                 .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })?;
             apply_tracked_callee(tv, rest, env, sym)
         }
@@ -7732,7 +7797,7 @@ fn parse_let_binding<'a>(
     match binder {
         // Arc 233 Stone 233.2.e: extract name_span from WatAST::Symbol(_, span).
         WatAST::Symbol(ident, name_span) => Ok(LetBinding::Single {
-            name: ident.name.clone(),
+            name: crate::scope::env_key(ident),
             name_span: name_span.clone(),
             rhs,
         }),
@@ -7742,7 +7807,7 @@ fn parse_let_binding<'a>(
             let mut names = Vec::with_capacity(inner.len());
             for item in inner {
                 match item {
-                    WatAST::Symbol(ident, name_span) => names.push((ident.name.clone(), name_span.clone())),
+                    WatAST::Symbol(ident, name_span) => names.push((crate::scope::env_key(ident), name_span.clone())),
                     other => {
                         return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::let".into(),
@@ -7787,7 +7852,7 @@ fn parse_let_binding<'a>(
                 let mut i = 0;
                 while i + 1 < inner.len() {
                     let (var_name, var_span) = match &inner[i] {
-                        WatAST::Symbol(ident, sp) => (ident.name.clone(), sp.clone()),
+                        WatAST::Symbol(ident, sp) => (crate::scope::env_key(ident), sp.clone()),
                         other => {
                             return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                                 head: ":wat::core::let".into(),
@@ -7829,7 +7894,7 @@ fn parse_let_binding<'a>(
             for item in inner {
                 match item {
                     WatAST::Symbol(ident, name_span) => {
-                        field_names.push((ident.name.clone(), name_span.clone()))
+                        field_names.push((crate::scope::env_key(ident), name_span.clone()))
                     }
                     other => {
                         return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -13170,7 +13235,7 @@ fn try_match_pattern(
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(outer.clone())),
         // Bare identifier — binds the scrutinee to that name.
         WatAST::Symbol(ident, _) => Ok(Some(
-            outer.child().bind_unknown_span(ident.as_str().to_string(), TrackedValue::from(value.clone())).build(),
+            outer.child().bind_unknown_span(crate::scope::env_key(ident), TrackedValue::from(value.clone())).build(),
         )),
         // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
         WatAST::List(items, _) => {
@@ -13353,7 +13418,7 @@ fn try_match_pattern(
                 let mut i = 0;
                 while i + 1 < items.len() {
                     let var_name = match &items[i] {
-                        WatAST::Symbol(ident, _) => ident.name.clone(),
+                        WatAST::Symbol(ident, _) => crate::scope::env_key(ident),
                         _ => { i += 2; continue; }
                     };
                     let bare_field = match &items[i + 1] {

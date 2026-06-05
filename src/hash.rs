@@ -51,9 +51,17 @@
 //! process (the cache and symbol-table use case), but breaks the
 //! cross-node / cross-run determinism claim.
 //!
-//! Slice 7b (real hygienic expansion with canonical scope numbering)
-//! will address this: at hash time, renumber scope IDs in a canonical
-//! order (e.g., first-appearance via DFS). Until then, canonical-EDN
+//! Stone 249.5b shipped scope-aware RUNTIME RESOLUTION: `src/scope/resolution.rs`
+//! provides `env_key` which encodes the full (name, scope-set) pair as the
+//! environment key, making the expander's scope tags load-bearing at eval time.
+//! The classic variable-capture defect is now structurally prevented
+//! (see `tests/probe_macro_hygiene_capture.rs::classic_macro_capture_is_prevented`).
+//!
+//! What REMAINS deferred: canonical scope RENUMBERING at hash time. Because
+//! `ScopeId`s are monotonic per-process, the canonical-EDN encoding of scoped
+//! symbols differs across runs even for identical programs. The fix —
+//! renumber scope IDs in first-appearance DFS order before hashing — is a
+//! separable follow-on (not part of stone 249.5b). Until then, canonical-EDN
 //! is deterministic within a run but not across runs.
 
 use crate::ast::WatAST;

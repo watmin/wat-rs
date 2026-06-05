@@ -45,20 +45,18 @@ const CAPTURE_MACRO: &str = "(:wat::core::defmacro :test::add-via-tmp \
      [x <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
      `(:wat::core::let [tmp 100] (:wat::core::i64::+ tmp ~x)))";
 
-/// RED CONTRACT for the arc 249 hygiene-completion strike — the codebase's own
-/// documented "Slice 7b: real hygienic expansion with canonical scope numbering"
-/// (src/hash.rs § Hygiene-scope caveat). `walk_template` already TAGS template
-/// symbols with a fresh macro scope (expand.rs:681), but the runtime resolves
-/// names string-only (`Environment` = `HashMap<String, BoundEntry>`; ~30 bind +
-/// lookup sites drop `.scopes`), so the tag is inert and the macro's `tmp`
-/// CAPTURES the caller's `tmp` — result 200, not 105.
+/// HYGIENE REGRESSION GUARD — proves wat's macro expansion is hygienic: a
+/// macro-introduced binding does NOT capture a caller's same-named variable.
 ///
-/// This test is `#[ignore]`d (RED) until scope-aware resolution lands; the kill
-/// is proven when it is un-ignored and returns 105. `mod.rs`'s "variable capture
-/// is structurally impossible" claim is true ONLY when this is green.
+/// History: this was the RED contract for Stone 249.5b. `walk_template` already
+/// TAGGED template symbols with a fresh macro scope (expand.rs:681), but the
+/// runtime resolved names string-only (`Environment` = `HashMap<String, _>`), so
+/// the tag was inert and the macro's `tmp` CAPTURED the caller's `tmp` — 200, not
+/// 105. Stone 249.5b closed it by routing every Identifier-keyed bind/lookup
+/// through `scope::resolution::env_key` (the scope set is now load-bearing). This
+/// test went 200 → 105; `mod.rs`'s "variable capture is structurally impossible"
+/// claim is now TRUE, and this guard keeps it true.
 #[test]
-#[ignore = "RED — arc 249 hygiene completion (hash.rs Slice 7b). Currently CAPTURES (200); \
-            un-ignore when scope-aware resolution lands and this must be 105."]
 fn classic_macro_capture_is_prevented() {
     // Caller binds its own `tmp` to 5, then calls a macro that introduces its
     // own `tmp`-binder; passes the caller's `tmp` as the unquoted arg.

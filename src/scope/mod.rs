@@ -19,7 +19,12 @@
 //!   sets-of-scopes primitives. The parser emits `Identifier::bare` (empty
 //!   scope set); the macro expander mints fresh `ScopeId`s and calls
 //!   `add_scope` on template-originated identifiers.
+//! - `resolution.rs` — `env_key`: scope-aware environment key derivation.
+//!   Stone 249.5b — makes the expander's scope tags load-bearing at runtime
+//!   lookup, preventing classic macro variable capture.
 
 pub mod identifier;
+pub mod resolution;
 
 pub use identifier::{fresh_scope, Identifier, ScopeId};
+pub use resolution::env_key;
