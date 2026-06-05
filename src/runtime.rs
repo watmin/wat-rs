@@ -4171,35 +4171,9 @@ fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
 /// extracted from the fn form. If parsing fails (malformed), falls back to the
 /// already-computed bare `fallback` list (preserves existing error semantics).
 fn scoped_params_from_args_vec(triples_vec: &WatAST, fallback: Vec<String>) -> Vec<String> {
-    let items = match triples_vec {
-        WatAST::Vector(items, _) => items.as_slice(),
-        _ => return fallback,
-    };
-    // Walk in triples (name <- :T).  `& rest <- :T` rest-binders share the
-    // same structure; env_key applies to all.  If the count is not a multiple
-    // of 3 we fall back (malformed, type checker will catch it separately).
-    if items.len() % 3 != 0 {
-        return fallback;
-    }
-    let mut out = Vec::with_capacity(items.len() / 3);
-    let mut i = 0;
-    while i + 2 < items.len() {
-        // Skip `&` rest-marker if present at this position.
-        let name_item = if items[i].is_bare_symbol("&") {
-            // rest binder: the name follows the `&`.
-            if i + 3 >= items.len() { return fallback; }
-            i += 1;
-            &items[i]
-        } else {
-            &items[i]
-        };
-        match name_item {
-            WatAST::Symbol(ident, _) => out.push(crate::scope::env_key(ident)),
-            _ => return fallback,
-        }
-        i += 3;
-    }
-    out
+    // Stone 249.5b (defclause fix) — delegates to the canonical home so the
+    // scoped-arg-walk logic has a single authoritative location.
+    crate::scope::scoped_arg_names(triples_vec, &fallback)
 }
 
 /// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
@@ -6759,8 +6733,37 @@ fn parse_defclause_clause(
         &form_span,
         crate::argspec::ParseOptions { allow_rest_binder: true },
     )?;
-    let args = spec.fixed_params;
-    let rest_param = spec.rest_param;
+
+    // Stone 249.5b (defclause fix) — re-derive scope-aware env-key names from the
+    // original args-vector AST node.  `parse_argspec_triples` returns bare names
+    // (ident.name) via `parse_triple`; for a macro-generated defclause the arg
+    // idents carry a scope tag from `walk_template`, so bare-name binding produces
+    // a key that mismatches the scoped lookup in the clause body → UnboundSymbol.
+    // `scoped_arg_names` applies `env_key` to each name symbol, producing the same
+    // key that `eval_inner` / lookup use.  Bare idents (non-macro code) are
+    // unaffected: `env_key` returns the bare name unchanged.
+    //
+    // `items[0]` is the `WatAST::Vector` node; `scoped_arg_names` expects the full
+    // Vector wrapper (not the already-extracted inner slice `args_vec`).
+    let (args, rest_param) = {
+        // Collect bare names (fixed then rest) as the fallback for malformed ASTs.
+        let bare_names: Vec<String> = spec.fixed_params.iter().map(|(n, _)| n.clone())
+            .chain(spec.rest_param.iter().map(|(n, _)| n.clone()))
+            .collect();
+        let scoped_names = crate::scope::scoped_arg_names(&items[0], &bare_names);
+        let n_fixed = spec.fixed_params.len();
+        let args: Vec<(String, crate::types::TypeExpr)> = spec.fixed_params.into_iter()
+            .enumerate()
+            .map(|(i, (_, ty))| (scoped_names.get(i).cloned().unwrap_or_else(|| bare_names[i].clone()), ty))
+            .collect();
+        let rest_param: Option<(String, crate::types::TypeExpr)> = spec.rest_param
+            .map(|(_, ty)| {
+                let scoped_name = scoped_names.get(n_fixed).cloned()
+                    .unwrap_or_else(|| bare_names.get(n_fixed).cloned().unwrap_or_default());
+                (scoped_name, ty)
+            });
+        (args, rest_param)
+    };
 
     // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
     //

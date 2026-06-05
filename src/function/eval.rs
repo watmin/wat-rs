@@ -18,6 +18,16 @@ use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Valu
 use crate::span::Span;
 use std::sync::Arc;
 
+/// Extract scope-aware parameter name keys from an args-vector `WatAST`.
+///
+/// Stone 249.5b — delegates to the canonical home `crate::scope::scoped_arg_names`
+/// so the scoped-arg-walk logic has a single authoritative location in
+/// `src/scope/resolution.rs`. This wrapper preserves the existing call-site
+/// signature in `eval_fn` without requiring callers to change.
+fn extract_scoped_params(args_vec: &WatAST, fallback: Vec<String>) -> Vec<String> {
+    crate::scope::scoped_arg_names(args_vec, &fallback)
+}
+
 /// Arc 155 retired `:wat::core::lambda`; arc 162 renamed this function
 /// from `eval_lambda` to `eval_fn` to mirror the user-facing rename.
 /// `:wat::core::lambda` has NO dispatch arm — walker `BareLegacyLambda`
@@ -50,7 +60,11 @@ pub(crate) fn eval_fn(
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
     // cannot fail. The type guarantee eliminates the ArityMismatch class.
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
-    let (params, param_types, ret_type) = parse_fn_signature(sig3)?;
+    let (params_bare, param_types, ret_type) = parse_fn_signature(sig3)?;
+    // Stone 249.5b — scope-aware param keys so a macro-template fn-param
+    // (`window{scope}`) binds and looks up under the same key in the Environment.
+    // Bare idents (empty scope set) return the bare name — non-macro code unchanged.
+    let params = extract_scoped_params(&sig_args[0], params_bare);
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,

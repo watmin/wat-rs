@@ -47,6 +47,7 @@
 // single, testable home that can be read independently of the 31k-line
 // runtime.
 
+use crate::ast::WatAST;
 use crate::scope::Identifier;
 
 /// Derive the environment key for an identifier.
@@ -73,6 +74,68 @@ pub fn env_key(ident: &Identifier) -> String {
         let scopes: Vec<String> = ident.scopes.iter().map(|s| s.0.to_string()).collect();
         format!("{}\u{1}{}", ident.name, scopes.join(","))
     }
+}
+
+/// Extract scope-aware env-key'd parameter names from an argspec args-vector.
+///
+/// Stone 249.5b (defclause fix) — canonical home for the scoped-arg-walk that
+/// `fn`/`let`/`defclause` binding sites all need. Centralises the logic that was
+/// previously duplicated across `runtime.rs::scoped_params_from_args_vec` and
+/// `function/eval.rs::extract_scoped_params`.
+///
+/// # Arguments
+///
+/// - `args_vec_node` — the `WatAST::Vector` wrapping the argspec items
+///   (`[name <- :T name <- :T ... [& rest <- :T]]`). The function unwraps the
+///   Vector and processes the inner items.
+/// - `fallback` — the bare-name list already computed by `parse_argspec_triples` /
+///   `parse_fn_signature`. Returned unchanged when the vector is malformed or the
+///   item count is not a multiple of 3 (preserving the existing error semantics;
+///   the type checker reports the structural issue separately).
+///
+/// # Returns
+///
+/// Ordered list of env-key strings, one per declared parameter (fixed params
+/// first, then the rest-binder if present — matching the order in `fallback`).
+/// For bare identifiers (empty scope set) the key is the bare name; for scoped
+/// identifiers (macro-template origin) the key encodes the scope set.
+///
+/// # Rest-binder handling
+///
+/// The `& name <- :T` rest-binder is handled identically to the fixed-param
+/// walk: the `&` symbol is detected and skipped; `env_key` is applied to the
+/// name symbol that follows. The rest-binder's key is appended after the fixed
+/// params (it is always last in the source vector).
+pub fn scoped_arg_names(args_vec_node: &WatAST, fallback: &[String]) -> Vec<String> {
+    let items = match args_vec_node {
+        WatAST::Vector(items, _) => items.as_slice(),
+        _ => return fallback.to_vec(),
+    };
+    // Walk in triples (name <- :T).  `& rest <- :T` rest-binders share the
+    // same structure; env_key applies to all.  If the count is not a multiple
+    // of 3 we fall back (malformed, type checker will catch it separately).
+    if items.len() % 3 != 0 {
+        return fallback.to_vec();
+    }
+    let mut out = Vec::with_capacity(items.len() / 3);
+    let mut i = 0;
+    while i + 2 < items.len() {
+        // Skip `&` rest-marker if present at this position.
+        let name_item = if items[i].is_bare_symbol("&") {
+            // rest binder: the name follows the `&`.
+            if i + 3 >= items.len() { return fallback.to_vec(); }
+            i += 1;
+            &items[i]
+        } else {
+            &items[i]
+        };
+        match name_item {
+            WatAST::Symbol(ident, _) => out.push(env_key(ident)),
+            _ => return fallback.to_vec(),
+        }
+        i += 3;
+    }
+    out
 }
 
 #[cfg(test)]
