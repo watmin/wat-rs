@@ -246,7 +246,7 @@ pub fn keyword_payload(ast: &WatAST) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identifier::Identifier;
+    use crate::scope::Identifier;
     use crate::span::Span;
 
     fn kw(s: &str) -> WatAST {

@@ -43,7 +43,7 @@
 //!
 //! # Hygiene-scope caveat
 //!
-//! Symbols in WatAST carry an [`Identifier`](crate::identifier::Identifier)
+//! Symbols in WatAST carry an [`Identifier`](crate::scope::Identifier)
 //! with a `BTreeSet<ScopeId>`. ScopeIds are monotonic u64s allocated
 //! per-process by `fresh_scope()`, so TWO RUNS of the same program
 //! produce different scope IDs, hence different canonical bytes and
@@ -468,7 +468,7 @@ impl std::error::Error for HashError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identifier::{fresh_scope, Identifier};
+    use crate::scope::{fresh_scope, Identifier};
     use ed25519_dalek::{Signer, SigningKey};
 
     fn parse(src: &str) -> WatAST {

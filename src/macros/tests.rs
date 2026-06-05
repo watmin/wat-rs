@@ -1,7 +1,7 @@
 use super::*;
 use super::expand;
 use crate::ast::WatAST;
-use crate::identifier::Identifier;
+use crate::scope::Identifier;
 
 fn expand_src(src: &str) -> Result<Vec<WatAST>, MacroError> {
     let forms = crate::parse_all!(src).expect("parse ok");

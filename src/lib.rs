@@ -30,7 +30,7 @@
 //!   `signed-load!` / `signed-load-string!`) — each takes its source
 //!   directly; verification payloads use `:wat::verify::*` keywords
 //!   (arc 028 iface drop).
-//! - [`identifier`] — `Identifier` with `BTreeSet<ScopeId>` scope sets
+//! - [`scope`] — `Identifier` with `BTreeSet<ScopeId>` scope sets
 //!   for Racket sets-of-scopes hygiene.
 //! - [`macros`] — `defmacro` with quasiquote + hygiene.
 //! - [`types`] — type declarations (`struct`, `enum`, `newtype`,
@@ -75,7 +75,7 @@ pub mod freeze;
 pub(crate) mod function;
 pub mod hash;
 pub mod hologram;
-pub mod identifier;
+pub mod scope;
 pub mod io;
 pub mod lexer;
 pub mod load;
@@ -138,7 +138,7 @@ pub use freeze::{
 };
 pub use harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
-pub use identifier::{fresh_scope, Identifier, ScopeId};
+pub use scope::{fresh_scope, Identifier, ScopeId};
 pub use lexer::{LexError, LexErrorKind};
 pub use load::{
     resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadErrorKind, LoadFetchError, LoadSpec, LoadedSource,

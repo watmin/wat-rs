@@ -13,14 +13,14 @@
 //!
 //! # Hygiene
 //!
-//! `Symbol` carries an [`Identifier`](crate::identifier::Identifier) —
+//! `Symbol` carries an [`Identifier`](crate::scope::Identifier) —
 //! a (name, scope-set) pair that lets lexical-scope lookups distinguish
 //! `tmp` the user wrote from `tmp` a macro introduced. Fresh-parsed
 //! symbols have empty scope sets; macro expansion (slice 5c) adds
 //! scopes per Racket's sets-of-scopes model. Keywords (full paths)
 //! carry no scope tracking — hygiene only matters for bare names.
 
-use crate::identifier::Identifier;
+use crate::scope::Identifier;
 use crate::span::Span;
 
 /// The parsed source tree. One variant per terminal kind plus a `List`

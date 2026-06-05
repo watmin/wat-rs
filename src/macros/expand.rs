@@ -1,6 +1,6 @@
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::identifier::{fresh_scope, ScopeId};
+use crate::scope::{fresh_scope, ScopeId};
 use crate::runtime::{Environment, SymbolTable, TrackedValue, Value};
 use std::collections::HashMap;
 use std::sync::Arc;

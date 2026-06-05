@@ -52,7 +52,7 @@ pub mod error;
 pub use error::{CheckError, CheckErrorKind, CheckErrors};
 
 use crate::ast::WatAST;
-use crate::identifier::Identifier;
+use crate::scope::Identifier;
 use crate::runtime::{Function, SymbolTable};
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};

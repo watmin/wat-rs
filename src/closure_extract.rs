@@ -32,7 +32,7 @@
 //! synthetic-name counter — slice 1b retired the entry-keyword ceremony.
 
 use crate::ast::WatAST;
-use crate::identifier::Identifier;
+use crate::scope::Identifier;
 use crate::runtime::{Function, StructValue, SymbolTable, Value};
 use crate::span::{span_prefix, Span};
 use crate::types::{TypeDef, TypeEnv, TypeExpr};

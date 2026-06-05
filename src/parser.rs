@@ -15,7 +15,7 @@
 //! [`parse_one_with_file`] / [`parse_all_with_file`] directly.
 
 use crate::ast::WatAST;
-use crate::identifier::Identifier;
+use crate::scope::Identifier;
 use crate::lexer::{lex, LexError, SpannedToken, Token};
 use crate::span::{span_prefix, Span};
 use std::fmt;

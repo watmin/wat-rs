@@ -3012,7 +3012,7 @@ pub fn register_struct_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::identifier::Identifier;
+    use crate::scope::Identifier;
     use crate::types::TypeDef;
 
     for (_name, def) in types.iter() {
@@ -3157,7 +3157,7 @@ pub fn register_enum_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::identifier::Identifier;
+    use crate::scope::Identifier;
     use crate::types::{EnumVariant, TypeDef};
 
     for (_name, def) in types.iter() {
@@ -3273,7 +3273,7 @@ pub fn register_newtype_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::identifier::Identifier;
+    use crate::scope::Identifier;
     use crate::types::TypeDef;
 
     for (_name, def) in types.iter() {
@@ -3368,7 +3368,7 @@ pub fn register_type_predicates(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::identifier::Identifier;
+    use crate::scope::Identifier;
     use crate::types::{TypeDef, TypeExpr};
 
     for (_name, def) in types.iter() {
@@ -3821,7 +3821,7 @@ fn build_delegate_body(
     items.push(WatAST::Keyword(target.to_string(), span.clone()));
     for p in params {
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare(p.as_str()),
+            crate::scope::Identifier::bare(p.as_str()),
             span.clone(),
         ));
     }
@@ -3830,7 +3830,7 @@ fn build_delegate_body(
         // the variadic call path when the last positional is missing but rest is present.
         // Emit as a plain symbol reference; the eval loop handles rest-arg forwarding.
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare(rest),
+            crate::scope::Identifier::bare(rest),
             span.clone(),
         ));
     }
@@ -10693,7 +10693,7 @@ fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
                 items.push(type_expr_to_ast(a));
             }
             items.push(WatAST::Symbol(
-                crate::identifier::Identifier::bare("->"),
+                crate::scope::Identifier::bare("->"),
                 span.clone(),
             ));
             items.push(type_expr_to_ast(ret));
@@ -10726,7 +10726,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
         items.push(WatAST::List(
             vec![
                 WatAST::Symbol(
-                    crate::identifier::Identifier::bare(param.clone()),
+                    crate::scope::Identifier::bare(param.clone()),
                     span.clone(),
                 ),
                 type_expr_to_ast(ty),
@@ -10743,13 +10743,13 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
         (f.rest_param.as_ref(), f.rest_param_type.as_ref())
     {
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare("&"),
+            crate::scope::Identifier::bare("&"),
             span.clone(),
         ));
         items.push(WatAST::List(
             vec![
                 WatAST::Symbol(
-                    crate::identifier::Identifier::bare(rest_name.clone()),
+                    crate::scope::Identifier::bare(rest_name.clone()),
                     span.clone(),
                 ),
                 type_expr_to_ast(rest_ty),
@@ -10759,7 +10759,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
     }
     // Arrow + return type.
     items.push(WatAST::Symbol(
-        crate::identifier::Identifier::bare("->"),
+        crate::scope::Identifier::bare("->"),
         span.clone(),
     ));
     items.push(type_expr_to_ast(&f.ret_type));
@@ -10802,7 +10802,7 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
         items.push(WatAST::List(
             vec![
                 WatAST::Symbol(
-                    crate::identifier::Identifier::bare(format!("_a{}", i)),
+                    crate::scope::Identifier::bare(format!("_a{}", i)),
                     span.clone(),
                 ),
                 type_expr_to_ast(ty),
@@ -10811,7 +10811,7 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
         ));
     }
     items.push(WatAST::Symbol(
-        crate::identifier::Identifier::bare("->"),
+        crate::scope::Identifier::bare("->"),
         span.clone(),
     ));
     items.push(type_expr_to_ast(&scheme.ret));
@@ -10881,26 +10881,26 @@ fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
     let mut items: Vec<WatAST> = Vec::new();
     for p in def.params.iter() {
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare(p.clone()),
+            crate::scope::Identifier::bare(p.clone()),
             span.clone(),
         ));
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare("<-"),
+            crate::scope::Identifier::bare("<-"),
             span.clone(),
         ));
         items.push(ast_kw.clone());
     }
     if let Some(rest) = &def.rest_param {
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare("&"),
+            crate::scope::Identifier::bare("&"),
             span.clone(),
         ));
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare(rest.clone()),
+            crate::scope::Identifier::bare(rest.clone()),
             span.clone(),
         ));
         items.push(WatAST::Symbol(
-            crate::identifier::Identifier::bare("<-"),
+            crate::scope::Identifier::bare("<-"),
             span.clone(),
         ));
         items.push(WatAST::Keyword(":AST<Vec<wat::WatAST>>".into(), span.clone()));
@@ -10921,7 +10921,7 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
             WatAST::Keyword(":wat::core::defmacro".into(), span.clone()),
             WatAST::Keyword(def.name.clone(), span.clone()),
             argvec,
-            WatAST::Symbol(crate::identifier::Identifier::bare("->"), span.clone()),
+            WatAST::Symbol(crate::scope::Identifier::bare("->"), span.clone()),
             WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone()),
             body,
         ],
@@ -16339,7 +16339,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         if s.starts_with(':') {
             return WatAST::Keyword(s.to_string(), Span::unknown());
         } else {
-            return WatAST::Symbol(crate::identifier::Identifier::bare(s.to_string()), Span::unknown());
+            return WatAST::Symbol(crate::scope::Identifier::bare(s.to_string()), Span::unknown());
         }
     }
     // Keyword composition: restore leading colon for round-trip.
@@ -23903,7 +23903,7 @@ fn step_let(
     // matches one binding peel; destructure is multi-bind atomic).
     let (binder, rhs) = (&pairs[0].0, &pairs[0].1);
 
-    let name_ident: crate::identifier::Identifier = match binder {
+    let name_ident: crate::scope::Identifier = match binder {
         WatAST::Symbol(ident, _) => ident.clone(),
         _ => {
             return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -24155,7 +24155,7 @@ fn is_match_canonical(form: &WatAST) -> bool {
 fn try_match_pattern_ast(
     pattern: &WatAST,
     scrutinee: &WatAST,
-) -> Result<Option<Vec<(crate::identifier::Identifier, WatAST)>>, EvalBreak> {
+) -> Result<Option<Vec<(crate::scope::Identifier, WatAST)>>, EvalBreak> {
     match pattern {
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(Vec::new())),
         WatAST::Symbol(ident, _) => Ok(Some(vec![(ident.clone(), scrutinee.clone())])),
@@ -24198,7 +24198,7 @@ fn try_match_pattern_ast(
             if !head_match {
                 return Ok(None);
             }
-            let mut binds: Vec<(crate::identifier::Identifier, WatAST)> = Vec::new();
+            let mut binds: Vec<(crate::scope::Identifier, WatAST)> = Vec::new();
             for (p, s) in p_items.iter().skip(1).zip(s_items.iter().skip(1)) {
                 match try_match_pattern_ast(p, s)? {
                     Some(b) => binds.extend(b),
@@ -24256,7 +24256,7 @@ fn try_match_pattern_ast(
 /// alias accidentally. No α-renaming required.
 fn substitute(
     form: &WatAST,
-    target: &crate::identifier::Identifier,
+    target: &crate::scope::Identifier,
     replacement: &WatAST,
 ) -> WatAST {
     match form {
@@ -24286,7 +24286,7 @@ fn substitute(
 /// where the matcher returns several binder→replacement pairs at once.
 fn substitute_many(
     form: &WatAST,
-    binds: &[(crate::identifier::Identifier, WatAST)],
+    binds: &[(crate::scope::Identifier, WatAST)],
 ) -> WatAST {
     binds
         .iter()
@@ -24335,7 +24335,7 @@ fn step_user_call(
     // All canonical — substitute params for args in body.
     let mut new_body: WatAST = (*func.body).clone();
     for (param, arg) in func.params.iter().zip(args.iter()) {
-        let target = crate::identifier::Identifier::bare(param.clone());
+        let target = crate::scope::Identifier::bare(param.clone());
         new_body = substitute(&new_body, &target, arg);
     }
     Ok(StepValue::Next(new_body))
