@@ -294,8 +294,8 @@ fn duplicate_defmacro_with_divergent_body_rejected() {
 }
 
 #[test]
-fn duplicate_defmacro_byte_equivalent_is_noop() {
-    // Arc 054: two byte-equivalent defmacro forms — same name,
+fn duplicate_defmacro_structurally_equivalent_is_noop() {
+    // Arc 054: two structurally-equivalent defmacro forms — same name,
     // params, body. Second registration is a no-op. The macro
     // expands normally afterward.
     let result = expand_src(

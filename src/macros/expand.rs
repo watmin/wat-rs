@@ -230,6 +230,11 @@ pub(super) fn expand_macro_call(
 ///
 /// `rest_param` names the variadic rest parameter (if any); passed to
 /// `expand_program_body` for correct value-binding semantics.
+// All eight are the genuine macro-invocation context (template, bindings,
+// scope, name, call-site span, rest-param, env, sym); none is removable
+// (arc 249 struere). clippy's 7-arg threshold is a heuristic this
+// hygiene-critical dispatcher doesn't fit.
+#[allow(clippy::too_many_arguments)]
 fn expand_template(
     template: &WatAST,
     bindings: &HashMap<String, WatAST>,
@@ -436,21 +441,19 @@ fn check_quasiquote_for_literal_binders(
             if head == ":wat::core::let" {
                 // args[0] is the binding vector: [binder val binder val ...]
                 // Binders are at even indices (0, 2, 4, …).
-                if let Some(binding_vec) = items.get(1) {
-                    if let WatAST::Vector(binder_items, _) = binding_vec {
-                        let mut i = 0;
-                        while i < binder_items.len() {
-                            if let WatAST::Symbol(ident, _) = &binder_items[i] {
-                                return Err(MacroError {
-                                    span: call_site_span.clone(),
-                                    kind: MacroErrorKind::ProgramBodyIntroducesName {
-                                        macro_name: macro_name.to_string(),
-                                        binder: ident.name.clone(),
-                                    },
-                                });
-                            }
-                            i += 2;
+                if let Some(WatAST::Vector(binder_items, _)) = items.get(1) {
+                    let mut i = 0;
+                    while i < binder_items.len() {
+                        if let WatAST::Symbol(ident, _) = &binder_items[i] {
+                            return Err(MacroError {
+                                span: call_site_span.clone(),
+                                kind: MacroErrorKind::ProgramBodyIntroducesName {
+                                    macro_name: macro_name.to_string(),
+                                    binder: ident.name.clone(),
+                                },
+                            });
                         }
+                        i += 2;
                     }
                 }
             } else if head == ":wat::core::fn" {
@@ -459,24 +462,22 @@ fn check_quasiquote_for_literal_binders(
                 // marker is a param name being introduced. (Stepping by 1 +
                 // marker-exclusion handles the `&`-rest case, which breaks the
                 // positional triple-cadence.)
-                if let Some(params_vec) = items.get(1) {
-                    if let WatAST::Vector(param_items, _) = params_vec {
-                        let mut i = 0;
-                        while i < param_items.len() {
-                            if let WatAST::Symbol(ident, _) = &param_items[i] {
-                                // Exclude `->` and `<-` and `&` markers.
-                                if ident.name != "->" && ident.name != "<-" && ident.name != "&" {
-                                    return Err(MacroError {
-                                        span: call_site_span.clone(),
-                                        kind: MacroErrorKind::ProgramBodyIntroducesName {
-                                            macro_name: macro_name.to_string(),
-                                            binder: ident.name.clone(),
-                                        },
-                                    });
-                                }
+                if let Some(WatAST::Vector(param_items, _)) = items.get(1) {
+                    let mut i = 0;
+                    while i < param_items.len() {
+                        if let WatAST::Symbol(ident, _) = &param_items[i] {
+                            // Exclude `->` and `<-` and `&` markers.
+                            if ident.name != "->" && ident.name != "<-" && ident.name != "&" {
+                                return Err(MacroError {
+                                    span: call_site_span.clone(),
+                                    kind: MacroErrorKind::ProgramBodyIntroducesName {
+                                        macro_name: macro_name.to_string(),
+                                        binder: ident.name.clone(),
+                                    },
+                                });
                             }
-                            i += 1;
                         }
+                        i += 1;
                     }
                 }
             }
@@ -496,6 +497,10 @@ fn check_quasiquote_for_literal_binders(
 ///
 /// Extracted from `walk_template`'s List and Vector arms, which are
 /// identical except for the final constructor.
+// All eight are the genuine macro-invocation context (items, bindings,
+// scope, name, call-site span, depth, env, sym); none is removable
+// (arc 249 struere). clippy's 7-arg threshold is a heuristic this
+// hygiene-critical splice helper doesn't fit.
 #[allow(clippy::too_many_arguments)]
 fn splice_children(
     items: &[WatAST],
@@ -588,6 +593,11 @@ fn splice_children(
 /// generating-macro patterns like `:wat::test::make-deftest` where
 /// some unquotes fire at the outer expansion and others survive
 /// for the inner macro's eventual expansion.
+// All eight are the genuine macro-invocation context (template, bindings,
+// scope, name, call-site span, depth, env, sym); none is removable
+// (arc 249 struere). clippy's 7-arg threshold is a heuristic this
+// hygiene-critical walker doesn't fit.
+#[allow(clippy::too_many_arguments)]
 fn walk_template(
     form: &WatAST,
     bindings: &HashMap<String, WatAST>,

@@ -97,15 +97,13 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // HARD-CUT: 3-item old paren-pair form is REJECTED (Stone 241.17).
     // Old form: (:wat::core::defmacro (:name (param :T) ... -> :Ret) body)
     // Per `feedback_hard_cut_admits_no_bypasses` — no shim; no backward compat path.
-    if items.len() == 3 {
-        if matches!(items.get(1), Some(WatAST::List(_, _))) {
-            return Err(MacroError {
-                span: list_span,
-                kind: MacroErrorKind::MalformedDefmacro {
-                    reason: "old defmacro signature shape (paren-pair-with-type) is retired (Stone 241.17); use canonical Vector-of-triples form: (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)".into(),
-                },
-            });
-        }
+    if items.len() == 3 && matches!(items.get(1), Some(WatAST::List(_, _))) {
+        return Err(MacroError {
+            span: list_span,
+            kind: MacroErrorKind::MalformedDefmacro {
+                reason: "old defmacro signature shape (paren-pair-with-type) is retired (Stone 241.17); use canonical Vector-of-triples form: (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)".into(),
+            },
+        });
     }
 
     // Determine if metadata-map is present: 7 items vs 6 items.
