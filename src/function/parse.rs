@@ -191,7 +191,7 @@ pub(crate) fn parse_fn_signature(
         head: FN_HEAD.into(),
         reason: step.kind.reason()
     } })?;
-    let params = idents.iter().map(crate::scope::env_key).collect();
+    let params = idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     Ok((params, types, ret))
 }
 

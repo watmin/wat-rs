@@ -29,7 +29,6 @@
 //! only attaches to `WatAST::Symbol`.
 
 use std::collections::BTreeSet;
-use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A unique integer identifying a lexical scope — macro invocation,
@@ -37,16 +36,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// `ScopeId`s are monotonically allocated by [`fresh_scope`] across the
 /// whole process. The numeric value is opaque for semantics (never inspect
-/// it for domain meaning), but it IS the stable serialization token used by
-/// `resolution::env_key` to derive scoped environment keys and by `hash.rs`
-/// to write canonical bytes — do not assume it is meaningless to the
-/// infrastructure layer.
+/// it for domain meaning). `hash.rs` consumes `ScopeId` via its derived
+/// `Hash`/`Eq` traits (not via `as_u64`). The only caller of `as_u64` is
+/// `resolution::env_key` for env-key string encoding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScopeId(u64);
 
 impl ScopeId {
-    /// The raw `u64` token — for serialization use only (env-key derivation,
-    /// canonical hashing). Do not interpret the value as domain state.
+    /// The raw `u64` token — used exclusively by `resolution::env_key` to
+    /// encode scoped environment keys as strings. `hash.rs` consumes
+    /// `ScopeId` via the derived `Hash`/`Eq` traits, not this method.
+    /// Do not interpret the value as domain state.
     pub fn as_u64(self) -> u64 {
         self.0
     }
@@ -64,6 +64,12 @@ pub fn fresh_scope() -> ScopeId {
 }
 
 /// A name-with-scopes reference.
+///
+/// The name must never contain `\u{1}` (U+0001, ASCII SOH) — that byte is the
+/// separator used by `resolution::env_key` to encode scoped environment keys.
+/// The lexer's token rules never produce it (it is a control character; only
+/// whitespace and `()[]{}";,` are symbol breaks). Enforced at construction in
+/// debug builds via `Identifier::bare`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Identifier {
     name: String,
@@ -72,9 +78,21 @@ pub struct Identifier {
 
 impl Identifier {
     /// An identifier with an empty scope set — what the parser emits.
+    ///
+    /// # Panics (debug builds only)
+    ///
+    /// Asserts that `name` does not contain `\u{1}` (U+0001), which is
+    /// reserved as the env-key separator in `resolution::env_key`. The
+    /// lexer never produces names containing this byte.
     pub fn bare(name: impl Into<String>) -> Self {
+        let name = name.into();
+        debug_assert!(
+            !name.contains('\u{1}'),
+            "Identifier name must not contain U+0001 (env-key separator); got {:?}",
+            name
+        );
         Identifier {
-            name: name.into(),
+            name,
             scopes: BTreeSet::new(),
         }
     }
@@ -101,28 +119,6 @@ impl Identifier {
     /// [`add_scope`]: Self::add_scope
     pub fn scopes(&self) -> &BTreeSet<ScopeId> {
         &self.scopes
-    }
-}
-
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scopes.is_empty() {
-            write!(f, "{}", self.name)
-        } else {
-            write!(f, "{}[{:?}]", self.name, self.scopes)
-        }
-    }
-}
-
-impl From<&str> for Identifier {
-    fn from(s: &str) -> Self {
-        Identifier::bare(s)
-    }
-}
-
-impl From<String> for Identifier {
-    fn from(s: String) -> Self {
-        Identifier::bare(s)
     }
 }
 

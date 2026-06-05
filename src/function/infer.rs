@@ -43,7 +43,7 @@ fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
     match parse_fn_signature_prefix(args) {
         Ok((idents, t, r)) => {
             // CHECK tier — key by env_key (Stone 249.5e): mirrors the runtime Environment.
-            let p = idents.iter().map(|id| crate::scope::resolution::env_key(id)).collect();
+            let p = idents.iter().map(|id| crate::scope::resolution::env_key(id).into_owned()).collect();
             SigParse::Parsed(p, t, r)
         }
         Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>

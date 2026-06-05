@@ -3394,7 +3394,7 @@ pub(crate) fn infer(
         }
         WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => {
-            match locals.get(&crate::scope::resolution::env_key(ident)).cloned() {
+            match locals.get(crate::scope::resolution::env_key(ident).as_ref()).cloned() {
                 Some(ty) => CheckResult::ok(ty),
                 // HARVEST (236.1): silent-by-intent — symbol not found in local scope;
                 // type is not knowable at this point (polymorphic placeholder).
@@ -5821,7 +5821,7 @@ fn infer_match(
                 let mut i = 0;
                 while i + 1 < items.len() {
                     if let WatAST::Symbol(ident, _) = &items[i] {
-                        arm_locals.insert(crate::scope::resolution::env_key(ident), fresh.fresh());
+                        arm_locals.insert(crate::scope::resolution::env_key(ident).into_owned(), fresh.fresh());
                     }
                     i += 2;
                 }
@@ -6316,7 +6316,7 @@ fn pattern_coverage(
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Some(Coverage::Wildcard),
         WatAST::Symbol(ident, _) => {
             // Bare name binds the whole scrutinee.
-            bindings.insert(crate::scope::resolution::env_key(ident), shape.as_type());
+            bindings.insert(crate::scope::resolution::env_key(ident).into_owned(), shape.as_type());
             Some(Coverage::Wildcard)
         }
         WatAST::List(items, _) => {
@@ -6603,7 +6603,7 @@ fn check_subpattern(
         WatAST::Symbol(s, _) if s.as_str() == "_" => Some(true),
         // Bare binder — fully general; binds the matched value.
         WatAST::Symbol(s, _) => {
-            bindings.insert(crate::scope::resolution::env_key(s), expected_ty.clone());
+            bindings.insert(crate::scope::resolution::env_key(s).into_owned(), expected_ty.clone());
             Some(true)
         }
         // Literal sub-patterns — narrow the variant's space; partial.
@@ -10541,7 +10541,7 @@ fn process_let_binding(
     // the destructure path is not accidentally reached for new-shape
     // bindings.
     if let WatAST::Symbol(ident, _) = &kv[0] {
-        let name = crate::scope::resolution::env_key(ident);
+        let name = crate::scope::resolution::env_key(ident).into_owned();
         let rhs = &kv[1];
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         if let Some(ty) = rhs_ty {
@@ -10561,7 +10561,7 @@ fn process_let_binding(
         let mut names = Vec::with_capacity(inner.len());
         for item in inner {
             match item {
-                WatAST::Symbol(ident, _) => names.push(crate::scope::resolution::env_key(ident)),
+                WatAST::Symbol(ident, _) => names.push(crate::scope::resolution::env_key(ident).into_owned()),
                 _ => return CheckResult::ok(new_bindings),
             }
         }
@@ -10636,7 +10636,7 @@ fn process_let_binding(
             let mut i = 0;
             while i + 1 < inner.len() {
                 let var_name = match &inner[i] {
-                    WatAST::Symbol(ident, _) => crate::scope::resolution::env_key(ident),
+                    WatAST::Symbol(ident, _) => crate::scope::resolution::env_key(ident).into_owned(),
                     _ => { i += 2; continue; }
                 };
                 // Assign a fresh type variable for each binding.
@@ -11398,7 +11398,7 @@ fn check_clause(
                 if ident.as_str().starts_with('?') {
                     let var = logic_var_name(left).expect("Symbol starts with '?' — logic_var_name must return Some");
                     let env_key = crate::scope::resolution::env_key(ident);
-                    if !locals.contains_key(&env_key) {
+                    if !locals.contains_key(env_key.as_ref()) {
                     // Fresh ?var — this is a binding. RHS must be a
                     // field keyword that exists on the struct.
                     let field_name = match keyword_payload(right) {
@@ -11431,7 +11431,7 @@ fn check_clause(
                             return;
                         }
                     };
-                    locals.insert(env_key, field_ty);
+                    locals.insert(env_key.into_owned(), field_ty);
                     return;
                 }
                     // ?var already bound — fall through to comparison.

@@ -4354,9 +4354,9 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     }
     let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
-    let fixed_params: Vec<String> = fixed_idents.iter().map(crate::scope::env_key).collect();
+    let fixed_params: Vec<String> = fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     let (rest_ident, rest_ty) = spec.rest_param?;
-    let rest_name = crate::scope::env_key(&rest_ident);
+    let rest_name = crate::scope::env_key(&rest_ident).into_owned();
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Some((
@@ -4761,11 +4761,13 @@ fn eval_tail(
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
         WatAST::Symbol(ident, span) => {
-            if let Some(tv) = env.lookup(&crate::scope::env_key(ident), span) {
+            if let Some(tv) = env.lookup(crate::scope::env_key(ident).as_ref(), span) {
                 if let Value::wat__core__fn(f) = tv.value() {
                     emit_tail_call(f.clone(), args, env, sym, list_span)
                 } else {
-                    eval_inner(ast, env, sym).map(|tv| tv.value_owned())
+                    // Already-fetched non-fn value: apply directly via the same
+                    // path eval_list uses — avoids a second key derivation + lookup.
+                    apply_tracked_callee(tv, args, env, sym).map(|tv| tv.value_owned())
                 }
             } else {
                 eval_inner(ast, env, sym).map(|tv| tv.value_owned())
@@ -5185,7 +5187,7 @@ pub(crate) fn eval_inner(
             Ok(TrackedValue::new(Value::Unit, Provenance::Literal { span: span.clone() }))
         }
         WatAST::Symbol(ident, span) => env
-            .lookup(&crate::scope::env_key(ident), span)
+            .lookup(crate::scope::env_key(ident).as_ref(), span)
             .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()) })
             .map_err(EvalBreak::from),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
@@ -5273,7 +5275,7 @@ fn eval_list(
             // preserve producer provenance (of_tracked reads provenance intact).
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
-                .lookup(&crate::scope::env_key(ident), span)
+                .lookup(crate::scope::env_key(ident).as_ref(), span)
                 .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()) })?;
             apply_tracked_callee(tv, rest, env, sym)
         }
@@ -6698,9 +6700,9 @@ fn parse_defclause_clause(
     )?;
 
     let args: Vec<(String, crate::types::TypeExpr)> = spec.fixed_params.into_iter()
-        .map(|(id, ty)| (crate::scope::env_key(&id), ty)).collect();
+        .map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty)).collect();
     let rest_param: Option<(String, crate::types::TypeExpr)> = spec.rest_param
-        .map(|(id, ty)| (crate::scope::env_key(&id), ty));
+        .map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty));
 
     // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
     //
@@ -7737,7 +7739,7 @@ fn parse_let_binding<'a>(
     match binder {
         // Arc 233 Stone 233.2.e: extract name_span from WatAST::Symbol(_, span).
         WatAST::Symbol(ident, name_span) => Ok(LetBinding::Single {
-            name: crate::scope::env_key(ident),
+            name: crate::scope::env_key(ident).into_owned(),
             name_span: name_span.clone(),
             rhs,
         }),
@@ -7747,7 +7749,7 @@ fn parse_let_binding<'a>(
             let mut names = Vec::with_capacity(inner.len());
             for item in inner {
                 match item {
-                    WatAST::Symbol(ident, name_span) => names.push((crate::scope::env_key(ident), name_span.clone())),
+                    WatAST::Symbol(ident, name_span) => names.push((crate::scope::env_key(ident).into_owned(), name_span.clone())),
                     other => {
                         return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::let".into(),
@@ -7792,7 +7794,7 @@ fn parse_let_binding<'a>(
                 let mut i = 0;
                 while i + 1 < inner.len() {
                     let (var_name, var_span) = match &inner[i] {
-                        WatAST::Symbol(ident, sp) => (crate::scope::env_key(ident), sp.clone()),
+                        WatAST::Symbol(ident, sp) => (crate::scope::env_key(ident).into_owned(), sp.clone()),
                         other => {
                             return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                                 head: ":wat::core::let".into(),
@@ -7834,7 +7836,7 @@ fn parse_let_binding<'a>(
             for item in inner {
                 match item {
                     WatAST::Symbol(ident, name_span) => {
-                        field_names.push((crate::scope::env_key(ident), name_span.clone()))
+                        field_names.push((crate::scope::env_key(ident).into_owned(), name_span.clone()))
                     }
                     other => {
                         return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -13358,7 +13360,7 @@ fn try_match_pattern(
                 let mut i = 0;
                 while i + 1 < items.len() {
                     let var_name = match &items[i] {
-                        WatAST::Symbol(ident, _) => crate::scope::env_key(ident),
+                        WatAST::Symbol(ident, _) => crate::scope::env_key(ident).into_owned(),
                         _ => { i += 2; continue; }
                     };
                     let bare_field = match &items[i + 1] {

@@ -38,10 +38,10 @@
 //! The separator byte `\u{1}` (ASCII SOH) is chosen because identifier
 //! names produced by the lexer never contain it (it is a control character;
 //! `lexer::is_symbol_break` only breaks on whitespace and `()[]{}";,`).
-//! The invariant is enforced by a debug assertion in [`env_key`], not by
-//! the type. Scope IDs are `u64` integers joined by `,`; the `BTreeSet`
-//! iteration order is deterministic (ascending numeric), so the encoding
-//! is canonical.
+//! The invariant is enforced at construction in `Identifier::bare` (debug
+//! builds) — the single chokepoint for name admission. Scope IDs are `u64`
+//! integers joined by `,`; the `BTreeSet` iteration order is deterministic
+//! (ascending numeric), so the encoding is canonical.
 
 // PARTITION — CLAUSE vs INTRINSIC: `env_key` is a pure function (clause
 // territory in the dispatch sense — monomorphic, no type-var flow). It
@@ -53,13 +53,16 @@ use crate::scope::Identifier;
 
 /// Derive the environment key for an identifier.
 ///
-/// - **Bare** (empty scope set) → the name unchanged. All non-macro code
-///   that never calls `add_scope` continues to use bare names as keys;
-///   no behavioural change for any existing binding or lookup.
-/// - **Scoped** → `"name\u{1}<sorted-scope-ids>"`. The scoped suffix
-///   makes the key unique to this expansion instance, preventing the
-///   macro's binder from capturing a caller-site variable of the same
-///   name.
+/// - **Bare** (empty scope set) → borrows the name unchanged (zero alloc).
+///   All non-macro code that never calls `add_scope` continues to use bare
+///   names as keys; no behavioural change for any existing binding or lookup.
+/// - **Scoped** → owned `"name\u{1}<sorted-scope-ids>"`. The scoped suffix
+///   makes the key unique to this expansion instance, preventing the macro's
+///   binder from capturing a caller-site variable of the same name.
+///
+/// The return type is `Cow<'_, str>`: bare = borrowed (zero alloc — runs
+/// once per symbol lookup in every program); scoped = owned allocation
+/// (macro-expansion time only, never in the eval loop).
 ///
 /// A binder and all references that should resolve to it must carry
 /// the IDENTICAL scope set so they compute the same key. The expander
@@ -68,23 +71,23 @@ use crate::scope::Identifier;
 ///
 /// # Panics (debug builds only)
 ///
-/// Asserts that the identifier name does not contain `\u{1}`, which
-/// would break the separator invariant. This should never fire for any
-/// name the lexer produces.
-pub fn env_key(ident: &Identifier) -> String {
-    debug_assert!(
-        !ident.as_str().contains('\u{1}'),
-        "env_key separator U+0001 must not appear in an identifier name; got {:?}",
-        ident.as_str()
-    );
+/// The U+0001 separator invariant is enforced at construction by
+/// `Identifier::bare` — the single chokepoint for name admission (debug
+/// builds). `env_key` itself does not re-assert; the invariant is guaranteed
+/// before this function is called.
+pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
     if ident.scopes().is_empty() {
-        ident.as_str().to_owned()
+        std::borrow::Cow::Borrowed(ident.as_str())
     } else {
         // BTreeSet iterates in ascending order → canonical encoding.
         // \u{1} (SOH) is chosen because lexer-produced identifier names never
-        // contain it; the debug_assert above is the defence-in-depth guard.
+        // contain it; the invariant is enforced at Identifier::bare construction.
+        // rune:temperare(simplicity-win) — the scoped path runs at macro-expansion
+        // time only (walk_template), never in the eval loop; scope sets are 1-2
+        // entries; cost ceiling = O(small const) allocations per template identifier
+        // at expand time.
         let scopes: Vec<String> = ident.scopes().iter().map(|s| s.as_u64().to_string()).collect();
-        format!("{}\u{1}{}", ident.as_str(), scopes.join(","))
+        std::borrow::Cow::Owned(format!("{}\u{1}{}", ident.as_str(), scopes.join(",")))
     }
 }
 
@@ -125,12 +128,8 @@ mod tests {
     }
 
     #[test]
-    fn key_does_not_collide_with_adjacent_bare_name() {
-        // "tmp\u{1}42" must not equal the bare name "tmp\u{1}42" even if
-        // someone named a variable that way — but that name is illegal in
-        // the parser, so this is defence-in-depth. What we actually test:
-        // the scoped key contains the separator byte, which a bare ident
-        // key cannot.
+    fn scoped_key_contains_separator_byte() {
+        // The scoped key embeds \u{1} (SOH), which a bare-ident key never can.
         let s = fresh_scope();
         let scoped = Identifier::bare("tmp").add_scope(s);
         let key = env_key(&scoped);
