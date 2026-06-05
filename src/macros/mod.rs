@@ -1,3 +1,30 @@
+//! vigilatum: 2026-06-05 — UPDATED-vigilia 13-spell guard L1+L2=0 (universal-7:
+//! intueri/solvere/conformare/purgare/struere/sequi/temperare + exigere +
+//! excusare + test-kind complectens/vocare + conditional perspicere [fired:
+//! nested generics present] + circumspicere LAST; secare not mustered — no
+//! parallel primitives in-home; mora not fired — no duration waits). Two full
+//! inward rounds (12-cast + 9-cast fresh-eyes convergence) + the perimeter:
+//! 47 findings fought to zero across three sweeps (R1 A-W 25, R2 17,
+//! perimeter 5); 4 L1 killed (variadic arity-lie, untracked deferral,
+//! message-less panic, unwitnessed hash-IS-identity claim); 11 runes all
+//! verified against the live tree; clippy-clean in-home. Canonical record:
+//! docs/arc/2026/06/249-total-pure-macros/WARD-MACROS-UPDATED-GUARD-AGGREGATE.md.
+//! Declared invariants, each enforced by a living gate:
+//! (1) variable capture structurally prevented — sets-of-scopes tagging
+//!     (tests/probe_macro_hygiene_capture.rs, end-to-end incl. 2-scope nesting);
+//! (2) hash-IS-identity for macro aliases — alias-vs-direct canonical-hash
+//!     equality (tests/probe_hash_scope_renumber.rs);
+//! (3) default-deny purity fence — heads off the allow-list refuse
+//!     (RefusedInMacro witnesses in tests.rs, incl. the macroexpand-1 deny);
+//! (4) definition-time validation hoist — the pre-validated eval path admits
+//!     exactly one sanctioned caller
+//!     (tests/probe_macro_eval_prevalidated_caller_gate.rs);
+//! (5) EXPANSION_DEPTH_LIMIT is the limit — depth refusal witnessed in-module;
+//!     macroexpand fixpoint failure witnessed (tests/wat_make_deftest.rs);
+//! (6) expand-before-register order — freeze-pipeline canary
+//!     (src/freeze.rs expand_runs_before_register_defines_phase_order) +
+//!     LOAD-BEARING ORDER markers at every out-of-freeze call site.
+//!
 //! `defmacro` — parse-time macro expansion with Racket sets-of-scopes
 //! hygiene (Flatt 2016).
 //!
