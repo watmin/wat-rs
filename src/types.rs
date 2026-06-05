@@ -1769,7 +1769,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                             crate::argspec::ParseOptions { allow_rest_binder: false },
                         )
                         .map_err(TypeError::from)?;
-                        let fields: Vec<(String, crate::types::TypeExpr)> = argspec.fixed_params;
+                        let fields: Vec<(String, crate::types::TypeExpr)> = argspec.fixed_params.into_iter().map(|(id, ty)| (id.as_str().to_owned(), ty)).collect();
                         variants.push(EnumVariant::Tagged { name: variant_name, fields });
                         vi += 2; // consume keyword + vector
                     }

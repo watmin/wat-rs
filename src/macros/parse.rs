@@ -169,8 +169,9 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     ).map_err(MacroError::from)?;
 
     // Extract param names only — MacroDef carries names, not types.
-    let params: Vec<String> = spec.fixed_params.into_iter().map(|(name, _ty)| name).collect();
-    let rest_param: Option<String> = spec.rest_param.map(|(name, _ty)| name);
+    // Bare derivation: macro substitution keys are bare (expansion-time pattern match).
+    let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();
+    let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
 
     Ok(MacroDef {
         name,

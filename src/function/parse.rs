@@ -35,6 +35,7 @@ use crate::argspec::{parse_argspec_triples, ArgSpec, ArgSpecErrorKind, ParseOpti
 use crate::ast::WatAST;
 use crate::function::FN_HEAD;
 use crate::runtime::{RuntimeError, RuntimeErrorKind};
+use crate::scope::Identifier;
 use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeErrorKind, TypeExpr};
 
@@ -114,7 +115,7 @@ impl ParseStepKind {
 /// this prefix and maps each `ParseStep` variant to its diagnostic tier contract.
 pub(in crate::function) fn parse_fn_signature_prefix(
     sig: &[WatAST; 3],
-) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ParseStep> {
+) -> Result<(Vec<Identifier>, Vec<TypeExpr>, TypeExpr), ParseStep> {
     let (args_vec, args_vec_span) = match &sig[0] {
         WatAST::Vector(items, span) => (items.as_slice(), span),
         other => {
@@ -160,9 +161,9 @@ pub(in crate::function) fn parse_fn_signature_prefix(
         span: ae.span,
         kind: ParseStepKind::ArgSpecFailed(Box::new(ae.kind)),
     })?;
-    let (params, param_types): (Vec<String>, Vec<TypeExpr>) =
+    let (idents, param_types): (Vec<Identifier>, Vec<TypeExpr>) =
         argspec.fixed_params.into_iter().unzip();
-    Ok((params, param_types, ret_type))
+    Ok((idents, param_types, ret_type))
 }
 
 /// Arc 167 — flat-shape fn signature parser (eval tier).
@@ -186,10 +187,12 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
-    parse_fn_signature_prefix(args).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
+    let (idents, types, ret) = parse_fn_signature_prefix(args).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
-    } })
+    } })?;
+    let params = idents.iter().map(crate::scope::env_key).collect();
+    Ok((params, types, ret))
 }
 
 /// Arc 167 — mirror of `parse_fn_signature` for the check pass.
@@ -218,5 +221,7 @@ pub(crate) fn parse_fn_signature(
 pub(crate) fn parse_fn_signature_for_check(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
-    parse_fn_signature_prefix(args).map_err(|_| ())
+    let (idents, types, ret) = parse_fn_signature_prefix(args).map_err(|_| ())?;
+    let params = idents.iter().map(|id| id.as_str().to_owned()).collect();
+    Ok((params, types, ret))
 }

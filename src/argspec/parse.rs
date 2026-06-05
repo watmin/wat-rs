@@ -1,4 +1,5 @@
 use crate::ast::WatAST;
+use crate::scope::Identifier;
 use crate::span::Span;
 use crate::types::{parse_type_expr_with_span, TypeExpr};
 use super::error::{ArgSpecError, ArgSpecErrorKind};
@@ -13,10 +14,10 @@ use super::error::{ArgSpecError, ArgSpecErrorKind};
 #[derive(Debug, Clone)]
 pub struct ArgSpec {
     /// Ordered list of `(name, type)` pairs for the fixed positional parameters.
-    pub fixed_params: Vec<(String, TypeExpr)>,
+    pub fixed_params: Vec<(Identifier, TypeExpr)>,
     /// Rest parameter `(name, type)`, populated when `options.allow_rest_binder = true`
     /// AND the source includes `& name <- :T`. Otherwise `None`.
-    pub rest_param: Option<(String, TypeExpr)>,
+    pub rest_param: Option<(Identifier, TypeExpr)>,
 }
 
 /// Per-site invariants for `parse_argspec_triples`.
@@ -73,7 +74,7 @@ pub fn parse_argspec_triples(
     options: ParseOptions,
 ) -> Result<ArgSpec, ArgSpecError> {
     let mut cursor = 0usize;
-    let mut fixed_params: Vec<(String, TypeExpr)> = Vec::new();
+    let mut fixed_params: Vec<(Identifier, TypeExpr)> = Vec::new();
 
     // Walk triples (name <- :T) until `&` rest-marker or end-of-slice.
     while cursor < args_vec.len() {
@@ -153,9 +154,9 @@ fn extract_triple<'a>(
 fn parse_triple(
     triple: &[WatAST; 3],
     head: &str,
-) -> Result<(String, TypeExpr), ArgSpecError> {
+) -> Result<(Identifier, TypeExpr), ArgSpecError> {
     let name = match &triple[0] {
-        WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
+        WatAST::Symbol(ident, _) => ident.clone(),
         other => return Err(ArgSpecError {
             span: other.span().clone(),
             head: head.to_string(),

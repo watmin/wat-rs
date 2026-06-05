@@ -41,7 +41,11 @@ enum SigParse {
 
 fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
     match parse_fn_signature_prefix(args) {
-        Ok((p, t, r)) => SigParse::Parsed(p, t, r),
+        Ok((idents, t, r)) => {
+            // CHECK tier — keep bare-consistent: bind keys are bare, lookups are bare.
+            let p = idents.iter().map(|id| id.as_str().to_owned()).collect();
+            SigParse::Parsed(p, t, r)
+        }
         Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>
             SigParse::SilentReject,
         Err(step) => SigParse::Diagnosed(CheckError {

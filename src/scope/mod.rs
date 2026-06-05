@@ -27,4 +27,4 @@ pub mod identifier;
 pub mod resolution;
 
 pub use identifier::{fresh_scope, Identifier, ScopeId};
-pub use resolution::{env_key, scoped_arg_names};
+pub use resolution::env_key;

@@ -4158,24 +4158,6 @@ fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
     Some(meta)
 }
 
-/// Extract scope-aware parameter name keys from a flat argspec vector.
-///
-/// Stone 249.5b — `parse_fn_signature` / `parse_argspec_triples` return bare
-/// `ident.name` strings (kept that way so the type-checker's bare-name binding
-/// is unaffected). Runtime `Function.params` must use `env_key` so that
-/// macro-template fn-params (`window{scope}`) bind and look up under the same
-/// key in the `Environment`. This helper re-walks the args `WatAST::Vector` and
-/// rebuilds the `Vec<String>` with `env_key` applied to each name symbol.
-///
-/// `triples_vec` must be the `[name <- :T name <- :T ...]` args vector element
-/// extracted from the fn form. If parsing fails (malformed), falls back to the
-/// already-computed bare `fallback` list (preserves existing error semantics).
-fn scoped_params_from_args_vec(triples_vec: &WatAST, fallback: Vec<String>) -> Vec<String> {
-    // Stone 249.5b (defclause fix) — delegates to the canonical home so the
-    // scoped-arg-walk logic has a single authoritative location.
-    crate::scope::scoped_arg_names(triples_vec, &fallback)
-}
-
 /// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
 /// a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
 fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Option<HashMap<String, WatAST>>)> {
@@ -4273,11 +4255,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
         fn_items[sig_start + 1].clone(),
         fn_items[sig_start + 2].clone(),
     ];
-    let (params_bare, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
-    // Stone 249.5b: convert bare param names to scope-aware env keys so that a
-    // macro-template fn-param (`window{scope}`) binds and resolves consistently
-    // with its body references.  Non-scoped params (bare idents) are unaffected.
-    let params = scoped_params_from_args_vec(&fn_items[sig_start], params_bare);
+    let (params, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
     Some((
         name.clone(),
         Arc::new(Function {
@@ -4374,26 +4352,11 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     if spec.rest_param.is_none() {
         return None;
     }
-    let (fixed_params_bare, fixed_param_types): (Vec<String>, Vec<crate::types::TypeExpr>) =
+    let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
         spec.fixed_params.into_iter().unzip();
-    // Stone 249.5b: scope-aware param keys (macro-template fn-params).
-    let fixed_params = scoped_params_from_args_vec(&fn_items[1], fixed_params_bare);
-    let (rest_name_bare, rest_ty) = spec.rest_param?;
-    // Derive scope-aware rest-param name from the args vector.
-    // The rest-binder follows the `& rest <- :T` triple; scoped_params_from_args_vec
-    // covers it via the `&`-skip branch.
-    let rest_name = {
-        // Re-extract the rest-binder name with env_key from the WatAST directly.
-        // Walk the args_vec looking for `&` followed by a Symbol.
-        let rest_scoped = args_vec.iter()
-            .position(|item| item.is_bare_symbol("&"))
-            .and_then(|amp_pos| args_vec.get(amp_pos + 1))
-            .and_then(|name_item| match name_item {
-                WatAST::Symbol(ident, _) => Some(crate::scope::env_key(ident)),
-                _ => None,
-            });
-        rest_scoped.unwrap_or(rest_name_bare)
-    };
+    let fixed_params: Vec<String> = fixed_idents.iter().map(crate::scope::env_key).collect();
+    let (rest_ident, rest_ty) = spec.rest_param?;
+    let rest_name = crate::scope::env_key(&rest_ident);
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Some((
@@ -6734,36 +6697,10 @@ fn parse_defclause_clause(
         crate::argspec::ParseOptions { allow_rest_binder: true },
     )?;
 
-    // Stone 249.5b (defclause fix) — re-derive scope-aware env-key names from the
-    // original args-vector AST node.  `parse_argspec_triples` returns bare names
-    // (ident.name) via `parse_triple`; for a macro-generated defclause the arg
-    // idents carry a scope tag from `walk_template`, so bare-name binding produces
-    // a key that mismatches the scoped lookup in the clause body → UnboundSymbol.
-    // `scoped_arg_names` applies `env_key` to each name symbol, producing the same
-    // key that `eval_inner` / lookup use.  Bare idents (non-macro code) are
-    // unaffected: `env_key` returns the bare name unchanged.
-    //
-    // `items[0]` is the `WatAST::Vector` node; `scoped_arg_names` expects the full
-    // Vector wrapper (not the already-extracted inner slice `args_vec`).
-    let (args, rest_param) = {
-        // Collect bare names (fixed then rest) as the fallback for malformed ASTs.
-        let bare_names: Vec<String> = spec.fixed_params.iter().map(|(n, _)| n.clone())
-            .chain(spec.rest_param.iter().map(|(n, _)| n.clone()))
-            .collect();
-        let scoped_names = crate::scope::scoped_arg_names(&items[0], &bare_names);
-        let n_fixed = spec.fixed_params.len();
-        let args: Vec<(String, crate::types::TypeExpr)> = spec.fixed_params.into_iter()
-            .enumerate()
-            .map(|(i, (_, ty))| (scoped_names.get(i).cloned().unwrap_or_else(|| bare_names[i].clone()), ty))
-            .collect();
-        let rest_param: Option<(String, crate::types::TypeExpr)> = spec.rest_param
-            .map(|(_, ty)| {
-                let scoped_name = scoped_names.get(n_fixed).cloned()
-                    .unwrap_or_else(|| bare_names.get(n_fixed).cloned().unwrap_or_default());
-                (scoped_name, ty)
-            });
-        (args, rest_param)
-    };
+    let args: Vec<(String, crate::types::TypeExpr)> = spec.fixed_params.into_iter()
+        .map(|(id, ty)| (crate::scope::env_key(&id), ty)).collect();
+    let rest_param: Option<(String, crate::types::TypeExpr)> = spec.rest_param
+        .map(|(id, ty)| (crate::scope::env_key(&id), ty));
 
     // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
     //

@@ -74,7 +74,6 @@ const CALL_MAKE_REST_SUM: &str = "(:test::make-rest-sum)";
 /// `UnboundSymbol`. Stone 249.5d (ArgSpec carries the Identifier; `env_key` over
 /// the parsed identifiers; the re-walk deleted) makes bind-key == lookup-key.
 #[test]
-#[ignore = "RED until Stone 249.5d lands (ArgSpec carries the Identifier); the strike removes this #[ignore] and the test must then pass (returns 10)"]
 fn macro_generated_defclause_with_rest_resolves_params() {
     let decls = format!("{MAKE_REST_SUM}\n{CALL_MAKE_REST_SUM}");
     let body = "(:test::rest-sum 1 2 3 4)";

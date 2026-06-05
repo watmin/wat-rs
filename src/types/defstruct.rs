@@ -374,7 +374,7 @@ fn parse_defstruct_fields(
         crate::argspec::ParseOptions { allow_rest_binder: false },
     )
     .map_err(TypeError::from)?;
-    Ok(argspec.fixed_params)
+    Ok(argspec.fixed_params.into_iter().map(|(id, ty)| (id.as_str().to_owned(), ty)).collect())
 }
 
 /// Stone 241.8 — parse a `(:wat::core::defstruct :Name [...fields...])` or
