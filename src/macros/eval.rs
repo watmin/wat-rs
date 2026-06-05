@@ -18,9 +18,17 @@
 //!
 //! # Skipped forms (data, not code)
 //!
-//! `(:wat::core::quasiquote X)` and `(:wat::core::quote X)` are skipped
-//! entirely (X is template/literal data, not evaluable code). This mirrors
-//! how `expand_form` skips them (expand.rs:~85).
+//! `(:wat::core::quote X)` is skipped entirely (X is pure literal data, never evaluated).
+//!
+//! `(:wat::core::quasiquote X)` is NOT simply skipped: `X` is a template that is
+//! **data** (the literal parts) PLUS **code** (the `~`/`~@` unquote sub-expressions).
+//! `validate_pure_total` descends into `X` tracking quasiquote depth (mirroring
+//! `walk_quasiquote`'s depth logic): nested `quasiquote` bumps depth +1; an
+//! `unquote` or `unquote-splicing` that *fires* at depth 1 means its sub-expression
+//! is real code — `validate_pure_total` recurses into it. Literal template nodes
+//! and material below depth 1 (inside a nested quasiquote) stay skipped (data).
+//! This closes the F5-redux hole: an impure computed unquote in a program-body
+//! quasiquote is refused before eval, not silently executed at expand time.
 //!
 //! # Load-bearing invariant — expand runs BEFORE user-defn registration
 //!
@@ -83,20 +91,42 @@ pub(crate) fn macro_eval(
 // ─── Validator ───────────────────────────────────────────────────────────────
 
 /// Walk `form` recursively. At each `List` with a `Keyword` head:
-///   - head == `quasiquote` or `quote` → return Ok (skip contents; data, not code)
+///   - head == `quote` → return Ok (skip contents; pure literal data, never evaluated)
+///   - head == `quasiquote` → descend into the template tracking depth (see below)
 ///   - head is on the blessed allow-list → recurse into args
 ///   - otherwise → `Err(MacroError { kind: RefusedInMacro { head } })`
 ///
 /// Non-List nodes and Lists without a Keyword head are walked recursively
 /// (their children may contain keyword-headed sub-forms).
+///
+/// # Quasiquote depth tracking (mirrors `walk_quasiquote`)
+///
+/// A quasiquote template mixes data (literal template nodes) and code
+/// (`~`/`~@` unquote sub-expressions). When `validate_pure_total` enters a
+/// `(:wat::core::quasiquote X)`, it calls `validate_quasiquote_template(X, 1)`.
+/// That helper walks `X` at depth 1:
+///   - nested `(:wat::core::quasiquote …)` → bump depth +1, recurse (data below)
+///   - `(:wat::core::unquote E)` or `(:wat::core::unquote-splicing E)` at depth 1
+///     → `E` is real code; recurse `validate_pure_total(E)`
+///   - same unquote forms at depth > 1 → peel depth, recurse (still inside a
+///     nested quasiquote; E is data at this level)
+///   - everything else → recurse `validate_quasiquote_template` (template data)
 pub(crate) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, span) => {
             match items.first() {
                 Some(WatAST::Keyword(head, _)) => {
-                    // Data forms: skip recursion into their contents.
-                    // These are template/literal data, not evaluable macro code.
-                    if head == ":wat::core::quasiquote" || head == ":wat::core::quote" {
+                    // Pure literal data: skip entirely.
+                    if head == ":wat::core::quote" {
+                        return Ok(());
+                    }
+                    // Quasiquote: descend into the template with depth tracking.
+                    // The template mixes data (literal nodes) and code (unquote
+                    // sub-expressions); validate only the code parts.
+                    if head == ":wat::core::quasiquote" {
+                        if let Some(template) = items.get(1) {
+                            validate_quasiquote_template(template, 1)?;
+                        }
                         return Ok(());
                     }
                     // Check against the blessed allow-list.
@@ -139,6 +169,61 @@ pub(crate) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
         | WatAST::Keyword(_, _)
         | WatAST::Symbol(_, _)
         | WatAST::StructPattern(_, _) => Ok(()),
+    }
+}
+
+/// Depth-tracked walk of a quasiquote template, called by `validate_pure_total`
+/// when it encounters `(:wat::core::quasiquote X)`. Mirrors the depth logic of
+/// `walk_quasiquote` in runtime.rs:
+///
+///   - nested `quasiquote` → bump depth +1 (still inside data; recurse)
+///   - `unquote` / `unquote-splicing` at depth 1 → E is real code; validate it
+///   - same forms at depth > 1 → peel depth (still data within nested quasiquote)
+///   - everything else → recurse at current depth (template data node)
+///
+/// Arc 249 Stone 249.3a — closes the F5-redux hole: an impure computed unquote
+/// inside a program-body quasiquote is refused here, before `runtime::eval` runs.
+fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroError> {
+    match form {
+        WatAST::List(items, _) => {
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                // Nested quasiquote: bump depth, recurse into template.
+                if head == ":wat::core::quasiquote" {
+                    if let Some(inner) = items.get(1) {
+                        validate_quasiquote_template(inner, depth + 1)?;
+                    }
+                    return Ok(());
+                }
+                // Unquote or unquote-splicing.
+                if head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing" {
+                    if depth == 1 {
+                        // Fires at this level: E is real code. Validate it fully.
+                        if let Some(code) = items.get(1) {
+                            validate_pure_total(code)?;
+                        }
+                    } else {
+                        // Still inside a nested quasiquote: peel depth, stay in template mode.
+                        if let Some(inner) = items.get(1) {
+                            validate_quasiquote_template(inner, depth - 1)?;
+                        }
+                    }
+                    return Ok(());
+                }
+            }
+            // Plain list in the template: walk children at the same depth.
+            for child in items {
+                validate_quasiquote_template(child, depth)?;
+            }
+            Ok(())
+        }
+        WatAST::Vector(items, _) => {
+            for child in items {
+                validate_quasiquote_template(child, depth)?;
+            }
+            Ok(())
+        }
+        // Leaf nodes in the template — no sub-forms to check.
+        _ => Ok(()),
     }
 }
 
@@ -354,5 +439,12 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::struct->form"
         | ":wat::core::forms"
         | ":wat::core::show"
+
+        // ── Form-shape predicates (pure over WatAST form-values) ──────
+        // core form-shape predicate over WatAST::List; distinct from
+        // :wat::holon::is-List? (a classifier over HolonAST). The name
+        // diverges on purpose — the form-vs-holon distinction is the
+        // reason this exists. Do not "harmonize" the two names.
+        | ":wat::core::List?"
     )
 }

@@ -5385,6 +5385,13 @@ fn dispatch_keyword_head_value(
         // record->map :: :wat::Record -> HashMap<keyword, T> — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
+        // Arc 249 Stone 249.3a — form-shape predicate over WatAST::List form-values.
+        // List? :: ∀T. T -> bool — true iff input is Value::wat__WatAST wrapping WatAST::List.
+        // core form-shape predicate over WatAST::List; distinct from
+        // :wat::holon::is-List? (a classifier over HolonAST). The name
+        // diverges on purpose — the form-vs-holon distinction is the
+        // reason this exists. Do not "harmonize" the two names.
+        ":wat::core::List?" => eval_list_q(args, list_span, env, sym),
         // Arc 234 Stone 234.3b — write verb in the polymorphic record-y family.
         // assoc :: :wat::Record × :wat::core::keyword × :T -> :wat::Record
         // Returns a new record with one field replaced; original is unchanged (immutable).
@@ -10411,12 +10418,64 @@ fn walk_quasiquote(
                     span.clone(),
                 ));
             }
-            // Plain list — walk children. Unquote-splicing not handled
-            // here (it requires the outer-list-context scan; not yet
-            // surfaced as a real lab need).
-            let walked: Result<Vec<_>, _> =
-                items.iter().map(|c| walk_quasiquote(c, env, sym, depth)).collect();
-            Ok(WatAST::List(walked?, span.clone()))
+            // Plain list — walk children with splice support.
+            // Arc 249 Stone 249.3a — `~@`-splice at eval-time:
+            // at depth 1, a child `(:wat::core::unquote-splicing E)` evaluates E
+            // and flattens its elements into the parent's child-vector (1-to-N),
+            // mirroring expand-time `splice_argument` semantics (expand.rs:1097).
+            let mut walked: Vec<WatAST> = Vec::with_capacity(items.len());
+            for child in items.iter() {
+                // Detect `(:wat::core::unquote-splicing E)` at depth 1.
+                if depth == 1 {
+                    if let Some(splice_expr) = match_qq_head_named(child, ":wat::core::unquote-splicing") {
+                        let v = eval_inner(splice_expr, env, sym)?.value_owned();
+                        match v {
+                            // Vec: convert each element to WatAST and splice all.
+                            // Mirrors splice_argument's computed-Vec case (expand.rs:1152).
+                            Value::Vec(elems) => {
+                                for elem in elems.iter() {
+                                    walked.push(value_to_watast(
+                                        ":wat::core::unquote-splicing",
+                                        elem.clone(),
+                                        span.clone(),
+                                    )?);
+                                }
+                            }
+                            // WatAST List: splice the inner list's children.
+                            // Threading case: `~@step` where step is a list-form value.
+                            Value::wat__WatAST(ref ast) => {
+                                if let WatAST::List(ref children, _) = **ast {
+                                    walked.extend(children.iter().cloned());
+                                } else {
+                                    return Err(RuntimeError {
+                                        span: span.clone(),
+                                        kind: RuntimeErrorKind::TypeMismatch {
+                                            op: ",@".into(),
+                                            expected: "sequence (Vec value or list form)",
+                                            got: Box::new(ValueSnapshot::of(&v)),
+                                        },
+                                    }.into());
+                                }
+                            }
+                            // Any other shape: honest refusal (not a sequence).
+                            other => {
+                                return Err(RuntimeError {
+                                    span: span.clone(),
+                                    kind: RuntimeErrorKind::TypeMismatch {
+                                        op: ":wat::core::unquote-splicing".into(),
+                                        expected: "sequence (Vec value or list form)",
+                                        got: Box::new(ValueSnapshot::of(&other)),
+                                    },
+                                }.into());
+                            }
+                        }
+                        continue;
+                    }
+                }
+                // Below depth 1 or not a splice form: walk normally.
+                walked.push(walk_quasiquote(child, env, sym, depth)?);
+            }
+            Ok(WatAST::List(walked, span.clone()))
         }
         // Arc 212: bracketed `[a b c]` Vector form (let-binding vectors,
         // fn-signature parameter vectors, template-position vector
@@ -10449,6 +10508,17 @@ fn match_qq_head<'a>(items: &'a [WatAST], head: &str) -> Option<&'a WatAST> {
         }
     }
     None
+}
+
+/// Pattern-match a `WatAST` node as `(<head> X)` — return Some(&X) when the
+/// node is a List with exactly 2 entries and the first is the expected keyword.
+/// Used by the splice-aware child walk in `walk_quasiquote`.
+fn match_qq_head_named<'a>(node: &'a WatAST, head: &str) -> Option<&'a WatAST> {
+    if let WatAST::List(items, _) = node {
+        match_qq_head(items, head)
+    } else {
+        None
+    }
 }
 
 /// Convert a runtime Value to a literal WatAST node — used by
@@ -14327,6 +14397,34 @@ fn eval_record_q(
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Stone S-C.2c — both base and holonic are records.
     Ok(Value::bool(matches!(v, Value::wat__holon__Record { .. } | Value::wat__Record { .. })))
+}
+
+/// `(:wat::core::List? v)` — arc 249 Stone 249.3a.
+///
+/// Pure-total form-shape predicate: true iff `v` is a `Value::wat__WatAST` wrapping
+/// a `WatAST::List`. Used in macro programs that branch on step shape (list step →
+/// splice; bare symbol → wrap), enabling threading (`->`/`->>`) as wat code.
+///
+/// // core form-shape predicate over WatAST::List; distinct from
+/// // :wat::holon::is-List? (a classifier over HolonAST). The name
+/// // diverges on purpose — the form-vs-holon distinction is the
+/// // reason this exists. Do not "harmonize" the two names.
+fn eval_list_q(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::List?";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    Ok(Value::bool(matches!(v, Value::wat__WatAST(ref ast) if matches!(&**ast, WatAST::List(..)))))
 }
 
 /// `(:wat::core::record->map r)` — arc 234 Stone 234.3a.

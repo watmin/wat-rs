@@ -99,7 +99,6 @@ const THREAD_LAST_MACRO: &str = "(:wat::core::defmacro :test::thread-last \
 // expand to `(map INC [1 2 3])` → [2 3 4]. Tests `~@`-splice of one list step.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
 fn diag_thread_last_single_step() {
     let decls = THREAD_LAST_MACRO;
     let body = format!(
@@ -116,7 +115,6 @@ fn diag_thread_last_single_step() {
 // variable injection across two steps via the fold.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
 fn diag_thread_last_pipeline() {
     let decls = THREAD_LAST_MACRO;
     let body = format!(
@@ -137,10 +135,9 @@ fn diag_thread_last_pipeline() {
 // ═══════════════════════════════════════════════════════════════════════════
 const IS_LIST_MACRO: &str = "(:wat::core::defmacro :test::is-list \
      [form <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
-     (:wat::core::if (:wat::holon::is-List? form) -> :AST<wat::holon::HolonAST> `1 `0))";
+     (:wat::core::if (:wat::core::List? form) -> :AST<wat::holon::HolonAST> `1 `0))";
 
 #[test]
-#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
 fn diag_is_list_over_form() {
     let yes = eval_bool_with(
         IS_LIST_MACRO,
@@ -194,7 +191,6 @@ fn diag_first_over_form() {
 // context), not merely add splice.
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
-#[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
 fn diag_program_body_quasiquote_impure_unquote_fenced() {
     // TYPE-COMPATIBLE impure unquote (grounds against PURITY, not a type
     // coincidence): `stopped?` returns bool; `(not ~bool)` is bool; the probe's
