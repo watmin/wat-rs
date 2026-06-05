@@ -44,6 +44,47 @@ leak; a gated shared dispatch (i-a) is one forgotten arm from another F5. And re
 > + `if`; no open recursion. Neither is a flag that can be forgotten — both are the *absence* of
 > machinery.
 
+## The reachability boundary — DEFAULT-DENY (the interpreter design, grounded 2026-06-04)
+
+The (ii) framing above ("reuse the pure `eval_*` helpers") needs one correction the crawl forced:
+the existing helpers **evaluate their args by re-entering `eval`** (`eval_plus` → `eval(arg)` → add).
+So a fence must propagate *recursively through arg-evaluation* — reusing a helper naively re-admits
+the full impure dispatch through the back door. The fence is therefore not per-arm; it is a property
+of the evaluator itself.
+
+**`macro_eval` = `eval` restricted by a DEFAULT-DENY allow-list of blessed pure-total heads.**
+Precedent: `eval-ast!` is already a *restricted eval* in this codebase (it refuses mutation forms —
+`eval_ast_bang_refuses_mutation_form`, runtime.rs:25718). `macro_eval` extends that proven pattern.
+
+> **DEFAULT-DENY is the load-bearing decision.** The gate is an **allow-list** (a head not blessed is
+> refused), NOT a deny-list (refuse `:wat::kernel::*`). With deny-list, a new effectful prim added
+> later is *silently admitted* until someone remembers to deny it — that is the F5 class, recurring.
+> With allow-list, a new prim is *automatically refused* until someone deliberately blesses it. The
+> "forgot to deny a new effect" failure is eliminated **structurally**, not guarded. This is the
+> failure-engineering move + "shockingly stable is the minimum," made concrete.
+
+**The blessed set (the reachable interpreter):**
+- form-iteration over finite arg-lists: `map`, `filter`, `foldl`, `foldr`
+- form-structure: `first`, `rest`, `cons`, `empty?`, `count`
+- form-construction: quasiquote `` ` ``/`~`/`~@` (carrying its hygiene/unquote walk)
+- control: `if`, `cond`, `match` (on form shape), `let`
+- **local lambdas** (`fn`) — applied *only* by the bounded combinators (`map`/`fold`), never
+  self-recursively
+- a small set of pure expand-time scalar/collection ops (for counts/comparisons + computed-unquote:
+  `i64::+`, `=`, …) — blessed leaves
+
+**Two refusal gates (both default-deny):**
+1. **Prim dispatch entry** — a keyword head not in the blessed allow-list → `MacroErrorKind::ImpureInMacro`
+   (name owed an intueri cast). Catches every `:wat::kernel::*` and every future effect.
+2. **`apply_function`** (the totality vector) — refuse calling a **top-level user `defn`** in macro
+   mode (unbounded recursion); permit only local lambdas applied by the bounded combinators. v2's
+   type-level `pure total` effect later admits verified user helpers; v1 closes the door.
+
+**Totality by construction:** the only iteration is bounded combinators over *finite* lists (the
+macro's args); no reachable path recurses unboundedly (the user-`defn` door is shut at gate 2).
+**Purity by construction:** the only reachable heads are the blessed pure leaves (gate 1, default-deny).
+Neither is a flag that can be forgotten — both are the *shape of the allow-list*.
+
 ## Representation (grounded 2026-06-04 — the open question, resolved + de-risked)
 
 The engine is **not a new evaluator** — it is a *fenced restriction of an existing, working
