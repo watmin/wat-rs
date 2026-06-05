@@ -947,7 +947,7 @@ fn validate_comm_positions(
                         let name_node = &binding_items[i];
                         let rhs_node = &binding_items[i + 1];
                         let binding_name = match name_node {
-                            WatAST::Symbol(ident, _) => Some(ident.name.as_str()),
+                            WatAST::Symbol(ident, _) => Some(ident.as_str()),
                             WatAST::Keyword(k, _) => Some(k.as_str()),
                             _ => None,
                         };
@@ -1144,7 +1144,7 @@ fn collect_consumed_names_in_let(
         // items[1] is the scrutinee — collect if it's a bare symbol.
         if head_str == ":wat::core::match" && items.len() >= 2 {
             if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
-                consumed.insert(ident.name.clone());
+                consumed.insert(ident.as_str().to_owned());
             }
             // Recurse into arm sub-forms (may contain nested lets).
             for child in &items[2..] {
@@ -1160,7 +1160,7 @@ fn collect_consumed_names_in_let(
             && items.len() >= 5
         {
             if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
-                consumed.insert(ident.name.clone());
+                consumed.insert(ident.as_str().to_owned());
             }
             for child in items {
                 walk(child, consumed);
@@ -1174,7 +1174,7 @@ fn collect_consumed_names_in_let(
             && items.len() >= 5
         {
             if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
-                consumed.insert(ident.name.clone());
+                consumed.insert(ident.as_str().to_owned());
             }
             for child in items {
                 walk(child, consumed);
@@ -2410,14 +2410,14 @@ fn collect_process_calls(
             match k.as_str() {
                 ":wat::kernel::Process/join-result" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                        joins.push((id.name.clone(), span.clone()));
+                        joins.push((id.as_str().to_owned(), span.clone()));
                     }
                 }
                 acc @ (":wat::kernel::Process/stdout"
                 | ":wat::kernel::Process/stderr"
                 | ":wat::kernel::Process/output") => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                        accessors.push((id.name.clone(), acc.to_string(), span.clone()));
+                        accessors.push((id.as_str().to_owned(), acc.to_string(), span.clone()));
                     }
                 }
                 // Scope boundaries — stop descent. fn/lambda existed
@@ -2495,12 +2495,12 @@ fn collect_process_stdin_and_joins(
             match k.as_str() {
                 ":wat::kernel::Process/join-result" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                        joins.push((id.name.clone(), span.clone()));
+                        joins.push((id.as_str().to_owned(), span.clone()));
                     }
                 }
                 ":wat::kernel::Process/stdin" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                        stdin_procs.push(id.name.clone());
+                        stdin_procs.push(id.as_str().to_owned());
                     }
                 }
                 // Do NOT recurse into nested fn bodies — separate scopes.
@@ -2536,7 +2536,7 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
                     | ":wat::kernel::join"
             ) {
                 if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                    if id.name == thread_binding {
+                    if id.as_str() == thread_binding {
                         return true;
                     }
                 }
@@ -2811,7 +2811,7 @@ fn check_call_for_pair_deadlock(
 
     for arg in &items[1..] {
         let WatAST::Symbol(id, _) = arg else { continue; };
-        let arg_name = &id.name;
+        let arg_name = id.as_str();
         // Look up arg in scope for its annotated type.
         let entry = match binding_scope.iter().find(|(n, _, _)| n == arg_name) {
             Some(e) => e,
@@ -2825,13 +2825,13 @@ fn check_call_for_pair_deadlock(
             if let Some((anchor, _)) = trace_to_pair_anchor(arg_name, binding_scope) {
                 sender_at_anchor
                     .entry(anchor)
-                    .or_insert_with(|| arg_name.clone());
+                    .or_insert_with(|| arg_name.to_owned());
             }
         } else if type_is_receiver_kind(&parsed, types) {
             if let Some((anchor, _)) = trace_to_pair_anchor(arg_name, binding_scope) {
                 receiver_at_anchor
                     .entry(anchor)
-                    .or_insert_with(|| arg_name.clone());
+                    .or_insert_with(|| arg_name.to_owned());
             }
         }
     }
@@ -2883,7 +2883,7 @@ fn trace_to_pair_anchor(
             // (literal, nested call) bottoms out here as unknown.
             let inner = items.get(1)?;
             let WatAST::Symbol(id, _) = inner else { return None; };
-            trace_to_pair_anchor(&id.name, binding_scope)
+            trace_to_pair_anchor(id.as_str(), binding_scope)
         }
         _ => None,
     }
@@ -2932,7 +2932,7 @@ fn extend_pair_scope_with_tuple_destructure(
     let names: Vec<String> = parts
         .iter()
         .filter_map(|p| match p {
-            WatAST::Symbol(id, _) => Some(id.name.clone()),
+            WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
             _ => None,
         })
         .collect();
@@ -3077,7 +3077,7 @@ fn parse_binding_for_pair_check(binding: &WatAST) -> Option<(String, String, Wat
     // Pattern-match RHS to derive type-ann string for the closed set
     // of channel-related shapes the walker tracks.
     if let WatAST::Symbol(id, _) = &items[0] {
-        let name = id.name.clone();
+        let name = id.as_str().to_owned();
         let type_ann_str = derive_type_ann_from_rhs(rhs)?;
         return Some((name, type_ann_str, rhs.clone()));
     }
@@ -3088,7 +3088,7 @@ fn parse_binding_for_pair_check(binding: &WatAST) -> Option<(String, String, Wat
         return None;
     }
     let name = match &parts[0] {
-        WatAST::Symbol(id, _) => id.name.clone(),
+        WatAST::Symbol(id, _) => id.as_str().to_owned(),
         _ => return None,
     };
     let type_ann_str = match &parts[1] {
@@ -3394,7 +3394,7 @@ pub(crate) fn infer(
         }
         WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident, _) => {
-            match locals.get(&ident.name).cloned() {
+            match locals.get(ident.as_str()).cloned() {
                 Some(ty) => CheckResult::ok(ty),
                 // HARVEST (236.1): silent-by-intent — symbol not found in local scope;
                 // type is not knowable at this point (polymorphic placeholder).
@@ -5821,7 +5821,7 @@ fn infer_match(
                 let mut i = 0;
                 while i + 1 < items.len() {
                     if let WatAST::Symbol(ident, _) = &items[i] {
-                        arm_locals.insert(ident.name.clone(), fresh.fresh());
+                        arm_locals.insert(ident.as_str().to_owned(), fresh.fresh());
                     }
                     i += 2;
                 }
@@ -9779,10 +9779,10 @@ fn find_binding_span(name: &str, bindings: &[WatAST]) -> Span {
         }
         let found = match &items[0] {
             // New shape: (name rhs) — bare Symbol at position 0.
-            WatAST::Symbol(id, _) => id.name == name,
+            WatAST::Symbol(id, _) => id.as_str() == name,
             // Legacy shape: ((name :T) rhs) or tuple-destructure.
             WatAST::List(parts, _) => parts.iter().any(|p| match p {
-                WatAST::Symbol(id, _) => id.name == name,
+                WatAST::Symbol(id, _) => id.as_str() == name,
                 _ => false,
             }),
             _ => false,
@@ -9851,13 +9851,13 @@ fn check_let_for_scope_deadlock_inferred(
             if items.len() != 2 { return vec![]; }
             match &items[0] {
                 // Single binding: items[0] is a bare Symbol.
-                WatAST::Symbol(id, _) => vec![id.name.clone()],
+                WatAST::Symbol(id, _) => vec![id.as_str().to_owned()],
                 // Tuple-destructure (arc 168 flat-shape): items[0] is a
                 // Vector of Symbols.
                 WatAST::Vector(parts, _) => parts
                     .iter()
                     .filter_map(|p| match p {
-                        WatAST::Symbol(id, _) => Some(id.name.clone()),
+                        WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
                         _ => None,
                     })
                     .collect(),
@@ -9867,7 +9867,7 @@ fn check_let_for_scope_deadlock_inferred(
                 WatAST::StructPattern(parts, _) => parts
                     .iter()
                     .filter_map(|p| match p {
-                        WatAST::Symbol(id, _) => Some(id.name.clone()),
+                        WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
                         _ => None,
                     })
                     .collect(),
@@ -9876,7 +9876,7 @@ fn check_let_for_scope_deadlock_inferred(
                 WatAST::List(parts, _) => parts
                     .iter()
                     .filter_map(|p| match p {
-                        WatAST::Symbol(id, _) => Some(id.name.clone()),
+                        WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
                         _ => None,
                     })
                     .collect(),
@@ -10000,9 +10000,9 @@ fn sender_originates_from_thread_pipe(
         // New shape: `(name rhs)` — items[0] is a bare Symbol.
         // Legacy shape: `((name :T) rhs)` — items[0] is a List.
         let matches_name = match &items[0] {
-            WatAST::Symbol(id, _) => id.name == sender_name,
+            WatAST::Symbol(id, _) => id.as_str() == sender_name,
             WatAST::List(parts, _) => parts.iter().any(|p| {
-                matches!(p, WatAST::Symbol(id, _) if id.name == sender_name)
+                matches!(p, WatAST::Symbol(id, _) if id.as_str() == sender_name)
             }),
             _ => continue,
         };
@@ -10059,9 +10059,9 @@ fn spawn_thread_fn_body_has_no_recv(
         // New shape: `(name rhs)` — items[0] is a bare Symbol.
         // Legacy shape: `((name :T) rhs)` — items[0] is a List.
         let matches_name = match &items[0] {
-            WatAST::Symbol(id, _) => id.name == thr_name,
+            WatAST::Symbol(id, _) => id.as_str() == thr_name,
             WatAST::List(parts, _) => parts.iter().any(|p| {
-                matches!(p, WatAST::Symbol(id, _) if id.name == thr_name)
+                matches!(p, WatAST::Symbol(id, _) if id.as_str() == thr_name)
             }),
             _ => continue,
         };
@@ -10541,7 +10541,7 @@ fn process_let_binding(
     // the destructure path is not accidentally reached for new-shape
     // bindings.
     if let WatAST::Symbol(ident, _) = &kv[0] {
-        let name = ident.name.clone();
+        let name = ident.as_str().to_owned();
         let rhs = &kv[1];
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
         if let Some(ty) = rhs_ty {
@@ -10561,7 +10561,7 @@ fn process_let_binding(
         let mut names = Vec::with_capacity(inner.len());
         for item in inner {
             match item {
-                WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
+                WatAST::Symbol(ident, _) => names.push(ident.as_str().to_owned()),
                 _ => return CheckResult::ok(new_bindings),
             }
         }
@@ -10636,7 +10636,7 @@ fn process_let_binding(
             let mut i = 0;
             while i + 1 < inner.len() {
                 let var_name = match &inner[i] {
-                    WatAST::Symbol(ident, _) => ident.name.clone(),
+                    WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
                     _ => { i += 2; continue; }
                 };
                 // Assign a fresh type variable for each binding.
@@ -10676,7 +10676,7 @@ fn process_let_binding(
         let mut field_names: Vec<String> = Vec::with_capacity(inner.len());
         for item in inner {
             match item {
-                WatAST::Symbol(ident, _) => field_names.push(ident.name.clone()),
+                WatAST::Symbol(ident, _) => field_names.push(ident.as_str().to_owned()),
                 _ => return CheckResult::ok(new_bindings),
             }
         }

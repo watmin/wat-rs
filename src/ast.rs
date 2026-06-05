@@ -169,7 +169,7 @@ impl WatAST {
     /// Returns true if this is a bare `Symbol` whose name equals `name`.
     /// Used to detect structural tokens (`<-`, `->`, `&`) without allocating.
     pub(crate) fn is_bare_symbol(&self, name: &str) -> bool {
-        matches!(self, WatAST::Symbol(ident, _) if ident.name == name)
+        matches!(self, WatAST::Symbol(ident, _) if ident.as_str() == name)
     }
 
     /// The children of this AST node. Compound shapes return their

@@ -155,7 +155,7 @@ fn parse_triple(
     head: &str,
 ) -> Result<(String, TypeExpr), ArgSpecError> {
     let name = match &triple[0] {
-        WatAST::Symbol(ident, _) => ident.name.clone(),
+        WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
         other => return Err(ArgSpecError {
             span: other.span().clone(),
             head: head.to_string(),

@@ -1782,15 +1782,15 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
             }
             WatAST::Symbol(ident, _) => {
                 // Bare symbol where a keyword is expected: offer "write it as :<name>" remedy.
-                let needle = format!(":{}", ident.name);
+                let needle = format!(":{}", ident.as_str());
                 return Err(TypeError {
                     span: item.span().clone(),
                     kind: TypeErrorKind::MalformedVariant {
                         enum_name: name.clone(),
-                        offending: ident.name.clone(),
+                        offending: ident.as_str().to_owned(),
                         reason: format!(
                             "defenum variant must be a keyword; got bare symbol '{}' — write it as the keyword '{}'",
-                            ident.name, needle,
+                            ident.as_str(), needle,
                         ),
                         remedies: vec![],
                     },

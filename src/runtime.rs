@@ -3960,7 +3960,7 @@ fn preregister_struct_accessors_from_form(
         let mut idx = 0;
         while idx + 2 < fv.len() {
             let field_name = match &fv[idx] {
-                WatAST::Symbol(ident, _) => ident.name.as_str(),
+                WatAST::Symbol(ident, _) => ident.as_str(),
                 _ => { idx += 3; continue; }
             };
             let accessor_path = format!("{}/{}", type_base, field_name);
@@ -4611,7 +4611,7 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
                 let mut arrow_idx: Option<usize> = None;
                 for (i, child) in items.iter().enumerate().skip(1) {
                     if let WatAST::Symbol(ident, _) = child {
-                        if ident.name.as_str() == "->" {
+                        if ident.as_str() == "->" {
                             arrow_idx = Some(i);
                             break;
                         }
@@ -5223,7 +5223,7 @@ pub(crate) fn eval_inner(
         }
         WatAST::Symbol(ident, span) => env
             .lookup(&crate::scope::env_key(ident), span)
-            .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })
+            .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()) })
             .map_err(EvalBreak::from),
         // Arc 233 Stone 233.2.j: eval_list now returns TrackedValue (producers propagate
         // TrackedValue directly; non-producer arms wrap with .into_tracked()).
@@ -5311,7 +5311,7 @@ fn eval_list(
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
             let tv = env
                 .lookup(&crate::scope::env_key(ident), span)
-                .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.name.clone()) })?;
+                .ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::UnboundSymbol(ident.as_str().to_owned()) })?;
             apply_tracked_callee(tv, rest, env, sym)
         }
         WatAST::List(_, _) => {
@@ -15641,7 +15641,7 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // Arc 221 Stone 221.4b — Keyword lowers to HolonAST::Keyword, not Symbol.
         // HolonAST::keyword() strips the leading colon stored in WatAST::Keyword.
         WatAST::Keyword(k, _) => HolonAST::keyword(k.as_str()),
-        WatAST::Symbol(ident, _) => HolonAST::symbol(ident.name.as_str()),
+        WatAST::Symbol(ident, _) => HolonAST::symbol(ident.as_str()),
         WatAST::List(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
         }
@@ -23371,7 +23371,7 @@ fn step_form(
         // NoStepRule so the consumer falls back to eval-ast! (which
         // would have raised UnboundSymbol there too).
         WatAST::Symbol(ident, sym_span) => Err(RuntimeError { span: sym_span.clone(), kind: RuntimeErrorKind::NoStepRule {
-            op: format!("symbol-ref:{}", ident.name)
+            op: format!("symbol-ref:{}", ident.as_str())
         } }.into()),
         WatAST::List(items, span) => step_list(items, span, env, sym),
         // Arc 167 slice 1 — vector literals reaching the stepper
@@ -23577,7 +23577,7 @@ fn step_list(
             // function values) need a higher-order step rule that
             // hasn't shipped yet. Phase 3 territory.
             return Err(RuntimeError { span: sym_span.clone(), kind: RuntimeErrorKind::NoStepRule {
-                op: format!("symbol-head:{}", ident.name)
+                op: format!("symbol-head:{}", ident.as_str())
             } }.into());
         }
         _ => {
@@ -24259,7 +24259,7 @@ fn try_match_pattern_ast(
             // keyword variant) must compare literally — "Some" the
             // pattern head names the constructor, not a binder.
             let head_match = match (&p_items[0], &s_items[0]) {
-                (WatAST::Symbol(p, _), WatAST::Symbol(s, _)) => p.name == s.name,
+                (WatAST::Symbol(p, _), WatAST::Symbol(s, _)) => p.as_str() == s.as_str(),
                 (WatAST::Keyword(p, _), WatAST::Keyword(s, _)) => p == s,
                 _ => false,
             };

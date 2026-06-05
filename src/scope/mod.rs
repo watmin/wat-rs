@@ -10,8 +10,8 @@
 //! Stone 249.5a — lifts `src/identifier.rs` into this warded home. The
 //! primitives that discriminate lexical identity (`Identifier` = name +
 //! `BTreeSet<ScopeId>`, `ScopeId`, `fresh_scope`) belong under a single roof
-//! so that forthcoming scope-resolution machinery (stone 249.5b) has a durable
-//! neighbor rather than growing back into the flat `src/`.
+//! so that scope-resolution machinery has a durable neighbor rather than
+//! growing back into the flat `src/`.
 //!
 //! ## Contents
 //!

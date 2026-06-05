@@ -227,7 +227,7 @@ fn parse_field_metadata_key(
         // struct-destructure (parse error). Keyword `:witness` → strip colon → "witness".
         let field_sym = match &fm_pairs[field_pair_idx] {
             WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
-            WatAST::Symbol(ident, _) => ident.name.clone(),
+            WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
             other => {
                 return Err(TypeError {
                     span: other.span().clone(),

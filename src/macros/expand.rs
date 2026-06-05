@@ -449,7 +449,7 @@ fn check_quasiquote_for_literal_binders(
                                 span: call_site_span.clone(),
                                 kind: MacroErrorKind::ProgramBodyIntroducesName {
                                     macro_name: macro_name.to_string(),
-                                    binder: ident.name.clone(),
+                                    binder: ident.as_str().to_owned(),
                                 },
                             });
                         }
@@ -467,12 +467,12 @@ fn check_quasiquote_for_literal_binders(
                     while i < param_items.len() {
                         if let WatAST::Symbol(ident, _) = &param_items[i] {
                             // Exclude `->` and `<-` and `&` markers.
-                            if ident.name != "->" && ident.name != "<-" && ident.name != "&" {
+                            if ident.as_str() != "->" && ident.as_str() != "<-" && ident.as_str() != "&" {
                                 return Err(MacroError {
                                     span: call_site_span.clone(),
                                     kind: MacroErrorKind::ProgramBodyIntroducesName {
                                         macro_name: macro_name.to_string(),
-                                        binder: ident.name.clone(),
+                                        binder: ident.as_str().to_owned(),
                                     },
                                 });
                             }
@@ -749,7 +749,7 @@ fn is_callable_form(form: &WatAST) -> bool {
 pub(super) fn substitute_bindings(form: &WatAST, bindings: &HashMap<String, WatAST>) -> WatAST {
     match form {
         WatAST::Symbol(ident, _) => {
-            if let Some(bound) = bindings.get(&ident.name) {
+            if let Some(bound) = bindings.get(ident.as_str()) {
                 bound.clone()
             } else {
                 form.clone()
@@ -797,11 +797,11 @@ pub(super) fn unquote_argument(
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     match arg {
-        WatAST::Symbol(ident, sym_span) => match bindings.get(&ident.name) {
+        WatAST::Symbol(ident, sym_span) => match bindings.get(ident.as_str()) {
             Some(bound) => Ok(bound.clone()),
             None => Err(MacroError {
                 span: sym_span.clone(), // Pattern A: symbol span
-                kind: MacroErrorKind::UnboundMacroParam { name: ident.name.clone() },
+                kind: MacroErrorKind::UnboundMacroParam { name: ident.as_str().to_owned() },
             }),
         },
         // Arc 143 slice 2: a List whose head is a Keyword is a callable
@@ -852,10 +852,10 @@ fn splice_argument(
     match arg {
         WatAST::Symbol(ident, sym_span) => {
             let bound = bindings
-                .get(&ident.name)
+                .get(ident.as_str())
                 .ok_or_else(|| MacroError {
                     span: sym_span.clone(), // Pattern A: symbol span
-                    kind: MacroErrorKind::UnboundMacroParam { name: ident.name.clone() },
+                    kind: MacroErrorKind::UnboundMacroParam { name: ident.as_str().to_owned() },
                 })?;
             match bound {
                 WatAST::List(items, _) => Ok(items.clone()),
@@ -867,7 +867,7 @@ fn splice_argument(
                 other => Err(MacroError {
                     span: other.span().clone(), // Pattern A: bound value's span
                     kind: MacroErrorKind::SpliceNotSequence {
-                        name: ident.name.clone(),
+                        name: ident.as_str().to_owned(),
                         got: other.variant_name(),
                     },
                 }),

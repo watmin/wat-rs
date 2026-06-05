@@ -164,12 +164,12 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
         }
         WatAST::Symbol(ident, _) => {
             out.push(TAG_SYMBOL);
-            let name_bytes = ident.name.as_bytes();
+            let name_bytes = ident.as_str().as_bytes();
             out.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
             out.extend_from_slice(name_bytes);
-            out.extend_from_slice(&(ident.scopes.len() as u32).to_le_bytes());
-            for scope in &ident.scopes {
-                out.extend_from_slice(&scope.0.to_le_bytes());
+            out.extend_from_slice(&(ident.scopes().len() as u32).to_le_bytes());
+            for scope in ident.scopes() {
+                out.extend_from_slice(&scope.as_u64().to_le_bytes());
             }
         }
         WatAST::List(items, _) => {

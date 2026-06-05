@@ -19,7 +19,7 @@
 //!   mints a fresh [`ScopeId`] and adds it to every identifier that
 //!   originated in the macro's template. Identifiers that came from
 //!   the macro's arguments (via `,x` unquote) keep their original
-//!   scope sets. See `macros.rs` (slice 5c).
+//!   scope sets. See `src/macros/expand.rs` (arc 249 / slice 5c).
 //!
 //! # Keywords do not need scopes
 //!
@@ -36,11 +36,27 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// `let` / `fn` / `match` scope, etc.
 ///
 /// `ScopeId`s are monotonically allocated by [`fresh_scope`] across the
-/// whole process; their numeric value is not meaningful, only their
-/// equality / ordering.
+/// whole process. The numeric value is opaque for semantics (never inspect
+/// it for domain meaning), but it IS the stable serialization token used by
+/// `resolution::env_key` to derive scoped environment keys and by `hash.rs`
+/// to write canonical bytes — do not assume it is meaningless to the
+/// infrastructure layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ScopeId(pub u64);
+pub struct ScopeId(u64);
 
+impl ScopeId {
+    /// The raw `u64` token — for serialization use only (env-key derivation,
+    /// canonical hashing). Do not interpret the value as domain state.
+    pub fn as_u64(self) -> u64 {
+        self.0
+    }
+}
+
+// rune:sequi(host-idiom) — draws a process-global `static NEXT: AtomicU64`
+// (hidden from the signature); the ScopeId it returns is threaded explicitly
+// through all downstream call sites (expand.rs). The counter carries no domain
+// state — only process-unique scope identity; threading a mutable counter
+// through every expansion signature would pollute them for no sequi benefit.
 /// Allocate a fresh, unique [`ScopeId`].
 pub fn fresh_scope() -> ScopeId {
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -50,8 +66,8 @@ pub fn fresh_scope() -> ScopeId {
 /// A name-with-scopes reference.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Identifier {
-    pub name: String,
-    pub scopes: BTreeSet<ScopeId>,
+    name: String,
+    scopes: BTreeSet<ScopeId>,
 }
 
 impl Identifier {
@@ -60,14 +76,6 @@ impl Identifier {
         Identifier {
             name: name.into(),
             scopes: BTreeSet::new(),
-        }
-    }
-
-    /// Construct with a specific scope set.
-    pub fn with_scopes(name: impl Into<String>, scopes: BTreeSet<ScopeId>) -> Self {
-        Identifier {
-            name: name.into(),
-            scopes,
         }
     }
 
@@ -86,6 +94,13 @@ impl Identifier {
     /// Borrow the bare name.
     pub fn as_str(&self) -> &str {
         &self.name
+    }
+
+    /// Borrow the scope set — read-only. To add a scope, use [`add_scope`].
+    ///
+    /// [`add_scope`]: Self::add_scope
+    pub fn scopes(&self) -> &BTreeSet<ScopeId> {
+        &self.scopes
     }
 }
 

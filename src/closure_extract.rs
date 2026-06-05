@@ -530,7 +530,7 @@ fn walk_free_symbols(
         | WatAST::NilLit(..) => Ok(()),
 
         WatAST::Symbol(ident, span) => {
-            let name = ident.name.clone();
+            let name = ident.as_str().to_owned();
             // Syntactic markers: `->` (return-type arrow), `<-` (input
             // direction arrow in fn signatures), `&` (rest-binder
             // marker), `_` (wildcard at any position — never a
@@ -705,19 +705,19 @@ fn walk_let_form(
         // Now extend scope with binder names.
         match binder {
             WatAST::Symbol(ident, _) => {
-                current_locals.insert(ident.name.clone());
+                current_locals.insert(ident.as_str().to_owned());
             }
             WatAST::Vector(inner, _) => {
                 for it in inner {
                     if let WatAST::Symbol(ident, _) = it {
-                        current_locals.insert(ident.name.clone());
+                        current_locals.insert(ident.as_str().to_owned());
                     }
                 }
             }
             WatAST::StructPattern(inner, _) => {
                 for it in inner {
                     if let WatAST::Symbol(ident, _) = it {
-                        current_locals.insert(ident.name.clone());
+                        current_locals.insert(ident.as_str().to_owned());
                     }
                 }
             }
@@ -752,7 +752,7 @@ fn walk_fn_form(
         let mut j = 0;
         while j < items.len() {
             if let WatAST::Symbol(ident, _) = &items[j] {
-                new_locals.insert(ident.name.clone());
+                new_locals.insert(ident.as_str().to_owned());
             }
             j += 3;
         }
@@ -2047,8 +2047,8 @@ fn rewrite_with_scope(
         | WatAST::Keyword(_, _) => node.clone(),
 
         WatAST::Symbol(ident, span) => {
-            if !locals.contains(&ident.name) {
-                if let Some(cb) = by_name.get(ident.name.as_str()) {
+            if !locals.contains(ident.as_str()) {
+                if let Some(cb) = by_name.get(ident.as_str()) {
                     return WatAST::Keyword(cb.synthetic_name.clone(), span.clone());
                 }
             }
@@ -2116,19 +2116,19 @@ fn rewrite_let(
                 // Now extend scope with binder names.
                 match binder {
                     WatAST::Symbol(ident, _) => {
-                        current_locals.insert(ident.name.clone());
+                        current_locals.insert(ident.as_str().to_owned());
                     }
                     WatAST::Vector(bv, _) => {
                         for it in bv {
                             if let WatAST::Symbol(ident, _) = it {
-                                current_locals.insert(ident.name.clone());
+                                current_locals.insert(ident.as_str().to_owned());
                             }
                         }
                     }
                     WatAST::StructPattern(bv, _) => {
                         for it in bv {
                             if let WatAST::Symbol(ident, _) = it {
-                                current_locals.insert(ident.name.clone());
+                                current_locals.insert(ident.as_str().to_owned());
                             }
                         }
                     }
@@ -2168,7 +2168,7 @@ fn rewrite_fn(
             let mut j = 0;
             while j < av.len() {
                 if let WatAST::Symbol(ident, _) = &av[j] {
-                    new_locals.insert(ident.name.clone());
+                    new_locals.insert(ident.as_str().to_owned());
                 }
                 j += 3;
             }

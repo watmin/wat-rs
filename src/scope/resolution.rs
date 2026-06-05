@@ -35,11 +35,13 @@
 //!
 //! # Key-space collision safety
 //!
-//! The separator byte `\u{1}` (ASCII SOH) is not a legal identifier
-//! character, so `"name\u{1}3,7"` cannot collide with any bare name.
-//! Scope IDs are `u64` integers joined by `,`; the `BTreeSet` iteration
-//! order is deterministic (ascending numeric), so the encoding is
-//! canonical.
+//! The separator byte `\u{1}` (ASCII SOH) is chosen because identifier
+//! names produced by the lexer never contain it (it is a control character;
+//! `lexer::is_symbol_break` only breaks on whitespace and `()[]{}";,`).
+//! The invariant is enforced by a debug assertion in [`env_key`], not by
+//! the type. Scope IDs are `u64` integers joined by `,`; the `BTreeSet`
+//! iteration order is deterministic (ascending numeric), so the encoding
+//! is canonical.
 
 // PARTITION — CLAUSE vs INTRINSIC: `env_key` is a pure function (clause
 // territory in the dispatch sense — monomorphic, no type-var flow). It
@@ -64,15 +66,26 @@ use crate::scope::Identifier;
 /// the IDENTICAL scope set so they compute the same key. The expander
 /// guarantees this: `walk_template` adds one `ScopeId` uniformly to
 /// every template-origin identifier in a single expansion pass.
+///
+/// # Panics (debug builds only)
+///
+/// Asserts that the identifier name does not contain `\u{1}`, which
+/// would break the separator invariant. This should never fire for any
+/// name the lexer produces.
 pub fn env_key(ident: &Identifier) -> String {
-    if ident.scopes.is_empty() {
-        ident.name.clone()
+    debug_assert!(
+        !ident.as_str().contains('\u{1}'),
+        "env_key separator U+0001 must not appear in an identifier name; got {:?}",
+        ident.as_str()
+    );
+    if ident.scopes().is_empty() {
+        ident.as_str().to_owned()
     } else {
         // BTreeSet iterates in ascending order → canonical encoding.
-        // \u{1} (SOH) is not a legal identifier byte → no collision with
-        // any bare name.
-        let scopes: Vec<String> = ident.scopes.iter().map(|s| s.0.to_string()).collect();
-        format!("{}\u{1}{}", ident.name, scopes.join(","))
+        // \u{1} (SOH) is chosen because lexer-produced identifier names never
+        // contain it; the debug_assert above is the defence-in-depth guard.
+        let scopes: Vec<String> = ident.scopes().iter().map(|s| s.as_u64().to_string()).collect();
+        format!("{}\u{1}{}", ident.as_str(), scopes.join(","))
     }
 }
 

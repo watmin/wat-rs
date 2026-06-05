@@ -171,14 +171,14 @@ fn template_identifier_carries_macro_scope() {
         WatAST::Symbol(i, _) => i,
         _ => panic!("expected Symbol in body"),
     };
-    assert_eq!(template_tmp.name, "tmp");
-    assert_eq!(user_tmp.name, "tmp");
+    assert_eq!(template_tmp.as_str(), "tmp");
+    assert_eq!(user_tmp.as_str(), "tmp");
     assert!(
-        !template_tmp.scopes.is_empty(),
+        !template_tmp.scopes().is_empty(),
         "template tmp must have macro scope attached"
     );
     assert!(
-        user_tmp.scopes.is_empty(),
+        user_tmp.scopes().is_empty(),
         "user-argument tmp must NOT have the macro scope"
     );
     assert_ne!(
@@ -208,9 +208,9 @@ fn argument_identifiers_pass_through_unchanged() {
         _ => panic!("expected Symbol at arg position"),
     };
     // Argument identifier — no macro scope added.
-    assert_eq!(v_arg.name, "some-var");
+    assert_eq!(v_arg.as_str(), "some-var");
     assert!(
-        v_arg.scopes.is_empty(),
+        v_arg.scopes().is_empty(),
         "argument identifier should have no macro scope"
     );
 }
@@ -261,8 +261,8 @@ fn two_macro_invocations_get_distinct_scopes() {
     };
     let t1 = extract_binding_sym(&forms[0]);
     let t2 = extract_binding_sym(&forms[1]);
-    assert_eq!(t1.name, "t");
-    assert_eq!(t2.name, "t");
+    assert_eq!(t1.as_str(), "t");
+    assert_eq!(t2.as_str(), "t");
     assert_ne!(t1, t2, "each invocation should mint a fresh macro scope");
 }
 
