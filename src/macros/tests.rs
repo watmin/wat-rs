@@ -1315,3 +1315,46 @@ fn register_stdlib_bypasses_reserved_prefix_gate() {
     assert_eq!(out.len(), 1);
     assert!(matches!(&out[0], WatAST::IntLit(99, _)), "expected IntLit(99); got {:?}", out[0]);
 }
+
+// ─── Arc 249 — is_pure_total deny-list: macroexpand excluded ────────────────
+
+/// `:wat::core::macroexpand-1` is NOT on the `is_pure_total` allow-list and
+/// must be refused when it appears as a computed-unquote head inside a macro
+/// template. The deny path: `unquote_argument` → `macro_eval` →
+/// `validate_pure_total` → `RefusedInMacro { head }`.
+///
+/// No test previously witnessed this refusal; this test closes the negative
+/// space: a future accidental blessing of macroexpand-1 on the allow-list
+/// would turn this test RED — the gate bites its author.
+///
+/// Mirrors `impure_computed_unquote_refused_with_refused_in_macro` (arc 249
+/// stone 249.2b-i) in shape; exercises the macroexpand-specific deny path.
+#[test]
+fn macroexpand_in_computed_unquote_refused_with_refused_in_macro() {
+    let bindings = std::collections::HashMap::new();
+    let env = crate::runtime::Environment::default();
+    let sym = crate::runtime::SymbolTable::default();
+    let span = crate::span::Span::unknown();
+    // (:wat::core::macroexpand-1 ...) — deliberately excluded from the
+    // is_pure_total allow-list (macro-time evaluation must not invoke the
+    // macroexpand runtime primitive; see eval.rs is_pure_total deny-list comment).
+    let macroexpand_form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::macroexpand-1".into(), span.clone()),
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::quote".into(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                ],
+                span.clone(),
+            ),
+        ],
+        span.clone(),
+    );
+    let err = expand::unquote_argument(&macroexpand_form, &bindings, &env, &sym).unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        "expected RefusedInMacro for :wat::core::macroexpand-1 in computed unquote; got: {:?}",
+        err
+    );
+}

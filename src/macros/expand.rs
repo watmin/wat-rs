@@ -81,7 +81,7 @@ pub(super) fn expand_form(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    if expansion_depth > EXPANSION_DEPTH_LIMIT {
+    if expansion_depth >= EXPANSION_DEPTH_LIMIT {
         return Err(MacroError {
             span: form.span().clone(), // Pattern B: the form being expanded
             kind: MacroErrorKind::ExpansionDepthExceeded { limit: EXPANSION_DEPTH_LIMIT },

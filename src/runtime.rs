@@ -24807,6 +24807,7 @@ mod tests {
             let stdlib_post_macros =
                 crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
                     .expect("stdlib defmacros register");
+            // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
             let expanded_stdlib = crate::macros::expand_all(
                 stdlib_post_macros,
                 &mut macros,
@@ -24835,6 +24836,7 @@ mod tests {
         let forms = crate::parse_all!(src).expect("parse ok");
         // Expand any stdlib-macro calls in the user source before
         // registering defines and evaluating.
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             forms,
             &mut macros,
@@ -24883,6 +24885,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let ast = crate::parse_one!(src).expect("parse ok");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             vec![ast],
             &mut macros,
@@ -24906,6 +24909,7 @@ mod tests {
         let mut sym = stdlib_sym.clone();
         sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
         let ast = crate::parse_one!(src).expect("parse ok");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             vec![ast],
             &mut macros,
@@ -24946,6 +24950,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             forms,
             &mut macros,
@@ -24999,6 +25004,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             forms,
             &mut macros,
@@ -29226,6 +29232,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             forms,
             &mut macros,
@@ -29919,6 +29926,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse ok");
+        // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(
             forms,
             &mut macros,
