@@ -40,24 +40,22 @@
 //! - Fixpoint expansion (macros expand to more macros until no more
 //!   remain). Depth limit prevents pathological infinite expansion.
 //! - Full hygiene for the classic capture pattern.
-//! - Threading macros `->` (thread-first) and `->>` (thread-last):
-//!   transitional in-pass Rust desugars, rehomed to wat code in arc
-//!   249.3/249.4.
+//! - Threading macros `->` (thread-first) and `->>` (thread-last): ordinary
+//!   registered wat macros in `wat/core.wat`; rehomed from Rust desugars in
+//!   arc 249.3.
 //! - `keyword/of` special form: constructs parametric keywords
 //!   (e.g. `(:wat::core::keyword/of :Head :Arg)` → `:Head<Arg>`);
-//!   transitional in-pass Rust desugar, rehomed in arc 249.4.
+//!   ordinary registered wat macro in `wat/core.wat`; rehomed from Rust
+//!   desugar in arc 249.4.
 //! - Computed-unquote `,(expr)`: a List whose head is a Keyword is
 //!   evaluated at expand-time via `runtime::eval` with macro params
 //!   substituted (arc 143 slice 2).
 //!
-//! # What's deferred
+//! # Scope
 //!
-//! - Arbitrary conditional macro bodies beyond quasiquote (conditionals,
-//!   recursive macro helpers). The spec admits them but the common case —
-//!   and every 058 stdlib macro — uses quasiquote alone.
-//! - Typed-macro checking (058-032). Macro parameters here are
-//!   positional AST arguments; the type checker validates `:AST<T>`
-//!   annotations against body positions in its own phase.
+//! This slice handles quasiquote-template + program-body macro expansion.
+//! Typed-macro `:AST<T>` checking lives in the type checker's phase
+//! (058-032).
 
 pub(crate) mod error;
 pub(crate) mod registry;

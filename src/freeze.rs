@@ -737,6 +737,14 @@ fn startup_from_forms_post_config(
     let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
 
+    // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
+    // expand_all preceding register_defines. User/stdlib defns are not yet
+    // registered at expand time — a reference to one cannot resolve, so only
+    // blessed builtins + inline lambdas (body-validated) are reachable. If
+    // register_defines is ever moved before this block, the fenced evaluator
+    // alone no longer guarantees purity; a gate at apply_function becomes
+    // necessary (see eval.rs header "Load-bearing invariant").
+    //
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::stream bodies
@@ -2034,5 +2042,38 @@ mod tests {
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
                 .unwrap_err();
         assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::EvalForbidsMutationForm { .. }, .. }));
+    }
+
+    // ─── Phase-order invariant: expand_all precedes register_defines ────────
+    //
+    // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
+    // expand_all running BEFORE register_defines in the freeze pipeline. This
+    // test goes RED if the order reverses — a user defn referenced inside a
+    // macro program-body must NOT be reachable at expand time. The test asserts
+    // the invariant structurally: a computed-unquote that tries to call a
+    // user-defined function must fail (the defn is not yet registered when
+    // expand_all runs). If register_defines ran first the call would succeed
+    // and the fenced evaluator's purity guarantee would be vacated.
+    #[test]
+    fn expand_runs_before_register_defines_phase_order() {
+        // A macro whose program body calls a user-defined function.
+        // At expand time the defn is NOT yet registered → the call errors.
+        // If this test PASSES: order is correct (expand before defn-register).
+        // If this test FAILS (startup succeeds): register_defines moved before
+        // expand_all — the load-bearing invariant in eval.rs is violated.
+        let err = startup(r#"
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
+            (:wat::core::defmacro :my::uses-helper []
+              -> :AST
+              (:wat::core::i64::+ (:my::helper) 0))
+            (:my::uses-helper)
+        "#);
+        assert!(
+            err.is_err(),
+            "a macro program-body calling a user defn must fail at expand time \
+             (defn not registered yet); if it succeeded, register_defines ran before \
+             expand_all — ORDER LOAD-BEARING invariant violated (src/macros/eval.rs)"
+        );
     }
 }

@@ -21,9 +21,6 @@ pub enum MacroErrorKind {
     ReservedPrefix(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
-    /// The macro's body wasn't a quasiquote template — this slice only
-    /// supports quasiquote bodies.
-    UnsupportedBody { name: String, reason: String },
     /// A macro call passed the wrong number of arguments.
     ArityMismatch {
         name: String,
@@ -56,8 +53,10 @@ pub enum MacroErrorKind {
     /// A program-body quasiquote template introduces a literal name in a
     /// binder position (`:wat::core::let` or `:wat::core::fn`), which could
     /// capture caller-site names silently. Default-deny per the hygiene bound:
-    /// such bodies are refused until the substrate has eval-time-hygienic
-    /// quasiquote (named follow-on arc).
+    /// eval_quasiquote adds no hygiene scopes, so a literal binder could
+    /// capture caller-site names. Use `~-unquote` to splice the name from a
+    /// macro parameter instead. See DESIGN-STONE-249.2b.md for the
+    /// let-need-reveal posture.
     ///
     /// Arc 249 Stone 249.2b-ii — gate E hygiene bound.
     ProgramBodyIntroducesName { macro_name: String, binder: String },
@@ -78,11 +77,6 @@ impl fmt::Display for MacroErrorKind {
             MacroErrorKind::MalformedDefmacro { reason } => {
                 write!(f, "malformed defmacro: {}", reason)
             }
-            MacroErrorKind::UnsupportedBody { name, reason } => write!(
-                f,
-                "macro {} body not supported: {} (this slice handles quasiquote-template bodies only)",
-                name, reason
-            ),
             MacroErrorKind::ArityMismatch { name, expected, got } => {
                 write!(
                     f,
@@ -118,7 +112,7 @@ impl fmt::Display for MacroErrorKind {
                 "macro {} program body refused — quasiquote template introduces literal name \
                  `{}` in binder position; this could capture caller-site names (hygiene bound \
                  gate E, arc 249 stone 249.2b-ii); use ~-unquote to splice the name from a \
-                 macro parameter, or await eval-time-hygienic quasiquote",
+                 macro parameter",
                 macro_name, binder
             ),
         }

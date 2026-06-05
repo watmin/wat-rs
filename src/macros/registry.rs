@@ -16,8 +16,9 @@ pub struct MacroDef {
     /// bind to `params` as usual, and the REMAINING args are bundled
     /// into a `WatAST::List` and bound to this name. A template's
     /// `,@rest-name` unquote-splicing then drops the list's elements
-    /// into the surrounding form at expansion. Syntax at declaration:
-    /// `(:wat::core::defmacro (:name (p1 :AST<T1>) ... & (rest :AST<Vec<R>>) -> :AST<Ret>) body)`.
+    /// into the surrounding form at expansion. Syntax at declaration
+    /// (canonical Vector-of-triples form, per parse.rs:97-108):
+    /// `(:wat::core::defmacro :name [p1 <- :T1 ... & rest <- :AST<...>] -> :AST<Ret> body)`.
     /// The `&` marker separates fixed params from the rest-binder.
     pub rest_param: Option<String>,
     /// The template — typically `(:wat::core::quasiquote ...)`.

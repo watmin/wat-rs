@@ -212,19 +212,18 @@ pub(super) fn expand_macro_call(
     expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)
 }
 
-/// Walk a macro template, substituting `,param` and `,@param` at
-/// unquote sites and adding the macro scope to template-origin symbols.
+/// Dispatcher: inspect the template's top-level shape once and route to the
+/// appropriate expansion path.
 ///
 /// The template's top-level form is either:
-/// - a **bare quasiquote** `(:wat::core::quasiquote X)` — the existing hygienic path
-///   via `walk_template` (sets-of-scopes hygiene, UNCHANGED).
-/// - a **program body** (any other form) — the new `macro_eval` path introduced in
-///   arc 249 stone 249.2b-ii: params are bound as quoted form-values in a body env,
-///   `macro_eval` evaluates the body, and the result is converted back to a `WatAST`.
+/// - a **bare quasiquote** `(:wat::core::quasiquote X)` — the existing hygienic
+///   path via `expand_quasiquote_body` → `walk_template` (sets-of-scopes hygiene,
+///   UNCHANGED).
+/// - a **program body** (any other form) — the `macro_eval` path introduced in
+///   arc 249 stone 249.2b-ii, handled by `expand_program_body`.
 ///
-/// `rest_param` names the variadic rest parameter (if any) so the program path can
-/// bind it as `Value::Vec([watast...])` rather than a `WatAST::List` (which is the
-/// encoding used for the quasiquote-template walk-template path).
+/// `rest_param` names the variadic rest parameter (if any); passed to
+/// `expand_program_body` for correct value-binding semantics.
 fn expand_template(
     template: &WatAST,
     bindings: &HashMap<String, WatAST>,
@@ -235,7 +234,7 @@ fn expand_template(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    // ── Dispatch: bare quasiquote (existing hygienic path) vs program body (new path) ──
+    // ── Dispatch: bare quasiquote vs program body ──────────────────────────
     let quasi_body = match template {
         WatAST::List(items, _) if items.len() == 2 => match items.first() {
             Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => Some(&items[1]),
@@ -245,20 +244,52 @@ fn expand_template(
     };
 
     if let Some(qb) = quasi_body {
-        // ── Existing hygienic path (bare quasiquote body) — UNCHANGED ──
-        // `walk_template` adds sets-of-scopes hygiene to template-origin symbols.
-        // This path is untouched: every existing stdlib macro goes through here.
-        return walk_template(qb, bindings, macro_scope, macro_name, call_site_span, 1, env, sym);
+        expand_quasiquote_body(qb, bindings, macro_scope, macro_name, call_site_span, env, sym)
+    } else {
+        expand_program_body(template, bindings, macro_name, call_site_span, rest_param, env, sym)
     }
+}
 
-    // ── New program-body path (arc 249 stone 249.2b-ii) ──
-    //
-    // Gate E — hygiene bound: refuse a program body whose quasiquote templates
-    // introduce a literal name in a binder position (`:wat::core::let` or
-    // `:wat::core::fn`). eval_quasiquote adds no hygiene scopes, so such a body
-    // could silently capture caller-site names. Default-deny; emit
-    // ProgramBodyIntroducesName so a future "allow" can't silently admit the
-    // capturing case.
+/// Existing hygienic path (bare quasiquote body) — UNCHANGED.
+///
+/// `walk_template` adds sets-of-scopes hygiene to template-origin symbols.
+/// Every existing stdlib macro goes through here.
+fn expand_quasiquote_body(
+    qb: &WatAST,
+    bindings: &HashMap<String, WatAST>,
+    macro_scope: ScopeId,
+    macro_name: &str,
+    call_site_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<WatAST, MacroError> {
+    walk_template(qb, bindings, macro_scope, macro_name, call_site_span, 1, env, sym)
+}
+
+/// New program-body path (arc 249 stone 249.2b-ii).
+///
+/// Gate E — hygiene bound: refuse a program body whose quasiquote templates
+/// introduce a literal name in a binder position (`:wat::core::let` or
+/// `:wat::core::fn`). eval_quasiquote adds no hygiene scopes, so such a body
+/// could silently capture caller-site names. Default-deny; emit
+/// ProgramBodyIntroducesName so a future "allow" can't silently admit the
+/// capturing case.
+///
+/// Params are bound as quoted form-values in a body env, `macro_eval`
+/// evaluates the body, and the result is converted back to a `WatAST`.
+///
+/// `rest_param` names the variadic rest parameter (if any) so this path
+/// can bind it as `Value::Vec([watast...])` rather than a `WatAST::List`
+/// (which is the encoding used by the quasiquote-template path).
+fn expand_program_body(
+    template: &WatAST,
+    bindings: &HashMap<String, WatAST>,
+    macro_name: &str,
+    call_site_span: &Span,
+    rest_param: Option<&str>,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<WatAST, MacroError> {
     check_program_body_hygiene(template, call_site_span, macro_name)?;
 
     // Build a body env with params bound as quoted form-values.
@@ -453,8 +484,8 @@ fn check_quasiquote_for_literal_binders(
 }
 
 /// Walk a slice of template children (items of a List or Vector),
-/// handling unquote-splicing and `for`-comprehension inline. Returns
-/// the flat `Vec<WatAST>` for the parent to wrap in its own container
+/// handling unquote-splicing inline. Returns the flat `Vec<WatAST>`
+/// for the parent to wrap in its own container
 /// (`WatAST::List` or `WatAST::Vector`).
 ///
 /// Extracted from `walk_template`'s List and Vector arms, which are
@@ -525,6 +556,12 @@ fn splice_children(
 /// Walk a quasiquoted form, expanding `,x` unquotes to their argument
 /// ASTs, `,@x` unquote-splicing to their list elements, and tagging
 /// every template-origin symbol with the macro scope.
+///
+/// rune:solvere(load-bearing-coupling) — qq depth-walk is mirrored in 3 sites
+/// (walk_template / validate_quasiquote_template / walk_quasiquote); the depth
+/// rule (nested +1, fire-at-depth-1, peel-deeper) is one contract that must
+/// change in all three in sync; a unifying visitor would obscure three readable
+/// single-purpose walkers.
 ///
 /// Arc 016 slice 1: template-origin nodes (those built from the
 /// defmacro's template, not from unquoted user args) inherit the
@@ -672,6 +709,20 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
     }
 }
 
+/// Returns `true` if `form` is a `WatAST::List` whose first element is a
+/// `WatAST::Keyword` — the arc-143 discriminant for "evaluate at expand-time"
+/// vs "treat as already-substituted literal data".
+///
+/// WatAST::List is the only carrier; a Keyword head is the eval-vs-data
+/// discriminant by arc-143 design (no separate computed-unquote AST variant).
+/// Used by both `unquote_argument` and `splice_argument` to share the heuristic.
+fn is_callable_form(form: &WatAST) -> bool {
+    matches!(
+        form,
+        WatAST::List(items, _) if items.first().map(|h| matches!(h, WatAST::Keyword(_, _))).unwrap_or(false)
+    )
+}
+
 /// Walk `form`, replacing every `WatAST::Symbol` whose name is a key
 /// in `bindings` with the bound AST. Recursive on `WatAST::List`.
 /// Other variants (keywords, literals) pass through unchanged.
@@ -737,15 +788,11 @@ pub(super) fn unquote_argument(
                 kind: MacroErrorKind::UnboundMacroParam { name: ident.name.clone() },
             }),
         },
-        // Arc 143 slice 2: a List whose head is a Keyword is a
-        // callable expression. Substitute macro params, evaluate,
+        // Arc 143 slice 2: a List whose head is a Keyword is a callable
+        // expression (see `is_callable_form`). Substitute macro params, evaluate,
         // convert result to WatAST.
-        WatAST::List(items, span)
-            if items
-                .first()
-                .map(|h| matches!(h, WatAST::Keyword(_, _)))
-                .unwrap_or(false) =>
-        {
+        _ if is_callable_form(arg) => {
+            let span = arg.span().clone();
             let substituted = substitute_bindings(arg, bindings);
             // F5 CLOSED (arc 249 stone 249.2b-i): routed through `macro_eval`,
             // the DEFAULT-DENY fenced evaluator. An impure `,(expr)` (any head
@@ -810,14 +857,10 @@ fn splice_argument(
                 }),
             }
         }
-        // Arc 143 slice 2: a List whose head is a Keyword — evaluate
-        // at expand-time, then splice the resulting Vec elements.
-        WatAST::List(items, span)
-            if items
-                .first()
-                .map(|h| matches!(h, WatAST::Keyword(_, _)))
-                .unwrap_or(false) =>
-        {
+        // Arc 143 slice 2: a List whose head is a Keyword is callable
+        // (see `is_callable_form`) — evaluate at expand-time, then splice.
+        _ if is_callable_form(arg) => {
+            let span = arg.span().clone();
             let substituted = substitute_bindings(arg, bindings);
             // F5 CLOSED (arc 249 stone 249.2b-i): routed through `macro_eval`,
             // the DEFAULT-DENY fenced evaluator. An impure splice-expr is now

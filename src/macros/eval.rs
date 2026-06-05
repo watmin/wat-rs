@@ -51,9 +51,9 @@
 //!
 //! # Provenance
 //!
-//! Surface names (`macro_eval`, `validate_pure_total`, `RefusedInMacro`) are
-//! PROPOSED — owed an intueri cast by the orchestrator (arc 249.2b
-//! BRIEF-STONE-249.2b-i.md § naming).
+//! Surface names (`macro_eval`, `validate_pure_total`, `RefusedInMacro`) were
+//! RATIFIED by an intueri cast (arc 249.2b; rationale recorded in
+//! `error.rs:51` at the `RefusedInMacro` variant). Arc 249 Stone 249.2b-i.
 //!
 //! Arc 249 Stone 249.2b-i — F5 is now CLOSED here (gated by this module).
 
@@ -183,6 +183,12 @@ pub(crate) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
 ///
 /// Arc 249 Stone 249.3a — closes the F5-redux hole: an impure computed unquote
 /// inside a program-body quasiquote is refused here, before `runtime::eval` runs.
+///
+/// rune:solvere(load-bearing-coupling) — qq depth-walk is mirrored in 3 sites
+/// (walk_template / validate_quasiquote_template / walk_quasiquote); the depth
+/// rule (nested +1, fire-at-depth-1, peel-deeper) is one contract that must
+/// change in all three in sync; a unifying visitor would obscure three readable
+/// single-purpose walkers.
 fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, _) => {
@@ -239,6 +245,10 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // (stays denied).
 //
 // Arc 249 Stone 249.2b-i — F5 CLOSED: this allow-list is the gate.
+//
+// rune:struere(invariant-coupling) — this allow-list mirrors the pure-total arm of
+// dispatch_keyword_head/_value (runtime.rs); the suite enforces completeness
+// (default-deny makes over-restriction the only drift direction).
 fn is_pure_total(head: &str) -> bool {
     matches!(
         head,
@@ -283,6 +293,10 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::not"
 
         // ── Scalar conversions (pure) ──────────────────────────────────
+        // Dual-spelled pairs (e.g. i64::to-f64 / i64/to-f64; string::concat /
+        // String/concat): both surface spellings route to the same dispatch arm;
+        // both are listed here intentionally so either spelling in a macro
+        // program-body is allowed.
         | ":wat::core::i64::to-string"
         | ":wat::core::i64::to-f64"
         | ":wat::core::i64/to-f64"

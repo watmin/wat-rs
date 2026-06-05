@@ -10399,6 +10399,12 @@ fn eval_quasiquote(
 /// Recursive walker for runtime quasiquote — inverse of macros.rs's
 /// expansion-time walker, but evaluating unquotes against the
 /// runtime environment instead of substituting macro bindings.
+///
+/// rune:solvere(load-bearing-coupling) — qq depth-walk is mirrored in 3 sites
+/// (walk_template / validate_quasiquote_template / walk_quasiquote); the depth
+/// rule (nested +1, fire-at-depth-1, peel-deeper) is one contract that must
+/// change in all three in sync; a unifying visitor would obscure three readable
+/// single-purpose walkers.
 fn walk_quasiquote(
     form: &WatAST,
     env: &Environment,
