@@ -73,7 +73,6 @@ fn handwritten_defclause_ret_mismatch_is_caught() {
 /// 249.5e keys the check-pass locals by `env_key`, so `x` resolves to `:i64` and the
 /// mismatch is caught. RED at HEAD (checks clean); GREEN after the fix (rejected).
 #[test]
-#[ignore = "RED until Stone 249.5e lands (check pass keys locals by env_key); the strike removes this #[ignore] and the test must then pass (macro-gen ret-mismatch rejected)"]
 fn macro_generated_defclause_ret_mismatch_is_caught() {
     let src = format!("{MAKE_BAD_RET}\n{CALL_MAKE_BAD_RET}\n{MAIN}");
     assert!(
