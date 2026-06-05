@@ -112,14 +112,13 @@ const KW_OF_MACRO: &str = "(:wat::core::defmacro :test::kw-of \
                                    (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String \
                                       (:wat::core::keyword/to-string a)) \
                                    args) \
-                       joined (:wat::core::string::join arg-texts \",\") \
+                       joined (:wat::core::string::join \",\" arg-texts) \
                        full (:wat::core::string::concat head-text \
                               (:wat::core::string::concat \"<\" \
                                 (:wat::core::string::concat joined \">\")))] \
         `~(:wat::core::keyword/from-string full)))";
 
 #[test]
-#[ignore = "249.4 diagnostic — run with --ignored to read the gap"]
 fn diag_keyword_of_full() {
     let result = eval_string_with(
         KW_OF_MACRO,
@@ -128,4 +127,33 @@ fn diag_keyword_of_full() {
     println!("\n=== diag_keyword_of_full ===\nexpect \"foo<bar,baz>\":\n{:#?}\n", result);
     // Read the shape; if Ok("foo<bar,baz>") the rehome works end-to-end.
     let _ = result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// D — keyword/of in TEMPLATE POSITION (the KEY RISK — replaces the deleted
+// src/macros/tests.rs::keyword_of_inside_macro_template_with_unquote via the
+// full-stdlib path). A USER macro's quasiquote template contains a keyword/of
+// call with an ~unquoted arg; the user-macro expansion produces
+// `(:wat::core::keyword/of :foo :bar)`, which the fixpoint must RE-EXPAND via
+// the registered keyword/of MACRO → `:foo<bar>`. If keyword/of (now a macro,
+// not a built-in) does NOT fire on the expansion result, this is the
+// template-position regression the deleted test would have caught.
+// ═══════════════════════════════════════════════════════════════════════════
+const KW_OF_TEMPLATE_MACRO: &str = "(:wat::core::defmacro :my::mk \
+     [e <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+     `(:wat::core::keyword/of :foo ~e))";
+
+#[test]
+fn keyword_of_fires_in_template_position() {
+    let result = eval_string_with(
+        KW_OF_TEMPLATE_MACRO,
+        "(:wat::core::keyword/to-string (:my::mk :bar))",
+    );
+    println!("\n=== keyword_of_fires_in_template_position ===\nexpect Ok(\"foo<bar>\"):\n{:#?}\n", result);
+    assert_eq!(
+        result.unwrap(),
+        Value::String(Arc::new("foo<bar>".to_string())),
+        "keyword/of MUST fire in template position (inside another macro's quasiquote) \
+         as a registered macro — the deleted keyword_of_inside_macro_template_with_unquote risk"
+    );
 }

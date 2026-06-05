@@ -8609,20 +8609,35 @@ fn eval_keyword_to_string(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let k = eval_one_arg(
-        ":wat::core::keyword/to-string",
-        args,
-        list_span,
-        env,
-        sym,
-        "keyword",
-        |v| match v {
-            Value::wat__core__keyword(k) => Ok(k),
-            other => Err(other),
-        },
-    )?;
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::keyword/to-string".into(),
+            expected: 1,
+            got: args.len(),
+        } }.into());
+    }
+    let arg_span = args[0].span().clone();
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
     // The keyword string always starts with ':'; strip it.
-    let text = k.strip_prefix(':').unwrap_or(&k);
+    let raw: String = match &v {
+        Value::wat__core__keyword(k) => k.to_string(),
+        // Arc 249 Stone 249.4a — keyword FORM-value (bound in a macro body as
+        // Value::wat__WatAST(Keyword)): same stripping as the keyword-value arm.
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::Keyword(k, _) => k.clone(),
+            _ => return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::keyword/to-string".into(),
+                expected: "keyword",
+                got: Box::new(ValueSnapshot::of(&v)),
+            } }.into()),
+        },
+        _ => return Err(RuntimeError { span: arg_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::keyword/to-string".into(),
+            expected: "keyword",
+            got: Box::new(ValueSnapshot::of(&v)),
+        } }.into()),
+    };
+    let text = raw.strip_prefix(':').unwrap_or(&raw);
     Ok(Value::String(Arc::new(text.to_string())))
 }
 

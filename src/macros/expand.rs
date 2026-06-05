@@ -110,30 +110,9 @@ pub(super) fn expand_form(
                 .collect();
             let expanded_children = expanded_children?;
 
-            // rune:solvere(historical-shape) — keyword/of + threading are transitional in-pass Rust desugars; HARD-CUT when reborn as wat code in arc 249.3/249.4. Splitting to a module now would mint a home destined for deletion.
-            //
-            // Arc 170 slice 3 Gap A — `:wat::core::keyword/of` macro special-form.
-            // Recognized AFTER child recursion (so unquote sites `~name` have
-            // already been substituted to their argument keywords) and BEFORE
-            // the generic macro dispatch so it fires for both bare keyword/of
-            // calls AND keyword/of calls produced inside quasiquote templates.
-            //
-            // Expansion order:
-            //   1. quasiquote walk_template fires, substituting ~input-type etc.
-            //   2. The quasiquote result (now containing a concrete keyword/of
-            //      list) is returned as WatAST.
-            //   3. expand_form is called on that result (fixpoint loop in
-            //      expand_macro_call). Children are recursed (this
-            //      pass); keyword/of is recognised here.
-            //
-            // This means: at the point this arm fires, all unquote sites have
-            // already resolved to concrete WatAST::Keyword nodes. The children
-            // of the keyword/of form ARE the final keyword ASTs.
-            if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
-                if head == ":wat::core::keyword/of" {
-                    return construct_keyword_of(&expanded_children, list_span);
-                }
-            }
+            // Arc 249 Stone 249.4a — keyword/of is now a registered wat macro in
+            // core.wat; Rust built-in DELETED. Dispatch falls through to the
+            // registered-macro path below.
 
             // Is the (now-expanded) head a registered macro?
             if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
@@ -167,111 +146,6 @@ pub(super) fn expand_form(
         }
         other => Ok(other),
     }
-}
-
-// ─── Arc 170 slice 3 Gap A — keyword/of construction ────────────────────────
-//
-// `construct_keyword_of` is called from `expand_form` when the list head is
-// `:wat::core::keyword/of`. At this point child recursion has already fired,
-// so all `~unquote` sites in the enclosing quasiquote template have been
-// substituted with their argument keyword ASTs.
-//
-// Contract:
-//   children[0]  = keyword/of head (`:wat::core::keyword/of`) — consumed/skipped
-//   children[1]  = parametric head keyword (e.g. `:wat::kernel::Receiver`)
-//   children[2+] = argument keywords (e.g. `:wat::core::i64`)
-//
-// Produces a single `WatAST::Keyword` whose text is:
-//   `{head_text}<{arg1_text},{arg2_text},...>`
-// where head_text = head keyword text WITHOUT leading ':',
-// and   argN_text = argument keyword text WITHOUT leading ':'.
-//
-// Errors:
-//   - Arity < 2 (just `(keyword/of)` or `(keyword/of :Head)` with no args)
-//   - Any child is not a `WatAST::Keyword`
-fn construct_keyword_of(
-    children: &[WatAST],
-    span: Span,
-) -> Result<WatAST, MacroError> {
-    // children[0] is the ":wat::core::keyword/of" head itself.
-    // We need children[1] (parametric head) + children[2+] (args).
-    if children.len() < 3 {
-        // Need at least: keyword/of-head + parametric-head + 1 arg.
-        return Err(MacroError {
-            span,
-            kind: MacroErrorKind::MalformedTemplate {
-                reason: format!(
-                    "keyword/of requires at least 2 arguments (head keyword + ≥1 arg keyword); \
-                     got {} argument(s)",
-                    children.len().saturating_sub(1)
-                ),
-            },
-        });
-    }
-
-    // Helper to name the AST variant for error messages.
-    fn ast_kind(node: &WatAST) -> &'static str {
-        match node {
-            WatAST::Keyword(_, _)     => "keyword",
-            WatAST::IntLit(_, _)      => "int-literal",
-            WatAST::FloatLit(_, _)    => "float-literal",
-            WatAST::BoolLit(_, _)     => "bool-literal",
-            WatAST::StringLit(_, _)   => "string-literal",
-            // Arc 244 — NilLit joins the literal group.
-            WatAST::NilLit(_)         => "nil-literal",
-            WatAST::Symbol(_, _)      => "symbol",
-            WatAST::List(_, _)        => "list",
-            WatAST::Vector(_, _)      => "vector",
-            WatAST::StructPattern(_, _) => "struct-pattern",
-        }
-    }
-
-    // Extract the parametric head keyword text (children[1]).
-    let head_text = match &children[1] {
-        WatAST::Keyword(k, _) => {
-            // Strip leading ':'.
-            k.strip_prefix(':').unwrap_or(k.as_str()).to_string()
-        }
-        other => {
-            return Err(MacroError {
-                span,
-                kind: MacroErrorKind::MalformedTemplate {
-                    reason: format!(
-                        "keyword/of: head (arg 1) must be a keyword AST; got {}",
-                        ast_kind(other)
-                    ),
-                },
-            });
-        }
-    };
-
-    // Extract each argument keyword text (children[2+]).
-    let mut arg_texts = Vec::with_capacity(children.len() - 2);
-    for (i, child) in children[2..].iter().enumerate() {
-        match child {
-            WatAST::Keyword(k, _) => {
-                // Strip leading ':'.
-                let text = k.strip_prefix(':').unwrap_or(k.as_str()).to_string();
-                arg_texts.push(text);
-            }
-            other => {
-                return Err(MacroError {
-                    span,
-                    kind: MacroErrorKind::MalformedTemplate {
-                        reason: format!(
-                            "keyword/of: argument {} must be a keyword AST; got {}",
-                            i + 1,
-                            ast_kind(other)
-                        ),
-                    },
-                });
-            }
-        }
-    }
-
-    // Construct the parametric keyword text: `head<arg1,arg2,...>`.
-    let constructed = format!(":{}<{}>", head_text, arg_texts.join(","));
-    Ok(WatAST::Keyword(constructed, span))
 }
 
 /// Expand a single macro call. Allocates a fresh [`ScopeId`], walks the

@@ -201,6 +201,25 @@
     acc
     steps))
 
+;; ─── keyword/of — parametric keyword construction ─────────────────
+;;
+;; keyword/of — build the parametric keyword `:Head<arg1,arg2>` from keyword args
+;; (head + args, leading colons stripped). Pure-total program over forms.
+;; Arc 249 Stone 249.4a — promoted from construct_keyword_of (expand.rs).
+(:wat::core::defmacro :wat::core::keyword/of
+  [head <- :wat::holon::HolonAST & args <- :AST<wat::holon::Holons>]
+  -> :AST<wat::holon::HolonAST>
+  (:wat::core::let [head-text (:wat::core::keyword/to-string head)
+                    arg-texts (:wat::core::map
+                                (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String
+                                   (:wat::core::keyword/to-string a))
+                                args)
+                    joined (:wat::core::string::join "," arg-texts)
+                    full (:wat::core::string::concat head-text
+                           (:wat::core::string::concat "<"
+                             (:wat::core::string::concat joined ">")))]
+    `~(:wat::core::keyword/from-string full)))
+
 ;; ─── Polymorphic ordering defclauses ──────────────────────────────
 ;;
 ;; 2-ary per-Type (i64 / f64), NaN-correct for f64; cross-type rejected by
