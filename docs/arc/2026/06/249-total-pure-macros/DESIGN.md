@@ -109,6 +109,20 @@ macro-callable. That is the type-strictness axis (arc 237 lineage) doing the enf
 `pure total` is admissible in a macro body; an effectful or openly-recursive one is a compile error.
 The bridge between wat's two rigidity axes — flagged here, owned later.
 
+## The close — scope settled by four-questions (2026-06-04)
+
+**The revealed principle:** *cut what the engine **obsoletes** (in-arc, Honest-forced); defer what
+it merely **enables** (follow-on, affirmatively-scoped).* The four-questions split the naive "lean
+vs fuller" axis (FM-3 — too coarse to answer cleanly): leaving a redundant Rust `for` /
+`thread_desugar` next to the engine's `map`/`fold` is the *two-ways* one-canonical-path + HARD-CUT
+refuse — so the redundancy-cut is **forced into the arc**, not chosen. But the library the engine
+*enables* (`cond->`, `when`, …) shadows nothing, so shipping it is not obligated — affirmatively
+scoped to follow-on.
+
+So **249 closes with:** the engine (249.2) + `->`/`->>` as wat code with the Rust desugar cut
+(249.3) + `for`/`keyword/of` rehomed/absorbed with their Rust built-ins cut (249.4). Library +
+`&form`/`&env` = named follow-on.
+
 ## Slicing (proposed — stepping stones)
 
 - **249.1 — threading verdict + Rust desugar. ✓ SHIPPED** (`6ba27ca0`, REMARKABLE one-shot). The
@@ -119,11 +133,15 @@ The bridge between wat's two rigidity axes — flagged here, owned later.
 - **249.3 — threading reborn as wat code.** Re-implement `->`/`->>` as wat macros over the engine;
   **`tests/probe_arc249_threading.rs` is the contract** (same five gates). HARD CUT the Rust
   `thread_desugar` once the wat version passes — threading proves the model.
-- **249.4 — migrate `for`/`keyword/of`** into the model (or affirmatively keep as blessed prims).
-- **249.5+ — `&form`/`&env`**, then the idiomatic library (`cond->`, `when`, `condp`…) as wat code,
-  as need surfaces.
-- **249.N INSCRIPTION** closes when the engine + threading-reborn land (the rest may bank as named
-  follow-on or ship in-arc per the no-deferral rule).
+- **249.4 — cut what the engine obsoletes** (Honest-forced — part of the close, not optional):
+  rehome `for` as a wat macro built on the engine (*doubles as engine proof*) + **HARD CUT** the
+  Rust `for` built-in; absorb `keyword/of` as a blessed engine prim. The engine creates a
+  `map`/`fold` surface, so the Rust `for`/`thread_desugar` become *second ways to do one thing* —
+  one-canonical-path forces their removal in the same arc that creates the first way.
+- **249.N INSCRIPTION** — closes when 249.2–249.4 land: engine + threading-as-wat-code + every
+  redundancy cut. The idiomatic library (`cond->`/`when`/`condp`…) and `&form`/`&env` are
+  **affirmatively-scoped follow-on** (enabled by the engine, not committed by 249 — a new arc as a
+  caller needs them), per the principle below.
 - **v2 (later)** — type-level `pure total` effect for user-fn macro-callability.
 
 Each stone is probe-locked (FM-2-bis). Substrate surface names (the engine fn, any new module, the
