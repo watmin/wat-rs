@@ -7,7 +7,12 @@ use std::sync::Arc;
 
 use super::error::{MacroError, MacroErrorKind};
 use super::registry::{MacroDef, MacroRegistry};
-use super::parse::{is_defmacro_form, parse_defmacro_form, EXPANSION_DEPTH_LIMIT};
+use super::parse::{is_defmacro_form, parse_defmacro_form};
+
+/// Maximum nesting depth for macro expansion. Enforced in `expand_form`
+/// to guard against infinite-recursive macros. Defined here (next to
+/// its enforcement) and re-exported via `mod.rs`.
+pub const EXPANSION_DEPTH_LIMIT: usize = 512;
 
 /// Expand every macro call in `forms` to fixpoint. Returns the expanded
 /// AST list.
@@ -16,7 +21,7 @@ pub fn expand_all(
     registry: &mut MacroRegistry,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Vec<WatAST>, MacroError> {
+) -> super::ExpandBatch {
     // Arc 029 slice 1: handle macro-generating-macros. A macro call
     // may expand to a `(:wat::core::defmacro ...)` registration for
     // a new macro — e.g., `:wat::test::make-deftest` expanding to a
@@ -182,9 +187,9 @@ pub(super) fn expand_macro_call(
             if args.len() < fixed_arity {
                 return Err(MacroError {
                     span: call_site_span.clone(), // Pattern B: macro call-site span
-                    kind: MacroErrorKind::ArityMismatch {
+                    kind: MacroErrorKind::ArityTooFew {
                         name: def.name.clone(),
-                        expected: fixed_arity,
+                        minimum: fixed_arity,
                         got: args.len(),
                     },
                 });
@@ -234,6 +239,8 @@ pub(super) fn expand_macro_call(
 // scope, name, call-site span, rest-param, env, sym); none is removable
 // (arc 249 struere). clippy's 7-arg threshold is a heuristic this
 // hygiene-critical dispatcher doesn't fit.
+// rune:struere(host-constraint) — all eight params are the genuine macro-invocation context; a context struct would cost more than it saves across the three walkers.
+// NOTE: each branch uses a different subset: macro_scope → quasiquote path only; rest_param → program-body path only.
 #[allow(clippy::too_many_arguments)]
 fn expand_template(
     template: &WatAST,
@@ -245,20 +252,19 @@ fn expand_template(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    // ── Dispatch: bare quasiquote vs program body ──────────────────────────
     let quasi_body = match template {
-        WatAST::List(items, _) => as_quasiquote_body(items),
+        WatAST::List(items, _) => quasiquote_inner(items),
         _ => None,
     };
 
-    if let Some(qb) = quasi_body {
-        expand_quasiquote_body(qb, bindings, macro_scope, macro_name, call_site_span, env, sym)
+    if let Some(body) = quasi_body {
+        expand_quasiquote_body(body, bindings, macro_scope, macro_name, call_site_span, env, sym)
     } else {
         expand_program_body(template, bindings, macro_name, call_site_span, rest_param, env, sym)
     }
 }
 
-/// Existing hygienic path (bare quasiquote body) — UNCHANGED.
+/// Existing hygienic path (bare quasiquote body).
 ///
 /// `walk_template` adds sets-of-scopes hygiene to template-origin symbols.
 /// Every existing stdlib macro goes through here.
@@ -298,7 +304,9 @@ fn expand_program_body(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    check_program_body_hygiene(template, call_site_span, macro_name)?;
+    // check_program_body_hygiene was hoisted to parse_defmacro_form (definition time);
+    // validate_pure_total on the template was also hoisted. Only per-call validations
+    // of substituted/computed forms (in unquote_argument/splice_argument) remain here.
 
     // Build a body env with params bound as quoted form-values.
     //   - fixed param   → Value::wat__WatAST(Arc::new(arg_form))
@@ -382,14 +390,14 @@ fn expand_program_body(
 
 /// Walk the program body looking for quasiquote sub-forms, then check each
 /// quasiquote template for name-introducing binders.
-fn check_program_body_hygiene(
+pub(super) fn check_program_body_hygiene(
     body: &WatAST,
     call_site_span: &Span,
     macro_name: &str,
 ) -> Result<(), MacroError> {
     match body {
         WatAST::List(items, _) => {
-            if let Some(inner) = as_quasiquote_body(items) {
+            if let Some(inner) = quasiquote_inner(items) {
                 // Entered a quasiquote template: check it for literal-name binders.
                 check_quasiquote_for_literal_binders(inner, call_site_span, macro_name)?;
             } else {
@@ -412,7 +420,7 @@ fn check_program_body_hygiene(
 
 /// If `items` is `(:wat::core::quasiquote X)` (2-element List with quasiquote head),
 /// return `Some(&X)`. Otherwise `None`.
-fn as_quasiquote_body(items: &[WatAST]) -> Option<&WatAST> {
+fn quasiquote_inner(items: &[WatAST]) -> Option<&WatAST> {
     if items.len() == 2 {
         if let Some(WatAST::Keyword(k, _)) = items.first() {
             if k == ":wat::core::quasiquote" {
@@ -441,6 +449,9 @@ fn check_quasiquote_for_literal_binders(
             if head == ":wat::core::let" {
                 // args[0] is the binding vector: [binder val binder val ...]
                 // Binders are at even indices (0, 2, 4, …).
+                // Non-Vector binder arm (items.get(1) is not a Vector): CORRECT pass-through —
+                // a non-Vector binder introduces no names at this level; malformed let forms
+                // get eval's own diagnostics when the expansion is evaluated.
                 if let Some(WatAST::Vector(binder_items, _)) = items.get(1) {
                     let mut i = 0;
                     while i < binder_items.len() {
@@ -462,6 +473,9 @@ fn check_quasiquote_for_literal_binders(
                 // marker is a param name being introduced. (Stepping by 1 +
                 // marker-exclusion handles the `&`-rest case, which breaks the
                 // positional triple-cadence.)
+                // Non-Vector params arm (items.get(1) is not a Vector): CORRECT pass-through —
+                // a non-Vector params form introduces no names at this level; malformed fn forms
+                // get eval's own diagnostics when the expansion is evaluated.
                 if let Some(WatAST::Vector(param_items, _)) = items.get(1) {
                     let mut i = 0;
                     while i < param_items.len() {
@@ -501,6 +515,7 @@ fn check_quasiquote_for_literal_binders(
 // scope, name, call-site span, depth, env, sym); none is removable
 // (arc 249 struere). clippy's 7-arg threshold is a heuristic this
 // hygiene-critical splice helper doesn't fit.
+// rune:struere(host-constraint) — all eight params are the genuine macro-invocation context; a context struct would cost more than it saves across the three walkers.
 #[allow(clippy::too_many_arguments)]
 fn splice_children(
     items: &[WatAST],
@@ -511,7 +526,7 @@ fn splice_children(
     depth: u32,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Vec<WatAST>, MacroError> {
+) -> super::ExpandBatch {
     let mut out = Vec::with_capacity(items.len());
     for child in items {
         if let WatAST::List(child_items, _) = child {
@@ -597,6 +612,7 @@ fn splice_children(
 // scope, name, call-site span, depth, env, sym); none is removable
 // (arc 249 struere). clippy's 7-arg threshold is a heuristic this
 // hygiene-critical walker doesn't fit.
+// rune:struere(host-constraint) — all eight params are the genuine macro-invocation context; a context struct would cost more than it saves across the three walkers.
 #[allow(clippy::too_many_arguments)]
 fn walk_template(
     form: &WatAST,
@@ -848,7 +864,7 @@ fn splice_argument(
     macro_name: &str,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<Vec<WatAST>, MacroError> {
+) -> super::ExpandBatch {
     match arg {
         WatAST::Symbol(ident, sym_span) => {
             let bound = bindings

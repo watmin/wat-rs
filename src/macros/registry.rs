@@ -75,7 +75,7 @@ impl MacroRegistry {
     ///
     /// Arc 054: idempotent re-declaration applies — byte-equivalent
     /// re-registration is a no-op.
-    pub fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
+    pub(crate) fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if let Some(existing) = self.macros.get(&def.name) {
             if macro_structurally_equivalent(existing, &def) {
                 return Ok(());

@@ -1,17 +1,14 @@
 use crate::ast::WatAST;
-use crate::span::Span;
 
 use super::error::{MacroError, MacroErrorKind};
 use super::registry::{MacroDef, MacroRegistry};
-
-pub const EXPANSION_DEPTH_LIMIT: usize = 512;
 
 /// Walk `forms`, register every `(:wat::core::defmacro ...)` into
 /// `registry`, and return the remaining forms in order.
 pub fn register_defmacros(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
-) -> Result<Vec<WatAST>, MacroError> {
+) -> super::ExpandBatch {
     let mut rest = Vec::new();
     for form in forms {
         if is_defmacro_form(&form) {
@@ -32,7 +29,7 @@ pub fn register_defmacros(
 pub fn register_stdlib_defmacros(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
-) -> Result<Vec<WatAST>, MacroError> {
+) -> super::ExpandBatch {
     let mut rest = Vec::new();
     for form in forms {
         if is_defmacro_form(&form) {
@@ -81,12 +78,14 @@ pub(super) fn is_defmacro_form(form: &WatAST) -> bool {
 /// `parse_defmacro_signature` DELETED (Stone 241.17). The canonical argspec parser
 /// (`parse_argspec_triples`) is the sole argspec parser across fn/defn/defclause/defmacro.
 pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
+    let form_span = form.span().clone();
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
         _ => {
+            // Defensive arm: all call sites guard with is_defmacro_form (which requires a
+            // List); if we land here anyway, every WatAST variant carries a span we can use.
             return Err(MacroError {
-                // arc 138: no span — form was not a List, no span to extract.
-                span: Span::unknown(),
+                span: form_span,
                 kind: MacroErrorKind::MalformedDefmacro {
                     reason: "expected list form".into(),
                 },
@@ -172,6 +171,26 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
     // Bare derivation: macro substitution keys are bare (expansion-time pattern match).
     let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();
     let rest_param: Option<String> = spec.rest_param.map(|(ident, _ty)| ident.as_str().to_owned());
+
+    // temperare — parse-time hoist (arc 249 stone O):
+    // check_program_body_hygiene and validate_pure_total are pure predicates of the
+    // immutable MacroDef body. Run them ONCE here at definition time so a bad
+    // program-body macro fails at definition, not silently at first invocation.
+    // Only applies to program-body templates (non-quasiquote bodies); quasiquote
+    // bodies go through the walk_template path, which does not call validate_pure_total.
+    let is_program_body = !matches!(&body_item,
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote")
+    );
+    if is_program_body {
+        super::expand::check_program_body_hygiene(&body_item, &list_span, &name)?;
+        super::eval::validate_pure_total(&body_item).map_err(|e| MacroError {
+            span: list_span.clone(),
+            kind: MacroErrorKind::MalformedDefmacro {
+                reason: format!("program-body macro purity check failed at definition: {}", e.kind),
+            },
+        })?;
+    }
 
     Ok(MacroDef {
         name,

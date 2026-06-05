@@ -3,7 +3,19 @@ use super::expand;
 use crate::ast::WatAST;
 use crate::scope::Identifier;
 
-fn expand_src(src: &str) -> Result<Vec<WatAST>, MacroError> {
+/// Parse `src`, register defmacros, and return `(registry, rest_forms, env, sym)`.
+/// Panics on parse or registration failure — for success-path setup only.
+/// Tests that exercise error paths call `expand_src` directly (which propagates errors).
+fn expand_setup(src: &str) -> (MacroRegistry, Vec<WatAST>, crate::runtime::Environment, crate::runtime::SymbolTable) {
+    let forms = crate::parse_all!(src).expect("parse ok");
+    let mut reg = MacroRegistry::new();
+    let rest = register_defmacros(forms, &mut reg).expect("register_defmacros ok");
+    let env = crate::runtime::Environment::default();
+    let sym = crate::runtime::SymbolTable::default();
+    (reg, rest, env, sym)
+}
+
+fn expand_src(src: &str) -> super::ExpandBatch {
     let forms = crate::parse_all!(src).expect("parse ok");
     let mut reg = MacroRegistry::new();
     let rest = register_defmacros(forms, &mut reg)?;
@@ -15,7 +27,7 @@ fn expand_src(src: &str) -> Result<Vec<WatAST>, MacroError> {
 /// Like `expand`, but DOES NOT strip generated defmacros from the
 /// output. Arc 029 slice 1 tests use this to inspect the body of
 /// a defmacro produced by an outer macro-generating-macro call.
-fn expand_keeping_defmacros(src: &str) -> Result<Vec<WatAST>, MacroError> {
+fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     let forms = crate::parse_all!(src).expect("parse ok");
     let mut reg = MacroRegistry::new();
     let rest = register_defmacros(forms, &mut reg)?;
@@ -134,6 +146,54 @@ fn nested_macro_expands_to_fixpoint() {
 
 // ─── Hygiene — template-origin identifiers get the macro scope ─────
 
+/// Drill into a plain `(:wat::core::let ((binder val) ...) …)` form and return
+/// the first binder Identifier. Shape: `form[1]` = bindings-list; `bindings[0]` =
+/// pair; `pair[0]` = Symbol. Each arm carries a descriptive panic message.
+fn drill_let_binder_ident(form: &WatAST) -> &Identifier {
+    let list = match form {
+        WatAST::List(items, _) => items,
+        _ => panic!("drill_let_binder_ident: expected let-List; got non-List"),
+    };
+    let bindings = match &list[1] {
+        WatAST::List(bs, _) => bs,
+        _ => panic!("drill_let_binder_ident: expected bindings-list at list[1]; got non-List"),
+    };
+    let pair = match &bindings[0] {
+        WatAST::List(b, _) => b,
+        _ => panic!("drill_let_binder_ident: expected binding-pair at bindings[0]; got non-List"),
+    };
+    match &pair[0] {
+        WatAST::Symbol(i, _) => i,
+        _ => panic!("drill_let_binder_ident: expected Symbol at pair[0]; got non-Symbol"),
+    }
+}
+
+#[test]
+fn drill_let_binder_ident_on_minimal_form() {
+    // Prove the helper on a hand-built (:let ((tmp 1)) tmp) form.
+    let span = crate::span::Span::unknown();
+    let tmp_ident = Identifier::bare("tmp");
+    let pair = WatAST::List(
+        vec![
+            WatAST::Symbol(tmp_ident.clone(), span.clone()),
+            WatAST::IntLit(1, span.clone()),
+        ],
+        span.clone(),
+    );
+    let bindings = WatAST::List(vec![pair], span.clone());
+    let form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::let".into(), span.clone()),
+            bindings,
+            WatAST::Symbol(tmp_ident.clone(), span.clone()),
+        ],
+        span.clone(),
+    );
+    let extracted = drill_let_binder_ident(&form);
+    assert_eq!(extracted.as_str(), "tmp");
+    assert_eq!(extracted, &tmp_ident);
+}
+
 #[test]
 fn template_identifier_carries_macro_scope() {
     let forms = expand_src(
@@ -148,25 +208,12 @@ fn template_identifier_carries_macro_scope() {
     .unwrap();
     // Expansion: (:wat::core::let ((tmp[macro-scope] 1)) tmp[user-empty])
     // The two `tmp`s must have DIFFERENT Identifiers.
+    let template_tmp = drill_let_binder_ident(&forms[0]);
+    // The body position's `tmp` — user-supplied argument, not macro-origin.
     let list = match &forms[0] {
         WatAST::List(items, _) => items,
         _ => panic!("expected list"),
     };
-    // ((tmp 1)) — new canonical shape: drill through the bindings list
-    // and the binding pair to reach tmp directly at position 0.
-    let bindings = match &list[1] {
-        WatAST::List(bs, _) => bs,
-        _ => panic!("expected bindings list"),
-    };
-    let first_binding = match &bindings[0] {
-        WatAST::List(b, _) => b,
-        _ => panic!("expected binding pair"),
-    };
-    let template_tmp = match &first_binding[0] {
-        WatAST::Symbol(i, _) => i,
-        _ => panic!("expected Symbol at binding name position"),
-    };
-    // The body position's `tmp` — user-supplied argument, not macro-origin.
     let user_tmp = match &list[2] {
         WatAST::Symbol(i, _) => i,
         _ => panic!("expected Symbol in body"),
@@ -212,24 +259,10 @@ fn binder_and_reference_carry_identical_scope_sets() {
     //   list[0] = :wat::core::let keyword
     //   list[1] = bindings list ((tmp 1))
     //   list[2] = body reference `tmp`
+    let binder = drill_let_binder_ident(&forms[0]);
     let list = match &forms[0] {
         WatAST::List(items, _) => items,
         _ => panic!("expected let list"),
-    };
-    // Drill: list[1] = ((tmp 1)) — the bindings list
-    let bindings = match &list[1] {
-        WatAST::List(bs, _) => bs,
-        _ => panic!("expected bindings list"),
-    };
-    // Drill: bindings[0] = (tmp 1) — the binding pair
-    let pair = match &bindings[0] {
-        WatAST::List(b, _) => b,
-        _ => panic!("expected binding pair"),
-    };
-    // pair[0] = binder `tmp`
-    let binder = match &pair[0] {
-        WatAST::Symbol(i, _) => i,
-        _ => panic!("expected Symbol at binder position"),
     };
     // list[2] = body reference `tmp`
     let body_ref = match &list[2] {
@@ -284,6 +317,64 @@ fn argument_identifiers_pass_through_unchanged() {
 
 // ─── Classic capture: two macros introduce the same template name ─
 
+/// Extract the typed-binding symbol from a `(:wat::core::let (((t :i64) val)) …)` form.
+///
+/// Drills: outer-list[1] = bindings-list → bindings[0] = pair → pair[0] = typed-name-list
+/// → typed-name[0] = Symbol. Each arm carries a descriptive panic message naming the layer.
+fn extract_typed_binding_sym(form: &WatAST) -> Identifier {
+    let outer = match form {
+        WatAST::List(items, _) => items,
+        _ => panic!("extract_typed_binding_sym: expected outer let-List; got non-List"),
+    };
+    let bindings = match &outer[1] {
+        WatAST::List(b, _) => b,
+        _ => panic!("extract_typed_binding_sym: expected bindings-list at outer[1]; got non-List"),
+    };
+    let pair = match &bindings[0] {
+        WatAST::List(b, _) => b,
+        _ => panic!("extract_typed_binding_sym: expected binding-pair at bindings[0]; got non-List"),
+    };
+    let typed_name = match &pair[0] {
+        WatAST::List(tn, _) => tn,
+        _ => panic!("extract_typed_binding_sym: expected typed-name-list at pair[0]; got non-List"),
+    };
+    match &typed_name[0] {
+        WatAST::Symbol(i, _) => i.clone(),
+        _ => panic!("extract_typed_binding_sym: expected Symbol at typed_name[0]; got non-Symbol"),
+    }
+}
+
+#[test]
+fn extract_typed_binding_sym_on_minimal_form() {
+    // Build a minimal (:let (((t :i64) 1)) …) form by hand and assert the helper
+    // returns the `t` Identifier — proving the helper on data we fully control.
+    let span = crate::span::Span::unknown();
+    let t_ident = Identifier::bare("t");
+    let typed_name = WatAST::List(
+        vec![
+            WatAST::Symbol(t_ident.clone(), span.clone()),
+            WatAST::Keyword(":i64".into(), span.clone()),
+        ],
+        span.clone(),
+    );
+    let pair = WatAST::List(
+        vec![typed_name, WatAST::IntLit(1, span.clone())],
+        span.clone(),
+    );
+    let bindings = WatAST::List(vec![pair], span.clone());
+    let outer = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::let".into(), span.clone()),
+            bindings,
+            WatAST::Symbol(t_ident.clone(), span.clone()),
+        ],
+        span.clone(),
+    );
+    let extracted = extract_typed_binding_sym(&outer);
+    assert_eq!(extracted.as_str(), "t");
+    assert_eq!(extracted, t_ident);
+}
+
 #[test]
 fn two_macro_invocations_get_distinct_scopes() {
     let forms = expand_src(
@@ -299,35 +390,8 @@ fn two_macro_invocations_get_distinct_scopes() {
     .unwrap();
     // Both expansions bind `t` in the template; each invocation should
     // tag its `t` with a FRESH scope. The two `t`s differ.
-    let extract_binding_sym = |f: &WatAST| -> Identifier {
-        let outer = if let WatAST::List(items, _) = f {
-            items.clone()
-        } else {
-            panic!("expected list")
-        };
-        let bindings = if let WatAST::List(b, _) = &outer[1] {
-            b.clone()
-        } else {
-            panic!()
-        };
-        let pair = if let WatAST::List(b, _) = &bindings[0] {
-            b.clone()
-        } else {
-            panic!()
-        };
-        let typed_name = if let WatAST::List(tn, _) = &pair[0] {
-            tn.clone()
-        } else {
-            panic!()
-        };
-        if let WatAST::Symbol(i, _) = &typed_name[0] {
-            i.clone()
-        } else {
-            panic!()
-        }
-    };
-    let t1 = extract_binding_sym(&forms[0]);
-    let t2 = extract_binding_sym(&forms[1]);
+    let t1 = extract_typed_binding_sym(&forms[0]);
+    let t2 = extract_typed_binding_sym(&forms[1]);
     assert_eq!(t1.as_str(), "t");
     assert_eq!(t2.as_str(), "t");
     assert_ne!(t1, t2, "each invocation should mint a fresh macro scope");
@@ -388,6 +452,34 @@ fn macro_arity_mismatch() {
     )
     .unwrap_err();
     assert!(matches!(err, MacroError { kind: MacroErrorKind::ArityMismatch { .. }, .. }));
+}
+
+#[test]
+fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
+    // A variadic macro declares two fixed params + a rest-param.
+    // Calling it with one arg (below the fixed minimum of 2) must
+    // error with ArityTooFew and display "expects at least 2 arguments".
+    let err = expand_src(
+        r#"
+        (:wat::core::defmacro :my::variadic
+          [x <- :AST y <- :AST & rest <- :AST<List>]
+          -> :AST
+          `(:wat::core::Vector ~x ~y ~@rest))
+        (:my::variadic 1)
+        "#,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::ArityTooFew { .. }, .. }),
+        "expected ArityTooFew for variadic macro called with too-few args; got: {:?}",
+        err
+    );
+    let rendered = format!("{}", err);
+    assert!(
+        rendered.contains("expects at least 2 arguments"),
+        "ArityTooFew Display must read 'expects at least 2 arguments'; got: {}",
+        rendered
+    );
 }
 
 #[test]
@@ -456,6 +548,38 @@ fn find_defmacro_body(form: &WatAST) -> &WatAST {
         }
         _ => panic!("expected defmacro list"),
     }
+}
+
+#[test]
+fn find_defmacro_body_returns_quasiquote_inner() {
+    // Build a minimal (:wat::core::defmacro :name [x <- :AST] -> :AST `body-sentinel)
+    // by hand; assert find_defmacro_body returns the quasiquote inner (the body-sentinel).
+    let span = crate::span::Span::unknown();
+    let sentinel = WatAST::IntLit(999, span.clone());
+    let quasi = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::quasiquote".into(), span.clone()),
+            sentinel.clone(),
+        ],
+        span.clone(),
+    );
+    let defmacro_form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::defmacro".into(), span.clone()),
+            WatAST::Keyword(":my::name".into(), span.clone()),
+            WatAST::Vector(vec![], span.clone()),
+            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(":AST".into(), span.clone()),
+            quasi,
+        ],
+        span.clone(),
+    );
+    let inner = find_defmacro_body(&defmacro_form);
+    assert!(
+        matches!(inner, WatAST::IntLit(999, _)),
+        "find_defmacro_body must return the quasiquote inner (the body content); got: {:?}",
+        inner
+    );
 }
 
 /// Helper: assert `form` is `(:wat::core::unquote <arg>)` and
@@ -606,12 +730,14 @@ fn unquote_splicing_at_depth_two_preserves() {
     }
 }
 
-// Note: ,,@X (double unquote-splicing) is NOT yet supported. The
-// `make-deftest` pattern uses `,,default-prelude` (non-splicing double
-// unquote) where the list value is placed as deftest's prelude argument
-// — the splicing happens inside deftest's own template, not at
-// make-deftest's level.
+// Double unquote-splicing (,,@X) is out of arc 249's scope — the depth-protocol
+// treats the inner ,@ as a preserved unquote-splicing wrapper inside the nested
+// quasiquote (depth > 1 peel path), so ,,@xs in an outer template leaves
+// (:wat::core::unquote-splicing xs) intact in the generated macro's body for
+// the inner expansion pass to splice. Not tracked elsewhere: no consumer has
+// surfaced the form.
 
+// rune:complectens(inline-fixtures) — body dominated by an embedded 3-macro program source + AST shape assertions; outer logical bindings = 1; the visual length is data, not composition.
 #[test]
 fn make_deftest_shaped_template_expands_through_two_passes() {
     // The canonical forcing case — a macro-generating-macro that
@@ -676,10 +802,10 @@ fn make_deftest_shaped_template_expands_through_two_passes() {
 #[test]
 fn arc138_macro_error_message_carries_span() {
     // Trigger ArityMismatch — a two-param macro called with one arg.
-    // The call-site form is parsed with `parse_all` which labels spans
-    // `<test>:<line>:<col>`. The MacroError Display arm prefixes the
-    // span via `span_prefix`, so the rendered message must contain
-    // `<test>:` when the variant's span is known.
+    // The call-site form is parsed with `parse_all!` which labels spans
+    // using file!() — e.g. "src/macros/tests.rs:N:M". The MacroError
+    // Display arm prefixes the span via `span_prefix`, so the rendered
+    // message must contain "src/" or ".rs:" when the variant's span is known.
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::two
@@ -706,37 +832,46 @@ fn arc138_macro_error_message_carries_span() {
 
 // ─── Arc 143 slice 2 — computed unquote ─────────────────────────────
 
-/// `substitute_bindings` helper: replaces Symbols bound in the map,
-/// recurses into Lists, passes keywords + literals through unchanged.
+/// `substitute_bindings`: a Symbol whose name is in the bindings map is replaced
+/// with the bound AST value.
 #[test]
-fn substitute_bindings_replaces_symbols_and_recurses() {
+fn substitute_bindings_bound_symbol_is_replaced() {
     let mut bindings = std::collections::HashMap::new();
     let span = crate::span::Span::unknown();
     bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
-    // Symbol that IS in bindings → replaced.
-    let sym = WatAST::Symbol(
-        Identifier::bare("x"),
-        span.clone(),
-    );
+    let sym = WatAST::Symbol(Identifier::bare("x"), span.clone());
     let out = expand::substitute_bindings(&sym, &bindings);
     assert!(matches!(out, WatAST::IntLit(42, _)));
-    // Symbol NOT in bindings → passes through as-is.
-    let sym2 = WatAST::Symbol(
-        Identifier::bare("y"),
-        span.clone(),
-    );
-    let out2 = expand::substitute_bindings(&sym2, &bindings);
-    assert!(matches!(out2, WatAST::Symbol(_, _)));
-    // List containing the symbol — recursive replacement.
+}
+
+/// `substitute_bindings`: a Symbol whose name is NOT in the bindings map passes
+/// through unchanged.
+#[test]
+fn substitute_bindings_unbound_symbol_passes_through() {
+    let bindings = std::collections::HashMap::new();
+    let span = crate::span::Span::unknown();
+    let sym = WatAST::Symbol(Identifier::bare("y"), span.clone());
+    let out = expand::substitute_bindings(&sym, &bindings);
+    assert!(matches!(out, WatAST::Symbol(_, _)));
+}
+
+/// `substitute_bindings`: a List containing a bound Symbol is recursed into;
+/// the Symbol is replaced inside the List.
+#[test]
+fn substitute_bindings_recurses_into_list() {
+    let mut bindings = std::collections::HashMap::new();
+    let span = crate::span::Span::unknown();
+    bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
+    let sym = WatAST::Symbol(Identifier::bare("x"), span.clone());
     let list = WatAST::List(
         vec![
             WatAST::Keyword(":head".into(), span.clone()),
-            sym.clone(),
+            sym,
         ],
         span.clone(),
     );
-    let out3 = expand::substitute_bindings(&list, &bindings);
-    match out3 {
+    let out = expand::substitute_bindings(&list, &bindings);
+    match out {
         WatAST::List(items, _) => {
             assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":head"));
             assert!(matches!(&items[1], WatAST::IntLit(42, _)));
@@ -926,18 +1061,13 @@ fn depth_limit_exceeded_on_self_recursive_macro() {
 /// returns a call to the inner macro, NOT the final value.
 #[test]
 fn expand_once_single_step_not_fixpoint() {
-    let forms = crate::parse_all!(
+    let (reg, rest, env, sym) = expand_setup(
         r#"
         (:wat::core::defmacro :my::outer [x <- :AST] -> :AST `(:my::inner ~x))
         (:wat::core::defmacro :my::inner [x <- :AST] -> :AST `(:wat::holon::Atom ~x))
         (:my::outer 42)
-        "#
-    )
-    .expect("parse ok");
-    let mut reg = MacroRegistry::new();
-    let rest = register_defmacros(forms, &mut reg).unwrap();
-    let env = crate::runtime::Environment::default();
-    let sym = crate::runtime::SymbolTable::default();
+        "#,
+    );
     // rest[0] is the (:my::outer 42) call.
     let once = expand_once(rest[0].clone(), &reg, &env, &sym).unwrap();
     // One step: (:my::outer ...) → (:my::inner 42), NOT (:wat::holon::Atom 42).

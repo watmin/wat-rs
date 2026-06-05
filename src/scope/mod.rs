@@ -5,7 +5,7 @@
 //! parallel slot-writes), clippy-clean in-home. Two full inward rounds + the
 //! perimeter; every finding fought (the one stale-guard rune was FIXED out of
 //! existence, not reworded). Declared invariants, each enforced by a living
-//! gate: (1) only `env_key` + the canonical hasher read `.scopes()`
+//! gate: (1) only `env_key` + the canonical hasher read the Identifier scope-set
 //! (tests/probe_hygiene_scopes_reader_gate.rs); (2) walk_template scope-set
 //! uniformity — binder ≡ body-reference (macros/tests.rs); (3) 2-scope
 //! end-to-end resolution under nested expansion (tests/probe_macro_hygiene_capture.rs);

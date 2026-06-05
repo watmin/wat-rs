@@ -62,6 +62,8 @@
 //! Typed-macro `:AST<T>` checking lives in the type checker's phase
 //! (058-032).
 
+use crate::ast::WatAST;
+
 pub(crate) mod error;
 pub(crate) mod registry;
 pub(crate) mod parse;
@@ -72,7 +74,10 @@ pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};
 pub use expand::{expand_all, expand_once};
 pub use parse::{register_defmacros, register_stdlib_defmacros};
-pub use parse::EXPANSION_DEPTH_LIMIT;
+pub use expand::EXPANSION_DEPTH_LIMIT;
+
+/// A batch of expanded forms, or the macro error that stopped expansion.
+pub(crate) type ExpandBatch = Result<Vec<WatAST>, MacroError>;
 
 #[cfg(test)]
 mod tests;

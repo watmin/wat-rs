@@ -21,10 +21,17 @@ pub enum MacroErrorKind {
     ReservedPrefix(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
-    /// A macro call passed the wrong number of arguments.
+    /// A macro call passed the wrong number of arguments (fixed-arity macro).
     ArityMismatch {
         name: String,
         expected: usize,
+        got: usize,
+    },
+    /// A variadic macro call passed too few arguments (fewer than the
+    /// required fixed-param minimum).
+    ArityTooFew {
+        name: String,
+        minimum: usize,
         got: usize,
     },
     /// An `unquote` reference named a parameter the macro didn't declare.
@@ -82,6 +89,13 @@ impl fmt::Display for MacroErrorKind {
                     f,
                     "macro {} expects {} arguments; got {}",
                     name, expected, got
+                )
+            }
+            MacroErrorKind::ArityTooFew { name, minimum, got } => {
+                write!(
+                    f,
+                    "macro {} expects at least {} arguments; got {}",
+                    name, minimum, got
                 )
             }
             MacroErrorKind::UnboundMacroParam { name } => {

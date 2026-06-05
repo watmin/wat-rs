@@ -9,7 +9,7 @@
 //! # DEFAULT-DENY
 //!
 //! The allow-list is the PURE-TOTAL subset of `dispatch_keyword_head` /
-//! `dispatch_keyword_head_value` (runtime.rs:5295 / 5318). Every head NOT
+//! `dispatch_keyword_head_value` (runtime.rs: fn dispatch_keyword_head / fn dispatch_keyword_head_value). Every head NOT
 //! explicitly blessed is refused. This means:
 //!   - a newly-added effectful prim is AUTOMATICALLY refused (the F5 class
 //!     structurally cannot recur) — it stays denied until someone deliberately blesses it.
@@ -111,7 +111,7 @@ pub(crate) fn macro_eval(
 ///   - same unquote forms at depth > 1 → peel depth, recurse (still inside a
 ///     nested quasiquote; E is data at this level)
 ///   - everything else → recurse `validate_quasiquote_template` (template data)
-pub(crate) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
+pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
     match form {
         WatAST::List(items, span) => {
             match items.first() {
@@ -236,7 +236,7 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // ─── Blessed allow-list — DEFAULT-DENY ───────────────────────────────────────
 //
 // ONLY the pure-total subset of `dispatch_keyword_head` / `dispatch_keyword_head_value`
-// (runtime.rs:5295 / 5318). Effectful heads (`:wat::kernel::*`, IO, spawning,
+// (runtime.rs: fn dispatch_keyword_head / fn dispatch_keyword_head_value). Effectful heads (`:wat::kernel::*`, IO, spawning,
 // time `now`, random UUIDs, signal queries, `:wat::core::apply`,
 // `:wat::core::eval-ast!`, etc.) are NOT present here — they are DENIED by default.
 //
@@ -247,7 +247,7 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
 // Arc 249 Stone 249.2b-i — F5 CLOSED: this allow-list is the gate.
 //
 // rune:struere(invariant-coupling) — this allow-list mirrors the pure-total arm of
-// dispatch_keyword_head/_value (runtime.rs); the suite enforces completeness
+// fn dispatch_keyword_head / fn dispatch_keyword_head_value (runtime.rs); the suite enforces completeness
 // (default-deny makes over-restriction the only drift direction).
 fn is_pure_total(head: &str) -> bool {
     matches!(
@@ -441,15 +441,6 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::holon::is-Tag?"
         | ":wat::holon::is-Nil?"
 
-        // ── Quasiquote / unquote (pure form-builders) ─────────────────
-        // Note: quasiquote and quote are SKIPPED in validate_pure_total
-        // (data, not code). Listed here only for completeness / in case
-        // runtime::eval is given a raw quasiquote that validate_pure_total
-        // allowed through the skip path; the skip path does not add the
-        // head to the blessed set, so they land in is_pure_total only if
-        // explicitly listed (harmless).
-        | ":wat::core::quasiquote"
-        | ":wat::core::quote"
         | ":wat::core::struct->form"
         | ":wat::core::forms"
         | ":wat::core::show"
