@@ -9,14 +9,10 @@
 ;;
 ;; Usage shape:
 ;;
-;;   (:wat::core::define (:user::main
-;;                        (stdin  :wat::io::IOReader)
-;;                        (stdout :wat::io::IOWriter)
-;;                        (stderr :wat::io::IOWriter)
-;;                        -> :())
+;;   (:wat::core::defn :user::main [] -> :wat::core::nil
 ;;     (:wat::core::let
-;;       (((r :wat::kernel::RunResult)
-;;         (:wat::test::run "(:user::main ...)" (:wat::core::Vector :wat::core::String))))
+;;       [r (:wat::test::run "(:wat::core::defn :user::main [] -> :wat::core::nil ...)"
+;;                           (:wat::core::Vector :wat::core::String))]
 ;;       (:wat::test::assert-stdout-is r
 ;;         (:wat::core::conj (:wat::core::Vector :wat::core::String) "expected-line"))))
 ;;
@@ -181,7 +177,7 @@
 ;;
 ;;   (:wat::test::run-ast
 ;;     (:wat::test::program
-;;       (:wat::core::define (:user::main ...) <body>))
+;;       (:wat::core::defn :user::main [] -> :wat::core::nil <body>))
 ;;     (:wat::core::Vector :wat::core::String))
 ;;
 ;; `:wat::test::program` expands to `:wat::core::forms` — the
@@ -247,7 +243,7 @@
 ;;
 ;;   (:wat::core::do
 ;;     <prelude spliced here — top-level forms registered at freeze time>
-;;     (:wat::core::define (:my::test::two-plus-two -> :wat::test::TestResult)
+;;     (:wat::core::defn :my::test::two-plus-two [] -> :wat::test::TestResult
 ;;       (:wat::test::run-thread <body>)))
 (:wat::core::defmacro :wat::test::deftest
   [name    <- :AST<wat::core::nil>
@@ -260,23 +256,22 @@
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
-;; Identical to `deftest` except the sandboxed program runs in a forked
-;; child via `:wat::kernel::run-sandboxed-hermetic-ast` (→ wat/kernel/
-;; hermetic.wat → :wat::kernel::fork-program-ast). Use for tests that
-;; exercise services spawning driver threads (Console, Cache) —
-;; in-process run-ast uses StringIo stdio (ThreadOwnedCell, single-
-;; thread) and cross-thread writes from a driver panic silently.
-;; hermetic runs in a child with real thread-safe stdio (PipeReader /
-;; PipeWriter; arc 012). The child inherits the caller's SymbolTable
-;; (including loaded deps) + committed Config (arc 031) via COW.
+;; Identical to `deftest` except the body runs in a forked child via
+;; `:wat::test::run-hermetic-with-prelude` (→ spawn-process → OS fork).
+;; Use for tests that exercise services spawning driver threads
+;; (Console, Cache) — in-process run-thread uses spawn-thread (no per-
+;; thread stdio capture), and cross-thread writes from a driver panic
+;; silently. hermetic runs in a child with real thread-safe stdio
+;; (PipeReader / PipeWriter; arc 012). The child inherits the caller's
+;; SymbolTable (including loaded deps) + committed Config (arc 031) via COW.
 ;;
 ;; Arc 170 slice 3 Phase E — Path E migration: prelude declarations
 ;; land at the fn body's do-prefix; Gap H + I-A + I-B's closure-extraction
 ;; lift moves them to the spawned child's prologue where they register at
 ;; top-level. The substrate gap that blocked Gap G ("DefineInExpressionPosition
-;; for define-in-fn-body-do") is closed — `is_declaration_form` covers all 8
-;; declaration heads (define / def / defmacro / define-dispatch / struct /
-;; enum / newtype / typealias) and `extract_closure`'s `split_body_prelude`
+;; for define-in-fn-body-do") is closed — `is_declaration_form` covers the
+;; declaration heads (def / defmacro / defstruct / defenum / newtype /
+;; typealias / defalias) and `extract_closure`'s `split_body_prelude`
 ;; lifts them to the closure prologue before child eval sees them.
 (:wat::core::defmacro :wat::test::deftest-hermetic
   [name    <- :AST<wat::core::nil>
@@ -513,12 +508,12 @@
 ;;   (:wat::test::run-hermetic-driver
 ;;     (:wat::kernel::spawn-process
 ;;       (:wat::core::forms
-;;         (:wat::core::define (:user::main -> :wat::core::nil) <body>))))
+;;         (:wat::core::defn :user::main [] -> :wat::core::nil <body>))))
 ;;
 ;; Arc 170 slice 6 pivot: spawn-process now accepts a wat PROGRAM
 ;; (Vector<wat::WatAST>) — exactly what `wat some-file.wat` reads from
 ;; disk: optional top-level setters / type declarations / helper
-;; defines, plus a `(:wat::core::define (:user::main -> :nil) ...)`
+;; defines, plus a `(:wat::core::defn :user::main [] -> :wat::core::nil ...)`
 ;; entry point. The 99% case (no prelude) is a one-form program: the
 ;; entry-point define. The 1% case (config setters etc.) uses the
 ;; sibling macro `:wat::test::run-hermetic-with-prelude` (below) to
@@ -556,19 +551,19 @@
 ;;   prelude — a parenthesized list of top-level forms (optional config
 ;;             setters via :wat::config::set-*!, optional type
 ;;             declarations via :wat::core::struct / :wat::core::enum,
-;;             optional helper defines via :wat::core::define, etc.).
+;;             optional helper defines via :wat::core::defn, etc.).
 ;;             Spliced as TOP-LEVEL program forms BEFORE the entry-point
-;;             define.
+;;             defn.
 ;;   body    — the entry-point body. Wrapped in
-;;             `(:wat::core::define (:user::main -> :wat::core::nil)
+;;             `(:wat::core::defn :user::main [] -> :wat::core::nil
 ;;                ~body)` and appended after the prelude.
 ;;
 ;; Shape:
 ;;
 ;;   (:wat::test::run-hermetic-with-prelude
-;;     ((:wat::core::define (:helper -> :wat::core::nil)
+;;     ((:wat::core::defn :helper [] -> :wat::core::nil
 ;;        (:wat::kernel::println "from helper"))
-;;      (:wat::core::define (:other-helper -> :wat::core::i64) 42))
+;;      (:wat::core::defn :other-helper [] -> :wat::core::i64 42))
 ;;     (:wat::core::do
 ;;       (:helper)
 ;;       :wat::core::nil))
@@ -578,10 +573,10 @@
 ;;   (:wat::test::run-hermetic-driver
 ;;     (:wat::kernel::spawn-process
 ;;       (:wat::core::forms
-;;         (:wat::core::define (:helper -> :wat::core::nil)
+;;         (:wat::core::defn :helper [] -> :wat::core::nil
 ;;           (:wat::kernel::println "from helper"))
-;;         (:wat::core::define (:other-helper -> :wat::core::i64) 42)
-;;         (:wat::core::define (:user::main -> :wat::core::nil)
+;;         (:wat::core::defn :other-helper [] -> :wat::core::i64 42)
+;;         (:wat::core::defn :user::main [] -> :wat::core::nil
 ;;           (:wat::core::do
 ;;             (:helper)
 ;;             :wat::core::nil)))))
@@ -592,9 +587,9 @@
 ;; fn-only substrate shape. The slice-6 pivot makes the substrate's IPC
 ;; contract = wat-cli's IPC contract — top-level forms ARE the program
 ;; shape. This macro is the direct surface; no lift required because no
-;; expression-position descent ever happens. The 8 declaration heads
-;; (define / def / defmacro / define-dispatch / struct / enum /
-;; newtype / typealias) all sit at their natural position from the start.
+;; expression-position descent ever happens. The declaration heads
+;; (def / defmacro / defstruct / defenum / newtype / typealias / defalias)
+;; all sit at their natural position from the start.
 ;;
 ;; The driver is shared with run-hermetic — same Process<nil,nil> →
 ;; RunResult flow; the only difference is the spawn-process program
@@ -648,8 +643,8 @@
 ;;
 ;; Naming exception: lives under :wat::test::*, not :wat::kernel::*
 ;; (where the process-side sibling lives). There's exactly one caller
-;; — run-thread-driver, a test-layer helper. Promote to kernel:: if a
-;; kernel-layer caller surfaces later.
+;; — run-thread-driver, a test-layer helper. Placement is deliberate:
+;; one caller, test-layer scope — :wat::test::* is the right home.
 (:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::first chain)
       -> :wat::kernel::Failure
@@ -704,12 +699,11 @@
 ;; The `_in` / `_out` channel params are unused — Layer 1 bodies
 ;; communicate via ambient stdio (the three substrate services route
 ;; println/eprintln/readln on the parent's fd 0/1/2 inside this
-;; thread). Same pattern stream.wat:94-99 uses for its producer
+;; thread). Same pattern stream.wat:91-97 uses for its producer
 ;; workers: typed Receiver<nil> / Sender<nil> ignored by the body.
 ;;
-;; DO NOT MODIFY deftest's body (currently expands to run-hermetic) —
-;; the deftest-default flip belongs to a future stone (arc 170 slice
-;; 4a-γ). This mint stands on its own; sweep + flip are downstream.
+;; DO NOT MODIFY deftest's body (currently expands to run-thread) —
+;; this mint stands on its own; sweep + flip are downstream.
 (:wat::core::defmacro :wat::test::run-thread
   [body <- :AST<wat::core::nil>]
   -> :AST<wat::core::nil>
@@ -763,7 +757,8 @@
 ;;   is not expressible in wat's function-scope bindings. This pattern
 ;;   (child reads to EOF) is NOT the T18 case — T18's child reads exactly
 ;;   one value and exits. Threaded drain (concurrent send + recv) is the
-;;   correct fix for the EOF-reading pattern; deferred to a future arc.
+;;   correct fix for the EOF-reading pattern; the pattern is not exercised
+;;   by run-hermetic-with-io (T18 only) so the substrate gap is latent here.
 
 ;; ── run-hermetic-send-inputs ─────────────────────────────────────────────
 ;;

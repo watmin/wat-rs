@@ -74,11 +74,13 @@
    ;; Thread/println + Thread/readln on it.
    ;; Whitelist [:counter::] (NOT [:counter/]) — arc 198 prefix matching fires
    ;; only for entries ending in ::; see SCORE.
-   (:wat::core::struct-restricted :counter::User
-     [:counter::]
-     ([:counter::] server-id <- :wat::core::Uuid
-      [:counter::] user-id   <- :wat::core::Uuid)
-     (peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>))
+   (:wat::core::defstruct :counter::User
+     {:restricted-to [:counter::]
+      :field-metadata {:server-id {:restricted-to [:counter::]}
+                       :user-id   {:restricted-to [:counter::]}}}
+     [server-id <- :wat::core::Uuid
+      user-id   <- :wat::core::Uuid
+      peer!     <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>])
 
    ;; ─── Dispatch loop ───────────────────────────────────────────────────
    ;;
@@ -244,4 +246,4 @@
      _              (:wat::test::assert-eq after-reset 0)
      final-state    (:counter::shutdown user!)
      _              (:wat::test::assert-eq final-state 0)]
-    :wat::core::nil))
+    nil))

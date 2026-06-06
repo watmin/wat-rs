@@ -157,12 +157,14 @@
    ;; Minted ONLY by :counter::spawn-proc (constructor whitelist [:counter::]).
    ;; All fields restricted to :counter::* reads.
    ;; Arc 207: server-id is typed :wat::core::Uuid.
-   (:wat::core::struct-restricted :counter::AdminProc
-     [:counter::]
-     ([:counter::] server-id <- :wat::core::Uuid
-      [:counter::] peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>
-      [:counter::] proc!     <- :wat::kernel::Process<counter::Wire,counter::WireResp>)
-     ())
+   (:wat::core::defstruct :counter::AdminProc
+     {:restricted-to [:counter::]
+      :field-metadata {:server-id {:restricted-to [:counter::]}
+                       :peer!     {:restricted-to [:counter::]}
+                       :proc!     {:restricted-to [:counter::]}}}
+     [server-id <- :wat::core::Uuid
+      peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>
+      proc!     <- :wat::kernel::Process<counter::Wire,counter::WireResp>])
 
    ;; :counter::UserProc — per-user capability handle.
    ;;   server-id  — identifies which server issued this user
@@ -172,12 +174,14 @@
    ;; Minted ONLY by :counter::provision-proc (constructor whitelist [:counter::]).
    ;; All fields restricted to :counter::* reads.
    ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
-   (:wat::core::struct-restricted :counter::UserProc
-     [:counter::]
-     ([:counter::] server-id <- :wat::core::Uuid
-      [:counter::] user-id   <- :wat::core::Uuid
-      [:counter::] peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>)
-     ())
+   (:wat::core::defstruct :counter::UserProc
+     {:restricted-to [:counter::]
+      :field-metadata {:server-id {:restricted-to [:counter::]}
+                       :user-id   {:restricted-to [:counter::]}
+                       :peer!     {:restricted-to [:counter::]}}}
+     [server-id <- :wat::core::Uuid
+      user-id   <- :wat::core::Uuid
+      peer!     <- :wat::kernel::ProcessPeer<counter::WireResp,counter::Wire>])
 
    ;; ─── Privileged wrappers ──────────────────────────────────────────────────────
    ;;
@@ -909,4 +913,4 @@
                (:wat::kernel::assertion-failed! "crash-test: expected ServerDied, got Disconnected" :wat::core::None :wat::core::None))))
          ((:wat::core::Ok _)
            (:wat::kernel::assertion-failed! "crash-test: expected Err(ServerDied), got Ok" :wat::core::None :wat::core::None)))]
-    :wat::core::nil))
+    nil))

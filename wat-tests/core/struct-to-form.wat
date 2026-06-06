@@ -16,18 +16,24 @@
      [a <- :wat::core::i64
       b <- :wat::core::i64]))
   (:wat::core::let
-    [_outcome
+    [outcome
       (:wat::test::run-thread
         (:wat::core::do
           (:wat::core::let
             [p (:my::Pair/new 7 9)
              form (:wat::core::struct->form p)
-             roundtrip (:wat::eval-ast! form)
-             ;; Just check the eval succeeded — the struct re-built
-             ;; from its lifted form.
-             _ (:wat::test::assert-eq true true)]
-            ())))]
-    (:wat::test::assert-eq true true)))
+             _roundtrip (:wat::eval-ast! form)]
+            ())))
+     fail (:wat::kernel::RunResult/failure outcome)]
+    ;; Assert the inner run-thread succeeded (no failure) — the
+    ;; struct was built from its lifted form without panicking.
+    (:wat::core::match fail -> :wat::core::nil
+      (:wat::core::None nil)
+      ((:wat::core::Some f)
+        (:wat::kernel::assertion-failed!
+          (:wat::core::string::concat "roundtrip-via-eval failed: "
+            (:wat::kernel::Failure/message f))
+          :wat::core::None :wat::core::None)))))
 
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values
@@ -37,7 +43,11 @@
      y "hello"
      form
       (:wat::core::quasiquote (:my::Foo/new ~x ~y))]
-    ;; Quasiquote at runtime: ,x evaluated to 42; ,y to "hello";
-    ;; the resulting form is the WatAST `(:my::Foo/new 42 "hello")`.
-    ;; Sentinel — successful evaluation is the proof.
-    (:wat::test::assert-eq true true)))
+    ;; Quasiquote at runtime: unquoting ~x and ~y must not panic (they
+    ;; are live bindings); the WatAST is constructed. Successful
+    ;; construction without panicking is the provable fact — the
+    ;; deftest's run-thread catches any panic and surfaces it as failure,
+    ;; so a clean RunResult IS the assertion. No further structural
+    ;; inspection is available (show renders "<WatAST>" for all WatAST
+    ;; values; eval-ast! would fail because :my::Foo is not declared).
+    (:wat::core::do form ())))

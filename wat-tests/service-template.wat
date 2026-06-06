@@ -35,8 +35,9 @@
 ;; Service drivers have N request channels (per-client) + N per-request
 ;; reply channels — those are mini-TCP at the per-REQUEST level. The
 ;; substrate-allocated `out` carries the per-THREAD output (final
-;; state on graceful exit); the substrate-allocated `_in` is currently
-;; unused (a future arc may wire it to a shutdown signal).
+;; state on graceful exit); the substrate-allocated `_in` is unused —
+;; the service-driver pattern uses per-request channels; `_in` carries
+;; no signal in this architecture.
 ;;
 ;; Namespace `:svc::*` is generic — when you fork this, swap the
 ;; namespace for your domain (`:my::accountant::*`, `:my::registry::*`)
@@ -290,19 +291,14 @@
    ;; ─── Layer 2 — assertion helper ──────────────────────────────
    ;;
    ;; :test::svc-assert-state — assert that state's push-count and
-   ;; ack-count equal the expected values. Fails with a labelled
-   ;; assert-eq on mismatch. Pure function — no channels or threads.
+   ;; ack-count equal the expected values. Asserts unconditionally on
+   ;; the observable values so the comparison fires on every call and a
+   ;; regression is never silently swallowed. Pure function — no
+   ;; channels or threads.
    (:wat::core::defn :test::svc-assert-state [state <- :svc::State push-expected <- :wat::core::i64 ack-expected <- :wat::core::i64] -> :wat::core::nil
-     (:wat::core::let
-            [_pc
-              (:wat::core::if (:wat::core::= (:svc::State/push-count state) push-expected)
-                -> :wat::core::nil
-                ()
-                (:wat::test::assert-eq "push-count mismatch" ""))]
-            (:wat::core::if (:wat::core::= (:svc::State/ack-count state) ack-expected)
-              -> :wat::core::nil
-              ()
-              (:wat::test::assert-eq "ack-count mismatch" ""))))
+     (:wat::core::do
+       (:wat::test::assert-eq (:svc::State/push-count state) push-expected)
+       (:wat::test::assert-eq (:svc::State/ack-count state) ack-expected)))
 
 
    ;; ─── Layer 3 — full scenario ──────────────────────────────────

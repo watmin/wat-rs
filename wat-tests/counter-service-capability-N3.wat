@@ -137,26 +137,32 @@
    ;; Minted ONLY by :counter::spawn-cap (constructor whitelist [:counter::]).
    ;; All fields are restricted to :counter::* reads.
    ;; Arc 207: server-id is typed :wat::core::Uuid — minted fresh via Uuid/v4 at spawn.
-   (:wat::core::struct-restricted :counter::Admin
-     [:counter::]
-     ([:counter::] server-id <- :wat::core::Uuid
-      [:counter::] admin-tx  <- :wat::kernel::Sender<counter::Wire>
-      [:counter::] admin-rx  <- :wat::kernel::Receiver<counter::AdminResp>
-      [:counter::] thread    <- :wat::kernel::Thread<counter::Wire,counter::AdminResp>)
-     ())
+   (:wat::core::defstruct :counter::Admin
+     {:restricted-to [:counter::]
+      :field-metadata {:server-id {:restricted-to [:counter::]}
+                       :admin-tx  {:restricted-to [:counter::]}
+                       :admin-rx  {:restricted-to [:counter::]}
+                       :thread    {:restricted-to [:counter::]}}}
+     [server-id <- :wat::core::Uuid
+      admin-tx  <- :wat::kernel::Sender<counter::Wire>
+      admin-rx  <- :wat::kernel::Receiver<counter::AdminResp>
+      thread    <- :wat::kernel::Thread<counter::Wire,counter::AdminResp>])
 
    ;; :counter::User — per-user capability handle, server-issued via Provision.
    ;;
    ;; Minted ONLY by :counter::provision (constructor whitelist [:counter::]).
    ;; All fields are restricted to :counter::* reads.
    ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
-   (:wat::core::struct-restricted :counter::User
-     [:counter::]
-     ([:counter::] server-id <- :wat::core::Uuid
-      [:counter::] user-id   <- :wat::core::Uuid
-      [:counter::] user-tx   <- :wat::kernel::Sender<counter::Wire>
-      [:counter::] user-rx   <- :wat::kernel::Receiver<counter::UserResp>)
-     ())
+   (:wat::core::defstruct :counter::User
+     {:restricted-to [:counter::]
+      :field-metadata {:server-id {:restricted-to [:counter::]}
+                       :user-id   {:restricted-to [:counter::]}
+                       :user-tx   {:restricted-to [:counter::]}
+                       :user-rx   {:restricted-to [:counter::]}}}
+     [server-id <- :wat::core::Uuid
+      user-id   <- :wat::core::Uuid
+      user-tx   <- :wat::kernel::Sender<counter::Wire>
+      user-rx   <- :wat::kernel::Receiver<counter::UserResp>])
 
    ;; ─── Registry helpers ────────────────────────────────────────────────────
    (:wat::core::defn :counter::registry-rxs
@@ -911,4 +917,4 @@
                (:wat::kernel::assertion-failed! "after-stop get: unexpected AccessDenied" :wat::core::None :wat::core::None))))
          ((:wat::core::Ok _)
            (:wat::kernel::assertion-failed! "after-stop get: expected Err (server stopped), got Ok" :wat::core::None :wat::core::None)))]
-    :wat::core::nil))
+    nil))

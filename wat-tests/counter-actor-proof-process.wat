@@ -159,9 +159,9 @@
   ;;   peer = ProcessPeer/new(rx, tx)
   ;;
   ;; This is the verbose-is-honest form (per feedback_verbose_is_honest):
-  ;; the three-step construction reveals what the bracket macro will eventually
-  ;; hide. No constructor verb is minted — Stone D's run-processes is the
-  ;; user-facing surface.
+  ;; the three-step construction reveals the ProcessPeer/new construction
+  ;; that run-processes abstracts — the canonical verbose form. No constructor
+  ;; verb is minted — Stone D's run-processes is the user-facing surface.
   (:wat::core::let
     [proc
        (:wat::kernel::spawn-process
@@ -229,4 +229,4 @@
      final-state  (:counter-proc/shutdown peer!)
      _            (:wat::test::assert-eq final-state 3)
      _drained     (:wat::kernel::Process/drain-and-join proc)]
-    :wat::core::nil))
+    nil))

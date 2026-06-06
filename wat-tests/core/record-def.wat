@@ -122,12 +122,14 @@
 
 (:wat::test::deftest :wat-tests::core::record-def::holonic-to-holon-ok
   ()
-  ;; to-holon returns HolonAST; do discards the result (non-nil position).
-  ;; If to-holon panics the deftest's run-thread surfaces the failure.
-  ;; Sentinel assert-eq true true confirms the no-panic path.
-  (:wat::core::do
-    (:wat::holon::to-holon (:test::rd::HPt 1 2))
-    (:wat::test::assert-eq true true)))
+  ;; to-holon returns HolonAST. Bind the result and assert-coincident
+  ;; it is coincident with itself — proves the call succeeded AND that
+  ;; the returned HolonAST is a valid point in HD space (self-coincident
+  ;; is the minimal geometric sanity check on any HolonAST).
+  (:wat::core::let
+    [h (:test::rd::HPt 1 2)
+     v (:wat::holon::to-holon h)]
+    (:wat::test::assert-coincident v v)))
 
 ;; ─── BASE: to-holon errors at runtime ────────────────────────────────────────
 ;;

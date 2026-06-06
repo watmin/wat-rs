@@ -7,11 +7,10 @@
 ;; inner RunResult's Failure slot to verify the right diagnostic
 ;; surfaced).
 ;;
-;; Inner programs use :wat::test::run-ast + :wat::test::program — no
-;; escaped-string ceremony. The one test still using the string-entry
-;; :wat::test::run is intentional: it verifies the STRING path works
-;; for callers who build programs from strings at runtime (fuzzers,
-;; dynamically-generated tests).
+;; Inner programs use run-thread wrapping pass/fail-case assertions.
+;; All active (non-ignored) tests use body-AST entry via deftest.
+;; The arc-170-ignored tests preserve the hermetic-capture pattern
+;; (run-hermetic + assert-stdout-is) for when concurrency is re-enabled.
 
 
 ;; ─── assert-eq — pass cases ───────────────────────────────────────────
@@ -218,13 +217,14 @@
       (:wat::core::None (:wat::kernel::assertion-failed!
                "expected Failure, got :None" :wat::core::None :wat::core::None)))))
 
-;; ─── :wat::test::run-thread — legacy string-entry path migrated ──────
+;; ─── hermetic-capture pattern (arc-170-ignored; original intent retired) ──
 ;;
-;; Arc 170 slice 4a-β: the legacy :wat::test::run took a runtime
-;; source string; the modern surface takes a body AST directly via
-;; :wat::test::run-thread. Multi-form sources wrap in
-;; (:wat::core::do ...). The dynamic-source-string path is no longer
-;; exercised here — the modern surface is body-AST only.
+;; The tests below originally exercised the legacy string-entry path
+;; (:wat::test::run) and the AST-entry path (:wat::test::run-ast via
+;; :wat::test::program). Both paths were swept to canonical macros
+;; during arc 170 slice 4a-β; these tests now verify the simpler
+;; hermetic-child-prints-parent-captures pattern and are preserved
+;; per accumulate-tests-defer-cleanup policy (cleanup is post-109).
 
 ;; Duplicate of :wat-tests::std::test::test-assert-stdout-is-matches at line 132 —
 ;; same hermetic-print-and-capture pattern with different fixture string. Preserved
@@ -249,8 +249,6 @@
         (:wat::kernel::println "from-string"))
      expected (:wat::core::Vector :wat::core::String "\"from-string\"")]
     (:wat::test::assert-stdout-is r expected)))
-
-;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
 
 ;; Duplicate of :wat-tests::std::test::test-assert-stdout-is-matches at line 132 —
 ;; same hermetic-print-and-capture pattern with different fixture string. Preserved

@@ -713,4 +713,4 @@
      _drained (:wat::core::Result/expect -> :wat::core::nil
                 (:wat::kernel::Thread/drain-and-join thread)
                 "counter-service-N3: thread died unexpectedly")]
-    :wat::core::nil))
+    nil))

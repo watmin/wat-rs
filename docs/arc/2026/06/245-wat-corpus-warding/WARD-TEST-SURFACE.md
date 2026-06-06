@@ -68,3 +68,33 @@ file? the error-chain-discard CLASS as a finding-generator for #181's own
 doctrine) → termination by judgment → the `vigilatum` stamp on wat/test.wat
 (the framework is the warded unit; the corpus is its demonstrated surface) →
 **245.N INSCRIPTION** (FM-11 wrap-proof grep) → arc 245 CLOSED.
+
+## Half-B VERIFICATION — the contained un-ignore proof (orchestrator, first-hand)
+
+The struct-restricted → defstruct migrations live inside #[ignore]'d tests, so
+the gates CAN'T prove they check. The strategy doc owed each defused file a
+contained un-ignore. Doing it surfaced a finding the gates never could —
+and a BETTER truth than the brief assumed:
+
+- **The retired `struct-restricted` form was ITSELF broken at resolve** — it no
+  longer registers its `Type/new` constructor + accessors (7 unresolved refs).
+  The proof files weren't just carrying a phantom; they were carrying a phantom
+  that ALREADY didn't resolve. (Proven by un-ignoring the ORIGINAL form,
+  contained: `:counter::User/new` etc. all UnresolvedReference.)
+- **The `defstruct` migration FIXES the resolve** — the auto-synthesized
+  constructor + accessors register correctly (matches the green reference
+  tests/wat_arc203_struct_restricted.rs). Verified on the two struct files
+  (counter-client-capability-proof + counter-service-capability-N3): un-ignored
+  + contained (setsid+timeout+reap), the panic moved from test_runner.rs:459
+  (startup/check) to :487 (the post-check RUN phase = the arc-170 concurrency
+  layer, the documented ignore reason). **Check phase CLEAN.**
+- Content-grep confirms zero surviving retired forms across the whole corpus
+  (no `struct-restricted` in code; no value-position `:wat::core::nil`).
+- One line-shift bug caught + fixed (a sed nil-target drifted after the
+  multi-line defstruct edit; redone by content, re-verified).
+
+**Conclusion: the defuse is VERIFIED.** The bombs are out; the migrated forms
+check clean; the files' ONLY remaining failure is the arc-170 concurrency they
+are correctly ignored for. The deeper composition wards (complectens
+sibling-deftest gaps) remain affirmatively scoped to the arc-170 reanimation —
+when those tests run again, they'll check-clean AND get their layering ward.

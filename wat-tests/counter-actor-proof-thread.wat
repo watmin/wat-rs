@@ -209,4 +209,4 @@
      final-state  (:counter/shutdown peer!)
      _            (:wat::test::assert-eq final-state 3)
      _drained     (:wat::kernel::Thread/drain-and-join thread)]
-    :wat::core::nil))
+    nil))

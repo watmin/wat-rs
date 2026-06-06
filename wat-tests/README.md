@@ -88,8 +88,10 @@ sandbox needs custom wiring.
 
 ## Naming
 
-- Test function names: final segment **must** start with `test-` for
-  auto-discovery. Fixture functions that shouldn't run as tests use
-  a non-`test-` final segment.
+- Test function names: discovered by **signature only** — zero params,
+  returns `TestResult` or `RunResult` (name-segment filter dropped
+  2026-04-25). Using a `test-` final segment is idiomatic but not
+  required. Fixture functions that shouldn't run as tests should use
+  a different return type or take parameters.
 - File names: hyphenated if multi-word (`test-harness.wat`, not
   `test_harness.wat`).

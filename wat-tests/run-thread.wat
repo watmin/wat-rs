@@ -31,7 +31,7 @@
               (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2)))]
     (:wat::core::match (:wat::kernel::RunResult/failure result)
       -> :wat::core::nil
-      (:wat::core::None :wat::core::nil)
+      (:wat::core::None nil)
       ((:wat::core::Some _f)
        (:wat::kernel::assertion-failed!
          "Ok-path: expected :None but got :Some — passing assertion was misclassified as failure"
@@ -47,7 +47,7 @@
               (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2)))]
     (:wat::core::match (:wat::kernel::RunResult/failure result)
       -> :wat::core::nil
-      ((:wat::core::Some _f) :wat::core::nil)
+      ((:wat::core::Some _f) nil)
       (:wat::core::None
        (:wat::kernel::assertion-failed!
          "Err-path: expected :Some failure but got :None — chain handling broken"

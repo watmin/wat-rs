@@ -81,7 +81,7 @@
             (:wat::core::do
               (:wat::kernel::println "first")
               (:wat::kernel::println "second")
-              :wat::core::nil)))
+              nil)))
 
    ;; ─── Layer 4 helper — readln round trip via Layer 2 typed I/O ────
    ;;
