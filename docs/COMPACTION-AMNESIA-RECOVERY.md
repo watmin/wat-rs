@@ -845,7 +845,10 @@ a caller needs it" is the failure pattern; ship it or retract it.
 paperwork:**
 
 ```bash
-grep -nE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of scope|when a caller|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" <INSCRIPTION>
+# WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
+# across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: **is the work in this arc, or is it explicitly
@@ -1643,7 +1646,10 @@ discipline checkpoint that catches deferral language before it
 ships to disk:
 
 ```bash
-grep -nE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of scope|when a caller|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" <INSCRIPTION>
+# WRAP-PROOF form (2026-06-06): a line-based grep is BLIND to phrases broken
+# across wrapped lines ("If/when\n  a caller surfaces" — real false-pass caught
+# at the arc-249 INSCRIPTION). Normalize whitespace FIRST, then match:
+tr '\n' ' ' < <INSCRIPTION> | tr -s ' ' | grep -oE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of [a-z0-9' ]*scope|when a caller[a-z ]*|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" | sort | uniq -c
 ```
 
 For each match: ship the work in this arc OR rewrite to
