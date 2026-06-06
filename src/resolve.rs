@@ -277,6 +277,36 @@ fn check_form(
                 }
                 return;
             }
+
+            // Arc 245 room 4 — :wat::core::cond `:else` marker boundary
+            // (the finer sibling of the matches? boundary above).
+            //
+            // (:wat::core::cond -> :T (test1 r1) ... (:else default))
+            //
+            // Unlike matches?'s pattern, cond's arms ARE ordinary code — every
+            // test and every result must be walked. The ONE exception is the
+            // `:else` marker heading the default arm: it is the cond grammar's
+            // DSL keyword (check.rs `infer_cond` owns it), not a call head.
+            // Walking it as a call head produces a false UnresolvedReference.
+            //
+            // Walk every child as usual, but for an arm headed by the `:else`
+            // keyword, skip the marker and walk only the arm's body.
+            if head == ":wat::core::cond" {
+                for item in items.iter().skip(1) {
+                    if let WatAST::List(arm_items, _) = item {
+                        if let Some(WatAST::Keyword(arm_head, _)) = arm_items.first() {
+                            if arm_head == ":else" {
+                                for body in arm_items.iter().skip(1) {
+                                    check_form(body, sym, macros, use_decls, unresolved);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                    check_form(item, sym, macros, use_decls, unresolved);
+                }
+                return;
+            }
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
