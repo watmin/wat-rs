@@ -20,7 +20,7 @@
 
 | room | binary(ies) | tests | verdict | status |
 |---|---|---|---|---|
-| 1 | wat_arc148_ord_buildout | 46 | CONFERRE'D: 40 FILL (real gap — 237.8b's recorded future-stone, DESIGN-STONE-237.8b.md:211, never opened) + 6 MODERNIZE (rejection moved to check-time) → **STONE 245.8: ordering is relational** | STRIKE DRAWN |
+| 1 | wat_arc148_ord_buildout | 46 | CONFERRE'D: 40 FILL (real gap — 237.8b's recorded future-stone, DESIGN-STONE-237.8b.md:211, never opened) + 6 MODERNIZE (rejection moved to check-time) → **STONE 245.8: ordering is relational** | **CLEAR** (`f681d1d0`, 46/46) |
 | 2 | wat_arc098_form_matches_{runtime,typecheck} | 15+7 | — | pending |
 | 3 | wat_arc150_variadic_define | 14 | — | pending |
 | 4 | wat_core_cond | 9 | — | pending |
