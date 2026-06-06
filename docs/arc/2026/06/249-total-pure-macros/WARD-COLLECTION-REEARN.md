@@ -66,3 +66,36 @@ Gates: test-build + lib 920-baseline + the wat corpus (217/0/53) + 6 probes +
 collection-clippy-empty. On green: convergence judgment → **circumspicere LAST**
 → re-stamp (ISO8601-UTC-seconds per docs/VIGILATUM.md — compute at convergence,
 never date-only).
+
+## Fight A–R LANDED (`19e87b8c`): 18/18 verified-first, zero blocked.
+
+Standouts: list_span→call_span home-wide; eval_rest (3-arm doc truthful);
+the four Vec-enforcing renames; 8 spans threaded (arc-138 stale comments DIED
+with their reason — closed conformare + exigere together); record-assoc
+double-eval KILLED via value-level record_assoc_inner (the signature is now the
+gate); eval_length/eval_empty delegate to the _inner encodings; 3 runes
+inscribed. Gates orchestrator-re-run: lib 920/0/1, corpus 217/0/53, 6 probes,
+collection clippy empty.
+
+## circumspicere — the perimeter (cast LAST, on `19e87b8c`)
+
+Verdict: **2 L1 + 3 L2 + 2 L3** + 10 claims verified CLEAN (the
+clause-vs-intrinsic PARTITION markers live at check.rs infer_list +
+dispatch_keyword_head_value; transform.rs ~15 exact; infer.rs 4 exact;
+eval_rest placement; the eval_vec_* mirror-the-enforced-type doctrine; the
+_inner pre-evaluated path complete in dispatch_substrate_impl; sort-by
+fn-first; DO-NOT-defclause gate).
+
+| # | surround | finding | weighing |
+|---|---|---|---|
+| F1 | claim | **L1**: mod.rs "~30 impls" vs 50 actual fns | FIGHT: truthful count |
+| F2 | claim | **L1**: mod.rs cross-product pattern implies phantom fns (eval_list_assoc/dissoc/keys/values/concat); omits the _inner tier | FIGHT: two-tier truthful inventory |
+| F3 | egress | **L1**: `length`/`empty?` on typed List<T> PASSES check (∀T scheme) but FAILS runtime — the polymorphic arms lack List branches while list_{length,empty_q}_inner sit in the home | FIGHT BY ELIMINATION: add the List arms (check ≡ runtime) + end-to-end witness; verify no documented deliberate exclusion first |
+| F4 | negative space | L2: eval_vec_{zip,window,remove_at,map_with_index,find_last_index} have ZERO active witnesses (corpus uses are #[ignore]-gated) | FIGHT: probe_collection_transform_ops.rs, happy+boundary ×5 |
+| F5 | negative space | L2: eval_rest's WatAST arm reachable only via macro contexts (checker rejects form-values) — undocumented | FIGHT: one doc line |
+| F6 | invariant | L2: Vector conj immutability unwitnessed (HashSet has its witness) | FIGHT: the analogous test |
+| F7 | invariant | L3: record-assoc single-evaluation unwitnessed | **DECLINED-STRUCTURAL**: post-fight record_assoc_inner takes pre-evaluated Values — it cannot evaluate; the signature is the gate; a regression requires re-plumbing the type |
+
+**Perimeter closure sweep dispatched** (5 items). On green: gates → commit →
+re-stamp src/collection/mod.rs (10-spell guard; ISO8601-UTC-seconds computed at
+convergence per VIGILATUM.md).
