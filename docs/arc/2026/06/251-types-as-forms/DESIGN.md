@@ -135,27 +135,57 @@ surface change). Parametrics-as-forms (4) is the payoff that kills the bracket l
 
 ---
 
-## Provisional stone sketch (FM-2-bis probes drive the real decomposition)
+## Warded-homes discipline — lift-and-ward, relentless (builder direction 2026-06-06)
 
-The "symbol-first" spine is itself large and stages. Provisional — pin at sub-DESIGN
-with disconfirming probes:
+> *"we lift and ward segments into warded homes — surgical, scoped and bar raised — relentless."*
 
-- **251.0** sub-DESIGN: lock the symbol-head resolution mechanism; the type/value
-  disambiguation-by-namespace; the transition policy (do keyword heads read during a
-  transition, or HARD-CUT per position?). FM-2-bis probe: a symbol head `wat.core/+`
-  resolving to the `:wat::core::+` entity (RED at HEAD).
-- **251.1** parser + resolver: a symbol in HEAD position resolves to the entity its
-  keyword FQDN resolves to today. (Lexer untouched — it already reads the token.)
-- **251.2** the `wat.type/` namespace: type atoms move out of `:wat::core::`; the
-  lexeme-carries-the-role property replaces position-polymorphism.
-- **251.3** parametrics-as-forms `(wat.type/Vector wat.type/i64)`; DELETE the
-  `lex_keyword` bracket machinery; rewrite `keyword/of` to a quasiquote template
-  (no string-concat); rewrite the run-threads type-destructure to form ops.
+Arc 251 is not only the surface inversion — it is a **mining run** on the
+runtime.rs / check.rs quarries (per `project_warded_homes_pattern`). The segments
+this arc touches are exactly the resolution/dispatch machinery that today lives
+scattered and flat. As each stone touches a segment, it **lifts that segment into a
+warded home** and earns it: surgical (diff-scoped), bar-raised (vigilia to L1+L2=0),
+stamped (vigilatum in-code), re-verifiable (clippy-clean in-home + git drift-check).
+No stone leaves its segment flat. Relentless.
+
+The segments + their (provisional, intueri-at-settle) homes:
+
+| Segment (today, flat) | grounded at | lifts into |
+|---|---|---|
+| surface-ref → entity resolution (the bare→FQDN canonicalization + call-head validation) | `check.rs:1753` `BARE_PRIMITIVES`/`BARE_CONTAINER_HEADS`; `resolve_references` (check step 7); `runtime.rs:5349` value-symbol lookup; `:5428` head dispatch | **`src/resolve/`** (provisional) — the canonical surface→entity home |
+| the type-form grammar + `wat.type/` namespace + parametrics-as-forms | `lex_keyword` bracket machinery `lexer.rs:605-730` (DELETED); type representation | the existing **`src/types/`** warded home (extended) |
+
+Stamps follow the current discipline (live vigilia cast + clippy-clean) until arc
+250 (`vigilatum-integrity`, STUBBED) lands self-enforcement; nothing here waits on it.
+
+## Provisional stone sketch (FM-2-bis probes drive the real decomposition; each stone lifts+wards its segment)
+
+The "symbol-first" spine stages. Provisional — pin at each sub-DESIGN with a
+disconfirming probe:
+
+- **251.0** ✓ sub-DESIGN (`DESIGN-STONE-251.0.md`) + FM-2-bis probe
+  (`tests/probe_arc251_stone0_symbol_head.rs` — C01 symbol head `wat.core/+` RED at
+  HEAD via `UnboundSymbol`; C02 keyword head GREEN/preserved). Locks the mechanism:
+  **normalize-layer** (extend the existing surface→entity resolution; dispatch
+  untouched), NOT native-symbol-dispatch — see the sub-DESIGN's four-questions.
+- **251.1** LIFT + WARD `src/resolve/`: carve the surface→entity resolution out of
+  check.rs/runtime.rs into a warded home; extend it so a dotted-symbol ref
+  (`wat.core/+`) resolves to the entity its keyword FQDN names today (same shape as
+  the bare→FQDN precedent). Dual-read (keyword + symbol) during transition. Vigilia to
+  L1+L2=0; stamp. (Lexer untouched — it already reads the token.)
+- **251.2** the `wat.type/` namespace: type atoms move out of `:wat::core::` into the
+  type namespace; the lexeme-carries-the-role property replaces position-polymorphism
+  (DISSOLVES the `WatAST::Keyword` type/value split). Work lands in `src/types/`
+  (re-earn the stamp).
+- **251.3** parametrics-as-FORMS `(wat.type/Vector wat.type/i64)`; **DELETE** the
+  `lex_keyword` bracket machinery (lexer.rs:605-730); rewrite `keyword/of` to a
+  quasiquote template (no string-concat); rewrite the run-threads type-destructure to
+  form ops. This is where types become genuine forms (the macro engine computes over
+  them); `src/types/` extended + re-stamped.
 - **251.4** `:-` annotation arrow + `ann-form` expression-ascription — folded into the
   signature-rewrite cascade (the corpus-wide `<-`→`:-` + keyword-head→symbol-head sweep).
 - **251.5** HARD-CUT the keyword-as-type/operator surface (one-canonical-path) — the
-  dotted symbol form becomes the ONLY form.
-- **251.N** INSCRIPTION.
+  dotted symbol form becomes the ONLY form; resolution rejects keyword spellings.
+- **251.N** INSCRIPTION (every touched segment a stamped home; FM-11 grep clean).
 
 Roughly 6-10 stones. Campaign-scale — bigger than arc 234. Substrate-as-teacher
 cascade will be wide (every `.wat` file + every test fixture + src synthesis sites).
