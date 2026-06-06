@@ -54,7 +54,8 @@
 #   pkill -s <leader-pid>                →  session empty
 #
 # Exit code: 0 iff every run binary passed; 1 otherwise.
-# (It will exit 1 today — the tier is red; the deliverable is the inventory.)
+# (The tier went GREEN at the 245 FULL CLEAR, 2026-06-06 — this runner is now
+# green-gate.sh check 3, the gate that keeps it green.)
 #
 # Comparable: scripts/green-gate.sh (arc 239) — style precedent.
 set -euo pipefail
