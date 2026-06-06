@@ -358,3 +358,63 @@ are reshaped in the fire, the scheme dies last.
 - comms/ already owns the mechanism; runtime concurrency eval is the wrapper layer that completes it.
 - the eval-step! machine LIFTS (actively live, not DIES).
 
+---
+
+# ★ INTUERI VERDICT — the blessed names (weighed, not rubber-stamped)
+
+A spawned intueri cast named the federation, grounded on the existing-home precedent
+(domain-noun homes; `eval`/`infer`/`error`/`transform` concern-noun submodules; doctrine
+in mod.rs prose NEVER in a filename). Orchestrator weighed each against precedent + the
+four-questions. **Verdict: accept, with three carve-refinements flagged to their stones.**
+
+**The blessed federation (final names):**
+
+```
+src/
+  value/      — runtime value model    [submodules: value · environment · symbol_table ·
+                                         observe (was tracked.rs) · signal · frame · encoding_ctx]
+  scalar/     — arithmetic + numeric conversions + bool + comparison + math/stat
+  algebra/    — VSA/holon vector algebra [construct · classifier · measure · encode ·
+                                          memory · coerce (was support.rs)]
+  eval/       — the interpreter loop    [dispatch · control · apply · step]
+  spawn/      — process/thread birth    [fork · thread · process · pipe]
+  edn/        — EDN/JSON ↔ Value bridge [write · read · coerce · error]
+  closure/    — closure serialization   [error · walk · topo]
+  load/       — source loading          [resolve · loader (was loaders.rs) · error]
+  freeze/     — startup pipeline        [pipeline · bootstrap]
+  stdio/      — per-thread stdio routing [was thread_io/; routing · services]
+  text/       — string/uuid/regex       [was string_ops/; string · uuid · regex]
+  resolve/    — surface→entity resolution (251.1 in flight)
+  comms/ (extend) — eval · died_error · channel · process_stdio(interim; →process/stdio.rs later)
+  collection/ (extend) — surface (the Tier-2 fanout wrappers)
+  check/ (extend) — ctx (was result.rs) · unify · walk · builtin (was scheme.rs — the DIES
+                    zone; doctrine in mod.rs prose) · infer   [home already has env · error]
+```
+
+**The L1 catch (credited to the cast — the [[feedback_intueri_names_all_things]] value):**
+`check/scheme.rs` → **`check/builtin.rs`**. The module is dominantly `register_builtins`
+(~4,365 of ~4,500 lines); `scheme.rs` would encode the retirement-DOCTRINE in the filename
+(the file's about-to-die TypeScheme), violating "a filename shows the home's shape on `ls`,
+not a doctrine." `builtin.rs` names what it IS now AND survives the demise (builtin
+registration outlives TypeScheme). The DIES doctrine lives in `check/mod.rs` prose. The
+orchestrator had proposed `scheme.rs` in this very map — the cast caught it.
+
+**Three L2 mumbles fixed:** `thread_io/`→`stdio/`, `string_ops/`→`text/` (mechanism-compound /
+`_ops` → domain noun); `tracked.rs`→`observe.rs`, `support.rs`→`coerce.rs`, `loaders.rs`→`loader.rs`.
+
+**`eval/` collision — weighed, ACCEPTED:** a top-level `eval/` alongside `collection/eval.rs` +
+`function/eval.rs` is unambiguous by module path (`crate::eval` = interpreter; `crate::collection::eval`
+= the collection home's eval layer); `ls src/` reads `eval/` as the interpreter. Idiomatic over `interp/`.
+
+**Three carve-refinements flagged to their stones (accept the name, refine the bundle there):**
+1. `value/observe.rs` — revisit vs `provenance.rs` at the value/ stone (TrackedValue's essence IS
+   provenance; ValueSnapshot is diagnostic-render — confirm "observe" unifies them when coding).
+2. `stdio/` — the `RuntimeServices` orchestration is undersold by "stdio"; if services dominate,
+   reconsider at its stone. (`routing.rs` + `services.rs` submodules already separate the concerns.)
+3. `check/ctx.rs` — Scout 5's `result.rs` bundle (CheckResult/InferCtx/Subst/UnifyError) is itself
+   mis-grouped: `Subst`→`unify.rs`, `CheckResult`→`error.rs`; `ctx.rs` then honestly holds InferCtx.
+   A carve refinement for the check/ stone, not a blocker.
+
+Names cited from the intueri cast 2026-06-06; per [[feedback_intueri_names_all_things]] every
+surface name traces to the spawned cast, not a hand-proposal.
+
