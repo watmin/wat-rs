@@ -1,3 +1,34 @@
+;; vigilatum: 2026-06-06T09:50:50Z — UPDATED-vigilia 6-spell test-kind guard
+;; L1+L2=0 (cernere/intueri/exigere CONVERGED on the framework; probare
+;; 4 hollow tests realified; vocare 1 CANNOT-FAIL test fixed; complectens
+;; CONVERGED on the RUNNING corpus [8 L2 all in arc-170-ignored proof files,
+;; composition wards affirmatively scoped to the arc-170 reanimation arc])
+;; + circumspicere LAST [F5 2-of-3 unexercised public verbs witnessed
+;; (run-in-scope honestly skipped — its ScopedLoader-for-load! distinguishing
+;; behaviour requires a fixture-file demo outside this stone's scope) + F6
+;; 2 corpus filename renames + F7 7 internal helpers marked]. THE WARDED
+;; UNIT is the framework (this file); the corpus (wat-tests/**/*.wat) is its
+;; demonstrated surface — running 238/0/53 corpus-green. The full clear that
+;; preceded this ward inscribed the corpus into the green-gate's integration
+;; tier (#151, ef585672) so it can never silently rot again. Canonical record:
+;; docs/arc/2026/06/245-wat-corpus-warding/WARD-TEST-SURFACE.md.
+;; Declared invariants, each enforced by a living gate:
+;; (1) the test-kind 6-spell muster passes at HEAD (green-gate runs the
+;;     corpus on every check 3/3);
+;; (2) every public sandbox-entry verb (:wat::test::run / run-ast) has at
+;;     least one live corpus witness — gated by the corpus run;
+;;     run-in-scope is the named honest fixture-demo gap (245 INSCRIPTION
+;;     bound), distinct from a phantom witness;
+;; (3) the 15 retired-form bombs inside the arc-170-ignored proof files are
+;;     DEFUSED — no value-position :wat::core::nil or :wat::core::struct-restricted
+;;     survives anywhere in the corpus (contained un-ignore verification on
+;;     the trickiest two files moved the panic from test_runner.rs:459
+;;     startup to :487 run-phase, proving CHECK CLEAN);
+;; (4) the arc-170 ignore-removal gate (circumspicere F4) is OWED a slow-head
+;;     design pass — TRACKED as named follow-on stone #181-followon (the
+;;     #151-doctrine sibling: gates are decisions, not reflexes); this stamp
+;;     does NOT lie about F4 being closed.
+;;
 ;; :wat::test::* — the wat-native test harness (arc 007 slice 3).
 ;;
 ;; Pure wat over three primitives:
