@@ -39,7 +39,7 @@ breach caught and reverted at scoring, and zero stale tests greened.
 
 ## Campaign carry-outs (named, tracked — not deferrals)
 
-1. **Stamp re-wards owed** (re-ward-on-touch, batched at campaign end by
+1. ~~Stamp re-wards~~ **DONE** (`1d229c89`, 2026-06-06T04:56:04Z — five fresh-eyes reviews, the fence's 7-attempt adversarial ledger ALL HELD, 1 L1 + 6 L2 fought, 3 witnesses):
    design): wat/core.wat (ordering section retired) · src/function/
    (variadic thread-through) · src/collection/ (infer_contains TypeVar arm) ·
    src/check/env.rs (defined_value_asts) · src/macros/ (the fence exception +
@@ -48,7 +48,7 @@ breach caught and reverted at scoring, and zero stale tests greened.
    splice not bound at runtime — documented via should_panic(UnboundSymbol)
    witness in wat_macro_vector_splice_symmetry; a real engine gap awaiting
    its stone.
-3. **THE ENDGAME (#151)**: fold scripts/integration-run.sh into
+3. ~~THE ENDGAME (#151)~~ **DONE** (`ef585672` — green-gate.sh check 3/3, proven live 3/3 PASS): fold scripts/integration-run.sh into
    green-gate.sh so the tier can never rot dark again — the quest's final
    boss; the 67 leaky-signal excluded binaries remain its run-tier problem.
 4. wat-holon-lru 19 (struct-rot; separate crate bucket, named in `94261f45`).
