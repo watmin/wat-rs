@@ -51,7 +51,7 @@ breach caught and reverted at scoring, and zero stale tests greened.
 3. ~~THE ENDGAME (#151)~~ **DONE** (`ef585672` — green-gate.sh check 3/3, proven live 3/3 PASS): fold scripts/integration-run.sh into
    green-gate.sh so the tier can never rot dark again — the quest's final
    boss; the 67 leaky-signal excluded binaries remain its run-tier problem.
-4. wat-holon-lru 19 (struct-rot; separate crate bucket, named in `94261f45`).
+4. ~~wat-holon-lru 19~~ **DONE** (the retired arc-237.8b arity-suffix rot, not struct-rot — diagnosis evolved at the strike; the silent-driver-death + discarded-error-chain pattern noted for #181; 19/19 green).
 
 Separate buckets (NOT this tier, cleared after): crates/wat-holon-lru 19
 (struct-rot, named in `94261f45`); the 67 excluded arc-170 process binaries
