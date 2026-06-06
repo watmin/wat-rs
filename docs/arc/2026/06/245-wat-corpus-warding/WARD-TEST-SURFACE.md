@@ -98,3 +98,54 @@ check clean; the files' ONLY remaining failure is the arc-170 concurrency they
 are correctly ignored for. The deeper composition wards (complectens
 sibling-deftest gaps) remain affirmatively scoped to the arc-170 reanimation —
 when those tests run again, they'll check-clean AND get their layering ward.
+
+## circumspicere — the perimeter (cast LAST, on `9b91368e`)
+
+The perimeter earned its place here too — six inward lenses passed; the
+surround surfaced what none of them could see.
+
+**Verdict: 0 L1 + 5 L2 + 2 L3 + 9 claims verified clean.**
+
+| # | surround | finding | weighing (four-questions, driven) |
+|---|---|---|---|
+| F1 | discovery | claims verified clean — no silent-skip surface today; recursive walk + signature-only filter both honest | NO ACTION (sealed by reference in the stamp's gates) |
+| F2/F3 | claim-vs-code | **9 fully-dark "proof" files** (counter-actor/service/client + ambient-stdio) — declared "proof", zero running assertions; "tests are demos" doctrine bent at 18% dark; stream.wat 12/14 dark | **DEFER affirmatively to arc-170 reanimation** — same scope as the strategy's Half-B composition deferral; named, not silent |
+| F4 | unenforced invariant | **NO GATE on arc-170 ignore removal** — 53 ignores carry "remove before arc 170 closes" but nothing fires when arc-170 closes; gate is designed green-under-dark-state | **NEW NAMED STONE (`#181-followon: arc-170 ignore-removal gate`)** — four-questions on the gate's *shape* failed Obvious + Simple (multiple enforcement mechanisms, each with different failure modes; cleanly answering needs grounding the arc-170 closure mechanics, which is outside #181's scope). The honest closure is a sibling stone with slow-head, not an inline tail. The stamp's invariants list calls out F4 by its tracker so the closure is not a lie. |
+| F5 | negative space | three framework verbs publicly documented but UNEXERCISED — `:wat::test::run`, `:wat::test::run-in-scope`, `:wat::test::run-ast` (README presents them as "reach for it when you need to drive the sandbox by hand") | **FIGHT NOW** — one live witness per verb in wat-tests/test.wat; the corpus-as-teacher doctrine requires every public verb has at least one live demo |
+| F6 | claim-vs-code | 2 corpus files violate the README's own hyphen-naming convention: `holon/list_round_trip.wat`, `holon/char_round_trip.wat` | **FIGHT NOW** — git mv to hyphenated names |
+| F7 | clarity | 7 framework helpers in wat/test.wat are internal (called only by macros) but indistinguishable from public verbs in the file's surface | **FIGHT NOW (L3)** — mark each with a single `;; Internal — not for direct corpus use` comment |
+
+**Claims verified clean (9)** — signature-only discovery (test_runner.rs:610-620);
+recursive walk; parse-fail surfaces with full diagnostics (no silent-skip
+unless the file has zero `:wat::test::` forms, which the live corpus does
+not); random per-file shuffle; the `(:wat::test::ignore)` form is a real
+parsed/checked deftest body that returns nil; the stream/holon README pairing
+honest; the wat/holon/Project alongside Reject; the integration-run footer's
+ignored-count gives visibility; arc-170 reasons machine-readably uniform.
+
+## The strike (drawn 2026-06-06)
+
+Four-questions-driven decisions (each option atomized, judged YES/NO per
+question — see the conversation record; the verdict below is the result):
+
+1. **FIGHT NOW**: F5 + F6 + F7. Each is one cleanly-scoped surface, each
+   closure is one verifiable edit. Obvious + Simple + Honest + Good UX all
+   hold per item. Bundled into one commit; corpus + lib gates green.
+2. **DEFER (named-stone)**: F4. Obvious + Simple failed (the gate's *shape*
+   is not yet decided; multiple enforcement mechanisms with different failure
+   modes; deciding without grounding the arc-170 closure mechanism would be
+   the "ship a shape under pressure" anti-pattern). The honest closure is a
+   sibling stone tracked at the stamp's invariants list (the same shape the
+   #151 endgame doctrine takes — gates are decisions, not reflexes).
+3. **DEFER (arc-170 reanimation)**: F2/F3 (9 dark files) + the complectens 8
+   L2 (sibling-deftest gaps in the same files). The composition wards cannot
+   be earned while the concurrency layer leaks; they ride the arc-170
+   reanimation arc. Named, scoped, not silent.
+
+## After the strike
+
+Gates → vigilatum stamp on `wat/test.wat` (the warded unit is the framework;
+the corpus is its demonstrated surface) → 245.N INSCRIPTION (FM-11 wrap-proof
+grep) → arc 245 CLOSED. The follow-on `#181-followon: arc-170 ignore-removal
+gate` is cited at the stamp's invariants list (F4) and inscribed in the 245
+INSCRIPTION's affirmative-scope bounds.
