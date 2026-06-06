@@ -12,7 +12,7 @@
 
 use crate::ast::WatAST;
 use crate::function::metadata::peel_metadata_preamble;
-use crate::function::parse::parse_fn_signature;
+use crate::function::parse::parse_fn_signature_with_rest;
 use crate::function::FN_HEAD;
 use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
 use crate::span::Span;
@@ -50,15 +50,22 @@ pub(crate) fn eval_fn(
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
     // cannot fail. The type guarantee eliminates the ArityMismatch class.
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
-    let (params, param_types, ret_type) = parse_fn_signature(sig3)?;
+    // Arc 150 — parse with rest-binder support so variadic fn-forms (from
+    // variadic `defn` expansion) produce a Function with rest_param set.
+    // Non-variadic forms produce rest_opt = None — strict behavior unchanged.
+    let (params, param_types, ret_type, rest_opt) = parse_fn_signature_with_rest(sig3)?;
+    let (rest_param, rest_param_type) = match rest_opt {
+        Some((name, ty)) => (Some(name), Some(ty)),
+        None => (None, None),
+    };
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
         type_params: Vec::new(),
         param_types,
         ret_type,
-        rest_param: None,
-        rest_param_type: None,
+        rest_param,
+        rest_param_type,
         body: Arc::new(body),
         closed_env: Some(env.clone()),
     })))

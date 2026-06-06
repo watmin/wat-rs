@@ -21,17 +21,20 @@ use crate::check::{
     apply_subst, format_type, infer, unify, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
 };
 use crate::function::metadata::peel_metadata_preamble;
+use crate::argspec::ParseOptions;
 use crate::function::parse::{parse_fn_signature_prefix, ParseStepKind};
 use crate::function::FN_HEAD;
 use crate::runtime::synthesize_fn_body;
 use crate::types::TypeExpr;
+use crate::scope::Identifier;
 use std::collections::HashMap;
 
 /// Outcome of fn-signature diagnostic parsing — makes the silent-vs-diagnostic
 /// distinction structural (no `errors.is_empty()` side-channel inference).
 enum SigParse {
-    /// Parsed cleanly.
-    Parsed(Vec<String>, Vec<TypeExpr>, TypeExpr),
+    /// Parsed cleanly. Carries fixed-param (names, types), return type, and
+    /// optional rest-binder (name, type) from `& name <- :T`.
+    Parsed(Vec<String>, Vec<TypeExpr>, TypeExpr, Option<(Identifier, TypeExpr)>),
     /// Outer form is not fn-shaped at all (ArgsVecNotVector) — silent: caller
     /// returns a fresh placeholder, no diagnostic.
     SilentReject,
@@ -40,11 +43,15 @@ enum SigParse {
 }
 
 fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
-    match parse_fn_signature_prefix(args) {
-        Ok((idents, t, r)) => {
+    // Arc 150 — allow rest-binders (`& name <- :T`) in fn-form signatures so
+    // that variadic `defn` expansions (which land as `def + fn` forms at the
+    // check pass) are accepted. Strict callers (`parse_fn_signature_for_check`
+    // for `:ensure :fn` validation) still pass `allow_rest_binder: false`.
+    match parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }) {
+        Ok((idents, t, r, rest)) => {
             // CHECK tier — key by env_key (Stone 249.5e): mirrors the runtime Environment.
             let p = idents.iter().map(|id| crate::scope::resolution::env_key(id).into_owned()).collect();
-            SigParse::Parsed(p, t, r)
+            SigParse::Parsed(p, t, r, rest)
         }
         Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>
             SigParse::SilentReject,
@@ -105,8 +112,8 @@ pub(crate) fn infer_fn(
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
     // cannot fail. The type guarantee eliminates the ArityMismatch class.
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
-    let (param_names, param_types, ret_type) = match parse_fn_signature_for_check_diag(sig3) {
-        SigParse::Parsed(p, t, r) => (p, t, r),
+    let (param_names, param_types, ret_type, rest_param) = match parse_fn_signature_for_check_diag(sig3) {
+        SigParse::Parsed(p, t, r, rest) => (p, t, r, rest),
         SigParse::SilentReject => {
             // Not fn-shaped at all — silent-by-intent; return a fresh placeholder.
             return CheckResult::ok(fresh.fresh());
@@ -118,6 +125,13 @@ pub(crate) fn infer_fn(
     let mut body_locals = outer_locals.clone();
     for (name, ty) in param_names.iter().zip(param_types.iter()) {
         body_locals.insert(name.clone(), ty.clone());
+    }
+    // Arc 150 — variadic fn-forms: bind the rest-param name in body locals
+    // with the declared Vector<T> type so uses of the rest-binder inside the
+    // body (e.g. as the `xs` in `:wat::core::foldl ... xs`) type-check correctly.
+    if let Some((rest_ident, rest_ty)) = rest_param {
+        let rest_name = crate::scope::resolution::env_key(&rest_ident).into_owned();
+        body_locals.insert(rest_name, rest_ty);
     }
     // Push this fn's declared return type onto the enclosing-ret
     // stack so `try` inside the body propagates to the fn's

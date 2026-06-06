@@ -113,9 +113,19 @@ impl ParseStepKind {
 ///
 /// `parse_fn_signature_for_check_diag` in `src/function/infer.rs` routes through
 /// this prefix and maps each `ParseStep` variant to its diagnostic tier contract.
+///
+/// ## Rest-binder support
+///
+/// `options.allow_rest_binder` controls whether `& name <- :T` is accepted in the
+/// args-vector. When `true`, the returned `Option<(Identifier, TypeExpr)>` carries the
+/// rest-binder pair; when `false` (strict callers: `parse_fn_signature`,
+/// `parse_fn_signature_for_check`), `&` in the args-vector produces an error and the
+/// rest slot is always `None`.
+#[allow(clippy::type_complexity)]
 pub(in crate::function) fn parse_fn_signature_prefix(
     sig: &[WatAST; 3],
-) -> Result<(Vec<Identifier>, Vec<TypeExpr>, TypeExpr), ParseStep> {
+    options: ParseOptions,
+) -> Result<(Vec<Identifier>, Vec<TypeExpr>, TypeExpr, Option<(Identifier, TypeExpr)>), ParseStep> {
     let (args_vec, args_vec_span) = match &sig[0] {
         WatAST::Vector(items, span) => (items.as_slice(), span),
         other => {
@@ -155,15 +165,16 @@ pub(in crate::function) fn parse_fn_signature_prefix(
         args_vec,
         FN_HEAD,
         args_vec_span,
-        ParseOptions { allow_rest_binder: false },
+        options,
     )
     .map_err(|ae| ParseStep {
         span: ae.span,
         kind: ParseStepKind::ArgSpecFailed(Box::new(ae.kind)),
     })?;
+    let rest_param = argspec.rest_param;
     let (idents, param_types): (Vec<Identifier>, Vec<TypeExpr>) =
         argspec.fixed_params.into_iter().unzip();
-    Ok((idents, param_types, ret_type))
+    Ok((idents, param_types, ret_type, rest_param))
 }
 
 /// Arc 167 — flat-shape fn signature parser (eval tier).
@@ -187,12 +198,35 @@ pub(in crate::function) fn parse_fn_signature_prefix(
 pub(crate) fn parse_fn_signature(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), RuntimeError> {
-    let (idents, types, ret) = parse_fn_signature_prefix(args).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
+    let (idents, types, ret, _rest) = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: false }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
         head: FN_HEAD.into(),
         reason: step.kind.reason()
     } })?;
     let params = idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     Ok((params, types, ret))
+}
+
+/// Arc 150 — eval-tier fn signature parser that accepts `& name <- :T` rest binders.
+///
+/// Extends `parse_fn_signature` with rest-binder support: parses with
+/// `allow_rest_binder: true` and returns the optional rest `(name, type)` pair.
+/// Called by `eval_fn` so that variadic fn-forms (produced by expanding a variadic
+/// `defn`) can be evaluated into a `Function` value with `rest_param` set.
+///
+/// Returns `(fixed_param_names, fixed_param_types, ret_type, rest_param_opt)`.
+/// `rest_param_opt` is `Some((name, type))` when a `& name <- :T` binder was present
+/// in the args-vector; `None` otherwise.
+#[allow(clippy::type_complexity)]
+pub(crate) fn parse_fn_signature_with_rest(
+    args: &[WatAST; 3],
+) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr, Option<(String, TypeExpr)>), RuntimeError> {
+    let (idents, types, ret, rest_opt) = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }).map_err(|step| RuntimeError { span: step.span, kind: RuntimeErrorKind::MalformedForm {
+        head: FN_HEAD.into(),
+        reason: step.kind.reason()
+    } })?;
+    let params = idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
+    let rest_mapped = rest_opt.map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty));
+    Ok((params, types, ret, rest_mapped))
 }
 
 /// Arc 167 — mirror of `parse_fn_signature` for the check pass.
@@ -221,7 +255,7 @@ pub(crate) fn parse_fn_signature(
 pub(crate) fn parse_fn_signature_for_check(
     args: &[WatAST; 3],
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
-    let (idents, types, ret) = parse_fn_signature_prefix(args).map_err(|_| ())?;
+    let (idents, types, ret, _rest) = parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: false }).map_err(|_| ())?;
     let params = idents.iter().map(|id| id.as_str().to_owned()).collect();
     Ok((params, types, ret))
 }

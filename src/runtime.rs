@@ -2720,6 +2720,24 @@ pub fn register_defines(
         // Stone 241.14 — def-restricted fn-shape pre-registration arm DELETED.
         // def-restricted is HARD CUT; forms reaching this path are rejected
         // at check.rs before register_defines runs for them.
+        //
+        // Arc 150 — user-source variadic `defn` forms expand to
+        // `(:wat::core::def :name (:wat::core::fn [... & rest <- :T] -> :Ret body))`.
+        // `try_parse_fn_shape_def` returns None for these (allow_rest_binder=false).
+        // `try_parse_user_variadic_def_fn_form` handles them: parses with
+        // allow_rest_binder=true and PROPAGATES argspec errors as RuntimeError
+        // so malformed forms (double `&`, `&` without binder, non-Vector rest type)
+        // surface as StartupError::Runtime rather than silently skipping registration
+        // and later hitting the resolver with UnresolvedReference.
+        } else if let Some((path, func)) = try_parse_user_variadic_def_fn_form(&form)? {
+            let form_span = form.span().clone();
+            if crate::resolve::is_reserved_prefix(&path) {
+                return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+            }
+            if !sym.functions.contains_key(&path) {
+                sym.functions.insert(path, func);
+            }
+            rest.push(form);
         } else if let WatAST::List(ref do_items, _) = form {
             // Arc 170 Gap C — top-level `(:wat::core::do ...)` splice.
             // Peek into the do body and pre-register any fn-shape defs so
@@ -4373,6 +4391,148 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
             closed_env: None,
         }),
     ))
+}
+
+/// Arc 150 — user-source variadic `(:wat::core::def :name (:wat::core::fn [...& rest...] -> :T body))`
+/// parser that PROPAGATES argspec errors as `RuntimeError`.
+///
+/// Distinct from `try_parse_variadic_def_fn_form` (stdlib path, which uses `.ok()?` to
+/// swallow errors so non-matching forms fall through silently). The user-source path
+/// must surface malformed argspecs (double `&`, `&` without binder, fixed-after-rest)
+/// as `StartupError::Runtime` rather than silently leaving the name unregistered and
+/// hitting the resolver with `UnresolvedReference`.
+///
+/// Returns:
+/// - `Ok(None)` — form is not a 3-item `def + fn` shape at all (let other handlers try).
+/// - `Ok(Some((name, func)))` — valid variadic form; `func` carries rest_param + rest_param_type.
+/// - `Err(RuntimeError)` — form IS a `def + fn` shape with `&` in the argspec but the
+///   argspec is malformed, OR the rest-binder type is not `Vector<T>` / `Vec<T>`.
+///
+/// Called exclusively from `register_defines` (user-source path); reserved-prefix check
+/// is the caller's responsibility.
+fn try_parse_user_variadic_def_fn_form(
+    form: &WatAST,
+) -> Result<Option<(String, Arc<Function>)>, RuntimeError> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Ok(None),
+    };
+    // Must be exactly `(:wat::core::def :name (:wat::core::fn ...))` — 3 items.
+    if items.len() != 3 {
+        return Ok(None);
+    }
+    // Head must be :wat::core::def.
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
+        _ => return Ok(None),
+    }
+    // items[1] is the name keyword.
+    let (name, raw_type_params) = match &items[1] {
+        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
+            Ok(pair) => pair,
+            Err(_) => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    // items[2] must be a `(:wat::core::fn ARGS-VECTOR -> :RET body...)` list.
+    let fn_items = match &items[2] {
+        WatAST::List(fn_items, _) => fn_items,
+        _ => return Ok(None),
+    };
+    match fn_items.first() {
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => {}
+        _ => return Ok(None),
+    }
+    if fn_items.len() < 4 {
+        return Ok(None);
+    }
+    // fn_items layout (no fn-embedded metadata for user variadic forms):
+    //   [0] :wat::core::fn
+    //   [1] ARGS-VECTOR   (must be WatAST::Vector containing `&`)
+    //   [2] ->
+    //   [3] :RET-TYPE
+    //   [4..] body forms (zero or more)
+    let (args_vec, args_vec_span) = match &fn_items[1] {
+        WatAST::Vector(items, span) => (items, span),
+        _ => return Ok(None),
+    };
+    // Quick check: does the args vector contain `&`? If not, this is a
+    // non-variadic form that try_parse_fn_shape_def already handles.
+    let has_rest_marker = args_vec.iter().any(|a| a.is_bare_symbol("&"));
+    if !has_rest_marker {
+        return Ok(None);
+    }
+    // Arrow check.
+    match &fn_items[2] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => return Ok(None),
+    }
+    // Return type.
+    let ret_type = match &fn_items[3] {
+        WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+        _ => return Ok(None),
+    };
+    // Parse args with rest-binder allowed. Errors (double `&`, incomplete
+    // triple after `&`, trailing items after rest) surface as RuntimeError.
+    let spec = crate::argspec::parse_argspec_triples(
+        args_vec,
+        ":wat::core::fn",
+        args_vec_span,
+        crate::argspec::ParseOptions { allow_rest_binder: true },
+    )
+    .map_err(RuntimeError::from)?;
+    // Guard: rest_param must be present (we checked for `&` above; an argspec
+    // with `&` that produces no rest_param would be a parser inconsistency).
+    let (rest_ident, rest_ty) = match spec.rest_param {
+        Some(pair) => pair,
+        None => return Ok(None),
+    };
+    // Validate: rest-binder type must be Vector<T> (or Vec<T>). A bare scalar
+    // type like `:wat::core::i64` is rejected here so the error surfaces as a
+    // startup registration error rather than a silent type-check failure.
+    let is_vector = matches!(
+        &rest_ty,
+        crate::types::TypeExpr::Parametric { head, .. }
+            if head == "wat::core::Vector" || head == "wat::core::Vec"
+    );
+    if !is_vector {
+        let span = args_vec.iter()
+            .find(|a| a.is_bare_symbol("&"))
+            .map(|a| a.span().clone())
+            .unwrap_or_else(|| args_vec_span.clone());
+        return Err(RuntimeError {
+            span,
+            kind: RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::fn".into(),
+                reason: format!(
+                    "rest-binder type must be Vector<T> (e.g. `:wat::core::Vector<:wat::core::i64>`); \
+                     got `{}`",
+                    crate::check::format_type(&rest_ty)
+                ),
+            },
+        });
+    }
+    let (fixed_idents, fixed_param_types): (Vec<crate::scope::Identifier>, Vec<crate::types::TypeExpr>) =
+        spec.fixed_params.into_iter().unzip();
+    let fixed_params: Vec<String> =
+        fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
+    let rest_name = crate::scope::env_key(&rest_ident).into_owned();
+    // Synthesize body from trailing fn_items.
+    let body = synthesize_fn_body(&fn_items[4..]);
+    Ok(Some((
+        name.clone(),
+        Arc::new(Function {
+            name: Some(name),
+            params: fixed_params,
+            type_params: raw_type_params,
+            param_types: fixed_param_types,
+            ret_type,
+            rest_param: Some(rest_name),
+            rest_param_type: Some(rest_ty),
+            body: Arc::new(body),
+            closed_env: None,
+        }),
+    )))
 }
 
 // Stone 241.14 — `try_parse_fn_shape_def_restricted` DELETED.
@@ -11283,15 +11443,28 @@ fn eval_signature_of_defn(
             got: args.len()
         } }.into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let name = match name_from_keyword_or_fn(&v) {
-        Some(n) => n,
-        None => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: Box::new(ValueSnapshot::of(&v))
-            } }.into());
+    // Arc 150 — mirror of the arc 166 pattern in `eval_lookup_define`:
+    // when the argument is a literal keyword AST, use the keyword string
+    // directly instead of going through `eval`. `eval_inner` on a keyword
+    // that is a registered user define resolves to the fn VALUE stored in
+    // `runtime_def_values` — which carries `name: None` (eval_fn sets
+    // `name: None`; only `sym.functions` has the named version). Using
+    // the keyword literal directly avoids the unnamed-fn fallback.
+    // The eval path remains correct for non-literal callers (e.g. a
+    // variable holding a fn value with `name: Some(...)`).
+    let name = if let WatAST::Keyword(k, _) = &args[0] {
+        k.clone()
+    } else {
+        let v = eval_inner(&args[0], env, sym)?.value_owned();
+        match name_from_keyword_or_fn(&v) {
+            Some(n) => n,
+            None => {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                    got: Box::new(ValueSnapshot::of(&v))
+                } }.into());
+            }
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. SpecialForm
