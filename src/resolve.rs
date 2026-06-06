@@ -252,6 +252,31 @@ fn check_form(
                 }
                 return;
             }
+
+            // Arc 098 — :wat::form::matches? boundary (mirrors quote-family above).
+            //
+            // (:wat::form::matches? SUBJECT PATTERN)
+            //
+            // SUBJECT (items[1]) is ordinary code — let-bound locals, constructor
+            // calls — and MUST be walked for call-head resolution.
+            //
+            // PATTERN (items[2]) is DSL data owned by the matches? grammar walker
+            // (src/check.rs `infer_form_matches`).  Its head is a struct-type name
+            // in pattern position (e.g. `:test::PaperResolved`), which is NOT a
+            // call-head — it is a struct name the checker validates against the
+            // struct registry.  The clause sub-forms inside the pattern use DSL
+            // clause heads (`=`, `<`, `>`, `:not=`, `:and`, `:or`, `:not`,
+            // `:where`) that are likewise not ordinary call heads.  Resolving them
+            // as call heads would always produce false `UnresolvedReference` errors.
+            //
+            // Do NOT recurse into items[2..] (the pattern and any extra args).
+            // Recurse ONLY into items[1] (the subject).
+            if head == ":wat::form::matches?" {
+                if let Some(subject) = items.get(1) {
+                    check_form(subject, sym, macros, use_decls, unresolved);
+                }
+                return;
+            }
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
