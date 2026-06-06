@@ -154,3 +154,22 @@
     (:wat::core::do
       (:wat::test::assert-eq threaded 55)
       (:wat::test::assert-eq direct 55))))
+
+;; ─── Zero-steps identity: -> with no steps returns acc unchanged ──────────
+;;
+;; (-> x) with no steps: foldl over empty returns the accumulator.
+;; The steps rest-binder is empty; foldl over empty returns acc unchanged.
+;; Witnesses the identity law for ->.
+
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-zero-steps-identity
+  ()
+  (:wat::test::assert-eq (:wat::core::-> 42) 42))
+
+;; ─── Zero-steps identity: ->> with no steps returns acc unchanged ────────
+;;
+;; (->> x) with no steps: foldl over empty returns the accumulator.
+;; Symmetric identity law for ->>.
+
+(:wat::test::deftest :wat-tests::core::core-threading::thread-last-zero-steps-identity
+  ()
+  (:wat::test::assert-eq (:wat::core::->> 42) 42))

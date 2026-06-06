@@ -112,3 +112,89 @@ fn mint_bare_symbol_step() {
     let body = "(:wat::core::= (:wat::core::-> 3 :my::inc) 4)";
     assert_eq!(eval_bool_with(decls, body).unwrap(), Value::bool(true));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ITEM 3 WITNESSES — empty-list-step failure shapes (arc 249 perimeter closure)
+//
+// `(-> x ())` — the empty step fires Option/expect AT MACRO-EXPANSION TIME
+// (inside foldl running the -> body during startup). The failure is an
+// uncaught `panic_any(AssertionPayload)` — startup_from_source does NOT
+// catch_unwind, so the panic propagates out of startup. Caught here via
+// std::panic::catch_unwind; downcast to AssertionPayload confirms the message.
+//
+// `(->> x ())` — the ->> empty step splices ~@() (nothing) + ~a, yielding
+// `(acc)` i.e. `(5)`. Expansion and type-check both succeed (5 looks like an
+// i64-returning call to the checker). Eval rejects it as MalformedForm
+// (head "int" — an integer literal is not a callable head).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// `(-> x ())` — empty list step fires Option/expect at macro-expansion time.
+/// The failure is a `panic_any(AssertionPayload { message: "-> step has no head" })`
+/// propagating out of `startup_from_source` (which does not catch_unwind).
+#[test]
+fn witness_thread_first_empty_step_panics_at_expansion() {
+    fn attempt() -> Result<(), String> {
+        let src = r#"
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::-> 5 ()))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+        startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+            .map(|_| ())
+            .map_err(|e| format!("startup: {:?}", e))
+    }
+    let result = std::panic::catch_unwind(attempt);
+    match result {
+        Err(payload) => {
+            // Expected path: AssertionPayload panic from Option/expect in -> body.
+            let ap = payload
+                .downcast::<wat::assertion::AssertionPayload>()
+                .expect("panic payload should be AssertionPayload");
+            assert_eq!(
+                ap.message, "-> step has no head",
+                "expected '-> step has no head' panic message, got: {}",
+                ap.message
+            );
+        }
+        Ok(Ok(())) => panic!("expected panic but startup succeeded"),
+        Ok(Err(e)) => panic!("expected panic but got startup Err: {}", e),
+    }
+}
+
+/// `(->> x ())` — empty step desugars at expansion to `(acc)` i.e. `(5)`.
+/// Startup succeeds; eval fails with MalformedForm (integer is not a callable head).
+#[test]
+fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
+    fn attempt_startup() -> Result<wat::freeze::FrozenWorld, String> {
+        let src = r#"
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::->> 5 ()))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+        startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+            .map_err(|e| format!("startup: {:?}", e))
+    }
+    // startup_from_source must NOT panic and must return Ok (expansion+check pass).
+    let world = std::panic::catch_unwind(attempt_startup)
+        .expect("startup must not panic for ->> empty step")
+        .expect("startup must succeed for ->> empty step");
+
+    // Eval must fail: `(5)` has an integer head, not a callable keyword/symbol/list.
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let env = Environment::new();
+    let eval_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eval_in_frozen(&ast, &world, &env)
+    }));
+    match eval_result {
+        Ok(Err(e)) => {
+            let msg = format!("{:?}", e);
+            assert!(
+                msg.contains("MalformedForm") || msg.contains("call head"),
+                "expected MalformedForm eval error, got: {}",
+                msg
+            );
+        }
+        Ok(Ok(_)) => panic!("expected MalformedForm eval error but eval succeeded"),
+        Err(_) => panic!("expected MalformedForm eval error but eval panicked"),
+    }
+}

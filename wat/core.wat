@@ -1,10 +1,25 @@
-;; vigilatum: 2026-06-04T04:01:56Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(core-arithmetic)
+;; vigilatum: 2026-06-06T01:25:15Z — UPDATED-vigilia spec/DSL 5-spell guard
+;; L1+L2=0 (cernere [CONVERGED 0+0: full vocabulary table, every expand-time
+;; head verified on the pure-total allow-list] + probare [all 16 forms
+;; Expressed] + conferre [all 17 header claims verified; 6 USER-GUIDE
+;; divergences fixed spec-side] + exigere [CONVERGED 0+0] + circumspicere
+;; LAST [the false loads-early rationale killed at both sites; empty-step
+;; behaviors documented + witnessed at their empirical failure shapes]).
+;; Witness corpus: deftest-green(core-arithmetic + core-equality +
+;; core-threading + core-collection-aliases + option-expect + record-def +
+;; result-expect + struct-to-form + list-fold-aliases); corpus 236/0/53;
+;; checker-clean. Canonical record:
+;; docs/arc/2026/06/249-total-pure-macros/WARD-COREWAT-REEARN.md.
 ;;
 ;; wat/core.wat — the :wat::core::* stdlib surface: short-name aliases plus the
 ;; polymorphic arithmetic and ordering defclauses.
 ;;
-;; Loads early in the stdlib so these forms are visible to the later
-;; files that reference them.
+;; Position in the stdlib array is not load-bearing for visibility:
+;; register_stdlib_defmacros (src/macros/parse.rs) walks the entire
+;; concatenated stdlib in one pre-expansion pass, so every defmacro
+;; (defn, concat, ->, …) is registered before any expansion runs.
+;; defclause/defalias stubs are likewise pre-registered before use
+;; (src/freeze.rs: preregister_stdlib_defclause_stub).
 
 ;; ─── Short-name collection aliases ──────────────────────────────────────────
 ;;
@@ -176,6 +191,8 @@
 ;; Thread-first `->`: inject acc as the FIRST arg of each step.
 ;;   (-> x (f a b) g)  =>  (g (f x a b))
 ;; A list step `(f a…)` => `(f acc a…)`; a bare symbol/keyword step `f` => `(f acc)`.
+;; Empty-list step `()`: Option/expect on (first ()) fires "-> step has no head"
+;;   as a panic_any(AssertionPayload) at macro-expansion time (during startup).
 (:wat::core::defmacro :wat::core::->
   [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
   -> :AST<wat::holon::HolonAST>
@@ -191,6 +208,8 @@
 ;; Thread-last `->>`: inject acc as the LAST arg of each step.
 ;;   (->> x (f a b) g)  =>  (g (f a b x))
 ;; A list step `(f a…)` => `(f a… acc)`; a bare symbol/keyword step `f` => `(f acc)`.
+;; Empty-list step `()`: ~@() splices nothing, yielding `(acc)` — expansion succeeds
+;;   but eval rejects the integer-head form with MalformedForm at runtime.
 (:wat::core::defmacro :wat::core::->>
   [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
   -> :AST<wat::holon::HolonAST>
@@ -208,6 +227,7 @@
 ;; keyword/of — build the parametric keyword `:Head<arg1,arg2>` from keyword args
 ;; (head + args, leading colons stripped). Pure-total program over forms.
 ;; Arc 249 Stone 249.4a — promoted from construct_keyword_of (expand.rs).
+;; Zero args: string::join "" [] = "", yielding `:Head<>` (empty angle brackets).
 (:wat::core::defmacro :wat::core::keyword/of
   [head <- :wat::holon::HolonAST & args <- :AST<wat::holon::Holons>]
   -> :AST<wat::holon::HolonAST>

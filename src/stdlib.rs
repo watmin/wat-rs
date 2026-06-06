@@ -210,9 +210,11 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/edn.wat"),
     },
     // Arc 146 slice 2 — :wat::core::* dispatches. Routes polymorphic
-    // primitive names (length, etc.) to per-Type impls. Loads BEFORE
-    // collection forms so dispatches are visible to any file that
-    // references them.
+    // primitive names (length, etc.) to per-Type impls. Array position
+    // is not load-bearing for visibility: register_stdlib_defmacros
+    // (src/macros/parse.rs) walks the entire concatenated stdlib in a
+    // single pre-expansion pass, so all defmacros are registered before
+    // any expansion runs regardless of file order.
     WatSource {
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
