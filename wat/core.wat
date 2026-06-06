@@ -6,6 +6,8 @@
 ;; Loads early in the stdlib so these forms are visible to the later
 ;; files that reference them.
 
+;; ─── Short-name collection aliases ──────────────────────────────────────────
+;;
 ;; The polymorphic-name collection ops — length / empty? / contains? / get /
 ;; conj / assoc — are Rust ∀T intrinsics: check-side inference lives in
 ;; src/collection/infer.rs, eval-side in src/runtime.rs. Their per-Type leaves

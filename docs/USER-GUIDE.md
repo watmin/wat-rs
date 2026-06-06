@@ -1271,6 +1271,27 @@ recurses until the head of the form is no longer a macro. Useful
 when a macro's expansion isn't producing what you expected — invoke
 the expander, read the resulting AST.
 
+### Threading macros — `->` / `->>` (arc 249)
+
+Clojure's threading macros, defined as plain wat defmacros over the
+total-pure macro-eval engine (`wat/core.wat`; arc 249 Stone 249.3b —
+no Rust desugar). FQDN names, like every wat form — note these are the
+keywords `:wat::core::->` / `:wat::core::->>`, distinct from the bare
+`->` return-arrow marker in `fn` signatures.
+
+```scheme
+;; Thread-FIRST: inject the accumulator as the FIRST arg of each step.
+(:wat::core::-> x (f a b) g)        ;; ≡ (g (f x a b))
+
+;; Thread-LAST: inject the accumulator as the LAST arg of each step.
+(:wat::core::->> x (f a b) g)       ;; ≡ (g (f a b x))
+```
+
+A list step `(f a …)` gains the accumulator; a bare symbol/keyword
+step `f` becomes `(f acc)` under both macros. The corpus demo is
+`wat-tests/core/core-threading.wat`; the Rust probe is
+`tests/probe_arc249_threading.rs`.
+
 ### Numeric arithmetic + comparison — first-class entities (arc 148)
 
 Arithmetic (`+`, `-`, `*`, `/`) and comparison (`=`, `not=`, `<`, `>`,
@@ -1279,22 +1300,25 @@ reach tiers, one rule about which to use:
 
 ```scheme
 ;; Tier 1 — DEFAULT REACH (Lisp-natural; the call shape you'll write 99% of the time)
-(:wat::core::+ x y z)               ;; variadic; mixed-numeric promotes to f64
+(:wat::core::+ x y z)               ;; variadic; same-type only — cross-type (i64 + f64)
+                                    ;; is rejected by clause absence → :NoMatchingClause
+                                    ;; (arc 237 Stone 237.8b retired implicit promotion)
 (:wat::core::< a b)                 ;; binary (chains via :and explicitly)
 (:wat::core::- 5)                   ;; → -5 (1-ary inserts identity-on-left)
 (:wat::core::+)                     ;; → 0:i64 (0-ary returns identity)
 (:wat::core::*)                     ;; → 1:i64 (0-ary returns identity)
 
-;; Tier 2 — TYPE-LOCKED (assert "this operates only over T"; mixed-numeric is a compile error)
-(:wat::core::i64::+ a b c)          ;; same shape as default; type-locked
-(:wat::core::f64::* x y z)
-(:wat::core::i64::- 10 3 2)         ;; → 5 (folds left)
-
-;; Tier 3 — SUBSTRATE ADDRESSING (rarely needed in everyday code; reachable per arc 109 no-privacy)
-(:wat::core::+,2 a b)               ;; binary Dispatch entity; routes by type-pair
-(:wat::core::+,i64-f64 1 2.0)       ;; mixed-numeric leaf; substrate honesty
-(:wat::core::i64::+,2 a b)          ;; same-type binary leaf
+;; Tier 2 — TYPE-LOCKED per-Type leaves (strictly 2-ary Rust intrinsics)
+(:wat::core::i64::+ a b)            ;; binary ONLY — 3+ args → ArityMismatch
+(:wat::core::f64::* x y)            ;; the Tier-1 defclause folds variadic calls
+                                    ;; down onto these binary leaves
 ```
+
+(The pre-arc-171 “Tier 3” comma-addressed leaves — `:wat::core::+,2`,
+`:wat::core::+,i64-f64` — are retired: the lexer rejects commas in keyword
+bodies (arc 171), the arity-suffix form was dropped in Stone 237.8b, and the
+mixed-numeric leaves were deleted with implicit promotion. The per-Type leaf
+`:wat::core::i64::+` is the deepest addressable layer.)
 
 **Arity rules** (Lisp/Clojure tradition):
 
@@ -1384,9 +1408,11 @@ sharing.
 substrate backs `length` / `empty?` / `contains?` / `get` / `conj`
 with **Dispatch entities** (one entity per polymorphic surface;
 arms route by input type to per-Type Rust leaves). The single-impl
-verbs `assoc` / `dissoc` / `keys` / `values` / `concat` use
-**`:wat::runtime::define-alias`** to point the polymorphic name at
-the one per-Type impl that exists. All ten verbs are queryable via
+verbs `dissoc` / `keys` / `values` / `concat` use
+**`:wat::core::defalias`** (the sole alias mechanism since Stone
+241.12 retired `:wat::runtime::define-alias`; the live calls are in
+`wat/core.wat`) to point the polymorphic name at the one per-Type
+impl that exists. All the verbs are queryable via
 `signature-of-defn` / `lookup-define` / `body-of` (arc 144) — the
 substrate runs ONE polymorphism model (rank-1 schemes + Dispatch
 composing them); the polymorphic-handler anti-pattern is retired.
@@ -2948,17 +2974,14 @@ defines have a substrate-side query surface in the
 ;;   (suitable for splicing as call positions)
 ```
 
-**The wat-side macro that composes them — `:wat::runtime::define-alias`**
-in `wat/runtime.wat` — generates a fresh `:wat::core::define` whose
-body is a single delegating call to the target:
+**The alias surface that composes them — `:wat::core::defalias`** (the
+sole alias mechanism since Stone 241.12 retired
+`:wat::runtime::define-alias`) points an alias name at its target; the
+live list-verb aliases are in `wat/list.wat`:
 
 ```scheme
-(:wat::runtime::define-alias :wat::list::reduce :wat::core::foldl)
-(:wat::runtime::define-alias :wat::list::fold   :wat::core::foldl)
-;; each expands to a delegating define:
-;; (:wat::core::define
-;;   (:wat::list::reduce<T,Acc> (acc :Acc) (vec :Vec<T>) (f :fn(Acc,T)->Acc) -> :Acc)
-;;   (:wat::core::foldl acc vec f))
+(:wat::core::defalias :wat::list::reduce :wat::core::foldl)
+(:wat::core::defalias :wat::list::fold   :wat::core::foldl)
 ```
 
 The atomic forms are `:wat::core::foldl` and `:wat::core::foldr`;
@@ -2998,13 +3021,14 @@ What's reflectable today:
 - **Substrate primitives** with TypeScheme registrations (foldl, foldr,
   map, filter, the core arithmetic + comparison families, etc.)
 - **Container methods** (length, empty?, contains?, get, conj —
-  reflected via arc 146's Dispatch entities; assoc, dissoc, keys,
-  values, concat — reflected via arc 143's define-alias to single
-  per-Type impls)
+  reflected via arc 146's Dispatch entities; dissoc, keys,
+  values, concat — reflected via `:wat::core::defalias` (Stone
+  241.12) to single per-Type impls)
 - **Numeric arithmetic + comparison** (`:+`, `:-`, `:*`, `:/`, `:=`,
   `:not=`, `:<`, `:>`, `:<=`, `:>=` over i64/f64 — first-class
-  per arc 148's Dispatch entities + per-Type leaves; mixed-numeric
-  types reachable via `:wat::core::+,i64-f64` etc.)
+  per arc 148's lineage, now polymorphic wat defclauses over strictly
+  2-ary per-Type leaves; cross-type is rejected by clause absence —
+  the mixed-numeric leaves were deleted with Stone 237.8b)
 - **Special forms** — `:wat::core::if`, `cond`, `match`, `let`,
   `fn`, `define`, `defmacro`, `try`, `option/expect`,
   `result/expect`, the spawn family, the quasiquote family, `forms`.
@@ -3519,7 +3543,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::bytes-vector` | `bs` | `:Option<wat::holon::Vector>` — deserialize the wire format (arc 061). Takes `:wat::core::Bytes`. `:None` on short / truncated / dim-mismatched / corrupt input |
 | `:wat::holon::coincident?` | `a b` | `:bool` — polymorphic over HolonAST or Vector inputs in either position (arc 061 widened from HolonAST-only); `(1 - cosine) < coincident-floor` at encoded d |
 | `:wat::holon::simhash` | `holon` or `vector` | `:i64` — Charikar SimHash, polymorphic over HolonAST or Vector input (arcs 051 + 052). Cosine-similar inputs share keys; the position-allocator for content-addressed caches. Composes with `:rust::lru::LruCache<i64,V>` for bidirectional engram lookup |
-| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality — same-type for non-numeric, cross-numeric (i64+f64) accepted with promotion (arc 050); always returns `:bool`. **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
+| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality, always returns `:bool`. **`=` / `not=`**: cross-numeric (i64+f64) accepted (value comparison). **`<` / `>` / `<=` / `>=`**: same-type ONLY — they are wat defclauses over per-Type leaves (wat/core.wat), and cross-type (i64 vs f64) is rejected by clause absence → `:NoMatchingClause` (Stone 237.8b). **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::Record/same-data?` | `a b` | `:bool` — record DATA equality, **type-BLIND** (arc 237 S-C.2d): true iff two records hold the same field-name→value map, *regardless of class or flavor*. Contrast with `=`, which is type-strict (`Point[0,0] = Coord[0,0]` → false, but `same-data?` → true). Name-keyed: different field names → false. The reach for "do these hold the same data, whatever they are?" |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
