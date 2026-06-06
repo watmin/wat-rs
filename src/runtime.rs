@@ -10678,10 +10678,67 @@ fn walk_quasiquote(
         // the Vector wrapper — without this, an unquote inside any
         // bracketed shape stays literal and the child sees
         // `:wat::core::unquote` as an unknown function.
+        //
+        // Splice stone: Vector children now get the same `~@`-splice support
+        // as List children (Arc 249 Stone 249.3a extended to Vector context).
+        // At depth 1, a child `(:wat::core::unquote-splicing E)` evaluates E
+        // and flattens its elements into the Vector — enabling program-body
+        // quasiquotes to splice env-bound list form-values element-wise into
+        // fn-argspec vectors (e.g. `[~@params]` where `params` is a
+        // `Value::Vec` of `Value::wat__WatAST` form-values).
         WatAST::Vector(items, span) => {
-            let walked: Result<Vec<_>, _> =
-                items.iter().map(|c| walk_quasiquote(c, env, sym, depth)).collect();
-            Ok(WatAST::Vector(walked?, span.clone()))
+            let mut walked: Vec<WatAST> = Vec::with_capacity(items.len());
+            for child in items.iter() {
+                // Detect `(:wat::core::unquote-splicing E)` at depth 1.
+                if depth == 1 {
+                    if let Some(splice_expr) = match_qq_head_named(child, ":wat::core::unquote-splicing") {
+                        let v = eval_inner(splice_expr, env, sym)?.value_owned();
+                        match v {
+                            // Vec: convert each element to WatAST and splice all.
+                            // Mirrors the List arm's Vec case and splice_argument's computed-Vec case.
+                            Value::Vec(elems) => {
+                                for elem in elems.iter() {
+                                    walked.push(value_to_watast(
+                                        ":wat::core::unquote-splicing",
+                                        elem.clone(),
+                                        span.clone(),
+                                    )?);
+                                }
+                            }
+                            // WatAST List: splice the inner list's children.
+                            Value::wat__WatAST(ref ast) => {
+                                if let WatAST::List(ref children, _) = **ast {
+                                    walked.extend(children.iter().cloned());
+                                } else {
+                                    return Err(RuntimeError {
+                                        span: span.clone(),
+                                        kind: RuntimeErrorKind::TypeMismatch {
+                                            op: ",@".into(),
+                                            expected: "sequence (Vec value or list form)",
+                                            got: Box::new(ValueSnapshot::of(&v)),
+                                        },
+                                    }.into());
+                                }
+                            }
+                            // Any other shape: honest refusal.
+                            other => {
+                                return Err(RuntimeError {
+                                    span: span.clone(),
+                                    kind: RuntimeErrorKind::TypeMismatch {
+                                        op: ":wat::core::unquote-splicing".into(),
+                                        expected: "sequence (Vec value or list form)",
+                                        got: Box::new(ValueSnapshot::of(&other)),
+                                    },
+                                }.into());
+                            }
+                        }
+                        continue;
+                    }
+                }
+                // Below depth 1 or not a splice form: walk normally.
+                walked.push(walk_quasiquote(child, env, sym, depth)?);
+            }
+            Ok(WatAST::Vector(walked, span.clone()))
         }
         // Leaves are preserved verbatim. (StructPattern admits only
         // bare Symbols at parse time per `src/ast.rs:99`; cannot

@@ -25,32 +25,28 @@
 ;; interchangeable.
 (:wat::core::typealias :wat::lru::LocalCache<K,V> :rust::lru::LruCache<K,V>)
 
-(:wat::core::define
-  (:wat::lru::LocalCache::new<K,V>
-    (capacity :wat::core::i64)
-    -> :wat::lru::LocalCache<K,V>)
+(:wat::core::defn :wat::lru::LocalCache::new<K,V>
+  [capacity <- :wat::core::i64]
+  -> :wat::lru::LocalCache<K,V>
   (:rust::lru::LruCache::new capacity))
 
-(:wat::core::define
-  (:wat::lru::LocalCache::put<K,V>
-    (cache :wat::lru::LocalCache<K,V>)
-    (k :K)
-    (v :V)
-    -> :wat::core::Option<(K,V)>)
+(:wat::core::defn :wat::lru::LocalCache::put<K,V>
+  [cache <- :wat::lru::LocalCache<K,V>
+   k     <- :K
+   v     <- :V]
+  -> :wat::core::Option<(K,V)>
   (:rust::lru::LruCache::put cache k v))
 
-(:wat::core::define
-  (:wat::lru::LocalCache::get<K,V>
-    (cache :wat::lru::LocalCache<K,V>)
-    (k :K)
-    -> :wat::core::Option<V>)
+(:wat::core::defn :wat::lru::LocalCache::get<K,V>
+  [cache <- :wat::lru::LocalCache<K,V>
+   k     <- :K]
+  -> :wat::core::Option<V>
   (:rust::lru::LruCache::get cache k))
 
 ;; `:wat::lru::LocalCache::len cache` — current entry count. Read-only;
 ;; does not affect LRU order. Lab cache services (umbrella 059
 ;; slice 1) emit this through rundb telemetry on a rate gate.
-(:wat::core::define
-  (:wat::lru::LocalCache::len<K,V>
-    (cache :wat::lru::LocalCache<K,V>)
-    -> :wat::core::i64)
+(:wat::core::defn :wat::lru::LocalCache::len<K,V>
+  [cache <- :wat::lru::LocalCache<K,V>]
+  -> :wat::core::i64
   (:rust::lru::LruCache::len cache))

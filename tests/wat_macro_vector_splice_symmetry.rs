@@ -98,40 +98,72 @@ fn splice_of_vector_bound_symbol_succeeds() {
 /// parameter list) so the test isolates the macro-layer fix from the
 /// out-of-scope arc 167 "vectors at value position" runtime limitation.
 ///
-/// Macro `:my::make-adder` captures the params via a rest-binder (which
-/// binds to a `WatAST::List`) and splices them into a `[~@params]`
-/// Vector template that becomes a `fn` signature. The macro expands to
-/// a `(:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-///   (:wat::core::i64::+ a b))` after the splice fires.
+/// THE HYGIENE REFUSAL WITNESS (re-diagnosed at the 245 close; supersedes the
+/// "arc 200 gap 2 / runtime param-binding gap" framing below-in-history).
 ///
-/// STOP — ARC 200 GAP 2 PARTIAL: the Vector splice in `[~@params]` fires at
-/// EXPAND TIME (the macro template expands correctly; `splice_of_vector_bound_symbol_succeeds`
-/// proves this). However, the fn created from the Vector-splice param list
-/// does NOT bind the params at RUNTIME — `a` is UnboundSymbol when the fn is called.
-/// Root cause: `[~@params]` Vector splice in fn param position produces the correct
-/// token sequence structurally, but the fn evaluator's param-binding pass treats
-/// the spliced Vector differently than a hand-written `[a <- :i64 b <- :i64]`.
-/// This is a RUNTIME gap distinct from the MACRO-LAYER gap arc 200 closed.
-/// Filed as open substrate work; this test documents the gap so it is not forgotten.
-/// When the gap is closed, remove the #[should_panic] and restore the original assertion.
+/// The OLD diagnosis ("the fn evaluator's param-binding pass treats the
+/// spliced Vector differently") was WRONG. The real mechanism is the 249.5
+/// hygiene annihilation working correctly: the body's `a`/`b` are LITERAL
+/// TEMPLATE SYMBOLS — walk_template stamps them with the macro's fresh
+/// ScopeId — while the binders arrive via `~@params` from the CALLER and
+/// keep caller scope-sets. `(name, scope-set)` identities differ, so the
+/// body's `a{macro-scope}` does not see the binder's bare `a`. That is
+/// TEXTBOOK ANAPHORIC CAPTURE, and hygiene refuses it BY DESIGN. This test
+/// passed before 249.5b only because name-only resolution allowed the
+/// accidental capture.
+///
+/// PERMANENT witness — never "fix" this; fixing it would mean breaking
+/// hygiene. The hygienic way to write this macro is the sibling test below.
 #[test]
 #[should_panic(expected = "UnboundSymbol")]
-fn splice_inside_vector_template_fires() {
-    // The fn signature lives in a Vector template. The splice dispatch
-    // in the Vector branch of walk_template is what makes this expand
-    // correctly. Pre-arc-200 the splice was preserved literally, breaking
-    // the fn-sig consumer.
-    //
-    // Gap documented: the macro EXPANDS correctly but the fn runtime does NOT bind
-    // the spliced params. should_panic preserves the test as a gap-marker rather
-    // than greening a stale success assertion. Remove #[should_panic] when the
-    // runtime param-binding gap for Vector-splice fn signatures is closed.
+fn anaphoric_splice_capture_refused_by_hygiene() {
     let src = r#"
         (:wat::core::defmacro :my::make-adder
           [& params <- :AST<wat::core::Vector<wat::WatAST>>]
           -> :AST<wat::core::nil>
           `(:wat::core::fn [~@params] -> :wat::core::i64
               (:wat::core::i64::+ a b)))
+
+        (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
+
+        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:my::adder) 7 35))
+    "#;
+    match run_compute(src) {
+        Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
+        other => panic!("expected i64(42); got {:?}", other),
+    }
+}
+
+/// THE HYGIENIC ADDER — the correct way to write the macro above: the body's
+/// references are COMPUTED FROM THE SAME SPLICED MATERIAL as the binders, so
+/// the `(name, scope-set)` identities MATCH. NOT YET EXPRESSIBLE — this test
+/// is the RED CONTRACT for the splice stone, with the diagnosis chain
+/// grounded at the 245 close (2026-06-06):
+///   layer 1: the anaphoric form fails by DESIGN (hygiene; sibling test above);
+///   layer 2: computed-unquote `(get params 0)` fails — substitute_bindings
+///     splices the rest-list as raw AST, so `(a <- :i64 ...)` EVALUATES as a
+///     call (unbound symbol: a at expand time);
+///   layer 3 (this body): the program-body path binds `params` as a form-value
+///     and the let computes the names — but the output template's `~@params`
+///     does NOT flatten an env-bound list value into the argspec vector
+///     (check: "triple is incomplete; ran out of items").
+/// The stone: program-body quasiquote `~@` must splice env-bound list
+/// form-values element-wise (the 249.3a splice built for computed-unquote
+/// results, extended to the program-body env path). LANDED: the splice stone
+/// extended `walk_quasiquote`'s Vector arm (runtime.rs) to mirror the List
+/// arm's `~@` depth-1 splice loop — `Value::Vec` of `Value::wat__WatAST`
+/// elements are now flattened element-wise into the argspec Vector.
+#[test]
+fn hygienic_splice_adder_binds_via_spliced_names() {
+    let src = r#"
+        (:wat::core::defmacro :my::make-adder
+          [& params <- :AST<wat::core::Vector<wat::WatAST>>]
+          -> :AST<wat::core::nil>
+          (:wat::core::let
+            [n0 (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::get params 0) "make-adder: missing param name 0")
+             n1 (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::get params 3) "make-adder: missing param name 1")]
+            `(:wat::core::fn [~@params] -> :wat::core::i64
+                (:wat::core::i64::+ ~n0 ~n1))))
 
         (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
 

@@ -44,10 +44,18 @@ breach caught and reverted at scoring, and zero stale tests greened.
    (variadic thread-through) · src/collection/ (infer_contains TypeVar arm) ·
    src/check/env.rs (defined_value_asts) · src/macros/ (the fence exception +
    witnesses).
-2. **The vector-splice runtime gap**: fn params from `[~@params]` Vector
-   splice not bound at runtime — documented via should_panic(UnboundSymbol)
-   witness in wat_macro_vector_splice_symmetry; a real engine gap awaiting
-   its stone.
+2. ~~The vector-splice gap~~ **DONE — re-diagnosed then CUT (2026-06-06)**:
+   the old "runtime param-binding gap" framing was WRONG — that failure is
+   the 249.5 hygiene annihilation correctly REFUSING anaphoric capture
+   (template-literal body symbols carry the macro scope; spliced binders
+   carry caller scopes; now the PERMANENT witness
+   anaphoric_splice_capture_refused_by_hygiene). The REAL stone, grounded
+   three probe-layers deep and landed same-day: walk_quasiquote's Vector arm
+   (runtime.rs) now mirrors the List arm's `~@` depth-1 splice loop —
+   env-bound list form-values flatten element-wise, scope identities
+   untouched. Live contract: hygienic_splice_adder_binds_via_spliced_names
+   (the hygienic macro pattern — body names computed from the spliced
+   material — now fully expressible). Depth-rule triple unchanged.
 3. ~~THE ENDGAME (#151)~~ **DONE** (`ef585672` — green-gate.sh check 3/3, proven live 3/3 PASS): fold scripts/integration-run.sh into
    green-gate.sh so the tier can never rot dark again — the quest's final
    boss; the 67 leaky-signal excluded binaries remain its run-tier problem.
