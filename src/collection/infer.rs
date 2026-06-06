@@ -72,7 +72,7 @@ pub(crate) fn infer_contains(
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T>, HashSet<T>, or HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst))
+                    got: format_type(&reduced)
                 } });
                 None
             }
@@ -120,7 +120,9 @@ pub(crate) fn infer_conj(
     const OP: &str = ":wat::core::conj";
     let mut local_errors: Vec<CheckError> = Vec::new();
     // Fallback type if we can't determine the collection type (arity error, etc.).
-    let fallback_ty = TypeExpr::Path(":wat::core::bool".into());
+    // Uses fresh.fresh() (the infer_assoc pattern) so we propagate a free type variable
+    // rather than a confident-but-wrong :bool when arg0 inference fails.
+    let fallback_ty = fresh.fresh();
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(),
@@ -151,7 +153,7 @@ pub(crate) fn infer_conj(
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T> or HashSet<T>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst))
+                    got: format_type(&reduced)
                 } });
                 None
             }
@@ -248,7 +250,7 @@ pub(crate) fn infer_get(
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "Vector<T> or HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst))
+                    got: format_type(&reduced)
                 } });
                 None
             }
@@ -388,7 +390,7 @@ pub(crate) fn infer_assoc(
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "HashMap<K,V> or :wat::Record".into(),
-                    got: format_type(&apply_subst(&coll_ty, subst))
+                    got: format_type(&reduced)
                 } });
             }
         }

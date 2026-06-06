@@ -5535,8 +5535,8 @@ fn dispatch_keyword_head_value(
         // Vec last + find-last-index. Arc 047.
         ":wat::core::last" => crate::collection::transform::eval_vec_last(args, list_span, env, sym),
         ":wat::core::find-last-index" => crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym),
-        ":wat::core::rest" => crate::collection::eval::eval_vec_rest(args, list_span, env, sym),
-        ":wat::std::list::map-with-index" => crate::collection::transform::eval_list_map_with_index(args, list_span, env, sym),
+        ":wat::core::rest" => crate::collection::eval::eval_rest(args, list_span, env, sym),
+        ":wat::std::list::map-with-index" => crate::collection::transform::eval_vec_map_with_index(args, list_span, env, sym),
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
@@ -5819,9 +5819,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
         ":wat::core::filter" => crate::collection::transform::eval_vec_filter(args, list_span, env, sym),
-        ":wat::std::list::zip" => crate::collection::transform::eval_list_zip(args, list_span, env, sym),
-        ":wat::std::list::window" => crate::collection::transform::eval_list_window(args, list_span, env, sym),
-        ":wat::std::list::remove-at" => crate::collection::transform::eval_list_remove_at(args, list_span, env, sym),
+        ":wat::std::list::zip" => crate::collection::transform::eval_vec_zip(args, list_span, env, sym),
+        ":wat::std::list::window" => crate::collection::transform::eval_vec_window(args, list_span, env, sym),
+        ":wat::std::list::remove-at" => crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym),
         ":wat::core::HashMap" => crate::collection::eval::eval_hashmap_ctor(args, list_span, env, sym),
         ":wat::core::HashSet" => crate::collection::eval::eval_hashset_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
@@ -10317,7 +10317,7 @@ fn eval_assoc(
     match &arg0_val {
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
         Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
-            eval_record_assoc(args, list_span, env, sym)
+            record_assoc_inner(arg0_val, arg1_val, arg2_val, list_span, sym)
         }
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -13673,9 +13673,9 @@ fn eval_length(
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     match &arg_val {
-        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        Value::Vec(_) => crate::collection::eval::vector_length_inner(&arg_val),
+        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_length_inner(&arg_val),
+        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_length_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
@@ -13711,9 +13711,9 @@ fn eval_empty(
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
     match &arg_val {
-        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
+        Value::Vec(_) => crate::collection::eval::vector_empty_q_inner(&arg_val),
+        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
+        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_empty_q_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
@@ -14604,23 +14604,17 @@ fn eval_record_same_data(
 ///
 /// HolonAST rebuild: clone the outer Bind + its Bundle, replace child at the matching
 /// index with `Bind(Atom(String(name)), coerce_to_holon_ast(new_val))`.
-fn eval_record_assoc(
-    args: &[WatAST],
+/// Value-level inner for record assoc — accepts pre-evaluated values.
+/// Called by `eval_record_assoc` (thin wrapper) and by `eval_assoc`'s Record arm
+/// (which already evaluated all args to avoid double evaluation).
+fn record_assoc_inner(
+    record_val: Value,
+    key_val: Value,
+    new_val: Value,
     list_span: &Span,
-    env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::Record/assoc";
-    if args.len() != 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len()
-        } }.into());
-    }
-    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let key_val    = eval_inner(&args[1], env, sym)?.value_owned();
-    let new_val    = eval_inner(&args[2], env, sym)?.value_owned();
 
     // Stone S-C.2c — base arm: early-return path that rebuilds struct_form ONLY.
     // Holonic arm stays below (unchanged — PARITY invariant: holonic rebuilds BOTH forms).
@@ -14818,6 +14812,28 @@ fn eval_record_assoc(
         struct_form: new_struct_form,
         holon_form: new_holon_form,
     })
+}
+
+/// Thin wrapper: evaluates args then delegates to `record_assoc_inner`.
+/// Callers that already have evaluated values (e.g. `eval_assoc`) call `record_assoc_inner` directly.
+fn eval_record_assoc(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::Record/assoc";
+    if args.len() != 3 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len()
+        } }.into());
+    }
+    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let key_val    = eval_inner(&args[1], env, sym)?.value_owned();
+    let new_val    = eval_inner(&args[2], env, sym)?.value_owned();
+    record_assoc_inner(record_val, key_val, new_val, list_span, sym)
 }
 
 /// Arc 228 Stone 228.1 — extract the classifier name from a classifier-wrapped HolonAST.

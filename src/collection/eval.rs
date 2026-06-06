@@ -19,6 +19,11 @@ use std::sync::Arc;
 
 // ─── Arc 146 slice 2 — per-Type length impls ────────────────────────────────
 
+// rune:conformare(spanless-by-domain) — the _inner helpers operate on pre-evaluated &Value with
+// no originating AST in scope on any call path (eval wrappers and dispatch_substrate_impl both
+// arrive value-level); Span::unknown() in this family is the API contract, not a discipline gap.
+
+/// Returns the length of a `Value::Vec` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
@@ -42,6 +47,7 @@ pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
+/// Returns the length of a `Value::wat__std__HashMap` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
@@ -53,6 +59,7 @@ pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
+/// Returns the length of a `Value::wat__std__HashSet` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
@@ -66,12 +73,12 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 
 pub(crate) fn eval_vector_length(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: 1,
             got: args.len()
@@ -83,12 +90,12 @@ pub(crate) fn eval_vector_length(
 
 pub(crate) fn eval_hashmap_length(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: 1,
             got: args.len()
@@ -100,12 +107,12 @@ pub(crate) fn eval_hashmap_length(
 
 pub(crate) fn eval_hashset_length(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: 1,
             got: args.len()
@@ -164,12 +171,12 @@ pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 
 pub(crate) fn eval_vector_empty_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: 1,
             got: args.len()
@@ -181,12 +188,12 @@ pub(crate) fn eval_vector_empty_q(
 
 pub(crate) fn eval_hashmap_empty_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: 1,
             got: args.len()
@@ -198,12 +205,12 @@ pub(crate) fn eval_hashmap_empty_q(
 
 pub(crate) fn eval_hashset_empty_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: 1,
             got: args.len()
@@ -213,7 +220,7 @@ pub(crate) fn eval_hashset_empty_q(
     hashset_empty_q_inner(&v)
 }
 
-// ─── contains? — MIXED VERBS ────────────────────────────────────────────────
+// ─── contains? — Vector/List/HashSet use `contains?`; HashMap dispatches `contains-key?` ─────
 
 pub(crate) fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
@@ -289,12 +296,12 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
 
 pub(crate) fn eval_vector_contains_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: 2,
             got: args.len()
@@ -307,12 +314,12 @@ pub(crate) fn eval_vector_contains_q(
 
 pub(crate) fn eval_hashmap_contains_key_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: 2,
             got: args.len()
@@ -325,12 +332,12 @@ pub(crate) fn eval_hashmap_contains_key_q(
 
 pub(crate) fn eval_hashset_contains_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: 2,
             got: args.len()
@@ -424,12 +431,12 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
 
 pub(crate) fn eval_vector_get(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: 2,
             got: args.len()
@@ -442,12 +449,12 @@ pub(crate) fn eval_vector_get(
 
 pub(crate) fn eval_hashmap_get(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: 2,
             got: args.len()
@@ -462,12 +469,12 @@ pub(crate) fn eval_hashmap_get(
 
 pub(crate) fn eval_list_length(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/length".into(),
             expected: 1,
             got: args.len()
@@ -479,12 +486,12 @@ pub(crate) fn eval_list_length(
 
 pub(crate) fn eval_list_empty_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: 1,
             got: args.len()
@@ -496,12 +503,12 @@ pub(crate) fn eval_list_empty_q(
 
 pub(crate) fn eval_list_contains_q(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: 2,
             got: args.len()
@@ -514,12 +521,12 @@ pub(crate) fn eval_list_contains_q(
 
 pub(crate) fn eval_list_get(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::List/get".into(),
             expected: 2,
             got: args.len()
@@ -528,24 +535,6 @@ pub(crate) fn eval_list_get(
     let container = eval_inner(&args[0], env, sym)?.value_owned();
     let index = eval_inner(&args[1], env, sym)?.value_owned();
     list_get_inner(&container, &index)
-}
-
-pub(crate) fn eval_list_conj(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_conj_inner(&container, &item)
 }
 
 // ─── conj inner helpers ──────────────────────────────────────────────────────
@@ -583,6 +572,24 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
     }
 }
 
+pub(crate) fn eval_list_conj(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::List/conj".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
+    list_conj_inner(&container, &item)
+}
+
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
 // which triggers the lint. The interior-mutability variants are opaque handles that never
@@ -617,12 +624,12 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
 
 pub(crate) fn eval_vector_conj(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: 2,
             got: args.len()
@@ -635,12 +642,12 @@ pub(crate) fn eval_vector_conj(
 
 pub(crate) fn eval_hashset_conj(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: 2,
             got: args.len()
@@ -776,12 +783,12 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
 
 pub(crate) fn eval_hashmap_assoc(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/assoc".into(),
             expected: 3,
             got: args.len()
@@ -795,12 +802,12 @@ pub(crate) fn eval_hashmap_assoc(
 
 pub(crate) fn eval_hashmap_dissoc(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/dissoc".into(),
             expected: 2,
             got: args.len()
@@ -813,12 +820,12 @@ pub(crate) fn eval_hashmap_dissoc(
 
 pub(crate) fn eval_hashmap_keys(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/keys".into(),
             expected: 1,
             got: args.len()
@@ -830,12 +837,12 @@ pub(crate) fn eval_hashmap_keys(
 
 pub(crate) fn eval_hashmap_values(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap/values".into(),
             expected: 1,
             got: args.len()
@@ -847,12 +854,12 @@ pub(crate) fn eval_hashmap_values(
 
 pub(crate) fn eval_vector_concat(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector/concat".into(),
             expected: 2,
             got: args.len()
@@ -863,22 +870,25 @@ pub(crate) fn eval_vector_concat(
     vector_concat_inner(&left, &right)
 }
 
-// ─── Container-polymorphic sequence ops ─────────────────────────────────────
+// ─── Container-polymorphic rest — Vec/List/WatAST-form ───────────────────────
 
-/// `(:wat::core::rest xs)` — everything after the first element of a
-/// Vec or List. Mirrors `slice[1..]` for Vec. Runtime error if `xs` is
-/// empty. Branches on `Value::Vec` vs `Value::wat__core__List`
-/// (container-polymorphic dispatch); lives here beside the per-Type
-/// impls rather than `transform.rs` (which holds Vector/List-SPECIFIC
-/// seq-HOFs, not container-polymorphic dispatch).
-pub(crate) fn eval_vec_rest(
+/// `(:wat::core::rest xs)` — everything after the first element. Three dispatch arms:
+///
+/// - `Value::Vec` — returns a new `Vec<T>` of the tail (mirrors `slice[1..]`).
+/// - `Value::wat__core__List` — returns a new `List<T>` of the tail; preserves List type identity.
+/// - `Value::wat__WatAST(WatAST::List)` — form-value decomposition: returns a new `WatAST::List`
+///   of the tail forms, preserving the surrounding span (arc 249 Stone 249.3a-ii).
+///
+/// Runtime error if the Vec/List/form is empty. Lives here beside the per-Type impls rather than
+/// `transform.rs` (which holds Vector/List-SPECIFIC seq-HOFs, not container-polymorphic dispatch).
+pub(crate) fn eval_rest(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::rest".into(),
             expected: 1,
             got: args.len()
@@ -941,23 +951,26 @@ pub(crate) fn eval_vec_rest(
 
 pub(crate) fn eval_vector_ctor(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::Vector".into(),
             expected: 1,
             got: 0
         } }.into());
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Vector".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into()
         } }.into());
     }
+    // rune:perspicere(mumble-alias) — Result<Vec<_>, _> turbofish reads better than a
+    // single-home alias would; the pattern is substrate-wide convention with no existing
+    // typealias to reuse.
     let items = args[1..]
         .iter()
         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
@@ -967,12 +980,12 @@ pub(crate) fn eval_vector_ctor(
 
 pub(crate) fn eval_hashmap_ctor(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() < 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashMap".into(),
             expected: 2,
             got: args.len()
@@ -992,7 +1005,7 @@ pub(crate) fn eval_hashmap_ctor(
     }
     let pairs = &args[2..];
     if !pairs.len().is_multiple_of(2) {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: format!(
                 "arity after :K :V type args must be even (alternating key/value pairs); got {}",
@@ -1023,18 +1036,18 @@ pub(crate) fn eval_hashmap_ctor(
 
 /// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
 /// keyword read by the checker; remaining args are elements. Duplicate
-/// elements collapse (last stored wins on the exact canonical key).
+/// elements collapse (HashSet semantics; Value: Hash + Eq).
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
 pub(crate) fn eval_hashset_ctor(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::HashSet".into(),
             expected: 1,
             got: 0

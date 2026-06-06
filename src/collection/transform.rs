@@ -1,10 +1,13 @@
 //! Vector/List-specific utility ops for the collection dispatch home.
 //!
-//! Contains the ~16 seq-HOF and helper functions (map, filter, foldl, foldr,
-//! sort-by, reverse, range, take, drop, last, rest, find-last-index, zip,
-//! window, remove-at, map-with-index). These are NOT container-polymorphic
-//! dispatch — they are Vector/List-specific utilities. Their dispatch arms
-//! in `dispatch_keyword_head_value` redirect here.
+//! Contains the ~15 seq-HOF and helper functions (map, filter, foldl, foldr,
+//! sort-by, reverse, range, take, drop, last, find-last-index, zip, window,
+//! remove-at, map-with-index). These are NOT container-polymorphic dispatch —
+//! they are Vector-specific utilities (all enforce `Value::Vec` via `require_vec`).
+//! The four ops in the `:wat::std::list::` namespace (zip, window, remove-at,
+//! map-with-index) are named `eval_vec_*` here to mirror the ENFORCED value type.
+//! `rest` was moved to `eval.rs` (container-polymorphic; Vec/List/WatAST-form arms).
+//! Their dispatch arms in `dispatch_keyword_head_value` redirect here.
 //!
 //! See `src/collection/mod.rs` and `docs/DISPATCH.md` for the full doctrine.
 
@@ -18,12 +21,12 @@ use std::sync::Arc;
 
 pub(crate) fn eval_vec_reverse(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::reverse".into(),
             expected: 1,
             got: args.len()
@@ -40,12 +43,12 @@ pub(crate) fn eval_vec_reverse(
 /// write `(range 0 n)` explicitly for 0..n.
 pub(crate) fn eval_vec_range(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::range".into(),
             expected: 2,
             got: args.len()
@@ -66,12 +69,12 @@ pub(crate) fn eval_vec_range(
 /// (empty Vec).
 pub(crate) fn eval_vec_take(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::take".into(),
             expected: 2,
             got: args.len()
@@ -89,12 +92,12 @@ pub(crate) fn eval_vec_take(
 /// (returns the full Vec).
 pub(crate) fn eval_vec_drop(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::drop".into(),
             expected: 2,
             got: args.len()
@@ -125,17 +128,19 @@ pub(crate) fn eval_vec_drop(
 /// stable-sort semantics honest; the doubled call count is amortized
 /// against O(n log n) — for the lab's bounded windows it's
 /// negligible.
+// rune:temperare(simplicity-win) — two-sided less? calls (up to 2× apply_function per comparison)
+// preserve the (T,T)->bool predicate interface the rest of the stdlib uses; a three-way comparator
+// would halve the call count but requires a new predicate protocol. Cost ceiling: sort runs on
+// config-bounded windows (N ≤ a few hundred), so O(2N log N) interpreter re-entries stay negligible.
 pub(crate) fn eval_vec_sort_by(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::sort-by";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -170,11 +175,10 @@ pub(crate) fn eval_vec_sort_by(
             ).map_err(EvalBreak::from)?;
             match v {
                 Value::bool(b) => Ok(b),
-                other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — inside sort_by closure, no AST args in scope
                 } }.into()),
             }
         };
@@ -212,13 +216,12 @@ pub(crate) fn eval_vec_sort_by(
 /// Arc 247: fn-first — (map f xs).
 pub(crate) fn eval_vec_map(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::map".into(),
             expected: 2,
             got: args.len()
@@ -230,8 +233,7 @@ pub(crate) fn eval_vec_map(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::map".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
@@ -251,13 +253,12 @@ pub(crate) fn eval_vec_map(
 /// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
 pub(crate) fn eval_vec_foldl(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldl".into(),
             expected: 3,
             got: args.len()
@@ -270,8 +271,7 @@ pub(crate) fn eval_vec_foldl(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldl".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
@@ -290,13 +290,12 @@ pub(crate) fn eval_vec_foldl(
 /// Arc 247: fn-first — (foldr f init xs).
 pub(crate) fn eval_vec_foldr(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 3 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::foldr".into(),
             expected: 3,
             got: args.len()
@@ -309,8 +308,7 @@ pub(crate) fn eval_vec_foldr(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::foldr".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
@@ -328,13 +326,12 @@ pub(crate) fn eval_vec_foldr(
 /// Arc 247: fn-first — (filter pred xs).
 pub(crate) fn eval_vec_filter(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::filter".into(),
             expected: 2,
             got: args.len()
@@ -346,8 +343,7 @@ pub(crate) fn eval_vec_filter(
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
-            // arc 138: no span — leaf helper.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::filter".into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
@@ -360,8 +356,7 @@ pub(crate) fn eval_vec_filter(
             Value::bool(true) => out.push(x.clone()),
             Value::bool(false) => {}
             other => {
-                // arc 138: no span — leaf helper.
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::filter".into(),
                     expected: "bool",
                     got: Box::new(ValueSnapshot::of(&other))
@@ -374,14 +369,19 @@ pub(crate) fn eval_vec_filter(
 
 /// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
 /// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
-pub(crate) fn eval_list_zip(
+///
+/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
+/// This Rust function is named `eval_vec_zip` to mirror the ENFORCED value type: both inputs
+/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
+/// are rejected at runtime.
+pub(crate) fn eval_vec_zip(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::zip".into(),
             expected: 2,
             got: args.len()
@@ -401,14 +401,19 @@ pub(crate) fn eval_list_zip(
 /// of size `n`; maps to Rust's `slice.windows(n)`. `n <= 0` returns
 /// an empty Vec. `n > xs.len()` returns an empty Vec (no full
 /// window fits) — matches Rust's behavior.
-pub(crate) fn eval_list_window(
+///
+/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
+/// This Rust function is named `eval_vec_window` to mirror the ENFORCED value type: input
+/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
+/// are rejected at runtime.
+pub(crate) fn eval_vec_window(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::window".into(),
             expected: 2,
             got: args.len()
@@ -433,14 +438,19 @@ pub(crate) fn eval_list_window(
 /// loop's "drop the disconnected receiver if it happens to be at
 /// index i" idiom without requiring a pre-check. Negative i also
 /// no-ops.
-pub(crate) fn eval_list_remove_at(
+///
+/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
+/// This Rust function is named `eval_vec_remove_at` to mirror the ENFORCED value type: input
+/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
+/// are rejected at runtime.
+pub(crate) fn eval_vec_remove_at(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::remove-at".into(),
             expected: 2,
             got: args.len()
@@ -463,12 +473,12 @@ pub(crate) fn eval_list_remove_at(
 
 pub(crate) fn eval_vec_last(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::core::last".into(),
             expected: 1,
             got: args.len()
@@ -485,15 +495,13 @@ pub(crate) fn eval_vec_last(
 /// Mirrors Rust's `iter().rposition(pred)`.
 pub(crate) fn eval_vec_find_last_index(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::find-last-index";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len()
@@ -523,11 +531,10 @@ pub(crate) fn eval_vec_find_last_index(
             Value::bool(true) => last_idx = Some(i as i64),
             Value::bool(false) => {}
             other => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "bool (predicate result)",
                     got: Box::new(ValueSnapshot::of(&other)),
-                    // arc 138: no — predicate result from apply_function; no AST arg in scope
                 } }.into());
             }
         }
@@ -538,19 +545,27 @@ pub(crate) fn eval_vec_find_last_index(
 /// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
 /// FOUNDATION-CHANGELOG 2026-04-18 stdlib list surface. `f` takes
 /// `(item, index)` and returns U. Used by Sequential's indexed fold.
-pub(crate) fn eval_list_map_with_index(
+///
+/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
+/// This Rust function is named `eval_vec_map_with_index` to mirror the ENFORCED value type:
+/// input must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List`
+/// values are rejected at runtime.
+pub(crate) fn eval_vec_map_with_index(
     args: &[WatAST],
-    list_span: &Span,
+    call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: ":wat::std::list::map-with-index".into(),
             expected: 2,
             got: args.len()
         } }.into());
     }
+    // NB: arg order here is (xs f) — the collection leads. This diverges from the fn-first
+    // HOF family (arc 247: map/filter/foldl/foldr all take (f xs)). Do NOT copy the extraction
+    // order from sibling HOFs — args[0] is the Vec, args[1] is the function.
     let xs = require_vec(":wat::std::list::map-with-index", eval_inner(&args[0], env, sym)?.value_owned())?;
     let f = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
@@ -569,7 +584,7 @@ pub(crate) fn eval_list_map_with_index(
             func.clone(),
             vec![x.clone(), Value::i64(i as i64)],
             sym,
-            Span::unknown(),
+            crate::rust_caller_span!(),
         )?);
     }
     Ok(Value::Vec(Arc::new(out)))
