@@ -306,7 +306,7 @@ fn probe_12_typeunion_arg_accepts_member_value() {
           (:wat::core::do
                           (:my::identity 42)
                           (:my::identity 3.14)
-                          :wat::core::nil))
+                          nil))
     "#;
     try_startup(src).expect(
         "typeunion arg should accept i64 (member) and f64 (member) — bounded existential unify",
@@ -346,7 +346,7 @@ fn probe_14_fractal_typeunion_resolves_transitively() {
                           (:my::identity 42)
                           (:my::identity 3.14)
                           (:my::identity true)
-                          :wat::core::nil))
+                          nil))
     "#;
     try_startup(src).expect(
         "fractal typeunion should accept all transitively-resolved members (i64, f64, bool)",

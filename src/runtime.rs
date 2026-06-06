@@ -11598,15 +11598,24 @@ fn eval_body_of(
             got: args.len()
         } }.into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let name = match name_from_keyword_or_fn(&v) {
-        Some(n) => n,
-        None => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
-                got: Box::new(ValueSnapshot::of(&v))
-            } }.into());
+    // Mirror of eval_signature_of_defn (arc 150): when the argument is a literal keyword
+    // AST, use the keyword string directly instead of going through `eval_inner`. Evaluating
+    // a keyword that is a registered user define resolves to the fn VALUE stored in
+    // `runtime_def_values` which carries `name: None` — `name_from_keyword_or_fn` would then
+    // fail with the TypeMismatch below. The literal bypass preserves the name for lookup_form.
+    let name = if let WatAST::Keyword(k, _) = &args[0] {
+        k.clone()
+    } else {
+        let v = eval_inner(&args[0], env, sym)?.value_owned();
+        match name_from_keyword_or_fn(&v) {
+            Some(n) => n,
+            None => {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                    got: Box::new(ValueSnapshot::of(&v))
+                } }.into());
+            }
         }
     };
     // Arc 144 slice 1 — dispatch on uniform Binding. Bodies exist for

@@ -365,7 +365,7 @@ fn probe_is_nil_positive() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Nil?
-                      (:wat::holon::to-holon :wat::core::nil)))
+                      (:wat::holon::to-holon nil)))
     "#;
     assert!(run_bool(src), "is-Nil? must return true for the nil composition (symbol nil)");
 }
@@ -414,7 +414,7 @@ fn probe_is_symbol_true_for_nil() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::holon::is-Symbol?
-                      (:wat::holon::to-holon :wat::core::nil)))
+                      (:wat::holon::to-holon nil)))
     "#;
     assert!(run_bool(src), "is-Symbol? must return true for nil (nil = symbol('nil'), classifier is 'Symbol')");
 }

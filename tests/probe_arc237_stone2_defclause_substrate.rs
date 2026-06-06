@@ -133,7 +133,7 @@ fn probe_04_typeunion_arg_accepts_via_bounded_existential() {
           (:wat::core::do
                       (:my::identity-num 42)
                       (:my::identity-num 3.14)
-                      :wat::core::nil))
+                      nil))
     "#;
     try_startup(src)
         .expect("typeunion-typed defclause arg should accept i64 + f64 via bounded existential");
@@ -194,7 +194,7 @@ fn probe_08_no_matching_clause_at_call_site_errors() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::do
                       (:my::only-i64 "string-arg")
-                      :wat::core::nil))
+                      nil))
     "#;
     let result = try_startup(src);
     assert!(

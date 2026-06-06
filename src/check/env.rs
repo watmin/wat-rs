@@ -100,6 +100,14 @@ pub struct CheckEnv<'a> {
     /// in `infer_list` for call-site dispatch type-checking.
     /// Stone 241.5 — tuple is (fixed_arg_types, return_type, has_rest_binder).
     pub(crate) defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
+    /// Arc 054 — body AST of each `def`-bound value, for byte-equivalence
+    /// re-declaration checking. Maps name → the WAT AST of the expression
+    /// (the `expr` arg of `(:wat::core::def :name expr)`). Populated in
+    /// `register_defined_value`; consulted in `infer_def` when a redef
+    /// collision is detected and `!redef_allowed` — if the new body is
+    /// structurally identical (span-agnostic), the redef is a no-op
+    /// rather than `DefRedefForbidden`.
+    pub(crate) defined_value_asts: HashMap<String, WatAST>,
 }
 
 impl<'a> CheckEnv<'a> {
@@ -176,6 +184,7 @@ impl<'a> CheckEnv<'a> {
             binding_metadata: None,
             redef_allowed: false,
             defclause_registrations: HashMap::new(),
+            defined_value_asts: HashMap::new(),
         }
     }
 
@@ -225,6 +234,18 @@ impl<'a> CheckEnv<'a> {
     pub fn register_defined_value(&mut self, name: String, ty: TypeExpr, span: Span) {
         self.defined_values.insert(name.clone(), ty);
         self.defined_value_spans.insert(name, span);
+    }
+
+    /// Arc 054 — store the body AST for byte-equivalence checking on redef.
+    /// Called alongside `register_defined_value` at the first registration site.
+    pub fn register_defined_value_ast(&mut self, name: &str, ast: WatAST) {
+        self.defined_value_asts.insert(name.to_string(), ast);
+    }
+
+    /// Arc 054 — look up the stored body AST for a `def`-bound name.
+    /// Returns `Some(&WatAST)` when the body was stored at registration time.
+    pub fn get_defined_value_ast(&self, name: &str) -> Option<&WatAST> {
+        self.defined_value_asts.get(name)
     }
 
     /// Stone 241.14 — look up binding-level metadata for a named binding.

@@ -147,7 +147,7 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     // special-case really ascribes the nil type (not
     // :wat::core::keyword).
     let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 :wat::core::nil)
+        (:wat::core::defn :my::probe [] -> :wat::core::i64 nil)
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

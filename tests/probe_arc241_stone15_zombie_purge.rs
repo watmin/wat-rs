@@ -92,8 +92,8 @@ fn contract_02_try_rejection_remedy_names_result_try() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "try remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "try remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }
@@ -133,8 +133,8 @@ fn contract_04_option_expect_lowercase_rejection_remedy_names_pascal() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "option::expect remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "option::expect remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }
@@ -174,8 +174,8 @@ fn contract_06_result_expect_lowercase_rejection_remedy_names_pascal() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "result::expect remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "result::expect remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }

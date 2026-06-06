@@ -99,8 +99,8 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "retirement remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "retirement remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }

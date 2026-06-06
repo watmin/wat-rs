@@ -67,6 +67,11 @@ pub(crate) fn infer_contains(
                 // contains? on HashMap checks the KEY, not the value.
                 targs.first().map(|k| apply_subst(k, subst))
             }
+            // Unresolved type variable — e.g., returned by `from-holon` which has a
+            // generic return type. Cannot prove non-collection without more context;
+            // skip element-type check and let the runtime enforce. The runtime will
+            // fire a teaching error if a non-collection is actually passed at runtime.
+            TypeExpr::Var(_) => None,
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),

@@ -97,8 +97,8 @@ fn contract_02_rejection_remedy_names_defclause() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "retirement remedy must carry '[retirement replacement]' annotation per Stone 241.10's apparatus; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "retirement remedy must carry '[replaces a retired form]' annotation per Stone 241.10's apparatus; got:\n{}",
         msg
     );
 }

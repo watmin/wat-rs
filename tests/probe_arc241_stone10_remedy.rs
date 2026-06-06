@@ -108,8 +108,8 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "retirement remedy should carry '[retirement replacement]' kind annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "retirement remedy should carry '[replaces a retired form]' kind annotation; got:\n{}",
         msg
     );
 }
@@ -167,8 +167,8 @@ fn contract_05_single_remedy_single_line_format() {
         line, msg
     );
     assert!(
-        line.contains("[retirement"),
-        "single-remedy line should contain '[retirement' annotation; got line: {}\nfull:\n{}",
+        line.contains("[replaces a retired form]"),
+        "single-remedy line should contain '[replaces a retired form]' annotation; got line: {}\nfull:\n{}",
         line, msg
     );
 }
@@ -202,8 +202,8 @@ fn contract_07_retirement_kind_annotation_canonical() {
     "#;
     let msg = try_startup_display(src);
     assert!(
-        msg.contains("[retirement replacement]"),
-        "retirement annotation must be exact '[retirement replacement]'; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "retirement annotation must be exact '[replaces a retired form]'; got:\n{}",
         msg
     );
 }

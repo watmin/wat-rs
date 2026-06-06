@@ -113,8 +113,8 @@ fn contract_02_retirement_remedy_preserves_defn_replacement() {
         msg
     );
     assert!(
-        msg.contains("[retirement replacement]"),
-        "define remedy must continue to carry '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "define remedy must continue to carry '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }

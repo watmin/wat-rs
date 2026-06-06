@@ -307,6 +307,54 @@ fn check_form(
                 }
                 return;
             }
+
+            // Arc 245 long-tail — :wat::core::match arm boundary.
+            //
+            // (:wat::core::match scrutinee -> :T arm1 arm2 ...)
+            //
+            // Each arm is `(pattern body)`. The PATTERN is DSL data owned by
+            // check.rs `infer_match` — its head keyword is a variant name or
+            // Option/Result constructor in PATTERN position, not a call head.
+            // Examples: `(:None false)`, `(:wat::core::Some x)`, `((:Ns::E::V) body)`.
+            //
+            // Walking arm patterns as call heads produces false
+            // UnresolvedReference errors (e.g. `:None` in `(:None false)`).
+            //
+            // Structure: items[1]=scrutinee (walk), items[2..3]=`-> :T` (skip),
+            // items[4..]=arms; each arm is `(pattern body)` — walk only the body.
+            if head == ":wat::core::match" {
+                // Walk the scrutinee (items[1]) as live code.
+                if let Some(scrutinee) = items.get(1) {
+                    check_form(scrutinee, sym, macros, use_decls, unresolved);
+                }
+                // Skip items[2] (`->` symbol) and items[3] (return type keyword).
+                // Walk each arm's body (items[1] of the arm); skip the pattern
+                // (items[0] of the arm) — it is DSL data, not a call head.
+                for arm in items.iter().skip(4) {
+                    if let WatAST::List(arm_items, _) = arm {
+                        // arm_items[0] = pattern (DSL data — skip call-head check)
+                        // arm_items[1] = body (live code — walk)
+                        if let Some(body) = arm_items.get(1) {
+                            check_form(body, sym, macros, use_decls, unresolved);
+                        }
+                        // Also walk nested call forms inside the PATTERN only for
+                        // composite patterns like `((:wat::core::Some x) body)`:
+                        // the inner `(:wat::core::Some x)` is itself a list whose
+                        // head IS a reserved prefix and is fine to walk — but the
+                        // outermost pattern head (e.g. `:None`) is the DSL marker.
+                        // We skip the outermost pattern head entirely to avoid the
+                        // false-positive; nested resolution inside composite patterns
+                        // is handled by the recursive walk of the arm body above.
+                        // (The pattern sub-forms like `(:wat::core::Some x)` are data
+                        // nodes that the checker owns; resolving them is unnecessary
+                        // and can only produce false positives.)
+                    } else {
+                        // Non-list arm (e.g. a bare symbol wildcard) — walk it.
+                        check_form(arm, sym, macros, use_decls, unresolved);
+                    }
+                }
+                return;
+            }
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector, and
@@ -396,6 +444,25 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
     // completeness. The checker notes it as suspicious in the
     // context string when a macro is the reason.
     if macros.contains(head) {
+        return true;
+    }
+    // Arc 245 long-tail — single-segment keyword call heads (field accessors).
+    //
+    // A keyword without `::` in its body (e.g. `:magnitude`, `:x`, `:port`,
+    // `:None`) in call position is a user field/HashMap accessor candidate,
+    // or an Option/Result constructor short-form in pattern position (handled
+    // via the :wat::core::match boundary in check_form).
+    //
+    // check.rs `infer_list` (Stone 234.3c) accepts these when the receiver
+    // type is a Record, Struct, or HashMap; the runtime dispatches them via
+    // `keyword_accessor_record` / `keyword_accessor_struct` / HashMap key
+    // lookup. The resolver is the wrong layer to reject them — only the
+    // checker knows the receiver's type, and the match boundary in check_form
+    // prevents arm-pattern heads from reaching this path anyway.
+    //
+    // Discriminant: starts with `:` and contains no `::`.
+    // Multi-segment user paths like `:my::app::missing` still fail here.
+    if head.starts_with(':') && !head.contains("::") {
         return true;
     }
     false

@@ -82,7 +82,7 @@ fn run_threads_d2_three_factories_heterogeneous() {
           (:wat::core::let
             [line (:wat::kernel::Thread/readln peer)
              _    (:wat::kernel::Thread/println peer line)]
-            :wat::core::nil))
+            nil))
 
         ;; Factory B: reads any String, writes "world".
         (:wat::core::defn :my::worker-b
@@ -91,7 +91,7 @@ fn run_threads_d2_three_factories_heterogeneous() {
           (:wat::core::let
             [_ (:wat::kernel::Thread/readln peer)
              _ (:wat::kernel::Thread/println peer "world")]
-            :wat::core::nil))
+            nil))
 
         ;; Factory C: reads any String, writes "pong".
         (:wat::core::defn :my::worker-c
@@ -100,7 +100,7 @@ fn run_threads_d2_three_factories_heterogeneous() {
           (:wat::core::let
             [_ (:wat::kernel::Thread/readln peer)
              _ (:wat::kernel::Thread/println peer "pong")]
-            :wat::core::nil))
+            nil))
 
         ;; Named coordinator fn: the actual parent-side logic.
         ;; Takes three peers (a=echo, b=hello->world, c=ping->pong).

@@ -188,8 +188,8 @@ fn contract_06_rejection_remedies_name_replacements() {
         msg_def
     );
     assert!(
-        msg_def.contains("[retirement replacement]"),
-        "def-restricted remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg_def.contains("[replaces a retired form]"),
+        "def-restricted remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg_def
     );
 
@@ -205,8 +205,8 @@ fn contract_06_rejection_remedies_name_replacements() {
         msg_defn
     );
     assert!(
-        msg_defn.contains("[retirement replacement]"),
-        "defn-restricted remedy must carry '[retirement replacement]' annotation; got:\n{}",
+        msg_defn.contains("[replaces a retired form]"),
+        "defn-restricted remedy must carry '[replaces a retired form]' annotation; got:\n{}",
         msg_defn
     );
 }

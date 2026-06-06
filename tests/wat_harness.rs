@@ -30,7 +30,7 @@ fn nil_main_body(body: &str) -> String {
 fn harness_captures_stdout() {
     // Arc 170: stdout capture retired. run() returns Ok with empty stdout/stderr.
     // Test verifies the program compiles and runs without error.
-    let src = nil_main_body(":wat::core::nil");
+    let src = nil_main_body("nil");
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
     // stdout/stderr capture retired with the four-arg main shape.
@@ -61,7 +61,7 @@ fn harness_injects_stdin_lines() {
 #[test]
 fn harness_freeze_once_run_many() {
     // Arc 170: main is canonical nil. Verifies freeze-once, run-many is stable.
-    let src = nil_main_body(":wat::core::nil");
+    let src = nil_main_body("nil");
     let h = Harness::from_source(&src).expect("freeze");
     for _ in 0..3 {
         let out = h.run(&[]).expect("run");
@@ -95,8 +95,8 @@ fn harness_main_signature_mismatch() {
     );
     let err = Harness::from_source(&src).expect_err("sig mismatch must fail");
     assert!(
-        matches!(err, HarnessError::Startup(_)),
-        "expected HarnessError::Startup for non-canonical main; got {:?}",
+        matches!(err, HarnessError::MainSignature(_)),
+        "expected HarnessError::MainSignature for non-canonical main; got {:?}",
         err
     );
 }
@@ -107,7 +107,7 @@ fn harness_main_signature_mismatch() {
 fn harness_captures_stderr() {
     // Arc 170: stderr capture retired. run() returns Ok with empty stderr.
     // Test verifies the program compiles and runs without error.
-    let src = nil_main_body(":wat::core::nil");
+    let src = nil_main_body("nil");
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
     assert!(out.stdout.is_empty(), "expected empty stdout");
@@ -119,7 +119,7 @@ fn harness_captures_stderr() {
 #[test]
 fn harness_world_accessor_exposes_frozen_world() {
     // Arc 170: canonical nil main. world() accessor still works.
-    let src = nil_main_body(":wat::core::nil");
+    let src = nil_main_body("nil");
     let h = Harness::from_source(&src).expect("freeze");
     // Should have :user::main registered; function lookup must succeed.
     let world = h.world();

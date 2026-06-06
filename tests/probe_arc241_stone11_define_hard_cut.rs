@@ -11,7 +11,7 @@
 //! - C02: legacy `:wat::core::define` HARD CUT rejected at HEAD ⇒ FAILS at HEAD
 //!   (define WORKS at HEAD; assertion is_err fails because result is Ok)
 //! - C03: error names `:wat::core::defn` as the remedy ⇒ FAILS at HEAD (no error)
-//! - C04: error carries `[retirement replacement]` annotation ⇒ FAILS at HEAD
+//! - C04: error carries `[replaces a retired form]` annotation ⇒ FAILS at HEAD
 //! - C05: retirement table contains 4 entries (struct, struct-restricted, enum, define)
 //!   ⇒ FAILS at HEAD (table has 3 entries)
 //!
@@ -100,20 +100,20 @@ fn contract_03_retirement_remedy_names_defn() {
     );
 }
 
-// ─── C04: error carries [retirement replacement] annotation ────────────────────
+// ─── C04: error carries [replaces a retired form] annotation ────────────────────
 
 #[test]
 fn contract_04_retirement_kind_annotation_present() {
     // Per Stone 241.10 D7: retirement-kind annotation is the EXACT phrase
-    // "[retirement replacement]". This proves the remedy is structured
+    // "[replaces a retired form]". This proves the remedy is structured
     // (kind=Retirement) rather than hand-written prose.
     let src = r#"
         (:wat::core::define (:app::greet -> :wat::core::String) "hello")
     "#;
     let msg = try_startup_display(src);
     assert!(
-        msg.contains("[retirement replacement]"),
-        "retirement remedy must carry exact '[retirement replacement]' annotation; got:\n{}",
+        msg.contains("[replaces a retired form]"),
+        "retirement remedy must carry exact '[replaces a retired form]' annotation; got:\n{}",
         msg
     );
 }
@@ -138,9 +138,9 @@ fn contract_05_retirement_table_includes_define_entry() {
     let msg = try_startup_display(src);
     // Two indirect proofs that the retirement table contains the entry:
     // (1) "did you mean :wat::core::defn" is the retirement_lookup output
-    // (2) "[retirement replacement]" annotation marks the remedy kind
+    // (2) "[replaces a retired form]" annotation marks the remedy kind
     assert!(
-        msg.contains(":wat::core::defn") && msg.contains("[retirement replacement]"),
+        msg.contains(":wat::core::defn") && msg.contains("[replaces a retired form]"),
         "retirement table must include :wat::core::define → :wat::core::defn entry; got:\n{}",
         msg
     );

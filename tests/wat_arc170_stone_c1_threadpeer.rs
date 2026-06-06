@@ -51,12 +51,12 @@ fn stone_c1_thread_peer_type_mint_both_orientations_type_check() {
         (:wat::core::defn :my::server-side
           [_peer <- :wat::kernel::ThreadPeer<wat::core::i64,wat::core::String>]
           -> :wat::core::nil
-          :wat::core::nil)
+          nil)
 
         (:wat::core::defn :my::client-side
           [_peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
           -> :wat::core::nil
-          :wat::core::nil)
+          nil)
     "#;
     let world = freeze_ok(src);
     assert!(

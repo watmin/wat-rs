@@ -112,13 +112,13 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     assert!(not_string, "Atom(:foo) must NOT equal Atom(\"foo\") — Keyword leaf distinct from String leaf");
 }
 
-// ─── Probe 2 — `(:wat::holon::to-holon :wat::core::nil)` round-trip ──────────────
+// ─── Probe 2 — `(:wat::holon::to-holon nil)` round-trip ──────────────
 
-/// `(:wat::holon::to-holon :wat::core::nil)` dispatches through `value_to_atom` Nil arm
+/// `(:wat::holon::to-holon nil)` dispatches through `value_to_atom` Nil arm
 /// to `HolonAST::Nil` (the proper Nil primitive leaf, not Symbol("nil")).
 ///
 /// In WAT, nil is the keyword `:wat::core::nil` — it evaluates to `Value::Unit`
-/// (wat's nil value). So `(:wat::holon::to-holon :wat::core::nil)` first evaluates
+/// (wat's nil value). So `(:wat::holon::to-holon nil)` first evaluates
 /// `:wat::core::nil` → `Value::Unit`, then `value_to_atom(Value::Unit)` → `HolonAST::Nil`.
 ///
 /// Distinctness: atom(:wat::core::nil) must NOT equal atom(:nil) — the Nil leaf
@@ -132,8 +132,8 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     let same = run_bool(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-                      [atom-nil1  (:wat::holon::to-holon :wat::core::nil)
-                       atom-nil2  (:wat::holon::to-holon :wat::core::nil)]
+                      [atom-nil1  (:wat::holon::to-holon nil)
+                       atom-nil2  (:wat::holon::to-holon nil)]
                       (:wat::core::= atom-nil1 atom-nil2)))
     "#);
     assert!(same, "Atom(:wat::core::nil) must equal itself — same Nil leaf");
@@ -145,7 +145,7 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     let diff = run_bool(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
-                      [atom-nil  (:wat::holon::to-holon :wat::core::nil)
+                      [atom-nil  (:wat::holon::to-holon nil)
                        atom-knil (:wat::holon::to-holon :nil)
                        eq        (:wat::core::= atom-nil atom-knil)]
                       (:wat::core::not eq)))

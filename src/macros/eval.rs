@@ -162,6 +162,36 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                     }
                     // Check against the blessed allow-list.
                     if is_pure_total(head) {
+                        // BEWARE: `fn` forms are NOT blanket-opaque here. A fn in a
+                        // program body can be INVOKED at expand time (blessed HOFs —
+                        // map, foldl — take fns), so its body is expand-time code and
+                        // MUST be pure-validated. Blanket fn-opacity reopens F5 (a
+                        // kernel-send hidden in a HOF'd fn body would fire during
+                        // expansion). Caught + reverted at the 245 long-tail scoring.
+                        //
+                        // THE ONE sound contextual exception: a literal fn form as
+                        // the argument of `:wat::runtime::signature-of-fn`. That verb
+                        // only CREATES the closure (pure) and reads its SIGNATURE —
+                        // the body never executes on this path, so its heads (user
+                        // fns destined for the expansion's runtime code) are not
+                        // expand-time code. This is how run-threads reflects on its
+                        // caller's coordinator/factory fns (wat/kernel/run_threads.wat).
+                        if head == ":wat::runtime::signature-of-fn" {
+                            for child in items.iter().skip(1) {
+                                let is_literal_fn = matches!(
+                                    child,
+                                    WatAST::List(fn_items, _)
+                                        if matches!(
+                                            fn_items.first(),
+                                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn"
+                                        )
+                                );
+                                if !is_literal_fn {
+                                    validate_pure_total(child)?;
+                                }
+                            }
+                            return Ok(());
+                        }
                         // Recurse into all args (skip the head keyword itself).
                         for child in items.iter().skip(1) {
                             validate_pure_total(child)?;
@@ -482,5 +512,15 @@ fn is_pure_total(head: &str) -> bool {
         // diverges on purpose — the form-vs-holon distinction is the
         // reason this exists. Do not "harmonize" the two names.
         | ":wat::core::List?"
+
+        // ── Runtime reflection (pure read-only; no IO, no side effects) ─
+        // Used by wat/kernel/run_threads.wat macros to reflect on fn signatures
+        // at macro expand time (arc 249 stone 249.2b-i; used in run-threads macro).
+        // signature-of-fn: fn → HolonAST (pure; reads from fn value, no IO)
+        // extract-arg-names: HolonAST → Vector<Symbol> (pure; structural walk)
+        // extract-arg-types: HolonAST → Vector<HolonAST> (pure; structural walk)
+        | ":wat::runtime::signature-of-fn"
+        | ":wat::runtime::extract-arg-names"
+        | ":wat::runtime::extract-arg-types"
     )
 }

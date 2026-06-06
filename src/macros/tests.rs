@@ -1358,3 +1358,93 @@ fn macroexpand_in_computed_unquote_refused_with_refused_in_macro() {
         err
     );
 }
+
+#[test]
+fn impure_fn_body_passed_to_hof_refused_with_refused_in_macro() {
+    // THE FENCE-HOLE WITNESS (245 long-tail scoring): blessed HOFs (map/foldl)
+    // INVOKE fn arguments at expand time, so a kernel-send hidden in a HOF'd
+    // fn body is expand-time impurity. A blanket "fn forms are opaque" rule
+    // in validate_pure_total would wave this through — this test exists so
+    // that hole can never silently reopen.
+    let span = crate::span::Span::unknown();
+    let impure_fn = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                ],
+                span.clone(),
+            ),
+        ],
+        span.clone(),
+    );
+    let hof_form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::map".into(), span.clone()),
+            impure_fn,
+        ],
+        span.clone(),
+    );
+    let err = eval::validate_pure_total(&hof_form).unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        "expected RefusedInMacro for kernel head inside a HOF'd fn body; got: {:?}",
+        err
+    );
+}
+
+#[test]
+fn signature_of_fn_literal_fn_arg_is_signature_only() {
+    // The ONE sound contextual fn-opacity: signature-of-fn only CREATES the
+    // closure and reads its SIGNATURE — the body never executes, so user-fn
+    // heads inside it (runtime code destined for the expansion's output) are
+    // permitted. A NON-fn argument to the same verb is still validated.
+    let span = crate::span::Span::unknown();
+    // (:wat::runtime::signature-of-fn (fn (:my::user-fn 1))) — OK.
+    let fn_with_user_head = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":my::user-fn".into(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                ],
+                span.clone(),
+            ),
+        ],
+        span.clone(),
+    );
+    let reflect_ok = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::runtime::signature-of-fn".into(), span.clone()),
+            fn_with_user_head,
+        ],
+        span.clone(),
+    );
+    assert!(
+        eval::validate_pure_total(&reflect_ok).is_ok(),
+        "signature-of-fn on a literal fn must be signature-only (body not expand-time code)"
+    );
+    // (:wat::runtime::signature-of-fn (:my::user-fn 1)) — non-fn arg: validated, refused.
+    let reflect_bad = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::runtime::signature-of-fn".into(), span.clone()),
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":my::user-fn".into(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                ],
+                span.clone(),
+            ),
+        ],
+        span.clone(),
+    );
+    let err = eval::validate_pure_total(&reflect_bad).unwrap_err();
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::RefusedInMacro { .. }, .. }),
+        "non-fn argument to signature-of-fn must still be validated; got: {:?}",
+        err
+    );
+}

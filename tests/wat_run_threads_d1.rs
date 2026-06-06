@@ -94,7 +94,7 @@ fn run_threads_d1_single_factory_round_trips_string() {
           (:wat::core::let
             [line (:wat::kernel::Thread/readln peer)
              _    (:wat::kernel::Thread/println peer line)]
-            :wat::core::nil))
+            nil))
 
         ;; Named echo-client fn: the actual coordinator logic (independently testable).
         ;; Takes the client-side peer, sends "hello", reads echo, returns it.

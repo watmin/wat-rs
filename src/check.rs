@@ -2208,6 +2208,12 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 // supertype level; flavor enforcement is a runtime contract.
                 | ":wat::Record"
                 | ":wat::holon::Record"
+                // Arc 221 Stone 221.4 — nil (Value::Unit) is atomizable; value_to_atom
+                // dispatches via the Nil arm → HolonAST::Nil leaf. The nil type is
+                // `:wat::core::nil`; Doctrine 1 (arc 242) requires bare `nil` in value
+                // position but the checker still types nil as `:wat::core::nil`. Allow
+                // it in `is_atomizable` so `(:wat::holon::to-holon nil)` type-checks.
+                | ":wat::core::nil"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
         ),
@@ -7692,11 +7698,26 @@ fn infer_def(
     // top-level form before this def form. Single-pass program-order semantics.
     if let Some(prior_span) = env.get_defined_value_span(&name) {
         if !env.redef_allowed {
-            // Strict default — every redef is an error.
-            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRedefForbidden {
-                name: name.clone(),
-                original_def_span: prior_span.clone(),
-            } });
+            // Strict default — every redef is an error UNLESS the new definition is
+            // byte-equivalent to the prior one (arc 054 idempotent re-declaration).
+            // Compare the body AST structurally (span-agnostic) by re-spanning both
+            // to the same span. If identical, treat as no-op: no error.
+            let new_body = &args[expr_idx];
+            let prior_body_opt = env.get_defined_value_ast(&name);
+            // WatAST derives PartialEq with span-agnostic Span comparison
+            // (Span::PartialEq always returns true per src/ast.rs:246-247),
+            // so == compares structure only — token content and nesting,
+            // not source positions. Identical forms in different files or
+            // lines compare equal, which is the desired byte-equiv semantics.
+            let is_byte_equiv = prior_body_opt
+                .map(|prior| prior == new_body)
+                .unwrap_or(false);
+            if !is_byte_equiv {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::DefRedefForbidden {
+                    name: name.clone(),
+                    original_def_span: prior_span.clone(),
+                } });
+            }
         } else {
             // Opt-in redef: check type-stability.
             let prior_type = env.get_defined_value_type(&name).cloned();
@@ -8133,7 +8154,15 @@ fn collect_splice_defs_ctx(
         ":wat::core::def" if is_top => {
             if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
                 if !env.defined_values.contains_key(&name) {
-                    // First binding — always register.
+                    // First binding — always register. Also store the body AST for
+                    // arc-054 byte-equivalence checking on redef (infer_def consults
+                    // `get_defined_value_ast` to allow identical re-declarations).
+                    if let WatAST::List(items, _) = form {
+                        let expr_idx = if items.len() == 4 { 3 } else { 2 };
+                        if let Some(ast) = items.get(expr_idx) {
+                            env.register_defined_value_ast(&name, ast.clone());
+                        }
+                    }
                     env.register_defined_value(name, ty, span);
                 } else if env.redef_allowed {
                     // Arc 157 slice 1a-ii — opt-in redef with type-stability.
@@ -17161,6 +17190,44 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 144 slice 3 — fingerprints for bare dispatch forms: contains? / get / conj.
+    // These are Rust ∀T intrinsics (infer_contains / infer_get / infer_conj) whose
+    // custom inference arms run BEFORE the env.get fallback — the TypeScheme below is
+    // consulted ONLY by reflection tools (signature-of-defn, lookup-define).
+    // Shape chosen to be maximally honest: polymorphic ∀T with the real arity + a
+    // best-effort return type (real typing is done by the custom arm, not this scheme).
+    //
+    // contains? :: ∀T. T × T -> :bool  (fingerprint; real elem-type check in infer_contains)
+    env.register(
+        ":wat::core::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    // get :: ∀T. T × T -> :Option<T>  (fingerprint; real return-type projection in infer_get)
+    env.register(
+        ":wat::core::get".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), t_var()],
+            ret: opt(t_var()),
+            rest_param_type: None,
+        },
+    );
+    // conj :: ∀T. T × T -> T  (fingerprint; real collection-type projection in infer_conj)
+    env.register(
+        ":wat::core::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), t_var()],
+            ret: t_var(),
             rest_param_type: None,
         },
     );

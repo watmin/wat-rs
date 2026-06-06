@@ -271,7 +271,7 @@ fn filter_keeps_only_passing_values() {
     // Identity check inside the fn — (n*2)/2 == n is always true.
     // Swap in a real parity check:
     let src = src.replace(
-        "(:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)\n                                 n)",
+        "(:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)\n                                           n)",
         "(:wat::core::= (:wat::core::i64::* (:wat::core::i64::/ n 2) 2) n)",
     );
     assert_eq!(collected_i64(&src), vec![2, 4, 6]);
