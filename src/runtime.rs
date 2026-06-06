@@ -13656,6 +13656,7 @@ fn eval_type(
 /// - `Value::Vec(..)` → vector length
 /// - `Value::wat__std__HashMap(..)` → map entry count
 /// - `Value::wat__std__HashSet(..)` → set element count
+/// - `Value::wat__core__List(..)` → list element count
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_length(
     args: &[WatAST],
@@ -13676,9 +13677,10 @@ fn eval_length(
         Value::Vec(_) => crate::collection::eval::vector_length_inner(&arg_val),
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_length_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_length_inner(&arg_val),
+        Value::wat__core__List(_) => crate::collection::eval::list_length_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            expected: "Vector<T>, HashMap<K,V>, HashSet<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -13694,6 +13696,7 @@ fn eval_length(
 /// - `Value::Vec(..)` → true iff vector is empty
 /// - `Value::wat__std__HashMap(..)` → true iff map has no entries
 /// - `Value::wat__std__HashSet(..)` → true iff set has no elements
+/// - `Value::wat__core__List(..)` → true iff list has no elements
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
 fn eval_empty(
     args: &[WatAST],
@@ -13714,9 +13717,10 @@ fn eval_empty(
         Value::Vec(_) => crate::collection::eval::vector_empty_q_inner(&arg_val),
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_empty_q_inner(&arg_val),
+        Value::wat__core__List(_) => crate::collection::eval::list_empty_q_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, or HashSet<T>",
+            expected: "Vector<T>, HashMap<K,V>, HashSet<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }

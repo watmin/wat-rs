@@ -878,6 +878,9 @@ pub(crate) fn eval_vector_concat(
 /// - `Value::wat__core__List` — returns a new `List<T>` of the tail; preserves List type identity.
 /// - `Value::wat__WatAST(WatAST::List)` — form-value decomposition: returns a new `WatAST::List`
 ///   of the tail forms, preserving the surrounding span (arc 249 Stone 249.3a-ii).
+///   This arm is reachable only in macro-expansion contexts where checker discipline is
+///   relaxed; type-checked user code calling `rest` on a form-value is rejected at check time
+///   (checker's `rest` arm at `src/check.rs::infer_list` rejects non-Vec/non-List types).
 ///
 /// Runtime error if the Vec/List/form is empty. Lives here beside the per-Type impls rather than
 /// `transform.rs` (which holds Vector/List-SPECIFIC seq-HOFs, not container-polymorphic dispatch).
