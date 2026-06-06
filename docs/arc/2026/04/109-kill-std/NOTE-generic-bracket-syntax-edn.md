@@ -115,3 +115,48 @@ decision, and it likely **dissolves this stickler for free:**
   `NOTE-reconsider-atomize-materialize.md`.
 - The dialect-faithfulness telos this serves: arc 247 (fn-first HOFs) + arc 249 (threading) —
   "be what you claim (Clojure/EDN); immediate knowability to a model that has seen it."
+
+## ★ ADDENDUM 2026-06-06 — BUILDER DIRECTION: parametrics become FORMS (the stickler dissolves)
+
+The builder has now internalized Typed Clojure's `ann-form` model — `(ann-form xs (t/Vec t/Num))`,
+`(t/HashMap t/Str t/Int)`, `(t/All [x] ...)` — and the direction is **strongly set**: wat's
+parametric/generic types move from string-encoded keywords to **ordinary read forms**:
+
+```
+:wat::core::HashMap<wat::core::String,wat::core::i64>    ;; today: ONE keyword token,
+                                                          ;; hand-rolled bracket lexer
+(wat.type/HashMap wat.type/String wat.type/i64)           ;; the direction: a FORM —
+                                                          ;; whitespace separates, comma is
+                                                          ;; EDN-whitespace, the reader is enough
+```
+
+**This DISSOLVES this note's entire question rather than answering it:**
+- The separator debate (comma vs pipe vs whitespace) is MOOT — forms separate args by
+  whitespace like every other form; EDN-compliance is automatic, not a patch.
+- The `lex_keyword` bracket machinery (angle_depth/paren_depth tracking, the whitespace
+  hard-error, the operator-`<` disambiguation, the comma rules — lexer.rs:605-730) DELETES
+  WHOLESALE. The stale arc-072 comment dies with it.
+- The pipe-separator interim (this note's step 3) is now scaffolding-about-to-be-deleted —
+  per this note's own doctrine, likely SKIP it and go straight to forms in the deciding arc.
+
+**Live evidence from arcs 249/245 (the week this clicked) that keyword-encoded parametrics
+are the wrong representation:**
+1. `keyword/of` (wat/core.wat) constructs parametric types by STRING CONCATENATION —
+   `(string::concat head-text (string::concat "<" (string::concat joined ">")))`. Building
+   types out of strings inside a homoiconic language is the smell at its purest. With
+   types-as-forms, keyword/of's whole job becomes `(wat.type/Head arg1 arg2)` — a quasiquote
+   template, no strings.
+2. The run-threads macros DESTRUCTURE parametric types via `Bundle/children` + positional
+   `get` + string round-trips (`keyword/to-string` → concat → `keyword/from-string`) just to
+   extract `I`/`O` from `ThreadPeer<I,O>`. With types-as-forms, that is `first`/`rest`/`get`
+   over an ordinary form — the total-pure macro engine's NATIVE vocabulary.
+3. The deepest win: **types join homoiconicity.** The 249 engine made macro bodies total-pure
+   programs over forms; if types ARE forms, the same engine computes over types with the same
+   blessed combinators — type-level macro tooling (the reusable-tooling thread, 2026-06-06)
+   for free, no reflection verbs doing string surgery.
+
+**Status upgrade:** was "a POINTER, not a decision." Now: **builder-directed DESTINATION**
+(types-as-forms for parametrics/generics), still owed its deciding arc + four-questions at
+strike for the concrete grammar (see the sibling NOTE's three coupled moves + ann-form as the
+local-ascription precedent). The sequencing recommendation stands and sharpens: the
+keyword-as-type retirement and the forms representation are ONE decision now, not two.

@@ -105,3 +105,42 @@ that's three churns of every signature in the corpus.
 - The type/value context-polymorphism enabler: the `WatAST::Keyword` split (named the `src/ast/`
   ward-enabler in arc 244's close).
 - core.typed: `:-` annotation + the `t/` type namespace.
+
+## ★ ADDENDUM 2026-06-06 — move (4): parametrics as FORMS + `ann-form` as the ascription precedent
+
+The builder has now internalized core.typed/Typed Clojure's **`(ann-form expr type)`** — and the
+key realization is not the ascription verb itself but what it implies about the TYPE'S
+representation: **the type is an ordinary form.** `(ann-form xs (t/Vec t/Num))` — `(t/Vec t/Num)`
+is a list the reader reads, whitespace-separated, manipulable as data. This upgrades this note's
+three coupled moves to FOUR, and raises the direction's strength from pointer to
+**builder-directed destination**:
+
+1. `<-` → `:-` (core.typed's annotation arrow) — as filed.
+2. `:wat::type::` / `wat.type/` namespace — as filed.
+3. Dotted clojure-form surface — as filed.
+4. **Parametric/generic types become FORMS**: `(wat.type/Vector wat.type/i64)`,
+   `(wat.type/HashMap wat.type/String wat.type/i64)`, fn types as `[wat.type/i64 -> wat.type/bool]`
+   (core.typed's vector form) — replacing the `Thing<A,B>` keyword encoding entirely. See the
+   sibling NOTE-generic-bracket-syntax-edn.md addendum (same date) for why this DISSOLVES the
+   bracket/separator stickler and deletes the lex_keyword machinery, with live arc-249/245
+   evidence (keyword/of's string-concat type construction; run-threads' Bundle-surgery type
+   destructuring; types joining the total-pure macro engine's form domain).
+
+**`ann-form` itself** also names the missing local-ascription surface: today wat annotates at
+binders (`x :- T`) and returns (`-> T`); core.typed additionally ascribes any EXPRESSION inline
+(`(ann-form expr T)`). Worth carrying into the deciding arc as the third annotation site —
+binder, return, expression — all three taking the SAME type-form grammar.
+
+**The worked target shape (the builder's example, completed with move 4):**
+
+```clojure
+(fn
+  [xs :- (wat.type/Vector wat.type/i64)]
+  -> wat.type/i64
+  (wat.core/foldl wat.core/+ 0 xs))
+```
+
+Sequencing: moves 1-4 are ONE representation decision (the keyword-as-type retirement) and
+should land as one deciding arc with four-questions at strike; the parametric-form grammar
+(move 4) is the piece that pays for the whole migration — it deletes the bracket lexer, ends
+string-built types, and puts types inside the macro layer's reach.
