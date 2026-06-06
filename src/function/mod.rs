@@ -1,4 +1,4 @@
-//! vigilatum: 2026-06-01T04:45:47Z — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-06-06T04:56:04Z — vigilia 8-spell L1+L2=0 (first earned 2026-06-01T04:45:47Z; RE-EARNED diff-scoped at the 245 clear: the variadic rest-binder thread-through [ParsedFnSignature<N> minted, both type_complexity runes killed in combat; env_key uniform across all three converters; no strip-and-rewalk — one parse, threaded]; gates: variadic_define 16/16, lib 923/0/1, clippy-in-home empty)
 //!
 //! # Function — namespaced home for fn-form parsing, evaluation, and inference.
 //!

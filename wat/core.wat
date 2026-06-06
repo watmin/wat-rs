@@ -1,6 +1,6 @@
-;; vigilatum: 2026-06-06T01:25:15Z — UPDATED-vigilia spec/DSL 5-spell guard
+;; vigilatum: 2026-06-06T04:56:04Z — UPDATED-vigilia spec/DSL 5-spell guard
 ;; L1+L2=0 (cernere [CONVERGED 0+0: full vocabulary table, every expand-time
-;; head verified on the pure-total allow-list] + probare [all 16 forms
+;; head verified on the pure-total allow-list] + probare [all 12 forms (16 at first earn; 4 ordering defclauses retired by Stone 245.8)
 ;; Expressed] + conferre [all 17 header claims verified; 6 USER-GUIDE
 ;; divergences fixed spec-side] + exigere [CONVERGED 0+0] + circumspicere
 ;; LAST [the false loads-early rationale killed at both sites; empty-step
@@ -10,6 +10,10 @@
 ;; result-expect + struct-to-form + list-fold-aliases); corpus 236/0/53;
 ;; checker-clean. Canonical record:
 ;; docs/arc/2026/06/249-total-pure-macros/WARD-COREWAT-REEARN.md.
+;; RE-EARNED 2026-06-06T04:56:04Z (diff-scoped, the 245 clear: Stone 245.8 retired
+;; the ordering defclauses — ordering is a relational check-side intrinsic; the
+;; retirement note's claims verified live [infer_ordering / dispatch arms /
+;; leaves present]; corpus 236/0/53; zero defclause remnants).
 ;;
 ;; wat/core.wat — the :wat::core::* stdlib surface: short-name aliases plus the
 ;; polymorphic arithmetic defclauses.

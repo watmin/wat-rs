@@ -71,6 +71,10 @@ pub(crate) fn infer_contains(
             // generic return type. Cannot prove non-collection without more context;
             // skip element-type check and let the runtime enforce. The runtime will
             // fire a teaching error if a non-collection is actually passed at runtime.
+            // POLICY: unresolved-Var defers to the runtime backstop by design,
+            // uniformly across all four collection intrinsics (infer_contains /
+            // infer_conj / infer_get / infer_assoc). Each sibling carries a matching
+            // Var arm that cites this comment as the policy source.
             TypeExpr::Var(_) => None,
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -153,6 +157,9 @@ pub(crate) fn infer_conj(
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
+            // Unresolved type variable — defers to the runtime backstop by design,
+            // uniformly across the four collection intrinsics (see infer_contains).
+            TypeExpr::Var(_) => None,
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
@@ -250,6 +257,9 @@ pub(crate) fn infer_get(
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
             }
+            // Unresolved type variable — defers to the runtime backstop by design,
+            // uniformly across the four collection intrinsics (see infer_contains).
+            TypeExpr::Var(_) => None,
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
@@ -390,6 +400,9 @@ pub(crate) fn infer_assoc(
                     CheckResult::partial_with(ret_ty, local_errors)
                 };
             }
+            // Unresolved type variable — defers to the runtime backstop by design,
+            // uniformly across the four collection intrinsics (see infer_contains).
+            TypeExpr::Var(_) => {}
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),

@@ -1,4 +1,4 @@
-//! vigilatum: 2026-05-30T20:46:58Z — vigilia 8-spell L1+L2=0
+//! vigilatum: 2026-06-06T04:56:04Z — vigilia 8-spell L1+L2=0 (first earned 2026-05-30T20:46:58Z; RE-EARNED diff-scoped at the 245 clear: defined_value_asts added [arc-054 byte-equiv idempotent redeclare; span-agnostic WatAST eq verified at span.rs Span::eq-always-true; accessor discipline held — no raw field access outside the home]; gates: idempotent_redeclare 6/6, lib 923/0/1, clippy-in-home empty)
 //!
 //! `CheckEnv<'a>` — the type-check environment.
 //!
@@ -12,7 +12,7 @@
 //! Field classification (Stone 243.3.1 DESIGN § Field classification):
 //! - `types: &'a TypeEnv` — BORROW (was Arc<TypeEnv>, deep-cloned)
 //! - `binding_metadata: Option<&'a HashMap<…>>` — BORROW (was Arc<HashMap>, deep-cloned)
-//! - All other 6 fields — OWNED (derived, incremental, or mid-pass-mutable)
+//! - All other 7 fields — OWNED (derived, incremental, or mid-pass-mutable)
 
 use crate::ast::WatAST;
 use crate::runtime::SymbolTable;
@@ -103,7 +103,7 @@ pub struct CheckEnv<'a> {
     /// Arc 054 — body AST of each `def`-bound value, for byte-equivalence
     /// re-declaration checking. Maps name → the WAT AST of the expression
     /// (the `expr` arg of `(:wat::core::def :name expr)`). Populated in
-    /// `register_defined_value`; consulted in `infer_def` when a redef
+    /// `register_defined_value_ast`; consulted in `infer_def` when a redef
     /// collision is detected and `!redef_allowed` — if the new body is
     /// structurally identical (span-agnostic), the redef is a no-op
     /// rather than `DefRedefForbidden`.

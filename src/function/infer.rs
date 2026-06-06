@@ -48,10 +48,10 @@ fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
     // check pass) are accepted. Strict callers (`parse_fn_signature_for_check`
     // for `:ensure :fn` validation) still pass `allow_rest_binder: false`.
     match parse_fn_signature_prefix(args, ParseOptions { allow_rest_binder: true }) {
-        Ok((idents, t, r, rest)) => {
+        Ok(sig) => {
             // CHECK tier — key by env_key (Stone 249.5e): mirrors the runtime Environment.
-            let p = idents.iter().map(|id| crate::scope::resolution::env_key(id).into_owned()).collect();
-            SigParse::Parsed(p, t, r, rest)
+            let p = sig.params.iter().map(|id| crate::scope::resolution::env_key(id).into_owned()).collect();
+            SigParse::Parsed(p, sig.param_types, sig.ret_type, sig.rest)
         }
         Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>
             SigParse::SilentReject,

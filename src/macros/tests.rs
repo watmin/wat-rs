@@ -1448,3 +1448,38 @@ fn signature_of_fn_literal_fn_arg_is_signature_only() {
         err
     );
 }
+
+#[test]
+fn signature_of_fn_impure_body_is_inert() {
+    // The DEEP claim behind the contextual exception (sharpened at the 245
+    // re-ward): an IMPURE head inside the skipped fn body is safe not because
+    // it is allowed but because it is INERT — eval_fn stores the body without
+    // executing it, and function_to_signature_ast never reads f.body. If a
+    // future code path ever executes the body on the signature-of-fn route,
+    // this witness turns red.
+    let span = crate::span::Span::unknown();
+    let fn_with_kernel_send = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+                    WatAST::IntLit(1, span.clone()),
+                ],
+                span.clone(),
+            ),
+        ],
+        span.clone(),
+    );
+    let reflect = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::runtime::signature-of-fn".into(), span.clone()),
+            fn_with_kernel_send,
+        ],
+        span.clone(),
+    );
+    assert!(
+        eval::validate_pure_total(&reflect).is_ok(),
+        "a kernel head inside signature-of-fn's literal fn arg is inert (body never executes) — the validator must pass it"
+    );
+}

@@ -1,4 +1,4 @@
-//! vigilatum: 2026-06-06T00:32:49Z — UPDATED-vigilia 10-spell guard L1+L2=0
+//! vigilatum: 2026-06-06T04:56:04Z — UPDATED-vigilia 10-spell guard L1+L2=0
 //! (universal-7: intueri/solvere/conformare/purgare/struere/sequi/temperare +
 //! exigere + conditional perspicere [fired: nested generics present] +
 //! circumspicere LAST; secare not mustered — no parallel primitives in-home;
@@ -11,6 +11,11 @@
 //! simplicity-win on sort_by; perspicere mumble-alias); clippy-clean in-home.
 //! Canonical record:
 //! docs/arc/2026/06/249-total-pure-macros/WARD-COLLECTION-REEARN.md.
+//! RE-EARNED 2026-06-06T04:56:04Z (diff-scoped, the 245 clear: the unresolved-Var
+//! deferral policy made UNIFORM across all four collection intrinsics
+//! [contains?/conj/get/assoc — policy stated at infer_contains; runtime
+//! TypeMismatch backstop verified per sibling]; gates: transform probe 13/13,
+//! corpus 236/0/53, clippy-in-home empty).
 //! Declared invariants, each enforced by a living gate:
 //! (1) check ≡ runtime for polymorphic length/empty? across all four
 //!     containers (tests/probe_collection_transform_ops.rs item1 witnesses);

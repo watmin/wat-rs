@@ -8,11 +8,11 @@
 //!
 //! `eval_fn` is the runtime evaluator for `:wat::core::fn` expressions.
 //! It peels optional binding-level metadata, synthesizes the implicit-do body,
-//! and routes through `parse_fn_signature` to produce a `Function` value.
+//! and routes through `parse_fn_signature_with_rest` to produce a `Function` value.
 
 use crate::ast::WatAST;
 use crate::function::metadata::peel_metadata_preamble;
-use crate::function::parse::parse_fn_signature_with_rest;
+use crate::function::parse::{parse_fn_signature_with_rest, ParsedFnSignature};
 use crate::function::FN_HEAD;
 use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
 use crate::span::Span;
@@ -52,9 +52,9 @@ pub(crate) fn eval_fn(
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
     // Arc 150 — parse with rest-binder support so variadic fn-forms (from
     // variadic `defn` expansion) produce a Function with rest_param set.
-    // Non-variadic forms produce rest_opt = None — strict behavior unchanged.
-    let (params, param_types, ret_type, rest_opt) = parse_fn_signature_with_rest(sig3)?;
-    let (rest_param, rest_param_type) = match rest_opt {
+    // Non-variadic forms produce rest = None — strict behavior unchanged.
+    let ParsedFnSignature { params, param_types, ret_type, rest } = parse_fn_signature_with_rest(sig3)?;
+    let (rest_param, rest_param_type) = match rest {
         Some((name, ty)) => (Some(name), Some(ty)),
         None => (None, None),
     };

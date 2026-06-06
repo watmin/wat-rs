@@ -1,4 +1,4 @@
-//! vigilatum: 2026-06-05T23:33:50Z — UPDATED-vigilia 13-spell guard L1+L2=0 (universal-7:
+//! vigilatum: 2026-06-06T04:56:04Z — UPDATED-vigilia 13-spell guard L1+L2=0 (universal-7:
 //! intueri/solvere/conformare/purgare/struere/sequi/temperare + exigere +
 //! excusare + test-kind complectens/vocare + conditional perspicere [fired:
 //! nested generics present] + circumspicere LAST; secare not mustered — no
@@ -9,6 +9,14 @@
 //! message-less panic, unwitnessed hash-IS-identity claim); 11 runes all
 //! verified against the live tree; clippy-clean in-home. Canonical record:
 //! docs/arc/2026/06/249-total-pure-macros/WARD-MACROS-UPDATED-GUARD-AGGREGATE.md.
+//! RE-EARNED 2026-06-06T04:56:04Z (diff-scoped, the 245 clear: +3 pure reflection
+//! verbs on the allow-list [signature-of-fn / extract-arg-names / extract-arg-types,
+//! handlers verified pure-total]; the ONE contextual fn-opacity [signature-of-fn's
+//! literal-fn arg = signature-only; a BLANKET opacity was caught REOPENING F5 at
+//! scoring and reverted]; the exception survived a 7-attempt adversarial breach
+//! ledger [body-inert/if-smuggle/let-smuggle/user-defn/nondeterminism/totality/
+//! empty-list — ALL HELD]; +3 fence witnesses incl. the inert-impure-body proof;
+//! gates: lib 923/0/1, hygiene+caller+reader probes green, clippy-in-home empty).
 //! Declared invariants, each enforced by a living gate:
 //! (1) variable capture structurally prevented — sets-of-scopes tagging
 //!     (tests/probe_macro_hygiene_capture.rs, end-to-end incl. 2-scope nesting);
