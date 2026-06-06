@@ -1292,26 +1292,34 @@ step `f` becomes `(f acc)` under both macros. The corpus demo is
 `wat-tests/core/core-threading.wat`; the Rust probe is
 `tests/probe_arc249_threading.rs`.
 
-### Numeric arithmetic + comparison — first-class entities (arc 148)
+### Numeric arithmetic + ordering + equality — first-class entities (arc 148)
 
-Arithmetic (`+`, `-`, `*`, `/`) and comparison (`=`, `not=`, `<`, `>`,
-`<=`, `>=`) over `i64` / `f64` ship as first-class entities. Three
-reach tiers, one rule about which to use:
+Arithmetic (`+`, `-`, `*`, `/`), ordering (`<`, `>`, `<=`, `>=`), and equality
+(`=`, `not=`) over `i64` / `f64` ship as first-class entities. Arithmetic and
+ordering each have two layers; equality is universal.
 
 ```scheme
-;; Tier 1 — DEFAULT REACH (Lisp-natural; the call shape you'll write 99% of the time)
-(:wat::core::+ x y z)               ;; variadic; same-type only — cross-type (i64 + f64)
-                                    ;; is rejected by clause absence → :NoMatchingClause
+;; Arithmetic — Tier 1 (variadic defclauses, Lisp-natural)
+(:wat::core::+ x y z)               ;; same-type only — cross-type (i64 + f64)
+                                    ;; rejected by clause absence → :NoMatchingClause
                                     ;; (arc 237 Stone 237.8b retired implicit promotion)
-(:wat::core::< a b)                 ;; binary (chains via :and explicitly)
 (:wat::core::- 5)                   ;; → -5 (1-ary inserts identity-on-left)
 (:wat::core::+)                     ;; → 0:i64 (0-ary returns identity)
 (:wat::core::*)                     ;; → 1:i64 (0-ary returns identity)
 
-;; Tier 2 — TYPE-LOCKED per-Type leaves (strictly 2-ary Rust intrinsics)
+;; Arithmetic — Tier 2: TYPE-LOCKED per-Type leaves (strictly 2-ary Rust intrinsics)
 (:wat::core::i64::+ a b)            ;; binary ONLY — 3+ args → ArityMismatch
-(:wat::core::f64::* x y)            ;; the Tier-1 defclause folds variadic calls
-                                    ;; down onto these binary leaves
+(:wat::core::f64::* x y)            ;; the Tier-1 defclause folds variadic calls down
+
+;; Ordering — relational check-side intrinsic (Stone 245.8; binary only)
+(:wat::core::< a b)                 ;; same-type only (unify rejects cross-type → TypeMismatch)
+                                    ;; orderable class: i64, u8, f64, String, bool, keyword,
+                                    ;; Instant, Duration, Vector<T>, Tuple<T…>, Option<T>,
+                                    ;; Result<T,E>, HolonVector — rejected at CHECK for others
+(:wat::core::i64::< a b)           ;; type-locked Tier-2 leaf (still available)
+
+;; Equality — universal structural intrinsic
+(:wat::core::= a b)                 ;; cross-numeric accepted; deep structural over all types
 ```
 
 (The pre-arc-171 “Tier 3” comma-addressed leaves — `:wat::core::+,2`,
@@ -1320,7 +1328,7 @@ bodies (arc 171), the arity-suffix form was dropped in Stone 237.8b, and the
 mixed-numeric leaves were deleted with implicit promotion. The per-Type leaf
 `:wat::core::i64::+` is the deepest addressable layer.)
 
-**Arity rules** (Lisp/Clojure tradition):
+**Arity rules — arithmetic** (Lisp/Clojure tradition):
 
 | Op | 0-ary | 1-ary | 2+-ary |
 |---|---|---|---|
@@ -1329,17 +1337,18 @@ mixed-numeric leaves were deleted with implicit promotion. The per-Type leaf
 | `-` | ARITY ERROR | inserts identity-on-left: `(:- x) → -x` | folds left |
 | `/` | ARITY ERROR | inserts identity-on-left: `(:/ x) → 1/x` (integer-truncated for `i64`) | folds left |
 
-Comparison ops (`=`, `not=`, `<`, `>`, `<=`, `>=`) are strict-binary.
-Chains via `:and` explicitly: `(:and (:< a b) (:< b c))`. Equality
-delegates universally via `values_compare` — same-type comparison
-works for every comparable type (numerics, strings, bools, time,
-holons, options, results, tuples, vectors, bytes); mixed-numeric is
-handled internally without comma-typed leaves.
+Ordering ops (`<`, `>`, `<=`, `>=`) are strict-binary. Chains via `:and`
+explicitly: `(:and (:< a b) (:< b c))`. Cross-type ordering (i64 vs f64) is
+rejected at CHECK TIME by unify failure (`TypeMismatch`); this differs from
+cross-type equality, which arc 238 accepts for value comparison.
+
+Equality (`=`, `not=`) delegates universally via `values_equal` — same-type
+comparison works for every equatable type; mixed-numeric is handled internally.
 
 **The comma-typed-leaf rule** — comma-typed leaves
 (`:<verb>,<type-pair>`) exist iff the underlying Rust impls
 genuinely differ per type-pair. Arithmetic needs them
-(`i64+i64 ≠ i64+f64`); comparison doesn't (one universal helper).
+(`i64+i64 ≠ i64+f64`); ordering and equality don't (one universal helper each).
 LLM-generated code stays at Tier 1; substrate addressing is for
 substrate authors.
 
@@ -3024,11 +3033,15 @@ What's reflectable today:
   reflected via arc 146's Dispatch entities; dissoc, keys,
   values, concat — reflected via `:wat::core::defalias` (Stone
   241.12) to single per-Type impls)
-- **Numeric arithmetic + comparison** (`:+`, `:-`, `:*`, `:/`, `:=`,
-  `:not=`, `:<`, `:>`, `:<=`, `:>=` over i64/f64 — first-class
-  per arc 148's lineage, now polymorphic wat defclauses over strictly
-  2-ary per-Type leaves; cross-type is rejected by clause absence —
-  the mixed-numeric leaves were deleted with Stone 237.8b)
+- **Numeric arithmetic** (`:+`, `:-`, `:*`, `:/` over i64/f64 — first-class
+  per arc 148's lineage, polymorphic wat defclauses over strictly 2-ary per-Type
+  leaves; cross-type rejected by clause absence — mixed-numeric leaves deleted
+  with Stone 237.8b)
+- **Ordering** (`:<`, `:>`, `:<=`, `:>=`) — a relational check-side intrinsic
+  (Stone 245.8; the sibling of equality). Reaches the orderable class (i64, u8,
+  f64, String, bool, keyword, Instant, Duration, and recursively Vector/Tuple/
+  Option/Result, HolonVector); cross-type rejected at check by unify failure.
+  `:=` / `:not=` remain equality (structural, arc 238 reach)
 - **Special forms** — `:wat::core::if`, `cond`, `match`, `let`,
   `fn`, `define`, `defmacro`, `try`, `option/expect`,
   `result/expect`, the spawn family, the quasiquote family, `forms`.
@@ -3543,7 +3556,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::bytes-vector` | `bs` | `:Option<wat::holon::Vector>` — deserialize the wire format (arc 061). Takes `:wat::core::Bytes`. `:None` on short / truncated / dim-mismatched / corrupt input |
 | `:wat::holon::coincident?` | `a b` | `:bool` — polymorphic over HolonAST or Vector inputs in either position (arc 061 widened from HolonAST-only); `(1 - cosine) < coincident-floor` at encoded d |
 | `:wat::holon::simhash` | `holon` or `vector` | `:i64` — Charikar SimHash, polymorphic over HolonAST or Vector input (arcs 051 + 052). Cosine-similar inputs share keys; the position-allocator for content-addressed caches. Composes with `:rust::lru::LruCache<i64,V>` for bidirectional engram lookup |
-| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality, always returns `:bool`. **`=` / `not=`**: cross-numeric (i64+f64) accepted (value comparison). **`<` / `>` / `<=` / `>=`**: same-type ONLY — they are wat defclauses over per-Type leaves (wat/core.wat), and cross-type (i64 vs f64) is rejected by clause absence → `:NoMatchingClause` (Stone 237.8b). **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
+| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality, always returns `:bool`. **`=` / `not=`**: cross-numeric (i64+f64) accepted (value comparison). **`<` / `>` / `<=` / `>=`**: same-type ONLY — they are a relational check-side intrinsic (Stone 245.8, the sibling of `=`); cross-type (i64 vs f64) is rejected at check by unify failure → `TypeMismatch`. Ordering reaches the **orderable class**: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`, `Instant`, `Duration`, and recursively `Vector<T>`, `Tuple<T…>`, `Option<T>`, `Result<T,E>`, `HolonVector` (bit-exact lex). Not orderable: `HashMap`, `HashSet`, user enums, `Struct`, `HolonAST`, unit — rejected at check. **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::Record/same-data?` | `a b` | `:bool` — record DATA equality, **type-BLIND** (arc 237 S-C.2d): true iff two records hold the same field-name→value map, *regardless of class or flavor*. Contrast with `=`, which is type-strict (`Point[0,0] = Coord[0,0]` → false, but `same-data?` → true). Name-keyed: different field names → false. The reach for "do these hold the same data, whatever they are?" |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |

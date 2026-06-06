@@ -12,7 +12,11 @@
 ;; docs/arc/2026/06/249-total-pure-macros/WARD-COREWAT-REEARN.md.
 ;;
 ;; wat/core.wat — the :wat::core::* stdlib surface: short-name aliases plus the
-;; polymorphic arithmetic and ordering defclauses.
+;; polymorphic arithmetic defclauses.
+;;
+;; Ordering (`<`/`>`/`<=`/`>=`) is a relational check-side intrinsic (Stone 245.8),
+;; the sibling of equality. The defclauses that formerly lived here are retired;
+;; the per-Type leaves (`:wat::core::i64::<` etc.) remain as the type-locked tier.
 ;;
 ;; Position in the stdlib array is not load-bearing for visibility:
 ;; register_stdlib_defmacros (src/macros/parse.rs) walks the entire
@@ -242,31 +246,9 @@
                              (:wat::core::string::concat joined ">")))]
     `~(:wat::core::keyword/from-string full)))
 
-;; ─── Polymorphic ordering defclauses ──────────────────────────────
-;;
-;; 2-ary per-Type (i64 / f64), NaN-correct for f64; cross-type rejected by
-;; clause absence, same as arithmetic.
-
-(:wat::core::defclause :wat::core::<
-  ([x <- :wat::core::i64
-    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::< x y))
-  ([x <- :wat::core::f64
-    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::< x y)))
-
-(:wat::core::defclause :wat::core::>
-  ([x <- :wat::core::i64
-    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x y))
-  ([x <- :wat::core::f64
-    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::> x y)))
-
-(:wat::core::defclause :wat::core::<=
-  ([x <- :wat::core::i64
-    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::<= x y))
-  ([x <- :wat::core::f64
-    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::<= x y)))
-
-(:wat::core::defclause :wat::core::>=
-  ([x <- :wat::core::i64
-    y <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::>= x y))
-  ([x <- :wat::core::f64
-    y <- :wat::core::f64] -> :wat::core::bool (:wat::core::f64::>= x y)))
+;; Stone 245.8 — Polymorphic ordering defclauses RETIRED.
+;; `<`/`>`/`<=`/`>=` are now a relational check-side intrinsic (`infer_ordering`
+;; in src/check.rs), the sibling of `infer_equality`. The runtime dispatch arms
+;; in `dispatch_keyword_head_value` (src/runtime.rs) route directly to `eval_compare`.
+;; The per-Type leaves (`:wat::core::i64::<`, `:wat::core::f64::<`, etc.) remain
+;; as the type-locked tier in Rust.

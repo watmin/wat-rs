@@ -24,7 +24,7 @@
 //! so the boolean falls out of `invoke_user_main` directly.
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
@@ -59,6 +59,18 @@ fn run_expecting_runtime_error(src: &str) -> String {
     let env = Environment::new();
     let err = eval_in_frozen(&ast, &world, &env).expect_err("compute should error");
     format!("{:?}", err)
+}
+
+/// Stone 245.8 — ordering is a relational intrinsic: non-orderable types are
+/// rejected at check time (not at runtime). Assert that startup_from_source
+/// returns a Check error containing "TypeMismatch".
+fn run_expecting_check_error(src: &str) -> String {
+    let src = with_nil_main(src);
+    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+        Err(StartupError::Check(errs)) => format!("{:?}", errs),
+        Ok(_) => panic!("expected check-time rejection but startup succeeded"),
+        Err(other) => panic!("expected StartupError::Check but got: {:?}", other),
+    }
 }
 
 // ─── Instant — chronological ord ─────────────────────────────────────
@@ -544,12 +556,20 @@ fn algebra_vector_distinct_atoms_have_some_order() {
     assert!(run_bool(src));
 }
 
-// ─── Rejected types — fall-through arm raises TypeMismatch at runtime ─
+// ─── Rejected types — Stone 245.8: intrinsic rejects at check time ────────
+//
+// Before Stone 245.8: the defclauses only covered i64/f64; non-orderable types
+// passed the type-checker (same-type unify OK at check), then raised
+// TypeMismatch at runtime (values_compare → None).
+//
+// After Stone 245.8: ordering is a relational intrinsic with an orderable-class
+// gate. Non-orderable types (HashMap, HashSet, user enum, Struct, HolonAST)
+// are rejected at CHECK TIME with TypeMismatch pointing at param "#1".
+// Runtime `values_compare → None` remains the defense-in-depth backstop.
 
 #[test]
 fn hashmap_ord_raises_type_mismatch() {
-    // Two HashMaps; type-checker accepts (same-type unify); runtime
-    // values_compare returns None → eval_compare raises TypeMismatch.
+    // HashMap — not in the orderable class; rejected at check.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
@@ -559,16 +579,17 @@ fn hashmap_ord_raises_type_mismatch() {
                         (:wat::core::HashMap :wat::core::String :wat::core::i64 "b" 2)]
                       (:wat::core::< m1 m2)))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on HashMap ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on HashMap ord; got {}",
         err
     );
 }
 
 #[test]
 fn hashset_ord_raises_type_mismatch() {
+    // HashSet — not in the orderable class; rejected at check.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::let
@@ -578,32 +599,33 @@ fn hashset_ord_raises_type_mismatch() {
                         (:wat::core::HashSet :wat::core::i64 3 4)]
                       (:wat::core::< s1 s2)))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on HashSet ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on HashSet ord; got {}",
         err
     );
 }
 
 #[test]
 fn enum_ord_raises_type_mismatch() {
-    // User enum — variants have no inherent order in this slice.
+    // User enum — not in the orderable class; rejected at check.
     let src = r#"
         (:wat::core::defenum :my::Color :Red :Green :Blue)
 
         (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< :my::Color::Red :my::Color::Blue))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on Enum ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on Enum ord; got {}",
         err
     );
 }
 
 #[test]
 fn struct_ord_raises_type_mismatch() {
+    // Struct — not in the orderable class; rejected at check.
     let src = r#"
         (:wat::core::defstruct :my::Point
           [x <- :wat::core::i64
@@ -615,42 +637,44 @@ fn struct_ord_raises_type_mismatch() {
                        q (:my::Point/new 3 4)]
                       (:wat::core::< p q)))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on Struct ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on Struct ord; got {}",
         err
     );
 }
 
 #[test]
 fn unit_ord_raises_type_mismatch() {
-    // Two unit values () compared via < — only one inhabitant; no
-    // order. Fall-through arm raises.
+    // Unit () — not in the orderable class; rejected at check (Stone 245.8:
+    // the checker types `()` as unit, which the orderable gate excludes —
+    // ordering a one-inhabitant type is meaningless). Same shape as the
+    // five sibling rejection witnesses above.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< () ()))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on unit ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on unit ord; got {}",
         err
     );
 }
 
 #[test]
 fn holon_ast_ord_raises_type_mismatch() {
-    // HolonAST is the algebraic surface; no canonical order.
+    // HolonAST — not in the orderable class; rejected at check.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
           (:wat::core::<
                       (:wat::holon::to-holon "x")
                       (:wat::holon::to-holon "y")))
     "#;
-    let err = run_expecting_runtime_error(src);
+    let err = run_expecting_check_error(src);
     assert!(
-        err.contains("TypeMismatch") || err.to_lowercase().contains("comparable"),
-        "expected TypeMismatch on HolonAST ord; got {}",
+        err.contains("TypeMismatch"),
+        "expected check-time TypeMismatch on HolonAST ord; got {}",
         err
     );
 }

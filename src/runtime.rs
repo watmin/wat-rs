@@ -5659,9 +5659,16 @@ fn dispatch_keyword_head_value(
 
         // Comparison — return :bool
         // Stone 237.8b — `=`/`not=` stay here (migrate to 8c defclauses later).
-        // `<`/`>`/`<=`/`>=` HARD CUT: now wat defclauses → dispatch via `other =>`.
+        // Stone 245.8 — `<`/`>`/`<=`/`>=` PROMOTED from wat defclauses to relational
+        // intrinsic. Runtime dispatch arms added here (routed directly to `eval_compare`).
+        // The defclauses in wat/core.wat are retired; the per-Type leaves
+        // (`:wat::core::i64::<` etc.) remain as the type-locked tier below.
         ":wat::core::=" => eval_eq(head, args, list_span, env, sym),
         ":wat::core::not=" => eval_not_eq(head, args, list_span, env, sym),
+        ":wat::core::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
+        ":wat::core::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
+        ":wat::core::<=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Greater),
+        ":wat::core::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
 
         // Arc 148 slice 5 — per-Type comparison leaves
         // (`:wat::core::{i64,f64}::{<,>,<=,>=}`) were RETIRED.

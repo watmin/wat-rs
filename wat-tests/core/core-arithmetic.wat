@@ -278,9 +278,13 @@
           "expected NoMatchingClause for (+ \"a\" \"b\")"
           :wat::core::None :wat::core::None)))))
 
-;; ─── REJECTION: cross-type ordering → NoMatchingClause ──────────────────
+;; ─── REJECTION: cross-type ordering → TypeMismatch (check-time) ─────────
 ;;
-;; Mirrors the now-failing poly_lt_mixed_i64_f64: (< 1 2.5) has no clause.
+;; Stone 245.8 — `<`/`>`/`<=`/`>=` are now a relational intrinsic.
+;; Cross-type (i64 vs f64) is rejected at CHECK TIME by unify failure
+;; (TypeMismatch), not at runtime by clause absence.
+;; The test was previously `:NoMatchingClause`; intent (cross-type rejected)
+;; is unchanged; error kind changed to TypeMismatch.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
@@ -294,7 +298,7 @@
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
-          "expected NoMatchingClause for (< 1 2.5)"
+          "expected TypeMismatch (check-time) for (< 1 2.5)"
           :wat::core::None :wat::core::None)))))
 
 ;; ─── REJECTION: 0-ary - and / → NoMatchingClause ────────────────────────

@@ -4619,9 +4619,30 @@ fn infer_list(
             // route through wat defclauses (registered in env.defclause_registrations).
             // Stone 237.8c — `infer_comparison` renamed to `infer_equality`; equality
             // stays structural (Shape B: universal + recursive + subtype-compatible).
+            // Stone 245.8 — `<`/`>`/`<=`/`>=` PROMOTED to relational intrinsic
+            // `infer_ordering` (the ordering sibling of `infer_equality`); the
+            // defclauses in wat/core.wat are retired; dispatch arm added below.
             ":wat::core::="
             | ":wat::core::not=" => {
                 let (val, mut errs) = infer_equality(k, head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // Stone 245.8 — ordering as relational intrinsic (sibling of equality).
+            // `<`/`>`/`<=`/`>=` unify the two args (strict same-type, no subtype path),
+            // then gate on the orderable class. Routed to `infer_ordering`.
+            // Runtime: `eval_compare` (always was; now via keyword-head dispatch directly
+            // rather than through the retired defclauses in wat/core.wat).
+            //   RELATIONAL (ordering): ordering IS a constraint flowing between args (∀T);
+            //   a finite clause list cannot express Vec<T> < Vec<T>, Option<T>, etc.
+            ":wat::core::<"
+            | ":wat::core::>"
+            | ":wat::core::<="
+            | ":wat::core::>=" => {
+                let (val, mut errs) = infer_ordering(k, head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -4917,12 +4938,14 @@ fn infer_list(
             //   per concrete instantiation, an infinite open set. Routed to `infer_<op>`.
             //
             //   RELATIONAL — a constraint flows *between* the arguments via a type variable
-            //   (∀T). Equality lives here: `= : a:T, b:T → bool`. The clause matcher checks
-            //   each position against a FIXED named type INDEPENDENTLY — it never unifies
-            //   arg0's type with arg1's. `infer_equality` does exactly that (`unify(a, b)`).
-            //   Routed to `infer_equality`; runtime: `eval_eq` / `eval_not_eq`.
+            //   (∀T). Two members:
+            //   (a) Equality: `= : a:T, b:T → bool`. Routed to `infer_equality`;
+            //       runtime: `eval_eq` / `eval_not_eq`.
+            //   (b) Ordering: `< : a:T, b:T → bool` (and `>`, `<=`, `>=`). Strict same-type
+            //       unify + orderable-class gate. Stone 245.8 promoted these from defclauses
+            //       to a relational intrinsic. Routed to `infer_ordering`; runtime: `eval_compare`.
             //
-            //   MONOMORPHIC (neither) → `defclause`. Numerics (`+`, `-`, `<`, `>`, …) live
+            //   MONOMORPHIC (neither) → `defclause`. Numerics (`+`, `-`, `*`, `/`) live
             //   there: concrete args, fixed per-type return, no type-variable flow anywhere.
             //
             //   The per-Type collection impls live in `src/collection/eval.rs` (`eval_<container>_<op>`,
@@ -10947,8 +10970,118 @@ fn infer_equality(
 // Rust handler needed.
 //
 // `infer_comparison`'s `<`/`>`/`<=`/`>=` arms also deleted (same stone);
-// those ops route through wat defclauses. `infer_comparison` renamed to
+// those ops routed through wat defclauses. `infer_comparison` renamed to
 // `infer_equality` in Stone 237.8c (only `=`/`not=` remain as tenants).
+//
+// Stone 245.8 — `<`/`>`/`<=`/`>=` PROMOTED from defclauses to a relational
+// intrinsic: `infer_ordering` (below). The ordering defclauses in wat/core.wat
+// are retired; the runtime dispatch arms now route directly to `eval_compare`.
+
+/// Check whether a (fully-substituted / reduced) TypeExpr belongs to the
+/// orderable class: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`,
+/// `Instant`, `Duration`, and recursively `Vector<orderable>`,
+/// `Tuple<orderable…>`, `Option<orderable>`, `Result<orderable, orderable>`.
+///
+/// Unresolved TypeVars are accepted (deferred — mirrors `infer_equality`'s
+/// TypeVar policy; the runtime's `values_compare → None` is the eval-side
+/// backstop).
+///
+/// NOT orderable: `HashMap`, `HashSet`, user enums / Records / Structs,
+/// unit `()`, fn types, `HolonAST`, channels/handles.
+fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
+    let resolved = apply_subst(ty, subst);
+    match &resolved {
+        TypeExpr::Var(_) => true, // unresolved — defer to runtime
+        TypeExpr::Path(p) => matches!(
+            p.as_str(),
+            ":wat::core::i64"
+                | ":wat::core::u8"
+                | ":wat::core::f64"
+                | ":wat::core::String"
+                | ":wat::core::bool"
+                | ":wat::core::keyword"
+                | ":wat::time::Instant"
+                | ":wat::time::Duration"
+                // Arc 148 slice 3 — algebra Vector (bit-exact i8 lex via values_compare).
+                | ":wat::holon::Vector"
+        ),
+        TypeExpr::Parametric { head, args } => match head.as_str() {
+            "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
+            "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
+            "wat::core::Result" => {
+                // Result<T, E> orderable iff both T and E are orderable
+                args.first().is_none_or(|t| is_type_orderable(t, subst))
+                    && args.get(1).is_none_or(|e| is_type_orderable(e, subst))
+            }
+            _ => false,
+        },
+        // Empty tuple = unit: NOT orderable. The vacuous-all rule would accept
+        // it at check while the runtime engine refuses it — the check≡runtime
+        // split Stone 245.8's scoring caught live. Ordering a one-inhabitant
+        // type is meaningless; check mirrors the runtime's refusal.
+        TypeExpr::Tuple(elems) => {
+            !elems.is_empty() && elems.iter().all(|el| is_type_orderable(el, subst))
+        }
+        TypeExpr::Fn { .. } => false,
+    }
+}
+
+// PARTITION — RELATIONAL flavor of the intrinsic dispatch (ordering sibling of `infer_equality`).
+// `unify(a, b)` ties the two args' types ∀T (strict — no subtype-compatible path for ordering);
+// then the unified type is gated against the orderable class. See `docs/DISPATCH.md`.
+fn infer_ordering(
+    op: &str,
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len()
+        } });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(bool_ty, local_errors);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let (Some(a), Some(b)) = (a_ty, b_ty) {
+        let a_resolved = apply_subst(&a, subst);
+        let b_resolved = apply_subst(&b, subst);
+        // Ordering is STRICT same-type — unlike equality there is NO subtype-compatible path.
+        // Cross-type (i64 vs f64) must fail here: unify rejects it, producing TypeMismatch.
+        // This is the principal doc: the error KIND changes from NoMatchingClause (old defclause
+        // path) to TypeMismatch (unify failure) for cross-type ordering.
+        if unify(&a_resolved, &b_resolved, subst, env.types()).is_err() {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: format_type(&apply_subst(&a_resolved, subst)),
+                got: format_type(&apply_subst(&b_resolved, subst))
+            } });
+        } else {
+            // Types unified — now gate on the orderable class.
+            let unified = apply_subst(&a_resolved, subst);
+            if !is_type_orderable(&unified, subst) {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "#1".into(),
+                    expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)".into(),
+                    got: format_type(&unified)
+                } });
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(bool_ty) } else { CheckResult::partial_with(bool_ty, local_errors) }
+}
 
 /// Arc 237 Stone S-C.3 — BASE record constructor inference.
 ///
