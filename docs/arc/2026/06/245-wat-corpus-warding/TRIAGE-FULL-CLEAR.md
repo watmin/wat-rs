@@ -24,7 +24,34 @@
 | 2 | wat_arc098_form_matches_{runtime,typecheck} | 15+7 | CONFERRE'D: FILL — matches?'s pattern arg is DSL data; the resolver never got its boundary when strictness landed (quote-family precedent mirrored, resolve.rs); struct-head validation owned by check.rs infer_form_matches (live witness) | **CLEAR** (`35dfc10d`, 15/15 + 9/9) |
 | 3 | wat_arc150_variadic_define | 14 | CONFERRE'D: 3 layers — (i) 11 test argspecs CORRUPTED (phantom `_b <- &` triples, modernized); (ii) under that, REAL GAP: top-level user variadic defn never registered — try_parse_fn_shape_def's `.ok()?` SILENTLY swallowed RestBinderNotSupported (the 249.5d rest support reached macros/defclauses, never the user defn path); FILLED across registration/check/eval + reflection; (iii) 4 negative tests re-grounded at empirical shapes. NOTE: src/function/ stamp drifts — re-ward owed at campaign end (with core.wat) | **CLEAR** (`f3d1fc9e`, 16/16) |
 | 4 | wat_core_cond | 9 | CONFERRE'D: FILL — cond's :else marker walked as call head; the finer sibling of room 2's boundary (arms ARE code, the marker is not) | **CLEAR** (`2d518d78`, 10/10) |
-| 5+ | THE LONG TAIL — re-baselined post-rooms-1-4 (`integration-run.sh`, tier now 1591/55/59; **NoMatchingClause=0, the class extinct**): probe_arc216_stone5b_hashset_native_storage 1f · probe_arc226_stone1_type_predicates 2f · probe_arc234_stone3c_fix_narrow_fallthrough 4f · probe_arc234_stone3c_keyword_accessor 5f · probe_arc237_sC2ab_field_order 4f · probe_arc237_stone1_typeunion 2f · probe_arc237_stone2_defclause 1f · probe_arc241 stones 10/11/12/13/14/15/16 (3+2+1+1+1+3+1) · probe_arc242_stone1_lexeme_role 1f · wat_arc144_hardcoded_primitives 3f · wat_arc144_uniform_reflection 1f · wat_arc153_nil_rename 1f · wat_arc170_stone_c1_threadpeer 1f · wat_arc220_list 5f · wat_arc221_keyword_nil_tag 1f · wat_harness 5f · wat_idempotent_redeclare 1f · wat_macro_vector_splice_symmetry 2f · wat_run_threads_d1 1f · wat_run_threads_d2 1f · wat_stream 1f | clearing in batches |
+| 5+ | THE LONG TAIL (27 binaries / 55 tests) — classes: A resolver-strictness 3rd wave (match patterns + keyword accessors, FILLED); B error-shape drift (remedy prose + MainSignature, MODERNIZED at live shapes); C arc-242 nil-rot (8 files, MODERNIZED; is_atomizable+nil filled); D grounded singles (reflection fingerprints, TypeVar deferral, arc-054 byte-equiv idempotent redeclare, eval_body_of bypass, +3 pure reflection verbs). **SCORING CATCH: the executor's blanket fn-opacity REOPENED F5** (HOF'd fn bodies execute at expand time) — REVERTED to the one sound contextual exception (signature-of-fn's literal-fn arg = signature-only) + TWO living fence witnesses (lib 922). | **CLEAR** (`ce655a68`) |
+
+## ★ THE DUNGEON IS WIPED — NO SURVIVORS ★
+
+**FULL TIER: 1646 passed / 0 failed / 59 ignored across 187 binaries**
+(leak contract held; every error class at ZERO). From the 245.7 baseline
+(1460/147/59, 33 fail binaries) to zero in five strikes:
+46 (ordering relational) + 22 (matches? boundary) + 16 (variadic defn
+resurrected) + 9 (cond :else) + 55 (the classified tail) — with three real
+substrate gap-classes FILLED (the resolver-strictness family ×3 waves; the
+silent-swallow variadic registration; the ordering reachability), one fence
+breach caught and reverted at scoring, and zero stale tests greened.
+
+## Campaign carry-outs (named, tracked — not deferrals)
+
+1. **Stamp re-wards owed** (re-ward-on-touch, batched at campaign end by
+   design): wat/core.wat (ordering section retired) · src/function/
+   (variadic thread-through) · src/collection/ (infer_contains TypeVar arm) ·
+   src/check/env.rs (defined_value_asts) · src/macros/ (the fence exception +
+   witnesses).
+2. **The vector-splice runtime gap**: fn params from `[~@params]` Vector
+   splice not bound at runtime — documented via should_panic(UnboundSymbol)
+   witness in wat_macro_vector_splice_symmetry; a real engine gap awaiting
+   its stone.
+3. **THE ENDGAME (#151)**: fold scripts/integration-run.sh into
+   green-gate.sh so the tier can never rot dark again — the quest's final
+   boss; the 67 leaky-signal excluded binaries remain its run-tier problem.
+4. wat-holon-lru 19 (struct-rot; separate crate bucket, named in `94261f45`).
 
 Separate buckets (NOT this tier, cleared after): crates/wat-holon-lru 19
 (struct-rot, named in `94261f45`); the 67 excluded arc-170 process binaries
