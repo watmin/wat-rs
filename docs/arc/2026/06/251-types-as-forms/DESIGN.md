@@ -167,11 +167,21 @@ disconfirming probe:
   HEAD via `UnboundSymbol`; C02 keyword head GREEN/preserved). Locks the mechanism:
   **normalize-layer** (extend the existing surface→entity resolution; dispatch
   untouched), NOT native-symbol-dispatch — see the sub-DESIGN's four-questions.
-- **251.1** LIFT + WARD `src/resolve/`: carve the surface→entity resolution out of
-  check.rs/runtime.rs into a warded home; extend it so a dotted-symbol ref
-  (`wat.core/+`) resolves to the entity its keyword FQDN names today (same shape as
-  the bare→FQDN precedent). Dual-read (keyword + symbol) during transition. Vigilia to
-  L1+L2=0; stamp. (Lexer untouched — it already reads the token.)
+- **251.1** LIFT + WARD `src/resolve/` — split into stepping stones (four-questions
+  verdict B; `DESIGN-STONE-251.1.md`), each single-axis to verify:
+  - **251.1a** LIFT `src/resolve.rs` (flat, 709 lines, unstamped) → `src/resolve/`
+    warded home. PURE MOVE — green→green, NO behavior change. intueri names the
+    internal modules; vigilia to L1+L2=0; stamp. (The transform then lands in
+    already-warded ground — recovery-doc Proactive-slicing.)
+  - **251.1b** ADD the normalize transform: a dotted-symbol ref (`wat.core/+`)
+    resolves to the entity its keyword FQDN names (same shape as the bare→FQDN
+    precedent); resolve gains validate **+ normalize** (transform, lifting its current
+    "does NOT transform" limitation). Probe `probe_arc251_stone0_symbol_head` RED→GREEN.
+    Dual-read (keyword + symbol). Re-earn the stamp.
+  - **251.1c** CONSOLIDATE: migrate `check.rs:1637` `BARE_PRIMITIVES`/
+    `BARE_CONTAINER_HEADS` into the resolve home — resolution becomes the single
+    surface→entity canonicalization authority. Behavior-preserving. Re-earn the stamp.
+  - (Lexer untouched throughout — it already reads the token.)
 - **251.2** the `wat.type/` namespace: type atoms move out of `:wat::core::` into the
   type namespace; the lexeme-carries-the-role property replaces position-polymorphism
   (DISSOLVES the `WatAST::Keyword` type/value split). Work lands in `src/types/`
