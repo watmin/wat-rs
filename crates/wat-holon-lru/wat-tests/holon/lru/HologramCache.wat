@@ -21,16 +21,17 @@
 ;;   :test::hc-get-found? (s k)   — Some → true, None → false
 ;;   :test::hc-get-evicted? (s k) — Some → false, None → true
 
+(:wat::config::set-redef! true)
+
 (:wat::test::make-deftest :deftest
   (
    ;; ─── hc-make ─────────────────────────────────────────────────────
    ;; Construct a HologramCache with filter-coincident and the given cap.
    ;; The filter is always filter-coincident for these tests (self-cosine 1.0
    ;; satisfies it; structurally-distinct keys do not cross slots).
-   (:wat::core::define
-     (:test::hc-make
-       (cap :wat::core::i64)
-       -> :wat::holon::lru::HologramCache)
+   (:wat::core::defn :test::hc-make
+     [cap <- :wat::core::i64]
+     -> :wat::holon::lru::HologramCache
      (:wat::holon::lru::HologramCache/make
        (:wat::holon::filter-coincident)
        cap))
@@ -39,25 +40,23 @@
    ;; Put k1 then k2 (same value v) into the store.
    ;; Shared setup for LRU tests that need two pre-existing entries
    ;; before exercising bump/eviction.
-   (:wat::core::define
-     (:test::hc-fill-two
-       (store :wat::holon::lru::HologramCache)
-       (k1 :wat::holon::HolonAST)
-       (k2 :wat::holon::HolonAST)
-       (v  :wat::holon::HolonAST)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::hc-fill-two
+     [store <- :wat::holon::lru::HologramCache
+      k1    <- :wat::holon::HolonAST
+      k2    <- :wat::holon::HolonAST
+      v     <- :wat::holon::HolonAST]
+     -> :wat::core::nil
      (:wat::core::do
        (:wat::holon::lru::HologramCache/put store k1 v)
        (:wat::holon::lru::HologramCache/put store k2 v)
-       ()))
+       nil))
 
    ;; ─── hc-get-found? ───────────────────────────────────────────────
    ;; Returns true if the key is present (Some), false if evicted (None).
-   (:wat::core::define
-     (:test::hc-get-found?
-       (store :wat::holon::lru::HologramCache)
-       (k :wat::holon::HolonAST)
-       -> :wat::core::bool)
+   (:wat::core::defn :test::hc-get-found?
+     [store <- :wat::holon::lru::HologramCache
+      k     <- :wat::holon::HolonAST]
+     -> :wat::core::bool
      (:wat::core::match
        (:wat::holon::lru::HologramCache/get store k) -> :wat::core::bool
        ((:wat::core::Some _) true)
@@ -66,11 +65,10 @@
    ;; ─── hc-get-evicted? ─────────────────────────────────────────────
    ;; Returns true if the key is gone (None), false if still present (Some).
    ;; Complement of hc-get-found? — used in eviction assertions for clarity.
-   (:wat::core::define
-     (:test::hc-get-evicted?
-       (store :wat::holon::lru::HologramCache)
-       (k :wat::holon::HolonAST)
-       -> :wat::core::bool)
+   (:wat::core::defn :test::hc-get-evicted?
+     [store <- :wat::holon::lru::HologramCache
+      k     <- :wat::holon::HolonAST]
+     -> :wat::core::bool
      (:wat::core::match
        (:wat::holon::lru::HologramCache/get store k) -> :wat::core::bool
        ((:wat::core::Some _) false)

@@ -66,9 +66,9 @@
 ;; Put returns PutAck carrying unit. Both verbs share ONE reply channel
 ;; per slot (pair-by-index via HandlePool). Replaces the old per-verb
 ;; channel families (PutAck* + GetReply*).
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Reply
-  (GetResult (results :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>))
-  (PutAck))
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Reply
+  :GetResult [results <- :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>]
+  :PutAck)
 
 ;; ─── Reply* — pair-by-index reply channel family (arc 130) ──────
 ;;
@@ -91,9 +91,9 @@
 ;; Arc 130: embedded reply-tx/ack-tx removed; reply routing is by pair index.
 ;;   Get carries Vec<HolonAST> probes; driver replies via indexed ReplyTx.
 ;;   Put carries Vec<Entry> entries; driver replies PutAck via same.
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Request
-  (Get  (probes   :wat::core::Vector<wat::holon::HolonAST>))
-  (Put  (entries  :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>)))
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Request
+  :Get [probes  <- :wat::core::Vector<wat::holon::HolonAST>]
+  :Put [entries <- :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>])
 
 ;; ─── Per-client request channel typealiases ─────────────────────
 
@@ -169,12 +169,12 @@
 ;; Both injection points are required. Pass null-reporter and
 ;; (null-metrics-cadence) for the explicit "no reporting" choice.
 
-(:wat::core::struct :wat::holon::lru::HologramCacheService::Stats
-  (lookups :wat::core::i64)        ;; total Gets in this window
-  (hits :wat::core::i64)           ;; Gets returning Some
-  (misses :wat::core::i64)         ;; Gets returning :None
-  (puts :wat::core::i64)           ;; total Puts in this window
-  (cache-size :wat::core::i64))    ;; HologramCache/len at gate-fire time
+(:wat::core::defstruct :wat::holon::lru::HologramCacheService::Stats
+  [lookups    <- :wat::core::i64   ;; total Gets in this window
+   hits       <- :wat::core::i64   ;; Gets returning Some
+   misses     <- :wat::core::i64   ;; Gets returning :None
+   puts       <- :wat::core::i64   ;; total Puts in this window
+   cache-size <- :wat::core::i64]) ;; HologramCache/len at gate-fire time
 
 ;; Report — discriminated outbound messages the cache emits.
 ;; Slice 1 ships ONE variant (Metrics, gated by metrics-cadence). Future
@@ -185,44 +185,44 @@
 ;; Each new variant earns its slot when the service has a concrete
 ;; reason to communicate it. Producer/consumer agree on the variant
 ;; set; consumers add an arm to their match when a new one ships.
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Report
-  (Metrics (stats :wat::holon::lru::HologramCacheService::Stats)))
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Report
+  :Metrics [stats <- :wat::holon::lru::HologramCacheService::Stats])
 
 ;; MetricsCadence<G> — stateful rate gate. Holds the gate state
 ;; (G, picked by the user) AND the tick function that advances it.
 ;; Service/tick-window calls (tick gate stats) → (gate', fired?), then
 ;; rebuilds the cadence with the new gate. The cadence threads gate
 ;; through the loop; the tick function itself is invariant.
-(:wat::core::struct :wat::holon::lru::HologramCacheService::MetricsCadence<G>
-  (gate :G)
-  (tick :wat::core::Fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)))
+(:wat::core::defstruct :wat::holon::lru::HologramCacheService::MetricsCadence<G>
+  [gate <- :G
+   tick <- :wat::core::Fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)])
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Reporter
   :wat::core::Fn(wat::holon::lru::HologramCacheService::Report)->wat::core::nil)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/null-metrics-cadence
-    -> :wat::holon::lru::HologramCacheService::MetricsCadence<wat::core::nil>)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/null-metrics-cadence
+  []
+  -> :wat::holon::lru::HologramCacheService::MetricsCadence<wat::core::nil>
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
-    :wat::core::nil
+    nil
     (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::holon::lru::HologramCacheService::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/null-reporter
-    (_report :wat::holon::lru::HologramCacheService::Report) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/null-reporter
+  [_report <- :wat::holon::lru::HologramCacheService::Report]
+  -> :wat::core::nil
+  nil)
 
 ;; Fresh zero-counters Stats. Used at startup and after each
 ;; gate-fire (window-rolling reset, matching the archive's
 ;; `stats = CacheStats::default()` after emit).
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService::Stats/zero
-    -> :wat::holon::lru::HologramCacheService::Stats)
+(:wat::core::defn :wat::holon::lru::HologramCacheService::Stats/zero
+  []
+  -> :wat::holon::lru::HologramCacheService::Stats
   (:wat::holon::lru::HologramCacheService::Stats/new 0 0 0 0 0))
 
 ;; ─── Service state — cache + running stats ─────────────────────
@@ -232,9 +232,9 @@
 ;; Stats rebuilds each iteration (values-up). Gate is independent
 ;; of State — caller-typed.
 
-(:wat::core::struct :wat::holon::lru::HologramCacheService::State
-  (cache :wat::holon::lru::HologramCache)
-  (stats :wat::holon::lru::HologramCacheService::Stats))
+(:wat::core::defstruct :wat::holon::lru::HologramCacheService::State
+  [cache <- :wat::holon::lru::HologramCache
+   stats <- :wat::holon::lru::HologramCacheService::Stats])
 
 ;; One loop-step's outputs: the post-dispatch State paired with the
 ;; advanced MetricsCadence. Service/loop and Service/tick-window both
@@ -258,12 +258,11 @@
 ;; Arc 130: reply-tx is supplied by the driver loop (looked up via the
 ;; pair index from select). The Request no longer carries it.
 
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/handle
-    (req :wat::holon::lru::HologramCacheService::Request)
-    (reply-tx :wat::holon::lru::HologramCacheService::ReplyTx)
-    (state :wat::holon::lru::HologramCacheService::State)
-    -> :wat::holon::lru::HologramCacheService::State)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/handle
+  [req      <- :wat::holon::lru::HologramCacheService::Request
+   reply-tx <- :wat::holon::lru::HologramCacheService::ReplyTx
+   state    <- :wat::holon::lru::HologramCacheService::State]
+  -> :wat::holon::lru::HologramCacheService::State
   (:wat::core::let
     [cache
       (:wat::holon::lru::HologramCacheService::State/cache state)
@@ -273,18 +272,21 @@
       ((:wat::holon::lru::HologramCacheService::Request::Get probes)
         (:wat::core::let
           [results
-            (:wat::core::map probes
+            (:wat::core::map
               (:wat::core::fn [probe <- :wat::holon::HolonAST] -> :wat::core::Option<wat::holon::HolonAST>
-                (:wat::holon::lru::HologramCache/get cache probe)))
+                (:wat::holon::lru::HologramCache/get cache probe))
+              probes)
            hit-count
-            (:wat::list::reduce results 0
+            (:wat::list::reduce
               (:wat::core::fn
                 [acc <- :wat::core::i64 slot <- :wat::core::Option<wat::holon::HolonAST>] -> :wat::core::i64
                 (:wat::core::match slot -> :wat::core::i64
-                  ((:wat::core::Some _) (:wat::core::i64::+'2 acc 1))
-                  (:wat::core::None acc))))
+                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  (:wat::core::None acc)))
+              0
+              results)
            n (:wat::core::Vector/length probes)
-           miss-count (:wat::core::i64::-'2 n hit-count)
+           miss-count (:wat::core::i64::- n hit-count)
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
@@ -294,9 +296,9 @@
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::holon::lru::HologramCacheService::Stats/new
-              (:wat::core::i64::+'2 (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
-              (:wat::core::i64::+'2 (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
-              (:wat::core::i64::+'2 (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
               (:wat::holon::lru::HologramCacheService::Stats/puts stats)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
           (:wat::holon::lru::HologramCacheService::State/new cache stats')))
@@ -305,27 +307,28 @@
           [;; HologramCache/put returns :unit (not Option eviction).
            ;; Map entries, discard results (all units).
            _
-            (:wat::core::map entries
+            (:wat::core::map
               (:wat::core::fn
                 [entry <- :wat::holon::lru::HologramCacheService::Entry] -> :wat::core::nil
                 (:wat::core::let
                   [k (:wat::core::first entry)
                    v (:wat::core::second entry)]
-                  (:wat::holon::lru::HologramCache/put cache k v))))
+                  (:wat::holon::lru::HologramCache/put cache k v)))
+              entries)
            n (:wat::core::Vector/length entries)
            ;; Arc 110: same discipline — driver dying mid-protocol is
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
            _send
             (:wat::core::Result/expect -> :wat::core::nil
-              (:wat::kernel::send reply-tx (:wat::holon::lru::HologramCacheService::Reply::PutAck))
+              (:wat::kernel::send reply-tx :wat::holon::lru::HologramCacheService::Reply::PutAck)
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::holon::lru::HologramCacheService::Stats/new
               (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
               (:wat::holon::lru::HologramCacheService::Stats/hits stats)
               (:wat::holon::lru::HologramCacheService::Stats/misses stats)
-              (:wat::core::i64::+'2 (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
           (:wat::holon::lru::HologramCacheService::State/new cache stats'))))))
 
@@ -342,12 +345,11 @@
 ;; On no-fire: state unchanged, cadence advanced. The window stays
 ;; open; counters keep accumulating.
 
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/tick-window<G>
-    (state :wat::holon::lru::HologramCacheService::State)
-    (reporter :wat::holon::lru::HologramCacheService::Reporter)
-    (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :wat::holon::lru::HologramCacheService::Step<G>)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/tick-window<G>
+  [state           <- :wat::holon::lru::HologramCacheService::State
+   reporter        <- :wat::holon::lru::HologramCacheService::Reporter
+   metrics-cadence <- :wat::holon::lru::HologramCacheService::MetricsCadence<G>]
+  -> :wat::holon::lru::HologramCacheService::Step<G>
   (:wat::core::let
     [stats
       (:wat::holon::lru::HologramCacheService::State/stats state)
@@ -384,15 +386,14 @@
 ;; per `feedback_simple_forms_per_func`. Looks up the DriverPair at idx,
 ;; extracts the ReplyTx, calls handle (which sends the reply on reply-tx),
 ;; ticks the window, recurses.
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/reply-at<G>
-    (driver-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>)
-    (idx :wat::core::i64)
-    (req :wat::holon::lru::HologramCacheService::Request)
-    (state :wat::holon::lru::HologramCacheService::State)
-    (reporter :wat::holon::lru::HologramCacheService::Reporter)
-    (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/reply-at<G>
+  [driver-pairs    <- :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>
+   idx             <- :wat::core::i64
+   req             <- :wat::holon::lru::HologramCacheService::Request
+   state           <- :wat::holon::lru::HologramCacheService::State
+   reporter        <- :wat::holon::lru::HologramCacheService::Reporter
+   metrics-cadence <- :wat::holon::lru::HologramCacheService::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let
@@ -409,7 +410,7 @@
           (:wat::core::second step)]
         (:wat::holon::lru::HologramCacheService/loop-step
           next-state driver-pairs reporter cadence')))
-    (:wat::core::None :wat::core::nil)))
+    (:wat::core::None nil)))
 
 ;; ─── Driver entry — allocates the cache INSIDE the driver thread ──
 ;;
@@ -420,13 +421,12 @@
 ;; Arc 130: takes driver-pairs Vec<DriverPair> instead of bare req-rxs.
 ;; The driver uses the pair index to locate the matching ReplyTx after
 ;; select fires.
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/loop<G>
-    (cap :wat::core::i64)
-    (driver-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>)
-    (reporter :wat::holon::lru::HologramCacheService::Reporter)
-    (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/loop<G>
+  [cap             <- :wat::core::i64
+   driver-pairs    <- :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>
+   reporter        <- :wat::holon::lru::HologramCacheService::Reporter
+   metrics-cadence <- :wat::holon::lru::HologramCacheService::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::let
     [cache
       (:wat::holon::lru::HologramCache/make
@@ -442,21 +442,21 @@
 ;; thread's lifetime; select across request receivers (projected from
 ;; driver-pairs); index i → driver-pairs[i].second is the ReplyTx for
 ;; routing. After every dispatch, tick the metrics window.
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/loop-step<G>
-    (state :wat::holon::lru::HologramCacheService::State)
-    (driver-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>)
-    (reporter :wat::holon::lru::HologramCacheService::Reporter)
-    (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/loop-step<G>
+  [state           <- :wat::holon::lru::HologramCacheService::State
+   driver-pairs    <- :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>
+   reporter        <- :wat::holon::lru::HologramCacheService::Reporter
+   metrics-cadence <- :wat::holon::lru::HologramCacheService::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
-    :wat::core::nil
+    nil
     (:wat::core::let
       [req-rxs
-        (:wat::core::map driver-pairs
+        (:wat::core::map
           (:wat::core::fn
             [p <- :wat::holon::lru::HologramCacheService::DriverPair] -> :wat::holon::lru::HologramCacheService::ReqRx
-            (:wat::core::first p)))
+            (:wat::core::first p))
+          driver-pairs)
        chosen
         (:wat::kernel::select req-rxs)
        idx (:wat::core::first chosen)
@@ -470,7 +470,7 @@
             state
             (:wat::std::list::remove-at driver-pairs idx)
             reporter metrics-cadence))
-        ((:wat::core::Err _died) :wat::core::nil)))))
+        ((:wat::core::Err _died) nil)))))
 
 ;; ─── Client helpers ──────────────────────────────────────────
 ;;
@@ -486,11 +486,10 @@
 ;;   Result/expect unwraps the outer Result (ThreadDiedError on peer death).
 ;;   Option/expect unwraps the inner Option (None = clean channel close).
 
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/get
-    (handle :wat::holon::lru::HologramCacheService::Handle)
-    (probes :wat::core::Vector<wat::holon::HolonAST>)
-    -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/get
+  [handle <- :wat::holon::lru::HologramCacheService::Handle
+   probes <- :wat::core::Vector<wat::holon::HolonAST>]
+  -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>
   (:wat::core::let
     [req-tx
       (:wat::core::first handle)
@@ -512,14 +511,13 @@
         "HologramCacheService/get: reply channel closed — driver dropped reply-tx?")]
     (:wat::core::match reply -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>
       ((:wat::holon::lru::HologramCacheService::Reply::GetResult results) results)
-      ((:wat::holon::lru::HologramCacheService::Reply::PutAck)
+      (:wat::holon::lru::HologramCacheService::Reply::PutAck
         (:wat::core::panic! "HologramCacheService/get: driver sent PutAck on Get reply channel")))))
 
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/put
-    (handle :wat::holon::lru::HologramCacheService::Handle)
-    (entries :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/put
+  [handle  <- :wat::holon::lru::HologramCacheService::Handle
+   entries <- :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>]
+  -> :wat::core::nil
   (:wat::core::let
     [req-tx
       (:wat::core::first handle)
@@ -539,7 +537,7 @@
           "HologramCacheService/put: reply-rx disconnected — driver died mid-request?")
         "HologramCacheService/put: reply channel closed — driver dropped reply-tx?")]
     (:wat::core::match reply -> :wat::core::nil
-      ((:wat::holon::lru::HologramCacheService::Reply::PutAck) :wat::core::nil)
+      (:wat::holon::lru::HologramCacheService::Reply::PutAck nil)
       ((:wat::holon::lru::HologramCacheService::Reply::GetResult _)
         (:wat::core::panic! "HologramCacheService/put: driver sent GetResult on Put reply channel")))))
 
@@ -557,45 +555,48 @@
 ;; (:wat::holon::lru::HologramCacheService/null-metrics-cadence) for the
 ;; explicit "no reporting" choice. See CONVENTIONS.md "Service contract".
 
-(:wat::core::define
-  (:wat::holon::lru::HologramCacheService/spawn<G>
-    (count :wat::core::i64)
-    (cap :wat::core::i64)
-    (reporter :wat::holon::lru::HologramCacheService::Reporter)
-    (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :wat::holon::lru::HologramCacheService::Spawn)
+(:wat::core::defn :wat::holon::lru::HologramCacheService/spawn<G>
+  [count           <- :wat::core::i64
+   cap             <- :wat::core::i64
+   reporter        <- :wat::holon::lru::HologramCacheService::Reporter
+   metrics-cadence <- :wat::holon::lru::HologramCacheService::MetricsCadence<G>]
+  -> :wat::holon::lru::HologramCacheService::Spawn
   (:wat::core::let
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.
     [req-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReqChannel
-          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Request 1)))
+          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Request 1))
+        (:wat::core::range 0 count))
      reply-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReplyChannel
-          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Reply 1)))
+          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Reply 1))
+        (:wat::core::range 0 count))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      handles
       (:wat::std::list::zip
-        (:wat::core::map req-pairs
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReqChannel] -> :wat::holon::lru::HologramCacheService::ReqTx
-            (:wat::core::first p)))
-        (:wat::core::map reply-pairs
+            (:wat::core::first p))
+          req-pairs)
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReplyChannel] -> :wat::holon::lru::HologramCacheService::ReplyRx
-            (:wat::core::second p))))
+            (:wat::core::second p))
+          reply-pairs))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
      driver-pairs
       (:wat::std::list::zip
-        (:wat::core::map req-pairs
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReqChannel] -> :wat::holon::lru::HologramCacheService::ReqRx
-            (:wat::core::second p)))
-        (:wat::core::map reply-pairs
+            (:wat::core::second p))
+          req-pairs)
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReplyChannel] -> :wat::holon::lru::HologramCacheService::ReplyTx
-            (:wat::core::first p))))
+            (:wat::core::first p))
+          reply-pairs))
      pool
       (:wat::kernel::HandlePool::new "hologram-cache-service" handles)
      driver

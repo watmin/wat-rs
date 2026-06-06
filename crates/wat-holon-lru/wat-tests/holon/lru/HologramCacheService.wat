@@ -33,6 +33,8 @@
 ;; the two-prelude split that the prior test file used is no longer
 ;; required.
 
+(:wat::config::set-redef! true)
+
 (:wat::test::make-deftest :deftest-hcs
   (
    ;; ─── Layer 0 helper — spawn → pop → finish → drop → join ─────────
@@ -43,8 +45,9 @@
    ;; disconnect → outer Thread/join-result unblocks. Outer scope owns
    ;; only the driver Thread; inner scope owns spawn/pool/handle so
    ;; their Sender clones drop before outer join (arc 117/126 check).
-   (:wat::core::define
-     (:test::hcs-spawn-and-drop -> :wat::core::nil)
+   (:wat::core::defn :test::hcs-spawn-and-drop
+     []
+     -> :wat::core::nil
      (:wat::core::let
        [driver
          (:wat::core::let
@@ -62,7 +65,7 @@
              (:wat::kernel::HandlePool::finish pool)]
            d)]
        (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::nil
-         ((:wat::core::Ok _) :wat::core::nil)
+         ((:wat::core::Ok _) nil)
          ((:wat::core::Err _) (:wat::test::assert-eq "hcs-spawn-and-drop-died" "")))))
 
    ;; ─── Layer 1 helper — spawn → pop → get(empty) → finish → drop → join
@@ -73,8 +76,9 @@
    ;; owns the pool + handle so their Sender clones drop before the
    ;; outer join; only (driver, n) survive to the outer scope. Returns
    ;; the result-vec length.
-   (:wat::core::define
-     (:test::hcs-helper-get-empty -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-helper-get-empty
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-n
          (:wat::core::let
@@ -111,8 +115,9 @@
    ;; Reply::PutAck. Returns 1 on success — the deftest body asserts on
    ;; that constant so a missing PutAck (driver died, wrong reply variant)
    ;; trips up.
-   (:wat::core::define
-     (:test::hcs-helper-put-one -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-helper-put-one
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver
          (:wat::core::let
@@ -148,9 +153,9 @@
    ;; round-trip + multi-key deftests can check presence by index via
    ;; integer arithmetic. HolonAST values aren't trivially i64-comparable;
    ;; presence-pattern reduces the assertion surface to packed digits.
-   (:wat::core::define
-     (:test::hcs-slot-presence
-       (slot :wat::core::Option<wat::holon::HolonAST>) -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-slot-presence
+     [slot <- :wat::core::Option<wat::holon::HolonAST>]
+     -> :wat::core::i64
      (:wat::core::match slot -> :wat::core::i64
        ((:wat::core::Some _) 1)
        (:wat::core::None 0)))
@@ -161,12 +166,11 @@
    ;; (k, v) then reads back results[0] from a single-key get. Returns
    ;; 1 on hit, 0 on miss. Panics with a named message if the slot is
    ;; missing from the result vec entirely.
-   (:wat::core::define
-     (:test::hcs-put-then-get-on-handle
-       (handle :wat::holon::lru::HologramCacheService::Handle)
-       (k :wat::holon::HolonAST)
-       (v :wat::holon::HolonAST)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-put-then-get-on-handle
+     [handle <- :wat::holon::lru::HologramCacheService::Handle
+      k      <- :wat::holon::HolonAST
+      v      <- :wat::holon::HolonAST]
+     -> :wat::core::i64
      (:wat::core::let
        [_put
          (:wat::holon::lru::HologramCacheService/put handle
@@ -186,8 +190,9 @@
    ;; THE HAPPY-PATH PROOF. Spawns the service, pops a handle, calls
    ;; the Layer 3b sub-helper (put → get → score), tears the pool
    ;; down. Returns 1 on Some hit, 0 on miss / Err join.
-   (:wat::core::define
-     (:test::hcs-helper-put-then-get -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-helper-put-then-get
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-p
          (:wat::core::let
@@ -223,10 +228,9 @@
    ;; Returns the presence pattern as a packed i64: 100*p[0] + 10*p[1]
    ;; + p[2] where p[i] is :test::hcs-slot-presence. Deftest asserts
    ;; against the literal 110 (Some, Some, None for "alpha","beta","gamma").
-   (:wat::core::define
-     (:test::hcs-probe-three-on-handle
-       (handle :wat::holon::lru::HologramCacheService::Handle)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-probe-three-on-handle
+     [handle <- :wat::holon::lru::HologramCacheService::Handle]
+     -> :wat::core::i64
      (:wat::core::let
        [_put
          (:wat::holon::lru::HologramCacheService/put handle
@@ -251,8 +255,8 @@
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
              "hcs-probe-three-on-handle: results[2] missing"))]
-       (:wat::core::i64::+'2
-         (:wat::core::i64::+'2 (:wat::core::i64::*'2 p0 100) (:wat::core::i64::*'2 p1 10))
+       (:wat::core::i64::+
+         (:wat::core::i64::+ (:wat::core::i64::* p0 100) (:wat::core::i64::* p1 10))
          p2)))
 
    ;; ─── Layer 4 helper — multi-key probe with full lifecycle ─────────
@@ -260,8 +264,9 @@
    ;; Spawns the service, pops a handle, calls the Layer 4a sub-helper
    ;; (put-2 → probe-3 → score), tears the pool down. Returns the
    ;; packed presence pattern — the deftest body asserts against 110.
-   (:wat::core::define
-     (:test::hcs-helper-get-many-keys -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-helper-get-many-keys
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-pat
          (:wat::core::let
@@ -295,10 +300,9 @@
    ;; LRU eviction: with cap=2, putting k1, k2, k3 evicts k1 (the
    ;; oldest). Probe ["alpha","beta","gamma"]; presence pattern packed
    ;; as 100*p[0] + 10*p[1] + p[2] = 011 (None Some Some).
-   (:wat::core::define
-     (:test::hcs-eviction-on-handle
-       (handle :wat::holon::lru::HologramCacheService::Handle)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-eviction-on-handle
+     [handle <- :wat::holon::lru::HologramCacheService::Handle]
+     -> :wat::core::i64
      (:wat::core::let
        [_put
          (:wat::holon::lru::HologramCacheService/put handle
@@ -324,8 +328,8 @@
            (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
              (:wat::core::get results 2)
              "hcs-eviction-on-handle: results[2] missing"))]
-       (:wat::core::i64::+'2
-         (:wat::core::i64::+'2 (:wat::core::i64::*'2 p0 100) (:wat::core::i64::*'2 p1 10))
+       (:wat::core::i64::+
+         (:wat::core::i64::+ (:wat::core::i64::* p0 100) (:wat::core::i64::* p1 10))
          p2)))
 
    ;; ─── Layer 5 helper — eviction at cap=2 with full lifecycle ───────
@@ -333,8 +337,9 @@
    ;; Spawns the service at cap=2, pops a handle, calls Layer 5a's
    ;; eviction sub-helper (put-3 → probe-3 → score), tears down.
    ;; Returns the packed presence pattern — deftest body asserts 011.
-   (:wat::core::define
-     (:test::hcs-eviction -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-eviction
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-pat
          (:wat::core::let
@@ -367,12 +372,11 @@
    ;; Pure handle-level work for the multi-client scenario. Same shape
    ;; as Layer 3b but takes its own (k, v) so two clients can each do
    ;; their own put+get on distinct keys.
-   (:wat::core::define
-     (:test::hcs-client-put-get
-       (handle :wat::holon::lru::HologramCacheService::Handle)
-       (k :wat::holon::HolonAST)
-       (v :wat::holon::HolonAST)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-client-put-get
+     [handle <- :wat::holon::lru::HologramCacheService::Handle
+      k      <- :wat::holon::HolonAST
+      v      <- :wat::holon::HolonAST]
+     -> :wat::core::i64
      (:test::hcs-put-then-get-on-handle handle k v))
 
    ;; ─── Layer 6 helper — two clients on one service, each puts+gets ──
@@ -380,8 +384,9 @@
    ;; Spawns the service with count=2, pops two handles, each handle
    ;; does its own put-then-get. Returns 10*pa + pb where pa/pb are the
    ;; two clients' hit/miss bits. Both hit → 11.
-   (:wat::core::define
-     (:test::hcs-multi-client -> :wat::core::i64)
+   (:wat::core::defn :test::hcs-multi-client
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-pat
          (:wat::core::let
@@ -405,7 +410,7 @@
                (:wat::holon::leaf :beta)  (:wat::holon::leaf :bv))
             _finish
              (:wat::kernel::HandlePool::finish pool)]
-           (:wat::core::Tuple d (:wat::core::i64::+'2 (:wat::core::i64::*'2 pa 10) pb)))
+           (:wat::core::Tuple d (:wat::core::i64::+ (:wat::core::i64::* pa 10) pb)))
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]

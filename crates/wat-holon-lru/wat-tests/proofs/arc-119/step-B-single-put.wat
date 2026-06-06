@@ -54,5 +54,5 @@
         ;; req-rx, exits cleanly.
         d)]
     (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::nil
-      ((:wat::core::Ok _) :wat::core::nil)
+      ((:wat::core::Ok _) nil)
       ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))
