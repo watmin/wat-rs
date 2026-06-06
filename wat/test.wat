@@ -139,6 +139,7 @@
 ;; Regex match (unanchored) against each line of a RunResult's stderr.
 ;; Any line matching passes. Uses foldl over wat::core::Vector<String> to OR the
 ;; matches — a straightforward "any" without a new primitive.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::any-line-matches [pattern <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
   (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bool line <- :wat::core::String] -> :wat::core::bool
@@ -450,6 +451,7 @@
 ;; test runner's failure_to_diagnostic extracts actual/expected from
 ;; the AssertionFailed Failure struct. Falls back to join-result's
 ;; singleton when no panic-marker is found (clean exit).
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-driver [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::kernel::RunResult
   ;; Outer scope: proc handle lives here; Process/join-result runs AFTER
     ;; inner scope has dropped both output Receivers.  SERVICE-PROGRAMS.md
@@ -645,6 +647,7 @@
 ;; (where the process-side sibling lives). There's exactly one caller
 ;; — run-thread-driver, a test-layer helper. Placement is deliberate:
 ;; one caller, test-layer scope — :wat::test::* is the right home.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::first chain)
       -> :wat::kernel::Failure
@@ -669,6 +672,7 @@
 ;; stdio services (runtime.rs:16623-16648); there is no per-thread
 ;; stream to drain. The structurally-lighter driver is the honest
 ;; expression of the thread transport's properties.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-thread-driver [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::kernel::RunResult
   (:wat::core::let
       [joined  (:wat::kernel::Thread/join-result thr)
@@ -770,6 +774,7 @@
 ;; Note: (:wat::core::first vec) returns Option<I> (arc 047 honest
 ;; absence design). We use Option/expect to unwrap since we only call
 ;; first after confirming Vector/empty? is false.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-send-inputs<I> [tx <- :wat::kernel::Sender<I> inputs <- :wat::core::Vector<I>] -> :wat::core::nil
   (:wat::core::if (:wat::core::Vector/empty? inputs)
       -> :wat::core::nil
@@ -793,6 +798,7 @@
 ;; channel is disconnected (child exited; tx dropped) or signals Ok(None).
 ;; Accumulates outputs into `acc` and returns when the stream is exhausted.
 ;; Called exclusively from run-hermetic-with-io-driver.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-drain-outputs<O> [rx <- :wat::kernel::Receiver<O> acc <- :wat::core::Vector<O>] -> :wat::core::Vector<O>
   (:wat::core::match (:wat::kernel::recv rx)
       -> :wat::core::Vector<O>
@@ -823,6 +829,7 @@
 ;;   after processing all inputs, dropping its stdout pipe end (fd 1 closes
 ;;   when bootstrap services shut down). The drain-outputs sees disconnect
 ;;   (EOF) and returns. Join then finds the child already exited.
+;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-with-io-driver<I,O> [proc <- :wat::kernel::Process<I,O> inputs <- :wat::core::Vector<I>] -> :wat::test::RunResultIO<O>
   ;; Outer scope: proc handle + send inputs + join-result.
     ;; SERVICE-PROGRAMS.md § "The lockstep" at the Process boundary:

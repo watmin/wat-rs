@@ -1,4 +1,4 @@
-;; wat-tests/holon/list_round_trip.wat — Arc 220 Stone 220.4: :wat::core::List.
+;; wat-tests/holon/list-round-trip.wat — Arc 220 Stone 220.4: :wat::core::List.
 ;;
 ;; Exercises List/of constructor, length, empty?, first, rest, conj (prepend),
 ;; contains?, and cross-type equality with Vector.
@@ -6,7 +6,7 @@
 
 ;; ─── 1: List/of and List/length ────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::list-of-length
+(:wat::test::deftest :wat-tests::holon::list-round-trip::list-of-length
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 1 2 3)
@@ -15,7 +15,7 @@
 
 ;; ─── 2: Empty list ─────────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::empty-list
+(:wat::test::deftest :wat-tests::holon::list-round-trip::empty-list
   ()
   (:wat::core::let
     [xs (:wat::core::List/of)]
@@ -23,7 +23,7 @@
 
 ;; ─── 3: List/empty? false ─────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::nonempty-list-not-empty
+(:wat::test::deftest :wat-tests::holon::list-round-trip::nonempty-list-not-empty
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 1)]
@@ -31,7 +31,7 @@
 
 ;; ─── 4: List/contains? found ─────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::contains-found
+(:wat::test::deftest :wat-tests::holon::list-round-trip::contains-found
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 1 2 3)]
@@ -39,7 +39,7 @@
 
 ;; ─── 5: List/contains? not found ─────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::contains-not-found
+(:wat::test::deftest :wat-tests::holon::list-round-trip::contains-not-found
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 1 2 3)]
@@ -47,7 +47,7 @@
 
 ;; ─── 6: rest length ────────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::rest-length
+(:wat::test::deftest :wat-tests::holon::list-round-trip::rest-length
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 1 2 3)
@@ -56,7 +56,7 @@
 
 ;; ─── 7: conj prepends — length increases ──────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::conj-length
+(:wat::test::deftest :wat-tests::holon::list-round-trip::conj-length
   ()
   (:wat::core::let
     [xs (:wat::core::List/of 2 3)
@@ -65,7 +65,7 @@
 
 ;; ─── 8: same-type equality List == List (same contents) ─────────────────
 
-(:wat::test::deftest :wat-tests::holon::list_round_trip::list-eq-vector
+(:wat::test::deftest :wat-tests::holon::list-round-trip::list-eq-vector
   ()
   (:wat::core::let
     [lst  (:wat::core::List/of 1 2 3)

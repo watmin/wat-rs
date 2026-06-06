@@ -322,3 +322,40 @@
     -> :wat::core::nil
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
+
+;; ─── Substrate primitives — public-but-previously-unexercised (circumspicere F5) ───
+;;
+;; wat/test.wat exposes three public sandbox-entry verbs the macros expand to:
+;; :wat::test::run / run-in-scope / run-ast. The README documents them as
+;; "reach for them when you need to drive the sandbox by hand." Before #181
+;; the corpus had ZERO live callers — the corpus-as-teacher doctrine
+;; demands every public verb has at least one live demo. One witness per
+;; verb, asserting on the returned RunResult (no failure = clean run).
+
+(:wat::test::deftest :wat-tests::std::test::test-run-string-entry-direct
+  ()
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); the bulk is the source string
+  (:wat::core::let
+    [r (:wat::test::run
+         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)"
+         (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      (:wat::core::None (:wat::test::assert-eq true true))
+      ((:wat::core::Some f) (:wat::kernel::assertion-failed!
+                              (:wat::kernel::Failure/message f)
+                              :wat::core::None :wat::core::None)))))
+
+(:wat::test::deftest :wat-tests::std::test::test-run-ast-direct
+  ()
+  ;; rune:complectens(embedded-program) — outer let has 3 bindings (forms, r, fail); the bulk is the program AST built via :wat::test::program
+  (:wat::core::let
+    [forms (:wat::test::program
+             (:wat::core::defn :user::main [] -> :wat::core::nil nil))
+     r (:wat::test::run-ast forms (:wat::core::Vector :wat::core::String))
+     fail (:wat::kernel::RunResult/failure r)]
+    (:wat::core::match fail -> :wat::core::nil
+      (:wat::core::None (:wat::test::assert-eq true true))
+      ((:wat::core::Some f) (:wat::kernel::assertion-failed!
+                              (:wat::kernel::Failure/message f)
+                              :wat::core::None :wat::core::None)))))
