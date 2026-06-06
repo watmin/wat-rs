@@ -107,6 +107,7 @@ pub use thread_io::{
 pub mod time;
 pub mod typed_channel;
 pub mod types;
+pub mod value;
 pub mod vm_registry;
 
 pub use compose::{compose_and_run, compose_and_run_with_loader};
@@ -154,9 +155,10 @@ pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErro
 
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
-    eval, register_defines, register_struct_methods, EncodingCtx, EnvBuilder, Environment,
+    eval, register_defines, register_struct_methods, EnvBuilder, Environment,
     Function, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value,
 };
+pub use value::EncodingCtx;
 pub use types::{
     parse_type_expr, register_stdlib_types, register_types, AliasDef, EnumDef, EnumVariant,
     NewtypeDef, StructDef, TypeDef, TypeEnv, TypeError, TypeExpr,

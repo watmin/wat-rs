@@ -1580,70 +1580,7 @@ impl EnvBuilder {
     }
 }
 
-/// Runtime encoding context — the machinery needed to project a
-/// `HolonAST` into its `Vector` at eval time.
-///
-/// Constructed once from [`Config`] at freeze and attached to the
-/// frozen [`SymbolTable`]. Used by vector-level primitives like
-/// `:wat::holon::cosine` (FOUNDATION 1718), which measure cosine
-/// similarity between encoded holons against the substrate noise floor.
-///
-/// Holds `Arc`s so it can be cloned cheaply by the runtime when a
-/// primitive needs encoding access; the underlying `VectorManager` and
-/// `ScalarEncoder` are pure caches that can be shared across threads.
-#[derive(Clone)]
-pub struct EncodingCtx {
-    /// Per-dim encoder registry. Arc 037-era multi-tier shape; arc 077
-    /// retires the multi-tier story but keeps the registry as the
-    /// underlying encoder cache so consumers transition incrementally.
-    /// In the new world, the registry only ever holds one entry — the
-    /// one at `dim_count`.
-    pub encoders: Arc<crate::vm_registry::EncoderRegistry>,
-    /// Arc 077 — the program's encoding dim. Read from
-    /// `Config.dim_count` at freeze; same value for the whole program
-    /// lifetime. All encoder lookups go to `encoders.get(dim_count)`.
-    pub dim_count: usize,
-    /// Arc 077 — capacity of any `:wat::holon::Hologram` constructed
-    /// in this program: `floor(sqrt(dim_count))`. Cached at
-    /// construction.
-    pub capacity: usize,
-    pub config: Config,
-}
-
-impl EncodingCtx {
-    /// Build an encoding context from the frozen [`Config`].
-    ///
-    /// Per arc 057 the `AtomTypeRegistry` is gone — primitives ARE
-    /// HolonAST (typed leaves), so the dyn-Any payload registry that
-    /// once dispatched on `Atom(Arc<dyn Any>)` no longer has work to do.
-    pub fn from_config(cfg: &Config) -> Self {
-        let dim_count = cfg.dim_count;
-        let capacity = ((dim_count as f64).sqrt().floor() as usize).max(1);
-        EncodingCtx {
-            encoders: Arc::new(crate::vm_registry::EncoderRegistry::new(cfg.global_seed)),
-            dim_count,
-            capacity,
-            config: cfg.clone(),
-        }
-    }
-
-    /// The `Encoders` (vm + scalar) at this program's dim. Replaces
-    /// arc-074-era `ctx.encoders.get(d)` once the d came from the
-    /// router; arc 077 makes the dim ambient.
-    pub fn encoder(&self) -> Arc<crate::vm_registry::Encoders> {
-        self.encoders.get(self.dim_count)
-    }
-}
-
-impl fmt::Debug for EncodingCtx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EncodingCtx")
-            .field("global_seed", &self.config.global_seed)
-            .field("dim_count", &self.dim_count)
-            .field("capacity", &self.capacity)
-            .finish()
-    }
-}
+pub use crate::value::EncodingCtx;
 
 /// Keyword-path ↦ Function registry + runtime capabilities.
 ///
@@ -20089,70 +20026,11 @@ pub fn apply_function(
 
 // ─── Wat call-stack for failure-diagnosis (arc 016 slice 2) ─────────
 //
-// A thread-local stack of (callee_path, call_span) frames. Pushed on
-// apply_function entry, popped on Drop, replaced on tail-call
-// iteration. Read by `:wat::kernel::assertion-failed!` to populate
-// `Failure.location` / `Failure.frames` with wat-level source
-// locations (not Rust-level).
-//
-// Out-of-process (fork-program-ast child): each process has its own
-// thread-local, initialized empty. The parent's stack doesn't carry
-// into the child (the child's freeze rebuilds from its own AST
-// forms).
+// Moved to crate::value::frame (Stone 251.2a). Re-exported below for
+// in-module use.
 
-/// One entry on the wat call stack.
-#[derive(Debug, Clone)]
-pub struct FrameInfo {
-    pub callee_path: String,
-    pub call_span: Span,
-}
-
-thread_local! {
-    static CALL_STACK: std::cell::RefCell<Vec<FrameInfo>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
-/// Scope guard that pushes a frame on construction and pops on drop.
-/// Ensures the call stack unwinds cleanly on early return / panic.
-struct FrameGuard;
-
-impl FrameGuard {
-    fn push(callee_path: String, call_span: Span) -> Self {
-        CALL_STACK.with(|s| {
-            s.borrow_mut().push(FrameInfo { callee_path, call_span });
-        });
-        FrameGuard
-    }
-}
-
-impl Drop for FrameGuard {
-    fn drop(&mut self) {
-        CALL_STACK.with(|s| {
-            s.borrow_mut().pop();
-        });
-    }
-}
-
-/// Replace the top frame's contents in place — called on tail-call
-/// iteration inside apply_function's trampoline. The stack depth
-/// stays the same; the content substitutes.
-fn replace_top_frame(callee_path: String, call_span: Span) {
-    CALL_STACK.with(|s| {
-        if let Some(top) = s.borrow_mut().last_mut() {
-            *top = FrameInfo { callee_path, call_span };
-        }
-    });
-}
-
-/// Snapshot the current call stack (newest-first order). Used by
-/// `:wat::kernel::assertion-failed!` at panic time to populate the
-/// `AssertionPayload`'s `location` + `frames` fields.
-pub fn snapshot_call_stack() -> Vec<FrameInfo> {
-    CALL_STACK.with(|s| {
-        let stack = s.borrow();
-        stack.iter().rev().cloned().collect()
-    })
-}
+use crate::value::{FrameGuard, replace_top_frame};
+pub use crate::value::{FrameInfo, snapshot_call_stack};
 
 // ─── Seven eval forms ────────────────────────────────────────────────────
 //

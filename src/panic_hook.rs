@@ -47,7 +47,7 @@
 //! (guarded by `INSTALLED: AtomicBool`).  Arc 211a.
 
 use crate::assertion::AssertionPayload;
-use crate::runtime::FrameInfo;
+use crate::value::FrameInfo;
 use crate::span::Span;
 use std::borrow::Cow;
 use std::io::Write;

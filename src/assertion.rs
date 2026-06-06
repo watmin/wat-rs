@@ -31,7 +31,8 @@
 //! is public for that reason.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
+use crate::value::{FrameInfo, snapshot_call_stack};
 use crate::span::Span;
 
 /// Structured payload panic'd by [`eval_kernel_assertion_failed`] and

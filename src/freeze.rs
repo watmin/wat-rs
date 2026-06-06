@@ -60,9 +60,10 @@ use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
-    apply_function, register_defines, register_stdlib_defines, EvalBreak, EncodingCtx, Environment,
+    apply_function, register_defines, register_stdlib_defines, EvalBreak, Environment,
     RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
 };
+use crate::value::EncodingCtx;
 use crate::span::Span;
 use crate::thread_io::ThreadId;
 use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
