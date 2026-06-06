@@ -23,7 +23,7 @@
 | 1 | wat_arc148_ord_buildout | 46 | CONFERRE'D: 40 FILL (real gap — 237.8b's recorded future-stone, DESIGN-STONE-237.8b.md:211, never opened) + 6 MODERNIZE (rejection moved to check-time) → **STONE 245.8: ordering is relational** | **CLEAR** (`f681d1d0`, 46/46) |
 | 2 | wat_arc098_form_matches_{runtime,typecheck} | 15+7 | CONFERRE'D: FILL — matches?'s pattern arg is DSL data; the resolver never got its boundary when strictness landed (quote-family precedent mirrored, resolve.rs); struct-head validation owned by check.rs infer_form_matches (live witness) | **CLEAR** (`35dfc10d`, 15/15 + 9/9) |
 | 3 | wat_arc150_variadic_define | 14 | CONFERRE'D: 3 layers — (i) 11 test argspecs CORRUPTED (phantom `_b <- &` triples, modernized); (ii) under that, REAL GAP: top-level user variadic defn never registered — try_parse_fn_shape_def's `.ok()?` SILENTLY swallowed RestBinderNotSupported (the 249.5d rest support reached macros/defclauses, never the user defn path); FILLED across registration/check/eval + reflection; (iii) 4 negative tests re-grounded at empirical shapes. NOTE: src/function/ stamp drifts — re-ward owed at campaign end (with core.wat) | **CLEAR** (`f3d1fc9e`, 16/16) |
-| 4 | wat_core_cond | 9 | — | pending |
+| 4 | wat_core_cond | 9 | CONFERRE'D: FILL — cond's :else marker walked as call head; the finer sibling of room 2's boundary (arms ARE code, the marker is not) | **CLEAR** (`2d518d78`, 10/10) |
 | 5–33 | the long tail (29 binaries) | ~56 | — | pending |
 
 Separate buckets (NOT this tier, cleared after): crates/wat-holon-lru 19
