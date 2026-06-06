@@ -75,12 +75,12 @@ impl ArgSpecErrorKind {
 // Wire each call-site's native error class to the canonical `ArgSpecError`.
 // Callers convert at their site boundary; the parser itself emits only ArgSpecError.
 
-impl From<ArgSpecError> for crate::runtime::RuntimeError {
+impl From<ArgSpecError> for crate::value::RuntimeError {
     fn from(e: ArgSpecError) -> Self {
         let reason = e.kind.reason();
-        crate::runtime::RuntimeError {
+        crate::value::RuntimeError {
             span: e.span,
-            kind: crate::runtime::RuntimeErrorKind::MalformedForm { head: e.head, reason },
+            kind: crate::value::RuntimeErrorKind::MalformedForm { head: e.head, reason },
         }
     }
 }

@@ -26,7 +26,8 @@ use std::borrow::Cow;
 use std::io::Write;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-use crate::runtime::{ClauseAttempt, ClauseFailureReason, Provenance, RuntimeError, RuntimeErrorKind, ValueSnapshot};
+use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, ValueSnapshot};
+use crate::value::Provenance;
 use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────

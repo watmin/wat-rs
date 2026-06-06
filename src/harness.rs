@@ -42,7 +42,7 @@ use crate::freeze::{
 };
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::runtime::RuntimeError;
+use crate::value::RuntimeError;
 use crate::source::{self, WatSource};
 use std::sync::Arc;
 

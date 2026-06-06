@@ -45,7 +45,8 @@ use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::TrackedValue;
 use crate::span::Span;
 
 // ─── Constructors ────────────────────────────────────────────────────

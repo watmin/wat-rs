@@ -29,7 +29,8 @@
 //! `EvalBreak::Diagnostic` (not `Error`) avoids "error of error" and makes the
 //! Diagnostic/Signal pair read as user-directed vs evaluator-directed.
 
-use wat::runtime::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
+use wat::runtime::{RuntimeError, RuntimeErrorKind};
+use wat::value::{EvalBreak, EvalSignal};
 use wat::span::Span;
 
 /// Contract 1: `EvalSignal` holds exactly the three eval-loop control signals.

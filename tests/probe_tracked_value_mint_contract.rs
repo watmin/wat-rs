@@ -17,7 +17,8 @@
 //! flip eval signature; Stone 233.2.k retires Value::Tracked entirely).
 
 use std::sync::Arc;
-use wat::runtime::{Provenance, TrackedValue, Value};
+use wat::runtime::Value;
+use wat::value::{Provenance, TrackedValue};
 use wat::span::Span;
 
 // ─── Probe 1 — Construction + value() borrow accessor ───────────────────────

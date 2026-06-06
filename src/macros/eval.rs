@@ -76,7 +76,7 @@ pub(crate) fn macro_eval(
     form: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::runtime::TrackedValue, MacroError> {
+) -> Result<crate::value::TrackedValue, MacroError> {
     // Pre-walk validation — DEFAULT-DENY purity gate.
     validate_pure_total(form)?;
     macro_eval_pre_validated(form, env, sym)
@@ -100,7 +100,7 @@ pub(super) fn macro_eval_pre_validated(
     form: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::runtime::TrackedValue, MacroError> {
+) -> Result<crate::value::TrackedValue, MacroError> {
     // Delegate to the existing evaluator — no new interpreter.
     // Thread `e.span` (the runtime's precise failing-site span) into MacroError;
     // fall back to `form.span()` only when `e.span` is the unknown sentinel.

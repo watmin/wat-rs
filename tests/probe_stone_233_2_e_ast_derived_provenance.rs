@@ -23,7 +23,8 @@
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, Provenance, TrackedValue, Value, ValueSnapshot};
+use wat::runtime::{Environment, Value, ValueSnapshot};
+use wat::value::{Provenance, TrackedValue};
 
 // ─── Probe 1 — Literal{span} on i64 literal ─────────────────────────────────
 

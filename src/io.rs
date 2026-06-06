@@ -26,7 +26,8 @@
 //! `:wat::test::*` sit on top.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::TrackedValue;
 use crate::rust_deps::ThreadOwnedCell;
 use crate::span::Span;
 use std::sync::Arc;

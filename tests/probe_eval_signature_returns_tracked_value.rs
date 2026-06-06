@@ -21,7 +21,8 @@
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, TrackedValue, Value};
+use wat::runtime::{Environment, Value};
+use wat::value::TrackedValue;
 
 // ─── Probe 1 — eval_in_frozen returns Result<TrackedValue, RuntimeError> ────
 
@@ -102,7 +103,7 @@ fn probe_3_runtime_built_producer_provenance_survives_eval_boundary() {
     assert!(
         matches!(
             tv.provenance(),
-            wat::runtime::Provenance::RuntimeBuilt {
+            wat::value::Provenance::RuntimeBuilt {
                 producer: ":wat::core::keyword/from-string",
                 ..
             }

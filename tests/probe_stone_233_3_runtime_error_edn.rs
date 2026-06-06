@@ -19,7 +19,8 @@
 //! IPC boundaries via tagged EDN envelopes.
 
 use std::sync::Arc;
-use wat::runtime::{Provenance, RuntimeError, RuntimeErrorKind, TrackedValue, Value, ValueSnapshot};
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
+use wat::value::{Provenance, TrackedValue};
 use wat::span::Span;
 
 // ─── Probe 1 — NotCallable serializes to #wat.kernel/NotCallable ────────────

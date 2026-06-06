@@ -31,7 +31,8 @@
 //! is public for that reason.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::TrackedValue;
 use crate::value::{FrameInfo, snapshot_call_stack};
 use crate::span::Span;
 

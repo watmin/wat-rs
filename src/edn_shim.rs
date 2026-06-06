@@ -183,7 +183,7 @@ pub fn eval_edn_read(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::runtime::TrackedValue, RuntimeError> {
+) -> Result<crate::value::TrackedValue, RuntimeError> {
     const OP: &str = ":wat::edn::read";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -209,9 +209,9 @@ pub fn eval_edn_read(
         } }
     })?;
     // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
-    Ok(crate::runtime::TrackedValue::new(
+    Ok(crate::value::TrackedValue::new(
         result,
-        crate::runtime::Provenance::RuntimeBuilt {
+        crate::value::Provenance::RuntimeBuilt {
             producer: ":wat::edn::read",
             call_span: list_span.clone(),
         },

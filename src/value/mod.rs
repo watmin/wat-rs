@@ -5,7 +5,11 @@
 
 pub mod encoding_ctx;
 pub mod frame;
+pub mod observe;
+pub mod signal;
 
 pub use encoding_ctx::EncodingCtx;
 pub use frame::{FrameInfo, snapshot_call_stack};
 pub(crate) use frame::{FrameGuard, replace_top_frame};
+pub use observe::{Provenance, TrackedValue, ValueSnapshot};
+pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};

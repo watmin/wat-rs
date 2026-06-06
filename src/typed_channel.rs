@@ -259,7 +259,7 @@ pub fn typed_send(
 pub fn sender_close(
     sender: &SenderInner,
     span: Span,
-) -> Result<(), crate::runtime::RuntimeError> {
+) -> Result<(), crate::value::RuntimeError> {
     match sender {
         SenderInner::Crossbeam { closed, .. } => {
             // SeqCst store ensures all threads see the flag; Acquire
@@ -517,7 +517,7 @@ pub fn try_as_crossbeam_receiver(
 /// the Process<I,O> typed-channel handles internally.
 pub fn make_pipe_channel_pair(
     op: &'static str,
-) -> Result<(crate::runtime::Value, crate::runtime::Value), crate::runtime::RuntimeError> {
+) -> Result<(crate::runtime::Value, crate::runtime::Value), crate::value::RuntimeError> {
     let (read_fd, write_fd) = crate::fork::make_pipe(op)?;
     let writer: Arc<dyn WatWriter> = Arc::new(crate::io::PipeWriter::from_owned_fd(write_fd));
     let reader: Arc<dyn WatReader> = Arc::new(crate::io::PipeReader::from_owned_fd(read_fd));

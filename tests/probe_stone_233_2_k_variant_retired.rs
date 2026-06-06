@@ -25,7 +25,8 @@ use std::fs;
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, Provenance, TrackedValue, Value};
+use wat::runtime::{Environment, Value};
+use wat::value::{Provenance, TrackedValue};
 
 // ─── Probe 1 — Static scan: zero Value::Tracked references in src/ ──────────
 //
