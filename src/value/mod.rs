@@ -4,11 +4,13 @@
 //! (Stone 251.2a); each subsequent stone lifts more segments in.
 
 pub mod encoding_ctx;
+pub mod environment;
 pub mod frame;
 pub mod observe;
 pub mod signal;
 
 pub use encoding_ctx::EncodingCtx;
+pub use environment::{Function, Environment, EnvBuilder, BoundEntry};
 pub use frame::{FrameInfo, snapshot_call_stack};
 pub(crate) use frame::{FrameGuard, replace_top_frame};
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};

@@ -155,10 +155,9 @@ pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErro
 
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
-    eval, register_defines, register_struct_methods, EnvBuilder, Environment,
-    Function, StructValue, SymbolTable, Value,
+    eval, register_defines, register_struct_methods, StructValue, SymbolTable, Value,
 };
-pub use value::{EncodingCtx, RuntimeError, RuntimeErrorKind};
+pub use value::{EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind};
 pub use types::{
     parse_type_expr, register_stdlib_types, register_types, AliasDef, EnumDef, EnumVariant,
     NewtypeDef, StructDef, TypeDef, TypeEnv, TypeError, TypeExpr,
