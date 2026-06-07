@@ -734,11 +734,12 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
 // ─── Arc 170 slice 3 Gap B — Sender/close unit tests ────────────────────
 
 #[test]
-fn sender_close_crossbeam_close_then_send_returns_disconnected() {
-    // Crossbeam transport: close the Sender, then send → Disconnected.
-    use wat::typed_channel::sender_from_crossbeam;
-    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
-    let sender_val = sender_from_crossbeam(tx);
+fn sender_close_memory_close_then_send_returns_disconnected() {
+    // Memory transport (comms::thread, Stone 5.1): close the Sender, then
+    // send → Disconnected.
+    use wat::typed_channel::sender_from_comms;
+    let (tx, _rx) = wat::comms::thread::pair::<Value>();
+    let sender_val = sender_from_comms(tx);
     let inner = unwrap_sender_inner(&sender_val);
 
     // Initial send succeeds.
@@ -757,11 +758,11 @@ fn sender_close_crossbeam_close_then_send_returns_disconnected() {
 }
 
 #[test]
-fn sender_close_crossbeam_idempotent() {
-    // Calling close twice on a Crossbeam Sender is a no-op.
-    use wat::typed_channel::sender_from_crossbeam;
-    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
-    let sender_val = sender_from_crossbeam(tx);
+fn sender_close_memory_idempotent() {
+    // Calling close twice on a memory-tier (comms-backed) Sender is a no-op.
+    use wat::typed_channel::sender_from_comms;
+    let (tx, _rx) = wat::comms::thread::pair::<Value>();
+    let sender_val = sender_from_comms(tx);
     let inner = unwrap_sender_inner(&sender_val);
 
     sender_close(inner, Span::unknown()).expect("first close should succeed");
@@ -834,14 +835,14 @@ fn sender_close_pipefd_triggers_reader_eof() {
 
 #[test]
 fn wat_kernel_sender_close_dispatch_via_eval() {
-    // End-to-end wat-level test: bind a crossbeam Sender; call
-    // (:wat::kernel::Sender/close tx); then (:wat::kernel::send tx v)
+    // End-to-end wat-level test: bind a memory-tier (comms-backed) Sender;
+    // call (:wat::kernel::Sender/close tx); then (:wat::kernel::send tx v)
     // returns Result.Err(...) — the ChannelDisconnected shape.
-    use wat::typed_channel::sender_from_crossbeam;
+    use wat::typed_channel::sender_from_comms;
     let world = empty_world();
 
-    let (tx, _rx) = crossbeam_channel::bounded::<Value>(4);
-    let sender_val = sender_from_crossbeam(tx);
+    let (tx, _rx) = wat::comms::thread::pair::<Value>();
+    let sender_val = sender_from_comms(tx);
 
     let env = Environment::new()
         .child()

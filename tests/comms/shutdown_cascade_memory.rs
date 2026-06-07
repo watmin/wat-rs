@@ -1,4 +1,6 @@
-//! Arc 170 Slice B probe — shutdown cascade reaches blocked crossbeam recv.
+//! Arc 170 Slice B probe — shutdown cascade reaches a blocked memory-tier recv.
+//! (Stone 214.5.1: the memory tier is comms::thread-backed; file renamed from
+//! shutdown_cascade_crossbeam.rs — the cascade now arrives via the comms path.)
 //!
 //! Mirrors the pre-Slice-B gap demonstrated in `/tmp/shutdown_gap_proof.rs`
 //! (50-line standalone Rust: SIGTERM fires but blocked crossbeam recv does
@@ -11,7 +13,7 @@
 //!
 //! 1. Initialises the substrate shutdown infrastructure (`init_shutdown_signal`).
 //! 2. Installs the substrate signal handlers (`install_substrate_signal_handlers`).
-//! 3. Creates a crossbeam channel (no sender held — sender stays alive until
+//! 3. Creates a memory-tier channel (comms::thread pair) (no sender held — sender stays alive until
 //!    after the recv thread has started and signalled ready).
 //! 4. Uses a rendezvous (bounded-0) channel to lock-step: recv-thread sends
 //!    `()` right before calling `typed_recv`; main thread receives `()`,
@@ -65,13 +67,13 @@ fn probe_shutdown_cascade_wakes_crossbeam_recv() {
         // to setting KERNEL_STOPPED.
         wat::fork::install_substrate_signal_handlers();
 
-        // ── Step 3: create a crossbeam channel ────────────────────────────
+        // ── Step 3: create a memory-tier channel (comms::thread, Stone 5.1) ─
         // The Sender is kept alive in this scope (data will never flow — we
         // want the recv to block until shutdown wakes it).
-        let (tx, rx) = crossbeam_channel::unbounded::<Value>();
+        let (tx, rx) = wat::comms::thread::pair::<Value>();
 
-        // Wrap in ReceiverInner::Crossbeam for typed_recv dispatch.
-        let rx_inner = Arc::new(ReceiverInner::Crossbeam(rx));
+        // Wrap in ReceiverInner::Comms for typed_recv dispatch.
+        let rx_inner = Arc::new(ReceiverInner::Comms(rx));
 
         // ── Step 4: rendezvous channel (lock-step ready signal) ────────────
         // bounded(0) = rendezvous: recv-thread send blocks until this thread

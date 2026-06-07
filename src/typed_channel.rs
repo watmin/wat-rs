@@ -5,8 +5,9 @@
 //! uniform across runtime tiers (per
 //! `docs/arc/2026/05/170-program-entry-points/TIERS.md`):
 //!
-//! - **Tier 1 — threads.** Crossbeam channels carry typed `Value`s
-//!   in-memory. No encoding step.
+//! - **Tier 1 — threads.** `comms::thread` channels carry typed `Value`s
+//!   in-memory (cascade-aware, depth-1). No encoding step.
+//!   Arc 214 Stone 5.1: backed by `crate::comms::thread::Sender/Receiver<Value>`.
 //! - **Tier 2 — processes.** Linux pipes carry EDN-encoded bytes;
 //!   the substrate encodes typed Values on send and decodes on
 //!   recv. The user-facing send / recv signature is identical to
@@ -74,22 +75,27 @@ use std::sync::Arc;
 /// Transport-polymorphic Sender backing for
 /// `Value::wat__kernel__Sender`.
 ///
-/// `Crossbeam` carries a tier-1 in-memory channel (no encoding).
+/// `Comms` carries a tier-1 in-memory channel backed by
+/// `crate::comms::thread::Sender<Value>` (cascade-aware, depth-1).
 /// `PipeFd` wraps a writer fd with EDN encoding on send.
 ///
-/// Arc 170 slice 3 Gap B — each variant carries a `closed` flag
-/// (`AtomicBool`) so `:wat::kernel::Sender/close` can signal EOF
-/// on the send side without dropping the Sender Value. Interior
-/// mutability via `AtomicBool` is permitted under zero-Mutex
+/// Arc 170 slice 3 Gap B / Arc 214 Stone 5.1 — each tier-1 variant
+/// carries a `closed` flag (`AtomicBool`) so `:wat::kernel::Sender/close`
+/// can signal EOF on the send side without dropping the Sender Value.
+/// Interior mutability via `AtomicBool` is permitted under zero-Mutex
 /// doctrine (ZERO-MUTEX.md § "Honest caveats"). The `Arc<SenderInner>`
 /// wrapping remains immutable from Rust's ownership perspective;
 /// only the flag's value changes.
+///
+/// Arc 214 Stone 5.1 HARD CUT — the `Crossbeam` variant is deleted.
+/// `Comms` is the sole tier-1 backing. All callers construct via
+/// `sender_from_comms`.
 #[derive(Debug)]
 pub enum SenderInner {
-    /// Tier 1 — crossbeam in-memory channel. Same Arc the legacy
-    /// `Value::crossbeam_channel__Sender` carried.
-    Crossbeam {
-        sender: crossbeam_channel::Sender<crate::runtime::Value>,
+    /// Tier 1 — comms::thread in-memory channel (cascade-aware, depth-1).
+    /// Replaces the retired `Crossbeam` variant (Arc 214 Stone 5.1).
+    Comms {
+        sender: crate::comms::thread::Sender<crate::runtime::Value>,
         /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
         /// by `typed_send` before each send attempt.
         closed: AtomicBool,
@@ -109,10 +115,15 @@ pub enum SenderInner {
 
 /// Transport-polymorphic Receiver backing for
 /// `Value::wat__kernel__Receiver`.
+///
+/// Arc 214 Stone 5.1 HARD CUT — the `Crossbeam` variant is deleted.
+/// `Comms` is the sole tier-1 backing. All callers construct via
+/// `receiver_from_comms`.
 #[derive(Debug)]
 pub enum ReceiverInner {
-    /// Tier 1 — crossbeam in-memory channel.
-    Crossbeam(crossbeam_channel::Receiver<crate::runtime::Value>),
+    /// Tier 1 — comms::thread in-memory channel (cascade-aware, depth-1).
+    /// Replaces the retired `Crossbeam` variant (Arc 214 Stone 5.1).
+    Comms(crate::comms::thread::Receiver<crate::runtime::Value>),
     /// Tier 2 — linux-fd pipe with line-delimited EDN decoding on
     /// recv. The inner `Arc<dyn WatReader>` is the same shape
     /// `Process.stdout` has carried since arc 103 (PipeReader from
@@ -120,24 +131,23 @@ pub enum ReceiverInner {
     PipeFd(Arc<dyn WatReader>),
 }
 
-/// Ergonomic constructor for a tier-1 (crossbeam-backed) Sender
-/// `Value`. Replacement for the legacy
-/// `Value::crossbeam_channel__Sender(Arc::new(tx))` pattern.
-pub fn sender_from_crossbeam(
-    tx: crossbeam_channel::Sender<crate::runtime::Value>,
+/// Ergonomic constructor for a tier-1 (comms::thread-backed) Sender
+/// `Value`. Arc 214 Stone 5.1 — replaces `sender_from_crossbeam`.
+pub fn sender_from_comms(
+    tx: crate::comms::thread::Sender<crate::runtime::Value>,
 ) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::Crossbeam {
+    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::Comms {
         sender: tx,
         closed: AtomicBool::new(false),
     }))
 }
 
-/// Ergonomic constructor for a tier-1 (crossbeam-backed) Receiver
-/// `Value`.
-pub fn receiver_from_crossbeam(
-    rx: crossbeam_channel::Receiver<crate::runtime::Value>,
+/// Ergonomic constructor for a tier-1 (comms::thread-backed) Receiver
+/// `Value`. Arc 214 Stone 5.1 — replaces `receiver_from_crossbeam`.
+pub fn receiver_from_comms(
+    rx: crate::comms::thread::Receiver<crate::runtime::Value>,
 ) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Receiver(Arc::new(ReceiverInner::Crossbeam(rx)))
+    crate::runtime::Value::wat__kernel__Receiver(Arc::new(ReceiverInner::Comms(rx)))
 }
 
 /// Ergonomic constructor for a tier-2 (pipe-fd) Sender `Value`.
@@ -207,7 +217,7 @@ pub fn typed_send(
     span: Span,
 ) -> SendOutcome {
     match sender {
-        SenderInner::Crossbeam { sender: tx, closed } => {
+        SenderInner::Comms { sender: tx, closed } => {
             // Arc 170 slice 3 Gap B — check closed flag before
             // attempting transport send. Acquire ordering pairs with
             // the SeqCst store in sender_close so this thread sees
@@ -215,6 +225,9 @@ pub fn typed_send(
             if closed.load(Ordering::Acquire) {
                 return SendOutcome::Disconnected;
             }
+            // comms::thread::Sender::send returns Err(SendError(value)) when
+            // all receivers are dropped — maps 1:1 to the old crossbeam
+            // SendError (Arc 214 Stone 5.1, STOP-1 check: same outcome surface).
             match tx.send(value) {
                 Ok(()) => SendOutcome::Ok,
                 Err(_) => SendOutcome::Disconnected,
@@ -261,9 +274,14 @@ pub fn sender_close(
     span: Span,
 ) -> Result<(), crate::value::RuntimeError> {
     match sender {
-        SenderInner::Crossbeam { closed, .. } => {
+        SenderInner::Comms { closed, .. } => {
             // SeqCst store ensures all threads see the flag; Acquire
             // load in typed_send pairs with this.
+            // Arc 214 Stone 5.1 — the comms::thread::Sender::close takes
+            // ownership (move semantics), so we only set the flag here.
+            // The actual channel disconnect happens when the Arc<SenderInner>
+            // drops (i.e., when the last Sender Value is gone). The closed
+            // flag gates all future typed_send calls immediately.
             closed.store(true, Ordering::SeqCst);
             Ok(())
         }
@@ -298,25 +316,35 @@ pub fn typed_recv(
     span: Span,
 ) -> RecvOutcome {
     match receiver {
-        ReceiverInner::Crossbeam(rx) => {
-            let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
-            match shutdown_rx {
-                Some(srx) => {
-                    crossbeam_channel::select! {
-                        recv(rx) -> msg => match msg {
-                            Ok(v) => RecvOutcome::Value(v),
-                            Err(_) => RecvOutcome::Disconnected,
+        ReceiverInner::Comms(rx) => {
+            // Arc 214 Stone 5.1 — delegate to comms::thread::Receiver::recv()
+            // which is already cascade-aware (wires SHUTDOWN_RX internally,
+            // with the same bootstrap fallback as the old Crossbeam arm).
+            //
+            // comms::thread::Receiver::recv() returns Err(RecvError) for both
+            // channel disconnect AND substrate shutdown (the comms select merges
+            // them). To preserve the RecvOutcome surface exactly we perform a
+            // non-blocking check of SHUTDOWN_RX after an Err to distinguish:
+            //   - Err(TryRecvError::Disconnected) → SHUTDOWN_TX dropped = shutdown fired
+            //   - Err(TryRecvError::Empty)        → data channel disconnected, not shutdown
+            match rx.recv() {
+                Ok(v) => RecvOutcome::Value(v),
+                Err(_) => {
+                    let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+                    match shutdown_rx {
+                        Some(srx) => match srx.try_recv() {
+                            // Shutdown channel drained by comms recv or already
+                            // signaled — substrate shutdown is the cause.
+                            Ok(_) | Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                                RecvOutcome::Shutdown
+                            }
+                            // Channel empty — data peer disconnected, not shutdown.
+                            Err(crossbeam_channel::TryRecvError::Empty) => {
+                                RecvOutcome::Disconnected
+                            }
                         },
-                        recv(srx) -> _ => RecvOutcome::Shutdown,
-                    }
-                }
-                None => {
-                    // Bootstrap pre-init or test bypass — fall back to bare recv.
-                    // Should not happen in production paths; init_shutdown_signal()
-                    // runs before any wat code can execute (freeze.rs:233).
-                    match rx.recv() {
-                        Ok(v) => RecvOutcome::Value(v),
-                        Err(_) => RecvOutcome::Disconnected,
+                        // Bootstrap pre-init: no shutdown signal → data disconnect.
+                        None => RecvOutcome::Disconnected,
                     }
                 }
             }
@@ -410,7 +438,11 @@ pub fn typed_try_recv(
     _span: Span,
 ) -> RecvOutcome {
     match receiver {
-        ReceiverInner::Crossbeam(rx) => {
+        ReceiverInner::Comms(rx) => {
+            // Arc 214 Stone 5.1 — delegate to comms::thread::Receiver::try_recv()
+            // which returns Option<T> (None for both Empty and Disconnected, per
+            // arc 253 2-state collapse). Preserve the shutdown-first fast path
+            // exactly as the old Crossbeam arm did.
             let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
             if let Some(srx) = shutdown_rx {
                 // Non-blocking: check shutdown first (fast path on shutdown active).
@@ -423,9 +455,12 @@ pub fn typed_try_recv(
                     Err(crossbeam_channel::TryRecvError::Empty) => {}
                 }
             }
+            // comms::thread::try_recv returns Option<T>:
+            //   Some(v) → Value
+            //   None    → Empty or Disconnected (arc 253 collapse) → Disconnected
             match rx.try_recv() {
-                Ok(v) => RecvOutcome::Value(v),
-                Err(_) => RecvOutcome::Disconnected,
+                Some(v) => RecvOutcome::Value(v),
+                None => RecvOutcome::Disconnected,
             }
         }
         ReceiverInner::PipeFd(reader) => {
@@ -480,15 +515,19 @@ pub fn typed_try_recv(
 }
 
 /// Helper for `:wat::kernel::select` — extracts the underlying
-/// crossbeam Receiver if the inner is `Crossbeam`. Returns `None`
-/// for `PipeFd` (select is crossbeam-only today; piped channels
+/// `comms::thread::Receiver` if the inner is `Comms`. Returns `None`
+/// for `PipeFd` (select is tier-1-only today; piped channels
 /// would need an epoll/poll integration that's substrate work
 /// for a follow-up arc).
-pub fn try_as_crossbeam_receiver(
+///
+/// Arc 214 Stone 5.1 — replaces `try_as_crossbeam_receiver`; the
+/// `eval_kernel_select` memory path now registers via
+/// `comms::thread::Select` instead of `crossbeam_channel::Select`.
+pub fn try_as_comms_receiver(
     receiver: &ReceiverInner,
-) -> Option<&crossbeam_channel::Receiver<crate::runtime::Value>> {
+) -> Option<&crate::comms::thread::Receiver<crate::runtime::Value>> {
     match receiver {
-        ReceiverInner::Crossbeam(rx) => Some(rx),
+        ReceiverInner::Comms(rx) => Some(rx),
         ReceiverInner::PipeFd(_) => None,
     }
 }
@@ -633,20 +672,22 @@ pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>) {
 pub fn make_thread_peer_pair_for_test()
     -> (crate::runtime::Value, crate::runtime::Value)
 {
-    let (tx_ab, rx_ab) = crossbeam_channel::unbounded::<crate::runtime::Value>();
-    let (tx_ba, rx_ba) = crossbeam_channel::unbounded::<crate::runtime::Value>();
+    // Arc 214 Stone 5.1 — use comms::thread::pair() (depth-1) instead of
+    // bare crossbeam::unbounded. Depth-1 is sufficient for test fixtures.
+    let (tx_ab, rx_ab) = crate::comms::thread::pair::<crate::runtime::Value>();
+    let (tx_ba, rx_ba) = crate::comms::thread::pair::<crate::runtime::Value>();
     let peer_a = crate::runtime::Value::Struct(Arc::new(crate::runtime::StructValue {
         type_name: ":wat::kernel::ThreadPeer".into(),
         fields: vec![
-            receiver_from_crossbeam(rx_ba),
-            sender_from_crossbeam(tx_ab),
+            receiver_from_comms(rx_ba),
+            sender_from_comms(tx_ab),
         ],
     }));
     let peer_b = crate::runtime::Value::Struct(Arc::new(crate::runtime::StructValue {
         type_name: ":wat::kernel::ThreadPeer".into(),
         fields: vec![
-            receiver_from_crossbeam(rx_ab),
-            sender_from_crossbeam(tx_ba),
+            receiver_from_comms(rx_ab),
+            sender_from_comms(tx_ba),
         ],
     }));
     (peer_a, peer_b)

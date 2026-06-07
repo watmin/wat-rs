@@ -31,7 +31,7 @@ use crate::ast::WatAST;
 use crate::runtime::{eval, EnumValue, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::typed_channel::{
-    receiver_from_crossbeam, sender_from_crossbeam, ReceiverInner, SenderInner,
+    receiver_from_comms, sender_from_comms, ReceiverInner, SenderInner,
 };
 
 /// Monotonic thread identifier. Mirrors the wat-side
@@ -395,14 +395,16 @@ pub fn eval_kernel_readln(
 /// The wat-side variant tag (`:wat::kernel::services::StdOutService::
 /// Event` etc.) is encoded into each event's `Value::Enum`'s
 /// `type_path` field at construction time.
+/// Arc 214 Stone 5.1 — ControlTx senders are now comms::thread::Sender<Value>
+/// (cascade-aware, depth-1) instead of bare crossbeam Senders.
 #[derive(Clone)]
 pub struct RuntimeServices {
     /// `Sender<wat::kernel::services::StdInService::Event>` ControlTx.
-    pub stdin_ctrl: crossbeam_channel::Sender<Value>,
+    pub stdin_ctrl: crate::comms::thread::Sender<Value>,
     /// `Sender<wat::kernel::services::StdOutService::Event>` ControlTx.
-    pub stdout_ctrl: crossbeam_channel::Sender<Value>,
+    pub stdout_ctrl: crate::comms::thread::Sender<Value>,
     /// `Sender<wat::kernel::services::StdErrService::Event>` ControlTx.
-    pub stderr_ctrl: crossbeam_channel::Sender<Value>,
+    pub stderr_ctrl: crate::comms::thread::Sender<Value>,
 }
 
 impl std::fmt::Debug for RuntimeServices {
@@ -415,18 +417,21 @@ impl std::fmt::Debug for RuntimeServices {
     }
 }
 
-/// Helper — extract the inner `crossbeam::Sender<Value>` from a
+/// Helper — extract the inner `comms::thread::Sender<Value>` from a
 /// `Value::wat__kernel__Sender`. Surfaces a clean diagnostic if the
 /// caller passed something else or a tier-2 PipeFd variant (the
 /// services emit a tier-1 ControlTx by construction — anything else
 /// is a programmer error).
-fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crossbeam_channel::Sender<Value>, RuntimeError> {
+///
+/// Arc 214 Stone 5.1 — now extracts from `SenderInner::Comms` instead of
+/// the retired `SenderInner::Crossbeam`.
+fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crate::comms::thread::Sender<Value>, RuntimeError> {
     match v {
         Value::wat__kernel__Sender(inner) => match inner.as_ref() {
-            SenderInner::Crossbeam { sender: s, .. } => Ok(s.clone()),
+            SenderInner::Comms { sender: s, .. } => Ok(s.clone()),
             SenderInner::PipeFd { .. } => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
-                expected: "tier-1 (crossbeam) Sender",
+                expected: "tier-1 (comms::thread) Sender",
                 got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender"))
             } }),
         },
@@ -438,18 +443,21 @@ fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crossbeam_channe
     }
 }
 
-/// Helper — extract the inner `crossbeam::Receiver<Value>` from a
+/// Helper — extract the inner `comms::thread::Receiver<Value>` from a
 /// `Value::wat__kernel__Receiver`. Sibling of [`unwrap_value_sender`].
+///
+/// Arc 214 Stone 5.1 — now extracts from `ReceiverInner::Comms` instead of
+/// the retired `ReceiverInner::Crossbeam`.
 fn unwrap_value_receiver(
     v: Value,
     label: &'static str,
-) -> Result<crossbeam_channel::Receiver<Value>, RuntimeError> {
+) -> Result<crate::comms::thread::Receiver<Value>, RuntimeError> {
     match v {
         Value::wat__kernel__Receiver(inner) => match inner.as_ref() {
-            ReceiverInner::Crossbeam(r) => Ok(r.clone()),
+            ReceiverInner::Comms(r) => Ok(r.clone()),
             ReceiverInner::PipeFd(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: label.to_string(),
-                expected: "tier-1 (crossbeam) Receiver",
+                expected: "tier-1 (comms::thread) Receiver",
                 got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver"))
             } }),
         },
@@ -462,17 +470,23 @@ fn unwrap_value_receiver(
 }
 
 /// Construct the wat-side Sender Value wrapping an existing
-/// `crossbeam::Sender<Value>`. Mirrors
-/// [`crate::typed_channel::sender_from_crossbeam`] but takes the
+/// `comms::thread::Sender<Value>`. Mirrors
+/// [`crate::typed_channel::sender_from_comms`] but takes the
 /// already-allocated Sender directly.
-fn sender_value(tx: crossbeam_channel::Sender<Value>) -> Value {
-    sender_from_crossbeam(tx)
+///
+/// Arc 214 Stone 5.1 — now takes comms::thread::Sender instead of
+/// the retired crossbeam::Sender.
+fn sender_value(tx: crate::comms::thread::Sender<Value>) -> Value {
+    sender_from_comms(tx)
 }
 
 /// Construct the wat-side Receiver Value wrapping an existing
-/// `crossbeam::Receiver<Value>`.
-fn receiver_value(rx: crossbeam_channel::Receiver<Value>) -> Value {
-    receiver_from_crossbeam(rx)
+/// `comms::thread::Receiver<Value>`.
+///
+/// Arc 214 Stone 5.1 — now takes comms::thread::Receiver instead of
+/// the retired crossbeam::Receiver.
+fn receiver_value(rx: crate::comms::thread::Receiver<Value>) -> Value {
+    receiver_from_comms(rx)
 }
 
 /// Helper — construct a `Value::Enum` for one of the three service-
@@ -550,10 +564,11 @@ pub fn register_thread_with_services(
         crate::typed_channel::bounded::<StdInServiceEvent>(1);
     let (rust_stdin_reply_tx, rust_stdin_reply_rx) =
         crate::typed_channel::bounded::<String>(1);
+    // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
     let (wat_stdin_data_tx, wat_stdin_data_rx) =
-        crossbeam_channel::bounded::<Value>(1);
+        crate::comms::thread::pair::<Value>();
     let (wat_stdin_reply_tx, wat_stdin_reply_rx) =
-        crossbeam_channel::bounded::<Value>(1);
+        crate::comms::thread::pair::<Value>();
 
     spawn_stdin_bridge(
         thread_id,
@@ -567,9 +582,10 @@ pub fn register_thread_with_services(
     let (rust_stdout_tx, rust_stdout_rx) =
         crate::typed_channel::bounded::<StdOutServiceEvent>(1);
     let (rust_stdout_ack_tx, rust_stdout_ack_rx) = crate::typed_channel::bounded::<()>(1);
+    // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
     let (wat_stdout_data_tx, wat_stdout_data_rx) =
-        crossbeam_channel::bounded::<Value>(1);
-    let (wat_stdout_ack_tx, wat_stdout_ack_rx) = crossbeam_channel::bounded::<Value>(1);
+        crate::comms::thread::pair::<Value>();
+    let (wat_stdout_ack_tx, wat_stdout_ack_rx) = crate::comms::thread::pair::<Value>();
 
     spawn_stdout_bridge(
         thread_id,
@@ -584,9 +600,10 @@ pub fn register_thread_with_services(
     let (rust_stderr_tx, rust_stderr_rx) =
         crate::typed_channel::bounded::<StdErrServiceEvent>(1);
     let (rust_stderr_ack_tx, rust_stderr_ack_rx) = crate::typed_channel::bounded::<()>(1);
+    // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
     let (wat_stderr_data_tx, wat_stderr_data_rx) =
-        crossbeam_channel::bounded::<Value>(1);
-    let (wat_stderr_ack_tx, wat_stderr_ack_rx) = crossbeam_channel::bounded::<Value>(1);
+        crate::comms::thread::pair::<Value>();
+    let (wat_stderr_ack_tx, wat_stderr_ack_rx) = crate::comms::thread::pair::<Value>();
 
     spawn_stderr_bridge(
         thread_id,
@@ -703,8 +720,8 @@ fn spawn_stdin_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdInServiceEvent>,
     rust_reply_tx: Sender<String>,
-    wat_data_tx: crossbeam_channel::Sender<Value>,
-    wat_reply_rx: crossbeam_channel::Receiver<Value>,
+    wat_data_tx: crate::comms::thread::Sender<Value>,
+    wat_reply_rx: crate::comms::thread::Receiver<Value>,
 ) {
     let name = format!("wat-stdin-bridge::{}", thread_id);
     std::thread::Builder::new()
@@ -764,8 +781,8 @@ fn spawn_stdout_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdOutServiceEvent>,
     rust_ack_tx: Sender<()>,
-    wat_data_tx: crossbeam_channel::Sender<Value>,
-    wat_ack_rx: crossbeam_channel::Receiver<Value>,
+    wat_data_tx: crate::comms::thread::Sender<Value>,
+    wat_ack_rx: crate::comms::thread::Receiver<Value>,
     label: &'static str,
 ) {
     let name = format!("wat-{}-bridge::{}", label, thread_id);
@@ -808,8 +825,8 @@ fn spawn_stderr_bridge(
     thread_id: ThreadId,
     rust_rx: Receiver<StdErrServiceEvent>,
     rust_ack_tx: Sender<()>,
-    wat_data_tx: crossbeam_channel::Sender<Value>,
-    wat_ack_rx: crossbeam_channel::Receiver<Value>,
+    wat_data_tx: crate::comms::thread::Sender<Value>,
+    wat_ack_rx: crate::comms::thread::Receiver<Value>,
 ) {
     let name = format!("wat-stderr-bridge::{}", thread_id);
     std::thread::Builder::new()
@@ -849,10 +866,12 @@ fn spawn_stderr_bridge(
 /// and unwraps the Sender to the inner `crossbeam::Sender<Value>`.
 /// Used by [`crate::freeze::invoke_user_main`] after each service
 /// spawn.
+/// Arc 214 Stone 5.1 — now returns comms::thread::Sender<Value> instead of
+/// the retired crossbeam::Sender<Value>.
 pub fn extract_control_tx(
     spawn_result: Value,
     service_label: &'static str,
-) -> Result<(Value, crossbeam_channel::Sender<Value>), RuntimeError> {
+) -> Result<(Value, crate::comms::thread::Sender<Value>), RuntimeError> {
     let tuple = match spawn_result {
         Value::Tuple(t) => t,
         other => {
@@ -883,10 +902,12 @@ pub fn extract_control_tx(
 /// `Thread/output recv` then `Thread/join-result` on each service
 /// handle; the `Thread<nil,nil>` shape carries a `Receiver<Value>`
 /// in its tuple-field-1 position.
+/// Arc 214 Stone 5.1 — now returns comms::thread::Receiver<Value> instead of
+/// the retired crossbeam::Receiver<Value>.
 pub fn unwrap_receiver_for_orchestrator(
     v: Value,
     label: &'static str,
-) -> Result<crossbeam_channel::Receiver<Value>, RuntimeError> {
+) -> Result<crate::comms::thread::Receiver<Value>, RuntimeError> {
     unwrap_value_receiver(v, label)
 }
 

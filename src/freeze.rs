@@ -1029,13 +1029,16 @@ fn invoke_user_main_orchestrated(
 /// Look up a service spawn fn by keyword path; apply it with the
 /// supplied IO handle; destructure the returned `(Thread, ControlTx)`
 /// tuple. Returns the Thread value (for join later) and the
-/// `crossbeam::Sender<Value>` ControlTx (for Add/Remove dispatches).
+/// `comms::thread::Sender<Value>` ControlTx (for Add/Remove dispatches).
+///
+/// Arc 214 Stone 5.1 — return type changed from crossbeam::Sender to
+/// comms::thread::Sender (cascade-aware).
 fn spawn_service(
     spawn_fn_path: &str,
     io_value: Value,
     sym: &SymbolTable,
     label: &'static str,
-) -> Result<(Value, crossbeam_channel::Sender<Value>), RuntimeError> {
+) -> Result<(Value, crate::comms::thread::Sender<Value>), RuntimeError> {
     let spawn_fn = sym
         .get(spawn_fn_path)
         .ok_or_else(|| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UnknownFunction(spawn_fn_path.into()) })?

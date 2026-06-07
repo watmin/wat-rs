@@ -17964,10 +17964,12 @@ fn eval_make_channel(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBre
             reason: "argument must be a type keyword (e.g., :Candle)".into()
         } }.into());
     }
-    let (tx, rx) = crossbeam_channel::bounded::<Value>(1);
+    // Arc 214 Stone 5.1 — construct via comms::thread::pair (depth-1,
+    // cascade-aware). Replaces the bare crossbeam::bounded(1) construction.
+    let (tx, rx) = crate::comms::thread::pair::<Value>();
     Ok(Value::Tuple(Arc::new(vec![
-        crate::typed_channel::sender_from_crossbeam(tx),
-        crate::typed_channel::receiver_from_crossbeam(rx),
+        crate::typed_channel::sender_from_comms(tx),
+        crate::typed_channel::receiver_from_comms(rx),
     ])))
 }
 
@@ -18610,23 +18612,26 @@ fn eval_kernel_select(
             reason: "receivers vec cannot be empty — select would block forever".into()
         } }.into());
     }
-    // Extract Arc<Receiver<Value>> for each element; error on any
+    // Extract &comms::thread::Receiver<Value> for each element; error on any
     // non-receiver Value so the typed-pipe contract is visible.
     //
-    // Arc 170 slice 1c — `select` is implemented on top of
-    // `crossbeam_channel::Select`, which only accepts crossbeam
-    // Receivers. PipeFd-backed Receivers are rejected with a
-    // diagnostic pointing at the substrate gap; they would need
+    // Arc 170 slice 1c / Arc 214 Stone 5.1 — `select` is implemented on top of
+    // `comms::thread::Select` (cascade-aware). PipeFd-backed Receivers are
+    // rejected with a diagnostic pointing at the substrate gap; they would need
     // an epoll/poll integration to participate in a select set.
-    // No real consumer demands tier-2 select today; surface as
-    // honest delta if one shows up. Tier-1-only select keeps the
-    // crossbeam fast path uncompromised.
-    let mut rxs: Vec<Arc<crossbeam_channel::Receiver<Value>>> = Vec::with_capacity(items.len());
+    // No real consumer demands tier-2 select today; surface as honest delta
+    // if one shows up. Tier-1-only select keeps the comms fast path
+    // uncompromised.
+    //
+    // We collect the comms::thread::Receiver references; lifetimes require
+    // the underlying ReceiverInner Arcs to outlive the Select, so we keep a
+    // Vec of the Arcs and borrow into Select.
+    let mut rx_arcs: Vec<Arc<crate::typed_channel::ReceiverInner>> = Vec::with_capacity(items.len());
     for v in items.iter() {
         match v {
             Value::wat__kernel__Receiver(inner) => {
-                match crate::typed_channel::try_as_crossbeam_receiver(inner.as_ref()) {
-                    Some(rx) => rxs.push(Arc::new(rx.clone())),
+                match crate::typed_channel::try_as_comms_receiver(inner.as_ref()) {
+                    Some(_) => rx_arcs.push(Arc::clone(inner)),
                     None => {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::kernel::select".into(),
@@ -18648,13 +18653,32 @@ fn eval_kernel_select(
             }
         }
     }
-    let mut sel = crossbeam_channel::Select::new();
-    for rx in &rxs {
-        sel.recv(rx.as_ref());
+    // Build comms::thread::Select — cascade-aware fan-in.
+    // comms::thread::Select::select() returns SelectOutcome:
+    //   Recv { index, result: Ok(v) }  → idx + Ok(Some(v))
+    //   Recv { index, result: Err(_) } → idx + Ok(None) (disconnect)
+    //   Shutdown                       → the cascade fired; we pick index 0
+    //                                    and return Ok(None) (caller unwinds on Shutdown
+    //                                    via the outer recv cascade, not via select).
+    let mut sel = crate::comms::thread::Select::new();
+    for arc in &rx_arcs {
+        // SAFETY: the ReceiverInner Arc has the same lifetime as rx_arcs,
+        // which outlives sel. try_as_comms_receiver checked above that each
+        // arc is Comms-backed.
+        let rx_ref = crate::typed_channel::try_as_comms_receiver(arc.as_ref())
+            .expect("Comms-backed by construction; validated above");
+        sel.recv(rx_ref);
     }
-    let oper = sel.select();
-    let idx = oper.index();
-    let result = oper.recv(rxs[idx].as_ref());
+    use crate::comms::{ReceiverIndex, SelectOutcome};
+    let (idx, result) = match sel.select() {
+        SelectOutcome::Recv { index: ReceiverIndex(i), result } => (i, result),
+        SelectOutcome::Shutdown => {
+            // Substrate shutdown fired. Return a Shutdown-shaped outcome:
+            // index 0, Err(None) — the caller will see Err(RecvError) → nil.
+            // All recv callers treat this as "channel done".
+            (0_usize, Err(crate::comms::RecvError))
+        }
+    };
     // Arc 111 slice 1 — second tuple element is
     // Result<Option<T>, ThreadDiedError>. Slice 2 wires the panic case.
     let inner = match result {
@@ -19117,11 +19141,12 @@ fn eval_kernel_spawn_thread(
             }
         },
     };
-    // Two unbounded channels: parent writes to input, thread reads;
+    // Two depth-1 channels: parent writes to input, thread reads;
     // thread writes to output, parent reads. Inside ends go to the
     // body; outside ends become Thread<I,O>'s input/output fields.
-    let (in_tx, in_rx) = crossbeam_channel::unbounded::<Value>();
-    let (out_tx, out_rx) = crossbeam_channel::unbounded::<Value>();
+    // Arc 214 Stone 5.1 — use comms::thread::pair (depth-1, cascade-aware).
+    let (in_tx, in_rx) = crate::comms::thread::pair::<Value>();
+    let (out_tx, out_rx) = crate::comms::thread::pair::<Value>();
     // SpawnOutcome channel — same one-shot shape ProgramHandle expects.
     let (outcome_tx, outcome_rx) = crate::typed_channel::bounded::<SpawnOutcome>(1);
     let thread_sym = sym.clone();
@@ -19138,8 +19163,8 @@ fn eval_kernel_spawn_thread(
             .to_string(),
     };
     let body_args = vec![
-        crate::typed_channel::receiver_from_crossbeam(in_rx),
-        crate::typed_channel::sender_from_crossbeam(out_tx),
+        crate::typed_channel::receiver_from_comms(in_rx),
+        crate::typed_channel::sender_from_comms(out_tx),
     ];
     // Arc 170 slice 1f-γ — register the new thread with the three
     // stdio services so the body's `(:wat::kernel::println ...)` /
@@ -19218,8 +19243,8 @@ fn eval_kernel_spawn_thread(
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Thread".into(),
         fields: vec![
-            crate::typed_channel::sender_from_crossbeam(in_tx),
-            crate::typed_channel::receiver_from_crossbeam(out_rx),
+            crate::typed_channel::sender_from_comms(in_tx),
+            crate::typed_channel::receiver_from_comms(out_rx),
             Value::wat__kernel__ProgramHandle(Arc::new(
                 ProgramHandleInner::InThread(outcome_rx),
             )),
@@ -28884,13 +28909,14 @@ mod tests {
 
         // Direct construction: two receivers, only rx1 gets a value,
         // select must pick index 1.
-        let (tx0, rx0) = crossbeam_channel::bounded::<Value>(1);
-        let (tx1, rx1) = crossbeam_channel::bounded::<Value>(1);
+        // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
+        let (tx0, rx0) = crate::comms::thread::pair::<Value>();
+        let (tx1, rx1) = crate::comms::thread::pair::<Value>();
         drop(tx0); // rx0 disconnected
         tx1.send(Value::i64(7)).unwrap();
         let rxs = Value::Vec(Arc::new(vec![
-            crate::typed_channel::receiver_from_crossbeam(rx0),
-            crate::typed_channel::receiver_from_crossbeam(rx1),
+            crate::typed_channel::receiver_from_comms(rx0),
+            crate::typed_channel::receiver_from_comms(rx1),
         ]));
         let env = Environment::new().child().bind_unknown_span("rxs", TrackedValue::from(rxs)).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
