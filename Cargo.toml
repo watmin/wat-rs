@@ -94,8 +94,8 @@ name = "function"
 path = "tests/function/mod.rs"
 
 [[test]]
-name = "archived"
-path = "tests/archived/mod.rs"
+name = "nursery"
+path = "tests/nursery/mod.rs"
 
 [[test]]
 name = "types"

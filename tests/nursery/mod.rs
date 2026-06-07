@@ -1,25 +1,28 @@
-//! tests/archived/ — the archived test corpus (arc 252 test-surface reorg).
+//! tests/nursery/ — the living test commons (arc 252 test-surface reorg).
 //!
-//! These are SPENT design-probes: FM-2-bis disconfirming probes from CLOSED arcs
-//! whose result is now a permanent property of the substrate. They did their job
-//! at the arc — they proved a composition worked (or didn't) and steered the build.
-//! We keep them RUNNABLE rather than delete them: if they still compile and pass,
-//! they are zero-cost regression coverage, and they are the historical record of
-//! how the substrate was proven. "If they work and were useful, don't lose them."
+//! NOT an archive. This is where tests are RAISED and PROVEN, then GRADUATE to
+//! their permanent `src/<home>` test dir (`tests/comms/`, `tests/value/`, …) when
+//! a home is warranted. It is the default home for a test that belongs to no single
+//! src-home yet, and the place iterative test-development accumulates.
 //!
-//! NAMING: archived tests KEEP their arc-numbered names on purpose — the archive
-//! IS the record of that arc, so the arc number is the right identifier here. The
-//! behavior-renaming (`tests/<home>/<behavior>.rs`) applies only to LIVE tests.
+//! The contract (builder, 2026-06-06):
+//!   - Accumulate HONESTLY-NAMED good tests here as you go — every test real,
+//!     every assertion meaningful (no sentinels).
+//!   - Arc/stone/probe-numbered names (`probe_arc216_stone1_hashset_roundtrip`) are
+//!     VALID — they are real, they pass, they are useful. Improve a name when
+//!     warranted (especially on graduation to a home), not for its own sake.
+//!   - PROMOTE a test OUT to `tests/<home>/` (with a behavior name) when it clearly
+//!     belongs to one src-home. The nursery raises; the homes keep.
 //!
-//! This is ONE leak-safe `[[test]]` binary (Cargo: `name="archived"`). Only PURE
-//! (non-process) probes live here so `cargo test --test archived` never leaks;
-//! living self-enforcing gates and process probes stay elsewhere.
+//! One leak-safe `[[test]]` binary (Cargo: `name="nursery"`). Keep only PURE
+//! (non-process) tests here so `cargo test --test nursery` never leaks; process
+//! tests live in their home group (`tests/comms/`), leak-`#[ignore]`'d as needed.
 //!
-//! The module list below is GENERATED — do not hand-edit it. Add a `.rs` file to
-//! this dir, run `scripts/gen-test-mods.sh`, and it is declared automatically; the
-//! `--check` gate fails loud if the list drifts, so no file can be silently lost.
+//! The module list below is GENERATED — do not hand-edit it. Add a `.rs` file here,
+//! run `scripts/gen-test-mods.sh`, and it is declared automatically; the `--check`
+//! gate (green-gate 1/4) fails loud if the list drifts, so no test is ever lost.
 //!
-//! Run: `cargo test --release -p wat --test archived`
+//! Run: `cargo test --release -p wat --test nursery`
 
 // BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
 mod probe_arc214_slice4_stone1_program_env_typealias;
