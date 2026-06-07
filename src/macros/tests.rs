@@ -1483,3 +1483,69 @@ fn signature_of_fn_impure_body_is_inert() {
         "a kernel head inside signature-of-fn's literal fn arg is inert (body never executes) — the validator must pass it"
     );
 }
+
+// ─── parse.rs lines 112-114: 7-item defmacro with metadata-map ───────────────
+
+/// `parse_defmacro_form` accepts a 7-item defmacro form (lines 112-114) that
+/// carries a metadata-map `{...}` between the name and the argspec Vector.
+/// The metadata is silently dropped by the parser (`_meta` binding); the
+/// resulting `MacroDef` must be equivalent to the 6-item form without metadata.
+///
+/// Source form: `(:wat::core::defmacro :my::meta-mac {:tag 1} [x <- :AST] -> :AST `~x)`
+/// Parsed as 7 items because `{:tag 1}` is one `WatAST::List` node.
+#[test]
+fn defmacro_with_metadata_map_registered_and_expands() {
+    let out = expand_src(
+        r#"
+        (:wat::core::defmacro :my::meta-mac
+          {:tag 1}
+          [x <- :AST]
+          -> :AST
+          `~x)
+        (:my::meta-mac 99)
+        "#,
+    )
+    .expect("7-item defmacro with metadata map must parse and expand");
+    assert_eq!(out.len(), 1, "expected one expanded form; got: {:?}", out);
+    assert!(
+        matches!(&out[0], WatAST::IntLit(99, _)),
+        "expected IntLit(99) from expansion; got: {:?}",
+        out[0]
+    );
+}
+
+// ─── registry.rs lines 80-83: register_stdlib duplicate DuplicateMacro ───────
+
+/// `MacroRegistry::register_stdlib` (lines 80-83) emits `DuplicateMacro` when
+/// the same `:wat::*` name is registered twice with DIVERGENT bodies. The first
+/// registration succeeds (bypassing the reserved-prefix gate); the second,
+/// structurally distinct form must fail.
+///
+/// Complements `register_stdlib_bypasses_reserved_prefix_gate` which only tests
+/// the happy path (idempotent re-registration). This test exercises the divergent-
+/// duplicate error arm that lives at lines 80-83 of registry.rs.
+#[test]
+fn register_stdlib_duplicate_divergent_body_returns_duplicate_macro_error() {
+    let mut reg = MacroRegistry::new();
+
+    // First registration — body is `` `~x `` (quasiquote unquote of x).
+    let first_forms = crate::parse_all!(
+        r#"(:wat::core::defmacro :wat::std::DivMac [x <- :AST] -> :AST `~x)"#
+    )
+    .expect("parse ok");
+    register_stdlib_defmacros(first_forms, &mut reg)
+        .expect("first registration must succeed");
+
+    // Second registration — body is `42` (a different body, structurally divergent).
+    let second_forms = crate::parse_all!(
+        r#"(:wat::core::defmacro :wat::std::DivMac [x <- :AST] -> :AST 42)"#
+    )
+    .expect("parse ok");
+    let err = register_stdlib_defmacros(second_forms, &mut reg)
+        .expect_err("second registration with divergent body must fail");
+    assert!(
+        matches!(err, MacroError { kind: MacroErrorKind::DuplicateMacro(_), .. }),
+        "expected DuplicateMacro for divergent re-registration; got: {:?}",
+        err
+    );
+}

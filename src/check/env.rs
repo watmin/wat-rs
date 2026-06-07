@@ -305,3 +305,51 @@ impl<'a> CheckEnv<'a> {
         self.defclause_registrations.get(name).map(|v| v.as_slice())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::{SymbolTable, Value};
+    use crate::types::{TypeEnv, TypeExpr};
+    use crate::value::{ClauseSet, Clause};
+    use std::sync::Arc;
+
+    /// Line 146: `from_symbols` inserts defclause registrations from
+    /// `runtime_def_values` entries that are `Value::wat__core__clauses`.
+    ///
+    /// Constructs a `SymbolTable` with one `clauses` entry in `runtime_def_values`
+    /// and asserts that `CheckEnv::from_symbols` populates `defclause_registrations`
+    /// with the correct clause table for that name.
+    #[test]
+    fn from_symbols_loads_defclause_from_runtime_def_values() {
+        // Build a minimal ClauseSet with one clause: no args, returns :nil.
+        let nil_body = crate::ast::WatAST::Keyword(":wat::core::nil".into(), crate::span::Span::unknown());
+        let clause = Clause {
+            args: vec![],
+            rest_param: None,
+            return_type: TypeExpr::Path(":wat::core::nil".into()),
+            guard: None,
+            ensure_fn: None,
+            body: Arc::new(nil_body),
+        };
+        let cs = Arc::new(ClauseSet {
+            name: ":my::op".into(),
+            clauses: vec![clause],
+            shared_return: None,
+        });
+        let mut sym = SymbolTable::new();
+        sym.runtime_def_values.insert(":my::op".into(), Value::wat__core__clauses(cs));
+
+        let types = TypeEnv::default();
+        let env = CheckEnv::from_symbols(&sym, &types);
+
+        // The defclause must be in the check env's registration table.
+        let clauses = env.get_defclause_clauses(":my::op")
+            .expect("defclause must be registered after from_symbols");
+        assert_eq!(clauses.len(), 1, "expected 1 clause; got: {}", clauses.len());
+        // The clause has no fixed args (has_rest = false).
+        let (arg_types, _, has_rest) = &clauses[0];
+        assert!(arg_types.is_empty(), "expected zero arg types; got: {:?}", arg_types);
+        assert!(!has_rest, "expected has_rest=false for zero-rest clause");
+    }
+}

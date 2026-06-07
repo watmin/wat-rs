@@ -32,3 +32,19 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
         _ => args,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::span::Span;
+
+    /// Line 22: `peel_metadata_preamble` returns an empty slice unchanged when
+    /// called with an empty slice. The early-return guard is the production safety
+    /// net for zero-arg fn-form evaluation.
+    #[test]
+    fn peel_empty_slice_returns_empty() {
+        let args: &[WatAST] = &[];
+        let result = peel_metadata_preamble(args);
+        assert_eq!(result.len(), 0, "empty input must return empty slice; got len {}", result.len());
+    }
+}

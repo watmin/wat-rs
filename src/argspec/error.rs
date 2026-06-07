@@ -111,3 +111,36 @@ impl From<ArgSpecError> for crate::macros::MacroError {
         crate::macros::MacroError { span: e.span, kind: crate::macros::MacroErrorKind::MalformedDefmacro { reason } }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::check::CheckErrorKind;
+
+    fn make_name_not_symbol_error() -> ArgSpecError {
+        ArgSpecError {
+            span: Span::unknown(),
+            head: ":my::form".into(),
+            kind: ArgSpecErrorKind::NameNotSymbol,
+        }
+    }
+
+    /// Lines 89-95: `From<ArgSpecError> for CheckError` — the converted
+    /// `CheckError` must carry the right reason string and a
+    /// `MalformedForm` kind that the checker surfaces as a diagnostic.
+    #[test]
+    fn from_argspec_error_for_check_error_produces_malformed_form() {
+        let ae = make_name_not_symbol_error();
+        let ce: crate::check::CheckError = ae.into();
+        match ce.kind {
+            CheckErrorKind::MalformedForm { head, reason, .. } => {
+                assert_eq!(head, ":my::form", "head must propagate; got: {head}");
+                assert!(
+                    reason.contains("name must be a plain symbol"),
+                    "expected NameNotSymbol reason; got: {reason}"
+                );
+            }
+            other => panic!("expected MalformedForm; got: {:?}", other),
+        }
+    }
+}

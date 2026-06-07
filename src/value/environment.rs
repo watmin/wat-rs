@@ -185,3 +185,56 @@ impl EnvBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::WatAST;
+    use crate::span::Span;
+    use crate::types::TypeExpr;
+
+    fn nil_body() -> Arc<WatAST> {
+        Arc::new(WatAST::Keyword(":wat::core::nil".into(), Span::unknown()))
+    }
+
+    /// Lines 57-67: `Debug` impl for `Function` — named fields with selective
+    /// display (closed_env shown as literal string, not full env dump).
+    #[test]
+    fn debug_function_no_closed_env() {
+        let f = Function {
+            name: Some(":my::fn".into()),
+            params: vec!["x".into()],
+            type_params: vec![],
+            param_types: vec![TypeExpr::Path(":wat::core::i64".into())],
+            ret_type: TypeExpr::Path(":wat::core::i64".into()),
+            rest_param: None,
+            rest_param_type: None,
+            body: nil_body(),
+            closed_env: None,
+        };
+        let dbg = format!("{:?}", f);
+        assert!(dbg.contains("Function"), "expected struct name; got: {dbg}");
+        assert!(dbg.contains(r#"name: Some(":my::fn")"#), "expected name field; got: {dbg}");
+        // closed_env: None → rendered as "<none>" per the Debug impl.
+        assert!(dbg.contains("<none>"), "expected <none> for absent closed_env; got: {dbg}");
+    }
+
+    #[test]
+    fn debug_function_with_closed_env() {
+        let env = Environment::new();
+        let f = Function {
+            name: None,
+            params: vec![],
+            type_params: vec![],
+            param_types: vec![],
+            ret_type: TypeExpr::Path(":wat::core::nil".into()),
+            rest_param: None,
+            rest_param_type: None,
+            body: nil_body(),
+            closed_env: Some(env),
+        };
+        let dbg = format!("{:?}", f);
+        // closed_env: Some(_) → rendered as "<env>" per the Debug impl.
+        assert!(dbg.contains("<env>"), "expected <env> for present closed_env; got: {dbg}");
+    }
+}

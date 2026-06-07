@@ -293,3 +293,22 @@ impl SymbolTable {
         self.coincident_sigma_fn.as_ref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Lines 153-169: `Debug` impl for `SymbolTable` — format fields without exposing
+    /// full contents (counts + booleans only). Asserts real output tokens.
+    #[test]
+    fn debug_shows_counts_and_option_flags() {
+        let sym = SymbolTable::new();
+        let dbg = format!("{:?}", sym);
+        // The Debug impl emits named fields — verify structural tokens.
+        assert!(dbg.contains("SymbolTable"), "expected struct name in Debug output; got: {dbg}");
+        assert!(dbg.contains("functions: 0"), "expected functions count; got: {dbg}");
+        assert!(dbg.contains("unit_variants: 0"), "expected unit_variants count; got: {dbg}");
+        assert!(dbg.contains("encoding_ctx: false"), "expected encoding_ctx flag false; got: {dbg}");
+        assert!(dbg.contains("binding_metadata: 0"), "expected binding_metadata count; got: {dbg}");
+    }
+}

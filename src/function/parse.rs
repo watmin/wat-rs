@@ -279,3 +279,113 @@ pub(crate) fn parse_fn_signature_for_check(
     let params = sig.params.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     Ok((params, sig.param_types, sig.ret_type))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scope::Identifier;
+    use crate::span::Span;
+
+    fn span() -> Span {
+        Span::unknown()
+    }
+
+    fn arrow() -> WatAST {
+        WatAST::Symbol(Identifier::bare("->"), span())
+    }
+
+    /// Helper: build a minimal valid 3-element signature prefix `[empty-vec, ->, :ret]`.
+    fn sig_vec_arrow_ret(ret_kw: &str) -> [WatAST; 3] {
+        [
+            WatAST::Vector(vec![], span()),
+            arrow(),
+            WatAST::Keyword(ret_kw.into(), span()),
+        ]
+    }
+
+    // ─── Lines 151-157: ArgsVecNotVector production site ──────────────────────
+
+    /// `parse_fn_signature_prefix` must return `ArgsVecNotVector` (lines 151-157)
+    /// when `sig[0]` is not a `WatAST::Vector`. The `reason()` arm for
+    /// `ArgsVecNotVector` (lines 114-115) is exercised via `parse_fn_signature`
+    /// which calls `step.kind.reason()` in its error mapper.
+    #[test]
+    fn prefix_non_vector_args_returns_args_vec_not_vector() {
+        // sig[0] is a Keyword, not a Vector — triggers ArgsVecNotVector.
+        let sig: [WatAST; 3] = [
+            WatAST::Keyword(":not-a-vec".into(), span()),
+            arrow(),
+            WatAST::Keyword(":wat::core::nil".into(), span()),
+        ];
+        let err = parse_fn_signature(&sig).unwrap_err();
+        let msg = format!("{:?}", err);
+        // reason() for ArgsVecNotVector (lines 114-115) is "fn signature: expected a vector …"
+        assert!(
+            msg.contains("expected a vector"),
+            "expected ArgsVecNotVector reason in error; got: {msg}"
+        );
+    }
+
+    // ─── Lines 171-173: BadRetType production + lines 120: reason() ───────────
+
+    /// `parse_fn_signature_prefix` must return `BadRetType` (lines 171-173)
+    /// when `sig[2]` is syntactically a keyword but fails `parse_type_expr_with_span`
+    /// (e.g. `:Any` is banned). The `reason()` arm for `BadRetType` (line 120)
+    /// formats the inner `TypeErrorKind` via its `Display` impl.
+    #[test]
+    fn prefix_banned_ret_type_returns_bad_ret_type() {
+        // `:Any` is a valid keyword syntactically but fails reject_any check.
+        let sig = sig_vec_arrow_ret(":Any");
+        let err = parse_fn_signature(&sig).unwrap_err();
+        let msg = format!("{:?}", err);
+        // reason() for BadRetType (line 120): "invalid return type: {kind}"
+        assert!(
+            msg.contains("invalid return type"),
+            "expected BadRetType reason in error; got: {msg}"
+        );
+    }
+
+    // ─── Lines 244-246: parse_fn_signature_with_rest error mapper ─────────────
+
+    /// `parse_fn_signature_with_rest` (lines 244-246) must propagate a
+    /// `RuntimeError` when `parse_fn_signature_prefix` fails. Triggered by
+    /// a non-Vector args slot (ArgsVecNotVector path).
+    #[test]
+    fn parse_fn_signature_with_rest_non_vector_args_returns_runtime_error() {
+        let sig: [WatAST; 3] = [
+            WatAST::IntLit(42, span()),
+            arrow(),
+            WatAST::Keyword(":wat::core::nil".into(), span()),
+        ];
+        // Map to string inline — ParsedFnSignature<String> doesn't implement Debug,
+        // so unwrap_err() is not usable directly; match avoids the Debug bound.
+        let err_msg = match parse_fn_signature_with_rest(&sig) {
+            Ok(_) => panic!("expected Err for non-Vector args-slot; got Ok"),
+            Err(e) => format!("{:?}", e),
+        };
+        assert!(
+            err_msg.contains("expected a vector"),
+            "expected ArgsVecNotVector reason propagated by with_rest; got: {err_msg}"
+        );
+    }
+
+    // ─── Lines 161-167: ArrowMissing production site ──────────────────────────
+
+    /// `parse_fn_signature_prefix` must return `ArrowMissing` when `sig[1]` is
+    /// not the bare symbol `->`. The existing stone18a_errors.rs E03 exercises
+    /// this via `infer_fn`; this unit test exercises the prefix directly.
+    #[test]
+    fn prefix_missing_arrow_returns_arrow_missing() {
+        let sig: [WatAST; 3] = [
+            WatAST::Vector(vec![], span()),
+            WatAST::Keyword(":wat::core::nil".into(), span()), // not "->"
+            WatAST::Keyword(":wat::core::nil".into(), span()),
+        ];
+        let err = parse_fn_signature(&sig).unwrap_err();
+        let msg = format!("{:?}", err);
+        assert!(
+            msg.contains("expected `->` between"),
+            "expected ArrowMissing reason in error; got: {msg}"
+        );
+    }
+}

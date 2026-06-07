@@ -7,3 +7,10 @@ Cargo.lock
 # Ephemeral arc/stone cascade tooling (build → use → delete). Repo-local scratch
 # pad — the sandbox firewall denies /tmp/. See docs/DUNGEON-CRAWL.md § cascade.
 /tools/
+
+# Coverage artifacts (arc 252 gate). LLVM_PROFILE_FILE emits *.profraw; an
+# instrumented build that lingers makes plain `cargo test` drop default_*.profraw
+# in CWD. The lcov is regenerated each gate run. Never commit either.
+*.profraw
+coverage.lcov
+/coverage.lcov

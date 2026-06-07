@@ -166,3 +166,64 @@ pub(crate) fn infer_fn(
         CheckResult::partial_with(ty, errors)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scope::Identifier;
+    use crate::span::Span;
+    use crate::types::TypeEnv;
+
+    fn make_env_fresh_subst() -> (TypeEnv, InferCtx, Subst) {
+        (TypeEnv::default(), InferCtx::default(), HashMap::new())
+    }
+
+    // ─── Line 109: infer_fn with fewer than 3 args after metadata peel ─────────
+
+    /// When `sig_args.len() < 3` (line 109), `infer_fn` silently returns a
+    /// fresh type variable rather than producing a diagnostic — the malformed fn
+    /// form is ill-shaped in a way that an earlier pass should have caught.
+    /// Asserts the result is `ok` (no errors) with a `Var(_)` placeholder.
+    #[test]
+    fn infer_fn_fewer_than_3_args_returns_fresh_placeholder() {
+        let (types, mut fresh, mut subst) = make_env_fresh_subst();
+        let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        // Only 1 element — too few to be a valid fn-form signature.
+        let args = &[WatAST::Keyword(":wat::core::nil".into(), Span::unknown())];
+        let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
+        assert!(result.is_ok(), "expected ok result for < 3 args; got errors: {:?}", result.errors());
+        assert!(
+            matches!(result.value(), Some(TypeExpr::Var(_))),
+            "expected Var placeholder for < 3 args; got: {:?}",
+            result.value()
+        );
+    }
+
+    // ─── Lines 57 + 119: SilentReject path in parse_fn_signature_for_check_diag ─
+
+    /// When `sig[0]` is not a `WatAST::Vector`, `parse_fn_signature_for_check_diag`
+    /// returns `SigParse::SilentReject` (line 57), which causes `infer_fn` to
+    /// silently return a fresh placeholder (line 119). This path is intentionally
+    /// silent — the non-fn-shaped form is handled by other checker arms.
+    #[test]
+    fn infer_fn_non_vector_args_returns_silent_placeholder() {
+        let (types, mut fresh, mut subst) = make_env_fresh_subst();
+        let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let span = Span::unknown();
+        // sig[0] is a Keyword, not a Vector → ArgsVecNotVector → SilentReject.
+        let args = &[
+            WatAST::Keyword(":not-a-vec".into(), span.clone()),
+            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(":wat::core::nil".into(), span.clone()),
+        ];
+        let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
+        assert!(result.is_ok(), "expected ok (silent) result; got errors: {:?}", result.errors());
+        assert!(
+            matches!(result.value(), Some(TypeExpr::Var(_))),
+            "expected Var placeholder for SilentReject; got: {:?}",
+            result.value()
+        );
+    }
+}

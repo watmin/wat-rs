@@ -85,6 +85,10 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         WatAST::List(items, span) => (items, span),
         // All four call sites guard with `is_defmacro_form`, which requires WatAST::List.
         // If this arm fires, the caller violated the contract.
+        // rune:coverage(unreachable) — `is_defmacro_form` requires `WatAST::List`; all four
+        // callers (`register_defmacros`, `register_stdlib_defmacros` × 2) gate on it before
+        // dispatch. A non-List reaching here means the caller violated the contract — the
+        // panic IS the proof of the invariant.
         _ => unreachable!("parse_defmacro_form: all call sites guard with is_defmacro_form (List required)"),
     };
 

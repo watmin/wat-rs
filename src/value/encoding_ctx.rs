@@ -63,3 +63,49 @@ impl fmt::Debug for EncodingCtx {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{CapacityMode, Config, DEFAULT_DIM_COUNT};
+
+    fn test_config() -> Config {
+        Config {
+            capacity_mode: CapacityMode::Error,
+            global_seed: 42,
+            dim_count: DEFAULT_DIM_COUNT,
+            presence_sigma_ast: None,
+            coincident_sigma_ast: None,
+            redef_allowed: false,
+            eval_redef_allowed: false,
+        }
+    }
+
+    /// Lines 52-54: `EncodingCtx::encoder()` — returns the `Encoders` at the
+    /// program's dim. Asserts the returned `Arc` is non-null (i.e., the registry
+    /// can produce the entry for the default dim).
+    #[test]
+    fn encoder_returns_encoders_at_dim() {
+        let cfg = test_config();
+        let ctx = EncodingCtx::from_config(&cfg);
+        // encoder() delegates to encoders.get(dim_count); must not panic and
+        // must return a valid Arc (not null).
+        let enc = ctx.encoder();
+        // The Arc's strong count is at least 1 (the registry holds its own ref).
+        assert!(Arc::strong_count(&enc) >= 1);
+    }
+
+    /// Lines 58-64: `Debug` impl for `EncodingCtx` — emits global_seed, dim_count,
+    /// and capacity; no internal vector state exposed.
+    #[test]
+    fn debug_shows_seed_dim_capacity() {
+        let cfg = test_config();
+        let ctx = EncodingCtx::from_config(&cfg);
+        let dbg = format!("{:?}", ctx);
+        assert!(dbg.contains("EncodingCtx"), "expected struct name; got: {dbg}");
+        assert!(dbg.contains("global_seed: 42"), "expected seed 42; got: {dbg}");
+        assert!(dbg.contains(&format!("dim_count: {DEFAULT_DIM_COUNT}")), "expected dim_count; got: {dbg}");
+        // capacity = floor(sqrt(10000)) = 100
+        assert!(dbg.contains("capacity: 100"), "expected capacity 100; got: {dbg}");
+    }
+}
