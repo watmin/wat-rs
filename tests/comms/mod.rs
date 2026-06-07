@@ -25,7 +25,22 @@
 //! WITH that design; the cost is one Cargo.toml line per module group.
 
 // BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
+mod bootstrap_wat_vm_process;
+mod close_range_authoritative;
+mod counter_actor_process_diag;
 mod foundation;
+mod lifeline_orphan_clean_via_fork_program;
+mod lifeline_orphan_clean_via_substrate;
+mod lifeline_pipe_proof;
+mod pdeathsig_diagnostic;
+mod pdeathsig_kills_orphan_child;
+mod pidfd_primitive;
 mod process;
+mod sender_receiver_from_pipe;
+mod shutdown_cascade_crossbeam;
+mod shutdown_cascade_pipefd;
+mod spawn_process_parent_type;
+mod spawn_process_stdin;
+mod spawn_process_stdio;
 mod thread;
 // END GENERATED MODS
