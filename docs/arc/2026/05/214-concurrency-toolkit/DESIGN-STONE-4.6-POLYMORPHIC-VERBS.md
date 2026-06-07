@@ -1,123 +1,83 @@
-# Stone 214.4.6 — polymorphic peer verbs (`send'` / `recv'` / `try-recv'` / `close'` / `select'`)
+# Stone 214.4.6 — peer verbs (`send'` / `recv'` / `try-recv'` / `close'` / `select'`)
 
 > The peer types (4.4) and the spawn dispatcher (4.5) exist; peers are
 > `Value::RustOpaque(":wat::kernel::Thread'")` / `(":wat::kernel::Process'")`.
-> 4.6 gives wat code the verbs to drive them. After 4.6, Slice 5 migrates the
-> old `:wat::kernel::send`/`recv`/`select`/`close` callers onto these primes and
+> 4.6 gives wat code the verbs to drive them. After 4.6, Slice 5 migrates the old
+> `:wat::kernel::send`/`recv`/`select`/`close` callers onto these primes and
 > Slice 6 retires `typed_channel`.
 
-## The dispatch mechanism — DECIDED: defclause (the blessed recipe, NOT a hand-rolled match, NOT multimethod)
+## The dispatch mechanism — DECIDED BY THE RUBRIC (`docs/DISPATCH.md`), not by gut
 
-This is precisely what defclause is FOR. Grounded against the live template
-(`wat/core.wat:58`, the `:wat::core::+` defclause from 237.8b):
+`docs/DISPATCH.md` is the substrate's objective partition: clause vs intrinsic is
+decided by a *checkable property of the op's type*, not preference. Two earlier
+drafts of this stone got it wrong by gut — a hand-rolled `type_path` match
+(reinventing the clause matcher), then "all defclause." The rubric overrules
+both. Running each verb through the decision procedure (projective? relational? else clause):
 
-```
-(:wat::core::defclause :wat::core::+
-  [x <- :wat::core::i64  y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))
-  [x <- :wat::core::f64  y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::+ x y))
-```
+| Verb | Type | Verdict | Why (per DISPATCH.md) |
+|---|---|---|---|
+| `recv'` | `peer<O> -> O` | **intrinsic — projective** | return is a function of the peer's element type param `O` (same shape as `get : Vector<T> -> Option<T>`) |
+| `send'` | `peer<I>, I -> nil` | **intrinsic — projective** | `I` flows from the peer's type param into another argument |
+| `try-recv'` | `peer<O> -> Option<O>` | **intrinsic — projective** | return is a function of `O` |
+| `close'` | `peer -> nil` (thread) / `ExitStatus` (process) | **clause** | concrete peer types; per-clause concrete return; NO type-var flow (`I`/`O` flow nowhere) |
 
-A polymorphic wat **defclause** whose per-concrete-type clauses route to per-type
-Rust **primitives** (`:i64::+` / `:f64::+`, keyword-head builtins at
-`runtime.rs:3450/8046`). The clause MATCHER dispatches via `assignable`
-per-position on the concrete arg type (`check.rs ~5281`). No hand-rolled match.
+**This is the SAME treatment the verbs they replace already have:** the old
+`:wat::kernel::send`/`recv`/`try-recv` are custom-inference intrinsics in
+`check.rs` (`validate_comm_positions` + contextual typing; the projective element
+type flows from the typed channel). The peer verbs inherit that, dispatching to
+comms peers instead of `typed_channel` — consistent with Slice 5 ("typed_send/recv
+become shims").
 
-The peer verbs are the SAME shape — monomorphic per concrete peer type
-(`project_dispatch_clause_vs_intrinsic`: clause = monomorphic; `send'`/`recv'`/
-`try-recv'`/`close'` have invariant returns and no type-var flow → CLAUSE):
+**The payload-any question dissolves.** Because the peers are **parametric**
+(`Thread'<I,O>` / `Process'<I,O>`), the element type *flows* — that is precisely
+what "projective ⇒ intrinsic" means. No universal "any value" type needs minting;
+the intrinsic's `infer_<op>` projects `I`/`O` out of the peer type and flows them
+into the payload arg / return. (My earlier "mint an Any type" open was an artifact
+of the wrong all-defclause framing.)
 
-```
-(:wat::core::defclause :wat::kernel::send'
-  [p <- :wat::kernel::Thread'   v <- <payload-ty>] -> :wat::core::nil (:wat::kernel::Thread'/send  p v))
-  [p <- :wat::kernel::Process'  v <- <payload-ty>] -> :wat::core::nil (:wat::kernel::Process'/send p v))
-```
+## What 4.6a builds
 
-Why this and not my first draft: a "2-arm `type_path` match inside the eval fn"
-REINVENTS the clause matcher by hand — the scattered string-matching the
-substrate (and arc 255) exists to abolish. typed_channel.rs:33 rightly calls
-*multimethod* over-engineered here; the answer between "hand-match" and
-"multimethod" is **defclause** — lighter than multimethod, declarative (not
-hand-rolled), already the stdlib's own arithmetic mechanism. **Four questions:**
-Obvious ✅ (reads like `:wat::core::+`) · Simple ✅ (reuses the existing
-entity-kind; zero new dispatch machinery) · Honest ✅ (the substrate's blessed
-mechanism, marked at `wat/core.wat`; dig-before-assert) · Good UX ✅. The
-breadcrumb's "multimethod" shorthand and my "hand-match" draft are BOTH
-superseded by defclause.
-
-## Two load-bearing prerequisites the defclause shape demands
-
-1. **Peer `RustOpaque` must report its specific type as `declared_type_name`.**
-   Today `type` of any `RustOpaque` → `:rust::opaque` (`runtime.rs:5220`). For the
-   clause matcher's `assignable` to pick the `Thread'` vs `Process'` clause, a
-   peer value must report `:wat::kernel::Thread'` / `:wat::kernel::Process'` as
-   its declared type (route `declared_type_name` through the `RustOpaque.type_path`
-   for these). This is THE bridge that lets defclause dispatch over opaque peers.
-2. **Wat-level type registration of `:wat::kernel::Thread'` / `Process'`** (4.4
-   deferred it to here, peer.rs:33-37) — now load-bearing: the clause param types
-   must name registered types.
-
-## The load-bearing asymmetry — the Value↔EDN bridge
-
-The two peers carry DIFFERENT wire types (from 4.5, grounded):
-- **Thread′** = `ThreadOwnedCell<Thread<Value, Value>>` — sends/recvs `Value`
-  **directly** (in-process Arc sharing; no serialization).
-- **Process′** = `ThreadOwnedCell<ProcessPeerBundle{Process<String,String>}>` —
-  wire is **EDN String**: `send'` must encode `Value → EDN String`
-  (`value_to_edn` + `wat_edn::write`); `recv'`/`try-recv'` must decode
-  `EDN String → Value` (`read_edn`). The `HolonRepresentable for Value` impl in
-  `spawn.rs` already defines this encoding.
-
-So each verb's two arms are NOT symmetric: thread arm is a pass-through; process
-arm wraps the call in encode/decode. This asymmetry is the real content of 4.6
-(the dispatch is trivial; the bridge is the work).
+- **Parametric peer types** `:wat::kernel::Thread'<I,O>` / `:wat::kernel::Process'<I,O>`
+  registered as wat types (4.4 deferred this to here, peer.rs:33-37). The peer's
+  element types are carried at the wat level so the intrinsics can project them.
+  `declared_type_name` for a peer `RustOpaque` must report its specific parametric
+  type (not the generic `:rust::opaque`, runtime.rs:5220) so inference + the
+  `close'` clause matcher see the real peer type.
+- **`recv'` / `send'` / `try-recv'` — intrinsics.** Add `infer_<op>` (check-side,
+  projective over `peer<I,O>`) + `eval_<op>` (runtime). The eval downcasts on the
+  `RustOpaque.type_path` to the concrete peer and bridges: Thread tier passes
+  `Value` through; Process tier encodes/decodes `Value↔EDN` via the `spawn.rs`
+  `HolonRepresentable for Value` impl. (The Rust-side `match type_path` in `eval`
+  is fine — the rubric governs the *type-check* mechanism, not the eval impl;
+  intrinsics are custom Rust by definition.) Mark the partition in-code at the
+  `infer_list` / `dispatch_keyword_head` arms per DISPATCH.md § "Where it's declared."
+- **`close'` — defclause.** A `Thread'` clause and a `Process'` clause routing to
+  per-peer close primitives (thread: `close()`→join; process: `close()`→wait).
+  Concrete peer types, no type-var flow → clause, per the rubric.
 
 ## Proactive split
 
-- **4.6a — the four uniform verbs as defclauses over per-peer primitives.**
-  - **Leaves (Rust keyword-head primitives, the per-type impls — mirror `:i64::+`):**
-    `:wat::kernel::Thread'/send|recv|try-recv|close` (downcast `Thread<Value,Value>`,
-    call the 4.4 method, Value pass-through) and
-    `:wat::kernel::Process'/send|recv|try-recv|close` (downcast `ProcessPeerBundle`,
-    bridge Value↔EDN via the `spawn.rs` `HolonRepresentable for Value` impl). 8 primitives.
-  - **Polymorphic surface (wat defclauses in `wat/kernel.wat` or sibling):** `send'`,
-    `recv'`, `try-recv'`, `close'`, each with a `Thread'` clause and a `Process'`
-    clause routing to the matching leaf. The clause matcher does the dispatch.
-  - Ships a complete, useful peer surface, built the same way as stdlib arithmetic.
-- **4.6b — `select'`.** Heterogeneous multiplex over N peers (return the first
-  ready + its value). Harder: thread peers use crossbeam select; process peers
-  use the io_uring `comms::process::Select` (POLL_ADD+POLLHUP). Mixed thread+
-  process selection is the genuinely new design — give it its own stone on the
-  settled 4.6a foundation. (Stepping-stone test: YES — 4.6a's downcast+bridge
-  helpers are exactly what 4.6b reuses; building them first shrinks 4.6b.)
+- **4.6a** — the four verbs above (3 intrinsic + `close'` clause) over the
+  parametric peer types. Ships a complete, useful peer surface.
+- **4.6b — `select'`.** Heterogeneous multiplex over N peers → first ready + its
+  value. Thread peers use crossbeam select; process peers use io_uring
+  `comms::process::Select` (POLL_ADD+POLLHUP). Its own stone on the 4.6a
+  foundation (stepping-stone: 4.6a's downcast + EDN-bridge helpers are what 4.6b
+  reuses). `select'`'s own clause-vs-intrinsic classification runs through
+  DISPATCH.md at 4.6b design time (it is projective over a heterogeneous peer set
+  → almost certainly intrinsic; confirm then).
 
-## Open detail — the payload param type (resolve at strike)
+## `close'` consume semantics (resolve at strike)
 
-The clause param types are concrete (`:wat::core::i64` in the arithmetic template).
-The PEER arg (`p`) is concrete (`Thread'`/`Process'`) and carries the dispatch.
-The PAYLOAD arg (`v`) on `send'` must accept ANY wat value. wat has no top-level
-∀-generics (`project_dispatch_clause_vs_intrinsic`), so `v <- :T` is not a free
-var. Resolve at strike: dispatch on `p` only and give `v` the substrate's
-universal/any payload type (grep for an existing "any" type or the payload type
-the legacy `:wat::kernel::send` declares), OR confirm the clause matcher accepts a
-permissive payload position. This is the one genuinely-open shape question; the
-dispatch mechanism (defclause) is settled. (Type registration of
-`:wat::kernel::Thread'`/`Process'` is prereq #2 above — load-bearing for the
-clause param types, not a separate step.)
+`close()`/`wait()` take `self` (consume), but 4.5 wraps peers in ref-only
+`Arc<ThreadOwnedCell<…>>`. `custodia.rs` has `OwnedMoveCell::take(op, span)`
+(atomic move-once). Either represent peers in an `OwnedMoveCell` so `close'` takes
+once, or add a `&self` shutdown (drop endpoints → EOF) + separate wait. Grounded
+decision at strike against `custodia.rs`; small, downstream of the dispatch shape.
 
 ## Cadence
 
-4.6a: sub-DESIGN (this) → FM-2-bis probe (a wat-level thread-peer round-trip via
-`send'`/`recv'`/`close'`, RED at HEAD — the verbs don't exist) + a process-peer
-round-trip probe (integration, `--test-threads=1`) → BRIEF + EXPECTATIONS →
-spawn sonnet → SCORE vs own re-run → commit + push. Then 4.6b (`select'`).
-
-## Ownership / consume semantics note
-
-`close'` CONSUMES the peer (thread: `close()`→join; process: `close()`→wait,
-both take `self`). But the peer is held behind `Arc<ThreadOwnedCell<…>>` inside a
-`Value::RustOpaque` — `with_ref` gives `&T`, not owned `T`. `close'` therefore
-needs an owning path (e.g. `with_owned`/take, or an interior `Option<T>` the cell
-can move out of once). Resolve in 4.6a's strike: confirm the `ThreadOwnedCell`
-API for a move-out-once, or model close via a `&self` shutdown that drops the
-endpoints without consuming (sending EOF) + a separate wait. Grounded decision at
-strike time against `custodia.rs`.
+4.6a: this DESIGN → FM-2-bis probe (wat-level thread-peer round-trip via
+`send'`/`recv'`/`close'`, RED at HEAD; + process-peer round-trip integration probe,
+`--test-threads=1`) → BRIEF + EXPECTATIONS → spawn sonnet → SCORE vs own re-run
+→ commit + push. Then 4.6b (`select'`).
