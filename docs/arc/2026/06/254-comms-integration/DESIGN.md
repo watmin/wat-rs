@@ -25,6 +25,20 @@ We forked OUT of arc 214 at the kernel layer (Slice 4 shipped only program-env 4
 
 **THE UNWIND (spawn-block-winding — close depth-first, inscribe each; do NOT leave an open door like 214 was):** three open arcs — **214** (never inscribed), **253** (instance 1 done, instance 2 = the leak, OPEN), **254** (opened from the 253 hunt, = 214 Slice 5) — are ONE convergent body of work. Building 214 forward unwinds the stack: 253 instance-2 (the leak) dies in Slice 4 (RAII peer fds) + Slice 8 (no handle-passing) → **INSCRIBE 253**; 254 = Slice 5, its record folds into 214; Slice 9 → **INSCRIBE 214**. Each arc gets an honest closure as it completes. The failure we are correcting — 214 left warded-but-unwired and un-inscribed, reading as "done" — must not recur; no forgotten doors.
 
+### The ignore-gate — arc-170 close DoD (drive `#[ignore]` → 1 blessed) [= task #183]
+
+**Endstate: exactly ONE `#[ignore]`** — the wat-ignore-mechanism meta-test (it must be ignored to prove an ignored test is skipped; self-referential). The desired count *before* arc 170 was 1; everything beyond it is arc-170-era debt: the ~75 leaks/hangs (triage in flight, sonnet `aba15d78`), BareLegacyMainSignature walker-disconnect (×2, a real fix), readln `-> :T` migration (×3, mechanical), stale closed-arc disconfirming probes (un-ignore now), ~25 bare/uncounted. All → fix/un-ignore → 0.
+
+**The blessing is structural (identity, not a count).** The one tolerable `#[ignore]` carries an **EDN-tagged reason**:
+```
+#[ignore = "#wat.gate/blessed-ignore {:proves :wat-specified-ignore-mechanism :why \"...\"}"]
+```
+An `#[ignore]` is tolerable **iff its reason parses as a valid `#wat.gate/blessed-ignore` EDN value**, and exactly one exists. Deny-by-default; identity by *parsed shape*, not magic-string match (a typo'd/forged blessing fails to parse → red). It is an `excusare(perennial)` override rendered as **data**.
+
+**The gate** (a green-gate check; eventually a **wat program** reading each reason via wat's own `read-edn` — the management-scripts-to-wat benchmark on a real gate): assert `count(#[ignore]) == count(valid blessed-EDN) == 1`; any unblessed `#[ignore]` or a 2nd blessing → red build. Drift made un-expressible (extirpare top rung for a parse-gateable token).
+
+**DoD:** `#[ignore]` reduced to the single blessed EDN ignore + the gate enforcing = the structural close of arc-170's ignore debt (and arc-253-inst-2, to the extent the process tests pass). Build the gate once the count is at 1.
+
 > The builder's framing: *"the thing was being able to serve values to callers — they don't care if it's a thread channel, a process pipe or a network socket."* That requirement is the governing law of this arc.
 
 ## Provenance — why this exists
