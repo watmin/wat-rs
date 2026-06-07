@@ -95,6 +95,7 @@ pub mod process_stdio;
 pub mod panic_hook;
 pub mod source;
 pub mod span;
+pub mod services;
 pub mod special_forms;
 pub(crate) mod stdlib;
 pub mod string_ops;
@@ -102,7 +103,7 @@ pub mod test_runner;
 pub mod thread_io;
 pub use thread_io::{
     install_thread_io, uninstall_thread_io,
-    StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
+    StdInServiceEvent, StdErrServiceEvent,
     ThreadId, ThreadIO,
 };
 pub mod time;

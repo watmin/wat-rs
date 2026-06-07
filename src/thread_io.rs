@@ -40,151 +40,19 @@ use crate::typed_channel::{
 /// runtime orchestrator.
 pub type ThreadId = i64;
 
-/// Arc 214 Stone 8.1 — Rust-internal input enum for the universe-resident
-/// StdOutService peer. NEVER a wat message; the Rust service loop owns it.
-///
-/// - `Req(value)` carries a `Value::Struct` of `:wat::kernel::services::
-///   StdOutService::Req {thread-id, line}`. The loop applies the wat handle
-///   fn and routes the Rep ack back via the reply registry.
-/// - `Register(tid, reply_tx)` inserts a per-thread reply sender so the loop
-///   can route the ack back to the calling thread's `stdout_reply_rx`.
-/// - `Deregister(tid)` removes the reply sender (thread reap).
-#[derive(Debug)]
-pub enum StdOutInput {
-    Req(Value),
-    Register(ThreadId, crate::comms::thread::Sender<Result<(), String>>),
-    Deregister(ThreadId),
-}
+// Arc 214 Stone 8.1w — the universe-resident service machinery LIFTED to the
+// warded home `src/services/` (builder directive: perfected forms do not live
+// in a condemned quarry). Zero-churn re-export keeps every caller green; this
+// file holds ONLY condemned old-stack material for Slice 6's deletion.
+pub use crate::services::{spawn_stdio_service_peer, StdOutInput, StdioServicePeer};
 
-/// Arc 214 Stone 8.1 — handle returned from `spawn_stdio_service_peer`.
-/// Caller (freeze.rs) sends Req/Register/Deregister messages on `input_tx`
-/// and can join the service thread for clean teardown.
-pub struct StdioServicePeer {
-    pub input_tx: crate::comms::thread::Sender<StdOutInput>,
-    pub join: std::thread::JoinHandle<()>,
-}
+// Arc 214 Stone 8.1w — `StdOutServiceEvent` PURGED (purgare): the universe-
+// resident peer made it dead (zero live consumers — its last references were
+// a re-export and a stale comment). `StdErrServiceEvent`/`StdInServiceEvent`
+// below are its surviving siblings; each dies when its service converts
+// (8.1b / 8.2), at which point this whole file reaches zero lines and is rm'd.
 
-/// Arc 214 Stone 8.1 — spawn the universe-resident StdOutService loop.
-///
-/// Looks up `:wat::kernel::services::StdOutService/handle` in `sym`, clones
-/// sym for the service thread, and spawns a Rust loop that:
-///   1. Receives `StdOutInput` messages on `input_rx`.
-///   2. For `Req(v)`: applies the wat handle fn with `[v, writer.clone()]`,
-///      extracts the `thread-id` from the Rep, routes a `()` ack to the
-///      matching reply sender in the registry.
-///   3. For `Register(tid, reply_tx)`: inserts into the reply registry.
-///   4. For `Deregister(tid)`: removes from the registry.
-///   5. Exits when `input_rx` disconnects (all `input_tx` senders dropped).
-///
-/// STOP-2: if applying the 2-arg handle or building the Req value fails at
-/// runtime the loop logs and continues (ack is skipped for that Req — the
-/// caller's println times out). Should not happen in production.
-pub fn spawn_stdio_service_peer(
-    handle_fn: Arc<crate::runtime::Function>,
-    writer: Value,
-    sym: crate::runtime::SymbolTable,
-) -> StdioServicePeer {
-    let (input_tx, input_rx) = crate::comms::thread::pair::<StdOutInput>();
-    let join = std::thread::Builder::new()
-        .name("wat-stdout-service-peer".to_string())
-        .spawn(move || {
-            let mut reply_registry: std::collections::HashMap<
-                ThreadId,
-                crate::comms::thread::Sender<Result<(), String>>,
-            > = std::collections::HashMap::new();
-            loop {
-                let msg = match input_rx.recv() {
-                    Ok(m) => m,
-                    Err(_) => break, // all input_tx senders dropped → shutdown
-                };
-                match msg {
-                    StdOutInput::Register(tid, reply_tx) => {
-                        reply_registry.insert(tid, reply_tx);
-                    }
-                    StdOutInput::Deregister(tid) => {
-                        reply_registry.remove(&tid);
-                    }
-                    StdOutInput::Req(req_value) => {
-                        // Extract thread-id from the Req struct (field 0).
-                        let thread_id: ThreadId = match &req_value {
-                            Value::Struct(sv) if sv.fields.len() >= 1 => {
-                                match &sv.fields[0] {
-                                    Value::i64(n) => *n,
-                                    _ => {
-                                        eprintln!(
-                                            "[wat substrate] stdout-peer: Req field[0] is not i64"
-                                        );
-                                        continue;
-                                    }
-                                }
-                            }
-                            _ => {
-                                eprintln!(
-                                    "[wat substrate] stdout-peer: Req is not a Struct"
-                                );
-                                continue;
-                            }
-                        };
-                        // Apply the wat handle fn: handle(req, writer).
-                        let result = crate::runtime::apply_function(
-                            Arc::clone(&handle_fn),
-                            vec![req_value, writer.clone()],
-                            &sym,
-                            crate::rust_caller_span!(),
-                        );
-                        match result {
-                            Ok(_rep) => {
-                                // Route ack to the requesting thread.
-                                if let Some(reply_tx) = reply_registry.get(&thread_id) {
-                                    let _ = reply_tx.send(Ok(()));
-                                }
-                            }
-                            Err(e) => {
-                                // ZERO-MUTEX mini-TCP: EVERY Req gets a reply —
-                                // a caller blocked in println must NEVER hang on a
-                                // failed write. Route the error; println surfaces it
-                                // as a RuntimeError (the ack means write-COMPLETED;
-                                // acking a failure would be a lie, so the reply
-                                // carries Result).
-                                eprintln!(
-                                    "[wat substrate] stdout-peer: handle failed: {}",
-                                    e
-                                );
-                                if let Some(reply_tx) = reply_registry.get(&thread_id) {
-                                    let _ = reply_tx.send(Err(format!("{}", e)));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })
-        .expect("std::thread::spawn for stdout service peer");
-    StdioServicePeer { input_tx, join }
-}
-
-/// Arc 214 Stone 8.1 — kept for stderr/stdin architecture (old path).
-/// Sent on the stdout tx; consumed by the wat-side StdOutService.
-/// RETIRED for stdout in Stone 8.1 but kept because stdin/stderr still use
-/// the old architecture. The Write / Add / Remove variants for stderr are
-/// `StdErrServiceEvent` below; this type is now DEAD for stdout.
-#[derive(Debug, Clone)]
-pub enum StdOutServiceEvent {
-    /// Caller's println rendered an EDN line; service writes
-    /// it to fd 1 and acks.
-    Write { line: String },
-    /// Runtime registers a thread; service stores
-    /// `(thread_id → (data_rx, ack_tx))` in its routing table.
-    Add {
-        thread_id: ThreadId,
-        data_rx: Receiver<StdOutServiceEvent>,
-        ack_tx: Sender<()>,
-    },
-    /// Runtime reaps a thread; service drops the routing entry.
-    Remove { thread_id: ThreadId },
-}
-
-/// Mirror of [`StdOutServiceEvent`] for fd 2.
+/// Old-path event enum for fd 2 (dies at 8.1b).
 #[derive(Debug, Clone)]
 pub enum StdErrServiceEvent {
     Write { line: String },
