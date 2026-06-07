@@ -1787,3 +1787,86 @@ where
         LifelineWriter { fd: lifeline_w },
     ))
 }
+
+/// Like [`spawn_lifelined`] but without the `UnwindSafe` bound on
+/// `child_body`. Callers use this when the child closure captures
+/// `!UnwindSafe` types (e.g. `Arc<Function>`, `comms::process::Receiver<T>`)
+/// AND the child is guaranteed to call `libc::_exit` on every code path —
+/// never returning to the Rust stack unwinding machinery.
+///
+/// The `UnwindSafe` contract (no aliased mutable refs across a panic
+/// boundary) is satisfied here because `_exit` terminates the child
+/// process before any panic-unwinding can observe aliased state.
+///
+/// `AssertUnwindSafe<F>: FnOnce(i32)` is not stable on all Rust versions,
+/// so this function is a full clone of `spawn_lifelined` with the bound
+/// removed and the `catch_unwind` call wrapped in `AssertUnwindSafe` at the
+/// call site (inside the child branch) rather than at the type level.
+pub(crate) fn spawn_lifelined_any<F>(child_body: F) -> std::io::Result<(Pidfd, LifelineWriter)>
+where
+    F: FnOnce(i32),
+{
+    // Mirror of spawn_lifelined — see that function's inline comments for
+    // the full rationale. The only difference: `child_body` is wrapped in
+    // `AssertUnwindSafe` at the catch_unwind call site so the compiler
+    // accepts the `!UnwindSafe` closure type.
+    let (lifeline_r, lifeline_w) =
+        make_pipe(":wat::fork::spawn_lifelined_any").map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e))
+        })?;
+    let lifeline_r_raw = lifeline_r.as_raw_fd();
+    let lifeline_w_raw = lifeline_w.as_raw_fd();
+
+    let mut pidfd_raw: libc::c_int = -1;
+    let mut args = CloneArgs {
+        flags: CLONE_PIDFD_FLAG | CLONE_CLEAR_SIGHAND_FLAG,
+        pidfd: &mut pidfd_raw as *mut libc::c_int as u64,
+        child_tid: 0,
+        parent_tid: 0,
+        exit_signal: libc::SIGCHLD as u64,
+        stack: 0,
+        stack_size: 0,
+        tls: 0,
+        set_tid: 0,
+        set_tid_size: 0,
+        cgroup: 0,
+    };
+
+    let pid = unsafe {
+        libc::syscall(
+            libc::SYS_clone3,
+            &mut args as *mut CloneArgs,
+            std::mem::size_of::<CloneArgs>(),
+        )
+    };
+
+    if pid < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    if pid == 0 {
+        // ── CHILD BRANCH ──────────────────────────────────────────────
+        unsafe { libc::setpgid(0, 0) };
+        unsafe { libc::close(lifeline_w_raw) };
+
+        // AssertUnwindSafe: the child calls _exit on every code path.
+        let outcome =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| child_body(lifeline_r_raw)));
+        match outcome {
+            Ok(()) => unsafe { libc::_exit(0) },
+            Err(_) => unsafe { libc::_exit(1) },
+        }
+    }
+
+    // ── PARENT BRANCH ─────────────────────────────────────────────────
+    drop(lifeline_r);
+    let pidfd_owned = unsafe { OwnedFd::from_raw_fd(pidfd_raw) };
+
+    Ok((
+        Pidfd {
+            fd: pidfd_owned,
+            pid: pid as libc::pid_t,
+        },
+        LifelineWriter { fd: lifeline_w },
+    ))
+}

@@ -29,3 +29,4 @@
 //! "Slice 4 — Kernel layer" for the full rationale.
 
 pub mod peer;
+pub mod spawn;

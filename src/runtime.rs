@@ -4113,6 +4113,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-process" => {
             crate::spawn_process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
         }
+        // Arc 214 Slice 4 Stone 4.5 — unified spawn dispatcher.
+        // Dispatches on :tier keyword to produce a typed kernel peer
+        // (Thread' or Process') as Value::RustOpaque.  Stone 4.6 will
+        // add polymorphic send'/recv'/close' verbs over these peers.
+        ":wat::kernel::spawn-program'" => {
+            crate::kernel::spawn::eval_kernel_spawn_program_prime(args, list_span, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The runtime fn in src/fork.rs is left
