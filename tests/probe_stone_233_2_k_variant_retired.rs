@@ -83,13 +83,15 @@ fn probe_1_zero_active_value_tracked_references_in_src() {
 
 #[test]
 fn probe_2_value_enum_has_no_tracked_variant() {
-    let runtime_rs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runtime.rs");
-    let contents = fs::read_to_string(&runtime_rs).expect("read src/runtime.rs");
+    // Value enum lifted out of the runtime.rs monolith into src/value/value.rs
+    // (arc 251.2 — the value/ keystone home).
+    let value_rs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/value/value.rs");
+    let contents = fs::read_to_string(&value_rs).expect("read src/value/value.rs");
 
     // Locate `pub enum Value {` and scan forward to matching `}` at column 0.
     let enum_start = contents
         .find("pub enum Value {")
-        .expect("pub enum Value should exist in runtime.rs");
+        .expect("pub enum Value should exist in src/value/value.rs");
 
     // Take a generous region (~3000 chars covers the enum body).
     let enum_region = &contents[enum_start..enum_start + 3000.min(contents.len() - enum_start)];

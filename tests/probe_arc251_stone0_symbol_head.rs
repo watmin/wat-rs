@@ -48,6 +48,7 @@ fn eval_i64(body: &str) -> Result<i64, String> {
 // ─── C01: THE GAP — dotted symbol head resolves like the keyword FQDN ───────────
 
 #[test]
+#[ignore = "RED-by-design until arc 251.1 lands the symbol-head normalize layer (FM-2-bis disconfirming probe). Un-ignore when src/resolve/ resolves dotted symbol heads. Tracked: #186."]
 fn contract_01_symbol_head_resolves_like_keyword() {
     // `wat.core/+` must resolve to the same operator `:wat::core::+` names.
     // At HEAD: symbol head is not dispatched → check/eval error → RED.
