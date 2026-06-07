@@ -106,6 +106,8 @@ mod probe_arc249_4_rehome_in_wat;
 mod probe_arc249_macro_engine;
 mod probe_arc249_threading;
 mod probe_arc249_threading_in_wat;
+mod probe_arc254_channel_payload_portable;
+mod probe_arc254_process_ownership;
 mod probe_brace_map_literal;
 mod probe_channel_primitive;
 mod probe_collection_transform_ops;

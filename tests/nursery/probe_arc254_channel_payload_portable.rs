@@ -35,6 +35,19 @@ const CHANNEL_OF_SENDERS: &str = r#"
     nil))
 "#;
 
+// THE REAL GAP: a struct whose field is an opaque `Sender` is non-portable, but
+// its NAME (`:my::Capsule`) parses as a valid type keyword — so it sails past the
+// parse gate, and nothing checks the field's portability. This channel payload
+// must be rejected at check time (254.1), but type-checks CLEAN at HEAD.
+const CHANNEL_OF_STRUCT_WITH_SENDER: &str = r#"
+(:wat::core::defstruct :my::Capsule [snd <- :wat::kernel::Sender<wat::core::i64>])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [[tx rx] (:wat::kernel::make-bounded-channel :my::Capsule 1)
+                    d1 tx
+                    d2 rx]
+    nil))
+"#;
+
 // Control: an i64-payload channel is portable and MUST keep type-checking.
 const CHANNEL_OF_I64: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -59,6 +72,22 @@ fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
         msg.contains("not a valid type keyword"),
         "expected the existing type-keyword gate (not a portability check); got:\n{}",
         msg
+    );
+}
+
+// FM-2-bis DISCONFIRMING probe (RED at HEAD): the composite gap. At HEAD this
+// type-checks clean (gap open); after 254.1's is_portable_type gate it is
+// rejected. Run un-ignored to confirm RED, then keep #[ignore]'d (baseline green)
+// until 254.1 lands and un-ignores it.
+#[ignore = "RED at HEAD (composite portability gap open) — 254.1 adds the is_portable_type gate, then un-ignore"]
+#[test]
+fn channel_of_struct_with_opaque_field_must_be_rejected() {
+    let result = check_result(CHANNEL_OF_STRUCT_WITH_SENDER);
+    println!("=== STRUCT_WITH_SENDER check result ===\n{:?}\n=== end ===", result);
+    assert!(
+        result.is_err(),
+        "a struct-with-Sender-field channel payload type-checked CLEAN — the composite \
+         portability gap is open (this is the RED-at-HEAD disconfirming probe for 254.1)"
     );
 }
 
