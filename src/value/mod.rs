@@ -1,3 +1,25 @@
+//! vigilatum: 2026-06-07T01:16:28Z — value/ ward (arc 251.2), L1+L2=0, clippy-clean in-home.
+//!
+//! Spells cast: intueri · solvere · conformare · purgare · struere · perspicere · excusare ·
+//! exigere · circumspicere (perimeter, last). sequi + temperare declared converged-by-inspection
+//! (data-model home: no multi-step state-threading chains; a verbatim lift adds no new hot loops).
+//! Convergence by per-finding fix-verification + excusare rune-confirmation + orchestrator drift
+//! greps (caught 15 stale check.rs:NNNN citations + an incomplete de-deferral the casts walked past).
+//!
+//! Runes (all excusare-warranted): solvere(historical-shape)×2 — the extract_classifier back-arc +
+//! SpawnOutcome/ProgramHandleInner placement, transitional, resolving at the algebra/ + spawn/
+//! migration stones (SCOUT-LIFT-MAP); solvere(load-bearing-coupling) — Config on EncodingCtx (sole
+//! config-inheritance carrier into spawned sub-programs); purgare(future-fixture) — eval_redef_allowed
+//! write-only scaffolding.
+//!
+//! Findings closed: a real latent bug (render_value's List arm rendered UNBOUNDED — lifted from the
+//! monolith; now SHOW_MAX_LEN-guarded like every sibling arm); FrameGuard #[must_use]; deferral-prose
+//! driven out of runes + docs; stale line-citations made name-based; BindingMetadata alias minted.
+//! perspicere's 14 idiomatic 2-level wrappers weighed L3 (Arc<Vec<Value>>/Option<Arc<T>> ARE their
+//! definitions — an alias would obscure). Out-of-home conformare findings (thread_io/freeze) banked
+//! for the stdio/ + freeze/ wards; Duration(u64) type-enforcement banked (#188). Full record:
+//! docs/arc/2026/06/251-types-as-forms/SCORE-STONE-251.2-ward.md.
+//!
 //! The runtime value model — the data the interpreter computes with; grows as
 //! the migration lifts Value/Environment/SymbolTable/… here. This home is the
 //! first destination in the great migration out of the flat runtime.rs monolith

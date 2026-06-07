@@ -266,9 +266,13 @@ pub enum Value {
     /// expressed in nanoseconds. Distinct runtime variant from
     /// `Value::i64` so polymorphic `:wat::time::-` can dispatch on
     /// the second argument's tag (Instant - Duration → Instant vs
-    /// Instant - Instant → Duration, ActiveSupport-shaped). Always
-    /// non-negative — constructors panic on negative input;
-    /// arithmetic that would produce a negative duration panics.
+    /// Instant - Instant → Duration, ActiveSupport-shaped).
+    /// Non-negative by WAT-surface construction: `time.rs` constructors
+    /// panic on negative input and arithmetic panics on negative results.
+    /// NOTE: the `i64` storage does not itself enforce this; direct Rust
+    /// construction (`Value::Duration(-n)`) bypasses the guard and must
+    /// uphold non-negativity as a caller contract. (A future stone makes
+    /// this type-enforced via `u64`.)
     /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
     Duration(i64),
     /// Arc 207 — `:wat::core::Uuid`. Typed UUID primitive. Distinct
@@ -456,8 +460,10 @@ where
 /// then hash each element in order. This preserves the Hash invariant:
 /// `List(1,2,3) == Vector(1,2,3)` (EDN spec §282-289) → must hash equal.
 ///
-/// `SEQ_TAG = 0xA5` is arbitrary; distinct from any `std::mem::discriminant`
-/// value in practice (discriminants for C-like enums are 0..N for field position).
+/// `SEQ_TAG` distinguishes sequence-hash inputs from single-discriminant hashes;
+/// correctness rests on the full 64-bit hash output (collision ~1/2^64), not on
+/// integer-discriminant ranges (`Value` is data-carrying, so `std::mem::discriminant`
+/// hashes as an opaque `Discriminant<T>`, not a raw int).
 fn hash_sequence<'a, H, I>(items: I, state: &mut H)
 where
     H: std::hash::Hasher,
@@ -478,19 +484,22 @@ where
 /// use `Arc::ptr_eq` where identity is pointer-based (opaque handles, ML types, IO
 /// handles); the cross-variant arm returns `false`.
 ///
-/// ## Variant classification (per `is_atomizable` at `src/check.rs:3623`)
+/// ## Variant classification (per the `is_atomizable` predicate in `src/check.rs`)
 ///
 /// **Atomizable** (may appear as HashSet elements / HashMap keys):
 /// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `holon__HolonAST`,
-/// `wat__WatAST`, `wat__core__Uuid`, `Vec` (recursive), `wat__std__HashSet`
-/// (recursive), `wat__std__HashMap` (recursive).
+/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `wat__holon__Record`,
+/// `wat__Record`, `Unit` (`:wat::core::nil`), `Vec` (recursive),
+/// `wat__std__HashSet` (recursive), `wat__std__HashMap` (recursive),
+/// `Tuple` (iff all element types atomizable).
 ///
 /// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
-/// `u8`, `Unit`, `Tuple`, `Option`, `Result`, `Struct`, `Enum`, `Vector`
-/// (holon::Vector), `Instant`, `Duration`.
+/// `u8`, `Option`, `Result`, `Struct`, `Enum`, `Vector` (holon::Vector),
+/// `Instant`, `Duration`, `wat__core__List` (not in `is_atomizable`).
 ///
 /// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
-/// `wat__core__fn`, `wat__kernel__Sender`, `wat__kernel__Receiver`,
+/// `wat__core__fn`, `wat__core__clauses` (pointer-equality like fn),
+/// `wat__kernel__Sender`, `wat__kernel__Receiver`,
 /// `wat__kernel__ProgramHandle`, `wat__kernel__HandlePool`, `wat__kernel__ChildHandle`,
 /// `RustOpaque`, `io__IOReader`, `io__IOWriter`,
 /// `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
@@ -616,7 +625,7 @@ impl Eq for Value {}
 ///   hash the sorted list. Map semantics: {a→1, b→2} == {b→2, a→1} → same hash.
 ///
 /// **Non-atomizable variants → `unreachable!()`** with predicate-citation message.
-/// The `is_atomizable` predicate at `src/check.rs:3623` is the static guarantee that
+/// The `is_atomizable` predicate at `src/check.rs` is the static guarantee that
 /// only atomizable Values reach hashing contexts (HashSet/HashMap key positions).
 /// If this panic ever fires, the predicate has drifted from the Hash impl.
 ///
@@ -723,77 +732,77 @@ impl std::hash::Hash for Value {
             // Duration: stored as i64 nanoseconds
             Value::Duration(ns) => ns.hash(state),
             // --- Non-atomizable variants: unreachable!() with predicate citation ---
-            // The is_atomizable predicate at src/check.rs:3623 is the static guarantee
+            // The is_atomizable predicate at src/check.rs is the static guarantee
             // that these variants never reach hashing contexts (HashSet/HashMap key positions).
             // If this panic fires, the predicate has drifted from this Hash impl.
             Value::wat__core__fn(_) => unreachable!(
-                "Value::wat__core__fn is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__core__fn is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::wat__kernel__Sender(_) => unreachable!(
-                "Value::wat__kernel__Sender is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__kernel__Sender is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::wat__kernel__Receiver(_) => unreachable!(
-                "Value::wat__kernel__Receiver is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__kernel__Receiver is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::wat__kernel__ProgramHandle(_) => unreachable!(
-                "Value::wat__kernel__ProgramHandle is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__kernel__ProgramHandle is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::wat__kernel__HandlePool { .. } => unreachable!(
-                "Value::wat__kernel__HandlePool is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__kernel__HandlePool is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::wat__kernel__ChildHandle(_) => unreachable!(
-                "Value::wat__kernel__ChildHandle is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::wat__kernel__ChildHandle is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::RustOpaque(_) => unreachable!(
-                "Value::RustOpaque is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::RustOpaque is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::io__IOReader(_) => unreachable!(
-                "Value::io__IOReader is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::io__IOReader is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::io__IOWriter(_) => unreachable!(
-                "Value::io__IOWriter is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::io__IOWriter is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::OnlineSubspace(_) => unreachable!(
-                "Value::OnlineSubspace is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::OnlineSubspace is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::Reckoner(_) => unreachable!(
-                "Value::Reckoner is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::Reckoner is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::Engram(_) => unreachable!(
-                "Value::Engram is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::Engram is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::EngramLibrary(_) => unreachable!(
-                "Value::EngramLibrary is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::EngramLibrary is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             Value::Hologram(_) => unreachable!(
-                "Value::Hologram is not atomizable; is_atomizable predicate at \
-                 src/check.rs:3623 should have rejected this. If you see this panic, \
+                "Value::Hologram is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
             // Arc 234 Stone 234.1 — wat__holon__Record: hash delegates to holon_form (canonical form
