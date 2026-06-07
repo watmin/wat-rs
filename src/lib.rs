@@ -63,6 +63,7 @@ pub(crate) mod collection;
 pub mod argspec;
 pub(crate) mod remedy;
 pub mod comms;
+pub mod kernel;
 pub mod compose;
 pub mod config;
 pub mod diagnostic;
