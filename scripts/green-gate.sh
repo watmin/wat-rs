@@ -4,10 +4,12 @@
 # Usage:
 #   ./scripts/green-gate.sh
 #
-# Runs THREE checks, in order, and gates on all of them:
-#   1. cargo build --release --tests --workspace   (compile ALL test units)
-#   2. cargo test  --release --lib -p wat           (the lib run baseline)
-#   3. ./scripts/integration-run.sh                  (the leak-contained
+# Runs FOUR checks, in order, and gates on all of them:
+#   1. ./scripts/gen-test-mods.sh --check            (every grouped test dir's
+#      mod.rs is current — no test file silently undeclared / ignored)
+#   2. cargo build --release --tests --workspace   (compile ALL test units)
+#   3. cargo test  --release --lib -p wat           (the lib run baseline)
+#   4. ./scripts/integration-run.sh                  (the leak-contained
 #      integration tier: every non-leaky-signal test binary, each run in its
 #      own setsid session with timeout + reap; exit 0 iff every binary passes)
 #
@@ -39,13 +41,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-echo "== green-gate 1/3: cargo build --release --tests --workspace (compile all test units) =="
+echo "== green-gate 1/4: gen-test-mods.sh --check (grouped test mod.rs lists current) =="
+./scripts/gen-test-mods.sh --check
+
+echo "== green-gate 2/4: cargo build --release --tests --workspace (compile all test units) =="
 cargo build --release --tests --workspace
 
-echo "== green-gate 2/3: cargo test --release --lib -p wat (lib run baseline) =="
+echo "== green-gate 3/4: cargo test --release --lib -p wat (lib run baseline) =="
 cargo test --release --lib -p wat
 
-echo "== green-gate 3/3: integration-run.sh (the leak-contained integration tier) =="
+echo "== green-gate 4/4: integration-run.sh (the leak-contained integration tier) =="
 ./scripts/integration-run.sh
 
-echo "== green-gate: PASS (test-build clean + lib baseline green + integration tier green) =="
+echo "== green-gate: PASS (mod-lists current + test-build clean + lib baseline green + integration tier green) =="

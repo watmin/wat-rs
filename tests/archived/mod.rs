@@ -15,7 +15,13 @@
 //! (non-process) probes live here so `cargo test --test archived` never leaks;
 //! living self-enforcing gates and process probes stay elsewhere.
 //!
+//! The module list below is GENERATED — do not hand-edit it. Add a `.rs` file to
+//! this dir, run `scripts/gen-test-mods.sh`, and it is declared automatically; the
+//! `--check` gate fails loud if the list drifts, so no file can be silently lost.
+//!
 //! Run: `cargo test --release -p wat --test archived`
+
+// BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
 mod probe_arc214_slice4_stone1_program_env_typealias;
 mod probe_arc214_slice4_stone2_env_get_trio;
 mod probe_arc214_slice4_stone3_env_dig_trio;
@@ -94,8 +100,8 @@ mod probe_arc243_stone7c_runtimeerror_pattern_a;
 mod probe_arc247_hof_fn_first;
 mod probe_arc249_4_rehome_in_wat;
 mod probe_arc249_macro_engine;
-mod probe_arc249_threading_in_wat;
 mod probe_arc249_threading;
+mod probe_arc249_threading_in_wat;
 mod probe_brace_map_literal;
 mod probe_channel_primitive;
 mod probe_collection_transform_ops;
@@ -106,14 +112,14 @@ mod probe_diagnostic_macro_splice_from_let;
 mod probe_diagnostic_polymorphic_type;
 mod probe_diagnostic_typed_entities_reflection;
 mod probe_diagnostic_value_snapshot_in_errors;
-mod probe_do_splice_define;
 mod probe_do_splice_def;
+mod probe_do_splice_define;
 mod probe_do_splice_enum;
 mod probe_do_splice_struct;
 mod probe_eval_signature_returns_tracked_value;
 mod probe_hashmap_ctor_vector_symmetric;
-mod probe_let_splice_define;
 mod probe_let_splice_def;
+mod probe_let_splice_define;
 mod probe_let_splice_enum;
 mod probe_let_splice_struct;
 mod probe_nil_return_value_position_bug;
@@ -127,3 +133,4 @@ mod probe_stone_233_3_runtime_error_edn;
 mod probe_substrate_symmetry_list_span_threading;
 mod probe_tracked_value_mint_contract;
 mod probe_verify_hashset_of_vector_gap;
+// END GENERATED MODS
