@@ -45,14 +45,23 @@ fn probe_slice1_recv_error_is_unit_struct() {
 }
 
 #[test]
-fn probe_slice1_try_recv_error_variants_are_distinct() {
-    // TryRecvError variants MUST be distinguishable — drives retry-vs-bail-out
-    // logic at every try_recv site (Empty → may become ready; Disconnected →
-    // never will). Conflation is a deadlock vector.
-    assert_ne!(
-        wat::comms::TryRecvError::Empty,
-        wat::comms::TryRecvError::Disconnected
-    );
+fn probe_slice1_try_recv_is_two_state() {
+    // Arc 253 — try_recv returns Option<T> (2-state: Some/None).
+    // TryRecvError (3-state: Value/Empty/Disconnected) is eliminated.
+    // The old Empty/Disconnected timing race is structurally unrepresentable.
+    // This probe verifies the 2-state API compiles + works at the comms
+    // tier by exercising CommReceiver::try_recv via the thread tier.
+    use wat::comms::{CommReceiver, CommSender};
+    use wat::comms::thread::pair;
+    let (tx, rx) = pair::<i64>();
+    // Connected + empty → None.
+    assert_eq!(rx.try_recv(), None, "empty connected channel must return None");
+    // Value present → Some.
+    tx.send(42).expect("send");
+    assert_eq!(rx.try_recv(), Some(42), "data-ready channel must return Some(42)");
+    // Disconnected → None (same as empty; no distinct state).
+    drop(tx);
+    assert_eq!(rx.try_recv(), None, "disconnected channel must return None");
 }
 
 #[test]

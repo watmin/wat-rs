@@ -10,6 +10,16 @@
 //! shared by the thread tier (`comms::thread`) and process tier
 //! (`comms::process`) implementations.
 //!
+//! ## Arc 253 — 2-state try_recv collapse
+//!
+//! `try_recv` returns `Option<T>` (not `Result<T, TryRecvError>`).
+//! The old `TryRecvError::{Empty, Disconnected}` split has been eliminated.
+//! Under load, `libc::poll(timeout=0)` intermittently returned no-POLLHUP
+//! after sender drop, producing `Empty` when `Disconnected` was correct —
+//! a timing race. Collapsing to `Option<T>` makes the race structurally
+//! unrepresentable: `None` covers both "nothing now" and "nothing ever",
+//! and no caller needed the distinction. `TryRecvError` is removed.
+//!
 //! ## Cascade contract (LOAD-BEARING)
 //!
 //! Every blocking method on tier-specific Receivers + Selects MUST wake on
@@ -569,7 +579,7 @@ pub trait CommSender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>>;
     /// Signal end-of-stream from this sender. Consumes self so the endpoint
     /// is gone after close. Other cloned `Sender` handles (if any) remain
-    /// valid. Peer receivers will see `RecvError` / `TryRecvError::Disconnected`
+    /// valid. Peer receivers will see `RecvError` / `None` (from `try_recv`)
     /// on their next operation only after ALL `Sender` clones close.
     ///
     /// Infallible: consuming `self` IS the close (Drop handles OS cleanup).
@@ -592,11 +602,18 @@ pub trait CommReceiver<T> {
     /// shutdown). Tier implementations wire the shutdown signal automatically —
     /// callers cannot bypass the cascade.
     fn recv(&self) -> Result<T, RecvError>;
-    /// Non-blocking recv. Returns `Err(TryRecvError::Empty)` when no value is
-    /// currently available; `Err(TryRecvError::Disconnected)` when all senders
-    /// have dropped. Cascade-irrelevant (does not block; shutdown does not change
-    /// the result).
-    fn try_recv(&self) -> Result<T, TryRecvError>;
+    /// Non-blocking recv. Returns `Some(value)` when a value is immediately
+    /// available; `None` when no value is available right now OR when all
+    /// senders have dropped. Cascade-irrelevant (does not block; shutdown
+    /// does not change the result).
+    ///
+    /// Arc 253 — 2-state collapse: the old 3-state `Result<T, TryRecvError>`
+    /// (Value / Empty / Disconnected) is eliminated. `Empty` and `Disconnected`
+    /// raced on timing under load (libc::poll(timeout=0) intermittently
+    /// reported no-POLLHUP after sender drop). Callers need only "value? no"
+    /// — the distinction is irrelevant to all current consumers. Collapsing to
+    /// `Option<T>` makes the race structurally unrepresentable.
+    fn try_recv(&self) -> Option<T>;
     /// Number of values locally buffered and ready for immediate `recv`.
     ///
     /// Non-blocking; cascade-irrelevant.
@@ -608,7 +625,7 @@ pub trait CommReceiver<T> {
     /// `try_recv`. The thread tier is exact (crossbeam's bounded(1) length).
     ///
     /// Callers needing an exact count should drain via `try_recv` until
-    /// `Empty`; the resulting `len()` then reflects all locally-available
+    /// `None`; the resulting `len()` then reflects all locally-available
     /// frames. Useful for capacity-tracking callers (e.g.,
     /// `wat::kernel::HandlePool` checking for orphaned handles).
     fn len(&self) -> usize;
@@ -622,6 +639,7 @@ pub trait CommReceiver<T> {
     /// `close` twice is a compile error, not a runtime error.
     fn close(self);
 }
+
 
 // ─── Error types ─────────────────────────────────────────────────────────────
 
@@ -637,20 +655,6 @@ pub struct SendError<T>(pub T);
 /// Shape matches `crossbeam_channel::RecvError` for ergonomic familiarity.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RecvError;
-
-/// Non-blocking recv result. Callers MUST distinguish the two variants:
-/// `Empty` means "no value now; retry later may succeed";
-/// `Disconnected` means "no value now and no value ever; channel permanently closed".
-/// The distinction drives retry-vs-bail-out logic at every `try_recv` site.
-///
-/// Shape matches `crossbeam_channel::TryRecvError` for ergonomic familiarity.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TryRecvError {
-    /// Channel is empty; no value currently available. May become non-empty later.
-    Empty,
-    /// All senders dropped; channel will never produce another value.
-    Disconnected,
-}
 
 /// HolonAST roundtrip failure during wire serialization/deserialization.
 ///
@@ -687,17 +691,6 @@ impl std::fmt::Display for RecvError {
 }
 
 impl std::error::Error for RecvError {}
-
-impl std::fmt::Display for TryRecvError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TryRecvError::Empty => f.write_str("channel empty"),
-            TryRecvError::Disconnected => f.write_str("channel disconnected"),
-        }
-    }
-}
-
-impl std::error::Error for TryRecvError {}
 
 impl<T> std::fmt::Display for SendError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

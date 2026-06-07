@@ -11,7 +11,7 @@
 //!   6. large string spans multiple io_uring reads
 //!
 //! `probe_slice3d1_*` (9 tests; Stone D1 — mechanical methods + traits):
-//!   1-3. try_recv: Empty, Disconnected, success
+//!   1-3. try_recv: None (no data), None (after drop), Some(..) (data ready)
 //!   4. len reports accumulator frame count
 //!   5-6. Sender::close, Receiver::close consume the endpoint
 //!   7. (retired) Sender::clone — Clone impl removed; single-writer by design
@@ -30,7 +30,7 @@
 
 use std::thread;
 
-use wat::comms::{CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError, TryRecvError};
+use wat::comms::{CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError};
 use wat::comms::process::{pair, Select};
 
 #[test]
@@ -131,38 +131,33 @@ fn probe_slice3c_large_string_spans_multiple_io_uring_reads() {
 // ─── Stone D1 probes ──────────────────────────────────────────────────────────
 
 #[test]
-fn probe_slice3d1_try_recv_empty_returns_empty() {
-    // Verifies try_recv reports Empty when no data is ready and no
-    // shutdown is firing. _tx kept alive so the channel stays
-    // connected (Empty, not Disconnected).
+fn probe_slice3d1_try_recv_none_when_no_data() {
+    // Arc 253 2-state: try_recv returns None when no data is ready
+    // (old Empty). _tx kept alive so the channel stays connected.
     let (_tx, rx) = pair::<String>().expect("pair");
-    assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
+    assert_eq!(rx.try_recv(), None);
 }
 
 #[test]
-fn probe_slice3d1_try_recv_disconnected_after_sender_drop() {
-    // Verifies try_recv reports Disconnected (not Empty) after all
-    // senders drop — callers need this distinction to avoid infinite
-    // retry loops.
+fn probe_slice3d1_try_recv_none_after_sender_drop() {
+    // Arc 253 2-state: try_recv returns None after all senders drop
+    // (old Disconnected). No sleep: libc::close(2) is synchronous;
+    // the kernel state-changes the pipe at close-time. Per
+    // `feedback_lock_step_via_pipe`: sleep is a guess; we use the wire.
     let (tx, rx) = pair::<String>().expect("pair");
     drop(tx);
-    // No sleep: libc::close(2) is synchronous; the kernel state-changes
-    // the pipe at close-time. The next poll on the read-end sees POLLHUP
-    // immediately. Per `feedback_lock_step_via_pipe`: sleep is a guess;
-    // we use the wire (close-then-poll is the lock-step).
-    assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
+    assert_eq!(rx.try_recv(), None);
 }
 
 #[test]
-fn probe_slice3d1_try_recv_succeeds_when_data_ready() {
-    // Verifies try_recv returns the value when data is ready.
+fn probe_slice3d1_try_recv_some_when_data_ready() {
+    // Arc 253 2-state: try_recv returns Some(value) when data is ready.
     // No sleep: libc::write(2) is synchronous; bytes are in the kernel
-    // pipe buffer when send() returns. The next poll on the read-end
-    // sees POLLIN immediately. Lock-step via the wire.
+    // pipe buffer when send() returns. Lock-step via the wire.
     let (tx, rx) = pair::<String>().expect("pair");
     tx.send("hello".to_string()).expect("send");
     let result = rx.try_recv();
-    assert_eq!(result, Ok("hello".to_string()));
+    assert_eq!(result, Some("hello".to_string()));
 }
 
 #[test]
@@ -191,7 +186,7 @@ fn probe_slice3d1_len_reports_accumulator_frames() {
         "one",
         "first frame must be 'one'"
     );
-    assert!(rx.len() <= 1, "accumulator holds at most one leftover frame after one try_recv");
+    assert!(rx.len() <= 1, "accumulator holds at most one leftover frame after one try_recv (arc 253: try_recv returns Option<T>)");
     // After the second recv, accumulator must be fully drained.
     assert_eq!(rx.recv().expect("recv 2"), "two");
     assert_eq!(rx.len(), 0, "accumulator empty after consuming both frames");

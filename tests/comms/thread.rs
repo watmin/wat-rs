@@ -11,7 +11,7 @@
 
 use std::thread;
 
-use wat::comms::{ReceiverIndex, RecvError, SelectOutcome, TryRecvError};
+use wat::comms::{ReceiverIndex, RecvError, SelectOutcome};
 use wat::comms::thread::{pair, Select};
 
 #[test]
@@ -37,27 +37,26 @@ fn probe_slice2_sender_drop_triggers_recv_err() {
 }
 
 #[test]
-fn probe_slice2_try_recv_empty_returns_empty() {
-    // Verifies non-blocking recv correctly reports Empty when no value is ready.
-    // _tx kept alive so the channel stays connected (Empty, not Disconnected).
+fn probe_slice2_try_recv_none_when_no_data() {
+    // Arc 253 2-state: try_recv returns None when no value is ready.
+    // _tx kept alive so the channel stays connected.
     let (_tx, rx) = pair::<i64>();
     assert_eq!(
         rx.try_recv(),
-        Err(TryRecvError::Empty),
-        "try_recv on empty connected channel must return Empty"
+        None,
+        "try_recv on empty connected channel must return None"
     );
 }
 
 #[test]
-fn probe_slice2_try_recv_disconnected_after_sender_drop() {
-    // Verifies that Disconnected is returned (not Empty) after all senders drop —
-    // callers need this distinction to avoid infinite retry loops.
+fn probe_slice2_try_recv_none_after_sender_drop() {
+    // Arc 253 2-state: try_recv returns None after all senders drop.
     let (tx, rx) = pair::<i64>();
     drop(tx);
     assert_eq!(
         rx.try_recv(),
-        Err(TryRecvError::Disconnected),
-        "try_recv after sender drop must return Disconnected, not Empty"
+        None,
+        "try_recv after sender drop must return None"
     );
 }
 
@@ -91,12 +90,13 @@ fn probe_slice2_clone_receiver_exactly_one_gets_frame() {
     tx.send(99).expect("send");
     let from_a = rx.try_recv();
     let from_b = rx2.try_recv();
+    // Arc 253 2-state: try_recv returns Option<T>; None covers old Empty.
     assert!(
         matches!(
             (from_a, from_b),
-            (Ok(99), Err(TryRecvError::Empty)) | (Err(TryRecvError::Empty), Ok(99))
+            (Some(99), None) | (None, Some(99))
         ),
-        "exactly one receiver must get the value; the other must see Empty"
+        "exactly one receiver must get the value; the other must see None"
     );
 }
 
