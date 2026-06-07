@@ -55,10 +55,36 @@ of the wrong all-defclause framing.)
   per-peer close primitives (thread: `close()`→join; process: `close()`→wait).
   Concrete peer types, no type-var flow → clause, per the rubric.
 
-## Proactive split
+## Grounded template + the foundation split (2026-06-07)
 
-- **4.6a** — the four verbs above (3 intrinsic + `close'` clause) over the
-  parametric peer types. Ships a complete, useful peer surface.
+Studied the lair: the typed-handle + projective machinery **already exists** —
+`fn infer_make_channel` (check.rs:10423) produces
+`TypeExpr::Tuple([Parametric{head:"rust::crossbeam_channel::Sender", args:[T]}, Parametric{…Receiver, args:[T]}])`,
+and `recv` projects `T` back out. The peer types mirror this exactly: a peer is a
+`TypeExpr::Parametric{head:"wat::kernel::Thread'"|"…Process'", args:[I,O]}`. So
+4.6 is **mirror existing machinery, instantiated for the peers** — not net-new
+parametric typing.
+
+BUT grounding found a gap: **`spawn-program'` has NO check-side inference today**
+(only the legacy `spawn-program`/`-ast` appear in check.rs; the 4.5 prime is
+runtime-only, exercised only by Rust-level tests). So the peer *type* must be
+minted at check time before any verb can project from it. That is the riskiest
+new piece → split it out and de-risk it alone:
+
+- **4.6a-i — typed-peer FOUNDATION** (this strike). (1) Register
+  `:wat::kernel::Thread'<I,O>` / `:wat::kernel::Process'<I,O>` as valid parametric
+  type heads (mirror the `Sender<T>`/`Receiver<T>` registration). (2)
+  `infer_spawn_program_prime` (NEW, mirror `infer_make_channel`) → reads the
+  program-fn arg's `[I] -> O` signature, returns `Parametric{Thread'|Process', [I,O]}`
+  keyed on the `:tier`. (3) `declared_type_name` for a peer `RustOpaque` reports
+  its specific parametric type (not `:rust::opaque`, runtime.rs:5220) so the
+  runtime `close'` clause matcher can dispatch. **Proof:** a check-side probe —
+  `(spawn-program' :thread env prog)` infers to `Thread'<I,O>`; a deliberate
+  type-misuse fails. Smaller, isolatable, de-risks the new inference before 4 verbs
+  ride on it.
+- **4.6a-ii — the four verbs** (3 intrinsic + `close'` clause) over the settled
+  foundation. Ships the complete, useful peer surface; proven by a wat-level
+  `send'`/`recv'`/`close'` round-trip.
 - **4.6b — `select'`.** Heterogeneous multiplex over N peers → first ready + its
   value. Thread peers use crossbeam select; process peers use io_uring
   `comms::process::Select` (POLL_ADD+POLLHUP). Its own stone on the 4.6a
