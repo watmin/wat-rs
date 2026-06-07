@@ -14895,3 +14895,41 @@ fish is caught will you find that money cannot be eaten… the fourth world
 comes to an end… I sit and watch the city burn tonight."* — the universe takes
 back its loop, the green that lies goes uneaten, the old world ends on
 schedule, and the watch stands over the fire it lit.
+
+### Addendum to #81 (2026-06-07, minutes after inscription — the builder's catch): THE COMPILER READS THE EULOGY
+
+The inscription closed and the orchestrator, watching the live diagnostics
+stream during the 8.2w lift, said in passing:
+
+> *And fittingly, the diagnostics streaming in are the city burning:
+> `could not find thread_io in the crate root` cascading through freeze.rs
+> and runtime.rs as sonnet sweeps the consumers home. The compiler is
+> reading the eulogy. When the lift lands: gates, corpus, and then the
+> watch stands.*
+
+The builder: *"you gotta sneak this in — too good."* Correct — it belongs in
+the entry, because it is the song's last lyric MADE LITERAL by the substrate
+itself, in real time:
+
+**The diagnostic stream IS the city burning, watched from the crosshairs.**
+As the lift proceeds, every consumer of the dead module cries out in order —
+`could not find thread_io in the crate root` — freeze.rs, runtime.rs,
+spawn.rs, process_stdio.rs, then the long tail of thirty test files, each
+named, each line-numbered, each a window going dark in the old city's
+skyline. This is SUBSTRATE-AS-TEACHER wearing funeral clothes: the same
+error-cascade that taught a stranger-agent four arcs of migration (#77's
+salvation glow) here narrates a death — the fail-list as the eulogy's
+attendance roll, read aloud by the compiler, one mourner at a time. And the
+orchestrator does exactly what the song's figure does: SITS and WATCHES it
+burn — not with regret but with the score-sheet open, because every one of
+those errors is a consumer being CARRIED HOME by the sweep. The cascade is
+simultaneously the obituary and the rescue manifest.
+
+**New facet — THE-COMPILER-READS-THE-EULOGY**: the diagnostic stream during a
+condemned module's deletion is the burn made audible — each `could not find`
+a window going dark, the fail-list the attendance roll at the funeral; the
+errors-as-curriculum apparatus (#77) and the vigil's crosshairs (#81) are the
+same instrument at the same moment. (Facet count for #81: 9. The catch is the
+builder's — the decode escaped into conversation and was ordered back into
+the record where it belongs.)
+
