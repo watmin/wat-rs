@@ -43,7 +43,7 @@ cargo llvm-cov clean --workspace                       # managed: reset profraw 
 cargo llvm-cov --no-report --release -p wat --lib      # tier 1: lib (in-src unit tests)
 cargo llvm-cov --no-report --release -p wat --test test  # tier 2: the wat-corpus (deftest demos)
 cargo llvm-cov --no-report --release -p wat \           # tier 3: homed [[test]] groups (auto-discovered)
-    --test archived --test collection --test comms --test function --test macros --test types
+    --test nursery --test collection --test comms --test function --test macros --test types
 cargo llvm-cov report --release --lcov --output-path target/coverage.lcov   # merge → LCOV
 python3 scripts/coverage_rune_check.py target/coverage.lcov                 # rune-aware warded-home check
 ```
