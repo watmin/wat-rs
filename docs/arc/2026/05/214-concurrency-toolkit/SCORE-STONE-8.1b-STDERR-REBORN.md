@@ -49,7 +49,8 @@ holds: src/services/ zero findings; no touched hunk introduces one.
 
 ## The annihilation map advances
 
-thread_io.rs: 979 → 821 lines, holding ONLY stdin's old path (StdInServiceEvent,
+thread_io.rs: 979 → 903 lines (the commit message's "821" was wrong — this is
+the verified `wc -l`), holding ONLY stdin's old path (StdInServiceEvent,
 the stdin bridge, ThreadIO's stdin half) + the eval arms + RuntimeServices +
 registration. **8.2 (stdin reborn — the reply-routing proof, un-ignores the 3
 readln tests) takes the quarry to ZERO + git rm.**
