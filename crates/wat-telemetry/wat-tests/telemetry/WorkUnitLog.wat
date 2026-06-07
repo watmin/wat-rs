@@ -110,7 +110,7 @@
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
      (:wat::core::let
        [stub-pair
-         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16)
+         (:wat::kernel::make-channel :wat::telemetry::Event)
         stub-tx
          (:wat::core::first stub-pair)
         stub-rx

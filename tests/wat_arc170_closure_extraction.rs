@@ -516,7 +516,7 @@ fn t8_lambda_captures_sender_is_non_portable() {
     let src = r#"
         (:wat::core::defn :my::make-snd [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-                      [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                      [[tx rx] (:wat::kernel::make-channel :wat::core::i64)
                        dropped rx]
                       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                         (:wat::core::do
@@ -564,7 +564,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
           [tx <- :wat::kernel::Sender<wat::core::i64>])
         (:wat::core::defn :my::make-pack [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
           (:wat::core::let
-                      [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                      [[tx rx] (:wat::kernel::make-channel :wat::core::i64)
                        pack (:my::Pack/new tx)
                        unused rx]
                       (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64

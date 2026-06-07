@@ -324,7 +324,7 @@ impl CheckErrorKind {
                 }
                 write!(
                     f,
-                    "function call '{}' receives two halves of the same channel pair. Argument '{}' is a Sender<T> and argument '{}' is a Receiver<T>; both trace back to the make-bounded-channel allocation at '{}' (let binding above). Holding both ends of one channel in one role deadlocks any recv — the caller's writer keeps the channel alive even when the receiving thread dies. Fix options (per ZERO-MUTEX.md § \"Routing acks\"): 1. Pair-by-index via HandlePool — each producer pops one Handle holding ONE end of EACH of two distinct channels. 2. Embedded reply-tx in payload — caller does not bind the reply-tx; project the Sender directly into the Request.",
+                    "function call '{}' receives two halves of the same channel pair. Argument '{}' is a Sender<T> and argument '{}' is a Receiver<T>; both trace back to the make-channel allocation at '{}' (let binding above). Holding both ends of one channel in one role deadlocks any recv — the caller's writer keeps the channel alive even when the receiving thread dies. Fix options (per ZERO-MUTEX.md § \"Routing acks\"): 1. Pair-by-index via HandlePool — each producer pops one Handle holding ONE end of EACH of two distinct channels. 2. Embedded reply-tx in payload — caller does not bind the reply-tx; project the Sender directly into the Request.",
                     callee, sender_arg, receiver_arg, pair_anchor
                 )
             }

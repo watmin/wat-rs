@@ -125,8 +125,8 @@
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
-          (:wat::kernel::make-bounded-channel
-            :wat::telemetry::Request<E> 1)))
+          (:wat::kernel::make-channel
+            :wat::telemetry::Request<E>)))
      ;; N ack channels (server write, client read). Per arc 095:
      ;; client and server hold opposite ends; nothing crosses in
      ;; the request payload.
@@ -135,7 +135,7 @@
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
-          (:wat::kernel::make-bounded-channel :wat::core::nil 1)))
+          (:wat::kernel::make-channel :wat::core::nil)))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
      handles
       (:wat::core::map

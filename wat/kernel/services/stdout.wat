@@ -273,8 +273,8 @@
 (:wat::core::defn :wat::kernel::services::StdOutService/spawn [writer <- :wat::io::IOWriter] -> :wat::kernel::services::StdOutService::Spawn
   (:wat::core::let
       [ctrl-pair
-        (:wat::kernel::make-bounded-channel
-          :wat::kernel::services::StdOutService::Event 1)
+        (:wat::kernel::make-channel
+          :wat::kernel::services::StdOutService::Event)
        ctrl-tx
         (:wat::core::first ctrl-pair)
        ctrl-rx

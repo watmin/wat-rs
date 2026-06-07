@@ -82,7 +82,7 @@ const PARENT_SRC: &str = r#"
 const CHILD_PROGRAM_SRC: &str = r#"
     (:wat::core::defn :user::main [] -> :wat::core::nil
       (:wat::core::let
-              [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
+              [[tx rx] (:wat::kernel::make-channel :wat::core::nil)
                _       (:wat::kernel::recv rx)]
               :wat::core::nil))
 "#;

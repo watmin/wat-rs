@@ -341,8 +341,8 @@ pub fn eval_kernel_wait_child(
 /// Public for arc 170 slice 1c — `tests/wat_arc170_typed_channel_pipes.rs`
 /// composes typed-channel pairs over fresh OS pipes. The function
 /// is otherwise substrate-internal; user code reaches for typed
-/// channels via the `:wat::kernel::make-bounded-channel` family
-/// (tier 1) or via the spawn primitives' Process/tx/rx (tier 2).
+/// channels via `:wat::kernel::make-channel` (tier 1) or via the
+/// spawn primitives' Process/tx/rx (tier 2).
 pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     let mut fds = [0i32; 2];
     // pipe2(O_CLOEXEC): atomic CLOEXEC at creation. In fork-without-exec the

@@ -23,7 +23,7 @@
 ;;   spawn-thread auto-channels carry (I=Wire, O=AdminResp):
 ;;     Thread/input(thread)  = Sender<Wire>   → admin-tx (parent sends admin Wire msgs)
 ;;     Thread/output(thread) = Receiver<AdminResp> → admin-resp-rx (parent recvs admin replies)
-;;   make-bounded-channel for user wire + user resp:
+;;   make-channel for user wire + user resp:
 ;;     user-wire-pair = (user-tx: Sender<Wire>, user-wire-rx: Receiver<Wire>)
 ;;     user-resp-pair = (user-resp-tx: Sender<UserResp>, user-resp-rx: Receiver<UserResp>)
 ;;
@@ -182,10 +182,10 @@
    ;;   spawn-thread(I=Wire, O=AdminResp):
    ;;     Thread/input(thread)  = Sender<Wire>     = admin-tx for admin client
    ;;     Thread/output(thread) = Receiver<AdminResp> = admin-resp-rx for admin client
-   ;;   make-bounded-channel for user wire:
+   ;;   make-channel for user wire:
    ;;     user-tx (Sender<Wire>) — user client sends Wire::User variants
    ;;     user-wire-rx (Receiver<Wire>) — server reads user requests via select
-   ;;   make-bounded-channel for user resp:
+   ;;   make-channel for user resp:
    ;;     user-resp-tx (Sender<UserResp>) — server sends user responses
    ;;     user-resp-rx (Receiver<UserResp>) — user client recvs responses
    ;;
@@ -202,11 +202,11 @@
      -> :(wat::kernel::Thread<counter::Wire,counter::AdminResp>,wat::kernel::Sender<counter::Wire>,wat::kernel::Receiver<counter::UserResp>)
      (:wat::core::let
        [;; User wire channel: parent sends Wire::User msgs; server reads them
-        user-wire-pair  (:wat::kernel::make-bounded-channel :counter::Wire 1)
+        user-wire-pair  (:wat::kernel::make-channel :counter::Wire)
         user-tx         (:wat::core::first  user-wire-pair)
         user-wire-rx    (:wat::core::second user-wire-pair)
         ;; User resp channel: server sends UserResp; parent reads them
-        user-resp-pair  (:wat::kernel::make-bounded-channel :counter::UserResp 1)
+        user-resp-pair  (:wat::kernel::make-channel :counter::UserResp)
         user-resp-tx    (:wat::core::first  user-resp-pair)
         user-resp-rx    (:wat::core::second user-resp-pair)
         ;; Spawn server thread.

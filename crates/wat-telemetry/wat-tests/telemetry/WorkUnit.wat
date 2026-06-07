@@ -113,7 +113,7 @@
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
      (:wat::core::let
        [stub-pair
-         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16)
+         (:wat::kernel::make-channel :wat::telemetry::Event)
         stub-tx
          (:wat::core::first stub-pair)
         stub-rx
@@ -152,7 +152,7 @@
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
      (:wat::core::let
        [stub-pair
-         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16)
+         (:wat::kernel::make-channel :wat::telemetry::Event)
         stub-tx
          (:wat::core::first stub-pair)
         stub-rx
@@ -191,7 +191,7 @@
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
      (:wat::core::let
        [stub-pair
-         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16)
+         (:wat::kernel::make-channel :wat::telemetry::Event)
         stub-tx
          (:wat::core::first stub-pair)
         stub-rx
@@ -233,7 +233,7 @@
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
      (:wat::core::let
        [count-pair
-         (:wat::kernel::make-bounded-channel :wat::core::i64 4)
+         (:wat::kernel::make-channel :wat::core::i64)
         count-tx
          (:wat::core::first count-pair)
         count-rx

@@ -502,9 +502,9 @@ pub fn try_as_crossbeam_receiver(
 /// EDN-encoded by the substrate; user code sees typed Values.
 ///
 /// Returns the pair as a `(Sender<T>, Receiver<T>)` tuple Value
-/// — same shape `:wat::kernel::make-bounded-channel` returns for
-/// the tier-1 case. `T` is phantom at the runtime layer; the
-/// type checker enforces homogeneity per FOUNDATION.
+/// — same shape `:wat::kernel::make-channel` returns for the
+/// tier-1 case. `T` is phantom at the runtime layer; the type
+/// checker enforces homogeneity per FOUNDATION.
 ///
 /// `op` is the caller's wat-level op name for diagnostic
 /// attribution (matches the `make-pipe` convention used by
@@ -598,11 +598,6 @@ impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
-}
-
-pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
-    let (tx, rx) = crossbeam_channel::unbounded();
-    (Sender { inner: tx }, Receiver { inner: rx })
 }
 
 pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>) {

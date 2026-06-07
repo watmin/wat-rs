@@ -83,7 +83,7 @@ const BLOCKING_CHILD_SRC: &str = r#"
       []
       -> :wat::core::nil
       (:wat::core::let
-        [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil)
+        [[tx rx] (:wat::kernel::make-channel :wat::core::nil)
          _       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
                    (:wat::kernel::recv rx)
                    "recv failed — sender dropped before shutdown")]
@@ -201,7 +201,7 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
                 WatAST::StringLit(
                     format!(
                         "(:wat::core::defn :test::block-until-shutdown [] -> :wat::core::nil \
-                         (:wat::core::let [[tx rx] (:wat::kernel::make-unbounded-channel :wat::core::nil) \
+                         (:wat::core::let [[tx rx] (:wat::kernel::make-channel :wat::core::nil) \
                          _ (:wat::kernel::recv rx)] :wat::core::nil))"
                     ),
                     Span::unknown(),

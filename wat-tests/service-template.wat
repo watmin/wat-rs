@@ -59,7 +59,7 @@
 ;;   Layer 3  :test::svc-full-sequence-and-verify
 ;;              ; spawn, drive full sequence (2 Push + Ack + 2×Get + Push),
 ;;              ; check mid-sequence snapshots, recv final, join, assert final.
-;;              ; Keeps make-bounded-channel + send/recv inline (not via
+;;              ; Keeps make-channel + send/recv inline (not via
 ;;              ; helpers with both halves) so arc 126 does not fire here.
 ;;
 ;;   Final    :svc::test-template-end-to-end   (1 line — composes Layer 3)
@@ -217,7 +217,7 @@
             [pairs
               (:wat::core::map
                 (:wat::core::fn [_i <- :wat::core::i64] -> :wat::kernel::Channel<svc::Request>
-                  (:wat::kernel::make-bounded-channel :svc::Request 1))
+                  (:wat::kernel::make-channel :svc::Request))
                 (:wat::core::range 0 count))
 
              req-txs
@@ -328,12 +328,12 @@
                  _finish (:wat::kernel::HandlePool::finish pool)
                  ;; Ack reply channel — tx embedded in Request payload; rx recvd separately.
                  ack-pair
-                  (:wat::kernel::make-bounded-channel :wat::core::nil 1)
+                  (:wat::kernel::make-channel :wat::core::nil)
                  ack-tx (:wat::core::first ack-pair)
                  ack-rx (:wat::core::second ack-pair)
                  ;; Get reply channel — tx embedded in Request payload; rx recvd separately.
                  get-pair
-                  (:wat::kernel::make-bounded-channel :svc::State 1)
+                  (:wat::kernel::make-channel :svc::State)
                  get-tx (:wat::core::first get-pair)
                  get-rx (:wat::core::second get-pair)
                  ;; Drive: 2 Pushes, 1 Ack, 1 Get, check snap1, 1 Push, 1 Get, check snap2.

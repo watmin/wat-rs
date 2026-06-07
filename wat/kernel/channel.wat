@@ -9,7 +9,7 @@
 ;;
 ;;   Sender<T>      — single sender end of a substrate channel
 ;;   Receiver<T>    — single receiver end of a substrate channel
-;;   Channel<T>     — what `make-bounded-channel` / `make-unbounded-channel` returns
+;;   Channel<T>     — what `make-channel` returns
 ;;
 ;; Renamed from QueueSender / QueueReceiver / QueuePair (and the
 ;; matching `make-*-queue` verbs) per arc 109 slice K.kernel-channel

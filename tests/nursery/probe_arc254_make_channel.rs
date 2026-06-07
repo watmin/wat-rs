@@ -78,9 +78,8 @@ const MAKE_UNBOUNDED_QUEUE: &str = r#"
     nil))
 "#;
 
-// A — MINT-CONFIRMER (RED at HEAD: make-channel unknown → check fails).
+// A — MINT-CONFIRMER (GREEN after 254.0: make-channel is the one constructor).
 #[test]
-#[ignore = "arc 254.0 RED-by-design: make-channel not minted yet; sonnet un-ignores after the collapse cascade"]
 fn make_channel_is_the_one_constructor() {
     let result = check_result(MAKE_CHANNEL_I64);
     assert!(
@@ -90,9 +89,8 @@ fn make_channel_is_the_one_constructor() {
     );
 }
 
-// B + C — CUT-CONFIRMERS for the channel verbs (RED at HEAD: both still resolve).
+// B + C — CUT-CONFIRMERS for the channel verbs (GREEN after 254.0: condemned verbs gone).
 #[test]
-#[ignore = "arc 254.0 RED-by-design: condemned channel verbs still resolve at HEAD; sonnet un-ignores after the collapse"]
 fn condemned_channel_verbs_are_annihilated() {
     let unbounded = check_result(MAKE_UNBOUNDED_CHANNEL);
     assert!(
@@ -106,9 +104,8 @@ fn condemned_channel_verbs_are_annihilated() {
     );
 }
 
-// D + E — CUT-CONFIRMERS for the phantom queue verbs (RED at HEAD: check clean today).
+// D + E — CUT-CONFIRMERS for the phantom queue verbs (GREEN after 254.0: phantoms now error).
 #[test]
-#[ignore = "arc 254.0 RED-by-design: phantom queue verbs still type-check at HEAD; sonnet un-ignores after the collapse"]
 fn phantom_queue_verbs_are_annihilated() {
     let bounded_q = check_result(MAKE_BOUNDED_QUEUE);
     assert!(

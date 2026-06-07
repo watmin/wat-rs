@@ -490,12 +490,12 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReqChannel<K,V>
-          (:wat::kernel::make-bounded-channel :wat::lru::Request<K,V> 1)))
+          (:wat::kernel::make-channel :wat::lru::Request<K,V>)))
      reply-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReplyChannel<V>
-          (:wat::kernel::make-bounded-channel :wat::lru::Reply<V> 1)))
+          (:wat::kernel::make-channel :wat::lru::Reply<V>)))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      handles
       (:wat::std::list::zip

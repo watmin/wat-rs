@@ -84,7 +84,7 @@
 (:wat::core::defn :wat::stream::spawn-producer<T> [producer <- :wat::stream::Producer<T>] -> :wat::stream::Stream<T>
   (:wat::core::let
       [pair
-        (:wat::kernel::make-bounded-channel :T 1)
+        (:wat::kernel::make-channel :T)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -134,7 +134,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :U 1)
+        (:wat::kernel::make-channel :U)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -215,7 +215,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :T 1)
+        (:wat::kernel::make-channel :T)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -250,7 +250,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :T 1)
+        (:wat::kernel::make-channel :T)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -361,7 +361,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :U 1)
+        (:wat::kernel::make-channel :U)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -549,7 +549,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :T 1)
+        (:wat::kernel::make-channel :T)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle
@@ -596,7 +596,7 @@
   (:wat::core::let
       [up-rx (:wat::core::first upstream)
        pair
-        (:wat::kernel::make-bounded-channel :U 1)
+        (:wat::kernel::make-channel :U)
        tx (:wat::core::first pair)
        rx (:wat::core::second pair)
        handle

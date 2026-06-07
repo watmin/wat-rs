@@ -491,7 +491,7 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
     let src = r#"
         (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
           (:wat::core::let
-                      [pair (:wat::kernel::make-unbounded-channel)
+                      [pair (:wat::kernel::make-channel :wat::core::nil)
                        extra-tx (:wat::core::first pair)]
                       (:wat::kernel::spawn-process
                         (:wat::core::fn

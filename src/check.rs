@@ -112,7 +112,7 @@ pub struct TypeScheme {
 /// The hint frames mini-TCP (`docs/ZERO-MUTEX.md` § "Mini-TCP via
 /// paired channels") as the primary worker shape — most existing
 /// `:wat::kernel::spawn` callers close over caller-allocated
-/// `make-bounded-queue` pairs and don't need substrate-allocated
+/// `make-channel` pairs and don't need substrate-allocated
 /// channels. Workers that don't fit that mold get a manual flag
 /// (`;; ARC 114 MANUAL`) — substrate-author judgment calls don't
 /// auto-sweep.
@@ -719,7 +719,7 @@ pub fn check_program(
     // in match-scrutinee or option::expect-value position (pre-inference so
     // a misplaced send/recv reports as the structural problem it is).
     // Arc 126 — validate_channel_pair_deadlock: refuse call sites passing
-    // BOTH halves of one make-bounded-channel / make-unbounded-channel pair.
+    // BOTH halves of one make-channel pair.
     // Arc 140 — validate_sandbox_scope_leak: sandbox-primitive call sites
     // must not reference names from the outer SymbolTable.
     // Arc 109 slice 1c — validate_bare_legacy_primitives: bare primitive
@@ -1372,8 +1372,7 @@ fn check_calls_for_sandbox_leak(
 // - Function-keyword bodies are skipped (can't trace closure across
 //   the function-table boundary).
 // - The captured-name's RHS must be `(:wat::core::second pair)` and
-//   pair's RHS must be `(:wat::kernel::make-bounded-queue ...)` /
-//   `make-unbounded-queue` — no transitive helpers.
+//   pair's RHS must be `(:wat::kernel::make-channel ...)` — no transitive helpers.
 // - `select` is not yet pattern-matched (only `recv` / `try-recv`).
 
 /// Arc 109 slice 1c — walk every WatAST node, parse keywords as
@@ -1919,11 +1918,19 @@ const LEGACY_KERNEL_QUEUE_NAMES: &[(&str, &str)] = &[
     (":wat::kernel::QueuePair", ":wat::kernel::Channel"),
     (
         ":wat::kernel::make-bounded-queue",
-        ":wat::kernel::make-bounded-channel",
+        ":wat::kernel::make-channel",
     ),
     (
         ":wat::kernel::make-unbounded-queue",
+        ":wat::kernel::make-channel",
+    ),
+    (
+        ":wat::kernel::make-bounded-channel",
+        ":wat::kernel::make-channel",
+    ),
+    (
         ":wat::kernel::make-unbounded-channel",
+        ":wat::kernel::make-channel",
     ),
 ];
 
@@ -2569,8 +2576,7 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
 //   (call ... arg-name ...) → arg-name's RHS in scope → either
 //     (:wat::core::first <inner>) / (:wat::core::second <inner>) →
 //       recurse on <inner>
-//     (:wat::kernel::make-bounded-channel ...) /
-//     (:wat::kernel::make-unbounded-channel ...) → THIS is the
+//     (:wat::kernel::make-channel ...) → THIS is the
 //       pair-anchor; return its (binding-name, span)
 //     anything else → trace gives up (conservative; false-negative
 //       is acceptable, false-positive is not — DESIGN § "False-negative
@@ -2702,10 +2708,9 @@ fn walk_for_pair_deadlock(
             };
             // Extend scope with this let's typed bindings (typed-name shape)
             // AND with synthetic pair-scope entries for tuple-destructure
-            // bindings from make-bounded-channel / make-unbounded-channel
-            // (arc 133). Both shapes end up in the same scope vec; the
-            // trace logic is identical — it doesn't care whether the entry
-            // came from a typed-name or a synthetic expansion.
+            // bindings from make-channel (arc 133). Both shapes end up in
+            // the same scope vec; the trace logic is identical — it doesn't
+            // care whether the entry came from a typed-name or a synthetic expansion.
             let mut extended: Vec<PairScopeEntry> = binding_scope.to_vec();
             let mut synthetic_counter = 0usize;
             for binding in &bindings {
@@ -2713,7 +2718,7 @@ fn walk_for_pair_deadlock(
                     extended.push((name, type_ann, rhs));
                 } else {
                     // Arc 133 — attempt to expand tuple-destructure bindings
-                    // from make-bounded-channel into synthetic pair-scope entries.
+                    // from make-channel into synthetic pair-scope entries.
                     extend_pair_scope_with_tuple_destructure(
                         binding,
                         &mut synthetic_counter,
@@ -2791,10 +2796,10 @@ fn walk_for_pair_deadlock(
 
 /// At a function-call site, classify each Symbol argument by type.
 /// For each Sender<T>-typed argument, trace its RHS chain to the
-/// originating make-bounded-channel / make-unbounded-channel binding
-/// (the "pair-anchor"). Same for Receiver<T>-typed arguments. Group
-/// by anchor; if any anchor has BOTH a Sender argument AND a Receiver
-/// argument, emit `ChannelPairDeadlock`.
+/// originating make-channel binding (the "pair-anchor"). Same for
+/// Receiver<T>-typed arguments. Group by anchor; if any anchor has
+/// BOTH a Sender argument AND a Receiver argument, emit
+/// `ChannelPairDeadlock`.
 fn check_call_for_pair_deadlock(
     call_form: &WatAST,
     binding_scope: &[PairScopeEntry],
@@ -2855,17 +2860,15 @@ fn check_call_for_pair_deadlock(
 }
 
 /// Trace a binding name through the let binding chain to the
-/// originating `(:wat::kernel::make-bounded-channel ...)` /
-/// `make-unbounded-channel` call. Returns `(anchor-binding-name,
-/// anchor-span)` on success; `None` when the chain doesn't bottom
-/// out at a make-channel call (conservative — false-negative rather
-/// than false-positive, per DESIGN).
+/// originating `(:wat::kernel::make-channel ...)` call. Returns
+/// `(anchor-binding-name, anchor-span)` on success; `None` when the
+/// chain doesn't bottom out at a make-channel call (conservative —
+/// false-negative rather than false-positive, per DESIGN).
 ///
 /// The chain is:
 ///   name → RHS = (:wat::core::first <inner>) | (:wat::core::second <inner>)
 ///        → recurse on <inner> if it's a Symbol
-///   name → RHS = (:wat::kernel::make-bounded-channel ...) |
-///                (:wat::kernel::make-unbounded-channel ...)
+///   name → RHS = (:wat::kernel::make-channel ...)
 ///        → return Some((name, span))
 ///   anything else → None
 fn trace_to_pair_anchor(
@@ -2880,7 +2883,7 @@ fn trace_to_pair_anchor(
         _ => return None,
     };
     match head {
-        ":wat::kernel::make-bounded-channel" | ":wat::kernel::make-unbounded-channel" => {
+        ":wat::kernel::make-channel" => {
             Some((name.to_string(), span.clone()))
         }
         ":wat::core::first" | ":wat::core::second" => {
@@ -2896,10 +2899,9 @@ fn trace_to_pair_anchor(
 }
 
 /// Arc 133 — extend the pair-deadlock scope with synthetic entries
-/// for a tuple-destructure binding whose RHS is a
-/// `make-bounded-channel` or `make-unbounded-channel` call.
+/// for a tuple-destructure binding whose RHS is a `make-channel` call.
 ///
-/// Shape: `((name1 name2 ...) (:wat::kernel::make-bounded-channel ...))`.
+/// Shape: `((name1 name2 ...) (:wat::kernel::make-channel ...))`.
 ///
 /// Creates:
 ///   - A synthetic anchor entry `("__arc133_pair_N", ":wat::kernel::Channel<wat::core::nil>", rhs)`
@@ -2945,22 +2947,19 @@ fn extend_pair_scope_with_tuple_destructure(
     if names.len() != parts.len() || names.is_empty() {
         return;
     }
-    // RHS must be make-bounded-channel or make-unbounded-channel.
+    // RHS must be make-channel.
     let rhs = &items[1];
     let WatAST::List(rhs_items, _) = rhs else { return; };
     let rhs_head = match rhs_items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         _ => return,
     };
-    if !matches!(
-        rhs_head,
-        ":wat::kernel::make-bounded-channel" | ":wat::kernel::make-unbounded-channel"
-    ) {
+    if !matches!(rhs_head, ":wat::kernel::make-channel") {
         return;
     }
 
     // Synthetic anchor: a virtual binding whose RHS IS the make-channel
-    // call. `trace_to_pair_anchor` recognises make-*-channel as the
+    // call. `trace_to_pair_anchor` recognises make-channel as the
     // anchor terminus and returns this binding's name. Both name0 and
     // name1 will trace through their (first/second anchor) projections
     // and land here — same anchor name → pair-deadlock fires.
@@ -3003,11 +3002,11 @@ fn extend_pair_scope_with_tuple_destructure(
 /// extends the recipe to typed-name-position bindings under the new
 /// untyped binding shape `(name rhs)`.
 ///
-/// For `make-bounded-channel` / `make-unbounded-channel`: the TYPE
-/// argument keyword's leading `:` is stripped (arc 115
-/// InnerColonInCompoundArg — inner args inside `Channel<...>` must
-/// NOT have a leading `:`), so `:wat::core::i64` → `wat::core::i64`
-/// inside the formed string `:wat::kernel::Channel<wat::core::i64>`.
+/// For `make-channel`: the TYPE argument keyword's leading `:` is
+/// stripped (arc 115 InnerColonInCompoundArg — inner args inside
+/// `Channel<...>` must NOT have a leading `:`), so `:wat::core::i64`
+/// → `wat::core::i64` inside the formed string
+/// `:wat::kernel::Channel<wat::core::i64>`.
 ///
 /// For `first` / `second`: uses the same
 /// `Sender<wat::core::nil>` / `Receiver<wat::core::nil>` placeholder
@@ -3021,22 +3020,14 @@ fn derive_type_ann_from_rhs(rhs: &WatAST) -> Option<String> {
         _ => return None,
     };
     match head {
-        ":wat::kernel::make-bounded-channel" => {
-            // Args: TYPE N → Channel<TYPE>
+        ":wat::kernel::make-channel" => {
+            // Arg: TYPE → Channel<TYPE>
             let type_kw = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.as_str(),
                 _ => return None,
             };
             // Strip leading colon: inner args inside Channel<...> must
             // not carry a leading `:` (arc 115 InnerColonInCompoundArg).
-            let inner = type_kw.trim_start_matches(':');
-            Some(format!(":wat::kernel::Channel<{}>", inner))
-        }
-        ":wat::kernel::make-unbounded-channel" => {
-            let type_kw = match items.get(1) {
-                Some(WatAST::Keyword(k, _)) => k.as_str(),
-                _ => return None,
-            };
             let inner = type_kw.trim_start_matches(':');
             Some(format!(":wat::kernel::Channel<{}>", inner))
         }
@@ -4772,78 +4763,25 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::make-bounded-queue" => {
-                let (val, mut errs) = infer_make_queue(
-                    args,
-                    head_span,
-                    env,
-                    locals,
-                    fresh,
-                    subst,
-                    ":wat::kernel::make-bounded-queue",
-                    /*with_capacity=*/ true,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::kernel::make-unbounded-queue" => {
-                let (val, mut errs) = infer_make_queue(
-                    args,
-                    head_span,
-                    env,
-                    locals,
-                    fresh,
-                    subst,
-                    ":wat::kernel::make-unbounded-queue",
-                    /*with_capacity=*/ false,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            // Arc 159 — canonical channel constructors. Routed through
-            // `infer_make_queue` so new-shape let bindings that use
-            // `make-bounded-channel` / `make-unbounded-channel` as their
-            // RHS get a Tuple(Sender<T>, Receiver<T>) type in `extended`,
-            // enabling the post-inference scope-deadlock walker
-            // (`check_let_for_scope_deadlock_inferred`) to see the
-            // Sender-bearing binding and fire `ScopeDeadlock` when
-            // a Thread/join-result sits in the same let body.
+            // Arc 254.0 — one canonical depth-1 constructor. Routed through
+            // `infer_make_channel` so new-shape let bindings that use
+            // `make-channel` as their RHS get a Tuple(Sender<T>, Receiver<T>)
+            // type in `extended`, enabling the post-inference scope-deadlock
+            // walker (`check_let_for_scope_deadlock_inferred`) to see the
+            // Sender-bearing binding and fire `ScopeDeadlock` when a
+            // Thread/join-result sits in the same let body.
             //
             // This matches what `derive_type_ann_from_rhs` already does for
             // the pre-inference walker (`validate_channel_pair_deadlock`).
-            ":wat::kernel::make-bounded-channel" => {
-                let (val, mut errs) = infer_make_queue(
+            ":wat::kernel::make-channel" => {
+                let (val, mut errs) = infer_make_channel(
                     args,
                     head_span,
                     env,
                     locals,
                     fresh,
                     subst,
-                    ":wat::kernel::make-bounded-channel",
-                    /*with_capacity=*/ true,
-                ).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::kernel::make-unbounded-channel" => {
-                let (val, mut errs) = infer_make_queue(
-                    args,
-                    head_span,
-                    env,
-                    locals,
-                    fresh,
-                    subst,
-                    ":wat::kernel::make-unbounded-channel",
-                    /*with_capacity=*/ false,
+                    ":wat::kernel::make-channel",
                 ).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -10455,17 +10393,15 @@ fn infer_drop(
     if local_errors.is_empty() { CheckResult::ok(TypeExpr::Tuple(vec![])) } else { CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors) }
 }
 
-/// Type-check `(make-bounded-queue :T N)` / `(make-unbounded-queue :T)`.
-/// First argument is a type keyword (introspected directly, not
-/// inferred as a value); optional second argument is the capacity,
-/// which must unify to `:i64`. Return type is
-/// `:(Sender<T>, Receiver<T>)`.
+/// Type-check `(make-channel :T)` — arc 254.0 canonical constructor.
+/// The single argument is a type keyword (introspected directly, not
+/// inferred as a value). Return type is `:(Sender<T>, Receiver<T>)`.
 ///
 /// Written as a special form because the `∀T. ...` shape expresses T
 /// through a type-keyword argument — the value-level checker can't
 /// extract T from `infer(args[0])` the way rank-1 HM would want.
 #[allow(clippy::too_many_arguments)]
-fn infer_make_queue(
+fn infer_make_channel(
     args: &[WatAST],
     head_span: &Span,
     env: &CheckEnv,
@@ -10473,14 +10409,12 @@ fn infer_make_queue(
     fresh: &mut InferCtx,
     subst: &mut Subst,
     form: &str,
-    with_capacity: bool,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let expected_arity = if with_capacity { 2 } else { 1 };
-    if args.len() != expected_arity {
+    if args.len() != 1 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: form.into(),
-            expected: expected_arity,
+            expected: 1,
             got: args.len()
         } });
         // Still recurse into any extra args for nested checks.
@@ -10500,7 +10434,7 @@ fn infer_make_queue(
                 args: vec![t],
             },
         ]);
-        // HARVEST (236.2): existing diagnostic; partial — return queue type with error.
+        // HARVEST (236.2): existing diagnostic; partial — return channel type with error.
         return CheckResult::partial_with(ty, local_errors);
     }
     // Extract T from the type-keyword argument.
@@ -10561,21 +10495,6 @@ fn infer_make_queue(
             fresh.fresh()
         }
     };
-    // If bounded, check capacity unifies to :i64.
-    if with_capacity {
-        let cap_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        if let Some(cap_ty) = cap_ty {
-            let i64_ty = TypeExpr::Path(":wat::core::i64".into());
-            if unify(&cap_ty, &i64_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: form.into(),
-                    param: "capacity".into(),
-                    expected: "i64".into(),
-                    got: format_type(&apply_subst(&cap_ty, subst))
-                } });
-            }
-        }
-    }
     let ty = TypeExpr::Tuple(vec![
         TypeExpr::Parametric {
             head: "rust::crossbeam_channel::Sender".into(),
@@ -18124,7 +18043,7 @@ mod tests {
             (:wat::core::defn :my::deadlock-at-outer [] -> :wat::core::nil
               (:wat::core::let
                               [pair
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                (:wat::kernel::make-channel :wat::core::i64)
                                rx
                                 (:wat::core::second pair)
                                thr
@@ -18173,7 +18092,7 @@ mod tests {
                                     -> :wat::core::nil)
                                   (:wat::core::let
                                     [pair
-                                      (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                      (:wat::kernel::make-channel :wat::core::i64)
                                      rx
                                       (:wat::core::second pair)
                                      thr
@@ -18219,17 +18138,17 @@ mod tests {
 
     #[test]
     fn channel_pair_deadlock_fires_on_canonical_anti_pattern() {
-        // The arc 119 minimal repro shape: one make-bounded-channel
-        // pair, both halves bound, both passed to one helper-verb.
-        // Structural truth — same pair-anchor IS same channel — so
-        // the rule fires regardless of helper-verb's body.
+        // The arc 119 minimal repro shape: one make-channel pair, both
+        // halves bound, both passed to one helper-verb. Structural truth —
+        // same pair-anchor IS same channel — so the rule fires regardless
+        // of helper-verb's body.
         let src = r#"
             (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
             (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
                               ((pair
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (tx
                                 (:wat::core::first pair))
                                (rx
@@ -18253,18 +18172,18 @@ mod tests {
 
     #[test]
     fn channel_pair_deadlock_silent_on_two_different_pairs() {
-        // Two SEPARATE make-bounded-channel calls — each end traces
-        // to a distinct pair-anchor. Different anchors = different
-        // channels = no deadlock. The rule must NOT fire.
+        // Two SEPARATE make-channel calls — each end traces to a distinct
+        // pair-anchor. Different anchors = different channels = no deadlock.
+        // The rule must NOT fire.
         let src = r#"
             (:wat::core::defn :my::helper-verb [tx <- :wat::kernel::Sender<wat::core::nil> rx <- :wat::kernel::Receiver<wat::core::nil>] -> :wat::core::nil ())
 
             (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
                               ((pair-a
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (pair-b
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (tx
                                 (:wat::core::first pair-a))
                                (rx
@@ -18306,9 +18225,9 @@ mod tests {
             (:wat::core::defn :my::pop-handle [_d <- :wat::core::nil] -> :my::Handle
               (:wat::core::let
                               ((p
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (q
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (req-tx
                                 (:wat::core::first p))
                                (ack-rx
@@ -18354,7 +18273,7 @@ mod tests {
             (:wat::core::defn :my::caller [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
                               ((pair
-                                (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                (:wat::kernel::make-channel :wat::core::nil))
                                (tx
                                 (:wat::core::first pair))
                                (rx
@@ -18402,7 +18321,7 @@ mod tests {
                                     -> :wat::core::nil)
                                   (:wat::core::let
                                     ((pair
-                                      (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                                      (:wat::kernel::make-channel :wat::core::nil))
                                      (tx
                                       (:wat::core::first pair))
                                      (rx
@@ -18732,7 +18651,7 @@ mod tests {
 
     /// Arc 133 — sibling check: the `ChannelPairDeadlock` rule also
     /// fires when both halves of a channel pair are bound via
-    /// tuple-destructure `((tx rx) (:wat::kernel::make-bounded-channel :i64 1))`
+    /// tuple-destructure `((tx rx) (:wat::kernel::make-channel :i64))`
     /// and then both are passed to one helper function.
     ///
     /// The extension to `walk_for_pair_deadlock` adds synthetic
@@ -18748,11 +18667,11 @@ mod tests {
             (:wat::core::defn :my::caller-destructure [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
                               [[tx rx]
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)]
+                                (:wat::kernel::make-channel :wat::core::i64)]
                               (:my::helper-pair tx rx)))
         "#;
         let err = check(src).expect_err(
-            "arc 133: tuple-destructure of make-bounded-channel with both halves passed to one helper must fire ChannelPairDeadlock",
+            "arc 133: tuple-destructure of make-channel with both halves passed to one helper must fire ChannelPairDeadlock",
         );
         let pair_deadlocks: Vec<_> = err
             .0
@@ -18761,7 +18680,7 @@ mod tests {
             .collect();
         assert!(
             !pair_deadlocks.is_empty(),
-            "arc 133: expected ChannelPairDeadlock from tuple-destructure of make-bounded-channel; got: {:?}",
+            "arc 133: expected ChannelPairDeadlock from tuple-destructure of make-channel; got: {:?}",
             err.0
         );
     }
@@ -18818,8 +18737,8 @@ mod tests {
 
     /// Arc 134 — guard rail. The exemption is targeted at Senders
     /// originating from `(:wat::kernel::Thread/input <_>)`. A Sender
-    /// from a parent-allocated `(:wat::kernel::make-bounded-channel
-    /// ...)` (the canonical deadlock anchor) sibling to a Thread with
+    /// from a parent-allocated `(:wat::kernel::make-channel ...)` (the
+    /// canonical deadlock anchor) sibling to a Thread with
     /// `Thread/join-result` in body MUST still fire — that's the
     /// exact shape arc 117 was designed to catch.
     ///
@@ -18833,7 +18752,7 @@ mod tests {
             (:wat::core::defn :my::caller [] -> :wat::core::nil
               (:wat::core::let
                               [pair
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                (:wat::kernel::make-channel :wat::core::i64)
                                tx
                                 (:wat::core::first pair)
                                rx
@@ -18847,7 +18766,7 @@ mod tests {
                                 ((:wat::core::Err _) ()))))
         "#;
         let err = check(src).expect_err(
-            "arc 134: parent-allocated Sender (from make-bounded-channel) sibling to Thread with join-result MUST still fire ScopeDeadlock — arc 117's canonical anchor",
+            "arc 134: parent-allocated Sender (from make-channel) sibling to Thread with join-result MUST still fire ScopeDeadlock — arc 117's canonical anchor",
         );
         let scope_deadlocks: Vec<_> = err
             .0
@@ -18863,11 +18782,10 @@ mod tests {
 
     /// Arc 134 — body-form narrowing. The pattern from
     /// `tests/wat_typealias.rs::alias_over_fn_type_works_at_spawn`:
-    /// parent allocates a channel via `(make-bounded-channel)` and
-    /// captures `tx` (Sender) in the spawn-thread closure. The
-    /// closure's body calls a helper that sends, never recvs. The
-    /// thread cannot have a recv-loop, so no Sender lifetime can
-    /// deadlock it.
+    /// parent allocates a channel via `(make-channel)` and captures
+    /// `tx` (Sender) in the spawn-thread closure. The closure's body
+    /// calls a helper that sends, never recvs. The thread cannot have
+    /// a recv-loop, so no Sender lifetime can deadlock it.
     ///
     /// Pre-arc-134 (post-arc-133) this fired ScopeDeadlock on `pair`
     /// + `tx` because the rule only checked type-coexistence with
@@ -18888,7 +18806,7 @@ mod tests {
             (:wat::core::defn :my::caller [] -> :wat::core::nil
               (:wat::core::let
                               [pair
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                (:wat::kernel::make-channel :wat::core::i64)
                                tx
                                 (:wat::core::first pair)
                                rx
@@ -18952,7 +18870,7 @@ mod tests {
     /// Arc 158a test 1 — walker fires on new-shape Channel binding.
     ///
     /// All three bindings use the new untyped shape. `parse_binding_for_pair_check`
-    /// derives `Channel<i64>` for `pair` (from `make-bounded-channel` RHS),
+    /// derives `Channel<i64>` for `pair` (from `make-channel` RHS),
     /// `Sender<nil>` for `tx` (from `first` RHS), and `Receiver<nil>` for
     /// `rx` (from `second` RHS). The `walk_for_pair_deadlock` walker traces
     /// both `tx` and `rx` to anchor `pair` and fires `ChannelPairDeadlock`
@@ -18964,7 +18882,7 @@ mod tests {
 
             (:wat::core::defn :my::new-shape-channel-binding [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                              ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                              ((pair (:wat::kernel::make-channel :wat::core::i64))
                                (tx (:wat::core::first pair))
                                (rx (:wat::core::second pair)))
                               (:my::helper-verb-158a-1 tx rx)))
@@ -18984,10 +18902,10 @@ mod tests {
     /// Arc 158a test 2 — walker traces `(:wat::core::second pair)` in
     /// new binding shape.
     ///
-    /// `pair` is new-shape (derives Channel from `make-bounded-channel` RHS).
+    /// `pair` is new-shape (derives Channel from `make-channel` RHS).
     /// `rx` is new-shape (derives Receiver from `second pair` RHS). `tx` is
     /// new-shape (derives Sender from `first pair` RHS). The trace from `rx`
-    /// → `pair` → make-bounded-channel resolves the pair anchor; same for
+    /// → `pair` → make-channel resolves the pair anchor; same for
     /// `tx`. Both land at anchor `pair` → `ChannelPairDeadlock` fires.
     #[test]
     fn arc_158a_walker_traces_second_in_new_shape() {
@@ -18996,7 +18914,7 @@ mod tests {
 
             (:wat::core::defn :my::new-shape-trace-second [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                              ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                              ((pair (:wat::kernel::make-channel :wat::core::i64))
                                (tx (:wat::core::first pair))
                                (rx (:wat::core::second pair)))
                               (:my::helper-verb-158a-2 tx rx)))
@@ -19024,7 +18942,7 @@ mod tests {
             (:wat::core::defn :my::legacy-shape-still-fires [] -> :wat::core::nil
               (:wat::core::let
                               [pair
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                (:wat::kernel::make-channel :wat::core::i64)
                                rx
                                 (:wat::core::second pair)
                                thr
@@ -19067,7 +18985,7 @@ mod tests {
             (:wat::core::defn :my::mixed-shape-let [] -> :wat::core::nil
               (:wat::core::let
                               [pair
-                                (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                                (:wat::kernel::make-channel :wat::core::i64)
                                rx (:wat::core::second pair)
                                thr
                                 (:wat::kernel::spawn-thread
@@ -19146,7 +19064,7 @@ mod tests {
 
             (:wat::core::defn :my::arc126-in-new-shape [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                              ((pair (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                              ((pair (:wat::kernel::make-channel :wat::core::nil))
                                (tx (:wat::core::first pair))
                                (rx (:wat::core::second pair)))
                               (:my::helper-verb-158a-6 tx rx)))
@@ -19163,10 +19081,10 @@ mod tests {
         );
     }
 
-    /// Arc 158a test 7 — make-unbounded-channel in new shape also fires.
+    /// Arc 158a test 7 — make-channel in new shape fires (arc 254.0 collapse).
     ///
-    /// Covers the `make-unbounded-channel` branch of `derive_type_ann_from_rhs`.
-    /// All three bindings in new shape; `pair` from `make-unbounded-channel`.
+    /// Covers the `make-channel` branch of `derive_type_ann_from_rhs`.
+    /// All three bindings in new shape; `pair` from `make-channel`.
     #[test]
     fn arc_158a_unbounded_channel_new_shape_fires() {
         let src = r#"
@@ -19174,19 +19092,19 @@ mod tests {
 
             (:wat::core::defn :my::unbounded-new-shape-deadlock [_d <- :wat::core::nil] -> :wat::core::nil
               (:wat::core::let
-                              ((pair (:wat::kernel::make-unbounded-channel :wat::core::i64))
+                              ((pair (:wat::kernel::make-channel :wat::core::i64))
                                (tx (:wat::core::first pair))
                                (rx (:wat::core::second pair)))
                               (:my::helper-verb-158a-7 tx rx)))
         "#;
         let err = check(src).expect_err(
-            "arc 158a: new-shape make-unbounded-channel must fire ChannelPairDeadlock",
+            "arc 158a: new-shape make-channel must fire ChannelPairDeadlock",
         );
         assert!(
             err.0
                 .iter()
                 .any(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. })),
-            "arc 158a test 7: make-unbounded-channel new shape; expected ChannelPairDeadlock; got: {:?}",
+            "arc 158a test 7: make-channel new shape; expected ChannelPairDeadlock; got: {:?}",
             err.0
         );
     }
@@ -19213,7 +19131,7 @@ mod tests {
     /// `check_let_for_scope_deadlock_inferred` walker (post-inference)
     /// can then see the Channel type via inferred types and fire `ScopeDeadlock`.
     ///
-    /// Pattern: `pair` is a Channel (inferred from make-bounded-channel);
+    /// Pattern: `pair` is a Channel (inferred from make-channel);
     /// `tx` is projected via `(:wat::core::first pair)`; `rx` via second;
     /// `thr` is spawned from a named worker. Body calls Thread/join-result
     /// while `tx` (Sender-bearing) is still in scope → ScopeDeadlock.
@@ -19234,7 +19152,7 @@ mod tests {
 
             (:wat::core::defn :my::caller-arc159 [] -> :wat::core::nil
               (:wat::core::let
-                              [pair (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                              [pair (:wat::kernel::make-channel :wat::core::i64)
                                tx (:wat::core::first pair)
                                rx (:wat::core::second pair)
                                thr (:wat::kernel::spawn-thread :my::worker-arc159)]

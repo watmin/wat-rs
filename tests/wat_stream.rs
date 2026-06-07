@@ -71,7 +71,7 @@ fn from_receiver_wraps_raw_queue_into_stream() {
         (:wat::core::defn :test::build-stream [] -> :wat::stream::Stream<wat::core::i64>
           (:wat::core::let
                       [pair
-                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                        (:wat::kernel::make-channel :wat::core::i64)
                        tx (:wat::core::first pair)
                        rx (:wat::core::second pair)
                        handle
@@ -101,7 +101,7 @@ fn from_receiver_composes_with_map() {
         (:wat::core::defn :test::build-stream [] -> :wat::stream::Stream<wat::core::i64>
           (:wat::core::let
                       [pair
-                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                        (:wat::kernel::make-channel :wat::core::i64)
                        tx (:wat::core::first pair)
                        rx (:wat::core::second pair)
                        handle

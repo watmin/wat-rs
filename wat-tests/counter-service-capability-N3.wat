@@ -304,10 +304,10 @@
              ((:counter::AdminReq::Provision initial)
                (:wat::core::let
                  [user-id   (:wat::core::Uuid/v4)
-                  uwp       (:wat::kernel::make-bounded-channel :counter::Wire 1)
+                  uwp       (:wat::kernel::make-channel :counter::Wire)
                   user-tx   (:wat::core::first  uwp)
                   server-rx (:wat::core::second uwp)
-                  urp       (:wat::kernel::make-bounded-channel :counter::UserResp 1)
+                  urp       (:wat::kernel::make-channel :counter::UserResp)
                   server-tx (:wat::core::first  urp)
                   user-rx   (:wat::core::second urp)
                   new-registry

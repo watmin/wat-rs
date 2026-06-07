@@ -9,8 +9,7 @@
 //! (factored from `closure_extract.rs`'s value-level portability classifier)
 //! and rejects the non-portable payload.
 //!
-//! Uses `make-bounded-channel ... 1` (the surviving DEPTH-1 form; unbounded +
-//! bounded(N) are condemned per the Mini-TCP doctrine — arc 254 §contract).
+//! Uses `make-channel :T` (the one canonical depth-1 constructor — arc 254.0).
 
 use std::sync::Arc;
 use wat::freeze::{startup_from_source, StartupError};
@@ -29,7 +28,7 @@ fn check_result(src: &str) -> Result<(), String> {
 // rejected at check time. (`d1 tx`/`d2 rx` bind-uses so neither half is unused.)
 const CHANNEL_OF_SENDERS: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [[tx rx] (:wat::kernel::make-bounded-channel :wat::kernel::Sender<:wat::core::i64> 1)
+  (:wat::core::let [[tx rx] (:wat::kernel::make-channel :wat::kernel::Sender<:wat::core::i64>)
                     d1 tx
                     d2 rx]
     nil))
@@ -42,7 +41,7 @@ const CHANNEL_OF_SENDERS: &str = r#"
 const CHANNEL_OF_STRUCT_WITH_SENDER: &str = r#"
 (:wat::core::defstruct :my::Capsule [snd <- :wat::kernel::Sender<wat::core::i64>])
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [[tx rx] (:wat::kernel::make-bounded-channel :my::Capsule 1)
+  (:wat::core::let [[tx rx] (:wat::kernel::make-channel :my::Capsule)
                     d1 tx
                     d2 rx]
     nil))
@@ -51,7 +50,7 @@ const CHANNEL_OF_STRUCT_WITH_SENDER: &str = r#"
 // Control: an i64-payload channel is portable and MUST keep type-checking.
 const CHANNEL_OF_I64: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [[tx rx] (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+  (:wat::core::let [[tx rx] (:wat::kernel::make-channel :wat::core::i64)
                     d1 tx
                     d2 rx]
     nil))

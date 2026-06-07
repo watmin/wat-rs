@@ -316,8 +316,8 @@
    ;;
    ;; Provision:
    ;;   - mint client-id = "client-" ++ to-string(next-id)
-   ;;   - make-bounded-channel for user-wire (server-rx, user-tx)
-   ;;   - make-bounded-channel for user-resp (server-tx, user-rx)
+   ;;   - make-channel for user-wire (server-rx, user-tx)
+   ;;   - make-channel for user-resp (server-tx, user-rx)
    ;;   - register in registry-vec
    ;;   - send Provisioned(id, user-tx, user-rx) to admin
    ;;   - recur with updated registry + incremented next-id
@@ -348,11 +348,11 @@
                 id-str    (:wat::core::string::concat "client-"
                             (:wat::core::i64::to-string next-id))
                 ;; User-wire channel: user → server
-                uwp       (:wat::kernel::make-bounded-channel :counter::Wire 1)
+                uwp       (:wat::kernel::make-channel :counter::Wire)
                 user-tx   (:wat::core::first  uwp)
                 server-rx (:wat::core::second uwp)
                 ;; User-resp channel: server → user
-                urp       (:wat::kernel::make-bounded-channel :counter::UserResp 1)
+                urp       (:wat::kernel::make-channel :counter::UserResp)
                 server-tx (:wat::core::first  urp)
                 user-rx   (:wat::core::second urp)
                 ;; Register in registry-vec

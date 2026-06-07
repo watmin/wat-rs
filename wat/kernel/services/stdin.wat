@@ -295,8 +295,8 @@
 (:wat::core::defn :wat::kernel::services::StdInService/spawn [reader <- :wat::io::IOReader] -> :wat::kernel::services::StdInService::Spawn
   (:wat::core::let
       [ctrl-pair
-        (:wat::kernel::make-bounded-channel
-          :wat::kernel::services::StdInService::Event 1)
+        (:wat::kernel::make-channel
+          :wat::kernel::services::StdInService::Event)
        ctrl-tx
         (:wat::core::first ctrl-pair)
        ctrl-rx

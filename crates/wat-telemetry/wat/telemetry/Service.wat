@@ -417,14 +417,14 @@
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
-          (:wat::kernel::make-bounded-channel
-            :wat::telemetry::Request<E> 1)))
+          (:wat::kernel::make-channel
+            :wat::telemetry::Request<E>)))
      ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
-          (:wat::kernel::make-bounded-channel :wat::core::nil 1)))
+          (:wat::kernel::make-channel :wat::core::nil)))
      handles
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)

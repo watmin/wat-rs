@@ -568,12 +568,12 @@
     [req-pairs
       (:wat::core::map
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReqChannel
-          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Request 1))
+          (:wat::kernel::make-channel :wat::holon::lru::HologramCacheService::Request))
         (:wat::core::range 0 count))
      reply-pairs
       (:wat::core::map
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReplyChannel
-          (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Reply 1))
+          (:wat::kernel::make-channel :wat::holon::lru::HologramCacheService::Reply))
         (:wat::core::range 0 count))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      handles

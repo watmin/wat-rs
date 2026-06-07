@@ -22,7 +22,7 @@
 ;; closure (via svc-tel-make-dispatcher); stub-rx is returned separately.
 ;; They are never passed to the same function simultaneously. The
 ;; req-tx / ack-rx from HandlePool::pop are opaque (not traced back
-;; through a WAT-level make-bounded-channel), so batch-log is safe too.
+;; through a WAT-level make-channel), so batch-log is safe too.
 
 (:wat::test::make-deftest :deftest
   (
@@ -78,7 +78,7 @@
        [driver
          (:wat::core::let
            [stub-pair
-             (:wat::kernel::make-bounded-channel :wat::core::i64 16)
+             (:wat::kernel::make-channel :wat::core::i64)
             stub-tx (:wat::core::first stub-pair)
             dispatcher
              (:test::svc-tel-make-dispatcher stub-tx)
@@ -118,7 +118,7 @@
        [thr-and-rx
          (:wat::core::let
            [stub-pair
-             (:wat::kernel::make-bounded-channel :wat::core::i64 16)
+             (:wat::kernel::make-channel :wat::core::i64)
             stub-tx (:wat::core::first stub-pair)
             stub-rx (:wat::core::second stub-pair)
             dispatcher
@@ -192,7 +192,7 @@
 (:deftest :wat-telemetry::test-svc-tel-make-dispatcher
   (:wat::core::let
     [stub-pair
-      (:wat::kernel::make-bounded-channel :wat::core::i64 4)
+      (:wat::kernel::make-channel :wat::core::i64)
      stub-tx (:wat::core::first stub-pair)
      stub-rx (:wat::core::second stub-pair)
      dispatcher
@@ -264,7 +264,7 @@
 (:deftest :wat-telemetry::test-svc-tel-assert-drain-3
   (:wat::core::let
     [pair
-      (:wat::kernel::make-bounded-channel :wat::core::i64 4)
+      (:wat::kernel::make-channel :wat::core::i64)
      tx (:wat::core::first pair)
      rx (:wat::core::second pair)
      _

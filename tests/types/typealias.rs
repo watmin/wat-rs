@@ -193,7 +193,7 @@ fn alias_over_fn_type_works_at_spawn() {
                             (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
                             ()))
                        pair
-                        (:wat::kernel::make-bounded-channel :wat::core::i64 1)
+                        (:wat::kernel::make-channel :wat::core::i64)
                        tx (:wat::core::first pair)
                        rx (:wat::core::second pair)
                        h
