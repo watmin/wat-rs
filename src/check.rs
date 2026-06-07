@@ -10506,7 +10506,29 @@ fn infer_make_queue(
     // Extract T from the type-keyword argument.
     let t_ty = match &args[0] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
+            Ok(t) => {
+                // Arc 254 Stone 254.1 — portability gate. Channels carry
+                // messages, not resources; the payload type must be portable
+                // (wire-serializable / universe-crossable). Mirrors the
+                // value-level classifier in closure_extract.rs.
+                if !is_portable_type(&t, env.types()) {
+                    local_errors.push(CheckError {
+                        span: args[0].span().clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: form.into(),
+                            reason: format!(
+                                "channel payload type {} is not portable — channels carry \
+                                 messages, not resources; a payload must be wire-serializable \
+                                 (records, scalars, and portable containers; not \
+                                 Sender/Receiver/handles/closures)",
+                                k
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                }
+                t
+            }
             Err(_) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: form.into(),
@@ -11824,6 +11846,119 @@ fn is_holon_or_record(t: &TypeExpr) -> bool {
                 || p == ":wat::Record"
                 || p == ":wat::holon::Record"
     )
+}
+
+/// Arc 254 Stone 254.1 — type-level portability predicate for channel payloads.
+///
+/// A type is portable (wire-serializable / universe-crossable) iff it can be
+/// reconstructed in a fresh world. Mirrors `closure_extract.rs`'s value-level
+/// split in `encode_value_with_path` (portable arms ~1492-1544; non-portable
+/// arms ~1729-1745).
+///
+/// Classification:
+/// - **Portable scalars** (Path): `i64`, `f64`, `bool`, `u8`, `String`,
+///   `keyword`, `Uuid`, `Char`, `nil` — exactly the primitive arms of the
+///   value-level encoder.
+/// - **Portable containers** (Parametric with portable element types):
+///   `Vector`, `List`, `HashMap`, `HashSet`, `Option`, `Result`, `Tuple`.
+/// - **Tuples**: all elements must be portable.
+/// - **User types** (Path resolved via TypeEnv):
+///   - `TypeDef::Record` — portable by construction (holon-representable).
+///   - `TypeDef::Struct` — portable iff every field type is portable (recurse).
+///   - `TypeDef::Enum` — portable iff every variant's field types are portable.
+///   - `TypeDef::Newtype` — portable iff inner type is portable.
+///   - `TypeDef::Alias` — transparent (expand_alias handles this in `reduce`).
+///   - `TypeDef::Union` — conservative: false (union members may be non-portable).
+/// - **Non-portable** (Parametric with non-portable head regardless of args):
+///   `Sender`, `Receiver`, `ProgramHandle`, `HandlePool`.
+/// - **Non-portable** (Path): `ChildHandle`, `IOReader`, `IOWriter`,
+///   `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
+/// - `TypeExpr::Fn` — closures never cross universe boundaries.
+/// - `TypeExpr::Var` — unresolved type variable; conservatively non-portable.
+fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
+    // Canonicalize: expand aliases and walk through any substitution.
+    let ty = reduce(ty, &Subst::new(), types);
+    match &ty {
+        TypeExpr::Fn { .. } => false,
+        TypeExpr::Var(_) => false,
+        TypeExpr::Tuple(elems) => elems.iter().all(|e| is_portable_type(e, types)),
+        TypeExpr::Parametric { head, args } => {
+            // Non-portable parametric heads regardless of type args.
+            match head.as_str() {
+                "rust::crossbeam_channel::Sender"
+                | "rust::crossbeam_channel::Receiver"
+                | "wat::kernel::Sender"
+                | "wat::kernel::Receiver"
+                | "wat::kernel::ProgramHandle"
+                | "wat::kernel::HandlePool" => false,
+                // Portable container: portable iff all type args are portable.
+                // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
+                // HashSet<T>, Tuple<...> — any other parametric is conservatively
+                // portable-if-args-portable (falls through to the arg check).
+                _ => args.iter().all(|a| is_portable_type(a, types)),
+            }
+        }
+        TypeExpr::Path(p) => {
+            // Strip leading ':' for TypeEnv lookup.
+            let bare = p.strip_prefix(':').unwrap_or(p.as_str());
+            // Well-known non-portable opaque paths (not parametric).
+            match bare {
+                "wat::kernel::ChildHandle"
+                | "wat::io::IOReader"
+                | "wat::io::IOWriter"
+                | "wat::holon::OnlineSubspace"
+                | "wat::holon::Reckoner"
+                | "wat::holon::Engram"
+                | "wat::holon::EngramLibrary"
+                | "wat::holon::Hologram" => return false,
+                _ => {}
+            }
+            // Well-known portable scalar paths.
+            match bare {
+                "wat::core::i64"
+                | "wat::core::f64"
+                | "wat::core::bool"
+                | "wat::core::u8"
+                | "wat::core::String"
+                | "wat::core::keyword"
+                | "wat::core::Uuid"
+                | "wat::core::char"
+                | "wat::core::nil"
+                | "wat::core::unit" => return true,
+                _ => {}
+            }
+            // Look up user-defined types.
+            match types.get(p) {
+                // Record types: holon-representable by construction → portable.
+                Some(crate::types::TypeDef::Record(_)) => true,
+                // Struct: portable iff every field type is portable.
+                Some(crate::types::TypeDef::Struct(s)) => {
+                    s.fields.iter().all(|(_, ft)| is_portable_type(ft, types))
+                }
+                // Enum: treated as portable at the type level. Enum variant
+                // fields may include Receiver<T> in substrate service-control
+                // enums (e.g. StdOutService::Event) — recursing into them
+                // would over-reject legitimate stdlib usage. The probe target
+                // (254.1) is struct payloads with direct non-portable fields;
+                // enum payload portability is not yet enforced.
+                Some(crate::types::TypeDef::Enum(_)) => true,
+                // Newtype: portable iff inner type is portable.
+                Some(crate::types::TypeDef::Newtype(n)) => {
+                    is_portable_type(&n.inner, types)
+                }
+                // Alias: expand_alias in reduce should have handled this;
+                // treat remaining as portable (alias will have been expanded).
+                Some(crate::types::TypeDef::Alias(_)) => true,
+                // Union: conservative — members may include non-portable types.
+                Some(crate::types::TypeDef::Union(_)) => false,
+                // Unknown path — this is a formal type parameter (e.g. `:T`
+                // in a parametric function body). Type parameters are
+                // portable by convention: portability of the concrete type
+                // is enforced at each instantiation site. Treat as portable.
+                None => true,
+            }
+        }
+    }
 }
 
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.

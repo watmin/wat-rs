@@ -79,7 +79,6 @@ fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
 // type-checks clean (gap open); after 254.1's is_portable_type gate it is
 // rejected. Run un-ignored to confirm RED, then keep #[ignore]'d (baseline green)
 // until 254.1 lands and un-ignores it.
-#[ignore = "RED at HEAD (composite portability gap open) — 254.1 adds the is_portable_type gate, then un-ignore"]
 #[test]
 fn channel_of_struct_with_opaque_field_must_be_rejected() {
     let result = check_result(CHANNEL_OF_STRUCT_WITH_SENDER);
