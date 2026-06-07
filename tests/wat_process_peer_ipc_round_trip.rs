@@ -115,12 +115,12 @@ fn process_peer_type_mints_in_both_parametric_orientations() {
         (:wat::core::defn :my::client-reads-i64-writes-string
           [_peer <- :wat::kernel::ProcessPeer<wat::core::i64,wat::core::String>]
           -> :wat::core::nil
-          :wat::core::nil)
+          nil)
 
         (:wat::core::defn :my::client-reads-string-writes-i64
           [_peer <- :wat::kernel::ProcessPeer<wat::core::String,wat::core::i64>]
           -> :wat::core::nil
-          :wat::core::nil)
+          nil)
     "#;
     let world = freeze_ok(src);
     assert!(
@@ -159,7 +159,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
           (:wat::core::let
                       [line (:wat::kernel::readln -> :wat::core::String)
                        _    (:wat::kernel::println line)]
-                      :wat::core::nil))
+                      nil))
     "#;
     let spawn_call = build_spawn_process_call(server_program_src);
     let server = eval(&spawn_call, &Environment::new(), world.symbols())

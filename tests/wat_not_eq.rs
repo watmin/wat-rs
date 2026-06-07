@@ -79,13 +79,26 @@ fn not_eq_i64_false_when_same() {
 
 #[test]
 fn not_eq_f64_cross_numeric_coerce() {
+    // Arc-237 Stone 237.8a: cross-numeric coercion for equality DELETED.
+    // `(:wat::core::not= 3 3.0)` is now a TypeMismatch (same-type-only
+    // relational intrinsic). Startup must fail with a type check error.
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::kernel::println
                       (:wat::core::if (:wat::core::not= 3 3.0) -> :wat::core::String
                         "yes" "no")))
     "##;
-    assert_eq!(run(src), vec!["\"no\"".to_string()]);
+    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    assert!(
+        result.is_err(),
+        "expected cross-numeric not= to produce a type error; got Ok"
+    );
+    let msg = format!("{:?}", result.unwrap_err());
+    assert!(
+        msg.contains("TypeMismatch") || msg.contains("type") || msg.contains("f64"),
+        "expected TypeMismatch mentioning type mismatch; got: {}",
+        msg
+    );
 }
 
 #[test]

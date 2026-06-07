@@ -261,7 +261,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
-                      [h   (:wat::holon::leaf :wat::core::nil)
+                      [h   (:wat::holon::leaf nil)
                        edn (:wat::edn::write h)]
                       (:wat::kernel::println edn)))
     "##;

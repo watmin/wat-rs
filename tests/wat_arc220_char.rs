@@ -224,7 +224,7 @@ fn char_of_empty_string_rejected() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [_c (:wat::core::char/of "")]
-                      :wat::core::nil))
+                      nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -244,7 +244,7 @@ fn char_of_multi_char_rejected() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [_c (:wat::core::char/of "ab")]
-                      :wat::core::nil))
+                      nil))
     "#;
     let err = run_expecting_runtime_err(src);
     assert!(
@@ -265,7 +265,7 @@ fn char_of_supplementary_plane_rejected() {
     // before it's passed to the WAT parser (which would not handle \u{NNNNNN}).
     // Stone 241.11: :wat::core::define retired; use :wat::core::defn.
     let src = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil\n  (:wat::core::let\n    [_c (:wat::core::char/of \"\u{1F600}\")]\n    :wat::core::nil))"
+        "(:wat::core::defn :user::main [] -> :wat::core::nil\n  (:wat::core::let\n    [_c (:wat::core::char/of \"\u{1F600}\")]\n    nil))"
     );
     let err = run_expecting_runtime_err(&src);
     assert!(

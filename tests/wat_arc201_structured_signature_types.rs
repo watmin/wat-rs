@@ -117,7 +117,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     // Parametric emission.
     let src = r##"
 
-        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                         (:wat::core::i64::+ acc x))

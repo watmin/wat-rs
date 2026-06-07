@@ -168,7 +168,7 @@ fn bundle_children_walks_parametric_type_slot() {
     // a Bundle, which round-trips through the EDN renderer).
     let src = r##"
 
-        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 _b <- & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
           (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                         (:wat::core::i64::+ acc x))

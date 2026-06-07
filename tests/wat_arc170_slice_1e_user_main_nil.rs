@@ -83,19 +83,17 @@ fn t1_canonical_main_freezes_and_invokes() {
 
 #[test]
 fn t2_wrong_return_type_fires_walker() {
-    // `[] -> :wat::core::i64` — empty params (canonical shape) but a
-    // non-nil return. The slice-1e walker fires on anything that isn't
-    // `[] -> :wat::core::nil`.
+    // `[] -> :wat::core::i64` — empty params but a non-nil return.
+    // The freeze-time walker is dead code (defn macro-expands to def
+    // before it runs); enforcement moved to `validate_user_main_signature`.
+    // Freeze now succeeds; validate_user_main_signature returns Err.
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::i64 42)
     "#;
-    let err = freeze_err(src);
+    let world = freeze_ok(src);
     assert!(
-        err.contains("BareLegacyMainSignature")
-            || err.contains(":user::main")
-            || err.contains("[] -> :wat::core::nil"),
-        "expected BareLegacyMainSignature diagnostic naming new canonical shape; got: {}",
-        err
+        validate_user_main_signature(&world).is_err(),
+        "expected validate_user_main_signature to reject [] -> :wat::core::i64 signature"
     );
 }
 
@@ -103,15 +101,14 @@ fn t2_wrong_return_type_fires_walker() {
 fn t2_legacy_3arg_main_fires_walker() {
     // The pre-arc-170 shape — 3-arg with stdio, nil return. Still
     // not canonical post-slice-1e because params are non-empty.
+    // validate_user_main_signature rejects non-empty param list.
     let src = r#"
         (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
     "#;
-    let err = freeze_err(src);
+    let world = freeze_ok(src);
     assert!(
-        err.contains("BareLegacyMainSignature")
-            || err.contains(":user::main"),
-        "expected BareLegacyMainSignature diagnostic; got: {}",
-        err
+        validate_user_main_signature(&world).is_err(),
+        "expected validate_user_main_signature to reject 3-arg :user::main"
     );
 }
 
@@ -156,7 +153,7 @@ fn t3_runtime_argv_ambient_reachable_from_main() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [argv (:wat::runtime::argv)]
-                      :wat::core::nil))
+                      nil))
     "#;
     let world = freeze_ok(src);
     let result = invoke_user_main(&world, Vec::new())

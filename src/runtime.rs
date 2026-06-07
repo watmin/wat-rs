@@ -9566,8 +9566,23 @@ fn eval_rename_callable_name(
     }
     // Eval all three args.
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let from_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let to_val = eval_inner(&args[2], env, sym)?.value_owned();
+    // Arc 166 — mirror the literal-keyword shortcut from `eval_lookup_define`:
+    // when the `from`/`to` arg is a literal keyword AST (e.g. `:user::my-double`
+    // passed directly as a keyword literal), use the keyword string as the name
+    // directly instead of eval'ing it. Without this, a literal name keyword whose
+    // defn-bound fn has `name: None` (eval_fn writes no name) causes
+    // `name_from_keyword_or_fn` to return None → spurious TypeMismatch.
+    // The eval path remains the fallback for non-literal callers.
+    let from_val = if let WatAST::Keyword(k, _) = &args[1] {
+        Value::wat__core__keyword(Arc::new(k.clone()))
+    } else {
+        eval_inner(&args[1], env, sym)?.value_owned()
+    };
+    let to_val = if let WatAST::Keyword(k, _) = &args[2] {
+        Value::wat__core__keyword(Arc::new(k.clone()))
+    } else {
+        eval_inner(&args[2], env, sym)?.value_owned()
+    };
 
     // Extract HolonAST from head arg.
     let holon_arc = match head_val {
