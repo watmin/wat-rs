@@ -52,6 +52,7 @@ mod probe_arc234_stone4_match_hash_destructure;
 mod probe_arc234_stone5_holon_auto_dispatch;
 mod probe_arc236_stone0_check_result;
 mod probe_arc237_7a_length_intrinsic;
+mod probe_arc237_7b_intrinsic_typing;
 mod probe_arc237_7c_assoc_polymorphic;
 mod probe_arc237_8a_no_implicit_coercion;
 mod probe_arc237_8b_defclause_arithmetic;
