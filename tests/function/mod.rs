@@ -4,5 +4,7 @@
 //! See `src/function/mod.rs` for the home's test-scope declaration including
 //! cross-arc coverage references.
 
+// BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
 mod stone18a;
 mod stone18a_errors;
+// END GENERATED MODS

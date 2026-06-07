@@ -24,6 +24,8 @@
 //! `tests/common/mod.rs` idiom). The `[[test]]` per-module entry works
 //! WITH that design; the cost is one Cargo.toml line per module group.
 
+// BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
 mod foundation;
 mod process;
 mod thread;
+// END GENERATED MODS
