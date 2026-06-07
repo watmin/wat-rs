@@ -283,20 +283,32 @@ academic-baseline-beating in BTC.
 ### The benchmark not yet passed — wat hosts its own toolchain
 
 A language earns the word *mature* when it can build and verify
-itself. Today wat's own dev toolchain is foreign to it: the
+itself. Today wat's own dev toolchain is mostly foreign to it: the
 gates and runners that hold the substrate honest —
-`green-gate.sh`, `integration-run.sh`, `gen-test-mods.sh`,
-`coverage-gate.sh`, the rune-aware `coverage_rune_check.py` — are
-bash and Python. They work, but they are scaffolding written in
-other tongues. **The benchmark: rewrite the management toolchain
-in wat.** When the test-mod generator, the leak-contained runner,
-the coverage gate, and the green-gate compose from wat forms
-running on the substrate, wat will have proven it can express its
-own engineering discipline — not just the domain work (DDoS, BTC)
-but the meta-work of keeping itself correct. Self-hosting the
-toolchain is the difference between a language used to build
-things and a language that builds itself. It is a named target,
-not yet struck.
+`green-gate.sh`, `integration-run.sh`, `coverage-gate.sh`, the
+rune-aware `coverage_rune_check.py` — are bash and Python. They
+work, but they are scaffolding written in other tongues. **The
+benchmark: rewrite the management toolchain in wat.** When the
+test-mod generator, the leak-contained runner, the coverage gate,
+and the green-gate compose from wat forms running on the
+substrate, wat will have proven it can express its own engineering
+discipline — not just the domain work (DDoS, BTC) but the
+meta-work of keeping itself correct.
+
+The first step is struck: the test-mod generator is no longer a
+bash script you must remember to run. It is `build.rs` — pure
+Rust, cargo-native, run on every build, so a test file can never
+be silently un-compiled (the old `gen-test-mods.sh` + its drift
+gate are deleted; the failure class is annihilated, not guarded).
+That is the *always-runs* floor. The wat migration follows on top
+of it: once wat has filesystem syscalls (`readdir`), the
+list-computation moves to a wat program — run as a separately
+distributed, prebuilt **stage0 wat binary** used to bootstrap the
+build (the rustc pattern), NOT called from within this crate's own
+`build.rs` (which is circular — the binary is the thing being
+built). Self-hosting the toolchain is the difference between a
+language used to build things and a language that builds itself.
+It is a named target, now begun.
 
 ---
 
