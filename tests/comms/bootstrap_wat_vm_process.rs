@@ -20,7 +20,7 @@ use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{startup_from_source, BootstrapArgs};
 use wat::load::InMemoryLoader;
-use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, uninstall_thread_io, AmbientStdio};
+use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, uninstall_thread_io, AmbientStdio};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 
 // ─── helpers ──────────────────────────────────────────────────────────────

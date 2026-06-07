@@ -56,7 +56,7 @@
 
 use std::sync::Arc;
 
-/// Construct an [`AmbientStdio`](crate::thread_io::AmbientStdio) with
+/// Construct an [`AmbientStdio`](crate::services::AmbientStdio) with
 /// dup'd copies of fd 0/1/2. AmbientStdio's drop closes the dup'd
 /// copies; raw fd 0/1/2 stay open for the process lifetime.
 ///
@@ -71,7 +71,7 @@ use std::sync::Arc;
 /// On failure we hand back -1; the resulting `PipeReader` / `PipeWriter`
 /// carries an unusable fd that surfaces clean diagnostics on
 /// read/write attempts. Orchestrator-level work still proceeds.
-pub fn lend_ambient() -> crate::thread_io::AmbientStdio {
+pub fn lend_ambient() -> crate::services::AmbientStdio {
     use std::os::fd::FromRawFd;
     fn dup_fd(fd: i32) -> i32 {
         let r = unsafe { libc::dup(fd) };
@@ -99,7 +99,7 @@ pub fn lend_ambient() -> crate::thread_io::AmbientStdio {
             std::os::fd::OwnedFd::from_raw_fd(stderr_fd)
         }),
     );
-    crate::thread_io::AmbientStdio {
+    crate::services::AmbientStdio {
         stdin,
         stdout,
         stderr,

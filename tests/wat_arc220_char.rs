@@ -20,7 +20,7 @@ use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
+use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
     let mut fds = [0i32; 2];

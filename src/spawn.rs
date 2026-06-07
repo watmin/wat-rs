@@ -195,7 +195,7 @@ fn spawn_with_world_into_result(
         .spawn(move || {
             // Install the ambient stdio before the orchestrator runs so
             // `invoke_user_main` routes through the pre-allocated pipes.
-            crate::thread_io::install_ambient_stdio(crate::thread_io::AmbientStdio {
+            crate::services::install_ambient_stdio(crate::services::AmbientStdio {
                 stdin: ambient_stdin,
                 stdout: ambient_stdout,
                 stderr: ambient_stderr,

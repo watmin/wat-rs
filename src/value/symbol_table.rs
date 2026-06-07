@@ -10,7 +10,7 @@ use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
 use crate::sigma::SigmaFn;
 use crate::span::Span;
-use crate::thread_io::RuntimeServices;
+use crate::services::RuntimeServices;
 use crate::types::{TypeEnv, TypeExpr};
 use crate::value::{EncodingCtx, Function};
 
@@ -128,7 +128,7 @@ pub struct SymbolTable {
     /// `:wat::kernel::spawn-thread` arm registers each spawned thread
     /// with the three stdio services (StdIn / StdOut / StdErr) so the
     /// thread's `(:wat::kernel::println ...)` / `(eprintln ...)` /
-    /// `(readln)` calls have a populated [`crate::thread_io::ThreadIO`].
+    /// `(readln)` calls have a populated [`crate::services::ThreadIO`].
     /// `None` when no orchestrator is active (test harnesses + the
     /// service threads themselves bootstrap before the carrier is set,
     /// so their internal spawn-thread calls see `None` and skip

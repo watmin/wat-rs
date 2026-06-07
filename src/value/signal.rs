@@ -259,7 +259,7 @@ pub enum RuntimeErrorKind {
     },
     /// Arc 170 slice 1f-α — a thread-aware stdio helper
     /// (`:wat::kernel::println` / `eprintln` / `readln`) was
-    /// invoked on a thread whose [`crate::thread_io::ThreadIO`]
+    /// invoked on a thread whose [`crate::services::ThreadIO`]
     /// cell is empty. The runtime spawns the three substrate
     /// stdio services at process start (slice 1f-δ) and the
     /// orchestrator (slice 1f-γ) populates ThreadIO from
@@ -269,7 +269,7 @@ pub enum RuntimeErrorKind {
     /// or the calling thread was started outside the
     /// `:wat::kernel::spawn-thread` path (e.g., a hand-rolled
     /// `std::thread::spawn`). Tests populate ThreadIO via
-    /// [`crate::thread_io::install_thread_io`] before invoking
+    /// [`crate::services::install_thread_io`] before invoking
     /// the primitive.
     ServiceNotRunning {
         op: String,
@@ -499,7 +499,7 @@ impl RuntimeErrorKind {
             }
             RuntimeErrorKind::ServiceNotRunning { op } => write!(
                 f,
-                "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::thread_io::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",
+                "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::services::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",
                 prefix, op
             ),
             RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => write!(

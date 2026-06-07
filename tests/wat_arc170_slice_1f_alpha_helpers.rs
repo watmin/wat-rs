@@ -2,7 +2,7 @@
 //! `:wat::kernel::eprintln`, `:wat::kernel::readln`.
 //!
 //! These three primitives look up per-thread channel handles from
-//! a thread-local [`wat::thread_io::ThreadIO`] cell and run the
+//! a thread-local [`wat::services::ThreadIO`] cell and run the
 //! mini-TCP block-on-completion lockstep. Slice 1f-α delivers the
 //! substrate side; slices 1f-β / γ / δ ship the wat-side service
 //! implementations + orchestrator + boot wiring.
@@ -33,7 +33,7 @@ use wat::io::{PipeReader, PipeWriter, WatReader};
 use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::span::Span;
-use wat::thread_io::{
+use wat::services::{
     install_thread_io, next_thread_id, spawn_service_peer, uninstall_thread_io,
     RuntimeServices, ServiceMsg, ThreadIO,
 };
@@ -99,7 +99,7 @@ impl MiniUniverse {
                 _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
             },
         );
-        let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+        let wat::services::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
 
         // ── stdout pipe + peer ──────────────────────────────────────────
         let (stdout_pipe_r, stdout_pipe_w) =
@@ -119,7 +119,7 @@ impl MiniUniverse {
             world.symbols().clone(),
             |_: &Value| Ok(()),
         );
-        let wat::thread_io::ServicePeer { input_tx: stdout_input_tx, thread: stdout_thread } = stdout_peer;
+        let wat::services::ServicePeer { input_tx: stdout_input_tx, thread: stdout_thread } = stdout_peer;
 
         // ── stderr pipe + peer ──────────────────────────────────────────
         let (stderr_pipe_r, stderr_pipe_w) =
@@ -139,7 +139,7 @@ impl MiniUniverse {
             world.symbols().clone(),
             |_: &Value| Ok(()),
         );
-        let wat::thread_io::ServicePeer { input_tx: stderr_input_tx, thread: stderr_thread } = stderr_peer;
+        let wat::services::ServicePeer { input_tx: stderr_input_tx, thread: stderr_thread } = stderr_peer;
 
         // ── RS-carrying sym — all three primitives reach peers via runtime_services(). ──
         let mut sym = world.symbols().clone();
@@ -550,7 +550,7 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
             _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
         },
     );
-    let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+    let wat::services::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
 
     // ── Register TWO tids ─────────────────────────────────────────────
     let tid_a = next_thread_id();
@@ -647,7 +647,7 @@ fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
             _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
         },
     );
-    let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+    let wat::services::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
 
     let tid = next_thread_id();
     let (reply_tx, reply_rx) = wat::comms::thread::pair::<Result<String, String>>();

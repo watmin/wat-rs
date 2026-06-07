@@ -3943,13 +3943,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
         // Arc 170 slice 1f-α — thread-aware stdio helpers. Look up
         // the calling thread's per-service channel handles from
-        // the `thread_io::THREAD_IO` cell and run the mini-TCP
+        // the `services::client::THREAD_IO` cell and run the mini-TCP
         // block-on-completion lockstep. Slices 1f-β / γ / δ ship
         // the wat-side service implementations + orchestrator;
         // these primitives are the substrate surface users call.
-        ":wat::kernel::println" => crate::thread_io::eval_kernel_println(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::eprintln" => crate::thread_io::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::readln" => crate::thread_io::eval_kernel_readln(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::println" => crate::services::eval_kernel_println(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::readln" => crate::services::eval_kernel_readln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
         // Arc 170 slice 3 Gap B — explicit EOF on send side without
         // dropping the Sender Value. Idempotent. Returns nil.
@@ -19183,11 +19183,11 @@ fn eval_kernel_spawn_thread(
     // inside the spawned thread's closure. The resulting ThreadIO is
     // moved into the closure for installation in the new thread's
     // thread-local cell on entry.
-    let registration: Option<(crate::thread_io::ThreadId, crate::thread_io::ThreadIO)> =
+    let registration: Option<(crate::services::ThreadId, crate::services::ThreadIO)> =
         match sym.runtime_services() {
             Some(services) => {
-                let tid = crate::thread_io::next_thread_id();
-                let io = crate::thread_io::register_thread_with_services(tid, services)?;
+                let tid = crate::services::next_thread_id();
+                let io = crate::services::register_thread_with_services(tid, services)?;
                 Some((tid, io))
             }
             None => None,
@@ -19195,7 +19195,7 @@ fn eval_kernel_spawn_thread(
     // The carrier needed for the epilogue's deregister step is the
     // SAME Arc the parent reads — captured by value here so the
     // closure owns its own ref. Cheap (Arc clone).
-    let registration_services: Option<Arc<crate::thread_io::RuntimeServices>> =
+    let registration_services: Option<Arc<crate::services::RuntimeServices>> =
         sym.runtime_services().cloned();
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", thread_fn_name))
@@ -19207,7 +19207,7 @@ fn eval_kernel_spawn_thread(
             let registration_thread_id =
                 registration.as_ref().map(|(tid, _)| *tid);
             if let Some((_, io)) = registration {
-                crate::thread_io::install_thread_io(io);
+                crate::services::install_thread_io(io);
             }
             // Mirror eval_kernel_spawn's catch_unwind: panics in the
             // body surface as data on the outcome channel rather than
@@ -19234,9 +19234,9 @@ fn eval_kernel_spawn_thread(
             if let (Some(tid), Some(services)) =
                 (registration_thread_id, registration_services.as_ref())
             {
-                crate::thread_io::deregister_thread_from_services(tid, services);
+                crate::services::deregister_thread_from_services(tid, services);
             }
-            let _ = crate::thread_io::uninstall_thread_io();
+            let _ = crate::services::uninstall_thread_io();
             let _ = outcome_tx.send(outcome);
         })
         .expect("Thread::Builder::spawn failed");

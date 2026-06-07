@@ -16,7 +16,7 @@
 //! monolith; now SHOW_MAX_LEN-guarded like every sibling arm); FrameGuard #[must_use]; deferral-prose
 //! driven out of runes + docs; stale line-citations made name-based; BindingMetadata alias minted.
 //! perspicere's 14 idiomatic 2-level wrappers weighed L3 (Arc<Vec<Value>>/Option<Arc<T>> ARE their
-//! definitions — an alias would obscure). Out-of-home conformare findings (thread_io/freeze) banked
+//! definitions — an alias would obscure). Out-of-home conformare findings (services/freeze) banked
 //! for the stdio/ + freeze/ wards; Duration(u64) type-enforcement banked (#188). Full record:
 //! docs/arc/2026/06/251-types-as-forms/SCORE-STONE-251.2-ward.md.
 //!

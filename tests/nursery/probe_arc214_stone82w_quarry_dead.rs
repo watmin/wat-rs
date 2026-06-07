@@ -21,6 +21,16 @@ fn scan_dir(dir: &Path, hits: &mut Vec<String>) {
         let path = entry.expect("dir entry").path();
         if path.is_dir() {
             scan_dir(&path, hits);
+        } else if path
+            .file_name()
+            .is_some_and(|n| n == "probe_arc214_stone82w_quarry_dead.rs")
+        {
+            // Self-exclusion: the tombstone bears the dead man's name — this
+            // probe's own comments and needle strings say `thread_io::` and
+            // must not count as live references. (8.2w scoring catch: the
+            // first cast scanned itself; the only red in the suite was the
+            // gate reading its own epitaph.)
+            continue;
         } else if path.extension().is_some_and(|e| e == "rs") {
             let src = fs::read_to_string(&path).expect("readable file");
             for (i, line) in src.lines().enumerate() {

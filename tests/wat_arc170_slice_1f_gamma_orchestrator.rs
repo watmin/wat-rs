@@ -31,7 +31,7 @@ use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
-use wat::thread_io::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
+use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
 
 // ─── helpers ───────────────────────────────────────────────────────
 

@@ -65,7 +65,7 @@ use crate::runtime::{
 };
 use crate::value::EncodingCtx;
 use crate::span::Span;
-use crate::thread_io::ThreadId;
+use crate::services::ThreadId;
 use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
@@ -109,7 +109,7 @@ pub struct ProcessRuntime {
     /// Wrapped in Option so Drop can `take()` it to explicitly release
     /// the Arc reference INSIDE the drop body (before joins in steps 5-7).
     /// Always Some until Drop runs.
-    services: Option<Arc<crate::thread_io::RuntimeServices>>,
+    services: Option<Arc<crate::services::RuntimeServices>>,
     main_thread_id: ThreadId,
     /// Arc 214 Stone 8.2 — JoinHandle for the universe-resident stdin
     /// read service peer loop. Joined in Drop step 5.
@@ -157,11 +157,11 @@ impl Drop for ProcessRuntime {
 
         // Step 1. services is Some until Drop; unwrap is safe here.
         if let Some(ref svc) = self.services {
-            crate::thread_io::deregister_thread_from_services(self.main_thread_id, svc);
+            crate::services::deregister_thread_from_services(self.main_thread_id, svc);
         }
 
         // Step 2.
-        let _ = crate::thread_io::uninstall_thread_io();
+        let _ = crate::services::uninstall_thread_io();
 
         // Step 3: take sym_with_services, replacing with Default (empty
         // SymbolTable). The taken value drops at end of this block — it
@@ -246,7 +246,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     crate::runtime::init_shutdown_signal();
 
     // Step 1 — Source the IOReader / IOWriter handles.
-    let stdio = match crate::thread_io::take_ambient_stdio() {
+    let stdio = match crate::services::take_ambient_stdio() {
         Some(s) => s,
         None => crate::process_stdio::lend_ambient(),
     };
@@ -269,7 +269,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stdin_peer = crate::thread_io::spawn_service_peer(
+    let stdin_peer = crate::services::spawn_service_peer(
         "stdin",
         stdin_handle_fn,
         Value::io__IOReader(stdio.stdin.clone()),
@@ -293,7 +293,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stdout_peer = crate::thread_io::spawn_service_peer(
+    let stdout_peer = crate::services::spawn_service_peer(
         "stdout",
         stdout_handle_fn,
         Value::io__IOWriter(stdio.stdout.clone()),
@@ -310,7 +310,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stderr_peer = crate::thread_io::spawn_service_peer(
+    let stderr_peer = crate::services::spawn_service_peer(
         "stderr",
         stderr_handle_fn,
         Value::io__IOWriter(stdio.stderr.clone()),
@@ -319,7 +319,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     );
 
     // Step 3 — Build RuntimeServices carrier + augmented SymbolTable.
-    let services = Arc::new(crate::thread_io::RuntimeServices {
+    let services = Arc::new(crate::services::RuntimeServices {
         stdin_ctrl: stdin_peer.input_tx.clone(),
         stdout_ctrl: stdout_peer.input_tx.clone(),
         stderr_ctrl: stderr_peer.input_tx.clone(),
@@ -328,10 +328,10 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     sym_with_services.set_runtime_services(Arc::clone(&services));
 
     // Step 4 — Register calling thread + install ThreadIO.
-    let main_thread_id = crate::thread_io::next_thread_id();
+    let main_thread_id = crate::services::next_thread_id();
     let main_io =
-        crate::thread_io::register_thread_with_services(main_thread_id, &services)?;
-    crate::thread_io::install_thread_io(main_io);
+        crate::services::register_thread_with_services(main_thread_id, &services)?;
+    crate::services::install_thread_io(main_io);
 
     Ok(ProcessRuntime {
         sym_with_services,
@@ -1041,9 +1041,9 @@ pub const USER_MAIN_PATH: &str = ":user::main";
 /// thread.
 ///
 /// IO handles for the three services come from the per-thread
-/// ambient stdio cell ([`crate::thread_io::AmbientStdio`]); tests
+/// ambient stdio cell ([`crate::services::AmbientStdio`]); tests
 /// install pipe-backed handles via
-/// [`crate::thread_io::install_ambient_stdio`] before invoking.
+/// [`crate::services::install_ambient_stdio`] before invoking.
 /// Production paths (wat-cli, fork.rs:659/1044) leave the ambient
 /// unset and fall through to real fd 0/1/2 via PipeReader /
 /// PipeWriter.
