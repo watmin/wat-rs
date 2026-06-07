@@ -29,7 +29,10 @@
 //! owns a persistent IoUring with reflexive rebuild-on-capacity-mismatch
 //! (grow OR shrink); Receiver gains `read_into_acc` + `take_buffered_frame`
 //! methods so Select composes via Receiver's surface instead of reaching
-//! into its fields.
+//! into its fields. Stone 4.5-fix: `Sender::raw_fds` + `Receiver::raw_fds`
+//! — the intentional, portable surface for preserving ALL owned fds
+//! across a fork `close_inherited_fds_above_stdio` sweep (Receiver owns
+//! both `read_fd` AND the io_uring ring fd; both must survive).
 //!
 //! The underlying principle (FDs are the persistent state; io_urings are
 //! ephemeral frames sized to the current operation set; substrate maintains
@@ -208,6 +211,21 @@ impl<T: HolonRepresentable> Sender<T> {
 }
 
 impl<T: HolonRepresentable> Sender<T> {
+    /// Return every raw file descriptor this `Sender` owns.
+    ///
+    /// Currently: `[write_fd]`. This is the complete fd set the kernel-side
+    /// pipe write-end occupies. Callers that fork and need to preserve this
+    /// endpoint's fds across a `close_inherited_fds_above_stdio` sweep should
+    /// pass the result of this method into the skip-list (via
+    /// `crate::fork::child_post_fork_init_preserving`).
+    ///
+    /// Stone 4.5-fix: added as the intentional, portable preservation surface
+    /// so fork children can enumerate "every fd I must keep alive across the
+    /// sweep" without reaching past the public API into OwnedFd fields.
+    pub fn raw_fds(&self) -> Vec<std::os::fd::RawFd> {
+        vec![self.write_fd.as_raw_fd()]
+    }
+
     /// Signal end-of-stream from this sender. Consumes self so the
     /// endpoint is gone after close. This is the SOLE write-end —
     /// `process::Sender` is not `Clone` (single-writer by design, so
@@ -464,6 +482,23 @@ impl<T: HolonRepresentable> Receiver<T> {
     /// site). Per Solvere ward Stone E-2 follow-up 2026-05-19.
     pub(crate) fn poll_fd(&self) -> std::os::fd::RawFd {
         self.read_fd.as_raw_fd()
+    }
+
+    /// Return every raw file descriptor this `Receiver` owns.
+    ///
+    /// Currently: `[read_fd, ring_fd]`. Both must survive a
+    /// `close_inherited_fds_above_stdio` sweep for `recv` to work in a
+    /// fork child: `read_fd` is the pipe read-end; `ring_fd` is the
+    /// persistent io_uring (Stone E-1) whose kernel resource backs every
+    /// blocking `recv`. Preserving only `read_fd` but closing the ring
+    /// fd would leave the ring defunct and cause `recv` to return
+    /// `Err(RecvError)` immediately.
+    ///
+    /// Stone 4.5-fix: added as the intentional, portable preservation surface
+    /// so fork children can enumerate "every fd I must keep alive across the
+    /// sweep" without reaching past the public API into private fields.
+    pub fn raw_fds(&self) -> Vec<std::os::fd::RawFd> {
+        vec![self.read_fd.as_raw_fd(), self.ring.borrow().as_raw_fd()]
     }
 
     /// Count of locally-buffered complete frames in the accumulator.

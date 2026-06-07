@@ -30,7 +30,6 @@
 
 use std::sync::Arc;
 
-use wat::fork::ExitStatus;
 use wat::freeze::startup_from_source;
 use wat::kernel::spawn::{ProcessPeerBundle, PROCESS_PEER_TYPE_PATH};
 use wat::load::InMemoryLoader;
@@ -44,9 +43,13 @@ use wat::span::Span;
 /// (identity), encodes the result back to `"42"`, and sends it to the parent.
 ///
 /// Marked `#[ignore]` — run via `integration-run.sh` or `--ignored` flag.
+/// MUST use `--test-threads=1` when running both process-tier tests together:
+/// cargo runs parallel threads by default; two concurrent forks from a
+/// multi-threaded parent create the FM 7-ter hazard. The `--test-threads=1`
+/// flag serializes the two probes without changing the test structure.
 /// NEVER run via raw `cargo test --test test` (deadlocks on the old stack).
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored flag; never via raw cargo test --test test"]
+#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_echo_round_trip() {
     // ── Step 1: build WAT world with an echo fn ────────────────────────────
     let world = startup_from_source(
@@ -130,8 +133,11 @@ fn spawn_program_prime_process_echo_round_trip() {
 ///
 /// The sandbox walker is already probed by the closure_extract unit tests;
 /// this integration test documents the boundary behavior.
+///
+/// Marked `#[ignore]` — run with `--test-threads=1` alongside the echo probe
+/// (two parallel forks from a multi-threaded parent cause the FM 7-ter hazard).
 #[test]
-#[ignore = "process-tier probe: run via integration-run.sh or with --ignored flag; never via raw cargo test --test test"]
+#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     // A pure WAT fn (no Rust captures) must be accepted by the sandbox walker.
     let world = startup_from_source(

@@ -396,8 +396,18 @@ pub fn spawn_process_peer(
     let (pidfd, lifeline_writer) = crate::fork::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
 
-        // Post-fork init: close inherited fds, setpgid, lifeline_r cascade.
-        crate::fork::child_post_fork_init(lifeline_r_raw);
+        // Collect ALL fds owned by the comms endpoints that must survive the
+        // close-sweep. input_rx owns {read_fd, ring_fd}; output_tx owns {write_fd}.
+        // Both sets are needed: the child's recv uses io_uring (ring must survive)
+        // and the child's send uses the write pipe (write_fd must survive).
+        // Stone 4.5-fix: use child_post_fork_init_preserving so these fds are
+        // added to the skip-list instead of being silently closed by the sweep.
+        let mut preserved: Vec<i32> = input_rx.raw_fds();
+        preserved.extend(output_tx.raw_fds());
+
+        // Post-fork init: setpgid, close inherited fds (preserving comms + lifeline),
+        // shutdown cascade, signal handlers.
+        crate::fork::child_post_fork_init_preserving(lifeline_r_raw, &preserved);
 
         // Apply-loop:
         //   1. recv EDN String from input pipe

@@ -374,17 +374,20 @@ compile_error!(
 );
 
 /// Close every inherited fd above stdio (fd > 2) in the fork child, skipping
-/// at most one "lifeline" fd that the child must keep.
+/// every fd in `skip`.
 ///
 /// Authoritative replacement for the old `/proc/self/fd` directory-walk oracle.
-/// Uses `close_range(2)` via raw syscall — one or two calls, no filesystem
-/// traversal, no allocation. Safe in a fork(2) child because a fork child is
-/// SINGLE-THREADED (fork duplicates only the calling thread), so the process-
-/// global range operation cannot race with sibling threads' fd opens.
+/// Uses `close_range(2)` via raw syscall — at most `skip.len() + 1` calls, no
+/// filesystem traversal, no allocation. Safe in a fork(2) child because a fork
+/// child is SINGLE-THREADED (fork duplicates only the calling thread), so the
+/// process-global range operation cannot race with sibling threads' fd opens.
 ///
-/// When `skip` is non-empty the kept fd is skipped via a two-range sweep:
-///   close_range(3, keep-1, 0)   — fds below the lifeline
-///   close_range(keep+1, MAX, 0) — fds above the lifeline
+/// Stone 4.5-fix: the full skip-list is honored. Previously only `skip[0]` was
+/// preserved (a silent single-fd limitation — dark-class per
+/// `feedback_silent_swallow_is_dark_class`). The new algorithm:
+///   1. Sort + dedup the skip list (O(n log n); n is tiny in practice — ≤ 5 fds).
+///   2. Sweep [3, first_kept - 1], then each gap (kept[i]+1, kept[i+1]-1),
+///      then [last_kept + 1, MAX].
 ///
 /// When `skip` is empty one call covers [3, MAX].
 ///
@@ -405,17 +408,25 @@ fn close_inherited_fds_above_stdio(skip: &[i32]) {
     if skip.is_empty() {
         // No fd to preserve — one call closes [3, MAX].
         sweep(3, libc::c_uint::MAX);
-    } else {
-        // Preserve exactly the first entry in `skip` (the lifeline fd).
-        // The fn is called with at most one element in practice; additional
-        // entries in the slice are ignored (they would need more range splits,
-        // and the current call sites never pass more than one fd).
-        let keep = skip[0] as libc::c_uint;
-        // Below the lifeline: [3, keep-1].
-        sweep(3, keep.saturating_sub(1));
-        // Above the lifeline: [keep+1, MAX].
-        sweep(keep.saturating_add(1), libc::c_uint::MAX);
+        return;
     }
+
+    // Sort + dedup the skip list so the range sweep is deterministic.
+    // n is tiny (≤ 5 fds in practice); stack allocation is fine.
+    let mut kept: Vec<libc::c_uint> = skip.iter().map(|&fd| fd as libc::c_uint).collect();
+    kept.sort_unstable();
+    kept.dedup();
+
+    // Sweep [3, first_kept - 1].
+    sweep(3, kept[0].saturating_sub(1));
+
+    // Sweep each gap between consecutive kept fds.
+    for w in kept.windows(2) {
+        sweep(w[0].saturating_add(1), w[1].saturating_sub(1));
+    }
+
+    // Sweep [last_kept + 1, MAX].
+    sweep(kept[kept.len() - 1].saturating_add(1), libc::c_uint::MAX);
 }
 
 /// Arc 113 slice 3 — emit the cascade chain as a tagged EDN line
@@ -472,11 +483,17 @@ fn install_silent_panic_hook() {
 }
 
 /// Arc 170 FD-multiplex Phase 3 — canonical post-fork initialization for
-/// substrate-spawned wat-vm children. Both fork paths
-/// (`fork_program_from_source` :: `child_branch_from_source` and
-/// `spawn_process` :: `spawn_process_child_branch`) call this immediately
-/// after finishing their pipe-specific dup2 + drop work and before any
-/// substrate startup/eval.
+/// substrate-spawned wat-vm children, preserving extra fds across the
+/// close-sweep.
+///
+/// Stone 4.5-fix: the single implementation. `child_post_fork_init` is now
+/// a thin wrapper calling this with `extra_preserved = &[]`.
+///
+/// Both fork paths (`fork_program_from_source` :: `child_branch_from_source`
+/// and `spawn_process` :: `spawn_process_child_branch`) call
+/// `child_post_fork_init(l)` (the zero-extra-preserve variant) immediately
+/// after their pipe-specific dup2 + drop work. `spawn_process_peer` calls
+/// this directly with the comms endpoint fds in `extra_preserved`.
 ///
 /// The 5-step canonical sequence:
 ///
@@ -484,12 +501,13 @@ fn install_silent_panic_hook() {
 ///    panic propagation; Rust's default panic output is suppressed).
 /// 2. Make the child its own process-group leader (arc 106 signal cascade
 ///    discipline). Structured-stderr + `_exit` on failure.
-/// 3. Close inherited FDs above stdio (FD hygiene). The substrate-owned
-///    lifeline read-end is in the skip-list so it survives for the shutdown
-///    worker.
+/// 3. Close inherited FDs above stdio (FD hygiene). The close-sweep skip-list
+///    is `[lifeline_r_raw] ∪ extra_preserved` — all fds in that set survive;
+///    everything else > 2 closes.
 /// 4. Initialize the shutdown infrastructure with the lifeline FD registered.
 ///    Opens wake-pipe + broadcast pipe; spawns worker polling
 ///    (wake_pipe_read, lifeline_r_raw) and holding broadcast_w.
+///    Runs AFTER the close-sweep so wake-pipe FDs opened here are not at risk.
 /// 5. Install substrate signal handlers (SIGTERM/SIGINT/SIGUSR1/2/SIGHUP)
 ///    wired through the wake-pipe to the shutdown cascade.
 ///
@@ -501,7 +519,7 @@ fn install_silent_panic_hook() {
 /// OwnedFd ownership to the substrate worker via the raw fd; the OwnedFd
 /// value's drop must not run, but this function takes only the raw fd, so
 /// the caller is the one with the OwnedFd in scope).
-pub(crate) fn child_post_fork_init(lifeline_r_raw: i32) {
+pub(crate) fn child_post_fork_init_preserving(lifeline_r_raw: i32, extra_preserved: &[i32]) {
     // Step 1 — suppress Rust's default panic output on fd 2.
     install_silent_panic_hook();
 
@@ -518,10 +536,12 @@ pub(crate) fn child_post_fork_init(lifeline_r_raw: i32) {
     }
 
     // Step 3 — FD hygiene: close inherited fds BEFORE opening any
-    // substrate-owned FDs. The lifeline read-end is in the skip-list so
-    // it survives for the shutdown worker. All other inherited fds > 2
-    // leaked from the parent are closed here.
-    close_inherited_fds_above_stdio(&[lifeline_r_raw]);
+    // substrate-owned FDs. The skip-list is [lifeline_r_raw] ∪ extra_preserved
+    // so all of those fds survive. All other inherited fds > 2 close here.
+    let mut skip: Vec<i32> = Vec::with_capacity(1 + extra_preserved.len());
+    skip.push(lifeline_r_raw);
+    skip.extend_from_slice(extra_preserved);
+    close_inherited_fds_above_stdio(&skip);
 
     // Step 4 — register the lifeline read-end with the shutdown worker.
     // Must run AFTER the close-sweep so wake-pipe FDs opened here are not
@@ -531,6 +551,16 @@ pub(crate) fn child_post_fork_init(lifeline_r_raw: i32) {
     // Step 5 — install signal handlers AFTER shutdown infrastructure is
     // ready so SIGTERM/SIGINT route through the existing wake-pipe path.
     install_substrate_signal_handlers();
+}
+
+/// Arc 170 FD-multiplex Phase 3 — canonical post-fork initialization, no
+/// extra fd preservation. Thin wrapper around `child_post_fork_init_preserving`
+/// with `extra_preserved = &[]`. All call sites that don't need comms endpoint
+/// preservation use this form.
+///
+/// See `child_post_fork_init_preserving` for the full doc.
+pub(crate) fn child_post_fork_init(lifeline_r_raw: i32) {
+    child_post_fork_init_preserving(lifeline_r_raw, &[]);
 }
 
 /// Arc 170 slice 1i — unified structured exit helper for ALL fork child
