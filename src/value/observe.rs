@@ -180,6 +180,7 @@ const SHOW_MAX_LEN: usize = 1024;
 /// the same "good-enough for diagnostics" envelope as SHOW_MAX_LEN.
 const SHOW_MAX_DEPTH: usize = 8;
 
+/// Render a Value to a bounded display string for diagnostics (ValueSnapshot). `depth` is the recursive nesting level (not user-visible); SHOW_MAX_DEPTH and SHOW_MAX_LEN gate output size.
 pub(crate) fn render_value(v: &Value, depth: usize) -> String {
     if depth > SHOW_MAX_DEPTH {
         return "…".to_string();

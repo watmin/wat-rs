@@ -91,9 +91,6 @@ pub enum Value {
     /// polymorphism shape via
     /// [`crate::typed_channel::ReceiverInner`].
     wat__kernel__Receiver(Arc<ReceiverInner>),
-    /// A `:HashMap<K,V>` — Rust std's `HashMap` backing, wrapped for
-    /// cheap Arc-cloning. Keys are serialized to type-tagged strings
-    /// at insertion so heterogeneous-K programs don't collide
     /// A `:HashMap<K,V>` — Rust std's HashMap natively; stored as
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
@@ -862,6 +859,7 @@ pub struct EnumValue {
 /// surface. The legacy `:wat::kernel::join` verb still panics the
 /// caller on either failure mode (with a `RuntimeError` carrying the
 /// captured message), preserving its "I trust this thread" semantic.
+// rune:solvere(historical-shape) — SpawnOutcome + ProgramHandleInner are spawn-domain types kept as Value-payload here transitionally; they relocate to the spawn/ home at its migration stone (SCOUT-LIFT-MAP), resolving the asymmetry with fork::ChildHandleInner (imported from its domain module).
 #[derive(Debug)]
 pub enum SpawnOutcome {
     /// Spawned function returned a Value normally.
@@ -914,7 +912,7 @@ pub enum ProgramHandleInner {
 }
 
 impl Value {
-    // TRANSFORMS — clojure-ination (keyword type-name strings)
+    /// **TRANSFORMS (clojure-ination):** keyword type-name strings
     pub fn type_name(&self) -> &'static str {
         match self {
             // Arc 163 slice 3f — flip primitive arms to FQDN.
@@ -996,11 +994,13 @@ impl Value {
     /// - `Enum` → `ev.type_path` with leading `:` stripped (the declared enum
     ///   FQDN, e.g. `"my::Color"` — NOT the generic `"wat::core::Enum"`).
     /// - Every primitive/kind-only variant → `self.type_name().to_string()`.
-    // TRANSFORMS — clojure-ination (keyword type-name strings)
+    ///
+    /// **TRANSFORMS (clojure-ination):** keyword type-name strings
     pub fn declared_type_name(&self) -> String {
         match self {
             // ── Nominal forms: per-instance declared FQDN ────────────────────
             Value::holon__HolonAST(h) => {
+                // rune:solvere(historical-shape) — transitional back-arc into the monolith; extract_classifier lifts to its home at the algebra/ migration stone (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md); the back-arc resolves then.
                 crate::runtime::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
             }
             // Struct: type_name carries the declaration keyword verbatim (e.g.

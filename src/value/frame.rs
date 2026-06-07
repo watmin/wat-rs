@@ -1,3 +1,4 @@
+//! Call-stack tracking — FrameInfo (per-frame data), FrameGuard (RAII push/pop of the thread-local stack), and snapshot_call_stack/replace_top_frame for reading and amending the top frame.
 use crate::span::Span;
 
 /// One entry on the wat call stack.

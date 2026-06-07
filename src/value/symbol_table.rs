@@ -119,6 +119,7 @@ pub struct SymbolTable {
     /// NOTE: eval-time `def` binding is not yet wired (eval arm returns
     /// `Value::Unit`); this flag is scaffolding. A future arc opens IFF a
     /// caller surfaces wanting eval-time def redef.
+    // rune:purgare(future-fixture) — eval-time def-redef scaffolding; write-only (no read-side gate yet); delete-vs-wire pending a builder roadmap decision.
     pub eval_redef_allowed: bool,
     /// Arc 170 slice 1f-γ — runtime services carrier. When set, the
     /// `:wat::kernel::spawn-thread` arm registers each spawned thread

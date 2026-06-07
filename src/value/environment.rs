@@ -23,7 +23,7 @@ pub struct Function {
     /// functions. Names appearing in `param_types` / `ret_type` that
     /// match an entry here are treated as type variables at check
     /// time.
-    // TRANSFORMS — clojure-ination (scheme/type fields)
+    /// **TRANSFORMS (clojure-ination):** scheme/type fields
     pub type_params: Vec<String>,
     /// Declared parameter types, parallel to `params`. Populated from
     /// the `(:wat::core::defn :name [p1 <- :T1 ...] -> :Ret body)` signature.

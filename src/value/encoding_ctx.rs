@@ -1,3 +1,4 @@
+//! Program-wide encoding context — EncodingCtx carries the frozen dim, capacity, and encoder registry for the lifetime of a running program.
 use crate::config::Config;
 use crate::vm_registry::EncoderRegistry;
 use std::fmt;
@@ -24,6 +25,7 @@ pub struct EncodingCtx {
     /// in this program: `floor(sqrt(dim_count))`. Cached at
     /// construction.
     pub capacity: usize,
+    // rune:solvere(load-bearing-coupling) — Config on EncodingCtx is the sole inherited-config carrier through SymbolTable into spawned sub-programs; splitting needs a parallel SymbolTable config field + 4 spawn-driver updates; a future arc.
     pub config: Config,
 }
 

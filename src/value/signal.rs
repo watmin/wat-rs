@@ -373,9 +373,9 @@ impl RuntimeErrorKind {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let prefix = span.map(span_prefix).unwrap_or_default();
-        // `shown` gates mid-prose span emission: unknown spans are treated as
+        // `prose_span` gates mid-prose span emission: unknown spans are treated as
         // absent so "at <runtime>:0:0" noise never appears.
-        let shown: Option<&Span> = span.filter(|s| !s.is_unknown());
+        let prose_span: Option<&Span> = span.filter(|s| !s.is_unknown());
         match self {
             RuntimeErrorKind::UnboundSymbol(s) => {
                 write!(f, "{}unbound symbol: {}", prefix, s)
@@ -552,8 +552,8 @@ impl RuntimeErrorKind {
             }
             RuntimeErrorKind::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, ensure_span: _ } => {
                 // outer span = body_span (in prefix); ensure_span is secondary (informational).
-                // We re-render body_span from `shown` (which is the outer span).
-                let body_span_str = shown.map(|s| format!("{}", s)).unwrap_or_default();
+                // We re-render body_span from `prose_span` (which is the outer span).
+                let body_span_str = prose_span.map(|s| format!("{}", s)).unwrap_or_default();
                 write!(
                     f,
                     "{}defclause {}: postcondition failed on clause {} — :ensure :fn `{}` returned false for result {} (body at {})",
