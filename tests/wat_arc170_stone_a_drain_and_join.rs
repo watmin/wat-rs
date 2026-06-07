@@ -87,7 +87,6 @@ fn unwrap_result_err<'a>(v: &'a Value, label: &str) -> &'a Value {
 // ─── Stone A T1. Thread/drain-and-join — clean exit returns Ok(()) ────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
     // The worker thread sends three i64 values to its output Sender,
     // then returns nil. The PARENT does NOT recv any of them; instead
@@ -108,7 +107,7 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
              _ (:wat::core::Result/expect -> :wat::core::nil
                  (:wat::kernel::send tx 3)
                  "send 3 failed — receiver dropped before drain")]
-            :wat::core::nil))
+            nil))
 
         (:wat::core::defn :my::test::drain-thread
           [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
@@ -134,7 +133,6 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
 // ─── Stone A T2. Process/drain-and-join — clean exit returns Ok(()) ───
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position causing StartupError (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
     // The child process prints two lines to stdout and one to stderr,
     // then exits clean (nil return → exit code 0). The parent does NOT
@@ -147,7 +145,7 @@ fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
                       [_ (:wat::kernel::println "line-one")
                        _ (:wat::kernel::println "line-two")
                        _ (:wat::kernel::eprintln "diag")]
-                      :wat::core::nil))
+                      nil))
     "#;
     let call = build_spawn_process_call(child);
     let env = Environment::new();
