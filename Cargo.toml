@@ -100,3 +100,11 @@ path = "tests/archived/mod.rs"
 [[test]]
 name = "types"
 path = "tests/types/mod.rs"
+
+[[test]]
+name = "collection"
+path = "tests/collection/mod.rs"
+
+[[test]]
+name = "macros"
+path = "tests/macros/mod.rs"
