@@ -72,6 +72,17 @@ own universe's business.
   the Rust fan-in/fan-out (bridge layer) re-pointed; `println` routes through
   it end to end. Probe: println round-trip + ordering + the panic-envelope
   ordering test stays green. stderr follows as 8.1b (same shape, fd 2).
+- **8.1w — LIFT the perfected forms to the warded home `src/services/`**
+  (builder directive 2026-06-07: *"we should lift these perfected forms to a
+  warded home before we close out"*). The 8.1 build necessarily lands its new
+  forms (the service loop, the input enum, the reply registry, the boot
+  spawn) inside `src/thread_io.rs` — a CONDEMNED quarry whose old-stack guts
+  Slice 6 deletes. Immediately after 8.1 scores: mint `src/services/`
+  (the 214 DESIGN's reserved Layer-2 home), lift the new machinery + the
+  surviving caller path into it, ward it (vigilia → stamp), and leave
+  thread_io.rs holding ONLY condemned material so Slice 6's deletion is a
+  clean rm. **8.1b/8.2 then build IN the home** — the quarry never grows
+  again.
 - **8.2 — StdInService reborn**: the reply-routing proof (readln returns the
   RIGHT thread's line under concurrent readers). Probe: two threads readln
   concurrently; each gets its own line.
