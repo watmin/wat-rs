@@ -28,7 +28,7 @@
     [cache
       (:wat::lru::LocalCache::new 16)
      k
-      (:wat::holon::Atom (:wat::core::quote :the-form))
+      (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :the-form)))
      _ (:wat::lru::LocalCache::put cache k 42)
      got (:wat::lru::LocalCache::get cache k)
      result
@@ -47,8 +47,8 @@
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new 16)
-     k1 (:wat::holon::Atom (:wat::core::quote :a))
-     k2 (:wat::holon::Atom (:wat::core::quote :b))
+     k1 (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :a)))
+     k2 (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :b)))
      _ (:wat::lru::LocalCache::put cache k1 1)
      got (:wat::lru::LocalCache::get cache k2)
      is-none
@@ -72,12 +72,12 @@
       (:wat::lru::LocalCache::new 16)
      k1
       (:wat::holon::Bind
-        (:wat::holon::Atom (:wat::core::quote :role))
-        (:wat::holon::Atom (:wat::core::quote :filler)))
+        (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))
+        (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :filler))))
      k2
       (:wat::holon::Bind
-        (:wat::holon::Atom (:wat::core::quote :role))
-        (:wat::holon::Atom (:wat::core::quote :filler)))
+        (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :role)))
+        (:wat::holon::Atom (:wat::holon::to-holon (:wat::core::quote :filler))))
      _ (:wat::lru::LocalCache::put cache k1 99)
      got (:wat::lru::LocalCache::get cache k2)
      result

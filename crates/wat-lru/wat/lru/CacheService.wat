@@ -54,9 +54,9 @@
 ;; Vec<Option<V>>; Put returns PutAck carrying unit. Both verbs share ONE
 ;; reply channel per slot (pair-by-index via HandlePool). Replaces the
 ;; old per-verb channel families (PutAck* + bare-Sender ReplyTx<V>).
-(:wat::core::enum :wat::lru::Reply<V>
-  (GetResult (results :wat::core::Vector<wat::core::Option<V>>))
-  (PutAck))
+(:wat::core::defenum :wat::lru::Reply<V>
+  :GetResult [results <- :wat::core::Vector<wat::core::Option<V>>]
+  :PutAck [unit <- :wat::core::nil])
 
 ;; Reply* — pair-by-index reply channel family (arc 130).
 ;; ReplyTx<V> widens from Sender<Vec<Option<V>>> to Sender<Reply<V>>
@@ -83,9 +83,9 @@
 ;; Request<K,V> — enum-based (arc 119); embedded channels removed (arc 130).
 ;;   Get carries a Vec<K> probe batch; driver replies via indexed ReplyTx.
 ;;   Put carries a Vec<Entry<K,V>> entries batch; driver replies PutAck via same.
-(:wat::core::enum :wat::lru::Request<K,V>
-  (Get  (probes   :wat::core::Vector<K>))
-  (Put  (entries  :wat::core::Vector<wat::lru::Entry<K,V>>)))
+(:wat::core::defenum :wat::lru::Request<K,V>
+  :Get [probes <- :wat::core::Vector<K>]
+  :Put [entries <- :wat::core::Vector<wat::lru::Entry<K,V>>])
 
 (:wat::core::typealias :wat::lru::ReqTx<K,V>
   :wat::kernel::Sender<wat::lru::Request<K,V>>)
@@ -116,52 +116,53 @@
 ;; Both are required; pass null-reporter / null-metrics-cadence for
 ;; the explicit "no reporting" choice.
 
-(:wat::core::struct :wat::lru::Stats
-  (lookups :wat::core::i64)        ;; total Gets (in probe count) in this window
-  (hits :wat::core::i64)           ;; probe slots returning Some
-  (misses :wat::core::i64)         ;; probe slots returning :None
-  (puts :wat::core::i64)           ;; total Put entries in this window
-  (cache-size :wat::core::i64))    ;; LocalCache::len at gate-fire time
+(:wat::core::defstruct :wat::lru::Stats
+  [lookups    <- :wat::core::i64   ;; total Gets (in probe count) in this window
+   hits       <- :wat::core::i64   ;; probe slots returning Some
+   misses     <- :wat::core::i64   ;; probe slots returning :None
+   puts       <- :wat::core::i64   ;; total Put entries in this window
+   cache-size <- :wat::core::i64]) ;; LocalCache::len at gate-fire time
 
 ;; Slice 4 ships ONE variant (Metrics, gated by metrics-cadence).
 ;; Future variants (lifecycle, errors, evictions) extend additively
 ;; without breaking consumers — same grow-by-arms pattern as the
 ;; archive's TreasuryRequest.
-(:wat::core::enum :wat::lru::Report
-  (Metrics (stats :wat::lru::Stats)))
+(:wat::core::defenum :wat::lru::Report
+  :Metrics [stats <- :wat::lru::Stats])
 
 ;; MetricsCadence<G> — stateful rate gate. The user picks G; the
 ;; cache threads the gate through each loop iteration via
 ;; MetricsCadence/new with the advanced gate; the tick fn itself is
 ;; invariant.
-(:wat::core::struct :wat::lru::MetricsCadence<G>
-  (gate :G)
-  (tick :wat::core::Fn(G,wat::lru::Stats)->(G,wat::core::bool)))
+(:wat::core::defstruct :wat::lru::MetricsCadence<G>
+  [gate <- :G
+   tick <- :wat::core::Fn(G,wat::lru::Stats)->(G,wat::core::bool)])
 
 (:wat::core::typealias :wat::lru::Reporter
   :wat::core::Fn(wat::lru::Report)->wat::core::nil)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
-(:wat::core::define
-  (:wat::lru::null-metrics-cadence
-    -> :wat::lru::MetricsCadence<wat::core::nil>)
+(:wat::core::defn :wat::lru::null-metrics-cadence
+  []
+  -> :wat::lru::MetricsCadence<wat::core::nil>
   (:wat::lru::MetricsCadence/new
-    :wat::core::nil
+    nil
     (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::lru::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
-(:wat::core::define
-  (:wat::lru::null-reporter
-    (_report :wat::lru::Report) -> :wat::core::nil)
-  :wat::core::nil)
+(:wat::core::defn :wat::lru::null-reporter
+  [_report <- :wat::lru::Report]
+  -> :wat::core::nil
+  nil)
 
 ;; Fresh zero-counters Stats. Used at startup and after each
 ;; gate-fire (window-rolling reset).
-(:wat::core::define
-  (:wat::lru::Stats/zero -> :wat::lru::Stats)
+(:wat::core::defn :wat::lru::Stats/zero
+  []
+  -> :wat::lru::Stats
   (:wat::lru::Stats/new 0 0 0 0 0))
 
 ;; ─── Service state — cache + running stats ─────────────────────
@@ -170,9 +171,9 @@
 ;; gate. The cache mutates in place (LocalCache is thread-owned
 ;; mutable); Stats rebuilds each iteration (values-up).
 
-(:wat::core::struct :wat::lru::State<K,V>
-  (cache :wat::lru::LocalCache<K,V>)
-  (stats :wat::lru::Stats))
+(:wat::core::defstruct :wat::lru::State<K,V>
+  [cache <- :wat::lru::LocalCache<K,V>
+   stats <- :wat::lru::Stats])
 
 ;; One loop-step's outputs: the post-dispatch State paired with the
 ;; advanced MetricsCadence. tick-window and loop-step both thread
@@ -191,12 +192,11 @@
 ;; Returns the new State (cache pointer unchanged — mutates in
 ;; place; stats rebuilt).
 
-(:wat::core::define
-  (:wat::lru::handle<K,V>
-    (req :wat::lru::Request<K,V>)
-    (reply-tx :wat::lru::ReplyTx<V>)
-    (state :wat::lru::State<K,V>)
-    -> :wat::lru::State<K,V>)
+(:wat::core::defn :wat::lru::handle<K,V>
+  [req <- :wat::lru::Request<K,V>
+   reply-tx <- :wat::lru::ReplyTx<V>
+   state <- :wat::lru::State<K,V>]
+  -> :wat::lru::State<K,V>
   (:wat::core::let
     [cache
       (:wat::lru::State/cache state)
@@ -206,18 +206,21 @@
       ((:wat::lru::Request::Get probes)
         (:wat::core::let
           [results
-            (:wat::core::map probes
+            (:wat::core::map
               (:wat::core::fn [k <- :K] -> :wat::core::Option<V>
-                (:wat::lru::LocalCache::get cache k)))
+                (:wat::lru::LocalCache::get cache k))
+              probes)
            hit-count
-            (:wat::list::reduce results 0
+            (:wat::core::foldl
               (:wat::core::fn
                 [acc <- :wat::core::i64 slot <- :wat::core::Option<V>] -> :wat::core::i64
                 (:wat::core::match slot -> :wat::core::i64
-                  ((:wat::core::Some _) (:wat::core::i64::+'2 acc 1))
-                  (:wat::core::None acc))))
+                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  (:wat::core::None acc)))
+              0
+              results)
            n (:wat::core::Vector/length probes)
-           miss-count (:wat::core::i64::-'2 n hit-count)
+           miss-count (:wat::core::i64::- n hit-count)
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
@@ -227,48 +230,48 @@
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::lru::Stats/new
-              (:wat::core::i64::+'2 (:wat::lru::Stats/lookups stats) n)
-              (:wat::core::i64::+'2 (:wat::lru::Stats/hits stats) hit-count)
-              (:wat::core::i64::+'2 (:wat::lru::Stats/misses stats) miss-count)
+              (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
+              (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
+              (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
               (:wat::lru::Stats/puts stats)
               (:wat::lru::Stats/cache-size stats))]
           (:wat::lru::State/new cache stats')))
       ((:wat::lru::Request::Put entries)
         (:wat::core::let
           [_
-            (:wat::core::map entries
+            (:wat::core::map
               (:wat::core::fn
                 [entry <- :wat::lru::Entry<K,V>] -> :wat::core::Option<(K,V)>
                 (:wat::core::let
                   [k (:wat::core::first entry)
                    v (:wat::core::second entry)]
-                  (:wat::lru::LocalCache::put cache k v))))
+                  (:wat::lru::LocalCache::put cache k v)))
+              entries)
            n (:wat::core::Vector/length entries)
            ;; Arc 110: same discipline — driver dying mid-protocol is
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
            _send
             (:wat::core::Result/expect -> :wat::core::nil
-              (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck))
+              (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck nil))
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::lru::Stats/new
               (:wat::lru::Stats/lookups stats)
               (:wat::lru::Stats/hits stats)
               (:wat::lru::Stats/misses stats)
-              (:wat::core::i64::+'2 (:wat::lru::Stats/puts stats) n)
+              (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
               (:wat::lru::Stats/cache-size stats))]
           (:wat::lru::State/new cache stats'))))))
 
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
 
-(:wat::core::define
-  (:wat::lru::tick-window<K,V,G>
-    (state :wat::lru::State<K,V>)
-    (reporter :wat::lru::Reporter)
-    (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::lru::Step<K,V,G>)
+(:wat::core::defn :wat::lru::tick-window<K,V,G>
+  [state <- :wat::lru::State<K,V>
+   reporter <- :wat::lru::Reporter
+   metrics-cadence <- :wat::lru::MetricsCadence<G>]
+  -> :wat::lru::Step<K,V,G>
   (:wat::core::let
     [stats
       (:wat::lru::State/stats state)
@@ -306,15 +309,14 @@
 ;; `feedback_simple_forms_per_func`. Looks up the DriverPair at idx,
 ;; extracts the ReplyTx, calls handle (which sends the reply on reply-tx),
 ;; ticks the window, recurses.
-(:wat::core::define
-  (:wat::lru::reply-at<K,V,G>
-    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
-    (idx :wat::core::i64)
-    (req :wat::lru::Request<K,V>)
-    (state :wat::lru::State<K,V>)
-    (reporter :wat::lru::Reporter)
-    (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::lru::reply-at<K,V,G>
+  [driver-pairs <- :wat::core::Vector<wat::lru::DriverPair<K,V>>
+   idx <- :wat::core::i64
+   req <- :wat::lru::Request<K,V>
+   state <- :wat::lru::State<K,V>
+   reporter <- :wat::lru::Reporter
+   metrics-cadence <- :wat::lru::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let
@@ -331,7 +333,7 @@
           (:wat::core::second step)]
         (:wat::lru::loop-step
           next-state driver-pairs reporter cadence')))
-    (:wat::core::None :wat::core::nil)))
+    (:wat::core::None nil)))
 
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
@@ -341,13 +343,12 @@
 ;; Arc 130: takes driver-pairs Vec<DriverPair<K,V>> instead of bare
 ;; req-rxs. The driver uses the pair index to locate the matching
 ;; ReplyTx after select fires.
-(:wat::core::define
-  (:wat::lru::loop<K,V,G>
-    (capacity :wat::core::i64)
-    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
-    (reporter :wat::lru::Reporter)
-    (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::lru::loop<K,V,G>
+  [capacity <- :wat::core::i64
+   driver-pairs <- :wat::core::Vector<wat::lru::DriverPair<K,V>>
+   reporter <- :wat::lru::Reporter
+   metrics-cadence <- :wat::lru::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new capacity)
@@ -361,21 +362,21 @@
 ;; driver thread's lifetime; select across request receivers (projected
 ;; from driver-pairs); index i → driver-pairs[i].second is the ReplyTx
 ;; for routing. After every dispatch, tick the metrics window.
-(:wat::core::define
-  (:wat::lru::loop-step<K,V,G>
-    (state :wat::lru::State<K,V>)
-    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
-    (reporter :wat::lru::Reporter)
-    (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::lru::loop-step<K,V,G>
+  [state <- :wat::lru::State<K,V>
+   driver-pairs <- :wat::core::Vector<wat::lru::DriverPair<K,V>>
+   reporter <- :wat::lru::Reporter
+   metrics-cadence <- :wat::lru::MetricsCadence<G>]
+  -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
-    :wat::core::nil
+    nil
     (:wat::core::let
       [req-rxs
-        (:wat::core::map driver-pairs
+        (:wat::core::map
           (:wat::core::fn
             [p <- :wat::lru::DriverPair<K,V>] -> :wat::lru::ReqRx<K,V>
-            (:wat::core::first p)))
+            (:wat::core::first p))
+          driver-pairs)
        chosen
         (:wat::kernel::select req-rxs)
        idx (:wat::core::first chosen)
@@ -389,7 +390,7 @@
             state
             (:wat::std::list::remove-at driver-pairs idx)
             reporter metrics-cadence))
-        ((:wat::core::Err _died) :wat::core::nil)))))
+        ((:wat::core::Err _died) nil)))))
 
 ;; --- Client helpers ---
 ;;
@@ -405,11 +406,10 @@
 ;;   Result/expect unwraps the outer Result (ThreadDiedError on peer death).
 ;;   Option/expect unwraps the inner Option (None = clean channel close).
 
-(:wat::core::define
-  (:wat::lru::get<K,V>
-    (handle :wat::lru::Handle<K,V>)
-    (probes :wat::core::Vector<K>)
-    -> :wat::core::Vector<wat::core::Option<V>>)
+(:wat::core::defn :wat::lru::get<K,V>
+  [handle <- :wat::lru::Handle<K,V>
+   probes <- :wat::core::Vector<K>]
+  -> :wat::core::Vector<wat::core::Option<V>>
   (:wat::core::let
     [req-tx
       (:wat::core::first handle)
@@ -431,14 +431,13 @@
         "lru::get: reply channel closed — driver dropped reply-tx?")]
     (:wat::core::match reply -> :wat::core::Vector<wat::core::Option<V>>
       ((:wat::lru::Reply::GetResult results) results)
-      ((:wat::lru::Reply::PutAck)
+      ((:wat::lru::Reply::PutAck _)
         (:wat::core::panic! "lru::get: driver sent PutAck on Get reply channel")))))
 
-(:wat::core::define
-  (:wat::lru::put<K,V>
-    (handle :wat::lru::Handle<K,V>)
-    (entries :wat::core::Vector<wat::lru::Entry<K,V>>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::lru::put<K,V>
+  [handle <- :wat::lru::Handle<K,V>
+   entries <- :wat::core::Vector<wat::lru::Entry<K,V>>]
+  -> :wat::core::nil
   (:wat::core::let
     [req-tx
       (:wat::core::first handle)
@@ -458,7 +457,7 @@
           "lru::put: reply-rx disconnected — driver died mid-request?")
         "lru::put: reply channel closed — driver dropped reply-tx?")]
     (:wat::core::match reply -> :wat::core::nil
-      ((:wat::lru::Reply::PutAck) :wat::core::nil)
+      ((:wat::lru::Reply::PutAck _) nil)
       ((:wat::lru::Reply::GetResult _)
         (:wat::core::panic! "lru::put: driver sent GetResult on Put reply channel")))))
 
@@ -475,45 +474,48 @@
 ;; :wat::lru::null-reporter and
 ;; (:wat::lru::null-metrics-cadence) for the explicit
 ;; "no reporting" choice. See CONVENTIONS.md "Service contract".
-(:wat::core::define
-  (:wat::lru::spawn<K,V,G>
-    (capacity :wat::core::i64)
-    (count :wat::core::i64)
-    (reporter :wat::lru::Reporter)
-    (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::lru::Spawn<K,V>)
+(:wat::core::defn :wat::lru::spawn<K,V,G>
+  [capacity <- :wat::core::i64
+   count <- :wat::core::i64
+   reporter <- :wat::lru::Reporter
+   metrics-cadence <- :wat::lru::MetricsCadence<G>]
+  -> :wat::lru::Spawn<K,V>
   (:wat::core::let
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.
     [req-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReqChannel<K,V>
-          (:wat::kernel::make-channel :wat::lru::Request<K,V>)))
+          (:wat::kernel::make-channel :wat::lru::Request<K,V>))
+        (:wat::core::range 0 count))
      reply-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReplyChannel<V>
-          (:wat::kernel::make-channel :wat::lru::Reply<V>)))
+          (:wat::kernel::make-channel :wat::lru::Reply<V>))
+        (:wat::core::range 0 count))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      handles
       (:wat::std::list::zip
-        (:wat::core::map req-pairs
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqTx<K,V>
-            (:wat::core::first p)))
-        (:wat::core::map reply-pairs
+            (:wat::core::first p))
+          req-pairs)
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyRx<V>
-            (:wat::core::second p))))
+            (:wat::core::second p))
+          reply-pairs))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
      driver-pairs
       (:wat::std::list::zip
-        (:wat::core::map req-pairs
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqRx<K,V>
-            (:wat::core::second p)))
-        (:wat::core::map reply-pairs
+            (:wat::core::second p))
+          req-pairs)
+        (:wat::core::map
           (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyTx<V>
-            (:wat::core::first p))))
+            (:wat::core::first p))
+          reply-pairs))
      pool
       (:wat::kernel::HandlePool::new "CacheService" handles)
      driver
