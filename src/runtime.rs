@@ -5217,7 +5217,12 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__holon__Record { .. } | Value::wat__Record { .. } => ":wat::Record",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
         Value::wat__std__HashSet(_) => ":wat::core::HashSet",
-        Value::RustOpaque(_) => ":rust::opaque",
+        // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
+        // (e.g. ":wat::kernel::Thread'" / ":wat::kernel::Process'"); report it
+        // so the defclause dispatcher sees the real peer type, not the generic fallback.
+        // One authority: type_name() delegates to inner.type_path for RustOpaque;
+        // val_type_path mirrors it as &'static str (inner.type_path IS &'static str).
+        Value::RustOpaque(inner) => inner.type_path,
         Value::io__IOReader(_) => ":wat::io::IOReader",
         Value::io__IOWriter(_) => ":wat::io::IOWriter",
         Value::Vector(_) => ":wat::holon::Vector",

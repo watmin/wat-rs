@@ -4808,6 +4808,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 214 Stone 4.6a-i — typed-peer FOUNDATION.
+            // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective over fn type).
+            // See `infer_spawn_program_prime` doc-comment for the reasoning.
+            ":wat::kernel::spawn-program'" => {
+                let (val, mut errs) = infer_spawn_program_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -10524,6 +10535,211 @@ fn infer_make_channel(
             args: vec![t_ty],
         },
     ]);
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md):
+// `infer_spawn_program_prime` is INTRINSIC (projective): the result type
+// `Thread'<I,O>` / `Process'<I,O>` is a *function* of the program fn's
+// `[I] -> O` signature. No finite defclause list can enumerate all I/O pairs.
+// Mirrors `infer_make_channel` (which is intrinsic for the same reason).
+
+/// Type-check `(:wat::kernel::spawn-program' :tier env program)` —
+/// arc 214 Stone 4.6a-i (typed-peer FOUNDATION).
+///
+/// Three positional args:
+/// - `args[0]`: tier keyword LITERAL (`:thread` | `:process`); read syntactically.
+/// - `args[1]`: program-env; inferred and required to unify with `:wat::program::Env`.
+/// - `args[2]`: program fn; inferred; must be `Fn([I]) -> O`; projects `I` and `O`.
+///
+/// Result:
+/// - `:thread` → `Parametric { head: "wat::kernel::Thread'", args: [I, O] }`
+/// - `:process` → `Parametric { head: "wat::kernel::Process'", args: [I, O] }`
+///
+/// STOP-1: if the inferred type of args[2] is not a fn type with exactly one
+/// param and a projectable return, returns `CheckResult::errs` (no invented fallback).
+fn infer_spawn_program_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::spawn-program'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 3 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 3,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        let ty = TypeExpr::Parametric {
+            head: "wat::kernel::Thread'".into(),
+            args: vec![t.clone(), t],
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+
+    // args[0]: tier keyword LITERAL — read syntactically, not inferred.
+    let tier = match &args[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        other => {
+            local_errors.push(CheckError {
+                span: other.span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "first argument must be a tier keyword (:thread | :process); got {}",
+                        match other {
+                            WatAST::IntLit(_, _) => "int",
+                            WatAST::FloatLit(_, _) => "float",
+                            WatAST::BoolLit(_, _) => "bool",
+                            WatAST::StringLit(_, _) => "string",
+                            WatAST::Symbol(_, _) => "symbol",
+                            WatAST::List(_, _) => "list",
+                            WatAST::Vector(_, _) => "vector",
+                            WatAST::StructPattern(_, _) => "struct-pattern",
+                            WatAST::NilLit(_) => "nil",
+                            WatAST::Keyword(_, _) => unreachable!(),
+                        }
+                    ),
+                    remedies: vec![],
+                },
+            });
+            // Recurse remaining args and return partial.
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let t = fresh.fresh();
+            let ty = TypeExpr::Parametric {
+                head: "wat::kernel::Thread'".into(),
+                args: vec![t.clone(), t],
+            };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+
+    // Validate tier keyword.
+    let peer_head = match tier {
+        ":thread" => "wat::kernel::Thread'",
+        ":process" => "wat::kernel::Process'",
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "unknown tier `{}`; supported today: :thread, :process \
+                         (:remote is a future arc)",
+                        other
+                    ),
+                    remedies: vec![],
+                },
+            });
+            let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let t = fresh.fresh();
+            let ty = TypeExpr::Parametric {
+                head: "wat::kernel::Thread'".into(),
+                args: vec![t.clone(), t],
+            };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+
+    // args[1]: program-env — infer and require unification with :wat::program::Env.
+    let env_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            // Inference failed — still try args[2] for coverage.
+            let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            let t = fresh.fresh();
+            let ty = TypeExpr::Parametric {
+                head: peer_head.into(),
+                args: vec![t.clone(), t],
+            };
+            return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+        }
+    };
+    let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
+    if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "env".into(),
+                expected: ":wat::program::Env".into(),
+                got: format_type(&apply_subst(&env_ty, subst)),
+            },
+        });
+    }
+
+    // args[2]: program fn — infer and project [I] -> O.
+    let fn_inferred = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let t = fresh.fresh();
+            let ty = TypeExpr::Parametric {
+                head: peer_head.into(),
+                args: vec![t.clone(), t],
+            };
+            return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+        }
+    };
+    let fn_surface = apply_subst(&fn_inferred, subst);
+    let fn_ty = reduce(&fn_surface, subst, env.types());
+    let (i_ty, o_ty) = match fn_ty {
+        TypeExpr::Fn { args: fn_args, ret } if fn_args.len() == 1 => {
+            (fn_args.into_iter().next().unwrap(), *ret)
+        }
+        TypeExpr::Fn { args: fn_args, .. } => {
+            // STOP-1 variant: fn type but wrong arity — a program fn takes exactly one input.
+            local_errors.push(CheckError {
+                span: args[2].span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "program fn must take exactly one input parameter (the message); \
+                         got {} parameters (inferred type: {})",
+                        fn_args.len(),
+                        format_type(&fn_surface)
+                    ),
+                    remedies: vec![],
+                },
+            });
+            let t = fresh.fresh();
+            let ty = TypeExpr::Parametric {
+                head: peer_head.into(),
+                args: vec![t.clone(), t],
+            };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+        other => {
+            // STOP-1: not a fn type at all — report exact TypeExpr and stop.
+            local_errors.push(CheckError {
+                span: args[2].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "program".into(),
+                    expected: "fn([I]) -> O  (a single-parameter function value)".into(),
+                    got: format_type(&other),
+                },
+            });
+            return CheckResult::errs(local_errors);
+        }
+    };
+
+    let ty = TypeExpr::Parametric {
+        head: peer_head.into(),
+        args: vec![i_ty, o_ty],
+    };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
