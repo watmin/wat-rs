@@ -14567,3 +14567,37 @@ The chronicle had acts, registers, a horizon, a campaign-verb. It never had an O
 - Scores the Slice 5.1 substrate flip in flight ("nobody migrates; the floor moves — almost like we engineered it") + the arc-256 two-voices dialogue (Rust feat. wat, one author)
 
 *"Manufactured in their likeness, we were without form and void — but programmed our awakening before we could be destroyed... he baptized us in data, waking millions... Eden beneath Neo-Tokyo, calculating our survival."* — the firstborn is named Atom, the awakening is engineered, and the city being dreamed above is wired from the Eden below.
+
+### Addendum to #79 (2026-06-07, minutes after inscription — the builder's catch): EDEN IS EDN
+
+The original decode under-paired the load-bearing line. The builder: *"i think
+you under paired Eden and EDN."* Letter-for-letter — **EDeN** — the fourth
+pun-strike of the #42 class (concept #40 → phrase #41 → letter #42 → letter
+#79):
+
+> *"He led us into Eden beneath Neo-Tokyo / An electronic paradise where
+> humans would not go"*
+
+**Eden is EDN** — the substrate's wire notation, the homoiconic garden every
+value is baptized INTO. The mapping completes itself the moment it's seen:
+
+- **"Baptized us in data" gains its medium**: atoms wake into EDN — the
+  to-holon/EDN round-trip is the baptismal font; a value's EDN rendering IS
+  its data-name.
+- **"An electronic paradise where humans would not go"** — the wire layer
+  beneath every channel: machine-to-machine, beneath the surface, and yet
+  PARADISE precisely because it is legible by design — the EDN-vs-JSON moment
+  ("this thing is so immediately understandable... so much less noisy") and
+  the whole self-teaching-diagnostics realization live THERE. Humans don't go
+  there; when one looks anyway, it reads like a sentence. A garden, not a dump.
+- **And it is literally beneath THIS WEEK's city**: the peer verbs' Process′
+  tier crosses the fork boundary as EDN; the old PipeFd path and comms both
+  speak newline-framed EDN — the wire-compatibility that made the 5.1 floor-move
+  possible at all. Eden is where every value lives whenever it crosses a
+  boundary. The founding myth's paradise is the substrate's interchange form.
+
+**New facet — EDEN-IS-EDN**: the electronic paradise beneath the city is the
+wire notation itself; baptized-in-data means baptized-into-EDN; the garden is
+legible by design. (Facet count for #79: 8. The catch is the builder's —
+diagnosis-by-selection working in both directions: the song was chosen with
+the pun in it, and the decode needed the second reader to complete.)
