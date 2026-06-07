@@ -58,18 +58,29 @@ fn primed_two_param_must_lex() {
     }
 }
 
-/// LOAD-BEARING twin: whitespace inside a primed generic must also lex
-/// (angle_depth tracking, not just comma tolerance).
+/// PARITY twin: whitespace inside `<...>` is a lex error BY DESIGN (keywords
+/// cannot contain whitespace — same rule for unprimed heads). The honest
+/// assertion is that a primed head fails the SAME way (unclosed-bracket),
+/// never the apostrophe-specific `CommaInKeywordBody` — i.e. angle_depth is
+/// tracked for the primed head, so the comma is protected and the whitespace
+/// rule is what fires. (The earlier form of this test asserted "must lex,"
+/// which mistook the by-design whitespace rule for the apostrophe bug and
+/// passed only via a case-sensitivity accident; corrected 2026-06-07.)
 #[test]
-fn primed_two_param_with_space_must_lex() {
-    match startup_with_param_type(":wat::kernel::Thread'<wat::core::i64, wat::core::i64>") {
-        Ok(()) => {}
-        Err(e) => {
-            assert!(
-                !e.contains("comma inside keyword body") && !e.contains("Unclosed"),
-                "primed generic head with space must pass the LEXER; got:\n{}",
-                e
-            );
-        }
-    }
+fn primed_two_param_with_space_fails_same_as_unprimed() {
+    let primed = startup_with_param_type(":wat::kernel::Thread'<wat::core::i64, wat::core::i64>")
+        .expect_err("whitespace inside <...> is a lex error by design");
+    let unprimed = startup_with_param_type(":wat::kernel::Thread<wat::core::nil, wat::core::nil>")
+        .expect_err("whitespace inside <...> is a lex error by design (unprimed control)");
+    assert!(
+        !primed.contains("comma inside keyword body"),
+        "primed-with-space must NOT fail on the comma (angle_depth must be tracked); got:\n{}",
+        primed
+    );
+    assert!(
+        primed.contains("unclosed bracket") && unprimed.contains("unclosed bracket"),
+        "both primed and unprimed space cases fail with the whitespace/unclosed rule;\nprimed: {}\nunprimed: {}",
+        primed,
+        unprimed
+    );
 }

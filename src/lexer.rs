@@ -625,11 +625,14 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
 ///
 /// `'` (apostrophe) is the canonical separator inside keyword bodies
 /// for arity suffixes and type discriminators (e.g. `:wat::core::op'2`,
-/// `:wat::core::op'i64'i64`). `,` at depth 0 (outside `(...)` and
-/// `<...>`) is rejected with `LexError::CommaInKeywordBody` (arc 171
-/// closure). Commas inside `(...)` (tuple types like `:(A,B,C)`) and
-/// inside `<...>` (parametric types like `:HashMap<K,V>`) remain valid.
-/// Whitespace inside an unclosed `(` is an error.
+/// `:wat::core::op'i64'i64`). It also appears as a primed type-head
+/// suffix: `:wat::kernel::Thread'<I,O>` — the `'` marks the primed
+/// variant and is immediately followed by `<` opening the generic params.
+/// `,` at depth 0 (outside `(...)` and `<...>`) is rejected with
+/// `LexError::CommaInKeywordBody` (arc 171 closure). Commas inside
+/// `(...)` (tuple types like `:(A,B,C)`) and inside `<...>` (parametric
+/// types like `:HashMap<K,V>` or `:wat::kernel::Thread'<I,O>`) remain
+/// valid. Whitespace inside an unclosed `(` or `<` is an error.
 /// `"` and `;` terminate the keyword — they never appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     let bytes = src.as_bytes();
@@ -646,13 +649,17 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     // Operator `<` / `>` (e.g., `:wat::core::<`, `:wat::core::>=`)
     // appear in keyword paths AFTER `::` and must NOT be treated as
     // bracket openers. Disambiguation: `<` increments depth only
-    // when preceded by an alphanumeric (a type-head name like
-    // `Result<` or `Vec<`); `>` decrements only when angle_depth >
-    // 0. Pre-arc-072 the lexer ignored angle brackets entirely, so
-    // whitespace inside `<...>` truncated the keyword and the
-    // downstream type checker saw a malformed Result with one
-    // arg — surfacing as opaque "fresh-var unsolved" errors at
-    // pattern-arm sites.
+    // when preceded by an alphanumeric or `_` (a type-head name like
+    // `Result<` or `Vec<`) or by `'` (a primed type head like
+    // `Thread'<` — arc 214). `>` decrements only when angle_depth >
+    // 0. The `'<` combination is unambiguous: operator `<` always
+    // follows `::`, and arc-171 discriminator apostrophes come AFTER
+    // an op name (`<'2`, `op'i64'i64`) — so `'` before `<` can only
+    // open the params of a primed type head. Pre-arc-072 the lexer
+    // ignored angle brackets entirely, so whitespace inside `<...>`
+    // truncated the keyword and the downstream type checker saw a
+    // malformed Result with one arg — surfacing as opaque
+    // "fresh-var unsolved" errors at pattern-arm sites.
     let mut angle_depth = 0i32;
 
     while i < bytes.len() {
@@ -722,13 +729,23 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
             }
             '<' => {
                 // Type-head `<` follows an alphanumeric (`Result<`,
-                // `Vec<`, ...). Operator `<` follows `::` — the
-                // previous emitted char is `:`, never alphanumeric
-                // for a path. Use the last char in `out` to decide.
+                // `Vec<`, ...) or an apostrophe on a primed type head
+                // (`Thread'<`, `Process'<`). Operator `<` follows `::`
+                // — the previous emitted char is `:`, never alphanumeric
+                // or `'` for a path. Use the last char in `out` to
+                // decide.
+                //
+                // Arc 214 — `'` is valid as a type-head-final char:
+                // `Thread'<I,O>` has `'` immediately before `<`. This is
+                // unambiguous: operator `<` in a keyword path always
+                // follows `::` (`:wat::core::<`), and arc-171
+                // discriminator apostrophes come AFTER an op name
+                // (`<'2`, `op'i64'i64`) — so `'<` can only be a primed
+                // type head opening its params.
                 let prev_alpha = out
                     .chars()
                     .last()
-                    .map(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+                    .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '\'')
                     .unwrap_or(false);
                 if prev_alpha {
                     angle_depth += 1;
@@ -1119,6 +1136,48 @@ mod tests {
         assert_eq!(
             lex_tokens(":HashMap<i64,String>'snapshot").unwrap(),
             vec![Token::Keyword(":HashMap<i64,String>'snapshot".into())]
+        );
+    }
+
+    // ─── Arc 214 — primed type-head with generic params ──────────────────
+
+    #[test]
+    fn keyword_primed_generic_two_param_comma() {
+        // Arc 214 fix: `'` before `<` is now a valid type-head-final char.
+        // `:wat::kernel::Thread'<I,O>` must lex as a single keyword; the
+        // comma is inside `<...>` (angle_depth > 0) and must NOT trigger
+        // CommaInKeywordBody.
+        assert_eq!(
+            lex_tokens(":wat::kernel::Thread'<wat::core::i64,wat::core::i64>").unwrap(),
+            vec![Token::Keyword(":wat::kernel::Thread'<wat::core::i64,wat::core::i64>".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_primed_generic_two_param_space() {
+        // Arc 214 fix: whitespace after the comma inside a primed generic
+        // triggers UnclosedBracketInKeyword (whitespace inside `<...>` is
+        // always a lex error), but MUST NOT trigger CommaInKeywordBody.
+        // The probe accepts either Ok or a non-comma error.
+        let result = lex_tokens(":wat::kernel::Thread'<wat::core::i64, wat::core::i64>");
+        match result {
+            Ok(_) => {} // lexed cleanly — fine
+            Err(e) => {
+                assert!(
+                    !matches!(e, LexError { kind: LexErrorKind::CommaInKeywordBody, .. }),
+                    "primed generic with space must NOT error with CommaInKeywordBody; got {:?}", e
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn keyword_unprimed_generic_two_param_control() {
+        // Control: unprimed multi-param generic already lexed before arc 214.
+        // Confirms that the fix does not regress the baseline shape.
+        assert_eq!(
+            lex_tokens(":wat::kernel::Thread<wat::core::nil,wat::core::nil>").unwrap(),
+            vec![Token::Keyword(":wat::kernel::Thread<wat::core::nil,wat::core::nil>".into())]
         );
     }
 
