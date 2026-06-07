@@ -2,6 +2,29 @@
 
 **Status:** OPEN (2026-06-06). Contract PINNED (four-questions verdict below). Highest priority — displaces 252.2 coverage + 253 instance-2.
 
+## ★ REFRAME (2026-06-07) — this IS arc 214 Slice 4–9; finish what we set out to build
+
+We forked OUT of arc 214 at the kernel layer (Slice 4 shipped only program-env 4.1–4.3; `src/kernel/` was never minted), kept forking, and circled back — *through the same door, the other way, carrying everything we went to fetch.* The forks were not wandering; they **built 214's dependency tree bottom-up.** The deps are now met:
+
+| 214 Slice 4–8 needs | built by |
+|---|---|
+| dispatch on peer type (polymorphic verbs) | arc 146 multimethod + 237 defclause |
+| Value home for peer variants | 251.2 (`src/value/`, "the keystone") |
+| clean error/wire shapes | 243 (conformare) |
+| warded wat stdlib (services are wat) | 245 |
+| macro engine (brackets) | 249 |
+| hardened comms `try_recv` | 253 |
+| portability predicate (no handles on channels) | 254.1 |
+| comms tier primitives (pair/Sender/Receiver/Select/io_uring) | 214 Slices 1–3 |
+
+**THE CONVERGENCE:** arc 254 = 214 **Slice 5** (typed_channel→comms migration); the stdio services redesign = 214 **Slice 8** (universe-resident services, no handle-passing); the arc-170 orphan leak (253 instance-2) dies in the same move — the new peer types own their fds via comms/RAII, replacing hand-managed `into_raw_fd`. **One piece of work.**
+
+**THE GATE:** 214 **Slice 4 kernel layer** (`src/kernel/peer.rs` + `spawn.rs`): `Thread<I,O>`/`Process<I,O>` peer types built on comms (**RAII fd ownership — the leak-killer**), the spawn dispatcher (`spawn-program' :tier`), the polymorphic verbs (`send'`/`recv'`/`select'`/`close'` — multimethod, "mostly wiring" per `214 DESIGN:541`). Readiness audit (2026-06-07): deps met; comms exposes channel construction (`pair`) but **not** spawn — the kernel layer builds spawn-on-comms, replacing typed_channel + `into_raw_fd`.
+
+**REMAINING ORDER:** Slice 4 (kernel layer) → Slice 5 (this migration + the 254.1 portability gate) → Slice 6 (structural wall) → Slice 7 (brackets) → Slice 8 (services universe-resident; the leak dies) → Slice 9 INSCRIPTION (closes 214 at last). The "254" stones (254.1 done; 254.2–254.5) fold in as Slice 5.
+
+**THE UNWIND (spawn-block-winding — close depth-first, inscribe each; do NOT leave an open door like 214 was):** three open arcs — **214** (never inscribed), **253** (instance 1 done, instance 2 = the leak, OPEN), **254** (opened from the 253 hunt, = 214 Slice 5) — are ONE convergent body of work. Building 214 forward unwinds the stack: 253 instance-2 (the leak) dies in Slice 4 (RAII peer fds) + Slice 8 (no handle-passing) → **INSCRIBE 253**; 254 = Slice 5, its record folds into 214; Slice 9 → **INSCRIBE 214**. Each arc gets an honest closure as it completes. The failure we are correcting — 214 left warded-but-unwired and un-inscribed, reading as "done" — must not recur; no forgotten doors.
+
 > The builder's framing: *"the thing was being able to serve values to callers — they don't care if it's a thread channel, a process pipe or a network socket."* That requirement is the governing law of this arc.
 
 ## Provenance — why this exists
