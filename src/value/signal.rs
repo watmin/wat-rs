@@ -5,7 +5,7 @@
 
 use std::fmt;
 use std::sync::Arc;
-use crate::runtime::{ClauseAttempt, ClauseFailureReason, Value};
+use crate::value::{ClauseAttempt, ClauseFailureReason, Value};
 use crate::value::Function;
 use crate::span::Span;
 use crate::value::observe::ValueSnapshot;

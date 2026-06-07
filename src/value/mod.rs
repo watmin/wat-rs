@@ -9,6 +9,8 @@ pub mod frame;
 pub mod observe;
 pub mod signal;
 pub mod symbol_table;
+#[allow(clippy::module_inception)]
+pub mod value;
 
 pub use encoding_ctx::EncodingCtx;
 pub use environment::{Function, Environment, EnvBuilder, BoundEntry};
@@ -17,3 +19,5 @@ pub(crate) use frame::{FrameGuard, replace_top_frame};
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};
 pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
+pub use value::{Value, StructValue, EnumValue, SpawnOutcome, ProgramHandleInner,
+    Clause, ClauseSet, ClauseAttempt, ClauseFailureReason};

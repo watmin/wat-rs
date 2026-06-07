@@ -5,7 +5,7 @@
 //! 251.2b. Value stays in runtime.rs until Stone 251.2e.
 
 use std::fmt;
-use crate::runtime::Value;
+use crate::value::Value;
 use crate::span::Span;
 
 /// Provenance of a Value — where it came from.

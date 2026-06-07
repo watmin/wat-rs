@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::load::SourceLoader;
 use crate::macros::MacroRegistry;
-use crate::runtime::{EnumValue, Value};
+use crate::value::{EnumValue, Value};
 use crate::sigma::SigmaFn;
 use crate::span::Span;
 use crate::thread_io::RuntimeServices;
