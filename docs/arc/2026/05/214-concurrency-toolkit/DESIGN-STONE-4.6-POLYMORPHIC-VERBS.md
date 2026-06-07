@@ -19,7 +19,7 @@ both. Running each verb through the decision procedure (projective? relational? 
 | `recv'` | `peer<O> -> O` | **intrinsic — projective** | return is a function of the peer's element type param `O` (same shape as `get : Vector<T> -> Option<T>`) |
 | `send'` | `peer<I>, I -> nil` | **intrinsic — projective** | `I` flows from the peer's type param into another argument |
 | `try-recv'` | `peer<O> -> Option<O>` | **intrinsic — projective** | return is a function of `O` |
-| `close'` | `peer -> nil` (thread) / `ExitStatus` (process) | **clause** | concrete peer types; per-clause concrete return; NO type-var flow (`I`/`O` flow nowhere) |
+| `close'` | `peer<I,O> -> nil` (thread) / `i64` exit code (process) | **intrinsic** (forward-corrected 2026-06-07) | first verdict said "clause — no type-var flow," but the peer types are PARAMETRIC: a clause param is a FIXED named type and cannot say `Thread'<∀I,∀O>` — covering all `(I,O)` instantiations is the same infinite-open-set argument that makes `get` projective-intrinsic. A ∀-parametric arg needs type-level matching even when nothing flows → intrinsic by the rubric's own principle. (Had the peers been bare heads, clause would have held.) |
 
 **This is the SAME treatment the verbs they replace already have:** the old
 `:wat::kernel::send`/`recv`/`try-recv` are custom-inference intrinsics in
