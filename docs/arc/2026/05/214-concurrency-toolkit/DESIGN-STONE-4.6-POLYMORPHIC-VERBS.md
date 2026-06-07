@@ -85,13 +85,24 @@ new piece → split it out and de-risk it alone:
 - **4.6a-ii — the four verbs** (3 intrinsic + `close'` clause) over the settled
   foundation. Ships the complete, useful peer surface; proven by a wat-level
   `send'`/`recv'`/`close'` round-trip.
-- **4.6b — `select'`.** Heterogeneous multiplex over N peers → first ready + its
-  value. Thread peers use crossbeam select; process peers use io_uring
-  `comms::process::Select` (POLL_ADD+POLLHUP). Its own stone on the 4.6a
-  foundation (stepping-stone: 4.6a's downcast + EDN-bridge helpers are what 4.6b
-  reuses). `select'`'s own clause-vs-intrinsic classification runs through
-  DISPATCH.md at 4.6b design time (it is projective over a heterogeneous peer set
-  → almost certainly intrinsic; confirm then).
+- **4.6b — `select'` (design settled 2026-06-07).**
+  `select' : Vector<peer<I,O>> -> Tuple<i64, O>` — blocking first-ready multiplex
+  returning (index, value). **Intrinsic — projective** (O flows from the element
+  peer type to the return; DISPATCH.md). Lair findings:
+  - **Mixed-tier selection is unrepresentable at check FOR FREE** — `Vector` is
+    homogeneous, so a literal mixing `Thread'` and `Process'` peers already fails
+    element unification. No bespoke rejection; the type system carries it.
+  - Both tiers already have homogeneous-T Select: `comms::thread::Select`
+    (crossbeam + SHUTDOWN arm) and `comms::process::Select` (io_uring
+    POLL_ADD/POLLHUP, persistent ring) — both index-based (`SelectOutcome`).
+    The eval arm dispatches per tier and maps `Recv{index, value}` →
+    `(:wat::core::Tuple index value)` (Process′ decodes EDN first).
+  - **The one mechanism gap:** registering N receivers needs N SIMULTANEOUS
+    borrows; `ThreadOwnedCell::with_ref` is closure-scoped (cannot nest for
+    dynamic N). Fix: a guard-returning borrow on the cell (`custodia.rs` — same
+    thread-id check, lifetime-bound guard), uniform for both tiers.
+  - Empty vector → error (mirror the old select's "would block forever").
+    Blocking inherits both tiers' cascade contracts (wakes on shutdown).
 
 ## `close'` consume semantics (resolve at strike)
 
