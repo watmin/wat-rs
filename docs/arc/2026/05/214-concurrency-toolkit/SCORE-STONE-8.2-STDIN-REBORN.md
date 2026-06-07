@@ -49,7 +49,10 @@ verbatim. Code forms = 3, as designed.
 
 ## The annihilation map: the quarry is tenantless
 
-thread_io.rs post-8.2 (~389 lines): ThreadIO + thread-local + the three eval
+thread_io.rs post-8.2 (635 lines — CORRECTED: both this stone's and 8.1b's
+first drafts wrote line counts from estimate instead of from a fresh `wc -l`;
+two stones = a class; the rule is now: no line count leaves the pen without
+a just-run wc in the same breath): ThreadIO + thread-local + the three eval
 arms + register/deregister + RuntimeServices + ThreadId + next_thread_id —
 ALL live, perfected, universe-resident machinery. ZERO condemned code
 remains. **8.2w (next): lift the survivors into `src/services/`, `git rm
