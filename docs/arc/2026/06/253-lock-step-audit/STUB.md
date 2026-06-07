@@ -95,6 +95,29 @@ NOTE: this kills INSTANCE 1 (the try_recv non-lock-step guess). INSTANCE 2 (spaw
 comms-pair fd-path proved clean (50k no-leak), so the orphan leak is a distinct spawn-path
 investigation (reproduce orphans + RAII the fd lifecycle).
 
+## FINDING 2026-06-06 (recolligere grounding) — the collapse was scoped to `comms/`; the χ chokepoint is still 3-state (benign)
+
+Grounding the question "did we resolve 253?" surfaced that the breadcrumb's
+"`TryRecvError` removed" is true for `src/comms/` but NOT codebase-wide:
+- `src/typed_channel.rs:536` still `pub use crossbeam_channel::{… TryRecvError}`.
+- `src/typed_channel.rs:591` — the arc-213-χ `Receiver<T>::try_recv` still returns
+  the 3-state `Result<T, TryRecvError>`. This is a SEPARATE `Receiver` from
+  `comms::Receiver` (the one collapsed in `d3150a04`); it is live —
+  `value/value.rs:920` `InThread(Receiver<SpawnOutcome>)`.
+
+**BENIGN — not a live instance of the racing class** (axis-2 test):
+- its sole live caller is `runtime.rs:18491` `eval_handle_pool_pop`, which maps BOTH
+  error arms to one outcome (`Err(_)` → "no handles left") — the Empty/Disconnected
+  distinction is never consumed, so there is no racing two-way result;
+- `HandlePool::pop` runs at WIRING time (claim the committed count BEFORE any thread
+  runs) — single-threaded, not a concurrent snapshot-guess.
+
+So instance 1's RACE is annihilated. What remains is an ASYMMETRY (two `Receiver`
+types, two `try_recv` contracts) per [[feedback_asymmetries_meet_high_bar]]. 253's
+eventual INSCRIPTION must either (a) collapse the χ `try_recv` to the 2-state
+contract too, or (b) rune it with this "sole caller collapses both arms +
+wiring-time non-concurrent" justification. Ledger item, non-blocking.
+
 ## Cross-references
 
 - `tests/comms/process.rs:153` — the flaky probe (the disconfirming evidence).
