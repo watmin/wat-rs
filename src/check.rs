@@ -4819,6 +4819,46 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
+            // PARTITION — CLAUSE vs INTRINSIC: all four are intrinsic.
+            //   send'     — projective: I flows from peer<I,O> into the payload arg.
+            //   recv'     — projective: O flows from peer<I,O> into the return.
+            //   try-recv' — projective: Option<O> return is a function of peer's O.
+            //   close'    — ∀-parametric: peer<∀I,∀O>; clause cannot enumerate all (I,O).
+            // See `infer_send_prime` / `infer_recv_prime` / `infer_try_recv_prime` /
+            // `infer_close_prime` for the per-op reasoning.
+            ":wat::kernel::send'" => {
+                let (val, mut errs) = infer_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::recv'" => {
+                let (val, mut errs) = infer_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::try-recv'" => {
+                let (val, mut errs) = infer_try_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::close'" => {
+                let (val, mut errs) = infer_close_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -10741,6 +10781,311 @@ fn infer_spawn_program_prime(
         args: vec![i_ty, o_ty],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+// ─── Arc 214 Stone 4.6a-ii — four peer verb intrinsics ───────────────────────
+//
+// PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md):
+// All four are INTRINSIC (projective / ∀-parametric):
+//   send'      — projective: I flows from peer<I,O> into the payload arg.
+//   recv'      — projective: O flows from peer<I,O> into the return type.
+//   try-recv'  — projective: Option<O> return is a function of peer<I,O>'s O.
+//   close'     — ∀-parametric: the peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>;
+//                a clause matcher cannot enumerate all (I,O) instantiations.
+// The pattern for each: infer args[0], apply_subst+reduce, match
+// Parametric{head:"wat::kernel::Thread'"|"…Process'", args:[I,O]},
+// project I and/or O. Non-peer arg0 → TypeMismatch "peer (Thread'<I,O> | Process'<I,O>)".
+
+/// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
+/// Returns `Ok((i_ty, o_ty))` on success. On failure, pushes a TypeMismatch
+/// into `local_errors` and returns `Err(())`.
+fn project_peer_io(
+    args: &[WatAST],
+    head_span: &Span,
+    op: &str,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    local_errors: &mut Vec<CheckError>,
+) -> Result<(TypeExpr, TypeExpr), ()> {
+    let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(local_errors) {
+        Some(t) => t,
+        None => return Err(()),
+    };
+    let peer_surface = apply_subst(&peer_ty, subst);
+    let peer_reduced = reduce(&peer_surface, subst, env.types());
+    match peer_reduced {
+        TypeExpr::Parametric { ref head, ref args }
+            if (head == "wat::kernel::Thread'" || head == "wat::kernel::Process'")
+                && args.len() == 2 =>
+        {
+            Ok((args[0].clone(), args[1].clone()))
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: head_span.clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "peer".into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O>)".into(),
+                    got: format_type(&other),
+                },
+            });
+            Err(())
+        }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_send_prime` is INTRINSIC (projective).
+// I flows from the peer's Parametric type param into the payload argument position.
+/// Type-check `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii.
+///
+/// Two positional args: `args[0]` peer, `args[1]` payload of type I.
+/// Result: `:wat::core::nil`.
+fn infer_send_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::send'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+    }
+
+    let (i_ty, _o_ty) =
+        match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+            Ok(pair) => pair,
+            Err(()) => {
+                // Still infer args[1] for nested error coverage.
+                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+            }
+        };
+
+    // args[1]: payload — must unify with I.
+    let payload_ty =
+        match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            Some(t) => t,
+            None => {
+                return CheckResult::partial_with(
+                    TypeExpr::Path(":wat::core::nil".into()),
+                    local_errors,
+                );
+            }
+        };
+    if let Err(_) = unify(&payload_ty, &i_ty, subst, env.types()) {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "payload".into(),
+                expected: format_type(&apply_subst(&i_ty, subst)),
+                got: format_type(&apply_subst(&payload_ty, subst)),
+            },
+        });
+    }
+
+    let ret = TypeExpr::Path(":wat::core::nil".into());
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_recv_prime` is INTRINSIC (projective).
+// O flows from the peer's Parametric type param into the return type.
+/// Type-check `(:wat::kernel::recv' peer)` — Stone 4.6a-ii.
+///
+/// One positional arg: `args[0]` peer of type `Thread'<I,O>` or `Process'<I,O>`.
+/// Result: `O`.
+fn infer_recv_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::recv'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok((_i_ty, o_ty)) => {
+            let ret = apply_subst(&o_ty, subst);
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(()) => {
+            let t = fresh.fresh();
+            CheckResult::partial_with(t, local_errors)
+        }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_try_recv_prime` is INTRINSIC (projective).
+// Option<O> return is a function of the peer's O type param.
+/// Type-check `(:wat::kernel::try-recv' peer)` — Stone 4.6a-ii.
+///
+/// One positional arg: `args[0]` peer of type `Thread'<I,O>` or `Process'<I,O>`.
+/// Result: `Option<O>` (`:wat::core::Option<O>`).
+fn infer_try_recv_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::try-recv'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        let ret = TypeExpr::Parametric {
+            head: "wat::core::Option".into(),
+            args: vec![t],
+        };
+        return CheckResult::partial_with(ret, local_errors);
+    }
+
+    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+        Ok((_i_ty, o_ty)) => {
+            let o_reduced = apply_subst(&o_ty, subst);
+            let ret = TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![o_reduced],
+            };
+            if local_errors.is_empty() {
+                CheckResult::ok(ret)
+            } else {
+                CheckResult::partial_with(ret, local_errors)
+            }
+        }
+        Err(()) => {
+            let t = fresh.fresh();
+            let ret = TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![t],
+            };
+            CheckResult::partial_with(ret, local_errors)
+        }
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_close_prime` is INTRINSIC (∀-parametric).
+// The peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>; a defclause cannot enumerate
+// all (I,O) instantiations — the same infinite-open-set argument as get/recv'.
+/// Type-check `(:wat::kernel::close' peer)` — Stone 4.6a-ii.
+///
+/// One positional arg: `args[0]` peer (Thread'<I,O> or Process'<I,O>).
+/// Result: `nil` for Thread'; `i64` (exit code) for Process'.
+fn infer_close_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::close'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+    }
+
+    let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        }
+    };
+    let peer_surface = apply_subst(&peer_ty, subst);
+    let peer_reduced = reduce(&peer_surface, subst, env.types());
+    let ret = match &peer_reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::kernel::Thread'" && args.len() == 2 =>
+        {
+            TypeExpr::Path(":wat::core::nil".into())
+        }
+        TypeExpr::Parametric { head, args }
+            if head == "wat::kernel::Process'" && args.len() == 2 =>
+        {
+            TypeExpr::Path(":wat::core::i64".into())
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peer".into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O>)".into(),
+                    got: format_type(other),
+                },
+            });
+            TypeExpr::Path(":wat::core::nil".into())
+        }
+    };
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
 }
 
 /// Process one binding — single-typed or destructure. Infers the RHS

@@ -304,8 +304,10 @@ pub fn spawn_thread_peer(
         join: join_handle,
     };
 
-    // ThreadOwnedCell makes JoinHandle<()> (Send but !Sync) satisfy Sync.
-    let wrapped = Arc::new(ThreadOwnedCell::new(peer));
+    // Wrapped in Option so close' can `.take()` the peer (consuming it for
+    // `close()+join`) while send'/recv'/try-recv' detect use-after-close via
+    // `.as_ref()` returning None.  Stone 4.6a-ii.
+    let wrapped = Arc::new(ThreadOwnedCell::new(Some(peer)));
     Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
 }
 
@@ -474,7 +476,10 @@ pub fn spawn_process_peer(
         _lifeline_w: lifeline_w,
     };
 
-    let wrapped = Arc::new(ThreadOwnedCell::new(bundle));
+    // Wrapped in Option so close' can `.take()` the bundle (consuming it for
+    // `close()+wait`) while send'/recv'/try-recv' detect use-after-close via
+    // `.as_ref()` returning None.  Stone 4.6a-ii.
+    let wrapped = Arc::new(ThreadOwnedCell::new(Some(bundle)));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))
 }
 
@@ -535,25 +540,26 @@ mod tests {
 
         // Downcast the payload to the concrete thread-peer type.
         // downcast_ref_opaque takes (&RustOpaqueInner, expected_path, op, span).
-        let cell: &Arc<ThreadOwnedCell<Thread<Value, Value>>> =
+        // Stone 4.6a-ii: payload is now Option-wrapped so close' can take() it.
+        let cell: &Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>> =
             crate::rust_deps::marshal::downcast_ref_opaque(
                 &opaque_arc,
                 THREAD_PEER_TYPE_PATH,
                 "test:spawn_thread_peer_echo_round_trip:downcast",
                 dummy_span.clone(),
             )
-            .expect("downcast to Arc<ThreadOwnedCell<Thread<Value,Value>>> must succeed");
+            .expect("downcast to Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>> must succeed");
 
         // Send via peer.send (Thread<Value,Value>.input Sender), recv via
         // peer.output Receiver, using 4.4 methods exposed through with_ref.
-        cell.with_ref("test:send", |peer| {
-            peer.send(Value::i64(42)).expect("peer.send must succeed");
+        cell.with_ref("test:send", |opt_peer| {
+            opt_peer.as_ref().expect("peer must not be closed").send(Value::i64(42)).expect("peer.send must succeed");
         })
         .expect("with_ref (send) must not cross thread boundary");
 
         let got = cell
-            .with_ref("test:recv", |peer| {
-                peer.recv().expect("peer.recv must return the echo")
+            .with_ref("test:recv", |opt_peer| {
+                opt_peer.as_ref().expect("peer must not be closed").recv().expect("peer.recv must return the echo")
             })
             .expect("with_ref (recv) must not cross thread boundary");
 

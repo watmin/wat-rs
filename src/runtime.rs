@@ -4120,6 +4120,27 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-program'" => {
             crate::kernel::spawn::eval_kernel_spawn_program_prime(args, list_span, env, sym)
         }
+        // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
+        // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814):
+        //   send'     — intrinsic (projective: I from peer<I,O>)
+        //   recv'     — intrinsic (projective: O from peer<I,O>)
+        //   try-recv' — intrinsic (projective: Option<O>)
+        //   close'    — intrinsic (∀-parametric: peer<∀I,∀O>)
+        // Each arm downcasts the peer RustOpaque by sentinel (Thread' first,
+        // then Process', else TypeMismatch). Thread' passes Value through;
+        // Process' bridges via EDN (value_to_edn + wat_edn::write / read_edn).
+        ":wat::kernel::send'" => {
+            eval_peer_send_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::recv'" => {
+            eval_peer_recv_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::try-recv'" => {
+            eval_peer_try_recv_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::close'" => {
+            eval_peer_close_prime(args, list_span, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The runtime fn in src/fork.rs is left
@@ -22514,6 +22535,465 @@ fn is_mutation_head(head: &str) -> bool {
             | ":wat::digest-load!"
             | ":wat::signed-load!"
     ) || head.starts_with(":wat::config::set-")
+}
+
+// ─── Arc 214 Stone 4.6a-ii — peer verb eval arms ─────────────────────────────
+//
+// PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814+):
+// All four are intrinsic; the eval dispatch here is a Rust match on the
+// `RustOpaque.type_path` sentinel — that is fine (the rubric governs the
+// *type-check* mechanism; intrinsics are custom Rust by definition).
+//
+// Pattern: eval args[0] → try downcast as Thread' first → else try Process' →
+// else TypeMismatch. Thread' passes Value through; Process' bridges via EDN.
+// The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
+// lets send'/recv'/try-recv' detect use-after-close (None → RuntimeError).
+
+/// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii.
+///
+/// Thread': `peer.send(value)` Value pass-through.
+/// Process': encode payload via value_to_edn + wat_edn::write → peer.send(String).
+/// Returns `nil`.  Use-after-close (Option is None) → RuntimeError.
+fn eval_peer_send_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::send'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Thread<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            cell.with_ref(OP, |opt_peer| -> Result<(), EvalBreak> {
+                match opt_peer {
+                    None => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "peer already closed".into(),
+                        },
+                    }
+                    .into()),
+                    Some(peer) => peer.send(payload_val).map_err(|_| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "send failed: channel disconnected".into(),
+                            },
+                        }
+                        .into()
+                    }),
+                }
+            })
+            .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::Unit)
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessPeerBundle>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn(&payload_val));
+            cell.with_ref(OP, |opt_bundle| -> Result<(), EvalBreak> {
+                match opt_bundle {
+                    None => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "peer already closed".into(),
+                        },
+                    }
+                    .into()),
+                    Some(bundle) => bundle.peer.send(edn_str.clone()).map_err(|_| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "send failed: process channel disconnected".into(),
+                            },
+                        }
+                        .into()
+                    }),
+                }
+            })
+            .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::Unit)
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::recv' peer)` — Stone 4.6a-ii.
+///
+/// Thread': `peer.recv()` → Value.
+/// Process': `peer.recv()` → decode EDN String → Value.
+/// RecvError (peer closed / child gone) → RuntimeError.
+/// Use-after-close (Option is None) → RuntimeError.
+fn eval_peer_recv_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::recv'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Thread<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let result = cell
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(peer) => peer.recv().map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "recv failed: peer closed / thread exited".into(),
+                                },
+                            }
+                            .into()
+                        }),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(result)
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessPeerBundle>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let edn_str = cell
+                .with_ref(OP, |opt_bundle| -> Result<String, EvalBreak> {
+                    match opt_bundle {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(bundle) => bundle.peer.recv().map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "recv failed: peer closed / child exited".into(),
+                                },
+                            }
+                            .into()
+                        }),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("recv' EDN decode failed: {}", e),
+                    },
+                }
+                .into()
+            })
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::try-recv' peer)` — Stone 4.6a-ii.
+///
+/// Thread': `peer.try_recv()` → `:Some` / `:None`.
+/// Process': `peer.try_recv()` → decode EDN String → Value → `:Some` / `:None`.
+/// Use-after-close (Option is None) → RuntimeError.
+fn eval_peer_try_recv_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::try-recv'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Thread<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let maybe_val = cell
+                .with_ref(OP, |opt_peer| -> Result<Option<Value>, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(peer) => Ok(peer.try_recv()),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::Option(std::sync::Arc::new(maybe_val)))
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessPeerBundle>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let maybe_edn = cell
+                .with_ref(OP, |opt_bundle| -> Result<Option<String>, EvalBreak> {
+                    match opt_bundle {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(bundle) => Ok(bundle.peer.try_recv()),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(match maybe_edn {
+                Some(edn_str) => {
+                    let v = crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("try-recv' EDN decode failed: {}", e),
+                            },
+                        }
+                    })?;
+                    Value::Option(std::sync::Arc::new(Some(v)))
+                }
+                None => Value::Option(std::sync::Arc::new(None)),
+            })
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::close' peer)` — Stone 4.6a-ii.
+///
+/// Consumes the peer (takes the Option, leaving None for subsequent calls).
+/// Thread': `peer.close()+join` → nil. Join Err → RuntimeError.
+/// Process': `peer.close()+wait` → i64 exit code. Signaled → RuntimeError.
+/// Second close' / use-after-close → RuntimeError "peer already closed".
+fn eval_peer_close_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::close'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Thread<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let peer = cell
+                .with_mut(OP, list_span.clone(), |opt_peer| opt_peer.take())
+                .map_err(EvalBreak::from)?
+                .ok_or_else(|| EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "peer already closed".into(),
+                    },
+                }))?;
+            peer.join().map_err(|_| {
+                EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "Thread peer join failed (thread panicked)".into(),
+                    },
+                })
+            })?;
+            Ok(Value::Unit)
+        }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessPeerBundle>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let bundle = cell
+                .with_mut(OP, list_span.clone(), |opt_bundle| opt_bundle.take())
+                .map_err(EvalBreak::from)?
+                .ok_or_else(|| EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "peer already closed".into(),
+                    },
+                }))?;
+            // Consume the bundle: close channels, then wait for the child.
+            // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
+            let exit_status = bundle.peer.wait().map_err(|io_err| {
+                EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("Process peer wait failed: {}", io_err),
+                    },
+                })
+            })?;
+            match exit_status {
+                crate::fork::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
+                crate::fork::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("Process peer killed by signal {}", sig),
+                    },
+                })),
+                crate::fork::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("Process peer stopped by signal {}", sig),
+                    },
+                })),
+            }
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
 }
 
 #[cfg(test)]

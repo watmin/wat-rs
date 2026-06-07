@@ -80,19 +80,22 @@ fn spawn_program_prime_process_echo_round_trip() {
     )
     .expect("peer_val must be Value::RustOpaque(Process')");
 
-    let cell: &Arc<ThreadOwnedCell<ProcessPeerBundle>> = downcast_ref_opaque(
+    // Stone 4.6a-ii: payload is now Option-wrapped so close' can take() it.
+    let cell: &Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> = downcast_ref_opaque(
         &opaque_arc,
         PROCESS_PEER_TYPE_PATH,
         "test:downcast:ProcessPeerBundle",
         dummy_span.clone(),
     )
-    .expect("downcast to Arc<ThreadOwnedCell<ProcessPeerBundle>> must succeed");
+    .expect("downcast to Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> must succeed");
 
     // ── Step 4: send "42" → recv the echo result ───────────────────────────
     // Wire format: EDN-encoded string. The child decodes "42" → Value::i64(42),
     // applies identity, re-encodes → "42", sends back.
-    cell.with_ref("test:send", |bundle| {
-        bundle
+    cell.with_ref("test:send", |opt_bundle| {
+        opt_bundle
+            .as_ref()
+            .expect("bundle must not be closed")
             .peer
             .send("42".to_string())
             .expect("peer.send(\"42\") must succeed")
@@ -100,8 +103,13 @@ fn spawn_program_prime_process_echo_round_trip() {
     .expect("with_ref(send) must not cross thread boundary");
 
     let got_str = cell
-        .with_ref("test:recv", |bundle| {
-            bundle.peer.recv().expect("peer.recv() must return echo result")
+        .with_ref("test:recv", |opt_bundle| {
+            opt_bundle
+                .as_ref()
+                .expect("bundle must not be closed")
+                .peer
+                .recv()
+                .expect("peer.recv() must return echo result")
         })
         .expect("with_ref(recv) must not cross thread boundary");
 
@@ -169,8 +177,9 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     .expect("peer_val must be Value::RustOpaque(Process')");
 
     // Quick echo test for the double fn: send "21" → expect "42".
+    // Stone 4.6a-ii: payload is now Option-wrapped so close' can take() it.
     let opaque_arc = _opaque;
-    let cell: &Arc<ThreadOwnedCell<ProcessPeerBundle>> = downcast_ref_opaque(
+    let cell: &Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> = downcast_ref_opaque(
         &opaque_arc,
         PROCESS_PEER_TYPE_PATH,
         "test:downcast:ProcessPeerBundle",
@@ -178,14 +187,14 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     )
     .expect("downcast must succeed");
 
-    cell.with_ref("test:send", |bundle| {
-        bundle.peer.send("21".to_string()).expect("send 21 must succeed")
+    cell.with_ref("test:send", |opt_bundle| {
+        opt_bundle.as_ref().expect("bundle must not be closed").peer.send("21".to_string()).expect("send 21 must succeed")
     })
     .expect("with_ref(send)");
 
     let got = cell
-        .with_ref("test:recv", |bundle| {
-            bundle.peer.recv().expect("recv must return doubled value")
+        .with_ref("test:recv", |opt_bundle| {
+            opt_bundle.as_ref().expect("bundle must not be closed").peer.recv().expect("recv must return doubled value")
         })
         .expect("with_ref(recv)");
 
