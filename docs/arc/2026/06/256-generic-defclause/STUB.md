@@ -91,3 +91,36 @@ four Rust infer fns (probes must stay green unchanged) → sweep the collection
 intrinsics → DISPATCH.md forward-correction. Horizon: arc 251 types-as-forms /
 `(ann-type …)` makes the signatures symbolic data; the compile-time wat tier
 eventually self-hosts the engine itself.
+
+## Addendum (2026-06-07, builder dialogue): the layered endgame — "full type potential"
+
+Layering matters — most of the potential arrives BEFORE type-forms:
+
+1. **Arc 256 alone (today's surface):** rank-1 ∀ for users — parametric,
+   multi-clause, type-dispatched functions over user types. The 4.6i `'`-lexer
+   fix is the bridge syntax until type-forms retire keyword-encoding.
+2. **+ Arc 251 `(type-ann …)`/`(type-form …)` + the 249 pure macro engine:**
+   types become FORMS the macro layer can receive and construct — **wat
+   computes at expand time, Rust judges at check time** (the phase wall never
+   breaks). Users write type-level PROGRAMS (derive-style: a macro takes a
+   record's type-form and GENERATES its equality clauses / serializers /
+   lenses); every generated declaration is still verified by the Rust engine.
+   The keyword-encoding pothole class (comma-in-keyword, `'`-generics,
+   FQDN-in-tuple) dies with annotation forms.
+3. **Equality delegates:** `(defclause :=<T> [a <- T b <- T] -> bool
+   (:wat::core::structural-eq a b))` — the relational signature becomes
+   expressible under matcher unification; the body stays ONE Native leaf
+   (today's `values_equal` — the hottest loop belongs in the machine).
+   DISPATCH.md's intrinsic column shrinks to nearly nothing.
+4. **Process/thread control delegates as control-plane vs data-plane:**
+   native forever = clone3/fds/io_uring/close-sweep/signals (~8 leaf verbs,
+   the FFI boundary — Erlang-BIFs lineage). Wat = spawn policy
+   (`spawn-thread'<I,O>` as an arc-139 generic defn), select loops,
+   supervision, restart strategy, peer pools, backpressure. **The Slice-8
+   services rebuild is the first production instance of this delegation.**
+
+Permanent non-delegations (by design, not limitation): the unification/
+judgment engine (trust boundary — substrate-as-teacher requires the judge
+have only true things to say) and the syscall leaves (FFI boundary). User-
+defined inference RULES and dependent types stay out; user-AUTHORED and
+user-COMPUTED declarations come in.
