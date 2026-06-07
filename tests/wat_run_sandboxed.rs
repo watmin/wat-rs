@@ -78,7 +78,7 @@ fn as_vec_string(v: &Value) -> Vec<String> {
 // ─── Happy path — no-op main ─────────────────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn noop_main_yields_empty_stdout_and_stderr() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — `set-capacity-mode!`
@@ -105,7 +105,6 @@ fn noop_main_yields_empty_stdout_and_stderr() {
 // ─── Single stdout write ─────────────────────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn main_writes_single_line_to_stdout() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — `set-capacity-mode!`
@@ -128,7 +127,7 @@ fn main_writes_single_line_to_stdout() {
 // ─── Multi-line + stderr ─────────────────────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn main_writes_to_both_stdout_and_stderr() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT (see sibling tests):
@@ -183,7 +182,6 @@ fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn parse_error_in_source_surfaces_as_failure() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — the legacy verb
@@ -214,7 +212,6 @@ fn parse_error_in_source_surfaces_as_failure() {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn missing_user_main_surfaces_as_failure() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — the legacy verb
@@ -242,7 +239,7 @@ fn missing_user_main_surfaces_as_failure() {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // Inner body writes "before panic" to stdout, then raises a panic
     // via `:wat::kernel::raise!`. Outer caller sees RunResult with
@@ -319,7 +316,6 @@ impl Drop for ScopeDir {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn scoped_file_eval_inside_scope_succeeds() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — substrate finding:
@@ -366,7 +362,6 @@ fn scoped_file_eval_inside_scope_succeeds() {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn scoped_file_eval_outside_scope_surfaces_as_err() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — substrate finding

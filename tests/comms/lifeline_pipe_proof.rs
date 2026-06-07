@@ -191,7 +191,7 @@ fn one_trial(trial_idx: usize) -> Result<(), String> {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails intermittently: grandchild in 'R' state at poll-timeout boundary — race between kernel scheduling and /proc/stat check after 1000ms poll, not the fd leak"]
 fn lifeline_pipe_zero_orphans_across_100_trials() {
     let trials = 100;
     let mut failures = Vec::new();

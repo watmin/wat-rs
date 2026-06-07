@@ -36,7 +36,6 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 /// Surface the full RunResult — both `stderr` field and `failure` field —
 /// so we can see what gets dropped.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_runtime_err_stderr_visibility() {
     // Body that runtime-errors: calls assert-eq with mismatched values.
     // This goes through the assertion-failed! path which IS structured

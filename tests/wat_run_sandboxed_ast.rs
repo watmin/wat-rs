@@ -49,7 +49,6 @@ fn unwrap_string(v: Value) -> String {
 // ─── Body-AST entry — happy path (run-hermetic per rules 1+2) ──────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn ast_entry_prints_hello() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
     // to `:wat::test::run-hermetic`. The body invokes

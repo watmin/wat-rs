@@ -148,7 +148,7 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 ///    using `libc::poll(2)` on a self-pipe for bounded waiting.
 /// 7. Verify grandchild process is gone (zombie or reaped).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_lifeline_orphan_clean_via_fork_program() {
     // Step 1: Build the grandchild world before forking. The supervisor forks
     // and calls fork-program; the grandchild runs BLOCKING_CHILD_SRC as its

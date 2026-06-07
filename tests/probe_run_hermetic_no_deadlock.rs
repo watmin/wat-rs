@@ -60,7 +60,7 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 /// Verifies: `RunResult.failure = None` (clean exit) and test completes
 /// (no hang). Path: `:wat::test::run-hermetic` (spawn-process Layer 1).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_run_hermetic_clean_exit_no_deadlock() {
     let src = r#"
         (:wat::core::defn :probe::test::clean-exit [] -> :wat::kernel::RunResult
@@ -116,7 +116,6 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
 /// and the test completes without hanging. Path: `:wat::test::run-hermetic`
 /// (spawn-process Layer 1).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_run_hermetic_panic_body_no_deadlock() {
     let src = r#"
         (:wat::core::defn :probe::test::intentional-panic [] -> :wat::kernel::RunResult

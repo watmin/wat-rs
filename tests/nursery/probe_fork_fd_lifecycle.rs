@@ -78,7 +78,6 @@ fn join_and_drop(handles: ForkedProgramHandles) {
 /// only. On error/panic, all 6 fds leaked. After the fix: parent holds
 /// OwnedFds; Drop closes them on any path.
 #[test]
-#[ignore = "arc-170 process class — spawns real children; run via integration-run.sh --all"]
 fn fork_program_from_source_fd_count_is_stable() {
     const N: usize = 10;
     const TOLERANCE: usize = 2;

@@ -49,7 +49,6 @@ fn failure_message(result: &Value) -> String {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_runtime_error_produces_structured_edn() {
     // Stone C: children have ambient stdio (bootstrap). To hit
     // Ok(Err(runtime_err)) in the child branch, we use integer division

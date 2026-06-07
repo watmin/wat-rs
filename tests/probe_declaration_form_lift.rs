@@ -181,7 +181,6 @@ fn probe_is_declaration_form_covers_all_7_keywords() {
 /// in the body is already expanded to its result. The child registers the macro
 /// (idempotent with the parent's registration) and exits 0.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — defmacro lives at program top-level via the
     // new spawn-process program shape; the "lift" mechanism is retired
@@ -213,7 +212,7 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
 /// `/new` constructor and `/0` accessor. The body calls `:h::LocalAmount/new`
 /// and `:h::LocalAmount/0` successfully; the child exits 0.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — newtype at program top-level.
     // Stone 241.11 — define hard-cut; use defn in the child program forms.
@@ -243,7 +242,7 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
 /// the typealias. The body's `define` uses the alias as a return type annotation;
 /// the child type-checks it successfully and exits 0.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — typealias at program top-level.
     // Stone 241.11 — define hard-cut; use defn in the child program forms.
@@ -296,7 +295,7 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 /// any macro call sites; the child registration is correct for future macro
 /// expansion in a subsequent spawn).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_mixed_declaration_prelude_all_lift() {
     // Arc 170 slice 6 — all declaration kinds sit at program top-level
     // alongside :user::main. The new substrate makes the "lift" a no-op

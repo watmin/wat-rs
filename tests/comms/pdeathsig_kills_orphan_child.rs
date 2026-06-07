@@ -139,7 +139,6 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 ///    when grandchild process exits.
 /// 7. Verify grandchild process is gone (zombie or reaped).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_pdeathsig_kills_orphan_child() {
     // Step 1: Build the world before forking. Supervisor inherits it via
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.

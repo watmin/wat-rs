@@ -63,7 +63,6 @@ fn drain_stderr(process: &Value) -> String {
 ///
 /// This verifies that enum declarations + user::main can be in subprocess forms.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_counter_subprocess_minimal() {
     let server_program_src = r#"
         (:wat::core::defenum :counter::Request
@@ -95,7 +94,6 @@ fn probe_counter_subprocess_minimal() {
 /// This is closer to the actual counter pattern — defn :counter/dispatch
 /// uses readln. The subprocess does NOT call dispatch (user::main is nil).
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_counter_subprocess_with_defn() {
     let server_program_src = r#"
         (:wat::core::defenum :counter::Request
@@ -146,7 +144,7 @@ fn probe_counter_subprocess_with_defn() {
 /// the ProcessPeer in embedded wat code and exercises it from there.
 /// This is the actual test pattern from counter-actor-proof-process.wat.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
+#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still hangs: full ProcessPeer IPC round-trip deadlocks waiting on subprocess response — a separate concurrency issue, not the fd leak"]
 fn probe_counter_subprocess_full_process_peer() {
     let server_program_src = r#"
         (:wat::core::defenum :counter::Request

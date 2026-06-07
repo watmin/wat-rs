@@ -142,7 +142,6 @@ fn process_peer_type_mints_in_both_parametric_orientations() {
 // ─── T2. real-spawn round-trip — substrate-composition proof ──────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn process_peer_round_trips_string_via_real_subprocess() {
     // Empty parent world (no helper defines at freeze time). The
     // subprocess program is self-contained per the arc 170 slice 6

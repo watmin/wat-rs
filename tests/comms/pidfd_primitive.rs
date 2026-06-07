@@ -11,7 +11,6 @@
 //! waitid(P_PIDFD); `send_signal` signals via pidfd_send_signal.
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn pidfd_observes_normal_exit() {
     let (pidfd, _lifeline) = wat::fork::spawn_lifelined(|_lifeline_r| {
         // Child exits with code 42 immediately.
@@ -24,7 +23,6 @@ fn pidfd_observes_normal_exit() {
 }
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn pidfd_observes_signal_exit() {
     let (pidfd, lifeline) = wat::fork::spawn_lifelined(|_lifeline_r| {
         // Child blocks until any signal arrives — libc::pause(2) is the

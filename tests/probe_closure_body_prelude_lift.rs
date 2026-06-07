@@ -108,7 +108,6 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 ///
 /// Stone 241.12 — migrated from `:wat::core::define` to `:wat::core::defn`.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — under the new spawn-process program shape, the
     // prelude declarations sit at the program's TOP LEVEL alongside
@@ -142,7 +141,6 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
 /// into its TypeEnv; step 6a synthesizes the `/new` constructor and field
 /// accessors. The body then calls `(:h::LocalPoint/new 3 4)` successfully.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — struct sits at program top-level via spawn-process's
     // program shape (no lift required; the natural shape supersedes it).
@@ -174,7 +172,6 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
 /// variant constructors. The body then references `:h::LocalDir::North`
 /// successfully.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — enum at program top-level.
     let src = r#"
@@ -205,7 +202,6 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
 /// all three: constructs a LocalItem struct, references a LocalKind enum
 /// variant, and calls a local helper define.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_mixed_prelude_lift() {
     // Arc 170 slice 6 — mixed prelude (struct + enum + define) all live
     // at program top-level via the new spawn-process program shape.
@@ -261,7 +257,6 @@ fn probe_mixed_prelude_lift() {
 /// This probe confirms: split_prelude_prefix stops at the first non-prelude
 /// form. The lift is prefix-only, not full-body-define-hoisting.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_prelude_prefix_terminates_at_first_expression() {
     // Arc 170 slice 6 — the prefix-termination semantics retire under
     // the new substrate: declarations sit at program top-level naturally

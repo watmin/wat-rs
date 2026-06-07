@@ -159,7 +159,6 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
 // ─── T2. Happy path — Ok on a live peer ───────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     // Spawn an echo server; build a ProcessPeer; send "arc208-ok" via
     // Process/println; read the echo back via Process/readln; verify
@@ -234,7 +233,6 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
 // ─── T3. Err path — Process/println on dead peer ──────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn arc208_t3_process_println_returns_err_on_dead_peer() {
     // Spawn a server that exits immediately (no stdout reads). After
     // it exits its stdin pipe is closed. Writing via Process/println
@@ -298,7 +296,6 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
 // ─── T4. Err path — Process/readln on dead peer ───────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     // Mirror of T3 for Process/readln: read from a peer whose subprocess
     // has exited and produces EOF on its stdout pipe.
@@ -349,7 +346,6 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
 // ─── T5. Chain content — ChannelDisconnected head ─────────────────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn arc208_t5_err_chain_head_is_channel_disconnected() {
     // Both Process/readln and Process/println should produce
     // ProcessDiedError::ChannelDisconnected as the chain head on a dead peer.

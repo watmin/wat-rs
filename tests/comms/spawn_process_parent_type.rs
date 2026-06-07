@@ -112,7 +112,6 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 /// `RuntimeError::MalformedForm` → child exits non-zero. After Gap F-3,
 /// the type is in the prologue and the child exits 0.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_spawn_process_inherits_parent_struct() {
     // Arc 170 slice 6 — the new spawn-process program shape supplies
     // the child's type universe directly via the program's prelude
@@ -165,7 +164,6 @@ fn probe_spawn_process_inherits_parent_struct() {
 ///   → `ns_to_enum_path("test.proto.Color")` = `:test::proto::Color`
 ///   → `types.get(":test::proto::Color")` → must be present in child TypeEnv.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_spawn_process_inherits_parent_enum() {
     // Arc 170 slice 6 — same shape as the struct probe: the type
     // declaration lives at the program prelude inside the spawn-process
@@ -213,7 +211,6 @@ fn probe_spawn_process_inherits_parent_enum() {
 /// The fn body calls `edn::read` on `#test.proto/Wrapper {:label :empty :value 42}`.
 /// `:test::proto::Wrapper` is NOT referenced in the fn body AST.
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn probe_spawn_process_inherits_parametric_type() {
     // Note: WAT's struct parser requires field types to be keywords. The
     // type parameter `E` is a bare symbol and causes a parse error.

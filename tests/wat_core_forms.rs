@@ -95,7 +95,6 @@ fn forms_args_are_not_evaluated() {
 // ─── End-to-end: program body → run-hermetic → evaluation ──────────────
 
 #[test]
-#[ignore = "arc-170 concurrency layer (real subprocess spawn/fork) — leaks/hangs; remove before arc 170 closes"]
 fn forms_composes_with_run_sandboxed_ast() {
     // The canonical use: build a program body, run it hermetically,
     // verify the inner program's output.
