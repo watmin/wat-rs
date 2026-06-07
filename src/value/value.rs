@@ -735,6 +735,7 @@ impl std::hash::Hash for Value {
             // The is_atomizable predicate at src/check.rs is the static guarantee
             // that these variants never reach hashing contexts (HashSet/HashMap key positions).
             // If this panic fires, the predicate has drifted from this Hash impl.
+            // rune:coverage(unreachable) [cluster] — is_atomizable (src/check.rs) statically gates every non-atomizable variant out of all hashing contexts before this match; each arm below is provably dead until coverage resumes, and the panic IS the bug if one ever fires (cf. the predicate-drift note above).
             Value::wat__core__fn(_) => unreachable!(
                 "Value::wat__core__fn is not atomizable; is_atomizable predicate in \
                  src/check.rs should have rejected this. If you see this panic, \

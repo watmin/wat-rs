@@ -29,10 +29,13 @@ for d in tests/*/; do
 done
 
 echo "== coverage-gate 1/3: managed accumulate (clean + lib + corpus + ${#group_args[@]} group flags) =="
+# A COVERAGE gate MEASURES; it does not enforce pass/fail (green-gate does that). A
+# flaky/failing test still contributes the coverage of the lines it ran, so tolerate a
+# non-zero exit here and report it — never abort the measurement on a test outcome.
 cargo llvm-cov clean --workspace
-cargo llvm-cov --no-report --release -p wat --lib
-cargo llvm-cov --no-report --release -p wat --test test
-cargo llvm-cov --no-report --release -p wat "${group_args[@]}"
+cargo llvm-cov --no-report --release -p wat --lib              || echo "  WARN: lib had test failures — coverage still collected"
+cargo llvm-cov --no-report --release -p wat --test test       || echo "  WARN: corpus had test failures — coverage still collected"
+cargo llvm-cov --no-report --release -p wat "${group_args[@]}" || echo "  WARN: a group had test failures (e.g. a flake) — coverage still collected"
 
 echo "== coverage-gate 2/3: emit LCOV =="
 cargo llvm-cov report --release --lcov --output-path "$LCOV"

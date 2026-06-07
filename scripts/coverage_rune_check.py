@@ -11,6 +11,13 @@ passes iff every uncovered region in a warded home is either covered or runed.
 Uncovered-AND-not-runed is a finding: test it, or rune it with a reason. (excusare
 weighs each rune for legitimacy; this gate only enforces presence.)
 
+Rune forms (both DRIFT-FREE — no line numbers, per feedback_mark_the_source_not_memory):
+  // rune:coverage(<cat>) — <reason>            exempts the NEXT uncovered block
+  // rune:coverage(<cat>) [cluster] — <reason>  exempts the RUN of uncovered blocks
+                                                until coverage resumes (one attestation
+                                                for a homogeneous arm-cluster, e.g. the
+                                                is_atomizable-guaranteed unreachable! arms)
+
 Scope: ONLY the warded homes. The flat monolith (runtime.rs / check.rs / unwarded
 src/*.rs) is out of scope until migrated — it carries no vigilatum stamp to defend.
 
@@ -23,7 +30,7 @@ import re
 import os
 
 WARDED = "value function check types collection macros scope comms remedy argspec rust_deps".split()
-RUNE_RE = re.compile(r"//\s*rune:coverage\(([a-z/]+)\)")
+RUNE_RE = re.compile(r"//\s*rune:coverage\(([a-z/]+)\)(\s*\[cluster\])?")
 LOOKBACK = 3  # lines above a block within which a heading rune still counts
 
 
@@ -58,12 +65,13 @@ def coalesce(lines):
     return blocks
 
 
-def rune_lines(srclines):
-    out = {}
+def runes_in(srclines):
+    """Return list of (category, lineno, is_cluster)."""
+    out = []
     for i, line in enumerate(srclines, 1):
         m = RUNE_RE.search(line)
         if m:
-            out[i] = m.group(1)
+            out.append((m.group(1), i, bool(m.group(2))))
     return out
 
 
@@ -78,24 +86,39 @@ def main():
         homes = sys.argv[sys.argv.index("--homes") + 1].split(",")
 
     files = parse_lcov(lcov)
-    per_file = []          # (rel, uncovered_not_runed_lines, n_blocks_open, n_blocks_runed, [block detail])
+    per_file = []
     runed_cats = {}
-    grand_open_lines = 0
-    grand_open_blocks = 0
-    grand_runed_blocks = 0
+    grand_open_lines = grand_open_blocks = grand_runed_blocks = 0
 
     for path, da in sorted(files.items()):
         if not is_warded(path, homes) or not os.path.exists(path):
             continue
         srclines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-        runes = rune_lines(srclines)
+        runes = runes_in(srclines)
+        covered = sorted(n for n, c in da.items() if c > 0)
         uncovered = sorted(n for n, c in da.items() if c == 0)
         if not uncovered:
             continue
+
+        def next_covered_after(line):
+            for c in covered:
+                if c > line:
+                    return c
+            return float("inf")
+
         open_lines = open_blocks = runed_blocks = 0
         detail = []
         for s, e in coalesce(uncovered):
-            cat = next((runes[r] for r in runes if s - LOOKBACK <= r <= e), None)
+            cat = None
+            for rc, rl, cluster in runes:
+                if cluster:
+                    # exempt the run of uncovered blocks below the rune until coverage resumes
+                    if rl < s and e < next_covered_after(rl):
+                        cat = rc
+                        break
+                elif s - LOOKBACK <= rl <= e:  # heading rune: on/just-above this block
+                    cat = rc
+                    break
             if cat:
                 runed_blocks += 1
                 runed_cats[cat] = runed_cats.get(cat, 0) + 1

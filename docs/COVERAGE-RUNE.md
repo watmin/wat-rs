@@ -18,14 +18,24 @@ no silent gap; every exemption carries its reason.
 
 ## The rune
 
+Two forms, both **DRIFT-FREE** (no line numbers — line numbers are the thing that rots,
+per `feedback_mark_the_source_not_memory`):
+
 ```
-// rune:coverage(<category>) — <reason>
+// rune:coverage(<category>) — <reason>             exempts the NEXT uncovered block
+// rune:coverage(<category>) [cluster] — <reason>   exempts the RUN of uncovered blocks
+                                                    below it until coverage resumes
 ```
 
-Tool-agnostic and **tied to no spell** — it is the coverage exception of the language being worked
-on, whatever measures it (cargo-llvm-cov for Rust, a future wat-cov for the wat corpus, simplecov
-for Ruby). Placement: on (or immediately above) the uncovered region it exempts — a fixed-content
-match the gate keys on. The reason is required; a bare or vague reason fails.
+The plain form sits **on (or immediately above)** the single uncovered region it exempts.
+The `[cluster]` form sits above a homogeneous arm-cluster — one attestation for many blocks
+that share one invariant (the exemplar: a `match` whose trailing arms are all
+`is_atomizable`-guaranteed `unreachable!`); it exempts every uncovered block from the rune
+down to the next covered line, so adding/removing an arm needs no rune edit. Tool-agnostic
+and **tied to no spell** — the coverage exception of whatever language is being worked
+(cargo-llvm-cov for Rust, a future wat-cov, simplecov for Ruby). The reason is required; a
+bare or vague reason fails. A `[cluster]` rune is broader, so excusare weighs it harder —
+it must name why the WHOLE run is one invariant, not a cover for untested code below.
 
 **Categories (each argued individually — no blanket grants):**
 
@@ -76,7 +86,9 @@ coverage is a stamp that lies.)
 
 - [ ] convention proven in wat-rs (gate built; applied 100%-or-runed across the 12 warded homes)
 - [ ] gate tooling warded (its own vigilatum)
-- [ ] datamancy: excusare/SKILL.md adds `rune:coverage` to the recognized-override surface + verdict examples
+- [ ] datamancy: excusare/SKILL.md adds `rune:coverage` to the recognized-override surface + verdict
+      examples — BOTH forms: heading `// rune:coverage(<cat>)` and the broader `[cluster]` (which
+      excusare weighs harder: it must verify the WHOLE run is one invariant, not a cover for untested code)
 - [ ] datamancy: a grimoire convention doc (this file's content) + manifest regen + sign + publish (human-gated)
 - [ ] intueri-cast the category words + the gate-tool name before the grimoire ship
 
