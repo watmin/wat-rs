@@ -92,3 +92,7 @@ path = "tests/comms/mod.rs"
 [[test]]
 name = "function"
 path = "tests/function/mod.rs"
+
+[[test]]
+name = "archived"
+path = "tests/archived/mod.rs"
