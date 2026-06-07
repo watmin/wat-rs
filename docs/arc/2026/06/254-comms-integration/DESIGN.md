@@ -34,13 +34,23 @@ Governing requirement: *a caller serves/receives Values and never cares about th
 
 **The contract:** wat channel payloads are `HolonRepresentable` (serializable), **enforced by the type checker, uniformly across all transports.** Opaque Values are *resources, not messages* — not channel-able on any transport. `impl HolonRepresentable for Value` covers the serializable subset; its opaque arm is unreachable-by-typecheck with a clean-`WireError` backstop. The trait's infallible `to_holon_ast` is acceptable *because* the checker guarantees it never sees an opaque variant.
 
+### The fuller contract — universe-residency + Mini-TCP at depth 1 (ALREADY DECIDED 2026-05-19; never propagated to wat)
+
+The serializable contract is one half. The other half was decided 2026-05-19 (`docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md:100-149`, user direction) and applied to `comms` but **never reached the live wat verbs**:
+
+- **Universe-residency:** the universe provides ONE comm channel; the program never knows its transport (thread/process/socket). Program code is `peer.send(v)` / `peer.recv()`, identical across tiers. (This IS the builder's "serve values, they don't care about transport.")
+- **Mini-TCP at depth 1:** every channel is **capacity-1**. Send one, read back (ack or data) — the only supported pattern. N>1 was proven (trading-lab) to cause "massive perf hits + entire categories of problems." Lock-step by construction.
+- **ONE factory:** the four-questions verdict (`DESIGN.md:123-139`) RETIRED `bounded(N)` (FAILS 4×) in favour of a single `pair()` = `bounded(1)` (PASSES 4×).
+
+**Therefore arc 254 ALSO annihilates the stale wat channel constructors** that predate this: `:wat::kernel::make-unbounded-channel` (unbounded — condemned) and `:wat::kernel::make-bounded-channel` *with arbitrary N* (only depth-1 survives). They collapse to **ONE depth-1 wat channel factory** — the wat mirror of `comms::{thread,process}::pair()`. `wat/kernel/channel.wat` + every caller migrate. This is the same already-decided principle the io_uring stack already embodies; we are propagating it to the surface, not inventing it.
+
 ## Stones (sequence; each its own STRIKE-READY brief + FM-2-bis probe)
 
 1. **254.1 — the bridge + the constraint (gates everything).** `impl HolonRepresentable for Value` (serializable subset, reusing `edn_shim`); type-checker constraint: channel payload types must be serializable (uniform, all transports). FM-2-bis probe: a non-serializable channel payload is rejected at check time; a serializable one round-trips.
 2. **254.2 — thread tier onto `comms::thread`.** Replace `typed_channel` Crossbeam path; `wat__kernel__Sender/Receiver` carry comms thread endpoints; clean drop-in (no serialization at runtime — by-move).
 3. **254.3 — process tier onto `comms::process`** (io_uring). Replace the PipeFd path. **OWNERSHIP RESOLVED by de-risk probe (`tests/probe_arc254_process_ownership.rs`, 2026-06-06):** process receivers are **single-owner-move** — a single owner drains every frame losslessly and in order (the per-receiver accumulator is drained by that same owner). **Dup-clone fan-out is DISCONFIRMED** (lossy: a clone greedily reads multiple frames into its private accumulator; dropped-with-buffer strands them). ⇒ the wat process-receiver handle is single-owner (NOT `Arc`-shared across threads — `Arc<!Sync>` is `!Send` anyway); clone-as-fan-out is not exposed; **multi-reader fan-in is served by `select` over N distinct single-owner channels** (254.4), never by cloning one receiver.
 4. **254.4 — `select` onto `comms`**: the **io_uring `comms::process::Select` becomes the LIVE select for every fd-backed handle** (process + future socket); `comms::thread::Select` (crossbeam `select!`) serves in-memory thread channels (not file handles — io_uring is unneeded there). Delete the crossbeam-only PipeFd rejection (`runtime.rs:18606`). This is the remote-program fan-in the builder thought was already done — built in 214, now made live.
-5. **254.5 — ANNIHILATE `typed_channel`** (hard cut; all 84 refs migrated or deleted).
+5. **254.5 — ANNIHILATE `typed_channel` + the stale constructors** (hard cut). All 84 `typed_channel` refs migrated or deleted; `:wat::kernel::make-unbounded-channel` removed; `:wat::kernel::make-bounded-channel(N)` collapsed to the ONE depth-1 factory (the wat mirror of `comms::pair()`). `wat/kernel/channel.wat` + every caller migrate to the single factory. The dungeon — unbounded, bounded-N, typed_channel, crossbeam-only select — is wiped.
 6. **254.N — ward (`comms/` re-earn vigilatum incl. the new wat-facing surface) + INSCRIPTION.**
 
 ## Out of scope (affirmative cuts)
