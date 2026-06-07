@@ -61,7 +61,7 @@ use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EvalBreak, Environment,
-    RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
+    FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
 };
 use crate::value::EncodingCtx;
 use crate::span::Span;
@@ -357,9 +357,13 @@ impl FrozenWorld {
                 }
             };
             check_sigma_fn_signature("set-presence-sigma!", &func)?;
+            // Stone 255.1a — sigma fns come from user-provided fn values; always Wat.
             let path = match func.name.clone() {
                 Some(name) => name,
-                None => format!("<fn@{}>", func.body.span()),
+                None => match &func.body {
+                    FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+                    FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+                },
             };
             symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
                 path,
@@ -386,9 +390,13 @@ impl FrozenWorld {
                 }
             };
             check_sigma_fn_signature("set-coincident-sigma!", &func)?;
+            // Stone 255.1a — sigma fns come from user-provided fn values; always Wat.
             let path = match func.name.clone() {
                 Some(name) => name,
-                None => format!("<fn@{}>", func.body.span()),
+                None => match &func.body {
+                    FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+                    FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+                },
             };
             symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatFnSigmaFn {
                 path,

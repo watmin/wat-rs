@@ -372,7 +372,8 @@ pub use crate::value::{Value, StructValue, EnumValue, SpawnOutcome, ProgramHandl
 
 
 // Stone 251.2c — Function + Environment cluster moved to src/value/environment.rs.
-pub use crate::value::{Function, Environment, EnvBuilder, BoundEntry};
+// Stone 255.1a — FunctionBody added.
+pub use crate::value::{Function, FunctionBody, Environment, EnvBuilder, BoundEntry};
 
 use crate::value::EncodingCtx;
 
@@ -528,7 +529,7 @@ pub fn register_defines(
                             ret_type: crate::types::TypeExpr::Tuple(vec![]),
                             rest_param: None,
                             rest_param_type: None,
-                            body: Arc::new(stub_body),
+                            body: FunctionBody::Wat(Arc::new(stub_body)),
                             closed_env: None,
                         });
                         sym.functions.insert(name, stub_fn);
@@ -590,7 +591,7 @@ pub fn preregister_stdlib_defclause_stub(form: &WatAST, sym: &mut SymbolTable) {
                 ret_type: crate::types::TypeExpr::Tuple(vec![]),
                 rest_param: None,
                 rest_param_type: None,
-                body: Arc::new(stub_body),
+                body: FunctionBody::Wat(Arc::new(stub_body)),
                 closed_env: None,
             });
             sym.functions.insert(name, stub_fn);
@@ -679,11 +680,16 @@ pub fn register_stdlib_defines(
 /// PartialEq impl), so two ASTs parsed from different source paths
 /// compare equal iff their structural content matches.
 fn function_byte_equivalent(a: &Function, b: &Function) -> bool {
+    let bodies_match = match (&a.body, &b.body) {
+        (FunctionBody::Wat(ast_a), FunctionBody::Wat(ast_b)) => *ast_a == *ast_b,
+        (FunctionBody::Native, FunctionBody::Native) => true,
+        _ => false,
+    };
     a.params == b.params
         && a.type_params == b.type_params
         && a.param_types == b.param_types
         && a.ret_type == b.ret_type
-        && *a.body == *b.body
+        && bodies_match
 }
 
 /// Walk every `:wat::core::struct` declaration in `types` and
@@ -808,7 +814,7 @@ pub fn register_struct_methods(
             ret_type: struct_type.clone(),
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(WatAST::List(new_body_items, Span::unknown())),
+            body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, Span::unknown()))),
             closed_env: None,
         };
         if sym.functions.contains_key(&constructor_path) {
@@ -837,7 +843,7 @@ pub fn register_struct_methods(
                 ret_type: field_type.clone(),
                 rest_param: None,
                 rest_param_type: None,
-                body: Arc::new(accessor_body),
+                body: FunctionBody::Wat(Arc::new(accessor_body)),
                 closed_env: None,
             };
             if sym.functions.contains_key(&accessor_path) {
@@ -982,7 +988,7 @@ pub fn register_enum_methods(
                         ret_type: enum_type.clone(),
                         rest_param: None,
                         rest_param_type: None,
-                        body: Arc::new(WatAST::List(body_items, Span::unknown())),
+                        body: FunctionBody::Wat(Arc::new(WatAST::List(body_items, Span::unknown()))),
                         closed_env: None,
                     };
                     if sym.functions.contains_key(&constructor_path)
@@ -1055,7 +1061,7 @@ pub fn register_newtype_methods(
             ret_type: nt_type.clone(),
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(new_body),
+            body: FunctionBody::Wat(Arc::new(new_body)),
             closed_env: None,
         };
         if sym.functions.contains_key(&constructor_path) {
@@ -1084,7 +1090,7 @@ pub fn register_newtype_methods(
             ret_type: nt_def.inner.clone(),
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(accessor_body),
+            body: FunctionBody::Wat(Arc::new(accessor_body)),
             closed_env: None,
         };
         if sym.functions.contains_key(&accessor_path) {
@@ -1176,7 +1182,7 @@ pub fn register_type_predicates(
             ret_type: TypeExpr::Path(":wat::core::bool".into()),
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         };
 
@@ -1504,7 +1510,7 @@ fn register_defalias(
             ret_type: target_fn.ret_type.clone(),
             rest_param: target_fn.rest_param.clone(),
             rest_param_type: target_fn.rest_param_type.clone(),
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         });
         sym.functions.insert(alias.to_string(), alias_fn);
@@ -1532,7 +1538,7 @@ fn register_defalias(
             ret_type: scheme.ret.clone(),
             rest_param,
             rest_param_type: scheme.rest_param_type.clone(),
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         });
         sym.functions.insert(alias.to_string(), alias_fn);
@@ -1552,7 +1558,7 @@ fn register_defalias(
         ret_type: crate::types::TypeExpr::Tuple(vec![]),
         rest_param: None,
         rest_param_type: None,
-        body: Arc::new(stub_body),
+        body: FunctionBody::Wat(Arc::new(stub_body)),
         closed_env: None,
     });
     sym.functions.insert(alias.to_string(), stub_fn);
@@ -1676,7 +1682,7 @@ fn preregister_struct_accessors_from_form(
                 ret_type: unit_type.clone(),
                 rest_param: None,
                 rest_param_type: None,
-                body: stub_body.clone(),
+                body: FunctionBody::Wat(stub_body.clone()),
                 closed_env: None,
             }),
         );
@@ -1730,7 +1736,7 @@ fn preregister_struct_accessors_from_form(
                         ret_type: unit_type.clone(),
                         rest_param: None,
                         rest_param_type: None,
-                        body: stub_body.clone(),
+                        body: FunctionBody::Wat(stub_body.clone()),
                         closed_env: None,
                     }),
                 );
@@ -1838,7 +1844,7 @@ fn preregister_enum_constructors_from_form(
                     ret_type: unit_type.clone(),
                     rest_param: None,
                     rest_param_type: None,
-                    body: stub_body.clone(),
+                    body: FunctionBody::Wat(stub_body.clone()),
                     closed_env: None,
                 }),
             );
@@ -2019,7 +2025,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
             ret_type,
             rest_param: None,
             rest_param_type: None,
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         }),
         metadata_opt,
@@ -2120,7 +2126,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
             ret_type,
             rest_param: Some(rest_name),
             rest_param_type: Some(rest_ty),
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         }),
     ))
@@ -2262,7 +2268,7 @@ fn try_parse_user_variadic_def_fn_form(
             ret_type,
             rest_param: Some(rest_name),
             rest_param_type: Some(rest_ty),
-            body: Arc::new(body),
+            body: FunctionBody::Wat(Arc::new(body)),
             closed_env: None,
         }),
     )))
@@ -4307,9 +4313,14 @@ fn dispatch_keyword_head_value(
                     // UnknownFunction.
                     if let Some(outer) = sym.outer_symbols.as_ref() {
                         if let Some(outer_func) = outer.get(canonical) {
+                            // Stone 255.1a — Native builtins carry no span; use Span::unknown().
+                            let outer_define_span = match &outer_func.body {
+                                FunctionBody::Wat(ast) => ast.span().clone(),
+                                FunctionBody::Native => Span::unknown(),
+                            };
                             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::SandboxScopeLeak {
                                 offending_name: other.to_string(),
-                                outer_define_span: outer_func.body.span().clone(),
+                                outer_define_span,
                             } }.into());
                         }
                     }
@@ -8736,7 +8747,10 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
 /// now labels user-function declarations with the canonical `:wat::core::defn` head.
 fn function_to_define_ast(f: &Function) -> WatAST {
     let head = function_to_signature_ast(f);
-    let body = (*f.body).clone();
+    let body = match &f.body {
+        FunctionBody::Wat(ast) => (**ast).clone(),
+        FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+    };
     WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::defn".into(), Span::unknown()),
@@ -9414,7 +9428,12 @@ fn eval_body_of(
     // special forms are semantic operations, not data with a body.
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
-            let body = (*f.body).clone();
+            // Stone 255.1a — Native builtins have no wat body; return None.
+            let ast = match &f.body {
+                FunctionBody::Wat(ast) => ast,
+                FunctionBody::Native => return Ok(Value::Option(Arc::new(None))),
+            };
+            let body = (**ast).clone();
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&body)),
             )))))
@@ -17510,9 +17529,18 @@ pub fn apply_function(
     // in place (the current call is substituted by the next callee
     // at the same stack depth), matching what a user reads as
     // "recursion without stack growth."
+    // Stone 255.1a — helper: display name for a function without a registered name.
+    // Wat fns use their body span; Native builtins should never reach fn-apply
+    // without a name (they are always named keywords in sym.functions).
+    let fn_display_name = |f: &Function| -> String {
+        match &f.body {
+            FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+            FunctionBody::Native => "<native>".to_string(),
+        }
+    };
     let callee_name_initial = match cur_func.name.clone() {
         Some(name) => name,
-        None => format!("<fn@{}>", cur_func.body.span()),
+        None => fn_display_name(&cur_func),
     };
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
@@ -17531,7 +17559,7 @@ pub fn apply_function(
                     return Err(RuntimeError { span: cur_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
-                            None => format!("<fn@{}>", cur_func.body.span()),
+                            None => fn_display_name(&cur_func),
                         },
                         expected: fixed_arity,
                         got: actual_arity
@@ -17543,7 +17571,7 @@ pub fn apply_function(
                     return Err(RuntimeError { span: cur_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
                         op: match cur_func.name.clone() {
                             Some(name) => name,
-                            None => format!("<fn@{}>", cur_func.body.span()),
+                            None => fn_display_name(&cur_func),
                         },
                         expected: fixed_arity,
                         got: actual_arity
@@ -17591,7 +17619,13 @@ pub fn apply_function(
         // this function's declared return type is `:Result<_,E>`
         // whenever its body contains a `try`, so the wrap is
         // type-correct by construction.
-        match eval_tail(&cur_func.body, &call_env, sym) {
+        // Stone 255.1a — Native builtins are intercepted by the runtime dispatch match
+        // before reaching apply_function; if a Native body somehow arrives here it is a bug.
+        let body_ast = match &cur_func.body {
+            FunctionBody::Wat(ast) => ast,
+            FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+        };
+        match eval_tail(body_ast, &call_env, sym) {
             Ok(v) => return Ok(v),
             Err(EvalBreak::Signal(EvalSignal::TailCall { func: next, args: next_args, call_span: next_span })) => {
                 cur_func = next;
@@ -17601,7 +17635,7 @@ pub fn apply_function(
                 // tail calls don't deepen the stack; they substitute.
                 let next_name = match cur_func.name.clone() {
                     Some(name) => name,
-                    None => format!("<fn@{}>", cur_func.body.span()),
+                    None => fn_display_name(&cur_func),
                 };
                 replace_top_frame(next_name, cur_span.clone());
                 continue;
@@ -22030,7 +22064,11 @@ fn step_user_call(
         }
     }
     // All canonical — substitute params for args in body.
-    let mut new_body: WatAST = (*func.body).clone();
+    // Stone 255.1a — Native builtins have no wat body; they are never step-reduced.
+    let mut new_body: WatAST = match &func.body {
+        FunctionBody::Wat(ast) => (**ast).clone(),
+        FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+    };
     for (param, arg) in func.params.iter().zip(args.iter()) {
         let target = crate::scope::Identifier::bare(param.clone());
         new_body = substitute(&new_body, &target, arg);
@@ -28284,7 +28322,7 @@ mod tests {
                 ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
                 rest_param: None,
                 rest_param_type: None,
-                body: Arc::new(helper_body),
+                body: FunctionBody::Wat(Arc::new(helper_body)),
                 closed_env: None,
             }),
         );

@@ -14,7 +14,7 @@ use crate::ast::WatAST;
 use crate::function::metadata::peel_metadata_preamble;
 use crate::function::parse::{parse_fn_signature_with_rest, ParsedFnSignature};
 use crate::function::FN_HEAD;
-use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
+use crate::runtime::{Environment, Function, FunctionBody, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
 use crate::span::Span;
 use std::sync::Arc;
 
@@ -66,7 +66,7 @@ pub(crate) fn eval_fn(
         ret_type,
         rest_param,
         rest_param_type,
-        body: Arc::new(body),
+        body: crate::value::FunctionBody::Wat(Arc::new(body)),
         closed_env: Some(env.clone()),
     })))
 }

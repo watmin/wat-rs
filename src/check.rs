@@ -53,7 +53,7 @@ pub use error::{CheckError, CheckErrorKind, CheckErrors};
 
 use crate::ast::WatAST;
 use crate::scope::Identifier;
-use crate::runtime::{Function, SymbolTable};
+use crate::runtime::{Function, FunctionBody, SymbolTable};
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
@@ -741,15 +741,18 @@ pub fn check_program(
     // (sweep windows closed; variants + Display preserved as orphaned scaffolding).
     // Arc 159 — validate_legacy_typed_let_binding retired (sweep window closed).
     for func in sym.functions.values() {
-        validate_comm_positions(&func.body, CommCtx::Forbidden, &mut errors);
-        validate_channel_pair_deadlock(&func.body, types, &mut errors);
-        validate_sandbox_scope_leak(&func.body, sym, &mut errors);
-        validate_bare_legacy_primitives(&func.body, &mut errors);
-        walk_for_legacy_stream(&func.body, &mut errors);
-        walk_for_legacy_telemetry_service(&func.body, &mut errors);
-        walk_for_legacy_lru_cache_service(&func.body, &mut errors);
-        walk_for_legacy_kernel_queue(&func.body, &mut errors);
-        walk_for_bare_legacy_console(&func.body, &mut errors);
+        // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
+        if let FunctionBody::Wat(body) = &func.body {
+            validate_comm_positions(body, CommCtx::Forbidden, &mut errors);
+            validate_channel_pair_deadlock(body, types, &mut errors);
+            validate_sandbox_scope_leak(body, sym, &mut errors);
+            validate_bare_legacy_primitives(body, &mut errors);
+            walk_for_legacy_stream(body, &mut errors);
+            walk_for_legacy_telemetry_service(body, &mut errors);
+            walk_for_legacy_lru_cache_service(body, &mut errors);
+            walk_for_legacy_kernel_queue(body, &mut errors);
+            walk_for_bare_legacy_console(body, &mut errors);
+        }
     }
     for form in forms {
         validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
@@ -783,7 +786,10 @@ pub fn check_program(
     // covers callers in `:wat::kernel::*`), it passes. The walker
     // applies uniformly.
     for (name, func) in sym.functions.iter() {
-        walk_for_restricted_call(&func.body, name, &env, &mut errors);
+        // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
+        if let FunctionBody::Wat(body) = &func.body {
+            walk_for_restricted_call(body, name, &env, &mut errors);
+        }
     }
 
     // Arc 159 slice 3 — `validate_legacy_typed_let_binding` walker
@@ -809,12 +815,15 @@ pub fn check_program(
     // Also check inside user-defined function bodies (def inside fn body
     // is always non-top-level regardless of the call site).
     for func in sym.functions.values() {
-        validate_def_position_with_wrapper(
-            &func.body,
-            DefCtx::NonTopLevel,
-            ":wat::core::defn (body)",
-            &mut errors,
-        );
+        // Stone 255.1a — Native builtins have no wat body; only Wat bodies are walked.
+        if let FunctionBody::Wat(body) = &func.body {
+            validate_def_position_with_wrapper(
+                body,
+                DefCtx::NonTopLevel,
+                ":wat::core::defn (body)",
+                &mut errors,
+            );
+        }
     }
 
     // Stone 237.3 — pre-register ALL top-level defclause names into
@@ -1319,9 +1328,14 @@ fn check_calls_for_sandbox_leak(
             let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
             if !reserved && !inner_names.contains(canonical) {
                 if let Some(outer_func) = sym.get(canonical) {
+                    // Stone 255.1a — Native builtins carry no span; use Span::unknown().
+                    let outer_define_span = match &outer_func.body {
+                        FunctionBody::Wat(ast) => ast.span().clone(),
+                        FunctionBody::Native => crate::span::Span::unknown(),
+                    };
                     errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::SandboxScopeLeak {
                         offending_name: head_str.to_string(),
-                        outer_define_span: outer_func.body.span().clone(),
+                        outer_define_span,
                     } });
                 }
             }
@@ -3158,8 +3172,13 @@ fn check_function_body(
     // Push this function's declared return type so `infer_try`, if it
     // recurses into the body, can unify its propagated `Err` with this
     // function's own `Result<_, E>` shape.
+    // Stone 255.1a — Native builtins carry no wat body to type-check.
+    let body_ast = match &func.body {
+        FunctionBody::Wat(ast) => ast,
+        FunctionBody::Native => return,
+    };
     fresh.push_enclosing_ret(scheme.ret.clone());
-    let body_ty = infer(&func.body, env, &locals, fresh, &mut subst).drain_errors_into(errors);
+    let body_ty = infer(body_ast, env, &locals, fresh, &mut subst).drain_errors_into(errors);
     fresh.pop_enclosing_ret();
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch with ranked remedies when the body
@@ -3168,8 +3187,8 @@ fn check_function_body(
         if unify(&body_ty, &scheme.ret, &mut subst, env.types()).is_err() {
             let resolved_ret = apply_subst(&scheme.ret, &subst);
             let resolved_body = apply_subst(&body_ty, &subst);
-            let remedies = variant_typo_remedies(&func.body, &resolved_ret, env.types());
-            errors.push(CheckError { span: func.body.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
+            let remedies = variant_typo_remedies(body_ast, &resolved_ret, env.types());
+            errors.push(CheckError { span: body_ast.span().clone(), kind: CheckErrorKind::ReturnTypeMismatch {
                 function: path.to_string(),
                 expected: format_type(&resolved_ret),
                 got: format_type(&resolved_body),

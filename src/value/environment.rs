@@ -11,6 +11,23 @@ use crate::span::Span;
 use crate::types::TypeExpr;
 use crate::value::{TrackedValue, Provenance};
 
+/// Stone 255.1a — body representation for a `Function`.
+///
+/// Every user-defined function today is `Wat(body)`. `Native` is a unit
+/// marker reserved for Rust-implemented builtins registered into `sym` in
+/// arc 255.1b+. Nothing constructs `Native` in this slice; execution of a
+/// `Native` body via fn-apply is unreachable because the runtime dispatch
+/// `match` intercepts builtin names before reaching fn-apply.
+#[derive(Clone, Debug)]
+pub enum FunctionBody {
+    /// A wat-defined function body. All functions today.
+    Wat(Arc<WatAST>),
+    /// A Rust-implemented builtin. Unit marker — no handler stored here;
+    /// execution is via the runtime dispatch `match`, not fn-apply.
+    /// Used starting in arc 255.1b; nothing constructs this in slice 255.1a.
+    Native,
+}
+
 /// A callable. `define`-registered functions have `name = Some(path)`
 /// and `closed_env = None` (they resolve symbols via the global
 /// [`SymbolTable`] at call time). `fn` values have `name = None`
@@ -49,7 +66,8 @@ pub struct Function {
     /// `rest_param.is_some()`; `None` otherwise. The element type T
     /// is what each rest-arg must unify against at call sites.
     pub rest_param_type: Option<TypeExpr>,
-    pub body: Arc<WatAST>,
+    /// Stone 255.1a — see [`FunctionBody`].
+    pub body: FunctionBody,
     pub closed_env: Option<Environment>,
 }
 
@@ -193,8 +211,8 @@ mod tests {
     use crate::span::Span;
     use crate::types::TypeExpr;
 
-    fn nil_body() -> Arc<WatAST> {
-        Arc::new(WatAST::Keyword(":wat::core::nil".into(), Span::unknown()))
+    fn nil_body() -> FunctionBody {
+        FunctionBody::Wat(Arc::new(WatAST::Keyword(":wat::core::nil".into(), Span::unknown())))
     }
 
     /// Lines 57-67: `Debug` impl for `Function` — named fields with selective

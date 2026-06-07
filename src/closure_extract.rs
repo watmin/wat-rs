@@ -33,7 +33,7 @@
 
 use crate::ast::WatAST;
 use crate::scope::Identifier;
-use crate::runtime::{Function, StructValue, SymbolTable, Value};
+use crate::runtime::{Function, FunctionBody, StructValue, SymbolTable, Value};
 use crate::span::{span_prefix, Span};
 use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -204,7 +204,12 @@ pub fn extract_closure(
     if let Some(rest) = &func.rest_param {
         body_locals.insert(rest.clone());
     }
-    walk_free_symbols(&func.body, &body_locals, &mut state)?;
+    // Stone 255.1a — Native builtins have no wat body; closure extraction is N/A.
+    let body_ast = match &func.body {
+        FunctionBody::Wat(ast) => ast,
+        FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+    };
+    walk_free_symbols(body_ast, &body_locals, &mut state)?;
 
     // Process captured locals from the fn's closed environment. Match
     // free symbols against the closed env to identify captures; their
@@ -302,7 +307,8 @@ pub fn extract_closure(
     // forms) so that define/struct/enum forms referencing closed-env
     // captures are rewritten BEFORE the Gap H prelude-lift extracts
     // them from the body.
-    let rewritten_body = rewrite_captures(&func.body, &state.captured_bindings, &body_locals);
+    // Stone 255.1a — body_ast is guaranteed Wat here (Native would have already unreachable!'d above).
+    let rewritten_body = rewrite_captures(body_ast, &state.captured_bindings, &body_locals);
 
     // Arc 170 slice 3 Gap H — lift fn body prelude forms into prologue.
     //
@@ -1223,9 +1229,14 @@ fn extract_user_deps_to_fixpoint(
             // dep-introduced ones.
             let pre_frees: Vec<(String, Span)> =
                 std::mem::take(&mut state.unresolved_frees);
+            // Stone 255.1a — Native builtins have no wat body; skip dep body walk.
+            let dep_body_ast = match &dep_func.body {
+                FunctionBody::Wat(ast) => ast,
+                FunctionBody::Native => continue,
+            };
             // Set current_walking_dep so back-edges are recorded.
             let prior = state.current_walking_dep.replace(name.clone());
-            let walk_result = walk_free_symbols(&dep_func.body, &dep_locals, state);
+            let walk_result = walk_free_symbols(dep_body_ast, &dep_locals, state);
             state.current_walking_dep = prior;
             walk_result?;
             // After walking, any non-dep / non-type / non-capture
@@ -2321,7 +2332,11 @@ fn format_type_decl_name(name: &str, type_params: &[String]) -> String {
 /// Build a `(:wat::core::define <signature> <body>)` AST for a stored
 /// Function, using the function's existing body.
 fn function_to_define_form(func: &Function) -> WatAST {
-    let body = (*func.body).clone();
+    // Stone 255.1a — Native builtins have no wat body and are never closure-extracted.
+    let body = match &func.body {
+        FunctionBody::Wat(ast) => (**ast).clone(),
+        FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
+    };
     let name = func
         .name
         .clone()
