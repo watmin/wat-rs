@@ -250,7 +250,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     //
     // stdin + stderr: old architecture (wat spawn returning (Thread, ControlTx)).
     // stdout: Arc 214 Stone 8.1 — universe-resident Rust peer
-    //   (spawn_stdio_service_peer; returns StdioServicePeer with input_tx + join).
+    //   (spawn_stdout_service_peer; returns StdOutServicePeer with input_tx + thread).
     let pre_sym = frozen.symbols();
     let (stdin_thread_value, stdin_ctrl) = spawn_service(
         ":wat::kernel::services::StdInService/spawn",
@@ -270,7 +270,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         .clone();
     let stdout_writer_value = Value::io__IOWriter(stdio.stdout.clone());
     let stdout_sym = pre_sym.clone();
-    let stdout_peer = crate::thread_io::spawn_stdio_service_peer(
+    let stdout_peer = crate::thread_io::spawn_stdout_service_peer(
         stdout_handle_fn,
         stdout_writer_value,
         stdout_sym,
@@ -304,7 +304,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         stdin_thread_value: Some(stdin_thread_value),
         stdout_thread_value: None, // Stone 8.1: universe-resident peer; no wat Thread value
         stderr_thread_value: Some(stderr_thread_value),
-        stdout_service_join: Some(stdout_peer.join),
+        stdout_service_join: Some(stdout_peer.thread),
     })
 }
 

@@ -44,7 +44,7 @@ pub type ThreadId = i64;
 // warded home `src/services/` (builder directive: perfected forms do not live
 // in a condemned quarry). Zero-churn re-export keeps every caller green; this
 // file holds ONLY condemned old-stack material for Slice 6's deletion.
-pub use crate::services::{spawn_stdio_service_peer, StdOutInput, StdioServicePeer};
+pub use crate::services::{spawn_stdout_service_peer, StdOutServiceMsg, StdOutServicePeer};
 
 // Arc 214 Stone 8.1w — `StdOutServiceEvent` PURGED (purgare): the universe-
 // resident peer made it dead (zero live consumers — its last references were
@@ -99,7 +99,7 @@ pub enum StdInServiceEvent {
 /// thread-local cell ensures only one thread accesses any given
 /// ThreadIO instance.
 ///
-/// Arc 214 Stone 8.1: ThreadIO does NOT hold a Sender<StdOutInput> for
+/// Arc 214 Stone 8.1: ThreadIO does NOT hold a Sender<StdOutServiceMsg> for
 /// the stdout service. The service input_tx is accessed in
 /// eval_kernel_println via sym.runtime_services().stdout_ctrl so the
 /// service peer's lifetime is tied solely to Arc<RuntimeServices> — not
@@ -240,7 +240,7 @@ pub fn eval_kernel_println(
         }));
         services
             .stdout_ctrl
-            .send(StdOutInput::Req(req))
+            .send(StdOutServiceMsg::Req(req))
             .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
@@ -441,7 +441,7 @@ pub fn eval_kernel_readln(
 /// `type_path` field at construction time.
 /// Arc 214 Stone 5.1 — ControlTx senders are now comms::thread::Sender<Value>
 /// (cascade-aware, depth-1) instead of bare crossbeam Senders.
-/// Arc 214 Stone 8.1 — stdout_ctrl is now a Sender<StdOutInput> (the
+/// Arc 214 Stone 8.1 — stdout_ctrl is now a Sender<StdOutServiceMsg> (the
 /// universe-resident peer's input channel) instead of a wat ControlTx.
 /// stdin_ctrl and stderr_ctrl remain as wat-side ControlTxs (old path).
 #[derive(Clone)]
@@ -452,7 +452,7 @@ pub struct RuntimeServices {
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_println accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdout_ctrl: crate::comms::thread::Sender<StdOutInput>,
+    pub stdout_ctrl: crate::comms::thread::Sender<StdOutServiceMsg>,
     /// `Sender<wat::kernel::services::StdErrService::Event>` ControlTx.
     pub stderr_ctrl: crate::comms::thread::Sender<Value>,
 }
@@ -461,7 +461,7 @@ impl std::fmt::Debug for RuntimeServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuntimeServices")
             .field("stdin_ctrl", &"<wat-side Sender<Value>>")
-            .field("stdout_ctrl", &"<Sender<StdOutInput>> (Stone 8.1 peer; accessed via sym.runtime_services())")
+            .field("stdout_ctrl", &"<Sender<StdOutServiceMsg>> (Stone 8.1 peer; accessed via sym.runtime_services())")
             .field("stderr_ctrl", &"<wat-side Sender<Value>>")
             .finish()
     }
@@ -639,7 +639,7 @@ pub fn register_thread_with_services(
     let (stdout_reply_tx, stdout_reply_rx) = crate::comms::thread::pair::<Result<(), String>>();
     services
         .stdout_ctrl
-        .send(StdOutInput::Register(thread_id, stdout_reply_tx))
+        .send(StdOutServiceMsg::Register(thread_id, stdout_reply_tx))
         .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
@@ -727,7 +727,7 @@ pub fn deregister_thread_from_services(thread_id: ThreadId, services: &RuntimeSe
     let _ = services.stdin_ctrl.send(stdin_remove);
 
     // Arc 214 Stone 8.1 — stdout uses Deregister on the Rust-internal enum.
-    let _ = services.stdout_ctrl.send(StdOutInput::Deregister(thread_id));
+    let _ = services.stdout_ctrl.send(StdOutServiceMsg::Deregister(thread_id));
 
     let stderr_remove = make_event_value(
         ":wat::kernel::services::StdErrService::Event",

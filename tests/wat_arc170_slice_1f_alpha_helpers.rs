@@ -34,8 +34,8 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::span::Span;
 use wat::thread_io::{
-    install_thread_io, next_thread_id, spawn_stdio_service_peer, uninstall_thread_io,
-    RuntimeServices, StdErrServiceEvent, StdInServiceEvent, StdOutInput, ThreadIO,
+    install_thread_io, next_thread_id, spawn_stdout_service_peer, uninstall_thread_io,
+    RuntimeServices, StdErrServiceEvent, StdInServiceEvent, StdOutServiceMsg, ThreadIO,
 };
 use wat::typed_channel::{bounded, Sender, Receiver};
 
@@ -115,8 +115,8 @@ fn build_rig() -> TestRig {
 /// production pipeline end to end.
 struct MiniUniverse {
     sym: wat::runtime::SymbolTable,
-    input_tx: wat::comms::thread::Sender<StdOutInput>,
-    join: std::thread::JoinHandle<()>,
+    input_tx: wat::comms::thread::Sender<StdOutServiceMsg>,
+    thread: std::thread::JoinHandle<()>,
     reader: PipeReader,
     tid: i64,
 }
@@ -133,8 +133,8 @@ impl MiniUniverse {
             .get(":wat::kernel::services::StdOutService/handle")
             .expect("/handle is in the baked stdlib")
             .clone();
-        let peer = spawn_stdio_service_peer(handle, writer, world.symbols().clone());
-        let wat::thread_io::StdioServicePeer { input_tx, join } = peer;
+        let peer = spawn_stdout_service_peer(handle, writer, world.symbols().clone());
+        let wat::thread_io::StdOutServicePeer { input_tx, thread } = peer;
 
         // RS-carrying sym — println reaches the peer via runtime_services().
         let (stdin_dummy_tx, _stdin_dummy_rx) = wat::comms::thread::pair::<Value>();
@@ -150,7 +150,7 @@ impl MiniUniverse {
         let tid = next_thread_id();
         let (reply_tx, reply_rx) = wat::comms::thread::pair::<Result<(), String>>();
         input_tx
-            .send(StdOutInput::Register(tid, reply_tx))
+            .send(StdOutServiceMsg::Register(tid, reply_tx))
             .expect("register with the service peer");
 
         // ThreadIO: the REAL stdout half + old-path dummies for the rest.
@@ -167,7 +167,7 @@ impl MiniUniverse {
             stdin_reply_rx,
         });
 
-        MiniUniverse { sym, input_tx, join, reader, tid }
+        MiniUniverse { sym, input_tx, thread, reader, tid }
     }
 
     /// Eval a println form; the mini-TCP ack means write-COMPLETED, so
@@ -194,14 +194,14 @@ impl MiniUniverse {
     /// deadlock.
     fn finish(self) {
         let _ = uninstall_thread_io();
-        let MiniUniverse { sym, input_tx, join, reader, tid } = self;
+        let MiniUniverse { sym, input_tx, thread, reader, tid } = self;
         input_tx
-            .send(StdOutInput::Deregister(tid))
+            .send(StdOutServiceMsg::Deregister(tid))
             .expect("deregister");
         drop(sym);
         drop(input_tx);
         drop(reader);
-        join.join().expect("service loop joins clean");
+        thread.join().expect("service loop joins clean");
     }
 }
 

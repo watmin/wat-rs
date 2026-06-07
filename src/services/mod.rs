@@ -39,7 +39,7 @@
 //!
 //! ## Residents
 //!
-//! - stdout (Stone 8.1) — `StdOutInput` + `spawn_stdio_service_peer`.
+//! - stdout (Stone 8.1) — `StdOutServiceMsg` + `spawn_stdout_service_peer`.
 //! - stderr (8.1b) + stdin (8.2) build HERE — the thread_io quarry never
 //!   grows again; it holds only condemned material for Slice 6's deletion.
 //!
@@ -62,25 +62,27 @@ use crate::thread_io::ThreadId;
 ///   can route the ack back to the calling thread's `stdout_reply_rx`.
 /// - `Deregister(tid)` removes the reply sender (thread reap).
 #[derive(Debug)]
-pub enum StdOutInput {
+pub enum StdOutServiceMsg {
     Req(Value),
     Register(ThreadId, crate::comms::thread::Sender<Result<(), String>>),
     Deregister(ThreadId),
 }
 
-/// Handle returned from `spawn_stdio_service_peer`. The boot (freeze.rs)
+/// Handle returned from `spawn_stdout_service_peer`. The boot (freeze.rs)
 /// sends Req/Register/Deregister messages on `input_tx` and joins the
 /// service thread for clean teardown (AFTER dropping every sender — see the
 /// module-doc drop-order contract).
-pub struct StdioServicePeer {
-    pub input_tx: crate::comms::thread::Sender<StdOutInput>,
-    pub join: std::thread::JoinHandle<()>,
+pub struct StdOutServicePeer {
+    pub input_tx: crate::comms::thread::Sender<StdOutServiceMsg>,
+    /// The spawned loop's thread handle — joined at teardown (the thing you
+    /// hold, not the call you make on it).
+    pub thread: std::thread::JoinHandle<()>,
 }
 
 /// Spawn the universe-resident StdOutService loop.
 ///
 /// The loop:
-///   1. Receives `StdOutInput` messages on `input_rx`.
+///   1. Receives `StdOutServiceMsg` messages on `input_rx`.
 ///   2. For `Req(v)`: applies the wat handle fn with `[v, writer.clone()]`
 ///      and routes the reply by the Req's thread-id tag — `Ok(())` on
 ///      success, `Err(msg)` on a failed write (EVERY Req gets a reply; the
@@ -92,12 +94,12 @@ pub struct StdioServicePeer {
 /// The only reply-less arms are the malformed-Req guards (no thread-id is
 /// extractable to route to) — reachable only via a substrate bug, logged
 /// loudly on stderr.
-pub fn spawn_stdio_service_peer(
+pub fn spawn_stdout_service_peer(
     handle_fn: Arc<crate::runtime::Function>,
     writer: Value,
     sym: crate::runtime::SymbolTable,
-) -> StdioServicePeer {
-    let (input_tx, input_rx) = crate::comms::thread::pair::<StdOutInput>();
+) -> StdOutServicePeer {
+    let (input_tx, input_rx) = crate::comms::thread::pair::<StdOutServiceMsg>();
     let join = std::thread::Builder::new()
         .name("wat-stdout-service-peer".to_string())
         .spawn(move || {
@@ -111,14 +113,16 @@ pub fn spawn_stdio_service_peer(
                     Err(_) => break, // all input_tx senders dropped → shutdown
                 };
                 match msg {
-                    StdOutInput::Register(tid, reply_tx) => {
+                    StdOutServiceMsg::Register(tid, reply_tx) => {
                         reply_registry.insert(tid, reply_tx);
                     }
-                    StdOutInput::Deregister(tid) => {
+                    StdOutServiceMsg::Deregister(tid) => {
                         reply_registry.remove(&tid);
                     }
-                    StdOutInput::Req(req_value) => {
-                        // Extract thread-id from the Req struct (field 0).
+                    StdOutServiceMsg::Req(req_value) => {
+                        // Field 0 is thread-id BY THE RECORD CONVENTION of
+                        // :wat::kernel::services::StdOutService::Req
+                        // {thread-id, line} (wat/kernel/services/stdout.wat).
                         let thread_id: ThreadId = match &req_value {
                             Value::Struct(sv) if !sv.fields.is_empty() => {
                                 match &sv.fields[0] {
@@ -138,7 +142,10 @@ pub fn spawn_stdio_service_peer(
                                 continue;
                             }
                         };
-                        // Apply the wat handle fn: handle(req, writer).
+                        // handle(req, writer): the writer is LOOP-OWNED and
+                        // threaded per call — never carried in the req (the
+                        // message surface is scalars only; the resource is
+                        // the universe's).
                         let result = crate::runtime::apply_function(
                             Arc::clone(&handle_fn),
                             vec![req_value, writer.clone()],
@@ -173,5 +180,5 @@ pub fn spawn_stdio_service_peer(
             }
         })
         .expect("std::thread::spawn for stdout service peer");
-    StdioServicePeer { input_tx, join }
+    StdOutServicePeer { input_tx, thread: join }
 }
