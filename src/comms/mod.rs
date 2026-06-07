@@ -122,9 +122,10 @@ pub trait HolonRepresentable: Send + 'static {
 /// string (including any embedded `'\n'` which wat-edn escapes
 /// during serialization).
 ///
-/// Used by Stone C's probe tests as the test type. Future arcs may
-/// add impls for other substrate types (StdInServiceEvent,
-/// SpawnOutcome, etc.) as Slice 4/5 consumers require.
+/// Used by Stone C's probe tests as the test type. Further impls land
+/// per-type as consumers surface them (the Slice-8 service rebirth
+/// retired the old `*ServiceEvent` candidates — services now speak
+/// `Value`-shaped Req/Rep records, not Rust enums).
 impl HolonRepresentable for String {
     fn to_holon_ast(&self) -> holon::HolonAST {
         holon::HolonAST::String(self.as_str().into())

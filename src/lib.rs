@@ -103,8 +103,9 @@ pub mod test_runner;
 pub mod thread_io;
 pub use thread_io::{
     install_thread_io, uninstall_thread_io,
-    StdInServiceEvent,
     ThreadId, ThreadIO,
+    ServiceMsg, ServicePeer, spawn_service_peer,
+    RuntimeServices,
 };
 pub mod time;
 pub mod typed_channel;

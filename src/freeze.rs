@@ -90,12 +90,14 @@ pub struct BootstrapArgs<'a> {
 /// Drop when the wat-vm process is done; Drop runs cleanup in the
 /// exact order the original orchestrator used:
 ///
-/// 1. Deregister the calling thread from services (sends Remove events).
+/// 1. Deregister the calling thread from services (sends Deregister events).
 /// 2. Uninstall the calling thread's ThreadIO cell.
 /// 3. Drop `sym_with_services` (releases the Arc<RuntimeServices> the
 ///    carrier held).
 /// 4. Drop `services` (the local Arc).
-/// 5. Join the stdin service thread (wat Thread value).
+/// 5. Join the stdin service peer (Rust JoinHandle). A panicked stdin
+///    loop — EOF fired via assertion-failed! — joins Err; the arm logs
+///    and continues (we're in teardown).
 /// 6. Join the stdout service peer (Rust JoinHandle).
 /// 7. Join the stderr service peer (Rust JoinHandle).
 ///
@@ -109,8 +111,11 @@ pub struct ProcessRuntime {
     /// Always Some until Drop runs.
     services: Option<Arc<crate::thread_io::RuntimeServices>>,
     main_thread_id: ThreadId,
-    /// stdin: old architecture (wat Thread value). Joined in Drop step 5.
-    stdin_thread_value: Option<Value>,
+    /// Arc 214 Stone 8.2 — JoinHandle for the universe-resident stdin
+    /// read service peer loop. Joined in Drop step 5.
+    /// A PANICKED stdin join (EOF-cascade via assertion-failed!) logs Err
+    /// — the existing log-and-continue arm is correct (we're in teardown).
+    stdin_service_join: Option<std::thread::JoinHandle<()>>,
     /// Arc 214 Stone 8.1 — JoinHandle for the universe-resident stdout
     /// write service peer loop. Joined in Drop step 6.
     stdout_service_join: Option<std::thread::JoinHandle<()>>,
@@ -180,11 +185,13 @@ impl Drop for ProcessRuntime {
         // clones drop (sym done in step 3, local done in step 4). Join
         // errors are logged and continue — we're in teardown.
 
-        // Step 5: stdin (old architecture — wat Thread value).
-        if let Some(v) = self.stdin_thread_value.take() {
-            if let Err(e) = join_service(v, "stdin service join (Drop)") {
+        // Step 5: Join the universe-resident stdin service peer (Rust thread).
+        // A PANICKED stdin loop — EOF fired via assertion-failed! — joins Err;
+        // the log-and-continue arm is correct (we're in teardown).
+        if let Some(join) = self.stdin_service_join.take() {
+            if let Err(e) = join.join() {
                 eprintln!(
-                    "[wat substrate] stdin service join error during ProcessRuntime::drop: {}",
+                    "[wat substrate] stdin service peer join error during ProcessRuntime::drop: {:?}",
                     e
                 );
             }
@@ -246,16 +253,36 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
 
     // Step 2 — Spawn the three services.
     //
-    // stdin: old architecture (wat spawn returning (Thread, ControlTx)).
+    // stdin: Arc 214 Stone 8.2 — universe-resident read peer (same shape as write pair).
     // stdout: Arc 214 Stone 8.1 — universe-resident write peer.
     // stderr: Arc 214 Stone 8.1b — universe-resident write peer (same shape).
     let pre_sym = frozen.symbols();
-    let (stdin_thread_value, stdin_ctrl) = spawn_service(
-        ":wat::kernel::services::StdInService/spawn",
+
+    // stdin: look up the pure handle fn; spawn the Rust read service peer.
+    // reply_of extracts Rep field 1 (the line) as a String.
+    let stdin_handle_fn = pre_sym
+        .get(":wat::kernel::services::StdInService/handle")
+        .ok_or_else(|| RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::UnknownFunction(
+                ":wat::kernel::services::StdInService/handle".into(),
+            ),
+        })?
+        .clone();
+    let stdin_peer = crate::thread_io::spawn_service_peer(
+        "stdin",
+        stdin_handle_fn,
         Value::io__IOReader(stdio.stdin.clone()),
-        pre_sym,
-        "stdin service spawn",
-    )?;
+        pre_sym.clone(),
+        |rep: &Value| match rep {
+            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+                Value::String(s) => Ok((**s).clone()),
+                _ => Err("StdInService Rep field[1] is not a String".into()),
+            },
+            _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
+        },
+    );
+
     // stdout: look up the pure handle fn; spawn the Rust write service peer.
     let stdout_handle_fn = pre_sym
         .get(":wat::kernel::services::StdOutService/handle")
@@ -266,11 +293,12 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stdout_peer = crate::thread_io::spawn_write_service_peer(
+    let stdout_peer = crate::thread_io::spawn_service_peer(
         "stdout",
         stdout_handle_fn,
         Value::io__IOWriter(stdio.stdout.clone()),
         pre_sym.clone(),
+        |_: &Value| Ok(()),
     );
     // stderr: look up the pure handle fn; spawn the Rust write service peer.
     let stderr_handle_fn = pre_sym
@@ -282,16 +310,17 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stderr_peer = crate::thread_io::spawn_write_service_peer(
+    let stderr_peer = crate::thread_io::spawn_service_peer(
         "stderr",
         stderr_handle_fn,
         Value::io__IOWriter(stdio.stderr.clone()),
         pre_sym.clone(),
+        |_: &Value| Ok(()),
     );
 
     // Step 3 — Build RuntimeServices carrier + augmented SymbolTable.
     let services = Arc::new(crate::thread_io::RuntimeServices {
-        stdin_ctrl,
+        stdin_ctrl: stdin_peer.input_tx.clone(),
         stdout_ctrl: stdout_peer.input_tx.clone(),
         stderr_ctrl: stderr_peer.input_tx.clone(),
     });
@@ -308,7 +337,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         sym_with_services,
         services: Some(services),
         main_thread_id,
-        stdin_thread_value: Some(stdin_thread_value),
+        stdin_service_join: Some(stdin_peer.thread),
         stdout_service_join: Some(stdout_peer.thread),
         stderr_service_join: Some(stderr_peer.thread),
     })
@@ -1058,102 +1087,10 @@ fn invoke_user_main_orchestrated(
     result
 }
 
-/// Look up a service spawn fn by keyword path; apply it with the
-/// supplied IO handle; destructure the returned `(Thread, ControlTx)`
-/// tuple. Returns the Thread value (for join later) and the
-/// `comms::thread::Sender<Value>` ControlTx (for Add/Remove dispatches).
-///
-/// Arc 214 Stone 5.1 — return type changed from crossbeam::Sender to
-/// comms::thread::Sender (cascade-aware).
-fn spawn_service(
-    spawn_fn_path: &str,
-    io_value: Value,
-    sym: &SymbolTable,
-    label: &'static str,
-) -> Result<(Value, crate::comms::thread::Sender<Value>), RuntimeError> {
-    let spawn_fn = sym
-        .get(spawn_fn_path)
-        .ok_or_else(|| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UnknownFunction(spawn_fn_path.into()) })?
-        .clone();
-    let spawn_result = apply_function(
-        spawn_fn,
-        vec![io_value],
-        sym,
-        crate::rust_caller_span!(),
-    )?;
-    crate::thread_io::extract_control_tx(spawn_result, label)
-}
-
-/// Block on the service Thread's `Thread/output` channel for the
-/// driver's final `Value::Unit` emission, then on the ProgramHandle
-/// for the SpawnOutcome. If the driver panicked, surface the panic
-/// as a RuntimeError so the orchestrator's caller sees the
-/// substrate-side failure.
-fn join_service(thread_value: Value, label: &'static str) -> Result<(), RuntimeError> {
-    let thread_struct = match thread_value {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: label.to_string(),
-                expected: "wat::kernel::Thread",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
-    if thread_struct.fields.len() != 3 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
-            head: label.to_string(),
-            reason: format!(
-                "service Thread carries {} fields; expected 3",
-                thread_struct.fields.len()
-            )
-        } });
-    }
-    // Field 2 is the ProgramHandle; we recv the SpawnOutcome
-    // directly. Field 1 (the Receiver<O>) is unused by the
-    // orchestrator (the service's only output Value is the final
-    // `:wat::core::nil`, redundant with the ProgramHandle outcome).
-    // rune:struere(invariant-coupling) — field index 2 is the join
-    // ProgramHandle in :wat::kernel::Thread's declaration order
-    // (input=0, output=1, join=2); register_struct_methods synthesizes
-    // Thread/join using the same positional index; both must change
-    // together if Thread's field list changes.
-    let handle_value = thread_struct.fields[2].clone();
-    let handle_inner = match handle_value {
-        Value::wat__kernel__ProgramHandle(h) => h,
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: label.to_string(),
-                expected: "wat::kernel::ProgramHandle (service Thread.join slot)",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
-    match handle_inner.as_ref() {
-        crate::runtime::ProgramHandleInner::InThread(rx) => match rx.recv() {
-            Ok(crate::runtime::SpawnOutcome::Ok(_)) => Ok(()),
-            Ok(crate::runtime::SpawnOutcome::RuntimeErr(e)) => Err(e),
-            Ok(crate::runtime::SpawnOutcome::Panic { message, .. }) => {
-                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
-                    head: label.to_string(),
-                    reason: format!("service thread panicked: {}", message)
-                } })
-            }
-            Err(_) => {
-                // Channel disconnected without a SpawnOutcome —
-                // substrate-level corruption; surface honestly.
-                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
-                    op: label.to_string()
-                } })
-            }
-        },
-        crate::runtime::ProgramHandleInner::Forked(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: label.to_string(),
-            expected: "InThread variant for service Thread",
-            got: Box::new(crate::runtime::ValueSnapshot::unavailable("Forked variant — substrate bug"))
-        } }),
-    }
-}
+// Arc 214 Stone 8.2 — spawn_service and join_service PURGED. stdin is the
+// last tenant that used the old (wat Thread value, ControlTx) pair. All three
+// services now boot via spawn_service_peer (Rust-resident); joins are plain
+// JoinHandle::join calls in ProcessRuntime::drop.
 
 // ─── :user::main signature enforcement ──────────────────────────────────
 //

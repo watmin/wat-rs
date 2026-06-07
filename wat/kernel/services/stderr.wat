@@ -5,7 +5,7 @@
 ;; and spawn fn ALL died in this stone — the universe (Rust services home)
 ;; now owns the fan-in/fan-out and drives the loop.
 ;;
-;; The Rust service peer (src/services/ spawn_write_service_peer) calls:
+;; The Rust service peer (src/services/ spawn_service_peer) calls:
 ;;   apply_function(handle, [req_value, writer_value], sym, span)
 ;; and routes the tagged Rep ack back to the requesting thread's reply channel.
 ;;

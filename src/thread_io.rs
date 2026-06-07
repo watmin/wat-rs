@@ -25,14 +25,9 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
-use crate::typed_channel::{Receiver, Sender};
-
 use crate::ast::WatAST;
-use crate::runtime::{eval, EnumValue, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
-use crate::typed_channel::{
-    receiver_from_comms, sender_from_comms, ReceiverInner, SenderInner,
-};
 
 /// Monotonic thread identifier. Mirrors the wat-side
 /// `:wat::kernel::ThreadId` typealias-to-i64 settled in pass 18.
@@ -40,39 +35,16 @@ use crate::typed_channel::{
 /// runtime orchestrator.
 pub type ThreadId = i64;
 
-// Arc 214 Stone 8.1w — the universe-resident service machinery LIFTED to the
+// Arc 214 Stone 8.2 — the universe-resident service machinery LIFTED to the
 // warded home `src/services/` (builder directive: perfected forms do not live
 // in a condemned quarry). Zero-churn re-export keeps every caller green; this
 // file holds ONLY condemned old-stack material for Slice 6's deletion.
-pub use crate::services::{spawn_write_service_peer, WriteServiceMsg, WriteServicePeer};
+pub use crate::services::{spawn_service_peer, ServiceMsg, ServicePeer};
 
-// Arc 214 Stone 8.1b — `StdErrServiceEvent` PURGED: the universe-resident
-// write peer (spawn_write_service_peer("stderr",...)) replaced the old bridge
-// architecture. `StdInServiceEvent` below survives until 8.2.
-
-/// Stdin's data variant is unit (the "give me next form"
-/// request); the raw line comes back via the reply-tx.
-///
-/// Arc 170 slice 1f-ι — the reply channel carries the RAW EDN line
-/// (a `String`), not a pre-parsed `Arc<HolonAST>`. The parse + coerce
-/// to the caller's requested `T` happens substrate-side in
-/// `eval_kernel_readln` (via `edn_to_typed_value`); the wat-side
-/// StdInService no longer pre-parses with `:wat::edn::read`. This
-/// locks the EDN-only stdio contract: `(:wat::kernel::readln -> :T)`
-/// returns a native `T` for any wat type with EDN encoding/decoding.
-#[derive(Debug, Clone)]
-pub enum StdInServiceEvent {
-    /// Caller's readln signals "next line please."
-    Read,
-    /// Runtime registers a thread; service stores
-    /// `(thread_id → (data_rx, reply_tx))` in its routing table.
-    Add {
-        thread_id: ThreadId,
-        data_rx: Receiver<StdInServiceEvent>,
-        reply_tx: Sender<String>,
-    },
-    Remove { thread_id: ThreadId },
-}
+// Arc 214 Stone 8.1b — `StdErrServiceEvent` PURGED.
+// Arc 214 Stone 8.2 — `StdInServiceEvent` + `spawn_stdin_bridge` PURGED.
+// The universe-resident service peers (spawn_service_peer("stdin/stdout/stderr",...))
+// replaced the old bridge architecture.
 
 /// Per-thread channel handles used by `:wat::kernel::println` /
 /// `eprintln` / `readln`. Populated by `:wat::kernel::spawn-thread`
@@ -81,15 +53,17 @@ pub enum StdInServiceEvent {
 ///
 /// All channel ends are owned (not Arc'd) — the thread that
 /// owns the ThreadIO IS the thread that uses these channels.
-/// crossbeam's Sender / Receiver are themselves `Send`; the
-/// thread-local cell ensures only one thread accesses any given
-/// ThreadIO instance.
 ///
-/// Arc 214 Stone 8.1: ThreadIO does NOT hold a Sender<WriteServiceMsg> for
+/// Arc 214 Stone 8.1: ThreadIO does NOT hold a Sender<ServiceMsg<...>> for
 /// the stdout/stderr services. Their input_tx is accessed via
 /// sym.runtime_services().*_ctrl so the service peers' lifetimes are tied
 /// solely to Arc<RuntimeServices> — enabling clean ProcessRuntime::drop
 /// ordering.
+///
+/// Arc 214 Stone 8.2: ThreadIO no longer holds the old stdin_tx / old
+/// stdin_reply_rx. The stdin half now mirrors the write pair exactly:
+/// `stdin_reply_rx` is a `comms::thread::Receiver<Result<String, String>>`
+/// that receives the line (Ok) or error (Err) from the StdInService peer.
 pub struct ThreadIO {
     // ── stdout (Arc 214 Stone 8.1 — universe-resident write peer) ──────────
     //
@@ -114,14 +88,19 @@ pub struct ThreadIO {
     pub stderr_reply_rx: crate::comms::thread::Receiver<Result<(), String>>,
     /// This thread's monotonic id — embedded in every Req so the service
     /// peers can route the Rep ack back to this thread's reply channels.
-    /// Shared across both stdout and stderr services (one id per thread).
+    /// Shared across stdout, stderr, and stdin services (one id per thread).
     pub thread_id: ThreadId,
-    // ── stdin (unchanged — old bridge architecture) ─────────────────────────
-    /// Send an Event (Read / Add / Remove) to the StdInService.
-    pub stdin_tx: Sender<StdInServiceEvent>,
-    /// Receive the raw EDN line representing the next stdin form
-    /// (arc 170 slice 1f-ι — pre-1f-ι this was `Arc<HolonAST>`).
-    pub stdin_reply_rx: Receiver<String>,
+    // ── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ────────────
+    //
+    // Mirrors the write pair: the Req send goes via
+    // sym.runtime_services().stdin_ctrl in eval_kernel_readln.
+    //
+    /// Block here for the StdInService's reply of "here is the line" routed
+    /// back from the peer's reply registry. Populated by Register at
+    /// thread registration; each readln send+recv is the mini-TCP round trip.
+    /// Ok(line) = a line was read; Err(msg) = handle error (write-side failure);
+    /// Recv Err = the loop disconnected (EOF cascade via assertion-failed!).
+    pub stdin_reply_rx: crate::comms::thread::Receiver<Result<String, String>>,
 }
 
 thread_local! {
@@ -231,7 +210,7 @@ pub fn eval_kernel_println(
         }));
         services
             .stdout_ctrl
-            .send(WriteServiceMsg::Req(req))
+            .send(ServiceMsg::Req(req))
             .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
@@ -292,7 +271,7 @@ pub fn eval_kernel_eprintln(
         }));
         services
             .stderr_ctrl
-            .send(WriteServiceMsg::Req(req))
+            .send(ServiceMsg::Req(req))
             .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
@@ -318,12 +297,17 @@ pub fn eval_kernel_eprintln(
 /// / `:wat::core::if`). Steps:
 ///   1. Read the call-site's `-> :T` annotation (head-position
 ///      arrow + type keyword; args = `[Symbol("->"), Keyword(":T")]`).
-///   2. Signal the StdInService via the stdin req-tx.
-///   3. Block on stdin reply-rx for the next RAW line.
+///   2. Build a `StdInService::Req {thread-id}` struct Value; send it
+///      on the universe-resident StdInService peer's input channel via
+///      `sym.runtime_services().stdin_ctrl`.
+///   3. Block on `stdin_reply_rx` for `Ok(line)` or surface errors.
 ///   4. Parse the line via `wat_edn::parse_owned`.
 ///   5. Coerce the parsed EDN to a wat `Value` of the declared `T`
 ///      via [`crate::edn_shim::edn_to_typed_value`]. On mismatch,
 ///      surfaces [`RuntimeError::EdnCoerceMismatch`].
+///
+/// Arc 214 Stone 8.2 — replaced the old StdInServiceEvent::Read bridge
+/// path with direct Req → service peer mini-TCP (mirrors println/eprintln).
 ///
 /// The EDN-only stdio contract (locked 2026-05-10):
 /// ```text
@@ -385,18 +369,46 @@ pub fn eval_kernel_readln(
             } });
         }
     };
+    // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
+    // so no clone of the sender lives in the ThreadIO struct.
+    let services = sym.runtime_services().ok_or_else(|| RuntimeError {
+        span: Span::unknown(),
+        kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
+    })?;
     with_thread_io(OP, |io| {
-        io.stdin_tx
-            .send(StdInServiceEvent::Read)
+        // Build StdInService::Req {thread-id} as a Value::Struct.
+        let req = Value::Struct(Arc::new(crate::runtime::StructValue {
+            type_name: ":wat::kernel::services::StdInService::Req".into(),
+            fields: vec![
+                Value::i64(io.thread_id),
+            ],
+        }));
+        services
+            .stdin_ctrl
+            .send(ServiceMsg::Req(req))
             .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
-        let line = io
-            .stdin_reply_rx
-            .recv()
-            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
-                op: OP.into()
-            } })?;
+        // Block on the reply. Ok(Ok(line)) = line read successfully.
+        // Ok(Err(msg)) = handle error (should not happen for stdin unless
+        //   the handle implementation itself fails — surface as MalformedForm).
+        // Err(_) = the loop disconnected — EOF cascade arrived (assertion-failed!
+        //   panicked the stdin loop through apply_function; the reply registry
+        //   dropped; this recv returns Err → ChannelDisconnected).
+        let line = match io.stdin_reply_rx.recv() {
+            Ok(Ok(line)) => line,
+            Ok(Err(msg)) => {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("stdin read failed: {}", msg),
+                } });
+            }
+            Err(_) => {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                    op: OP.into()
+                } });
+            }
+        };
         let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("EDN parse error reading stdin line {:?}: {}", line, e)
@@ -414,159 +426,51 @@ pub fn eval_kernel_readln(
 
 // ─── Slice 1f-γ — runtime-services carrier + bridge protocol ───────────
 //
-// The orchestrator owns three wat-side ControlTxs (one per service).
-// `register_thread_with_services` allocates per-thread Rust-side AND
-// wat-side channel pairs, spawns three tiny bridge threads (one per
-// service) that translate Rust-typed `*ServiceEvent` payloads to
-// Value::Enum payloads (and back for stdin replies), and sends a
-// Value::Enum::Add event on each ControlTx so the wat-side service
-// registers the routing entry. ThreadIO holds the Rust-side ends
-// (substrate-typed); the wat-side service ends are owned by the
-// bridges and by the service. This indirection is the consequence of
-// slice 1f-α defining ThreadIO with Rust-typed channels (`Sender<
-// StdOutServiceEvent>` etc.) while the wat-side service in
-// `wat/kernel/services/{stdin,stdout,stderr}.wat` operates on
-// Value-typed channels (`Sender<wat::kernel::services::StdOutService::
-// Event>` which is `Sender<Value>` at runtime). Pass 18's "unified
-// Event enum" describes shape parity — variants and semantics agree —
-// but the carrier types differ across the substrate/wat boundary;
-// the bridges are how those carriers meet. Surfaced as honest-delta.
-//
-// The carrier choice (Option B from BRIEF § honest-delta) is to thread
-// `Arc<RuntimeServices>` through `SymbolTable` as a capability carrier
-// next to `encoding_ctx` / `source_loader` / `macro_registry`. Per
-// memory `feedback_capability_carrier.md` — new runtime capabilities
-// attach to SymbolTable. SymbolTable is cloned per spawned thread
-// (`thread_sym = sym.clone()` in `eval_kernel_spawn_thread`); the
-// clone naturally propagates the carrier into child threads. When
-// `invoke_user_main` returns and its augmented SymbolTable drops, the
-// carrier's Arc count falls; once no live child thread holds a clone,
-// the ControlTxs drop, the wat-side services' control-rxs disconnect,
-// and the service driver loops exit. Scope-drop cascade by
-// construction.
-//
-// Carrier alternative (A) was `OnceLock<RuntimeServices>` static.
-// Rejected because OnceLock has no clear-on-exit semantics; sequential
-// `invoke_user_main` invocations in one process (the cargo-test
-// shape) would inherit the first set's services, breaking test
-// isolation. Carrier alternative (C) thread-local was out per BRIEF.
+// The orchestrator owns three universe-resident service peers.
+// `register_thread_with_services` allocates per-thread Rust-side channel pairs,
+// sends Register messages to all three peers, and returns a ThreadIO.
+// After Arc 214 Stone 8.2 the three services are ALL universe-resident:
+// stdin (Stone 8.2), stdout (Stone 8.1), stderr (Stone 8.1b).
+// The bridge architecture (spawn_stdin_bridge, spawn_stderr_bridge) is
+// entirely gone — no wat-side channel endpoints, no bridge threads.
 
 /// Three-Sender carrier per BRIEF Q5 + Q-carrier.
 ///
 /// Arc 214 Stone 5.1 — ControlTx senders are comms::thread::Sender<Value>
 /// (cascade-aware, depth-1) instead of bare crossbeam Senders.
-/// Arc 214 Stone 8.1 — stdout_ctrl is now a Sender<WriteServiceMsg> (the
+/// Arc 214 Stone 8.1 — stdout_ctrl is now a Sender<ServiceMsg<()>> (the
 /// universe-resident write peer's input channel) instead of a wat ControlTx.
-/// Arc 214 Stone 8.1b — stderr_ctrl follows: now a Sender<WriteServiceMsg>
+/// Arc 214 Stone 8.1b — stderr_ctrl follows: now a Sender<ServiceMsg<()>>
 /// for the universe-resident stderr write peer.
-/// stdin_ctrl remains a wat-side ControlTx (old path; dies at 8.2).
+/// Arc 214 Stone 8.2 — stdin_ctrl follows: now a Sender<ServiceMsg<String>>
+/// for the universe-resident stdin read peer.
 #[derive(Clone)]
 pub struct RuntimeServices {
-    /// `Sender<wat::kernel::services::StdInService::Event>` ControlTx.
-    pub stdin_ctrl: crate::comms::thread::Sender<Value>,
+    /// Arc 214 Stone 8.2 — the universe-resident StdInService read peer's
+    /// input channel. Register/Deregister/Req flow through it.
+    /// NOT cloned into ThreadIO — eval_kernel_readln accesses this via
+    /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
+    pub stdin_ctrl: crate::comms::thread::Sender<ServiceMsg<String>>,
     /// Arc 214 Stone 8.1 — the universe-resident StdOutService write peer's
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_println accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdout_ctrl: crate::comms::thread::Sender<WriteServiceMsg>,
+    pub stdout_ctrl: crate::comms::thread::Sender<ServiceMsg<()>>,
     /// Arc 214 Stone 8.1b — the universe-resident StdErrService write peer's
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_eprintln accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stderr_ctrl: crate::comms::thread::Sender<WriteServiceMsg>,
+    pub stderr_ctrl: crate::comms::thread::Sender<ServiceMsg<()>>,
 }
 
 impl std::fmt::Debug for RuntimeServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuntimeServices")
-            .field("stdin_ctrl", &"<wat-side Sender<Value>>")
-            .field("stdout_ctrl", &"<Sender<WriteServiceMsg>> (Stone 8.1 peer; accessed via sym.runtime_services())")
-            .field("stderr_ctrl", &"<Sender<WriteServiceMsg>> (Stone 8.1b peer; accessed via sym.runtime_services())")
+            .field("stdin_ctrl", &"<Sender<ServiceMsg<String>>> (Stone 8.2 peer; accessed via sym.runtime_services())")
+            .field("stdout_ctrl", &"<Sender<ServiceMsg<()>>> (Stone 8.1 peer; accessed via sym.runtime_services())")
+            .field("stderr_ctrl", &"<Sender<ServiceMsg<()>>> (Stone 8.1b peer; accessed via sym.runtime_services())")
             .finish()
     }
-}
-
-/// Helper — extract the inner `comms::thread::Sender<Value>` from a
-/// `Value::wat__kernel__Sender`. Surfaces a clean diagnostic if the
-/// caller passed something else or a tier-2 PipeFd variant (the
-/// services emit a tier-1 ControlTx by construction — anything else
-/// is a programmer error).
-///
-/// Arc 214 Stone 5.1 — now extracts from `SenderInner::Comms` instead of
-/// the retired `SenderInner::Crossbeam`.
-fn unwrap_value_sender(v: Value, label: &'static str) -> Result<crate::comms::thread::Sender<Value>, RuntimeError> {
-    match v {
-        Value::wat__kernel__Sender(inner) => match inner.as_ref() {
-            SenderInner::Comms { sender: s, .. } => Ok(s.clone()),
-            SenderInner::PipeFd { .. } => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: label.to_string(),
-                expected: "tier-1 (comms::thread) Sender",
-                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Sender"))
-            } }),
-        },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: label.to_string(),
-            expected: "wat::kernel::Sender<T>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
-    }
-}
-
-/// Helper — extract the inner `comms::thread::Receiver<Value>` from a
-/// `Value::wat__kernel__Receiver`. Sibling of [`unwrap_value_sender`].
-///
-/// Arc 214 Stone 5.1 — now extracts from `ReceiverInner::Comms` instead of
-/// the retired `ReceiverInner::Crossbeam`.
-fn unwrap_value_receiver(
-    v: Value,
-    label: &'static str,
-) -> Result<crate::comms::thread::Receiver<Value>, RuntimeError> {
-    match v {
-        Value::wat__kernel__Receiver(inner) => match inner.as_ref() {
-            ReceiverInner::Comms(r) => Ok(r.clone()),
-            ReceiverInner::PipeFd(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: label.to_string(),
-                expected: "tier-1 (comms::thread) Receiver",
-                got: Box::new(crate::runtime::ValueSnapshot::unavailable("tier-2 (pipe-fd) Receiver"))
-            } }),
-        },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-            op: label.to_string(),
-            expected: "wat::kernel::Receiver<T>",
-            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-        } }),
-    }
-}
-
-/// Construct the wat-side Sender Value wrapping an existing
-/// `comms::thread::Sender<Value>`. Mirrors
-/// [`crate::typed_channel::sender_from_comms`] but takes the
-/// already-allocated Sender directly.
-///
-/// Arc 214 Stone 5.1 — now takes comms::thread::Sender instead of
-/// the retired crossbeam::Sender.
-fn sender_value(tx: crate::comms::thread::Sender<Value>) -> Value {
-    sender_from_comms(tx)
-}
-
-/// Construct the wat-side Receiver Value wrapping an existing
-/// `comms::thread::Receiver<Value>`.
-///
-/// Arc 214 Stone 5.1 — now takes comms::thread::Receiver instead of
-/// the retired crossbeam::Receiver.
-fn receiver_value(rx: crate::comms::thread::Receiver<Value>) -> Value {
-    receiver_from_comms(rx)
-}
-
-/// Helper — construct a `Value::Enum` for one of the three service-
-/// Event variants. Field order matches the wat-side enum declarations
-/// in `wat/kernel/services/{stdin,stdout,stderr}.wat`.
-fn make_event_value(type_path: &str, variant: &str, fields: Vec<Value>) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: type_path.into(),
-        variant_name: variant.into(),
-        fields,
-    }))
 }
 
 /// Monotonic thread-id allocator. Starts at `1` so `0` is reserved as
@@ -582,56 +486,35 @@ pub fn next_thread_id() -> ThreadId {
     NEXT_THREAD_ID.fetch_add(1, Ordering::SeqCst)
 }
 
-/// Allocate per-thread service channels; register with stdout + stderr
-/// universe-resident write peers; spawn a bridge for stdin (old path);
-/// send an Add event on the stdin ControlTx. Returns the populated
-/// [`ThreadIO`].
+/// Allocate per-thread service channels; register with all three
+/// universe-resident service peers (stdin, stdout, stderr); return the
+/// populated [`ThreadIO`].
+///
+/// Arc 214 Stone 8.2 — stdin now mirrors the write pair: send
+/// Register(tid, reply_tx) on the stdin peer's input channel; the peer
+/// inserts the reply_tx into its HashMap keyed by tid. No bridge thread,
+/// no wat-side channels.
 ///
 /// On send failure (service shut down) returns
 /// [`RuntimeError::ChannelDisconnected`]. Caller is responsible for
 /// `install_thread_io` after this returns successfully.
-///
-/// stdout/stderr: universe-resident write peers (Stone 8.1/8.1b).
-///   Send Register(tid, reply_tx) on the peer's input channel; block
-///   on the per-thread reply_rx for the ack (mini-TCP).
-///
-/// stdin: old bridge architecture (Stone 8.2 converts it).
-///   Spawn a bridge thread that translates Rust-typed StdInServiceEvent
-///   to wat-side Value::Enum and forwards the raw reply line back.
 pub fn register_thread_with_services(
     thread_id: ThreadId,
     services: &RuntimeServices,
 ) -> Result<ThreadIO, RuntimeError> {
     const OP_ADD: &str = "register_thread_with_services";
 
-    // ─── stdin pair (Rust + wat) + bridge ──────────────────────────
+    // ─── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ──────
     //
-    // Rust-typed: ThreadIO holds (rust_stdin_tx, rust_stdin_reply_rx).
-    // Bridge holds (rust_stdin_rx, rust_stdin_reply_tx).
-    // Wat-side:   service holds (wat_stdin_data_rx, wat_stdin_reply_tx).
-    // Bridge:    holds (wat_stdin_data_tx, wat_stdin_reply_rx).
-    //
-    // Arc 170 slice 1f-ι — reply payload changed from `Arc<HolonAST>`
-    // (pre-1f-ι, the wat-side service pre-parsed via `:wat::edn::read`)
-    // to `String` (the raw EDN line). The substrate parses + coerces
-    // to the caller's requested `T` in `eval_kernel_readln`.
-    let (rust_stdin_tx, rust_stdin_rx) =
-        crate::typed_channel::bounded::<StdInServiceEvent>(1);
-    let (rust_stdin_reply_tx, rust_stdin_reply_rx) =
-        crate::typed_channel::bounded::<String>(1);
-    // Arc 214 Stone 5.1 — use comms::thread::pair instead of crossbeam::bounded.
-    let (wat_stdin_data_tx, wat_stdin_data_rx) =
-        crate::comms::thread::pair::<Value>();
-    let (wat_stdin_reply_tx, wat_stdin_reply_rx) =
-        crate::comms::thread::pair::<Value>();
-
-    spawn_stdin_bridge(
-        thread_id,
-        rust_stdin_rx,
-        rust_stdin_reply_tx,
-        wat_stdin_data_tx,
-        wat_stdin_reply_rx,
-    );
+    // Mirrors the write pair: allocate a per-thread reply pair,
+    // send Register(tid, reply_tx) on the stdin peer's input channel.
+    let (stdin_reply_tx, stdin_reply_rx) = crate::comms::thread::pair::<Result<String, String>>();
+    services
+        .stdin_ctrl
+        .send(ServiceMsg::Register(thread_id, stdin_reply_tx))
+        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            op: OP_ADD.into()
+        } })?;
 
     // ─── stdout (Arc 214 Stone 8.1 — universe-resident write peer) ────
     //
@@ -644,7 +527,7 @@ pub fn register_thread_with_services(
     let (stdout_reply_tx, stdout_reply_rx) = crate::comms::thread::pair::<Result<(), String>>();
     services
         .stdout_ctrl
-        .send(WriteServiceMsg::Register(thread_id, stdout_reply_tx))
+        .send(ServiceMsg::Register(thread_id, stdout_reply_tx))
         .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
@@ -655,189 +538,38 @@ pub fn register_thread_with_services(
     let (stderr_reply_tx, stderr_reply_rx) = crate::comms::thread::pair::<Result<(), String>>();
     services
         .stderr_ctrl
-        .send(WriteServiceMsg::Register(thread_id, stderr_reply_tx))
+        .send(ServiceMsg::Register(thread_id, stderr_reply_tx))
         .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
-
-    // ─── Send Add event on the stdin ControlTx ────────────────────────
-    //
-    // stdin: old architecture (wat spawn returning (Thread, ControlTx)).
-    let stdin_add = make_event_value(
-        ":wat::kernel::services::StdInService::Event",
-        "Add",
-        vec![
-            Value::i64(thread_id),
-            receiver_value(wat_stdin_data_rx),
-            sender_value(wat_stdin_reply_tx),
-        ],
-    );
-    services
-        .stdin_ctrl
-        .send(stdin_add)
-        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
-            op: OP_ADD.into()
-        } })?;
-
-    // stdout + stderr registrations were handled above (Stone 8.1/8.1b).
 
     Ok(ThreadIO {
         // NOTE: the service input_tx senders are NOT stored in ThreadIO
-        // (Arc 214 Stone 8.1/8.1b fix). The Req sends go via
-        // sym.runtime_services().{stdout,stderr}_ctrl in
-        // eval_kernel_{println,eprintln} so the service peers' lifetimes
-        // are tied solely to Arc<RuntimeServices>, not to every ThreadIO.
+        // (Arc 214 Stone 8.1/8.1b/8.2 fix). The Req sends go via
+        // sym.runtime_services().{stdin,stdout,stderr}_ctrl in
+        // eval_kernel_{readln,println,eprintln} so the service peers'
+        // lifetimes are tied solely to Arc<RuntimeServices>, not to every
+        // ThreadIO.
         stdout_reply_rx,
         stderr_reply_rx,
         thread_id,
-        stdin_tx: rust_stdin_tx,
-        stdin_reply_rx: rust_stdin_reply_rx,
+        stdin_reply_rx,
     })
 }
 
-/// Send Remove event to stdin service and Deregister messages to
-/// the universe-resident stdout and stderr peers for this thread_id.
+/// Send Deregister messages to the universe-resident stdin, stdout, and
+/// stderr peers for this thread_id.
 /// Silent-fail on each send (services may be shutting down via scope-drop;
 /// a failed send is "the service is already gone," the cleanup state we want).
 pub fn deregister_thread_from_services(thread_id: ThreadId, services: &RuntimeServices) {
-    let stdin_remove = make_event_value(
-        ":wat::kernel::services::StdInService::Event",
-        "Remove",
-        vec![Value::i64(thread_id)],
-    );
-    let _ = services.stdin_ctrl.send(stdin_remove);
+    // Arc 214 Stone 8.2 — stdin uses Deregister on the Rust-internal enum (mirrors write pair).
+    let _ = services.stdin_ctrl.send(ServiceMsg::Deregister(thread_id));
 
     // Arc 214 Stone 8.1 — stdout uses Deregister on the Rust-internal enum.
-    let _ = services.stdout_ctrl.send(WriteServiceMsg::Deregister(thread_id));
+    let _ = services.stdout_ctrl.send(ServiceMsg::Deregister(thread_id));
 
     // Arc 214 Stone 8.1b — stderr mirrors stdout.
-    let _ = services.stderr_ctrl.send(WriteServiceMsg::Deregister(thread_id));
-}
-
-/// stdin bridge — Rust `StdInServiceEvent::Read` → wat
-/// `:wat::kernel::services::StdInService::Event::Read`; wat-side
-/// reply (`Value::String(line)`) → Rust `String`.
-///
-/// Arc 170 slice 1f-ι — the bridge now forwards the RAW EDN line
-/// (a `String`) instead of a pre-parsed `Arc<HolonAST>`. The
-/// wat-side StdInService sends the raw line read from fd 0; the
-/// substrate parses + coerces to the caller's requested `T` in
-/// `eval_kernel_readln`.
-///
-/// Loop exits on any disconnect — the orchestrator's epilogue drops
-/// the ThreadIO end, which collapses `rust_rx`; subsequent drop of
-/// `wat_data_tx` collapses the service's routing-table data-rx.
-fn spawn_stdin_bridge(
-    thread_id: ThreadId,
-    rust_rx: Receiver<StdInServiceEvent>,
-    rust_reply_tx: Sender<String>,
-    wat_data_tx: crate::comms::thread::Sender<Value>,
-    wat_reply_rx: crate::comms::thread::Receiver<Value>,
-) {
-    let name = format!("wat-stdin-bridge::{}", thread_id);
-    std::thread::Builder::new()
-        .name(name)
-        .spawn(move || loop {
-            // 1. Recv Rust event from ThreadIO side.
-            let event = match rust_rx.recv() {
-                Ok(e) => e,
-                Err(_) => break, // ThreadIO dropped; orderly bridge shutdown.
-            };
-            // 2. Translate to wat-side Event variant (only `Read` flows
-            //    here from eval_kernel_readln; Add/Remove go via
-            //    ControlTx directly and never traverse this bridge).
-            let wat_event = match event {
-                StdInServiceEvent::Read => make_event_value(
-                    ":wat::kernel::services::StdInService::Event",
-                    "Read",
-                    vec![],
-                ),
-                StdInServiceEvent::Add { .. } | StdInServiceEvent::Remove { .. } => {
-                    // Bridge sees Add/Remove only if a future caller
-                    // wrongly routes them through ThreadIO. Drop +
-                    // continue — no observable effect; defensive arm.
-                    continue;
-                }
-            };
-            // 3. Forward to wat-side service.
-            if wat_data_tx.send(wat_event).is_err() {
-                break; // service routing-table entry gone.
-            }
-            // 4. Block for wat-side reply (raw line as Value::String).
-            let reply = match wat_reply_rx.recv() {
-                Ok(v) => v,
-                Err(_) => break, // service stopped sending replies.
-            };
-            // 5. Extract the raw line and forward to caller. Pre-1f-ι
-            //    the wat-side service ran `:wat::edn::read` over the
-            //    line and shipped the parsed Value; the bridge coerced
-            //    to `Arc<HolonAST>`. Post-1f-ι the wat-side ships the
-            //    raw line directly; the substrate parses + coerces to
-            //    the caller's declared `T` in `eval_kernel_readln`.
-            let line = match reply {
-                Value::String(s) => (*s).clone(),
-                _ => break, // Wat-side contract violated; close bridge.
-            };
-            if rust_reply_tx.send(line).is_err() {
-                break; // caller dropped; bridge exits.
-            }
-        })
-        .expect("std::thread::spawn for stdin bridge");
-}
-
-// Arc 214 Stone 8.1b — spawn_stderr_bridge PURGED. The universe-resident
-// write peer (spawn_write_service_peer("stderr",...)) replaced the old
-// bridge architecture.
-
-/// Pull the wat-side ControlTx out of a service-spawn return value.
-/// The wat-side `*Service/spawn` fns return
-/// `:(Thread<nil,nil>, EventTx)`; this helper destructures the tuple
-/// and unwraps the Sender to the inner `crossbeam::Sender<Value>`.
-/// Used by [`crate::freeze::invoke_user_main`] after each service
-/// spawn.
-/// Arc 214 Stone 5.1 — now returns comms::thread::Sender<Value> instead of
-/// the retired crossbeam::Sender<Value>.
-pub fn extract_control_tx(
-    spawn_result: Value,
-    service_label: &'static str,
-) -> Result<(Value, crate::comms::thread::Sender<Value>), RuntimeError> {
-    let tuple = match spawn_result {
-        Value::Tuple(t) => t,
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: service_label.to_string(),
-                expected: "(Thread, Sender) tuple from service spawn",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
-    if tuple.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
-            head: service_label.to_string(),
-            reason: format!(
-                "service spawn returned tuple with {} fields; expected 2",
-                tuple.len()
-            )
-        } });
-    }
-    let thread_value = tuple[0].clone();
-    let ctrl_tx_value = tuple[1].clone();
-    let ctrl_tx = unwrap_value_sender(ctrl_tx_value, service_label)?;
-    Ok((thread_value, ctrl_tx))
-}
-
-/// Hidden re-export of the receiver-unwrap helper for the
-/// orchestrator. Re-exposed because `invoke_user_main` needs to
-/// `Thread/output recv` then `Thread/join-result` on each service
-/// handle; the `Thread<nil,nil>` shape carries a `Receiver<Value>`
-/// in its tuple-field-1 position.
-/// Arc 214 Stone 5.1 — now returns comms::thread::Receiver<Value> instead of
-/// the retired crossbeam::Receiver<Value>.
-pub fn unwrap_receiver_for_orchestrator(
-    v: Value,
-    label: &'static str,
-) -> Result<crate::comms::thread::Receiver<Value>, RuntimeError> {
-    unwrap_value_receiver(v, label)
+    let _ = services.stderr_ctrl.send(ServiceMsg::Deregister(thread_id));
 }
 
 // ─── Slice 1f-γ — ambient stdio handles (orchestrator-facing) ──────────

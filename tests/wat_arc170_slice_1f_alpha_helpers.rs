@@ -13,14 +13,14 @@
 //! |-----|------|---------|
 //! | A | unpopulated println | clean ServiceNotRunning, no panic |
 //! | B | unpopulated eprintln | same shape |
-//! | C | unpopulated readln | same shape |
+//! | C | unpopulated readln | same shape (arc 214 Stone 8.2: revived) |
 //! | D | populated println sends serialized String | round-trip |
 //! | E | populated eprintln sends serialized String | round-trip via stderr peer |
-//! | F | populated readln returns received form | reverse direction |
+//! | F | populated readln returns received form | reverse direction (Stone 8.2: revived) |
 //! | G | polymorphic value types — i64 / String / bool / tuple / struct | value_to_edn coverage |
 //! | H | type-check accepts any-T for println | scheme registration |
 //! | I | type-check accepts any-T for eprintln | scheme registration |
-//! | J | type-check infers HolonAST return for readln | scheme registration |
+//! | J | type-check infers polymorphic return for readln | scheme registration (Stone 8.2: revived) |
 //!
 //! ThreadIO is per-thread; cargo's test-runner reuses worker
 //! threads, so every populated row calls `uninstall_thread_io` on
@@ -34,20 +34,9 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::span::Span;
 use wat::thread_io::{
-    install_thread_io, next_thread_id, spawn_write_service_peer, uninstall_thread_io,
-    RuntimeServices, StdInServiceEvent, WriteServiceMsg, ThreadIO,
+    install_thread_io, next_thread_id, spawn_service_peer, uninstall_thread_io,
+    RuntimeServices, ServiceMsg, ThreadIO,
 };
-use wat::typed_channel::{bounded, Sender, Receiver};
-
-// Arc 170 slice 1f-ι — the readln contract now requires a `-> :T`
-// annotation and the bridge reply payload is a raw `String` (was
-// `Arc<HolonAST>` pre-1f-ι). Row C/F/J below are slice-1f-α-vintage
-// assertions that DO NOT reflect the new contract; they remain here
-// as historical record. Subsequent slices (1f-κ/λ/μ) migrate them.
-// The type signatures are updated to the new contract so the file
-// continues to compile (the workspace-wide build precondition for
-// every other test); the assertions themselves are expected to
-// surface failure under the new substrate.
 
 // ─── helpers ───────────────────────────────────────────────────────
 
@@ -63,57 +52,22 @@ fn freeze_skeleton() -> wat::freeze::FrozenWorld {
         .expect("skeleton freeze succeeds")
 }
 
-/// Build a [`ThreadIO`] for tests. Returns the IO + the service-side
-/// channel ends so the test can drive the service-side conversation
-/// from a tester thread. Channel ends carry Event variants per
-/// pass 18 — service-side receives an Event and matches the variant.
-struct TestRig {
-    io: Option<ThreadIO>,
-    /// service-side: receive StdInServiceEvent from readln.
-    stdin_rx: Receiver<StdInServiceEvent>,
-    stdin_reply_tx: Sender<String>,
-}
-
-fn build_rig() -> TestRig {
-    // Stone 8.1 — stdout is a universe-resident peer; rows that don't
-    // drive stdout get a DUMMY reply pair (no service loop behind it —
-    // and println without RuntimeServices errors ServiceNotRunning
-    // before it could ever block on this). Row D builds the REAL
-    // miniature universe instead of using this rig half.
-    let (_stdout_reply_tx, stdout_reply_rx) =
-        wat::comms::thread::pair::<Result<(), String>>();
-    // Stone 8.1b — stderr is a universe-resident peer; same dummy pattern.
-    let (_stderr_reply_tx, stderr_reply_rx) =
-        wat::comms::thread::pair::<Result<(), String>>();
-    let (stdin_tx, stdin_rx) = bounded::<StdInServiceEvent>(1);
-    let (stdin_reply_tx, stdin_reply_rx) = bounded::<String>(1);
-
-    let io = ThreadIO {
-        stdout_reply_rx,
-        stderr_reply_rx,
-        thread_id: next_thread_id(),
-        stdin_tx,
-        stdin_reply_rx,
-    };
-
-    TestRig {
-        io: Some(io),
-        stdin_rx,
-        stdin_reply_tx,
-    }
-}
-
-/// Stone 8.1/8.1b — a MINIATURE TRUE UNIVERSE for the stdout + stderr rows:
-/// pipe-backed writers (fd — cross-thread honest), the real 15-line wat
-/// handles, the real Rust service loops, real Register exchanges. The
-/// stdout/stderr tests no longer play the service; they exercise the
-/// production pipeline end to end.
+/// Stone 8.1/8.1b/8.2 — a MINIATURE TRUE UNIVERSE for all three service rows:
+/// pipe-backed writers/reader (fd — cross-thread honest), the real 15-20-line
+/// wat handles, the real Rust service loops, real Register exchanges. The
+/// tests no longer play the service; they exercise the production pipeline
+/// end to end.
 struct MiniUniverse {
     sym: wat::runtime::SymbolTable,
-    stdout_input_tx: wat::comms::thread::Sender<WriteServiceMsg>,
+    stdin_input_tx: wat::comms::thread::Sender<ServiceMsg<String>>,
+    stdin_thread: std::thread::JoinHandle<()>,
+    /// The write end of the stdin pipe. Drop this to send EOF to the stdin
+    /// service loop (triggers assertion-failed! cascade in the wat handle).
+    stdin_feed: PipeWriter,
+    stdout_input_tx: wat::comms::thread::Sender<ServiceMsg<()>>,
     stdout_thread: std::thread::JoinHandle<()>,
     stdout_reader: PipeReader,
-    stderr_input_tx: wat::comms::thread::Sender<WriteServiceMsg>,
+    stderr_input_tx: wat::comms::thread::Sender<ServiceMsg<()>>,
     stderr_thread: std::thread::JoinHandle<()>,
     stderr_reader: PipeReader,
     tid: i64,
@@ -121,6 +75,32 @@ struct MiniUniverse {
 
 impl MiniUniverse {
     fn build(world: &wat::freeze::FrozenWorld) -> Self {
+        // ── stdin pipe + peer ──────────────────────────────────────────
+        let (stdin_pipe_r, stdin_pipe_w) =
+            wat::fork::make_pipe(":test::stdin-universe").expect("pipe for the stdin reader");
+        let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
+        let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
+
+        let stdin_handle = world
+            .symbols()
+            .get(":wat::kernel::services::StdInService/handle")
+            .expect("/handle is in the baked stdlib")
+            .clone();
+        let stdin_peer = spawn_service_peer(
+            "stdin",
+            stdin_handle,
+            stdin_reader,
+            world.symbols().clone(),
+            |rep: &Value| match rep {
+                Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+                    Value::String(s) => Ok((**s).clone()),
+                    _ => Err("StdInService Rep field[1] is not a String".into()),
+                },
+                _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
+            },
+        );
+        let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+
         // ── stdout pipe + peer ──────────────────────────────────────────
         let (stdout_pipe_r, stdout_pipe_w) =
             wat::fork::make_pipe(":test::stdout-universe").expect("pipe for the stdout writer");
@@ -132,13 +112,14 @@ impl MiniUniverse {
             .get(":wat::kernel::services::StdOutService/handle")
             .expect("/handle is in the baked stdlib")
             .clone();
-        let stdout_peer = spawn_write_service_peer(
+        let stdout_peer = spawn_service_peer(
             "stdout",
             stdout_handle,
             stdout_writer,
             world.symbols().clone(),
+            |_: &Value| Ok(()),
         );
-        let wat::thread_io::WriteServicePeer { input_tx: stdout_input_tx, thread: stdout_thread } = stdout_peer;
+        let wat::thread_io::ServicePeer { input_tx: stdout_input_tx, thread: stdout_thread } = stdout_peer;
 
         // ── stderr pipe + peer ──────────────────────────────────────────
         let (stderr_pipe_r, stderr_pipe_w) =
@@ -151,48 +132,54 @@ impl MiniUniverse {
             .get(":wat::kernel::services::StdErrService/handle")
             .expect("/handle is in the baked stdlib")
             .clone();
-        let stderr_peer = spawn_write_service_peer(
+        let stderr_peer = spawn_service_peer(
             "stderr",
             stderr_handle,
             stderr_writer,
             world.symbols().clone(),
+            |_: &Value| Ok(()),
         );
-        let wat::thread_io::WriteServicePeer { input_tx: stderr_input_tx, thread: stderr_thread } = stderr_peer;
+        let wat::thread_io::ServicePeer { input_tx: stderr_input_tx, thread: stderr_thread } = stderr_peer;
 
-        // ── RS-carrying sym — println/eprintln reach peers via runtime_services(). ──
-        let (stdin_dummy_tx, _stdin_dummy_rx) = wat::comms::thread::pair::<Value>();
+        // ── RS-carrying sym — all three primitives reach peers via runtime_services(). ──
         let mut sym = world.symbols().clone();
         sym.set_runtime_services(Arc::new(RuntimeServices {
-            stdin_ctrl: stdin_dummy_tx,
+            stdin_ctrl: stdin_input_tx.clone(),
             stdout_ctrl: stdout_input_tx.clone(),
             stderr_ctrl: stderr_input_tx.clone(),
         }));
 
-        // ── Register this thread with both peers. ───────────────────────
+        // ── Register this thread with all three peers. ───────────────────
         let tid = next_thread_id();
+
+        let (stdin_reply_tx, stdin_reply_rx) = wat::comms::thread::pair::<Result<String, String>>();
+        stdin_input_tx
+            .send(ServiceMsg::Register(tid, stdin_reply_tx))
+            .expect("register with the stdin service peer");
+
         let (stdout_reply_tx, stdout_reply_rx) = wat::comms::thread::pair::<Result<(), String>>();
         stdout_input_tx
-            .send(WriteServiceMsg::Register(tid, stdout_reply_tx))
+            .send(ServiceMsg::Register(tid, stdout_reply_tx))
             .expect("register with the stdout service peer");
 
         let (stderr_reply_tx, stderr_reply_rx) = wat::comms::thread::pair::<Result<(), String>>();
         stderr_input_tx
-            .send(WriteServiceMsg::Register(tid, stderr_reply_tx))
+            .send(ServiceMsg::Register(tid, stderr_reply_tx))
             .expect("register with the stderr service peer");
 
-        // ── ThreadIO: real stdout + stderr halves; stdin dummies. ───────
-        let (stdin_tx, _stdin_rx) = bounded::<StdInServiceEvent>(1);
-        let (_stdin_reply_tx, stdin_reply_rx) = bounded::<String>(1);
+        // ── ThreadIO: all three live halves. ────────────────────────────
         install_thread_io(ThreadIO {
             stdout_reply_rx,
             stderr_reply_rx,
             thread_id: tid,
-            stdin_tx,
             stdin_reply_rx,
         });
 
         MiniUniverse {
             sym,
+            stdin_input_tx,
+            stdin_thread,
+            stdin_feed,
             stdout_input_tx,
             stdout_thread,
             stdout_reader,
@@ -201,6 +188,23 @@ impl MiniUniverse {
             stderr_reader,
             tid,
         }
+    }
+
+    /// Feed a line to the stdin service (writes `s + "\n"` into the pipe).
+    /// The stdin handle reads this on the next Req.
+    fn feed_line(&self, s: &str) {
+        use wat::io::WatWriter;
+        let line = format!("{}\n", s);
+        self.stdin_feed
+            .write_all(line.as_bytes(), Span::unknown())
+            .expect("feed_line: write");
+    }
+
+    /// Eval a readln form and return the typed Value.
+    fn readln_eval(&self, src: &str) -> Result<Value, RuntimeError> {
+        let ast = wat::parse_one!(src).expect("parse readln form");
+        let env = Environment::new();
+        eval(&ast, &env, &self.sym).map(|tv| tv.value_owned())
     }
 
     /// Eval a println form; the mini-TCP ack means write-COMPLETED, so
@@ -239,14 +243,19 @@ impl MiniUniverse {
             .to_string()
     }
 
-    /// Teardown in the ZERO-MUTEX drop order: deregister BOTH peers,
-    /// drop EVERY sender (the RS clone via sym; both originals), THEN
-    /// join both loops — the loops exit on disconnect; joining before
-    /// the drops would deadlock.
+    /// Teardown in the ZERO-MUTEX drop order: deregister ALL three peers,
+    /// drop EVERY sender (the RS clone via sym; all originals + feed writer),
+    /// THEN join all three loops — the loops exit on disconnect; joining
+    /// before the drops would deadlock.
+    /// Note: a panicked stdin loop (EOF cascade) joins Err — that's expected
+    /// when the test explicitly drops stdin_feed before finishing.
     fn finish(self) {
         let _ = uninstall_thread_io();
         let MiniUniverse {
             sym,
+            stdin_input_tx,
+            stdin_thread,
+            stdin_feed,
             stdout_input_tx,
             stdout_thread,
             stdout_reader,
@@ -255,37 +264,34 @@ impl MiniUniverse {
             stderr_reader,
             tid,
         } = self;
+        stdin_input_tx
+            .send(ServiceMsg::Deregister(tid))
+            .expect("deregister stdin");
         stdout_input_tx
-            .send(WriteServiceMsg::Deregister(tid))
+            .send(ServiceMsg::Deregister(tid))
             .expect("deregister stdout");
         stderr_input_tx
-            .send(WriteServiceMsg::Deregister(tid))
+            .send(ServiceMsg::Deregister(tid))
             .expect("deregister stderr");
-        // Drop sym first (releases the RS clone holding both input_tx clones).
+        // Drop sym first (releases the RS clone holding all three input_tx clones).
         drop(sym);
         // Then drop the original input_tx senders (the last references;
         // disconnects the loops' input_rx so they can exit).
+        drop(stdin_input_tx);
         drop(stdout_input_tx);
         drop(stderr_input_tx);
+        // Drop the feed writer (EOF to the stdin pipe; but we already sent
+        // Deregister above so the loop is draining normally).
+        drop(stdin_feed);
         drop(stdout_reader);
         drop(stderr_reader);
+        // stdin loop may have panicked (if EOF fired); log Err and continue.
+        if let Err(e) = stdin_thread.join() {
+            eprintln!("[test] stdin service loop panicked during finish: {:?}", e);
+        }
         stdout_thread.join().expect("stdout service loop joins clean");
         stderr_thread.join().expect("stderr service loop joins clean");
     }
-}
-
-/// Install the rig's ThreadIO into the calling thread's cell, run
-/// `body`, drain on exit. Cargo reuses test threads so leaking
-/// ThreadIO across tests would break isolation.
-fn run_with_thread_io<F, T>(rig: &mut TestRig, body: F) -> T
-where
-    F: FnOnce() -> T,
-{
-    let io = rig.io.take().expect("ThreadIO consumed twice");
-    install_thread_io(io);
-    let result = body();
-    let _ = uninstall_thread_io();
-    result
 }
 
 /// Drain any leftover ThreadIO from the calling thread before the
@@ -333,13 +339,17 @@ fn row_b_eprintln_unpopulated_returns_service_not_running() {
 }
 
 // ─── C. unpopulated readln ─────────────────────────────────────────
+//
+// Arc 214 Stone 8.2 — revived. The `-> :T` annotation is now required;
+// unpopulated readln surfaces ServiceNotRunning (no ThreadIO installed).
 
 #[test]
-#[ignore = "arc 170 slice 1f-ι: bare `(:wat::kernel::readln)` is now MalformedForm (the `-> :T` annotation is required); migrate to `(:wat::kernel::readln -> :wat::core::String)` in a follow-up slice"]
 fn row_c_readln_unpopulated_returns_service_not_running() {
     fresh_thread();
     let world = freeze_skeleton();
-    let ast = wat::parse_one!("(:wat::kernel::readln)").expect("parse readln form");
+    // Must use the annotated form (bare `(:wat::kernel::readln)` is MalformedForm).
+    let ast = wat::parse_one!("(:wat::kernel::readln -> :wat::core::String)")
+        .expect("parse readln form");
     let env = Environment::new();
     let err = eval_in_frozen(&ast, &world, &env)
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
@@ -366,8 +376,8 @@ fn row_d_println_populated_sends_serialized_string() {
 // ─── E. populated eprintln sends serialized String ─────────────────
 //
 // Arc 214 Stone 8.1b — reborn on MiniUniverse (the real write peer
-// + pipe). The legacy puppet halves (err_rx / err_ack_tx / TestRig
-// stderr fields) are gone; the production pipeline runs end-to-end.
+// + pipe). The legacy puppet halves are gone; the production pipeline
+// runs end-to-end.
 
 #[test]
 fn row_e_eprintln_populated_sends_serialized_string() {
@@ -381,43 +391,31 @@ fn row_e_eprintln_populated_sends_serialized_string() {
 }
 
 // ─── F. populated readln returns received form ─────────────────────
+//
+// Arc 214 Stone 8.2 — revived. The `-> :T` annotation is required;
+// feed a raw EDN line via stdin_feed; readln parses + coerces to T.
 
 #[test]
-#[ignore = "arc 170 slice 1f-ι: row F's `(:wat::kernel::readln)` no longer parses without the `-> :T` annotation; migrate to `(:wat::kernel::readln -> :wat::core::String)` in a follow-up slice"]
 fn row_f_readln_populated_returns_received_form() {
     fresh_thread();
-    let mut rig = build_rig();
-    // The raw EDN line the service hands back. Pre-1f-ι this was a
-    // pre-parsed Arc<HolonAST>; post-1f-ι the bridge carries the
-    // raw line and the substrate parses + coerces to the caller's
-    // declared T.
-    let expected_line = String::from("\"ok\"");
-
-    let stdin_rx = rig.stdin_rx.clone();
-    let stdin_reply_tx = rig.stdin_reply_tx.clone();
-    let payload = expected_line.clone();
-    let tester = std::thread::spawn(move || {
-        let event = stdin_rx.recv().expect("service receives event");
-        match event {
-            StdInServiceEvent::Read => {}
-            _ => panic!("expected Read variant"),
-        }
-        stdin_reply_tx.send(payload).expect("service sends reply");
-    });
-
     let world = freeze_skeleton();
-    let ast = wat::parse_one!("(:wat::kernel::readln)").expect("parse readln form");
-    let env = Environment::new();
-    let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
+    let universe = MiniUniverse::build(&world);
 
-    tester.join().expect("tester joins");
-    // Slice 1f-ι expectation: bare `(:wat::kernel::readln)` is now a
-    // MalformedForm (missing the `-> :T` annotation). The assertion
-    // body below is the slice-1f-α-vintage shape preserved only for
-    // historical record; the #[ignore] above keeps cargo test from
-    // attempting it until a follow-up slice migrates the assertion.
-    let _ = result;
-    let _ = expected_line;
+    // Feed an EDN String value so readln can parse + coerce it.
+    universe.feed_line("\"ok\"");
+
+    let result = universe
+        .readln_eval("(:wat::kernel::readln -> :wat::core::String)")
+        .expect("readln succeeds");
+
+    // The service reads the raw line, the peer routes reply_of → "ok" (without quotes),
+    // then eval_kernel_readln parses the EDN "\"ok\"" → coerces to String "ok".
+    match result {
+        Value::String(s) => assert_eq!(s.as_str(), "ok"),
+        other => panic!("expected String; got {:?}", other),
+    }
+
+    universe.finish();
 }
 
 // ─── G. polymorphic value types serialize correctly ────────────────
@@ -494,23 +492,191 @@ fn row_i_type_check_eprintln_accepts_any_t() {
     );
 }
 
-// ─── J. type-check infers HolonAST return for readln ───────────────
+// ─── J. type-check accepts polymorphic return for readln ───────────
+//
+// Arc 214 Stone 8.2 — revived. readln's scheme is polymorphic via the
+// call-site `-> :T` annotation; a defn that returns String from readln
+// must freeze successfully (the `-> :wat::core::String` unifies with T).
 
 #[test]
-#[ignore = "arc 170 slice 1f-ι: readln no longer returns HolonAST by default — its scheme is now polymorphic via the call-site `-> :T` annotation; migrate to `(:wat::kernel::readln -> :wat::core::String)` (or any other T) in a follow-up slice"]
-fn row_j_type_check_readln_returns_holonast() {
-    // `:test::r` declares its return as :wat::holon::HolonAST and its
-    // body is exactly `(:wat::kernel::readln)`. Successful freeze
-    // proves the return type unifies — the scheme says
-    // `() -> :wat::holon::HolonAST`.
+fn row_j_type_check_readln_returns_polymorphic_t() {
+    // `:test::r` declares its return as :wat::core::String and its
+    // body is `(:wat::kernel::readln -> :wat::core::String)`.
+    // Successful freeze proves the return type unifies correctly.
     let src = r#"
-        (:wat::core::defn :test::r [] -> :wat::holon::HolonAST (:wat::kernel::readln))
+        (:wat::core::defn :test::r [] -> :wat::core::String (:wat::kernel::readln -> :wat::core::String))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
         result.is_ok(),
-        "readln return type should unify with :wat::holon::HolonAST; got: {:?}",
+        "readln with -> :T annotation should type-check with matching return type; got: {:?}",
         result.err()
+    );
+}
+
+// ─── NEW: reply-routing proof ─────────────────────────────────────
+//
+// Arc 214 Stone 8.2 (DESIGN-SLICE-8 named proof): two tids registered
+// with the stdin peer; feed "1" then "2"; send Req(tid_a) then Req(tid_b);
+// each reply_rx gets its own line — the tag routes, lines never cross.
+
+#[test]
+fn row_k_stdin_reply_routing_two_tids_never_cross() {
+    fresh_thread();
+    let world = freeze_skeleton();
+
+    // ── Build stdin peer directly (no full MiniUniverse needed) ───────
+    let (stdin_pipe_r, stdin_pipe_w) =
+        wat::fork::make_pipe(":test::stdin-routing").expect("pipe for routing proof");
+    let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
+    let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
+
+    let stdin_handle = world
+        .symbols()
+        .get(":wat::kernel::services::StdInService/handle")
+        .expect("/handle is in the baked stdlib")
+        .clone();
+    let stdin_peer = spawn_service_peer(
+        "stdin",
+        stdin_handle,
+        stdin_reader,
+        world.symbols().clone(),
+        |rep: &Value| match rep {
+            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+                Value::String(s) => Ok((**s).clone()),
+                _ => Err("StdInService Rep field[1] is not a String".into()),
+            },
+            _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
+        },
+    );
+    let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+
+    // ── Register TWO tids ─────────────────────────────────────────────
+    let tid_a = next_thread_id();
+    let tid_b = next_thread_id();
+
+    let (reply_tx_a, reply_rx_a) = wat::comms::thread::pair::<Result<String, String>>();
+    let (reply_tx_b, reply_rx_b) = wat::comms::thread::pair::<Result<String, String>>();
+
+    stdin_input_tx
+        .send(ServiceMsg::Register(tid_a, reply_tx_a))
+        .expect("register tid_a");
+    stdin_input_tx
+        .send(ServiceMsg::Register(tid_b, reply_tx_b))
+        .expect("register tid_b");
+
+    // ── Feed "1" then "2" into the pipe ──────────────────────────────
+    {
+        use wat::io::WatWriter;
+        stdin_feed.write_all(b"1\n", Span::unknown()).expect("feed 1");
+        stdin_feed.write_all(b"2\n", Span::unknown()).expect("feed 2");
+    }
+
+    // ── Send Req(tid_a) then Req(tid_b) ──────────────────────────────
+    let req_a = Value::Struct(Arc::new(wat::runtime::StructValue {
+        type_name: ":wat::kernel::services::StdInService::Req".into(),
+        fields: vec![Value::i64(tid_a)],
+    }));
+    let req_b = Value::Struct(Arc::new(wat::runtime::StructValue {
+        type_name: ":wat::kernel::services::StdInService::Req".into(),
+        fields: vec![Value::i64(tid_b)],
+    }));
+    stdin_input_tx
+        .send(ServiceMsg::Req(req_a))
+        .expect("send Req(tid_a)");
+    stdin_input_tx
+        .send(ServiceMsg::Req(req_b))
+        .expect("send Req(tid_b)");
+
+    // ── Assert each reply_rx gets its own line (tag routes, never cross) ──
+    let line_a = reply_rx_a.recv().expect("reply_rx_a receives").expect("Ok reply for tid_a");
+    let line_b = reply_rx_b.recv().expect("reply_rx_b receives").expect("Ok reply for tid_b");
+
+    // line_a should be "1" (the EDN integer 1), line_b should be "2".
+    assert_eq!(line_a, "1", "tid_a's reply_rx must get line '1'");
+    assert_eq!(line_b, "2", "tid_b's reply_rx must get line '2'");
+
+    // ── Teardown ──────────────────────────────────────────────────────
+    stdin_input_tx
+        .send(ServiceMsg::Deregister(tid_a))
+        .expect("deregister tid_a");
+    stdin_input_tx
+        .send(ServiceMsg::Deregister(tid_b))
+        .expect("deregister tid_b");
+    drop(stdin_input_tx);
+    drop(stdin_feed);
+    // Loop exits cleanly (Deregister sent before disconnect).
+    if let Err(e) = stdin_thread.join() {
+        eprintln!("[test] stdin loop panicked during routing proof teardown: {:?}", e);
+    }
+}
+
+// ─── NEW: EOF cascade test ────────────────────────────────────────
+//
+// Arc 214 Stone 8.2 (EOF doctrine): drop the feed writer → send a Req
+// → the stdin handle hits None → assertion-failed! panics the loop →
+// every blocked caller's reply_rx.recv() returns Err (ChannelDisconnected).
+// The loop join().is_err() IS the assertion — no catch_unwind needed.
+
+#[test]
+fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
+    fresh_thread();
+    let world = freeze_skeleton();
+
+    let (stdin_pipe_r, stdin_pipe_w) =
+        wat::fork::make_pipe(":test::stdin-eof").expect("pipe for eof test");
+    let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
+    let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
+
+    let stdin_handle = world
+        .symbols()
+        .get(":wat::kernel::services::StdInService/handle")
+        .expect("/handle is in the baked stdlib")
+        .clone();
+    let stdin_peer = spawn_service_peer(
+        "stdin",
+        stdin_handle,
+        stdin_reader,
+        world.symbols().clone(),
+        |rep: &Value| match rep {
+            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+                Value::String(s) => Ok((**s).clone()),
+                _ => Err("StdInService Rep field[1] is not a String".into()),
+            },
+            _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
+        },
+    );
+    let wat::thread_io::ServicePeer { input_tx: stdin_input_tx, thread: stdin_thread } = stdin_peer;
+
+    let tid = next_thread_id();
+    let (reply_tx, reply_rx) = wat::comms::thread::pair::<Result<String, String>>();
+    stdin_input_tx
+        .send(ServiceMsg::Register(tid, reply_tx))
+        .expect("register");
+
+    // Drop the feed writer → EOF on fd 0 (from the stdin pipe reader's perspective).
+    drop(stdin_feed);
+
+    // Send a Req — the handle will read None → assertion-failed! → panic.
+    let req = Value::Struct(Arc::new(wat::runtime::StructValue {
+        type_name: ":wat::kernel::services::StdInService::Req".into(),
+        fields: vec![Value::i64(tid)],
+    }));
+    // The send may succeed (the loop hadn't panicked yet) or fail (it already did).
+    let _ = stdin_input_tx.send(ServiceMsg::Req(req));
+
+    // The caller's reply_rx.recv() returns Err (loop panicked → registry dropped).
+    let got = reply_rx.recv();
+    assert!(
+        got.is_err(),
+        "reply_rx must disconnect (Err) when the stdin loop panics on EOF; got Ok"
+    );
+
+    // The loop join().is_err() IS the EOF-cascade assertion.
+    drop(stdin_input_tx);
+    assert!(
+        stdin_thread.join().is_err(),
+        "stdin loop must join Err (panicked via assertion-failed! on EOF)"
     );
 }
