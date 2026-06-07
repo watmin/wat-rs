@@ -124,3 +124,25 @@ judgment engine (trust boundary — substrate-as-teacher requires the judge
 have only true things to say) and the syscall leaves (FFI boundary). User-
 defined inference RULES and dependent types stay out; user-AUTHORED and
 user-COMPUTED declarations come in.
+
+## The second half of the keystone (added 2026-06-07 — the one non-obvious gap)
+
+Defclause dispatch is TWO matchers, and the stub above only covered check-side:
+
+- **Check-side** (`infer_list`'s clause path): upgrades to instantiate-then-unify
+  — type vars bind and flow. (The keystone section.)
+- **Runtime-side** (`dispatch_keyword_value` / `val_type_path`, runtime.rs):
+  values are TYPE-ERASED — a peer value carries only its sentinel
+  (`:wat::kernel::Thread'`), never I/O. The runtime matcher therefore matches
+  **parametric clause params by HEAD ONLY, params ignored** — sound precisely
+  because check already proved the params at the call site. (4.6a-i's
+  `val_type_path` → `inner.type_path` routing is the precedent: runtime
+  dispatch on the sentinel string.)
+
+Also: `parse_defclause_form` (runtime.rs) needs the arc-139 name-turbofish
+split (`split_name_and_type_params`, runtime.rs:2542 region) applied to the
+DEFCLAUSE name — mirror, don't reinvent.
+
+With this named, the stub is strike-complete: lair-study at strike time covers
+the rest (exact matcher line numbers shift; DISPATCH.md § "Where it's declared"
+is the stable pointer).
