@@ -25,7 +25,7 @@ pub struct EncodingCtx {
     /// in this program: `floor(sqrt(dim_count))`. Cached at
     /// construction.
     pub capacity: usize,
-    // rune:solvere(load-bearing-coupling) — Config on EncodingCtx is the sole inherited-config carrier through SymbolTable into spawned sub-programs; splitting needs a parallel SymbolTable config field + 4 spawn-driver updates; a future arc.
+    // rune:solvere(load-bearing-coupling) — Config on EncodingCtx is the sole inherited-config carrier through SymbolTable into spawned sub-programs; 5 spawn-driver sites (fork.rs×2, spawn.rs, spawn_process.rs×2) read ctx.config. Coupled by the config-inheritance design; any decoupling consolidates in the spawn/ home (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md), not before it lifts.
     pub config: Config,
 }
 

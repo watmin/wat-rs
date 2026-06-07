@@ -15,6 +15,7 @@ thread_local! {
 
 /// Scope guard that pushes a frame on construction and pops on drop.
 /// Ensures the call stack unwinds cleanly on early return / panic.
+#[must_use = "FrameGuard must be bound to a local (let _g = ...); dropping it immediately pops the frame"]
 pub(crate) struct FrameGuard;
 
 impl FrameGuard {

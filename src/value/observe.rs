@@ -353,9 +353,23 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         },
         // Arc 220 Stone 220.4 — List renders as EDN parens form `(item1 item2 ...)`.
         // Delegates to per-Value render for each child. Space-joined.
+        // Length-guarded: same incremental SHOW_MAX_LEN break as Vec/Tuple/HashSet.
         Value::wat__core__List(xs) => {
-            let parts: Vec<String> = xs.iter().map(|v| render_value(v, depth + 1)).collect();
-            format!("({})", parts.join(" "))
+            let mut out = String::from("(");
+            let mut first = true;
+            for v in xs.iter() {
+                if !first {
+                    out.push(' ');
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push(')');
+            out
         }
         // Stone 237.2 — defclause renders as `<clauses:name/N>`.
         Value::wat__core__clauses(cs) => {

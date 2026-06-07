@@ -626,7 +626,7 @@ impl Eq for Value {}
 /// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
 /// well-defined structural hash semantics. They are NOT currently atomizable (not in
 /// the `is_atomizable` predicate), but their hash implementations are honest. If the
-/// predicate is extended to admit them in a future arc, the Hash impl is already
+/// predicate is later extended to admit them, the Hash impl is already
 /// correct.
 impl std::hash::Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {

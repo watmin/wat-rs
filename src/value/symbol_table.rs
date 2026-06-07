@@ -14,6 +14,9 @@ use crate::thread_io::RuntimeServices;
 use crate::types::{TypeEnv, TypeExpr};
 use crate::value::{EncodingCtx, Function};
 
+/// Per-binding metadata: FQDN -> metadata-key -> raw AST value.
+pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
+
 /// Keyword-path ↦ Function registry + runtime capabilities.
 ///
 /// The `encoding_ctx` and `source_loader` fields are populated at
@@ -117,9 +120,9 @@ pub struct SymbolTable {
     /// `eval-ast!` flow). Default `false` (opt-in). Toggled via
     /// `(:wat::config::set-eval-redef! true)`. Type-stability check applies.
     /// NOTE: eval-time `def` binding is not yet wired (eval arm returns
-    /// `Value::Unit`); this flag is scaffolding. A future arc opens IFF a
-    /// caller surfaces wanting eval-time def redef.
-    // rune:purgare(future-fixture) — eval-time def-redef scaffolding; write-only (no read-side gate yet); delete-vs-wire pending a builder roadmap decision.
+    /// `Value::Unit`); this flag is write-only scaffolding — config-parsed,
+    /// read by no eval path.
+    // rune:purgare(future-fixture) — eval-time def-redef scaffolding: config-parsed into this field but no eval path reads it (the read-side gate is unbuilt); write-only by present construction.
     pub eval_redef_allowed: bool,
     /// Arc 170 slice 1f-γ — runtime services carrier. When set, the
     /// `:wat::kernel::spawn-thread` arm registers each spawned thread
@@ -143,7 +146,7 @@ pub struct SymbolTable {
     /// HARD CUT of def-restricted) project to their typed needs.
     /// Populated by `register_defines` / `register_runtime_defs_form`
     /// when a `def` form carries a metadata-map at items[2].
-    pub binding_metadata: HashMap<String, HashMap<String, WatAST>>,
+    pub binding_metadata: BindingMetadata,
 }
 
 impl std::fmt::Debug for SymbolTable {

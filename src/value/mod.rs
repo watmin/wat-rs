@@ -9,6 +9,7 @@ pub mod frame;
 pub mod observe;
 pub mod signal;
 pub mod symbol_table;
+// The home's namesake module is value.rs (the Value enum); crate::value::Value collapses the path via the re-export below. The lint fires on the domain-required internal organization.
 #[allow(clippy::module_inception)]
 pub mod value;
 
