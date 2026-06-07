@@ -4859,6 +4859,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 214 Stone 4.6b — select' intrinsic.
+            // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
+            // O flows from Vector<peer<I,O>>'s element peer type into the
+            // return Tuple<i64,O>. See `infer_select_prime` for the reasoning.
+            ":wat::kernel::select'" => {
+                let (val, mut errs) = infer_select_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -11081,6 +11093,117 @@ fn infer_close_prime(
             TypeExpr::Path(":wat::core::nil".into())
         }
     };
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
+// O flows from Vector<peer<I,O>>'s element peer type into the return Tuple<i64,O>.
+// A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
+// the same infinite-open-set argument as get/recv'. Mixed tiers are already
+// forbidden by Vector homogeneity at check; no bespoke rejection needed.
+/// Type-check `(:wat::kernel::select' peers)` — Stone 4.6b.
+///
+/// One positional arg: `args[0]` a `Vector<Thread'<I,O>>` or
+/// `Vector<Process'<I,O>>`. Returns `Tuple<i64, O>`.
+///
+/// On success: `TypeExpr::Tuple(vec![i64-path, O])`.
+/// On failure (non-peer element type): TypeMismatch with
+/// "Vector of Thread'<I,O> | Process'<I,O> peers".
+fn infer_select_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::select'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+        return CheckResult::partial_with(fb, local_errors);
+    }
+
+    // Infer the argument — must be Vector<peer<I,O>>.
+    let vec_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+    let vec_surface = apply_subst(&vec_ty, subst);
+    let vec_reduced = reduce(&vec_surface, subst, env.types());
+
+    // Match Vector<elem>.
+    let elem_ty = match &vec_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if head == "wat::core::Vector" && targs.len() == 1 =>
+        {
+            targs[0].clone()
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peers".into(),
+                    expected: "Vector of Thread'<I,O> | Process'<I,O> peers".into(),
+                    got: format_type(other),
+                },
+            });
+            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+
+    // Reduce the element type to a peer Parametric.
+    let elem_surface = apply_subst(&elem_ty, subst);
+    let elem_reduced = reduce(&elem_surface, subst, env.types());
+    let o_ty = match &elem_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if (head == "wat::kernel::Thread'" || head == "wat::kernel::Process'")
+                && targs.len() == 2 =>
+        {
+            // O is args[1] (I is args[0]).
+            targs[1].clone()
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peers".into(),
+                    expected: "Vector of Thread'<I,O> | Process'<I,O> peers".into(),
+                    got: format_type(other),
+                },
+            });
+            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+
+    let o_resolved = apply_subst(&o_ty, subst);
+    let ret = TypeExpr::Tuple(vec![
+        TypeExpr::Path(":wat::core::i64".into()),
+        o_resolved,
+    ]);
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {

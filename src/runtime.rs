@@ -4141,6 +4141,11 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::close'" => {
             eval_peer_close_prime(args, list_span, env, sym)
         }
+        // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
+        // select' : Vector<peer<I,O>> -> Tuple<i64, O>
+        ":wat::kernel::select'" => {
+            eval_peer_select_prime(args, list_span, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The runtime fn in src/fork.rs is left
@@ -22993,6 +22998,301 @@ fn eval_peer_close_prime(
             },
         }
         .into()),
+    }
+}
+
+/// `(:wat::kernel::select' peers)` — Stone 4.6b.
+///
+/// Blocks until one peer's output is ready; returns `(index, value)` as
+/// `Value::Tuple([Value::i64(index), value])`.
+///
+/// Dispatch:
+/// - `peers` must be a non-empty `Value::Vec`.
+/// - All elements must be the same tier (the first element's type_path decides).
+///   A mismatched element → TypeMismatch (check forbids it; runtime refuses honestly).
+/// - Empty vector → MalformedForm "select over an empty vector would block forever".
+/// - `None` Option (peer already closed) → MalformedForm "peer already closed".
+/// - Thread tier: builds a `comms::thread::Select`, registers output receivers,
+///   blocks, maps `Recv{index, value}` → `Value::Tuple(...)`.
+/// - Process tier: same with `comms::process::Select`; decodes EDN String → Value.
+/// - Shutdown fires → MalformedForm "select' interrupted by shutdown".
+fn eval_peer_select_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::select'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }
+        .into());
+    }
+    let peers_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peers_vec = match peers_val {
+        Value::Vec(ref v) => v.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vector of peers",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }
+            .into())
+        }
+    };
+
+    if peers_vec.is_empty() {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "select over an empty vector would block forever".into(),
+            },
+        }
+        .into());
+    }
+
+    // Determine tier from first element.
+    let first_type_path = match &peers_vec[0] {
+        Value::RustOpaque(inner) => inner.type_path,
+        other => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            }
+            .into())
+        }
+    };
+
+    if first_type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH {
+        // ── Thread tier ────────────────────────────────────────────────────────
+        // Downcast all elements to Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>.
+        type ThreadCell = std::sync::Arc<
+            crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Thread<Value, Value>>,
+            >,
+        >;
+        let mut arcs: Vec<&ThreadCell> = Vec::with_capacity(peers_vec.len());
+        for (i, peer) in peers_vec.iter().enumerate() {
+            match peer {
+                Value::RustOpaque(inner)
+                    if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+                {
+                    let cell: &ThreadCell = crate::rust_deps::marshal::downcast_ref_opaque(
+                        inner,
+                        crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
+                        OP,
+                        list_span.clone(),
+                    )?;
+                    arcs.push(cell);
+                }
+                other => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "peers[{}] has wrong tier (expected Thread'): {:?}",
+                                i,
+                                ValueSnapshot::of(other)
+                            ),
+                        },
+                    }
+                    .into())
+                }
+            }
+        }
+
+        // Acquire ref_guard for each cell — simultaneous shared borrows.
+        let mut guards: Vec<crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::peer::Thread<Value, Value>>>> =
+            Vec::with_capacity(arcs.len());
+        for arc in &arcs {
+            guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
+        }
+
+        // Verify none are closed and collect &Receiver references.
+        let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
+            Vec::with_capacity(guards.len());
+        for (i, guard) in guards.iter().enumerate() {
+            match &**guard {
+                None => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("peer already closed (index {})", i),
+                        },
+                    }
+                    .into())
+                }
+                Some(peer) => receivers.push(&peer.output),
+            }
+        }
+
+        // Build Select and register all receivers.
+        let mut sel = crate::comms::thread::Select::new();
+        for rx in &receivers {
+            sel.recv(*rx);
+        }
+
+        // Block until ready.
+        match sel.select() {
+            crate::comms::SelectOutcome::Recv { index, result } => {
+                let value = result.map_err(|_| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select' recv failed: peer closed / thread exited".into(),
+                        },
+                    })
+                })?;
+                Ok(Value::Tuple(std::sync::Arc::new(vec![
+                    Value::i64(index.0 as i64),
+                    value,
+                ])))
+            }
+            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select' interrupted by shutdown".into(),
+                },
+            }
+            .into()),
+        }
+    } else if first_type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH {
+        // ── Process tier ───────────────────────────────────────────────────────
+        type ProcessCell = std::sync::Arc<
+            crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessPeerBundle>,
+            >,
+        >;
+        let mut arcs: Vec<&ProcessCell> = Vec::with_capacity(peers_vec.len());
+        for (i, peer) in peers_vec.iter().enumerate() {
+            match peer {
+                Value::RustOpaque(inner)
+                    if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+                {
+                    let cell: &ProcessCell = crate::rust_deps::marshal::downcast_ref_opaque(
+                        inner,
+                        crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                        OP,
+                        list_span.clone(),
+                    )?;
+                    arcs.push(cell);
+                }
+                other => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "peers[{}] has wrong tier (expected Process'): {:?}",
+                                i,
+                                ValueSnapshot::of(other)
+                            ),
+                        },
+                    }
+                    .into())
+                }
+            }
+        }
+
+        // Acquire ref_guard for each cell.
+        let mut guards: Vec<crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::spawn::ProcessPeerBundle>>> =
+            Vec::with_capacity(arcs.len());
+        for arc in &arcs {
+            guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
+        }
+
+        // Verify none are closed and collect &Receiver<String> references.
+        let mut receivers: Vec<&crate::comms::process::Receiver<String>> =
+            Vec::with_capacity(guards.len());
+        for (i, guard) in guards.iter().enumerate() {
+            match &**guard {
+                None => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("peer already closed (index {})", i),
+                        },
+                    }
+                    .into())
+                }
+                Some(bundle) => receivers.push(&bundle.peer.output),
+            }
+        }
+
+        // Build Select and register all receivers.
+        let mut sel = crate::comms::process::Select::new();
+        for rx in &receivers {
+            sel.recv(*rx);
+        }
+
+        // Block until ready.
+        match sel.select().map_err(|io_err| {
+            EvalBreak::from(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("select' io_uring error: {}", io_err),
+                },
+            })
+        })? {
+            crate::comms::SelectOutcome::Recv { index, result } => {
+                let edn_str = result.map_err(|_| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select' recv failed: peer closed / child exited".into(),
+                        },
+                    })
+                })?;
+                let value = crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("select' EDN decode failed: {}", e),
+                        },
+                    })
+                })?;
+                Ok(Value::Tuple(std::sync::Arc::new(vec![
+                    Value::i64(index.0 as i64),
+                    value,
+                ])))
+            }
+            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select' interrupted by shutdown".into(),
+                },
+            }
+            .into()),
+        }
+    } else {
+        Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                got: Box::new(ValueSnapshot::unavailable(first_type_path)),
+            },
+        }
+        .into())
     }
 }
 

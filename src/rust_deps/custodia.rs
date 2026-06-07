@@ -90,6 +90,61 @@ impl<T: Send> ThreadOwnedCell<T> {
         // Safety: thread-owner invariant checked above.
         Ok(unsafe { f(&*self.cell.get()) })
     }
+
+    /// Return a lifetime-bound shared-borrow guard after asserting ownership.
+    ///
+    /// Same thread-id validation as `with_ref`; the guard `Deref`s to `&T`
+    /// and is bound to the lifetime of `self`. This is the escape hatch for
+    /// `select'`: registering N receivers in a `comms::thread::Select` or
+    /// `comms::process::Select` requires holding N `&Receiver` borrows
+    /// simultaneously — the closure form (`with_ref`) cannot nest for dynamic N.
+    ///
+    /// # Safety rationale — the HONEST contract
+    ///
+    /// Two layers, only the first structural:
+    ///
+    /// 1. **Cross-thread access is structurally rejected** — `ensure_owner`
+    ///    (the thread-id check), identical to the closure forms.
+    /// 2. **On the owner thread, NOTHING structural prevents `with_mut` while
+    ///    a `RefGuard` is live** — `with_mut` takes `&self` (interior
+    ///    mutability is the cell's design), so Rust cannot see the conflict.
+    ///    Soundness is a CALLER CONTRACT: do not call `with_mut` on a cell
+    ///    while any of its guards is live. `eval_peer_select_prime` (the sole
+    ///    caller) upholds it by construction: guards are scoped to the eval
+    ///    fn, and no user code runs while they are held (the select blocks,
+    ///    then the guards drop before return). Any future caller inherits
+    ///    this contract — it is the same discipline `with_ref`'s closure
+    ///    body already imposes, extended across a scope.
+    pub fn ref_guard(
+        &self,
+        op: &'static str,
+        span: crate::span::Span,
+    ) -> Result<RefGuard<'_, T>, RuntimeError> {
+        self.ensure_owner(op, span)?;
+        // Safety: thread-owner invariant checked above; shared borrow only.
+        Ok(RefGuard {
+            ptr: unsafe { &*self.cell.get() },
+        })
+    }
+}
+
+/// Lifetime-bound shared-borrow guard for `ThreadOwnedCell<T>`.
+///
+/// Produced by `ThreadOwnedCell::ref_guard`. The guard's lifetime `'a` ties
+/// the borrow to the cell, and the thread-id check excludes other threads —
+/// but `with_mut` also takes `&self`, so **Rust does NOT prevent
+/// mutation-while-guarded on the owner thread**. That exclusion is the
+/// caller contract documented on `ref_guard`: never call `with_mut` on a
+/// cell while one of its guards is live.
+pub struct RefGuard<'a, T: Send> {
+    ptr: &'a T,
+}
+
+impl<'a, T: Send> std::ops::Deref for RefGuard<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.ptr
+    }
 }
 
 /// Single-use ownership-transfer cell. Generic backing for
