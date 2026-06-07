@@ -208,7 +208,6 @@ impl EnvBuilder {
 mod tests {
     use super::*;
     use crate::ast::WatAST;
-    use crate::span::Span;
     use crate::types::TypeExpr;
 
     fn nil_body() -> FunctionBody {
