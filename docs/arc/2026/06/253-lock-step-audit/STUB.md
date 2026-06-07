@@ -62,6 +62,39 @@ apply enough timing pressure to flush it. **The test surface earning its keep.**
 4. **Connect to the leak:** once fd-lifecycle is RAII + POLLHUP is guaranteed, re-test whether the
    arc-170 `#[ignore]`'d process tests can be un-ignored (the containment workaround retired at root).
 
+## DECISION 2026-06-06 — collapse try_recv to 2-state (four-questions: A beats B)
+
+Grounding refined the target. The flake lives in the Rust-API `Receiver::try_recv`'s
+3-state (`TryRecvError::{Empty, Disconnected}`). But:
+- `RecvOutcome` (the verb path, typed_channel.rs:176) has **no Empty** — the wat verb
+  `(:wat::kernel::try-recv)` maps both empty + disconnected to **`Ok(None)`** (by design;
+  eval_kernel_try_recv:43 "Disconnected as a stand-in … matches the empty"). So wat
+  programs already cannot distinguish them; the flake never reaches the wat surface.
+- Nothing needs the 3rd state: `Select` uses its own io_uring `POLL_ADD` (not try_recv);
+  the select-then-drain pattern (wat-telemetry) only needs "value? no → skip"; only a
+  Rust test asserts the Empty/Disconnected split.
+
+So `Empty` is the asymmetric, unused state where the flake hides. Per
+[[feedback_asymmetries_meet_high_bar]] the bar to KEEP it isn't met → **eliminate it.**
+
+**FOUR-QUESTIONS: (A) collapse to 2-state (Value / not-value) beats (B) make Empty honest
+everywhere.** A wins Simple (removes a state vs adds one through the whole stack), Honest
+*by construction* (no distinction to lie about; B's honesty is hostage to fixing the
+unreproduced poll race), and it's the asymmetry kill. B adds complexity for a distinction
+no caller uses, atop a race we can't yet make deterministic.
+
+THE KILL (structural — deletes the flake's home, not patches it):
+1. `Receiver::try_recv` → 2-state (`Value` / `NoValue`), matching `RecvOutcome` + the wat
+   `Ok(Some)/Ok(None)` surface. No Empty vs Disconnected → no snapshot race to lose.
+2. crossbeam path (typed_channel.rs:428) made consistent with the 2-state contract.
+3. grow `mora` to hunt the snapshot-guess class (not just pauses) — close the blind spot.
+4. update the 3-state tests to the 2-state contract.
+
+NOTE: this kills INSTANCE 1 (the try_recv non-lock-step guess). INSTANCE 2 (spawn_process
+`into_raw_fd` hand-fd-lifecycle = the arc-170 ORPHAN leak) is SEPARATE + still open — the
+comms-pair fd-path proved clean (50k no-leak), so the orphan leak is a distinct spawn-path
+investigation (reproduce orphans + RAII the fd lifecycle).
+
 ## Cross-references
 
 - `tests/comms/process.rs:153` — the flaky probe (the disconfirming evidence).
