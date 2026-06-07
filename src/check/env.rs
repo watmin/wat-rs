@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn from_symbols_loads_defclause_from_runtime_def_values() {
         // Build a minimal ClauseSet with one clause: no args, returns :nil.
-        let nil_body = crate::ast::WatAST::Keyword(":wat::core::nil".into(), crate::span::Span::unknown());
+        let nil_body = crate::ast::WatAST::nil();
         let clause = Clause {
             args: vec![],
             rest_param: None,

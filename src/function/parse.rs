@@ -315,7 +315,7 @@ mod tests {
         let sig: [WatAST; 3] = [
             WatAST::Keyword(":not-a-vec".into(), span()),
             arrow(),
-            WatAST::Keyword(":wat::core::nil".into(), span()),
+            WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
         let msg = format!("{:?}", err);
@@ -355,7 +355,7 @@ mod tests {
         let sig: [WatAST; 3] = [
             WatAST::IntLit(42, span()),
             arrow(),
-            WatAST::Keyword(":wat::core::nil".into(), span()),
+            WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         // Map to string inline — ParsedFnSignature<String> doesn't implement Debug,
         // so unwrap_err() is not usable directly; match avoids the Debug bound.
@@ -378,8 +378,8 @@ mod tests {
     fn prefix_missing_arrow_returns_arrow_missing() {
         let sig: [WatAST; 3] = [
             WatAST::Vector(vec![], span()),
-            WatAST::Keyword(":wat::core::nil".into(), span()), // not "->"
-            WatAST::Keyword(":wat::core::nil".into(), span()),
+            WatAST::Keyword(":not-arrow".into(), span()), // not "->"
+            WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
         let msg = format!("{:?}", err);

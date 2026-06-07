@@ -190,7 +190,7 @@ mod tests {
         let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         // Only 1 element — too few to be a valid fn-form signature.
-        let args = &[WatAST::Keyword(":wat::core::nil".into(), Span::unknown())];
+        let args = &[WatAST::nil()];
         let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
         assert!(result.is_ok(), "expected ok result for < 3 args; got errors: {:?}", result.errors());
         assert!(
@@ -216,7 +216,7 @@ mod tests {
         let args = &[
             WatAST::Keyword(":not-a-vec".into(), span.clone()),
             WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(":wat::core::nil".into(), span.clone()),
+            WatAST::Keyword(":wat::core::i64".into(), span.clone()),
         ];
         let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
         assert!(result.is_ok(), "expected ok (silent) result; got errors: {:?}", result.errors());

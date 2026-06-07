@@ -212,7 +212,7 @@ mod tests {
     use crate::types::TypeExpr;
 
     fn nil_body() -> FunctionBody {
-        FunctionBody::Wat(Arc::new(WatAST::Keyword(":wat::core::nil".into(), Span::unknown())))
+        FunctionBody::Wat(Arc::new(WatAST::nil()))
     }
 
     /// Lines 57-67: `Debug` impl for `Function` — named fields with selective
