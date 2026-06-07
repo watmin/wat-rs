@@ -43,11 +43,11 @@
 //! # Rendezvous discipline (no wall-clock sleep)
 //!
 //! - `pid_pipe` (supervisor → test): supervisor writes grandchild pid; test reads.
-//! - `done_pipe`: grandchild's process exit closes all its FDs. Unlike the spawn-process
-//!   probe (which lets grandchild inherit done_w), fork-program's close-sweep closes
-//!   done_w in the child. We instead poll `/proc/<pid>/stat` after a short poll(2)
-//!   on a fresh pipe. The rendezvous uses a watcher pipe: supervisor writes grandchild
-//!   pid, test reads, then polls `/proc/<grandchild>/fd` existence to confirm exit.
+//! - Death detection: fork-program's `close_inherited_fds_above_stdio` sweep closes
+//!   inherited FDs in the grandchild, so a done_pipe write-end held by the grandchild
+//!   is not available as a death-wire. Instead the test calls `pidfd_open(grandchild, 0)`
+//!   and `poll(pidfd, POLLIN, 5000ms)` — POLLIN fires exactly when the process exits.
+//!   Kernel-guaranteed (Linux 5.3+). No /proc, no timer, no race.
 //!
 //! # ZERO-MUTEX compliance
 //!
@@ -128,7 +128,7 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 }
 
 /// Phase 1E — orphaned grandchild dies via lifeline mechanism (Phase 1C/1E substrate
-/// path) within 1s after supervisor `_exit`. Verifies that `child_branch_from_source`
+/// path) within 5s after supervisor `_exit`. Verifies that `child_branch_from_source`
 /// correctly wires the lifeline read-end into `init_shutdown_signal_with_inputs` AND
 /// that the Phase 1E reorder (close-sweep BEFORE init) prevents the sweep from closing
 /// the lifeline or wake-pipe FDs.
@@ -144,9 +144,9 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 /// 4. Supervisor: eval(fork-program), extract grandchild pid, write to pid_pipe,
 ///    `_exit(0)` (orphans grandchild intentionally).
 /// 5. Test: waitpid(supervisor), read grandchild pid from pid_pipe.
-/// 6. Test: poll `/proc/<grandchild>/stat` for exit within 1s via a timed loop
-///    using `libc::poll(2)` on a self-pipe for bounded waiting.
-/// 7. Verify grandchild process is gone (zombie or reaped).
+/// 6. Test: `pidfd_open(grandchild_pid, 0)` → `poll(pidfd, POLLIN, 5000ms)` fires
+///    exactly when grandchild process exits. Kernel-guaranteed (Linux 5.3+).
+/// 7. POLLIN fired → grandchild is gone. pidfd POLLIN is the authoritative proof.
 #[test]
 #[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_lifeline_orphan_clean_via_fork_program() {
@@ -161,15 +161,10 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
     // Step 2: Create coordination pipe.
     //
     // pid_pipe: supervisor writes grandchild pid (4 bytes, i32 LE); test reads.
-    // done_pipe: used to detect grandchild exit. fork-program's close-sweep
-    //   closes inherited FDs in the grandchild (that's the Phase 1E fix scope),
-    //   so we cannot rely on done_w inheritance as in the spawn-process probe.
-    //   Instead, we open a self-pipe in the test and poll grandchild /proc/stat.
+    // Death detection uses pidfd_open (step 6) — fork-program's close-sweep
+    // closes inherited FDs in the grandchild, so done_w inheritance is not
+    // available as a death-wire. pidfd_open is the correct wire-event.
     let (pid_r, pid_w) = make_raw_pipe();
-    // poll_pipe: write-end is kept by test until we want to unblock poll.
-    // The test polls with a 1s timeout; we don't write to it — the timeout
-    // is the bounded mechanism for the /proc/stat polling interval.
-    let (poll_r, poll_w) = make_raw_pipe();
 
     // Step 3: Fork supervisor.
     let supervisor_pid = unsafe { libc::fork() };
@@ -181,10 +176,8 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
 
     if supervisor_pid == 0 {
         // ── Supervisor child branch ───────────────────────────────────────
-        // Close the test's pipe ends (supervisor only uses pid_w).
+        // Close the test's pipe end (supervisor only uses pid_w).
         drop(pid_r);
-        drop(poll_r);
-        drop(poll_w);
 
         // Supervisor builds its own world from the blocking source.
         // fork-program takes a source String at the wat level, so we pass
@@ -285,63 +278,48 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
     assert!(grandchild > 0, "grandchild pid must be positive; got {}", grandchild);
     drop(pid_r);
 
-    // Step 6: Poll for grandchild exit within 1s.
+    // Step 6: Open a pidfd for the grandchild and poll for process exit.
     //
-    // fork-program's child_branch_from_source calls close_inherited_fds_above_stdio
-    // which closes most inherited FDs (Phase 1E fix: preserves lifeline + opens
-    // substrate FDs after). We cannot use a done_pipe held by the grandchild
-    // because the grandchild's sweep closes inherited FDs.
+    // fork-program's child_branch_from_source calls close_inherited_fds_above_stdio,
+    // which closes inherited test FDs in the grandchild — a done_w write-end held
+    // by the grandchild is therefore not available as a death-wire. pidfd_open is
+    // the correct wire-event: POLLIN fires exactly when the process exits.
+    // Kernel-guaranteed. Linux 5.3+. No /proc, no timer, no race.
     //
-    // Strategy: use libc::poll(2) with a 1000ms timeout on poll_r (which will
-    // never fire — poll_w is held by test). The 1000ms timeout IS the budget.
-    // After poll returns (via timeout), we check /proc/<grandchild>/stat.
-    // If the grandchild is already gone before timeout, the process-entry
-    // check will show '?' (no such process) or 'Z' (zombie). If it's still
-    // alive at 1s, the test fails.
+    // 5000ms safety timeout — the lifeline cascade fires in microseconds to
+    // milliseconds; 5s means "substrate wiring is broken", not "expected wait".
     //
     // ZERO-MUTEX: no Mutex, RwLock, CondVar. poll(2) is the bounded wait.
-    let t0 = Instant::now();
-    let mut pollfd = libc::pollfd {
-        fd: poll_r.as_raw_fd(),
-        events: libc::POLLHUP | libc::POLLIN,
-        revents: 0,
-    };
-    // poll with 1000ms timeout — grandchild should exit via lifeline cascade
-    // well within this window (typically microseconds to milliseconds).
-    let poll_ret = unsafe { libc::poll(&mut pollfd as *mut _, 1, 1000) };
-    let elapsed = t0.elapsed();
-
-    drop(poll_r);
-    drop(poll_w);
-
-    // poll_ret == 0 means timeout (poll_w is still open; expected).
-    // poll_ret < 0 means error — unexpected.
+    let pidfd = unsafe {
+        libc::syscall(libc::SYS_pidfd_open, grandchild as libc::c_long, 0i32 as libc::c_long)
+    } as libc::c_int;
     assert!(
-        poll_ret >= 0,
-        "poll(2) failed: {}",
+        pidfd >= 0,
+        "pidfd_open(grandchild_pid={}) failed: {}",
+        grandchild,
         std::io::Error::last_os_error()
     );
-    // The timeout elapsed — now check if grandchild is gone.
-    // If the lifeline cascade worked, the grandchild exited within the 1s window.
 
-    // Step 7: Verify grandchild process is no longer running.
-    // Check /proc/<pid>/stat — the process should be in zombie ('Z') or
-    // already reaped ('?' = no file). Running states (R/S/D) indicate failure.
-    let proc_stat = std::fs::read_to_string(format!("/proc/{}/stat", grandchild))
-        .unwrap_or_default();
-    let state = proc_stat
-        .rsplit_once(')')
-        .and_then(|(_, rest)| rest.trim_start().chars().next())
-        .unwrap_or('?');
+    let mut pollfd = libc::pollfd { fd: pidfd, events: libc::POLLIN, revents: 0 };
+    let t0 = Instant::now();
+    let poll_ret = unsafe { libc::poll(&mut pollfd as *mut _, 1, 5000) };
+    let elapsed = t0.elapsed();
+    unsafe { libc::close(pidfd) };
+
     assert!(
-        // 'Z' = zombie (exited, awaiting reap) — PASS.
-        // '?' = no such process (already reaped by init) — PASS.
-        state == 'Z' || state == '?',
-        "grandchild pid {} in unexpected state '{}' after lifeline cascade \
-         (poll elapsed={:?}; expected zombie or gone — \
+        poll_ret > 0,
+        "pidfd_open POLLIN did not fire within 5s — lifeline cascade broken \
+         (grandchild pid={}, poll_ret={}, elapsed={:?}; \
          check Phase 1C/1E fork-program lifeline wiring in child_branch_from_source)",
         grandchild,
-        state,
+        poll_ret,
         elapsed
     );
+
+    // Step 7: pidfd_open POLLIN (step 6) is the authoritative death-wire event.
+    // When poll(pidfd, POLLIN) fires, the kernel guarantees the process has exited
+    // (zombie or fully reaped). No secondary /proc/<pid>/stat read is needed or
+    // correct here — a /proc poll after a wire-event is a racy echo of a fact
+    // already delivered. The assertion above (poll_ret > 0) is the complete proof.
+    let _ = elapsed; // measurement recorded above; referenced in the assertion message
 }

@@ -318,30 +318,10 @@ fn probe_pdeathsig_diagnostic() {
         elapsed
     );
 
-    // Step 7: Verify grandchild process is no longer running.
-    // pidfd POLLIN (step 6) is the definitive signal: the process has exited.
-    // A zombie in the process table is acceptable — it means the process
-    // exited and is awaiting reaping by init (since supervisor already
-    // exited). We check /proc/<pid>/stat for the zombie state rather than
-    // using kill(pid, 0) which returns 0 for both live AND zombie processes.
-    //
-    // Z = zombie (process exited, waiting to be reaped) — PASS.
-    // R/S/D = still running (should not happen after pidfd POLLIN) — FAIL.
-    let proc_stat = std::fs::read_to_string(format!("/proc/{}/stat", grandchild))
-        .unwrap_or_default();
-    // /proc/pid/stat field 3 is the state character (between the last ')' and next space).
-    let state = proc_stat
-        .rsplit_once(')')
-        .and_then(|(_, rest)| rest.trim_start().chars().next())
-        .unwrap_or('?');
-    assert!(
-        // 'Z' = zombie (exited, awaiting reap) — PASS.
-        // '?' = no such process (already reaped by init) — PASS.
-        state == 'Z' || state == '?',
-        "grandchild pid {} in unexpected state '{}' after cascade \
-         (pidfd POLLIN fired at elapsed={:?}; expected zombie or gone)",
-        grandchild,
-        state,
-        elapsed
-    );
+    // Step 7: pidfd_open POLLIN (step 6) is the authoritative death-wire event.
+    // When poll(pidfd, POLLIN) fires, the kernel guarantees the process has exited
+    // (zombie or fully reaped). No secondary /proc/<pid>/stat read is needed or
+    // correct here — a /proc poll after a wire-event is a racy echo of a fact
+    // already delivered. The assertion above (poll_ret > 0) is the complete proof.
+    let _ = elapsed; // measurement recorded above; referenced in the assertion message
 }
