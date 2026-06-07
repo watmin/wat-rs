@@ -80,3 +80,48 @@ Mixed-type calls still error (no implicit coercion, arc 237 doctrine) — there 
 - arc 237.8b (`docs/arc/2026/05/237-polymorphism-consolidation/`) — the per-Type-primitive + defclause recipe this dots.
 - `project_dispatch_clause_vs_intrinsic` — clause (monomorphic, per-type leaves) vs intrinsic (type-level: equality, collections).
 - arc 251 (`docs/arc/2026/06/251-types-as-forms/`) — the deciding arc; `scalar/` home holds the `wat.<type>/<op>` arithmetic leaves (SCOUT-LIFT-MAP).
+
+## ★ ADDENDUM 2026-06-06 — scalar literals + coercion (non-default widths) + the OVERFLOW DECISION (owed)
+
+**Builder-confirmed 2026-06-06.** The EDN reader gives ints → `i64`, floats → `f64`. Users need
+to express the OTHER scalar widths (`u8`, `u16`, `u32`, `i8`/`i16`/`i32`, `usize`, `f32`, …). The
+clojure-ic way, confirmed:
+
+**A coercion fn in `core`, named for the type: `(wat.core/u8 22)`.** This is Clojure's exact model —
+EDN reads `long`/`double`, and you reach narrower widths via core coercion fns `(byte 22)` / `(int 22)`
+/ `(long 22)` / `(double x)`. wat mirrors it: `(wat.core/u8 22)`, `(wat.core/f32 1.5)`, etc.
+
+**It already exists.** Today `:wat::core::u8` → `eval_u8_cast` (range-checked i64→u8, runtime.rs).
+The dotted form `wat.core/u8` is just its rename — not new vocabulary. (Note the existing scalar set
+is mixed: `:wat::core::u8` is a core type-named coercion, while `:wat::core::i64::to-f64` is a per-
+source `to-X` — dotted `wat.i64/to-f64`. The deciding arc may unify these; for non-default *literals*,
+`wat.core/<type>` is the surface.)
+
+- **Type vs fn — same word, two namespaces** (clojure-faithful, `^long` hint vs `long` fn):
+  `wat.type/u8` = the TYPE (annotation: `[x :- wat.type/u8]`); `wat.core/u8` = the coercion FN
+  (value: `(wat.core/u8 22)`). The coercion is an operator → lives in `core`; `wat.type/` stays
+  annotation-only.
+- **Literal → compile-time typed literal.** When the arg is a literal, the checker const-folds +
+  range-checks: `(wat.core/u8 300)` is a COMPILE ERROR. When dynamic, the runtime range-check fires
+  (what `eval_u8_cast` already does).
+- **Canonical shape:** `(wat.core/let [x (wat.core/u8 22)] …)`.
+- **Tagged-literal `#u8 22` considered + rejected:** Clojure reserves tagged literals for *rich*
+  types (`#inst`, `#uuid`) and uses coercion fns for numeric primitives — so `(wat.core/u8 22)` is
+  the more clojure-faithful choice (and reuses the existing op; no reader-macro machinery).
+- **Arithmetic** on a non-default scalar rides this note's clause-over-leaf recipe: `wat.core/+` gets
+  a `[x :- wat.type/u8 y :- wat.type/u8] -> wat.type/u8 (wat.u8/+ x y)` clause over a `wat.u8/+` leaf.
+
+### ★ DECISION OWED (do NOT make it implicitly): fixed-width arithmetic overflow semantics
+
+Fixed-width arithmetic (`wat.u8/+`, `wat.i32/*`, …) CAN overflow. wat must choose its overflow
+policy — wrapping / checked-panic / saturating / per-op variants (cf Rust's `wrapping_add` /
+`checked_add` / `saturating_add`). **This decision is DEFERRED to the 251 strike — but it MUST be
+made, explicitly, not fall out by accident.** This note marks that the debt is owed.
+
+**Builder LEANING (2026-06-06, not locked):** *force the user's hand — overflow **PANICS** (checked
+arithmetic); the user mitigates by explicit **modulus*** (wrapping is opt-in via an explicit `mod`/
+wrapping op, NEVER silent). Rationale: silent wraparound is a footgun; an LLM-first / honest substrate
+refuses the silent-corruption path and makes the user state intent. Mirrors Rust's debug-checked
+default, made the always-default. **At strike, weigh:** panic-default (the lean) vs wrapping-default
+vs saturating vs explicit per-op family; and how the mitigation reads (`(wat.core/mod …)` / a
+`wat.u8/wrapping+` leaf / etc.). Whatever is chosen, it is chosen ON PURPOSE.
