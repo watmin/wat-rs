@@ -106,3 +106,94 @@ missing from the registry → resolve rejects real corpus code → add it.
 caught not prevented, builtins still opaque. Arc 255 supersedes that mechanism
 with the registry (one source, builtins first-class). The 254.R probe is arc 255's
 gate. No code from 254.R's hand-list shipped (reverted).
+
+---
+
+## REFRAME (builder ask: "parity with user forms — the reflection is seamless")
+
+The ask is sharper than a parallel registry: a reflection consumer must not be
+able to *tell a builtin from a user form*. A separate `BuiltinRegistry` that
+`resolve`/`metadata-of` *also* consult is the opposite of seamless (two tables,
+two code paths). **The registry IS `sym`.** Builtins register into the *same*
+`SymbolTable` structures user forms do:
+
+- **`sym.functions`** (`HashMap<String, Arc<Function>>`) — so `sym.get(name)` finds
+  a builtin exactly as it finds a user fn. `resolve` works unchanged; the
+  reserved-prefix blanket-accept is **deleted**.
+- **`sym.binding_metadata`** — so `eval_metadata_of` (UNCHANGED — it reads
+  `sym.binding_metadata.get(name)`) returns a builtin's metadata exactly as a user
+  form's. Seamless reflection, zero special-casing.
+
+**`Function` already carries the entire parity surface** — `params` (arity),
+`param_types` + `ret_type` (type-sig), `rest_param`. So a builtin registered as a
+`Function` gets resolve + arity-check + **type-check** + reflection **for free,
+identical to a user form**, because the checker's existing call-site machinery
+reads those fields. This *upgrades* the day-one four-questions trim: type-sig is
+not a separate deferred system — it is `Function.param_types`/`ret_type`,
+populated from each builtin's signature.
+
+**The one gap: `Function.body: Arc<WatAST>` is mandatory; builtins have no wat
+body.** Represent the native handler by either (a) a synthetic sentinel `body`
+that is never evaluated because the runtime dispatch `match` intercepts builtin
+names before fn-apply (lean — dead field), or (b) a `Native` body variant
+(`enum { Wat(Arc<WatAST>), Native(handler) }`, cleaner, more touch sites). Pick at
+build time; (a) is the smaller change.
+
+**One source still holds:** the builtin declaration generates BOTH the
+`sym`-registration (the `Function` entry + `binding_metadata`) AND the dispatch
+arm. No second copy.
+
+**Revised entry-shape:** there is no bespoke `BuiltinEntry` — the entry IS
+`Function` (+ its `binding_metadata`). Day-one populated: `name`, `params` (arity),
+`binding_metadata` (`:doc`/`:category`). `param_types`/`ret_type` (full type
+parity) populate from the existing per-builtin knowledge in `infer_list` — a slice
+(the heavy part), incremental; the fields exist day-one so it grows in seamlessly.
+
+**Slices:**
+- **255.1** — `Function` native representation + register builtins into
+  `sym.functions` + `sym.binding_metadata` (name + arity + doc); delete the
+  reserved-prefix hack. Gates: the 254.R undefined-func probe goes green;
+  `metadata-of` answers for a builtin (new probe); resolve seamless; lib + corpus
+  green; **bench: no hot-path regression** (phf / generated dispatch from the one
+  source).
+- **255.2** — populate `param_types`/`ret_type` from `infer_list`'s per-builtin
+  knowledge → full type parity + arity/type check on builtin call sites.
+- **255.N** — INSCRIPTION; the asymmetry annihilated, builtins first-class.
+
+---
+
+## METADATA CONTRACT (builder co-design — "parity, but you can tell rust from wat by looking")
+
+Seamless *query*, honest *content*: the reflection mechanism is identical for
+builtin + user (same `metadata-of`, same map shape, always a map), but the map's
+*content* honestly declares provenance. Not hidden — labeled, uniformly.
+
+**Decisions (four-questions, all PASS):**
+
+1. **`Function.body` becomes `FunctionBody { Wat(Arc<WatAST>), Native(NativeHandler) }`**
+   — Ruby's C-form model (a C method reflects as a method; its body is native).
+   Chosen over a sentinel dead-body because the sentinel would *lie* that a wat
+   body exists; `Native` is honest AND makes provenance derivable from the variant
+   itself (`Native ⟹ :defined-in :rust`). More touch sites; worth it.
+2. **Implicit auto-tagging** — provenance is *derived at the registration site*
+   (freeze-loaded wat vs startup-registered rust), never hand-decorated. A wat form
+   cannot claim `:rust`; the tag can't lie. (The SSOT/automagic stance: derive,
+   don't maintain.)
+3. **Guaranteed minimum baseline** — `metadata-of` returns `Some(baseline)` for any
+   *registered* form (never `None`). `None` keeps its meaning "binding doesn't
+   exist." A registered form always reflects its identity. (Contract upgrade.)
+4. **Two provenance axes, both baseline + auto-derived:**
+   - `:defined-in :wat | :rust` (language — Ruby-C-form vs wat-source)
+   - `:layer :substrate | :userland` (a stdlib wat fn is `:wat`+`:substrate`; a rust
+     builtin is `:rust`+`:substrate`; a user fn is `:wat`+`:userland`)
+
+**The universal baseline every callable carries:** `:defined-in` · `:layer` ·
+`:name` · `:arity`. So `(metadata-of <anything>)` instantly answers "rust substrate"
+/ "wat userland." Optional richer rust-reflection (`:rust-handler "eval_i64_arith"`,
+source location — Ruby returns nil for C `source_location`; we can do better) grows
+in later; the map is open.
+
+This makes the baseline-metadata change touch BOTH classes: even a bare user `defn`
+(today → `metadata-of` None) now carries the baseline (`:wat`/`:userland`/name/
+arity). Parity is completed from both ends — builtins gain reflection, user forms
+gain the guaranteed baseline — and they meet in one honest, uniform map.
