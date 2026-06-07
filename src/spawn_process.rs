@@ -75,7 +75,7 @@ use crate::runtime::{
     eval, Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value,
 };
 
-use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::Arc;
 
 // Same exit-code convention `fork.rs` uses; spawn-process callers
@@ -149,22 +149,19 @@ pub fn eval_kernel_spawn_process(
     let (output_r, output_w) = make_pipe(":wat::kernel::spawn-process")?;
     let (stderr_r, stderr_w) = make_pipe(":wat::kernel::spawn-process")?;
 
-    // Convert ALL stdio OwnedFds to raw fd integers before spawn_lifelined.
-    // spawn_lifelined uses clone3 (like fork) — both parent and child inherit
-    // all open kernel file descriptors. We pass raw ints into the closure so
-    // the compiler does not enforce single-ownership on the OwnedFd wrappers:
-    // child reconstructs OwnedFds from raw ints; parent reconstructs
-    // parent-side OwnedFds after spawn_lifelined returns.
-    // into_raw_fd() disables OwnedFd::Drop (manual close required).
-    let input_r_raw = input_r.as_raw_fd();
+    // RAII: parent holds all six OwnedFds. Pass raw i32 COPIES (as_raw_fd —
+    // borrows, does not surrender ownership) into the clone3 closure so the
+    // compiler does not enforce single-ownership on the OwnedFd wrappers.
+    // After clone3 the child process has its own fd-table copy; the parent's
+    // OwnedFds remain alive, keeping the fds open through spawn_lifelined.
+    // On any early-return (the ? below) or panic, all six OwnedFds Drop and
+    // close — no fd leak. No into_raw_fd() — OwnedFd::Drop is never disabled.
+    let input_r_raw  = input_r.as_raw_fd();
+    let input_w_raw  = input_w.as_raw_fd();
+    let output_r_raw = output_r.as_raw_fd();
     let output_w_raw = output_w.as_raw_fd();
+    let stderr_r_raw = stderr_r.as_raw_fd();
     let stderr_w_raw = stderr_w.as_raw_fd();
-    let input_r_fd = input_r.into_raw_fd();
-    let input_w_fd = input_w.into_raw_fd();
-    let output_r_fd = output_r.into_raw_fd();
-    let output_w_fd = output_w.into_raw_fd();
-    let stderr_r_fd = stderr_r.into_raw_fd();
-    let stderr_w_fd = stderr_w.into_raw_fd();
 
     // Arc 213 γ-3 — use spawn_lifelined (arc 213 α) instead of bare
     // libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD+
@@ -188,14 +185,16 @@ pub fn eval_kernel_spawn_process(
         // Reconstruct OwnedFds from inherited raw fds. clone3 gave the
         // child copies of all parent fd table entries — these are valid.
         // SAFETY: these raw fds were created in the parent and inherited
-        // across clone3; reconstructing OwnedFd transfers ownership to
-        // spawn_process_child_branch's Drop discipline.
-        let input_r = unsafe { OwnedFd::from_raw_fd(input_r_fd) };
-        let input_w = unsafe { OwnedFd::from_raw_fd(input_w_fd) };
-        let output_r = unsafe { OwnedFd::from_raw_fd(output_r_fd) };
-        let output_w = unsafe { OwnedFd::from_raw_fd(output_w_fd) };
-        let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_fd) };
-        let stderr_w = unsafe { OwnedFd::from_raw_fd(stderr_w_fd) };
+        // across clone3 (separate address space — no shared fd table with
+        // parent); reconstructing OwnedFd transfers ownership to
+        // spawn_process_child_branch's Drop discipline. No double-close:
+        // parent's OwnedFds and child's OwnedFds are in different processes.
+        let input_r = unsafe { OwnedFd::from_raw_fd(input_r_raw) };
+        let input_w = unsafe { OwnedFd::from_raw_fd(input_w_raw) };
+        let output_r = unsafe { OwnedFd::from_raw_fd(output_r_raw) };
+        let output_w = unsafe { OwnedFd::from_raw_fd(output_w_raw) };
+        let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_raw) };
+        let stderr_w = unsafe { OwnedFd::from_raw_fd(stderr_w_raw) };
         // Reconstruct OwnedFd wrapper for lifeline_r_raw. spawn_lifelined
         // created this fd; it is valid in the child. child_post_fork_init
         // (called inside spawn_process_child_branch) registers it with the
@@ -222,23 +221,13 @@ pub fn eval_kernel_spawn_process(
     } })?;
 
     // ── PARENT BRANCH ────────────────────────────────────────────
-    // Close child-side fds (parent still holds kernel copies via raw fds;
-    // child has its own copies). We close parent's child-side ends manually
-    // since into_raw_fd() above consumed the OwnedFd wrappers.
-    // SAFETY: these raw fds are valid kernel fds the parent still holds;
-    // no OwnedFd wrapper is alive for them.
-    unsafe {
-        libc::close(input_r_fd);
-        libc::close(output_w_fd);
-        libc::close(stderr_w_fd);
-    }
+    // Close child-side fds by dropping their OwnedFds (RAII).
+    // The child has its own copies in its separate address space.
+    // The parent-side ends (input_w, output_r, stderr_r) remain alive.
     // spawn_lifelined drops the parent's lifeline_r internally — no manual close.
-
-    // Reconstruct parent-side OwnedFds from raw fds.
-    // SAFETY: parent still holds these kernel fds; no other OwnedFd wraps them.
-    let input_w = unsafe { OwnedFd::from_raw_fd(input_w_fd) };
-    let output_r = unsafe { OwnedFd::from_raw_fd(output_r_fd) };
-    let stderr_r = unsafe { OwnedFd::from_raw_fd(stderr_r_fd) };
+    drop(input_r);
+    drop(output_w);
+    drop(stderr_w);
 
     // Extract the lifeline OwnedFd from LifelineWriter (into_owned_fd added by
     // γ-1; ChildHandleInner::lifeline_w field type stays Option<OwnedFd>).

@@ -123,6 +123,7 @@ mod probe_do_splice_define;
 mod probe_do_splice_enum;
 mod probe_do_splice_struct;
 mod probe_eval_signature_returns_tracked_value;
+mod probe_fork_fd_lifecycle;
 mod probe_hashmap_ctor_vector_symmetric;
 mod probe_let_splice_def;
 mod probe_let_splice_define;
