@@ -29,11 +29,13 @@
 use std::sync::Arc;
 
 use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::io::{PipeReader, PipeWriter, WatReader};
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::span::Span;
 use wat::thread_io::{
-    install_thread_io, uninstall_thread_io, ThreadIO,
-    StdInServiceEvent, StdOutServiceEvent, StdErrServiceEvent,
+    install_thread_io, next_thread_id, spawn_stdio_service_peer, uninstall_thread_io,
+    RuntimeServices, StdErrServiceEvent, StdInServiceEvent, StdOutInput, ThreadIO,
 };
 use wat::typed_channel::{bounded, Sender, Receiver};
 
@@ -67,9 +69,6 @@ fn freeze_skeleton() -> wat::freeze::FrozenWorld {
 /// pass 18 — service-side receives an Event and matches the variant.
 struct TestRig {
     io: Option<ThreadIO>,
-    /// service-side: receive StdOutServiceEvent from println.
-    out_rx: Receiver<StdOutServiceEvent>,
-    out_ack_tx: Sender<()>,
     /// service-side: receive StdErrServiceEvent from eprintln.
     err_rx: Receiver<StdErrServiceEvent>,
     err_ack_tx: Sender<()>,
@@ -79,16 +78,21 @@ struct TestRig {
 }
 
 fn build_rig() -> TestRig {
-    let (out_tx, out_rx) = bounded::<StdOutServiceEvent>(1);
-    let (out_ack_tx, out_ack_rx) = bounded::<()>(1);
+    // Stone 8.1 — stdout is a universe-resident peer; rows that don't
+    // drive stdout get a DUMMY reply pair (no service loop behind it —
+    // and println without RuntimeServices errors ServiceNotRunning
+    // before it could ever block on this). Row D builds the REAL
+    // miniature universe instead of using this rig half.
+    let (_stdout_reply_tx, stdout_reply_rx) =
+        wat::comms::thread::pair::<Result<(), String>>();
     let (err_tx, err_rx) = bounded::<StdErrServiceEvent>(1);
     let (err_ack_tx, err_ack_rx) = bounded::<()>(1);
     let (stdin_tx, stdin_rx) = bounded::<StdInServiceEvent>(1);
     let (stdin_reply_tx, stdin_reply_rx) = bounded::<String>(1);
 
     let io = ThreadIO {
-        stdout_tx: out_tx,
-        stdout_ack_rx: out_ack_rx,
+        stdout_reply_rx,
+        stdout_thread_id: next_thread_id(),
         stderr_tx: err_tx,
         stderr_ack_rx: err_ack_rx,
         stdin_tx,
@@ -97,12 +101,107 @@ fn build_rig() -> TestRig {
 
     TestRig {
         io: Some(io),
-        out_rx,
-        out_ack_tx,
         err_rx,
         err_ack_tx,
         stdin_rx,
         stdin_reply_tx,
+    }
+}
+
+/// Stone 8.1 — a MINIATURE TRUE UNIVERSE for the stdout rows: a
+/// pipe-backed writer (fd — cross-thread honest), the real 15-line wat
+/// handle, the real Rust service loop, a real Register exchange. The
+/// stdout tests no longer play the service; they exercise the
+/// production pipeline end to end.
+struct MiniUniverse {
+    sym: wat::runtime::SymbolTable,
+    input_tx: wat::comms::thread::Sender<StdOutInput>,
+    join: std::thread::JoinHandle<()>,
+    reader: PipeReader,
+    tid: i64,
+}
+
+impl MiniUniverse {
+    fn build(world: &wat::freeze::FrozenWorld) -> Self {
+        let (pipe_r, pipe_w) =
+            wat::fork::make_pipe(":test::stdout-universe").expect("pipe for the service writer");
+        let writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(pipe_w)));
+        let reader = PipeReader::from_owned_fd(pipe_r);
+
+        let handle = world
+            .symbols()
+            .get(":wat::kernel::services::StdOutService/handle")
+            .expect("/handle is in the baked stdlib")
+            .clone();
+        let peer = spawn_stdio_service_peer(handle, writer, world.symbols().clone());
+        let wat::thread_io::StdioServicePeer { input_tx, join } = peer;
+
+        // RS-carrying sym — println reaches the peer via runtime_services().
+        let (stdin_dummy_tx, _stdin_dummy_rx) = wat::comms::thread::pair::<Value>();
+        let (stderr_dummy_tx, _stderr_dummy_rx) = wat::comms::thread::pair::<Value>();
+        let mut sym = world.symbols().clone();
+        sym.set_runtime_services(Arc::new(RuntimeServices {
+            stdin_ctrl: stdin_dummy_tx,
+            stdout_ctrl: input_tx.clone(),
+            stderr_ctrl: stderr_dummy_tx,
+        }));
+
+        // Register this thread (the universe's job, in miniature).
+        let tid = next_thread_id();
+        let (reply_tx, reply_rx) = wat::comms::thread::pair::<Result<(), String>>();
+        input_tx
+            .send(StdOutInput::Register(tid, reply_tx))
+            .expect("register with the service peer");
+
+        // ThreadIO: the REAL stdout half + old-path dummies for the rest.
+        let (err_tx, _err_rx) = bounded::<StdErrServiceEvent>(1);
+        let (_err_ack_tx, err_ack_rx) = bounded::<()>(1);
+        let (stdin_tx, _stdin_rx) = bounded::<StdInServiceEvent>(1);
+        let (_stdin_reply_tx, stdin_reply_rx) = bounded::<String>(1);
+        install_thread_io(ThreadIO {
+            stdout_reply_rx: reply_rx,
+            stdout_thread_id: tid,
+            stderr_tx: err_tx,
+            stderr_ack_rx: err_ack_rx,
+            stdin_tx,
+            stdin_reply_rx,
+        });
+
+        MiniUniverse { sym, input_tx, join, reader, tid }
+    }
+
+    /// Eval a println form; the mini-TCP ack means write-COMPLETED, so
+    /// the line is in the pipe before this returns (ZERO-MUTEX § "use
+    /// both when done matters"). Returns the written line, trimmed.
+    fn println_and_read(&self, src: &str) -> String {
+        let ast = wat::parse_one!(src).expect("parse println form");
+        let env = Environment::new();
+        let result = eval(&ast, &env, &self.sym)
+            .expect("println evals")
+            .value_owned();
+        assert!(matches!(result, Value::Unit), "println returns nil; src={:?}", src);
+        self.reader
+            .read_line(Span::unknown())
+            .expect("read from the service's pipe")
+            .expect("a written line")
+            .trim()
+            .to_string()
+    }
+
+    /// Teardown in the ZERO-MUTEX drop order: deregister, drop EVERY
+    /// sender (the RS clone via sym; the original), THEN join — the
+    /// loop exits on disconnect; joining before the drops would
+    /// deadlock.
+    fn finish(self) {
+        let _ = uninstall_thread_io();
+        let MiniUniverse { sym, input_tx, join, reader, tid } = self;
+        input_tx
+            .send(StdOutInput::Deregister(tid))
+            .expect("deregister");
+        drop(sym);
+        drop(input_tx);
+        drop(reader);
+        join.join().expect("service loop joins clean");
     }
 }
 
@@ -188,29 +287,11 @@ fn row_c_readln_unpopulated_returns_service_not_running() {
 #[test]
 fn row_d_println_populated_sends_serialized_string() {
     fresh_thread();
-    let mut rig = build_rig();
-    // Tester thread plays "service" — receives the Write event, extracts
-    // the line, immediately acks.
-    let out_rx = rig.out_rx.clone();
-    let out_ack_tx = rig.out_ack_tx.clone();
-    let tester = std::thread::spawn(move || {
-        let event = out_rx.recv().expect("service receives event");
-        let line = match event {
-            StdOutServiceEvent::Write { line } => line,
-            _ => panic!("expected Write variant"),
-        };
-        out_ack_tx.send(()).expect("service acks");
-        line
-    });
-
     let world = freeze_skeleton();
-    let ast = wat::parse_one!("(:wat::kernel::println 42)").expect("parse println form");
-    let env = Environment::new();
-    let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
-
-    assert!(matches!(result.expect("eval should succeed").value_owned(), Value::Unit), "expected Unit");
-    let received = tester.join().expect("tester joins");
-    assert_eq!(received, "42");
+    let universe = MiniUniverse::build(&world);
+    let line = universe.println_and_read("(:wat::kernel::println 42)");
+    assert_eq!(line, "42");
+    universe.finish();
 }
 
 // ─── E. populated eprintln sends serialized String ─────────────────
@@ -306,30 +387,18 @@ fn row_g_println_polymorphic_value_types() {
         ),
     ];
 
+    // Stone 8.1 — one miniature true universe serves all cases: the
+    // real wat handle + the real service loop + a pipe, ordered by the
+    // mini-TCP ack (each println's line is in the pipe before it
+    // returns, so reading between cases is deterministic).
+    fresh_thread();
+    let world = freeze_skeleton();
+    let universe = MiniUniverse::build(&world);
     for (src, expected) in cases {
-        fresh_thread();
-        let mut rig = build_rig();
-        let out_rx = rig.out_rx.clone();
-        let out_ack_tx = rig.out_ack_tx.clone();
-        let tester = std::thread::spawn(move || {
-            let event = out_rx.recv().expect("service receives event");
-            let line = match event {
-                StdOutServiceEvent::Write { line } => line,
-                _ => panic!("expected Write variant"),
-            };
-            out_ack_tx.send(()).expect("service acks");
-            line
-        });
-
-        let world = freeze_skeleton();
-        let ast = wat::parse_one!(src).expect("parse polymorphic form");
-        let env = Environment::new();
-        let result = run_with_thread_io(&mut rig, || eval_in_frozen(&ast, &world, &env));
-
-        assert!(matches!(result.expect("eval should succeed").value_owned(), Value::Unit), "src={:?}", src);
-        let received = tester.join().expect("tester joins");
+        let received = universe.println_and_read(src);
         assert_eq!(received, *expected, "src={:?}", src);
     }
+    universe.finish();
 }
 
 // ─── H. type-check accepts any-T for println ───────────────────────

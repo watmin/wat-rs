@@ -110,8 +110,15 @@ pub struct ProcessRuntime {
     services: Option<Arc<crate::thread_io::RuntimeServices>>,
     main_thread_id: ThreadId,
     stdin_thread_value: Option<Value>,
+    /// Arc 214 Stone 8.1 — stdout is now a universe-resident Rust peer;
+    /// this field is always None. Kept as a placeholder for uniformity;
+    /// stdout teardown uses `stdout_service_join` below.
     stdout_thread_value: Option<Value>,
     stderr_thread_value: Option<Value>,
+    /// Arc 214 Stone 8.1 — JoinHandle for the universe-resident stdout
+    /// service peer loop (replaces the wat Thread value from the old
+    /// StdOutService/spawn architecture).
+    stdout_service_join: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ProcessRuntime {
@@ -183,10 +190,13 @@ impl Drop for ProcessRuntime {
                 );
             }
         }
-        if let Some(v) = self.stdout_thread_value.take() {
-            if let Err(e) = join_service(v, "stdout service join (Drop)") {
+        // stdout_thread_value is always None in Stone 8.1 (universe-resident peer).
+        let _ = self.stdout_thread_value.take();
+        // Join the universe-resident stdout service peer (Rust thread).
+        if let Some(join) = self.stdout_service_join.take() {
+            if let Err(e) = join.join() {
                 eprintln!(
-                    "[wat substrate] stdout service join error during ProcessRuntime::drop: {}",
+                    "[wat substrate] stdout service peer join error during ProcessRuntime::drop: {:?}",
                     e
                 );
             }
@@ -237,6 +247,10 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     };
 
     // Step 2 — Spawn the three services.
+    //
+    // stdin + stderr: old architecture (wat spawn returning (Thread, ControlTx)).
+    // stdout: Arc 214 Stone 8.1 — universe-resident Rust peer
+    //   (spawn_stdio_service_peer; returns StdioServicePeer with input_tx + join).
     let pre_sym = frozen.symbols();
     let (stdin_thread_value, stdin_ctrl) = spawn_service(
         ":wat::kernel::services::StdInService/spawn",
@@ -244,12 +258,23 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         pre_sym,
         "stdin service spawn",
     )?;
-    let (stdout_thread_value, stdout_ctrl) = spawn_service(
-        ":wat::kernel::services::StdOutService/spawn",
-        Value::io__IOWriter(stdio.stdout.clone()),
-        pre_sym,
-        "stdout service spawn",
-    )?;
+    // stdout: look up the pure handle fn; spawn the Rust service peer.
+    let stdout_handle_fn = pre_sym
+        .get(":wat::kernel::services::StdOutService/handle")
+        .ok_or_else(|| RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::UnknownFunction(
+                ":wat::kernel::services::StdOutService/handle".into(),
+            ),
+        })?
+        .clone();
+    let stdout_writer_value = Value::io__IOWriter(stdio.stdout.clone());
+    let stdout_sym = pre_sym.clone();
+    let stdout_peer = crate::thread_io::spawn_stdio_service_peer(
+        stdout_handle_fn,
+        stdout_writer_value,
+        stdout_sym,
+    );
     let (stderr_thread_value, stderr_ctrl) = spawn_service(
         ":wat::kernel::services::StdErrService/spawn",
         Value::io__IOWriter(stdio.stderr.clone()),
@@ -260,7 +285,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // Step 3 — Build RuntimeServices carrier + augmented SymbolTable.
     let services = Arc::new(crate::thread_io::RuntimeServices {
         stdin_ctrl,
-        stdout_ctrl,
+        stdout_ctrl: stdout_peer.input_tx.clone(),
         stderr_ctrl,
     });
     let mut sym_with_services = frozen.symbols().clone();
@@ -277,8 +302,9 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         services: Some(services),
         main_thread_id,
         stdin_thread_value: Some(stdin_thread_value),
-        stdout_thread_value: Some(stdout_thread_value),
+        stdout_thread_value: None, // Stone 8.1: universe-resident peer; no wat Thread value
         stderr_thread_value: Some(stderr_thread_value),
+        stdout_service_join: Some(stdout_peer.join),
     })
 }
 

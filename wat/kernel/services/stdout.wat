@@ -1,293 +1,44 @@
-;; wat/kernel/services/stdout.wat — wat-side StdOutService program.
+;; wat/kernel/services/stdout.wat — Stone 214.8.1: StdOutService reborn.
 ;;
-;; Arc 170 slice 1f-β-ii. Mirrors the Rust `StdOutServiceEvent` enum
-;; shipped in `src/thread_io.rs` (slice 1f-0b, commit d32a29f):
+;; Arc 214 Slice 8 (TaggedEvent shape): the service collapses to ONE pure fn.
+;; The Event defenum, handle-add/handle-remove, dispatch, driver loop, and
+;; spawn fn ALL died in this stone — the universe (Rust thread_io layer) now
+;; owns the fan-in/fan-out and drives the loop.
 ;;
-;;   pub enum StdOutServiceEvent {
-;;       Write { line: String },
-;;       Add { thread_id, data_rx, ack_tx },
-;;       Remove { thread_id },
-;;   }
+;; The Rust service peer (thread_io.rs spawn_stdio_service_peer) calls:
+;;   apply_function(handle, [req_value, writer_value], sym, span)
+;; and routes the tagged Rep ack back to the requesting thread's reply channel.
 ;;
-;; Model:
-;;   - Service owns an IOWriter (stdout fd 1, or in-memory for tests).
-;;   - A control channel (EventRx) accepts Add / Remove events from
-;;     the runtime orchestrator (slice 1f-gamma).
-;;   - Each registered thread has a data-rx (EventRx) it sends
-;;     Event::Write on to request that a line be written to fd 1;
-;;     the service acks via ack-tx (Sender<nil>) after writing.
-;;   - The driver selects over all per-thread data-rxs + control-rx
-;;     each iteration, routes by index, dispatches per event variant.
+;; Loading order: must load AFTER wat/kernel/channel.wat (uses IOWriter)
+;; and AFTER wat/kernel/services/stdin.wat (:wat::kernel::ThreadId).
+
+;; ─── Request record ───────────────────────────────────────────────────────
 ;;
-;; Architecture decision (honest delta -- HashMap ordering):
-;;   The BRIEF specifies HashMap<ThreadId, (data-rx, ack-tx)> for
-;;   the routing table.  HashMap/values iteration order is
-;;   non-deterministic in the substrate (backed by
-;;   std::collections::HashMap).  select-by-index requires a stable
-;;   order so the index maps correctly back to the routing entry.
-;;   Therefore the driver carries a
-;;   Vector<(ThreadId, EventRx, Sender<nil>)> (RoutingEntry)
-;;   instead.  The Routing typealias below documents the conceptual
-;;   HashMap type per the BRIEF; the driver state is RoutingVec.
+;; Scalars only — no channel handles (the 254.1 uniform-portability
+;; requirement; the 214.8.1 disconfirming gate checks this).
+(:wat::core::defstruct :wat::kernel::services::StdOutService::Req
+  [thread-id <- :wat::kernel::ThreadId
+   line      <- :wat::core::String])
+
+;; ─── Reply record ─────────────────────────────────────────────────────────
 ;;
-;; Loading order: must load AFTER wat/kernel/channel.wat (uses
-;; Sender / Receiver typealiases) and AFTER wat/kernel/services/stdin.wat
-;; (which defines :wat::kernel::ThreadId).
+;; Ack carries the thread-id so the Rust router knows which reply channel
+;; to unblock.
+(:wat::core::defstruct :wat::kernel::services::StdOutService::Rep
+  [thread-id <- :wat::kernel::ThreadId])
 
-;; ─── Event enum ───────────────────────────────────────────────────────────
+;; ─── Pure handle fn ───────────────────────────────────────────────────────
 ;;
-;; Mirrors StdOutServiceEvent from src/thread_io.rs verbatim.
-;;   Write  -- thread requests that `line` be written to fd 1.
-;;   Add    -- runtime registers a new thread into routing table.
-;;   Remove -- runtime removes a thread from routing table.
-;;
-;; ack-tx carries unit (nil) back to the requesting thread confirming
-;; the write completed.
-
-;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-(:wat::core::defenum :wat::kernel::services::StdOutService::Event
-  :Write [line <- :wat::core::String]
-  :Add   [thread-id <- :wat::kernel::ThreadId
-          data-rx   <- :wat::kernel::Receiver<wat::kernel::services::StdOutService::Event>
-          ack-tx    <- :wat::kernel::Sender<wat::core::nil>]
-  :Remove [thread-id <- :wat::kernel::ThreadId])
-
-;; ─── Channel typealiases ───────────────────────────────────────────────────
-;;
-;; Pattern A typealias-family naming convention (Tx/Rx pair per
-;; channel, then a (Tx,Rx) tuple typealias for the channel itself).
-;; No whitespace inside <> or :() per WAT-CHEATSHEET.md s.2.
-
-(:wat::core::typealias :wat::kernel::services::StdOutService::EventTx
-  :wat::kernel::Sender<wat::kernel::services::StdOutService::Event>)
-
-(:wat::core::typealias :wat::kernel::services::StdOutService::EventRx
-  :wat::kernel::Receiver<wat::kernel::services::StdOutService::Event>)
-
-;; Conceptual routing type per BRIEF.  Driver uses RoutingVec instead
-;; because HashMap/values order is non-deterministic.
-;; Inner tuple arg inside <> has no leading ':' per WAT-CHEATSHEET s.1.
-(:wat::core::typealias :wat::kernel::services::StdOutService::Routing
-  :wat::core::HashMap<wat::kernel::ThreadId,(wat::kernel::services::StdOutService::EventRx,wat::kernel::Sender<wat::core::nil>)>)
-
-;; One entry in the ordered routing vector: (thread-id, data-rx, ack-tx).
-(:wat::core::typealias :wat::kernel::services::StdOutService::RoutingEntry
-  :(wat::kernel::ThreadId,wat::kernel::services::StdOutService::EventRx,wat::kernel::Sender<wat::core::nil>))
-
-;; Ordered vector of routing entries.  Index i in this vec maps to
-;; index i in the select set built from the data-rxs.
-(:wat::core::typealias :wat::kernel::services::StdOutService::RoutingVec
-  :wat::core::Vector<wat::kernel::services::StdOutService::RoutingEntry>)
-
-;; What spawn returns: (Thread<nil,nil>, ControlTx).
-;; Caller holds ControlTx to send Add / Remove events; drops it when
-;; done => control-rx disconnects => driver exits.
-(:wat::core::typealias :wat::kernel::services::StdOutService::Spawn
-  :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::services::StdOutService::EventTx))
-
-
-;; ─── Helper: extract data-rxs from routing vec ────────────────────────────
-;;
-;; Builds a Vector<EventRx> parallel to routing-vec (index i in
-;; the result corresponds to entry i in routing-vec).  The result is
-;; fed to (:wat::kernel::select ...) alongside [control-rx].
-(:wat::core::defn :wat::kernel::services::StdOutService/routing-rxs [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec] -> :wat::core::Vector<wat::kernel::services::StdOutService::EventRx>
-  (:wat::core::map
-      (:wat::core::fn
-        [entry <- :wat::kernel::services::StdOutService::RoutingEntry]
-         -> :wat::kernel::services::StdOutService::EventRx
-        (:wat::core::second entry))
-      routing-vec))
-
-
-;; ─── Helper: handle Event::Add ────────────────────────────────────────────
-;;
-;; Appends a new RoutingEntry to routing-vec.  Returns the new vec.
-(:wat::core::defn :wat::kernel::services::StdOutService/handle-add [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec thread-id <- :wat::kernel::ThreadId data-rx <- :wat::kernel::services::StdOutService::EventRx ack-tx <- :wat::kernel::Sender<wat::core::nil>] -> :wat::kernel::services::StdOutService::RoutingVec
-  (:wat::core::conj routing-vec
-      (:wat::core::Tuple thread-id data-rx ack-tx)))
-
-
-;; ─── Helper: handle Event::Remove ─────────────────────────────────────────
-;;
-;; Filters out the entry whose thread-id matches.  Returns the new vec.
-(:wat::core::defn :wat::kernel::services::StdOutService/handle-remove [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec target-id <- :wat::kernel::ThreadId] -> :wat::kernel::services::StdOutService::RoutingVec
-  (:wat::core::filter
-      (:wat::core::fn
-        [entry <- :wat::kernel::services::StdOutService::RoutingEntry]
-         -> :wat::core::bool
-        (:wat::core::not
-          (:wat::core::= (:wat::core::first entry) target-id)))
-      routing-vec))
-
-
-;; ─── Helper: handle Event::Write at index idx ─────────────────────────────
-;;
-;; Called when select fires at idx < len(routing-vec):
-;;   1. Write the line to the writer (appends newline via writeln).
-;;   2. Send unit via the matched ack-tx to confirm completion.
-;; Returns unit.
-;;
-;; Honest delta -- ack-tx zero-payload send:
-;;   `(:wat::kernel::send ack-tx ())` is the correct shape for
-;;   Sender<wat::core::nil>; unit literal `()` is the nil value.
-(:wat::core::defn :wat::kernel::services::StdOutService/handle-write [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec writer <- :wat::io::IOWriter idx <- :wat::core::i64 line <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::match (:wat::core::get routing-vec idx) -> :wat::core::nil
-      ((:wat::core::Some entry)
-        (:wat::core::let
-          [ack-tx
-            (:wat::core::third entry)
-           _bytes
-            (:wat::io::IOWriter/writeln writer line)]
-          (:wat::core::Result/expect -> :wat::core::nil
-            (:wat::kernel::send ack-tx ())
-            "StdOutService/handle-write: ack-tx disconnected -- thread died?")))
-      (:wat::core::None
-        ;; idx out of range -- degenerate; cannot happen in practice.
-        ())))
-
-
-;; ─── Dispatch helper ──────────────────────────────────────────────────────
-;;
-;; Handles the four cases after select fires:
-;;   (Ok (Some event)) at data idx  => handle-write + recurse
-;;   (Ok (Some event)) at ctrl idx  => handle Add / Remove + recurse
-;;   (Ok None) at data idx          => prune entry + recurse
-;;   (Ok None) at ctrl idx          => control-rx gone => exit
-;;   (Err _) at any idx             => prune / exit same as None
-;;
-;; Extracted from the loop body per one-let-per-function rule.
-(:wat::core::defn :wat::kernel::services::StdOutService/dispatch [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec writer <- :wat::io::IOWriter control-rx <- :wat::kernel::services::StdOutService::EventRx idx <- :wat::core::i64 maybe <- :wat::kernel::CommResult<wat::kernel::services::StdOutService::Event>] -> :wat::core::nil
+;; Called by the Rust service loop for every Req: write the line to the
+;; IOWriter (appends a newline via writeln), return the tagged Rep.
+;; No loop, no select, no routing table, no spawn — the universe drives it.
+(:wat::core::defn :wat::kernel::services::StdOutService/handle
+  [req <- :wat::kernel::services::StdOutService::Req
+   out <- :wat::io::IOWriter]
+   -> :wat::kernel::services::StdOutService::Rep
   (:wat::core::let
-      [routing-len
-        (:wat::core::length routing-vec)
-       is-ctrl
-        (:wat::core::= idx routing-len)]
-      (:wat::core::match maybe -> :wat::core::nil
-        ;; ── Fire with a value ──────────────────────────────────────────
-        ((:wat::core::Ok (:wat::core::Some event))
-          (:wat::core::if is-ctrl -> :wat::core::nil
-            ;; Control channel fired -- Add or Remove.
-            (:wat::core::match event -> :wat::core::nil
-              ((:wat::kernel::services::StdOutService::Event::Add t-id d-rx a-tx)
-                (:wat::kernel::services::StdOutService/loop
-                  (:wat::kernel::services::StdOutService/handle-add
-                    routing-vec t-id d-rx a-tx)
-                  writer
-                  control-rx))
-              ((:wat::kernel::services::StdOutService::Event::Remove t-id)
-                (:wat::kernel::services::StdOutService/loop
-                  (:wat::kernel::services::StdOutService/handle-remove
-                    routing-vec t-id)
-                  writer
-                  control-rx))
-              ((:wat::kernel::services::StdOutService::Event::Write _line)
-                ;; Write on control channel is unexpected; ignore + recurse.
-                (:wat::kernel::services::StdOutService/loop
-                  routing-vec writer control-rx)))
-            ;; Data channel fired -- Write expected.
-            (:wat::core::match event -> :wat::core::nil
-              ((:wat::kernel::services::StdOutService::Event::Write line)
-                (:wat::core::let
-                  [_ (:wat::kernel::services::StdOutService/handle-write
-                        routing-vec writer idx line)]
-                  (:wat::kernel::services::StdOutService/loop
-                    routing-vec writer control-rx)))
-              ((:wat::kernel::services::StdOutService::Event::Add _t _d _a)
-                ;; Add on data channel is unexpected; ignore + recurse.
-                (:wat::kernel::services::StdOutService/loop
-                  routing-vec writer control-rx))
-              ((:wat::kernel::services::StdOutService::Event::Remove _t)
-                ;; Remove on data channel is unexpected; ignore + recurse.
-                (:wat::kernel::services::StdOutService/loop
-                  routing-vec writer control-rx)))))
-        ;; ── Clean disconnect ────────────────────────────────────────────
-        ((:wat::core::Ok :wat::core::None)
-          (:wat::core::if is-ctrl -> :wat::core::nil
-            ;; Control channel disconnected => shutdown.
-            ()
-            ;; Data channel disconnected => prune entry + recurse.
-            (:wat::kernel::services::StdOutService/loop
-              (:wat::std::list::remove-at routing-vec idx)
-              writer
-              control-rx)))
-        ;; ── Peer panic / cascade ────────────────────────────────────────
-        ((:wat::core::Err _died)
-          (:wat::core::if is-ctrl -> :wat::core::nil
-            ;; Control channel panicked => shutdown.
-            ()
-            ;; Data channel panicked => prune entry + recurse.
-            (:wat::kernel::services::StdOutService/loop
-              (:wat::std::list::remove-at routing-vec idx)
-              writer
-              control-rx))))))
-
-
-;; ─── Driver loop ──────────────────────────────────────────────────────────
-;;
-;; Each iteration:
-;;   1. Build select set: data-rxs from routing-vec ++ [control-rx].
-;;      (routing-vec may be empty; then select set = [control-rx].)
-;;   2. select blocks until one receiver fires.
-;;   3. Forward to dispatch helper by index.
-;;   4. Recurse with updated routing-vec.
-;;
-;; Shutdown: control-rx disconnects (ControlTx dropped by caller) =>
-;; dispatch exits the recursion => return unit => Thread<nil,nil>
-;; delivers unit on its output Sender.
-;;
-;; One let per function per feedback_simple_forms_per_func.
-(:wat::core::defn :wat::kernel::services::StdOutService/loop [routing-vec <- :wat::kernel::services::StdOutService::RoutingVec writer <- :wat::io::IOWriter control-rx <- :wat::kernel::services::StdOutService::EventRx] -> :wat::core::nil
-  (:wat::core::let
-      [data-rxs
-        (:wat::kernel::services::StdOutService/routing-rxs routing-vec)
-       select-set
-        (:wat::core::concat data-rxs
-          (:wat::core::Vector
-            :wat::kernel::services::StdOutService::EventRx
-            control-rx))
-       chosen
-        (:wat::kernel::select select-set)
-       idx
-        (:wat::core::first chosen)
-       maybe
-        (:wat::core::second chosen)]
-      (:wat::kernel::services::StdOutService/dispatch
-        routing-vec writer control-rx idx maybe)))
-
-
-;; ─── spawn ────────────────────────────────────────────────────────────────
-;;
-;; Creates the StdOutService program.  Returns (Thread<nil,nil>, ControlTx)
-;; per SERVICE-PROGRAMS.md lockstep.
-;;
-;;   writer -- the IOWriter for fd 1 (or in-memory for tests).
-;;
-;; Caller:
-;;   (let [spawn (StdOutService/spawn writer)
-;;         thr   (first spawn)
-;;         ctrl  (second spawn)]
-;;     ;; Send Add / Remove events on ctrl.
-;;     ;; Drop ctrl => service shuts down.
-;;     (Thread/join-result thr))
-(:wat::core::defn :wat::kernel::services::StdOutService/spawn [writer <- :wat::io::IOWriter] -> :wat::kernel::services::StdOutService::Spawn
-  (:wat::core::let
-      [ctrl-pair
-        (:wat::kernel::make-channel
-          :wat::kernel::services::StdOutService::Event)
-       ctrl-tx
-        (:wat::core::first ctrl-pair)
-       ctrl-rx
-        (:wat::core::second ctrl-pair)
-       thr
-        (:wat::kernel::spawn-thread
-          (:wat::core::fn
-            [_in <- :wat::kernel::Receiver<wat::core::nil>
-             _out <- :wat::kernel::Sender<wat::core::nil>]
-             -> :wat::core::nil
-            (:wat::kernel::services::StdOutService/loop
-              (:wat::core::Vector
-                :wat::kernel::services::StdOutService::RoutingEntry)
-              writer
-              ctrl-rx)))]
-      (:wat::core::Tuple thr ctrl-tx)))
+    [_bytes
+      (:wat::io::IOWriter/writeln out
+        (:wat::kernel::services::StdOutService::Req/line req))]
+    (:wat::kernel::services::StdOutService::Rep/new
+      (:wat::kernel::services::StdOutService::Req/thread-id req))))
