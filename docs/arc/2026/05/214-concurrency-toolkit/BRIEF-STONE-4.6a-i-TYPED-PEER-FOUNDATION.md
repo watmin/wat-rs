@@ -74,7 +74,7 @@ one of the two peer sentinels reports that type_path (runtime.rs:5220 region +
   inference exists.
 - `cargo test --release --test nursery probe_arc214_lexer_primed_generic_head` →
   still **3 passed** (no lexer regression).
-- `cargo test --release --lib -p wat` → green band (~940/0/1).
+- `cargo test --release --lib -p wat` → green band (~943/0/1).
 - `cargo clippy --release` → no new warnings in touched files.
 
 STOP triggers are rejection criteria: if a part cannot be built as specified,
@@ -85,7 +85,7 @@ orchestrator scores and commits.
 
 | # | Claim | Check |
 |---|---|---|
-| 1 | foundation probe 3/3 | orchestrator re-run |
+| 1 | foundation probe 5/5 (incl. negatives 4/5) | orchestrator re-run |
 | 2 | lexer probe still 3/3 | orchestrator re-run |
 | 3 | lib band green | orchestrator re-run |
 | 4 | `:process` tier infers `Process'` (not `Thread'`) | probe 3 distinguishes |
