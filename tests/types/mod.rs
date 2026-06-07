@@ -19,4 +19,6 @@ mod struct_restricted;
 mod structs;
 mod tuple;
 mod typealias;
+mod typed_if_match;
+mod uuid;
 // END GENERATED MODS

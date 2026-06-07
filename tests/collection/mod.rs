@@ -3,6 +3,7 @@
 
 // BEGIN GENERATED MODS (scripts/gen-test-mods.sh) — do not hand-edit below
 mod bundle_capacity;
+mod list;
 mod sort_by;
 mod vector_algebra;
 mod vector_first_class;
