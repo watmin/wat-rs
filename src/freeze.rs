@@ -95,9 +95,9 @@ pub struct BootstrapArgs<'a> {
 /// 3. Drop `sym_with_services` (releases the Arc<RuntimeServices> the
 ///    carrier held).
 /// 4. Drop `services` (the local Arc).
-/// 5. Join the stdin service thread.
-/// 6. Join the stdout service thread.
-/// 7. Join the stderr service thread.
+/// 5. Join the stdin service thread (wat Thread value).
+/// 6. Join the stdout service peer (Rust JoinHandle).
+/// 7. Join the stderr service peer (Rust JoinHandle).
 ///
 /// Join errors in Drop are logged to stderr via `eprintln!` and do not
 /// propagate (Drop cannot return Result). They are diagnostic noise on
@@ -109,16 +109,14 @@ pub struct ProcessRuntime {
     /// Always Some until Drop runs.
     services: Option<Arc<crate::thread_io::RuntimeServices>>,
     main_thread_id: ThreadId,
+    /// stdin: old architecture (wat Thread value). Joined in Drop step 5.
     stdin_thread_value: Option<Value>,
-    /// Arc 214 Stone 8.1 — stdout is now a universe-resident Rust peer;
-    /// this field is always None. Kept as a placeholder for uniformity;
-    /// stdout teardown uses `stdout_service_join` below.
-    stdout_thread_value: Option<Value>,
-    stderr_thread_value: Option<Value>,
     /// Arc 214 Stone 8.1 — JoinHandle for the universe-resident stdout
-    /// service peer loop (replaces the wat Thread value from the old
-    /// StdOutService/spawn architecture).
+    /// write service peer loop. Joined in Drop step 6.
     stdout_service_join: Option<std::thread::JoinHandle<()>>,
+    /// Arc 214 Stone 8.1b — JoinHandle for the universe-resident stderr
+    /// write service peer loop. Joined in Drop step 7.
+    stderr_service_join: Option<std::thread::JoinHandle<()>>,
 }
 
 impl ProcessRuntime {
@@ -131,17 +129,16 @@ impl ProcessRuntime {
 
 impl Drop for ProcessRuntime {
     fn drop(&mut self) {
-        // Cleanup steps must run in this EXACT order (matches the original
-        // invoke_user_main_orchestrated cleanup at freeze.rs:827-849):
+        // Cleanup steps must run in this EXACT order:
         //
         //   1. Deregister the calling thread from services (Remove events).
         //   2. Uninstall the calling thread's ThreadIO cell.
         //   3. Drop sym_with_services (releases the Arc<RuntimeServices>
         //      the carrier held).
         //   4. Drop services local Arc.
-        //   5. Join stdin service thread.
-        //   6. Join stdout service thread.
-        //   7. Join stderr service thread.
+        //   5. Join stdin service thread (wat Thread value).
+        //   6. Join stdout service peer (Rust JoinHandle).
+        //   7. Join stderr service peer (Rust JoinHandle).
         //
         // Steps 3 and 4 must happen BEFORE the joins (5-7) so the service
         // threads see their control-rx disconnect and exit — otherwise the
@@ -178,10 +175,12 @@ impl Drop for ProcessRuntime {
             drop(svc);
         }
 
-        // Steps 5-7: Join service threads. Services exit when their
+        // Steps 5-7: Join service threads/peers. Services exit when their
         // control-rx disconnects; that happens when all Arc<RuntimeServices>
         // clones drop (sym done in step 3, local done in step 4). Join
         // errors are logged and continue — we're in teardown.
+
+        // Step 5: stdin (old architecture — wat Thread value).
         if let Some(v) = self.stdin_thread_value.take() {
             if let Err(e) = join_service(v, "stdin service join (Drop)") {
                 eprintln!(
@@ -190,9 +189,7 @@ impl Drop for ProcessRuntime {
                 );
             }
         }
-        // stdout_thread_value is always None in Stone 8.1 (universe-resident peer).
-        let _ = self.stdout_thread_value.take();
-        // Join the universe-resident stdout service peer (Rust thread).
+        // Step 6: Join the universe-resident stdout service peer (Rust thread).
         if let Some(join) = self.stdout_service_join.take() {
             if let Err(e) = join.join() {
                 eprintln!(
@@ -201,10 +198,11 @@ impl Drop for ProcessRuntime {
                 );
             }
         }
-        if let Some(v) = self.stderr_thread_value.take() {
-            if let Err(e) = join_service(v, "stderr service join (Drop)") {
+        // Step 7: Join the universe-resident stderr service peer (Rust thread).
+        if let Some(join) = self.stderr_service_join.take() {
+            if let Err(e) = join.join() {
                 eprintln!(
-                    "[wat substrate] stderr service join error during ProcessRuntime::drop: {}",
+                    "[wat substrate] stderr service peer join error during ProcessRuntime::drop: {:?}",
                     e
                 );
             }
@@ -248,9 +246,9 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
 
     // Step 2 — Spawn the three services.
     //
-    // stdin + stderr: old architecture (wat spawn returning (Thread, ControlTx)).
-    // stdout: Arc 214 Stone 8.1 — universe-resident Rust peer
-    //   (spawn_stdout_service_peer; returns StdOutServicePeer with input_tx + thread).
+    // stdin: old architecture (wat spawn returning (Thread, ControlTx)).
+    // stdout: Arc 214 Stone 8.1 — universe-resident write peer.
+    // stderr: Arc 214 Stone 8.1b — universe-resident write peer (same shape).
     let pre_sym = frozen.symbols();
     let (stdin_thread_value, stdin_ctrl) = spawn_service(
         ":wat::kernel::services::StdInService/spawn",
@@ -258,7 +256,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         pre_sym,
         "stdin service spawn",
     )?;
-    // stdout: look up the pure handle fn; spawn the Rust service peer.
+    // stdout: look up the pure handle fn; spawn the Rust write service peer.
     let stdout_handle_fn = pre_sym
         .get(":wat::kernel::services::StdOutService/handle")
         .ok_or_else(|| RuntimeError {
@@ -268,25 +266,34 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
             ),
         })?
         .clone();
-    let stdout_writer_value = Value::io__IOWriter(stdio.stdout.clone());
-    let stdout_sym = pre_sym.clone();
-    let stdout_peer = crate::thread_io::spawn_stdout_service_peer(
+    let stdout_peer = crate::thread_io::spawn_write_service_peer(
+        "stdout",
         stdout_handle_fn,
-        stdout_writer_value,
-        stdout_sym,
+        Value::io__IOWriter(stdio.stdout.clone()),
+        pre_sym.clone(),
     );
-    let (stderr_thread_value, stderr_ctrl) = spawn_service(
-        ":wat::kernel::services::StdErrService/spawn",
+    // stderr: look up the pure handle fn; spawn the Rust write service peer.
+    let stderr_handle_fn = pre_sym
+        .get(":wat::kernel::services::StdErrService/handle")
+        .ok_or_else(|| RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::UnknownFunction(
+                ":wat::kernel::services::StdErrService/handle".into(),
+            ),
+        })?
+        .clone();
+    let stderr_peer = crate::thread_io::spawn_write_service_peer(
+        "stderr",
+        stderr_handle_fn,
         Value::io__IOWriter(stdio.stderr.clone()),
-        pre_sym,
-        "stderr service spawn",
-    )?;
+        pre_sym.clone(),
+    );
 
     // Step 3 — Build RuntimeServices carrier + augmented SymbolTable.
     let services = Arc::new(crate::thread_io::RuntimeServices {
         stdin_ctrl,
         stdout_ctrl: stdout_peer.input_tx.clone(),
-        stderr_ctrl,
+        stderr_ctrl: stderr_peer.input_tx.clone(),
     });
     let mut sym_with_services = frozen.symbols().clone();
     sym_with_services.set_runtime_services(Arc::clone(&services));
@@ -302,9 +309,8 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         services: Some(services),
         main_thread_id,
         stdin_thread_value: Some(stdin_thread_value),
-        stdout_thread_value: None, // Stone 8.1: universe-resident peer; no wat Thread value
-        stderr_thread_value: Some(stderr_thread_value),
         stdout_service_join: Some(stdout_peer.thread),
+        stderr_service_join: Some(stderr_peer.thread),
     })
 }
 

@@ -103,7 +103,7 @@ pub mod test_runner;
 pub mod thread_io;
 pub use thread_io::{
     install_thread_io, uninstall_thread_io,
-    StdInServiceEvent, StdErrServiceEvent,
+    StdInServiceEvent,
     ThreadId, ThreadIO,
 };
 pub mod time;

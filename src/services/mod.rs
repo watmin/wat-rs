@@ -39,9 +39,11 @@
 //!
 //! ## Residents
 //!
-//! - stdout (Stone 8.1) — `StdOutServiceMsg` + `spawn_stdout_service_peer`.
-//! - stderr (8.1b) + stdin (8.2) build HERE — the thread_io quarry never
-//!   grows again; it holds only condemned material for Slice 6's deletion.
+//! - stdout (Stone 8.1) — `WriteServiceMsg` + `spawn_write_service_peer`.
+//! - stderr (Stone 8.1b) — same shape, fd 2; both instantiate the generic
+//!   write peer via `spawn_write_service_peer("stderr", ...)`.
+//! - stdin (8.2) builds HERE next — its reply carries the line (a different
+//!   shape, decided at 8.2).
 //!
 //! Ward note: the vigilatum cast lands when the trio completes in this home
 //! (one ward for the finished home, in-slice — the stamp covers stdout +
@@ -52,41 +54,48 @@ use std::sync::Arc;
 use crate::runtime::Value;
 use crate::thread_io::ThreadId;
 
-/// Rust-internal input enum for the universe-resident StdOutService peer.
+/// Rust-internal input enum for the universe-resident write-service peer.
 /// NEVER a wat message; the Rust service loop owns it.
 ///
-/// - `Req(value)` carries a `Value::Struct` of `:wat::kernel::services::
-///   StdOutService::Req {thread-id, line}`. The loop applies the wat handle
-///   fn and routes the Rep ack back via the reply registry.
+/// - `Req(value)` carries a `Value::Struct` of the service's Req record
+///   `{thread-id, line}`. The loop applies the wat handle fn and routes
+///   the Rep ack back via the reply registry.
 /// - `Register(tid, reply_tx)` inserts a per-thread reply sender so the loop
-///   can route the ack back to the calling thread's `stdout_reply_rx`.
+///   can route the ack back to the calling thread's reply_rx.
 /// - `Deregister(tid)` removes the reply sender (thread reap).
+///
+/// Used for both stdout (Stone 8.1) and stderr (Stone 8.1b) — the generic
+/// write-service shape.
 #[derive(Debug)]
-pub enum StdOutServiceMsg {
+pub enum WriteServiceMsg {
     Req(Value),
     Register(ThreadId, crate::comms::thread::Sender<Result<(), String>>),
     Deregister(ThreadId),
 }
 
-/// Handle returned from `spawn_stdout_service_peer`. The boot (freeze.rs)
+/// Handle returned from `spawn_write_service_peer`. The boot (freeze.rs)
 /// sends Req/Register/Deregister messages on `input_tx` and joins the
 /// service thread for clean teardown (AFTER dropping every sender — see the
 /// module-doc drop-order contract).
-pub struct StdOutServicePeer {
-    pub input_tx: crate::comms::thread::Sender<StdOutServiceMsg>,
+pub struct WriteServicePeer {
+    pub input_tx: crate::comms::thread::Sender<WriteServiceMsg>,
     /// The spawned loop's thread handle — joined at teardown (the thing you
     /// hold, not the call you make on it).
     pub thread: std::thread::JoinHandle<()>,
 }
 
-/// Spawn the universe-resident StdOutService loop.
+/// Spawn the universe-resident write-service loop.
+///
+/// The `service_label` feeds the thread name
+/// (`format!("wat-{}-service-peer", service_label)`) and every
+/// diagnostic eprintln (`"[wat substrate] {label}: …"`).
 ///
 /// The loop:
-///   1. Receives `StdOutServiceMsg` messages on `input_rx`.
+///   1. Receives `WriteServiceMsg` messages on `input_rx`.
 ///   2. For `Req(v)`: applies the wat handle fn with `[v, writer.clone()]`
 ///      and routes the reply by the Req's thread-id tag — `Ok(())` on
 ///      success, `Err(msg)` on a failed write (EVERY Req gets a reply; the
-///      caller's println surfaces the error as a RuntimeError).
+///      caller's println/eprintln surfaces the error as a RuntimeError).
 ///   3. For `Register(tid, reply_tx)`: inserts into the reply registry.
 ///   4. For `Deregister(tid)`: removes from the registry.
 ///   5. Exits when `input_rx` disconnects (all `input_tx` senders dropped).
@@ -94,14 +103,16 @@ pub struct StdOutServicePeer {
 /// The only reply-less arms are the malformed-Req guards (no thread-id is
 /// extractable to route to) — reachable only via a substrate bug, logged
 /// loudly on stderr.
-pub fn spawn_stdout_service_peer(
+pub fn spawn_write_service_peer(
+    service_label: &'static str,
     handle_fn: Arc<crate::runtime::Function>,
     writer: Value,
     sym: crate::runtime::SymbolTable,
-) -> StdOutServicePeer {
-    let (input_tx, input_rx) = crate::comms::thread::pair::<StdOutServiceMsg>();
+) -> WriteServicePeer {
+    let (input_tx, input_rx) = crate::comms::thread::pair::<WriteServiceMsg>();
+    let thread_name = format!("wat-{}-service-peer", service_label);
     let join = std::thread::Builder::new()
-        .name("wat-stdout-service-peer".to_string())
+        .name(thread_name)
         .spawn(move || {
             let mut reply_registry: std::collections::HashMap<
                 ThreadId,
@@ -113,23 +124,24 @@ pub fn spawn_stdout_service_peer(
                     Err(_) => break, // all input_tx senders dropped → shutdown
                 };
                 match msg {
-                    StdOutServiceMsg::Register(tid, reply_tx) => {
+                    WriteServiceMsg::Register(tid, reply_tx) => {
                         reply_registry.insert(tid, reply_tx);
                     }
-                    StdOutServiceMsg::Deregister(tid) => {
+                    WriteServiceMsg::Deregister(tid) => {
                         reply_registry.remove(&tid);
                     }
-                    StdOutServiceMsg::Req(req_value) => {
+                    WriteServiceMsg::Req(req_value) => {
                         // Field 0 is thread-id BY THE RECORD CONVENTION of
-                        // :wat::kernel::services::StdOutService::Req
-                        // {thread-id, line} (wat/kernel/services/stdout.wat).
+                        // :wat::kernel::services::{Std{Out,Err}}Service::Req
+                        // {thread-id, line} (wat/kernel/services/{stdout,stderr}.wat).
                         let thread_id: ThreadId = match &req_value {
                             Value::Struct(sv) if !sv.fields.is_empty() => {
                                 match &sv.fields[0] {
                                     Value::i64(n) => *n,
                                     _ => {
                                         eprintln!(
-                                            "[wat substrate] stdout-peer: Req field[0] is not i64"
+                                            "[wat substrate] {}-peer: Req field[0] is not i64",
+                                            service_label
                                         );
                                         continue;
                                     }
@@ -137,7 +149,8 @@ pub fn spawn_stdout_service_peer(
                             }
                             _ => {
                                 eprintln!(
-                                    "[wat substrate] stdout-peer: Req is not a Struct"
+                                    "[wat substrate] {}-peer: Req is not a Struct",
+                                    service_label
                                 );
                                 continue;
                             }
@@ -161,14 +174,14 @@ pub fn spawn_stdout_service_peer(
                             }
                             Err(e) => {
                                 // ZERO-MUTEX mini-TCP: EVERY Req gets a reply —
-                                // a caller blocked in println must NEVER hang on a
-                                // failed write. Route the error; println surfaces it
-                                // as a RuntimeError (the ack means write-COMPLETED;
-                                // acking a failure would be a lie, so the reply
-                                // carries Result).
+                                // a caller blocked in println/eprintln must NEVER
+                                // hang on a failed write. Route the error; the
+                                // caller surfaces it as a RuntimeError (the ack
+                                // means write-COMPLETED; acking a failure would
+                                // be a lie, so the reply carries Result).
                                 eprintln!(
-                                    "[wat substrate] stdout-peer: handle failed: {}",
-                                    e
+                                    "[wat substrate] {}-peer: handle failed: {}",
+                                    service_label, e
                                 );
                                 if let Some(reply_tx) = reply_registry.get(&thread_id) {
                                     let _ = reply_tx.send(Err(format!("{}", e)));
@@ -179,6 +192,7 @@ pub fn spawn_stdout_service_peer(
                 }
             }
         })
-        .expect("std::thread::spawn for stdout service peer");
-    StdOutServicePeer { input_tx, thread: join }
+        .expect("std::thread::spawn for write service peer");
+    WriteServicePeer { input_tx, thread: join }
 }
+

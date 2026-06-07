@@ -109,10 +109,9 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/services/stdout.wat",
         source: include_str!("../wat/kernel/services/stdout.wat"),
     },
-    // Arc 170 slice 1f-β-iii — `:wat::kernel::services::StdErrService::*`.
-    // (wat-side StdErrService program; mirrors StdErrServiceEvent
-    // from src/thread_io.rs; fd 2 carries only panic-cascade EDN per
-    // TIERS.md doctrine).
+    // Arc 214 Stone 8.1b — `:wat::kernel::services::StdErrService::*`.
+    // (the universe-resident shape: Req/Rep records + ONE pure handle fn;
+    // the Rust loop lives in src/services/, mirroring stdout).
     WatSource {
         path: "wat/kernel/services/stderr.wat",
         source: include_str!("../wat/kernel/services/stderr.wat"),
