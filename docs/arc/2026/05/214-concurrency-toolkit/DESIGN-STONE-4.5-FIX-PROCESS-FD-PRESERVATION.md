@@ -28,12 +28,25 @@ But the `:process` child needs two more fds: the comms **data**-pipes — `input
 1. `close_inherited_fds_above_stdio` honors only `skip[0]` (`fork.rs:413`) — a silent single-fd limitation; `skip[1..]` is ignored. A multi-fd caller is silently betrayed. (Dark-class per `feedback_silent_swallow_is_dark_class`.)
 2. `comms::process::Sender`/`Receiver` expose **no public raw-fd accessor** — preservation is impossible without reaching past the public API.
 
+## The complete fd set (grounded against the PASSING 4.4 test)
+
+The passing 4.4 test (`tests/comms/peer_process_round_trip.rs`) forks via
+`spawn_lifelined` and its child **never calls `child_post_fork_init`** — so NO
+close-sweep runs and *every* endpoint fd survives (COW copy). That is the empirical
+proof the fix must reproduce: give the 4.5 child the SAME fd-survival.
+
+Each endpoint's owned fds (read from `src/comms/process.rs`):
+- **`Sender<T>`** — `write_fd` only (send is a plain `write`; no ring).
+- **`Receiver<T>`** — `read_fd` **+ the io_uring `ring` fd** (`ring: RefCell<IoUring>`, `process.rs:265`; `IoUring: AsRawFd`). recv uses io_uring, so the ring fd must survive too — preserving only `read_fd` would still break `recv`.
+
+So the child must preserve, across the sweep: `input_rx`'s {read_fd, ring fd} **and** `output_tx`'s {write_fd}.
+
 ## The fix (4 parts; both touched files are WARDED homes → re-ward)
 
-1. **`src/comms/process.rs`** — add a public raw-fd accessor to `Sender<T>` and `Receiver<T>` (`pub fn as_raw_fd(&self) -> RawFd`, or an `AsRawFd` impl). This is the portable, intentional surface for "preserve this end across a fork."
+1. **`src/comms/process.rs`** — add a public accessor returning the COMPLETE owned fd set of each endpoint (e.g. `pub fn raw_fds(&self) -> Vec<RawFd>`): `Sender` → `[write_fd]`; `Receiver` → `[read_fd, ring.borrow().as_raw_fd()]`. This is the portable, intentional surface for "preserve every fd this end owns across a fork." (intueri names it during the ward.)
 2. **`src/fork.rs` — `close_inherited_fds_above_stdio`**: honor the FULL sorted skip-list via a multi-range sweep (sort + dedup `skip`, sweep the gaps between preserved fds). Annihilates latent defect #1 — `skip[1..]` can no longer be silently dropped.
 3. **`src/fork.rs`** — add `child_post_fork_init_preserving(lifeline_r_raw: i32, extra_preserved: &[i32])` (the bare `child_post_fork_init` becomes `…_preserving(l, &[])`); thread `extra_preserved` into the close-sweep skip-list. Verify `init_shutdown_signal_with_inputs` does not re-clobber the preserved fds.
-4. **`src/kernel/spawn.rs`** — the `:process` child calls `child_post_fork_init_preserving(lifeline_r_raw, &[input_rx.as_raw_fd(), output_tx.as_raw_fd()])` instead of the bare init.
+4. **`src/kernel/spawn.rs`** — the `:process` child collects `input_rx.raw_fds()` ∪ `output_tx.raw_fds()` and calls `child_post_fork_init_preserving(lifeline_r_raw, &preserved)` instead of the bare init.
 
 ## Secondary fix — the test binary forks from a multi-threaded parent
 
