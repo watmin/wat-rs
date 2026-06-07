@@ -197,3 +197,29 @@ This makes the baseline-metadata change touch BOTH classes: even a bare user `de
 (today → `metadata-of` None) now carries the baseline (`:wat`/`:userland`/name/
 arity). Parity is completed from both ends — builtins gain reflection, user forms
 gain the guaranteed baseline — and they meet in one honest, uniform map.
+
+## THE METADATA MAP AS CLASSIFICATION SUBSTRATE (builder co-design)
+
+The metadata map is not only for reflection/provenance — it is the **symbol-
+classification single source of truth.** Today the codebase classifies symbols by
+*scattered exact-string-matching* (`name == ":wat::…"`, `is_reserved_prefix`,
+`starts_with`, the verb-list `matches!`es) — duplicated, drift-prone logic that
+re-derives a symbol's *kind* from its name *shape*. That string-shape-as-truth is
+exactly how `+'2` and the `make-*-queue` phantoms hid.
+
+**The model (Lisp symbol-plist / Clojure metadata):** declare a classification tag
+*at the symbol's definition*; query the tag wherever that classification is needed.
+The provenance tags (`:defined-in`, `:layer`) are instance #1; the pattern extends
+to any classification currently done by string-matching (e.g. `:tier :kernel`,
+`:kind :arithmetic`, `:service? true`).
+
+**Discriminant (refined, four-questions):** tags carry **classification** ("is this
+a *kind* of thing"); **identity dispatch** (exact name → handler) stays name-based —
+that is not classification. `feedback_mark_the_source_not_memory`: the tag is the
+declared truth at the source; checks read it instead of re-deriving kind by shape.
+
+**Scope guard:** 255 ships the *mechanism* (tags declared at definition, queryable
+via the metadata map) + the provenance tags. *Migrating* existing string-match
+classification sites to tag-queries is a capability 255 unlocks, **harvested
+incrementally** (each its own small stone), NOT an all-at-once sweep inside 255.
+Mechanism now; harvest forever.
