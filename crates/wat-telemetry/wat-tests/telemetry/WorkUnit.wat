@@ -31,27 +31,29 @@
 ;; test's sandbox prelude (cf. auto-spawn.wat in wat-sqlite).
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::define
-     (:wat-telemetry::empty-tags -> :wat::telemetry::Tags)
+  ((:wat::core::defn :wat-telemetry::empty-tags
+     []
+     -> :wat::telemetry::Tags
      (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST))
 
-   (:wat::core::define
-     (:wat-telemetry::default-ns -> :wat::holon::HolonAST)
+   (:wat::core::defn :wat-telemetry::default-ns
+     []
+     -> :wat::holon::HolonAST
      (:wat::holon::to-holon :wat-telemetry::test::ns))
 
    ;; Probe helper — `:wat::core::Fn(X)->fn(Y)->Z`. Locks the substrate's
    ;; nested-fn-return capability that WorkUnit/make-scope needs.
-   (:wat::core::define
-     (:wat-telemetry::probe::make-adder
-       (x :wat::core::i64) -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+   (:wat::core::defn :wat-telemetry::probe::make-adder
+     [x <- :wat::core::i64]
+     -> :wat::core::Fn(wat::core::i64)->wat::core::i64
      (:wat::core::fn [y <- :wat::core::i64] -> :wat::core::i64
        (:wat::core::+ x y)))
 
    ;; Rank-2 probe — generic factory returning generic-T closure.
    ;; Each call instantiates T at the call site.
-   (:wat::core::define
-     (:wat-telemetry::probe::make-runner<T>
-       (_label :wat::core::String) -> :wat::core::Fn(wat::core::Fn()->T)->T)
+   (:wat::core::defn :wat-telemetry::probe::make-runner<T>
+     [_label <- :wat::core::String]
+     -> :wat::core::Fn(wat::core::Fn()->T)->T
      (:wat::core::fn [body <- :wat::core::Fn()->T] -> :T
        (body)))
 
@@ -59,10 +61,9 @@
    ;; a Sender<Event>; forwards each Event from the dispatched
    ;; batch into the test's stub channel so the body can drain
    ;; them after scope returns.
-   (:wat::core::define
-     (:wat-telemetry::scope::make-stub-dispatcher
-       (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+   (:wat::core::defn :wat-telemetry::scope::make-stub-dispatcher
+     [stub-tx <- :wat::kernel::Sender<wat::telemetry::Event>]
+     -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil
      (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
          (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::telemetry::Event] -> :wat::core::nil
@@ -74,10 +75,9 @@
    ;; Sender<i64>. Used by test-make-scope-ships-empty to confirm the
    ;; service was called once with 0 events (instead of trying to recv
    ;; from stub-rx, which would block when the batch is empty).
-   (:wat::core::define
-     (:wat-telemetry::scope::make-count-dispatcher
-       (count-tx :wat::kernel::Sender<wat::core::i64>)
-       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+   (:wat::core::defn :wat-telemetry::scope::make-count-dispatcher
+     [count-tx <- :wat::kernel::Sender<wat::core::i64>]
+     -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil
      (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::match
          (:wat::kernel::send count-tx (:wat::core::length entries)) -> :wat::core::nil
@@ -85,10 +85,9 @@
          ((:wat::core::Err _) :wat::core::nil))))
 
    ;; Empty stats translator — null cadence never fires anyway.
-   (:wat::core::define
-     (:wat-telemetry::scope::translate-empty
-       (_s :wat::telemetry::Stats)
-       -> :wat::core::Vector<wat::telemetry::Event>)
+   (:wat::core::defn :wat-telemetry::scope::translate-empty
+     [_s <- :wat::telemetry::Stats]
+     -> :wat::core::Vector<wat::telemetry::Event>
      (:wat::core::Vector :wat::telemetry::Event))
 
    ;; ─── Layer 1 — stub-service scope runner ─────────────────────────
@@ -107,10 +106,9 @@
    ;; Specialized for bodies that return a String (tests 1, 2 — uuid capture).
    ;; Uses nested 2-tuples to avoid generic-T return issues:
    ;;   outer = (Thread, (String, Receiver))
-   (:wat::core::define
-     (:test::wu-spawn-stub-scope-str
-       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::String)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
+   (:wat::core::defn :test::wu-spawn-stub-scope-str
+     [body <- :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::String]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>))
      (:wat::core::let
        [stub-pair
          (:wat::kernel::make-channel :wat::telemetry::Event)
@@ -146,10 +144,9 @@
    ;; handle, make scope with default-ns, call body (which returns unit),
    ;; return :(Thread<unit,unit>, Receiver<Event>).
    ;; Specialized for bodies that return unit (tests 3, 4).
-   (:wat::core::define
-     (:test::wu-spawn-stub-scope-unit
-       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
+   (:wat::core::defn :test::wu-spawn-stub-scope-unit
+     [body <- :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>)
      (:wat::core::let
        [stub-pair
          (:wat::kernel::make-channel :wat::telemetry::Event)
@@ -185,10 +182,9 @@
    ;; handle, make scope with default-ns, call body (which returns i64),
    ;; return :(Thread<unit,unit>, (i64, Receiver<Event>)).
    ;; Specialized for bodies that return i64 (test 5 — result passthrough).
-   (:wat::core::define
-     (:test::wu-spawn-stub-scope-i64
-       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::i64)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
+   (:wat::core::defn :test::wu-spawn-stub-scope-i64
+     [body <- :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::i64]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>))
      (:wat::core::let
        [stub-pair
          (:wat::kernel::make-channel :wat::telemetry::Event)
@@ -227,10 +223,9 @@
    ;; (while count-tx is alive in the dispatcher closure), so the caller
    ;; receives :(Thread<unit,unit>, i64) — the dispatch count.
    ;; Body returns unit (the count-dispatcher test doesn't need a T payload).
-   (:wat::core::define
-     (:test::wu-spawn-count-and-scope
-       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
+   (:wat::core::defn :test::wu-spawn-count-and-scope
+     [body <- :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64)
      (:wat::core::let
        [count-pair
          (:wat::kernel::make-channel :wat::core::i64)
@@ -270,11 +265,10 @@
    ;; :test::wu-recv-metric-uuid-ok — recv one Event from stub-rx and
    ;; check whether it is an Event::Metric whose _uuid field matches the
    ;; given uuid-str. Returns true on match, false on any mismatch.
-   (:wat::core::define
-     (:test::wu-recv-metric-uuid-ok
-       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-       (uuid-str :wat::core::String)
-       -> :wat::core::bool)
+   (:wat::core::defn :test::wu-recv-metric-uuid-ok
+     [stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>
+      uuid-str <- :wat::core::String]
+     -> :wat::core::bool
      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
        ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Metric _ _ _ _uuid _ _ _ _)))
          (:wat::core::= _uuid uuid-str))
@@ -284,10 +278,9 @@
 
    ;; :test::wu-recv-event-is-some — recv one Event from stub-rx;
    ;; returns true if Some, false on None or error.
-   (:wat::core::define
-     (:test::wu-recv-event-is-some
-       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-       -> :wat::core::bool)
+   (:wat::core::defn :test::wu-recv-event-is-some
+     [stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>]
+     -> :wat::core::bool
      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
        ((:wat::core::Ok (:wat::core::Some _)) true)
        ((:wat::core::Ok :wat::core::None) false)

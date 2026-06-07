@@ -27,10 +27,9 @@
 
    ;; Two-level let helper — outer holds driver; inner sends
    ;; entries + drops. Function-decomposed per Step 9.
-   (:wat::core::define
-     (:test::send-events
-       (pool :wat::telemetry::HandlePool<test::Event>)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::send-events
+     [pool <- :wat::telemetry::HandlePool<test::Event>]
+     -> :wat::core::nil
      (:wat::core::let
        [handle
          (:wat::kernel::HandlePool::pop pool)
@@ -49,10 +48,9 @@
        ()))
 
 
-   (:wat::core::define
-     (:test::auto-spawn-events
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :test::auto-spawn-events
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/auto-spawn

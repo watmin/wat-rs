@@ -27,8 +27,9 @@
 (:wat::test::make-deftest :deftest-lru
   (
    ;; ─── Layer 0 helper — spawn → pop → finish → drop → join ─────────
-   (:wat::core::define
-     (:test::lru-spawn-and-drop -> :wat::core::nil)
+   (:wat::core::defn :test::lru-spawn-and-drop
+     []
+     -> :wat::core::nil
      (:wat::core::let
        [driver
          (:wat::core::let
@@ -56,8 +57,9 @@
    ;; send/recv in test code. The inner let owns the pool + handle so
    ;; their Sender clones drop before the outer join; only (driver, n)
    ;; survive to the outer scope. Returns the result-vec length.
-   (:wat::core::define
-     (:test::lru-helper-get-empty -> :wat::core::i64)
+   (:wat::core::defn :test::lru-helper-get-empty
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-n
          (:wat::core::let
@@ -92,8 +94,9 @@
    ;; send-AND-recv internally; driver replies Reply::PutAck (unit).
    ;; Returns 1 on success — the deftest body asserts on that constant
    ;; so a missing PutAck (driver died, wrong reply variant) trips up.
-   (:wat::core::define
-     (:test::lru-helper-put-one -> :wat::core::i64)
+   (:wat::core::defn :test::lru-helper-put-one
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver
          (:wat::core::let
@@ -126,12 +129,11 @@
    ;; Pure handle-level work; no spawn/finish/join scaffolding. Puts
    ;; (k, v) then reads back results[0] from a single-key get. Panics
    ;; with named messages if the slot is missing or None.
-   (:wat::core::define
-     (:test::lru-put-then-get-on-handle
-       (handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
-       (k :wat::core::String)
-       (v :wat::core::i64)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::lru-put-then-get-on-handle
+     [handle <- :wat::lru::Handle<wat::core::String,wat::core::i64>
+      k <- :wat::core::String
+      v <- :wat::core::i64]
+     -> :wat::core::i64
      (:wat::core::let
        [_put
          (:wat::lru::put handle
@@ -153,8 +155,9 @@
    ;; the Layer 3a sub-helper (put → get → unwrap), tears the pool
    ;; down. Returns the round-tripped value (or 0 on Err join after
    ;; surfacing the death).
-   (:wat::core::define
-     (:test::lru-helper-put-then-get -> :wat::core::i64)
+   (:wat::core::defn :test::lru-helper-put-then-get
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-v
          (:wat::core::let
@@ -188,9 +191,9 @@
    ;; Encodes "is this slot Some? then 1 else 0" so the multi-key
    ;; deftest can check index-by-index alignment against a known
    ;; presence pattern via a sum.
-   (:wat::core::define
-     (:test::lru-slot-presence
-       (slot :wat::core::Option<wat::core::i64>) -> :wat::core::i64)
+   (:wat::core::defn :test::lru-slot-presence
+     [slot <- :wat::core::Option<wat::core::i64>]
+     -> :wat::core::i64
      (:wat::core::match slot -> :wat::core::i64
        ((:wat::core::Some _) 1)
        (:wat::core::None 0)))
@@ -200,10 +203,9 @@
    ;; Returns the presence pattern as a packed i64: 100*p[0] + 10*p[1]
    ;; + p[2] where p[i] is :test::lru-slot-presence. Deftest asserts
    ;; against the literal 110 (Some, Some, None for "k1","k2","k3").
-   (:wat::core::define
-     (:test::lru-probe-three-on-handle
-       (handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
-       -> :wat::core::i64)
+   (:wat::core::defn :test::lru-probe-three-on-handle
+     [handle <- :wat::lru::Handle<wat::core::String,wat::core::i64>]
+     -> :wat::core::i64
      (:wat::core::let
        [_put
          (:wat::lru::put handle
@@ -234,8 +236,9 @@
    ;; Spawns the service, pops a handle, calls the Layer 4b sub-helper
    ;; (put-2 → probe-3 → score), tears the pool down. Returns the
    ;; packed presence pattern — the deftest body asserts against 110.
-   (:wat::core::define
-     (:test::lru-helper-get-many-keys -> :wat::core::i64)
+   (:wat::core::defn :test::lru-helper-get-many-keys
+     []
+     -> :wat::core::i64
      (:wat::core::let
        [driver-and-pat
          (:wat::core::let

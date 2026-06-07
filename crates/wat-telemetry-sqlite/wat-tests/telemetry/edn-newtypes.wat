@@ -22,10 +22,9 @@
 
    ;; Driver: pop tx, build one HolonAST, wrap it in Tagged AND NoTag,
    ;; send through batch-log, drop.
-   (:wat::core::define
-     (:test::Edn::send-one
-       (pool :wat::telemetry::HandlePool<test::Edn::Event>)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::Edn::send-one
+     [pool <- :wat::telemetry::HandlePool<test::Edn::Event>]
+     -> :wat::core::nil
      (:wat::core::let
        [handle
          (:wat::kernel::HandlePool::pop pool)
@@ -46,10 +45,9 @@
        ()))
 
 
-   (:wat::core::define
-     (:test::Edn::auto-spawn-one
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :test::Edn::auto-spawn-one
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/auto-spawn

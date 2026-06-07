@@ -18,23 +18,20 @@
 (:wat::test::make-deftest :deftest
   (;; ─── Hooks (no-ops; lifecycle test) ─────────────────────────
 
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::install-noop
-       (_db :wat::sqlite::Db)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::install-noop
+     [_db <- :wat::sqlite::Db]
+     -> :wat::core::nil
      ())
 
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::dispatch-noop
-       (_db :wat::sqlite::Db)
-       (_entries :wat::core::Vector<wat::core::i64>)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::dispatch-noop
+     [_db <- :wat::sqlite::Db
+      _entries <- :wat::core::Vector<wat::core::i64>]
+     -> :wat::core::nil
      ())
 
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::translate-empty
-       (_stats :wat::telemetry::Stats)
-       -> :wat::core::Vector<wat::core::i64>)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::translate-empty
+     [_stats <- :wat::telemetry::Stats]
+     -> :wat::core::Vector<wat::core::i64>
      (:wat::core::Vector :wat::core::i64))
 
 
@@ -45,16 +42,14 @@
    ;; this test exercises slice-4's pre-install hook with a real
    ;; non-trivial body. Verified out-of-band via `PRAGMA journal_mode`
    ;; against the produced db file.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::pragma-wal
-       (db :wat::sqlite::Db)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::pragma-wal
+     [db <- :wat::sqlite::Db]
+     -> :wat::core::nil
      (:wat::sqlite::pragma db "journal_mode" "WAL"))
 
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::install-events
-       (db :wat::sqlite::Db)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::install-events
+     [db <- :wat::sqlite::Db]
+     -> :wat::core::nil
      (:wat::sqlite::execute-ddl db
        "CREATE TABLE IF NOT EXISTS events (n INTEGER)"))
 
@@ -62,11 +57,10 @@
    ;; acceptable because i64 is internally typed and there's no
    ;; injection surface; a future slice's parameterized `execute`
    ;; primitive supersedes the concat shape.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::insert-one-event
-       (db :wat::sqlite::Db)
-       (entry :wat::core::i64)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::insert-one-event
+     [db <- :wat::sqlite::Db
+      entry <- :wat::core::i64]
+     -> :wat::core::nil
      (:wat::core::let
        [sql
          (:wat::core::string::concat
@@ -81,11 +75,10 @@
    ;; consumer choice (the trader's :trading::telemetry path opts in
    ;; via Sqlite/auto-spawn's batched dispatch); this test just
    ;; exercises the per-batch contract.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::dispatch-events
-       (db :wat::sqlite::Db)
-       (entries :wat::core::Vector<wat::core::i64>)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::dispatch-events
+     [db <- :wat::sqlite::Db
+      entries <- :wat::core::Vector<wat::core::i64>]
+     -> :wat::core::nil
      (:wat::core::foldl entries ()
        (:wat::core::fn [_acc <- :wat::core::nil entry <- :wat::core::i64] -> :wat::core::nil
          (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))))
@@ -96,10 +89,9 @@
    ;; Spawn + pop one handle + finish pool + drop. Two-level let:
    ;; outer holds the driver; inner owns the popped Sender. Returns
    ;; the driver for the test body to join.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::spawn-and-drop
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/spawn
@@ -119,10 +111,9 @@
 
    ;; The inner-scope body — pop one handle + finish + drop. Lives
    ;; in its own function so spawn-and-drop's outer let stays simple.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::drop-one-handle
-       (pool :wat::telemetry::HandlePool<wat::core::i64>)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::drop-one-handle
+     [pool <- :wat::telemetry::HandlePool<wat::core::i64>]
+     -> :wat::core::nil
      (:wat::core::let
        [_handle
          (:wat::kernel::HandlePool::pop pool)
@@ -131,10 +122,9 @@
 
    ;; Spawn + batch-log three entries + drop. Same lockstep shape as
    ;; spawn-and-drop, with traffic.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::spawn-and-batch
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/spawn
@@ -155,10 +145,9 @@
    ;; Pop one Handle (req-tx, ack-rx — paired by the spawn step;
    ;; arc 095) and send one batch of three i64s. The Handle's two
    ;; opposite ends are exactly what batch-log needs.
-   (:wat::core::define
-     (:wat-telemetry-sqlite::Sqlite::send-three
-       (pool :wat::telemetry::HandlePool<wat::core::i64>)
-       -> :wat::core::nil)
+   (:wat::core::defn :wat-telemetry-sqlite::Sqlite::send-three
+     [pool <- :wat::telemetry::HandlePool<wat::core::i64>]
+     -> :wat::core::nil
      (:wat::core::let
        [handle
          (:wat::kernel::HandlePool::pop pool)

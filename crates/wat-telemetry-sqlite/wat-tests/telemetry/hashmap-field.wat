@@ -19,10 +19,9 @@
        (tags :wat::telemetry::Tags)))
 
 
-   (:wat::core::define
-     (:test::Tagged::send-one
-       (pool :wat::telemetry::HandlePool<test::Tagged::Event>)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::Tagged::send-one
+     [pool <- :wat::telemetry::HandlePool<test::Tagged::Event>]
+     -> :wat::core::nil
      (:wat::core::let
        [handle
          (:wat::kernel::HandlePool::pop pool)
@@ -46,10 +45,9 @@
        ()))
 
 
-   (:wat::core::define
-     (:test::Tagged::auto-spawn-one
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :test::Tagged::auto-spawn-one
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/auto-spawn

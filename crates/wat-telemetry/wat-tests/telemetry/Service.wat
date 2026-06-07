@@ -31,10 +31,9 @@
    ;; :test::svc-tel-make-dispatcher — build the stub dispatcher fn.
    ;; Captures stub-tx in a foldl; each entry is forwarded to the
    ;; stub channel so the test can drain them after join.
-   (:wat::core::define
-     (:test::svc-tel-make-dispatcher
-       (stub-tx :wat::kernel::Sender<wat::core::i64>)
-       -> :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+   (:wat::core::defn :test::svc-tel-make-dispatcher
+     [stub-tx <- :wat::kernel::Sender<wat::core::i64>]
+     -> :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil
      (:wat::core::fn [entries <- :wat::core::Vector<wat::core::i64>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
          (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::core::i64] -> :wat::core::nil
@@ -46,9 +45,9 @@
    ;; :test::svc-tel-null-translator — build a stats translator that
    ;; always returns an empty i64 vector. Used by tests that don't
    ;; need cadence-fired entries.
-   (:wat::core::define
-     (:test::svc-tel-null-translator
-       -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+   (:wat::core::defn :test::svc-tel-null-translator
+     []
+     -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>
      (:wat::core::fn
        [_s <- :wat::telemetry::Stats] -> :wat::core::Vector<wat::core::i64>
        (:wat::core::Vector :wat::core::i64)))
@@ -57,9 +56,9 @@
    ;; :test::svc-tel-active-translator — build a stats translator that
    ;; returns a sentinel value [-1]. Used by the cadence-fires test to
    ;; distinguish a cadence-triggered entry from a user-submitted one.
-   (:wat::core::define
-     (:test::svc-tel-active-translator
-       -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+   (:wat::core::defn :test::svc-tel-active-translator
+     []
+     -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>
      (:wat::core::fn
        [_s <- :wat::telemetry::Stats] -> :wat::core::Vector<wat::core::i64>
        (:wat::core::Vector :wat::core::i64 -1)))
@@ -72,8 +71,9 @@
    ;; null cadence, spawns 1 client, pops the handle (pop-before-finish),
    ;; finishes the pool, driver exits, joins. Returns unit.
    ;; Driver is Thread<unit,unit> — no recv-before-join needed.
-   (:wat::core::define
-     (:test::svc-tel-spawn-shutdown -> :wat::core::nil)
+   (:wat::core::defn :test::svc-tel-spawn-shutdown
+     []
+     -> :wat::core::nil
      (:wat::core::let
        [driver
          (:wat::core::let
@@ -108,12 +108,11 @@
    ;; returns (Thread, stub-rx) for the caller to join and drain.
    ;; Inner scope drops stub-tx (inside dispatcher closure at inner exit)
    ;; and the handle's req-tx, signalling the driver to exit.
-   (:wat::core::define
-     (:test::svc-tel-spawn-and-log
-       (entries :wat::core::Vector<wat::core::i64>)
-       (translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
-       (cadence :wat::telemetry::MetricsCadence<wat::core::i64>)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
+   (:wat::core::defn :test::svc-tel-spawn-and-log
+     [entries <- :wat::core::Vector<wat::core::i64>
+      translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>
+      cadence <- :wat::telemetry::MetricsCadence<wat::core::i64>]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>)
      (:wat::core::let
        [thr-and-rx
          (:wat::core::let
@@ -152,13 +151,12 @@
    ;; (match-at-source) and assert each equals the expected value.
    ;; Assumes the caller has already joined the driver so the stub
    ;; channel is fully flushed.
-   (:wat::core::define
-     (:test::svc-tel-assert-drain-3
-       (stub-rx :wat::kernel::Receiver<wat::core::i64>)
-       (e1 :wat::core::i64)
-       (e2 :wat::core::i64)
-       (e3 :wat::core::i64)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::svc-tel-assert-drain-3
+     [stub-rx <- :wat::kernel::Receiver<wat::core::i64>
+      e1 <- :wat::core::i64
+      e2 <- :wat::core::i64
+      e3 <- :wat::core::i64]
+     -> :wat::core::nil
      (:wat::core::let
        [v1
          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64

@@ -21,32 +21,34 @@
 ;; gotcha called out in SERVICE-PROGRAMS.md).
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::define
-     (:wat-telemetry::log-test::empty-tags -> :wat::telemetry::Tags)
+  ((:wat::core::defn :wat-telemetry::log-test::empty-tags
+     []
+     -> :wat::telemetry::Tags
      (:wat::core::HashMap :wat::holon::HolonAST :wat::holon::HolonAST))
 
-   (:wat::core::define
-     (:wat-telemetry::log-test::default-ns -> :wat::holon::HolonAST)
+   (:wat::core::defn :wat-telemetry::log-test::default-ns
+     []
+     -> :wat::holon::HolonAST
      (:wat::holon::to-holon :wat-telemetry::log-test::ns))
 
-   (:wat::core::define
-     (:wat-telemetry::log-test::default-caller -> :wat::core::keyword)
+   (:wat::core::defn :wat-telemetry::log-test::default-caller
+     []
+     -> :wat::core::keyword
      :wat-telemetry::log-test::caller)
 
    ;; Clock injection — fixed instant so emissions are deterministic
    ;; in tests. Real producers pass `(:wat::time::now)` (closure form
    ;; mirrors arc 087's ConsoleLogger).
-   (:wat::core::define
-     (:wat-telemetry::log-test::fixed-now-fn
-       -> :wat::core::Fn(wat::core::nil)->wat::time::Instant)
+   (:wat::core::defn :wat-telemetry::log-test::fixed-now-fn
+     []
+     -> :wat::core::Fn(wat::core::nil)->wat::time::Instant
      (:wat::core::fn [_u <- :wat::core::nil] -> :wat::time::Instant
        (:wat::time::now)))
 
    ;; Stub dispatcher — same shape as the make-scope tests'.
-   (:wat::core::define
-     (:wat-telemetry::log-test::make-stub-dispatcher
-       (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+   (:wat::core::defn :wat-telemetry::log-test::make-stub-dispatcher
+     [stub-tx <- :wat::kernel::Sender<wat::telemetry::Event>]
+     -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil
      (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::foldl entries :wat::core::nil
          (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::telemetry::Event] -> :wat::core::nil
@@ -54,10 +56,9 @@
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
 
-   (:wat::core::define
-     (:wat-telemetry::log-test::translate-empty
-       (_s :wat::telemetry::Stats)
-       -> :wat::core::Vector<wat::telemetry::Event>)
+   (:wat::core::defn :wat-telemetry::log-test::translate-empty
+     [_s <- :wat::telemetry::Stats]
+     -> :wat::core::Vector<wat::telemetry::Event>
      (:wat::core::Vector :wat::telemetry::Event))
 
    ;; ─── Layer 1 — level extraction ──────────────────────────────────
@@ -65,10 +66,9 @@
    ;; :test::wul-extract-level — pattern-match one Event; return its
    ;; level keyword when it is a Log variant; sentinel keyword on any
    ;; other variant. Pure: no channel interaction.
-   (:wat::core::define
-     (:test::wul-extract-level
-       (event :wat::telemetry::Event)
-       -> :wat::core::keyword)
+   (:wat::core::defn :test::wul-extract-level
+     [event <- :wat::telemetry::Event]
+     -> :wat::core::keyword
      (:wat::core::match event -> :wat::core::keyword
        ((:wat::telemetry::Event::Log
           _t _ns _c level-notag _u _tags _d)
@@ -84,10 +84,9 @@
    ;; NOTE: no isolated deftest — constructing a synthetic Event::Log
    ;; requires substrate-internal field knowledge. Level 3 taste
    ;; exemption; proven by its callers.
-   (:wat::core::define
-     (:test::wul-recv-level
-       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-       -> :wat::core::keyword)
+   (:wat::core::defn :test::wul-recv-level
+     [stub-rx <- :wat::kernel::Receiver<wat::telemetry::Event>]
+     -> :wat::core::keyword
      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
        ((:wat::core::Ok (:wat::core::Some event))
          (:test::wul-extract-level event))
@@ -104,10 +103,9 @@
    ;; letting the driver exit cleanly.
    ;; Returns (Thread<unit,unit>, keyword) — caller joins driver and asserts
    ;; on the keyword.
-   (:wat::core::define
-     (:test::wul-spawn-stub-and-emit-drain
-       (body :wat::core::Fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
-       -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
+   (:wat::core::defn :test::wul-spawn-stub-and-emit-drain
+     [body <- :wat::core::Fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword]
+     -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword)
      (:wat::core::let
        [stub-pair
          (:wat::kernel::make-channel :wat::telemetry::Event)

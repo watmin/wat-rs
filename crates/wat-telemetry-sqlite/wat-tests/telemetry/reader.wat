@@ -20,11 +20,10 @@
   (;; Build one Event::Log entry. Mirrors the WorkUnitLog/log
    ;; shape (the writer-side production path) but constructed
    ;; directly so we don't need a WorkUnit for the test.
-   (:wat::core::define
-     (:test::reader::make-log
-       (time-ns :wat::core::i64)
-       (msg :wat::core::String)
-       -> :wat::telemetry::Event)
+   (:wat::core::defn :test::reader::make-log
+     [time-ns <- :wat::core::i64
+      msg <- :wat::core::String]
+     -> :wat::telemetry::Event
      (:wat::core::let
        [ns-ast (:wat::holon::leaf :test::reader)
         cal-ast (:wat::holon::leaf :test::reader::roundtrip)
@@ -42,10 +41,9 @@
          "test-reader-uuid" tags data-tag)))
 
 
-   (:wat::core::define
-     (:test::reader::write-three
-       (pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-       -> :wat::core::nil)
+   (:wat::core::defn :test::reader::write-three
+     [pool <- :wat::telemetry::HandlePool<wat::telemetry::Event>]
+     -> :wat::core::nil
      (:wat::core::let
        [handle
          (:wat::kernel::HandlePool::pop pool)
@@ -65,10 +63,9 @@
        ()))
 
 
-   (:wat::core::define
-     (:test::reader::write-fixture
-       (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+   (:wat::core::defn :test::reader::write-fixture
+     [path <- :wat::core::String]
+     -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>
      (:wat::core::let
        [spawn
          (:wat::telemetry::Sqlite/auto-spawn
