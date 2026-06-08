@@ -46,7 +46,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use wat::runtime::Value;
 use wat::span::Span;
-use wat::typed_channel::{ReceiverInner, RecvOutcome};
+use wat::channel::{ReceiverInner, RecvOutcome};
 
 /// Row I — blocked crossbeam recv wakes on SIGTERM within 100ms.
 ///
@@ -92,7 +92,7 @@ fn probe_shutdown_cascade_wakes_crossbeam_recv() {
 
                 // Now call typed_recv. This blocks on the crossbeam recv,
                 // multiplexed against SHUTDOWN_RX (Slice B wiring).
-                let outcome = wat::typed_channel::typed_recv(
+                let outcome = wat::channel::typed_recv(
                     rx_inner_clone.as_ref(),
                     None,
                     Span::unknown(),

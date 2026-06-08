@@ -76,19 +76,19 @@ fn probe_spawn_process_stdio() {
 
     // Parent reads from Process/stdout via Receiver/from-pipe.
     let stdout_reader = process_stdout_reader(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = match &receiver_val {
         Value::wat__kernel__Receiver(inner) => inner.as_ref(),
         other => panic!("expected Receiver Value; got {:?}", other),
     };
-    let recv_outcome = wat::typed_channel::typed_recv(
+    let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
         Span::unknown(),
     );
     let val = match recv_outcome {
-        wat::typed_channel::RecvOutcome::Value(v) => v,
-        wat::typed_channel::RecvOutcome::Disconnected => {
+        wat::channel::RecvOutcome::Value(v) => v,
+        wat::channel::RecvOutcome::Disconnected => {
             // Drain stderr for diagnostic.
             let stderr_text = match &process {
                 Value::Struct(s) => match &s.fields[2] {
@@ -106,10 +106,10 @@ fn probe_spawn_process_stdio() {
             };
             panic!("recv: Disconnected before value flowed; child stderr:\n{}", stderr_text)
         }
-        wat::typed_channel::RecvOutcome::DecodeError(msg) => {
+        wat::channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
         }
-        wat::typed_channel::RecvOutcome::Shutdown => {
+        wat::channel::RecvOutcome::Shutdown => {
             panic!("recv: unexpected process-wide shutdown during test")
         }
     };

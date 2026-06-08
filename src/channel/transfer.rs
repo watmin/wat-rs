@@ -1,169 +1,11 @@
-//! Arc 170 slice 1c — transport-polymorphic typed channels.
-//!
-//! Substrate plumbing that makes the user-visible
-//! `:wat::kernel::Sender<T>` / `:wat::kernel::Receiver<T>` abstraction
-//! uniform across runtime tiers (per
-//! `docs/arc/2026/05/170-program-entry-points/TIERS.md`):
-//!
-//! - **Tier 1 — threads.** `comms::thread` channels carry typed `Value`s
-//!   in-memory (cascade-aware, depth-1). No encoding step.
-//!   Arc 214 Stone 5.1: backed by `crate::comms::thread::Sender/Receiver<Value>`.
-//! - **Tier 2 — processes.** Linux pipes carry EDN-encoded bytes;
-//!   the substrate encodes typed Values on send and decodes on
-//!   recv. The user-facing send / recv signature is identical to
-//!   tier 1; transport is substrate-internal.
-//! - **Tier 3 — remote programs (future).** Sockets carry EDN-
-//!   encoded bytes via the same `PipeFd`-style wrapper.
-//!
-//! ## Implementation choice
-//!
-//! `BRIEF-SLICE-1C.md` enumerated three options for transport
-//! polymorphism (separate Value variants, transport-polymorphic
-//! Value with internal enum, multimethod dispatch). This module
-//! ships **Option B** — one `Value::wat__kernel__Sender` /
-//! `Value::wat__kernel__Receiver` variant, with the per-transport
-//! payload carried by an internal [`SenderInner`] / [`ReceiverInner`]
-//! enum.
-//!
-//! Reasoning:
-//! - Option A (separate variants) doubles the variant surface and
-//!   forces every send / recv / select / drop callsite to dispatch
-//!   on two Value variants. The wat-side `:wat::kernel::Sender`
-//!   typealias couldn't unify both transports without a polymorphic
-//!   union (which the substrate doesn't have).
-//! - Option C (multimethod via arc 146) is structurally over-
-//!   engineered for binary internal dispatch on a single Value
-//!   variant.
-//! - Option B unifies the Value variant; the inner enum dispatch
-//!   is local to send / recv impls. Existing crossbeam call sites
-//!   that pattern-matched on `Value::crossbeam_channel__Sender(_)`
-//!   migrate to `Value::wat__kernel__Sender(_)` and unwrap the
-//!   inner enum where they actually call `.send()` / `.recv()`.
-//!   `feedback_capability_carrier.md` shape — extend the existing
-//!   entity rather than minting parallel ones.
-//!
-//! ## Wire protocol (tier 2)
-//!
-//! Per `project_pipe_protocol.md`: line-delimited EDN. One typed
-//! `Value` per line. The encoder calls
-//! [`crate::edn_shim::value_to_edn_with`] for the typed Value, then
-//! [`wat_edn::write`] to bytes, then appends `'\n'`. The decoder
-//! reads via [`crate::io::WatReader::read_line`] (which strips
-//! trailing `\n`/`\r`) and parses with [`crate::edn_shim::read_edn`].
-//! Same convention `:wat::kernel::process-send` / `process-recv`
-//! already use over the legacy byte-pipe path.
-//!
-//! ## Error semantics (tier 2)
-//!
-//! - Sender side: a write to a pipe whose reader has gone away
-//!   surfaces as a Rust-level `RuntimeError::MalformedForm` from
-//!   [`crate::io::PipeWriter::write_all`]. The send wrapper maps
-//!   that to a wat-level `Result.Err(ChannelDisconnected)` —
-//!   same shape crossbeam-disconnect produces, so the user code
-//!   can match one error pattern regardless of transport.
-//! - Receiver side: pipe EOF (writer end closed) maps to wat-
-//!   level `Ok(:None)` — clean shutdown. EDN parse failure on a
-//!   non-empty line maps to a `RuntimeError` raised via the
-//!   primitive, matching `:wat::kernel::process-recv`'s
-//!   pre-existing behaviour for malformed input.
+//! The movement surface: typed send/recv ops, outcomes, and channel-pair
+//! constructors. Lifted verbatim from `src/typed_channel.rs` at Stone 6.1;
+//! behavior identical.
 
-use crate::io::{WatReader, WatWriter};
+use crate::channel::inner::{ReceiverInner, SenderInner};
 use crate::span::Span;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-
-/// Transport-polymorphic Sender backing for
-/// `Value::wat__kernel__Sender`.
-///
-/// `Comms` carries a tier-1 in-memory channel backed by
-/// `crate::comms::thread::Sender<Value>` (cascade-aware, depth-1).
-/// `PipeFd` wraps a writer fd with EDN encoding on send.
-///
-/// Arc 170 slice 3 Gap B / Arc 214 Stone 5.1 — each tier-1 variant
-/// carries a `closed` flag (`AtomicBool`) so `:wat::kernel::Sender/close`
-/// can signal EOF on the send side without dropping the Sender Value.
-/// Interior mutability via `AtomicBool` is permitted under zero-Mutex
-/// doctrine (ZERO-MUTEX.md § "Honest caveats"). The `Arc<SenderInner>`
-/// wrapping remains immutable from Rust's ownership perspective;
-/// only the flag's value changes.
-///
-/// Arc 214 Stone 5.1 HARD CUT — the `Crossbeam` variant is deleted.
-/// `Comms` is the sole tier-1 backing. All callers construct via
-/// `sender_from_comms`.
-#[derive(Debug)]
-pub enum SenderInner {
-    /// Tier 1 — comms::thread in-memory channel (cascade-aware, depth-1).
-    /// Replaces the retired `Crossbeam` variant (Arc 214 Stone 5.1).
-    Comms {
-        sender: crate::comms::thread::Sender<crate::runtime::Value>,
-        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
-        /// by `typed_send` before each send attempt.
-        closed: AtomicBool,
-    },
-    /// Tier 2 — linux-fd pipe with EDN encoding on send. The
-    /// inner `Arc<dyn WatWriter>` is the same shape `Process.stdin`
-    /// has carried since arc 103 (PipeWriter from an OwnedFd).
-    PipeFd {
-        writer: Arc<dyn WatWriter>,
-        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
-        /// by `typed_send` before each send attempt. For PipeFd,
-        /// `Sender/close` also calls `writer.close()` which releases
-        /// the underlying fd so the peer reader sees EOF.
-        closed: AtomicBool,
-    },
-}
-
-/// Transport-polymorphic Receiver backing for
-/// `Value::wat__kernel__Receiver`.
-///
-/// Arc 214 Stone 5.1 HARD CUT — the `Crossbeam` variant is deleted.
-/// `Comms` is the sole tier-1 backing. All callers construct via
-/// `receiver_from_comms`.
-#[derive(Debug)]
-pub enum ReceiverInner {
-    /// Tier 1 — comms::thread in-memory channel (cascade-aware, depth-1).
-    /// Replaces the retired `Crossbeam` variant (Arc 214 Stone 5.1).
-    Comms(crate::comms::thread::Receiver<crate::runtime::Value>),
-    /// Tier 2 — linux-fd pipe with line-delimited EDN decoding on
-    /// recv. The inner `Arc<dyn WatReader>` is the same shape
-    /// `Process.stdout` has carried since arc 103 (PipeReader from
-    /// an OwnedFd).
-    PipeFd(Arc<dyn WatReader>),
-}
-
-/// Ergonomic constructor for a tier-1 (comms::thread-backed) Sender
-/// `Value`. Arc 214 Stone 5.1 — replaces `sender_from_crossbeam`.
-pub fn sender_from_comms(
-    tx: crate::comms::thread::Sender<crate::runtime::Value>,
-) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::Comms {
-        sender: tx,
-        closed: AtomicBool::new(false),
-    }))
-}
-
-/// Ergonomic constructor for a tier-1 (comms::thread-backed) Receiver
-/// `Value`. Arc 214 Stone 5.1 — replaces `receiver_from_crossbeam`.
-pub fn receiver_from_comms(
-    rx: crate::comms::thread::Receiver<crate::runtime::Value>,
-) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Receiver(Arc::new(ReceiverInner::Comms(rx)))
-}
-
-/// Ergonomic constructor for a tier-2 (pipe-fd) Sender `Value`.
-/// The wrapped writer encodes typed `Value`s as line-delimited EDN
-/// on each send.
-pub fn sender_from_pipe(writer: Arc<dyn WatWriter>) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Sender(Arc::new(SenderInner::PipeFd {
-        writer,
-        closed: AtomicBool::new(false),
-    }))
-}
-
-/// Ergonomic constructor for a tier-2 (pipe-fd) Receiver `Value`.
-pub fn receiver_from_pipe(reader: Arc<dyn WatReader>) -> crate::runtime::Value {
-    crate::runtime::Value::wat__kernel__Receiver(Arc::new(ReceiverInner::PipeFd(reader)))
-}
 
 /// Outcome of a typed-channel send. Mirrors crossbeam's
 /// `Send::send` shape but carries enough info for the wat-level
@@ -557,91 +399,13 @@ pub fn try_as_comms_receiver(
 pub fn make_pipe_channel_pair(
     op: &'static str,
 ) -> Result<(crate::runtime::Value, crate::runtime::Value), crate::value::RuntimeError> {
+    use crate::channel::inner::{sender_from_pipe, receiver_from_pipe};
     let (read_fd, write_fd) = crate::fork::make_pipe(op)?;
-    let writer: Arc<dyn WatWriter> = Arc::new(crate::io::PipeWriter::from_owned_fd(write_fd));
-    let reader: Arc<dyn WatReader> = Arc::new(crate::io::PipeReader::from_owned_fd(read_fd));
+    let writer: Arc<dyn crate::io::WatWriter> =
+        Arc::new(crate::io::PipeWriter::from_owned_fd(write_fd));
+    let reader: Arc<dyn crate::io::WatReader> =
+        Arc::new(crate::io::PipeReader::from_owned_fd(read_fd));
     Ok((sender_from_pipe(writer), receiver_from_pipe(reader)))
-}
-
-// === Rust-level T-typed channel chokepoint (arc 213 χ) ===
-//
-// Wraps crossbeam_channel::{Sender<T>, Receiver<T>} for substrate-internal
-// T-typed plumbing. Recv routes through SHUTDOWN_RX cascade per arc 213
-// χ doctrine: "we are our own users — and i don't want to observe this
-// failure ever again." Bare crossbeam usage becomes restricted in χ-3.
-
-/// Error types re-exported for mechanical migration parity with
-/// crossbeam_channel. Callers see identical Result shapes.
-pub use crossbeam_channel::{RecvError, SendError, TryRecvError};
-
-/// χ-1: T-typed Sender wrapper. Currently a thin newtype; cascade
-/// semantics are on the Receiver side. Mechanical migration parity
-/// with crossbeam_channel::Sender<T>::send signature.
-#[derive(Debug)]
-pub struct Sender<T> {
-    inner: crossbeam_channel::Sender<T>,
-}
-
-impl<T> Sender<T> {
-    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
-        self.inner.send(value)
-    }
-}
-
-impl<T> Clone for Sender<T> {
-    fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
-    }
-}
-
-/// χ-1: T-typed Receiver wrapper (arc 213 χ-2: added #[derive(Debug)] so
-/// migrated caller structs/enums that derive Debug continue to compile).
-/// recv() routes through SHUTDOWN_RX
-/// cascade-aware select — when substrate shutdown fires, parked recvs
-/// wake with Err(RecvError) instead of hanging indefinitely.
-///
-/// Bootstrap fallback: when SHUTDOWN_RX is not yet initialized (pre-init
-/// or test bypass), recv falls back to bare crossbeam recv. Production
-/// paths always have SHUTDOWN_RX initialized by freeze.rs:233 before any
-/// wat code executes.
-#[derive(Debug)]
-pub struct Receiver<T> {
-    inner: crossbeam_channel::Receiver<T>,
-}
-
-impl<T> Receiver<T> {
-    pub fn recv(&self) -> Result<T, RecvError> {
-        // Cascade-aware select — mirrors typed_recv's Crossbeam arm
-        // (src/typed_channel.rs:304-313). On SHUTDOWN_RX signal, recv
-        // returns Err(RecvError) — caller treats as channel-died and
-        // unwinds. Identical to crossbeam_channel's Disconnected.
-        let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
-        match shutdown_rx {
-            Some(srx) => {
-                crossbeam_channel::select! {
-                    recv(&self.inner) -> msg => msg,
-                    recv(srx) -> _ => Err(RecvError),
-                }
-            }
-            None => self.inner.recv(),  // bootstrap fallback
-        }
-    }
-
-    pub fn try_recv(&self) -> Result<T, TryRecvError> {
-        // Non-blocking; cascade-irrelevant (returns immediately).
-        self.inner.try_recv()
-    }
-}
-
-impl<T> Clone for Receiver<T> {
-    fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
-    }
-}
-
-pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>) {
-    let (tx, rx) = crossbeam_channel::bounded(n);
-    (Sender { inner: tx }, Receiver { inner: rx })
 }
 
 /// Arc 170 Stone C1 — substrate-internal test fixture. Constructs two
@@ -672,6 +436,7 @@ pub fn bounded<T>(n: usize) -> (Sender<T>, Receiver<T>) {
 pub fn make_thread_peer_pair_for_test()
     -> (crate::runtime::Value, crate::runtime::Value)
 {
+    use crate::channel::inner::{receiver_from_comms, sender_from_comms};
     // Arc 214 Stone 5.1 — use comms::thread::pair() (depth-1) instead of
     // bare crossbeam::unbounded. Depth-1 is sufficient for test fixtures.
     let (tx_ab, rx_ab) = crate::comms::thread::pair::<crate::runtime::Value>();

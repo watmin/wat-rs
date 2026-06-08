@@ -16,7 +16,7 @@ use crate::fork::ChildHandleInner;
 use crate::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
-use crate::typed_channel::{SenderInner, ReceiverInner};
+use crate::channel::{SenderInner, ReceiverInner};
 use crate::types::TypeExpr;
 use crate::value::Function;
 
@@ -70,7 +70,7 @@ pub enum Value {
     wat__WatAST(Arc<WatAST>),
     /// A `:wat::kernel::Sender<T>` handle (arc 170 slice 1c).
     /// Carries `Value` — any wat runtime value can travel through.
-    /// Transport-polymorphic via [`crate::typed_channel::SenderInner`]:
+    /// Transport-polymorphic via [`crate::channel::SenderInner`]:
     /// `Crossbeam` for tier 1 (in-memory), `PipeFd` for tier 2
     /// (EDN-encoded over linux pipes). The user-visible
     /// `Sender<T>` abstraction is uniform across tiers; the
@@ -89,7 +89,7 @@ pub enum Value {
     /// A `:wat::kernel::Receiver<T>` handle (arc 170 slice 1c).
     /// Sibling of [`Self::wat__kernel__Sender`]; same transport
     /// polymorphism shape via
-    /// [`crate::typed_channel::ReceiverInner`].
+    /// [`crate::channel::ReceiverInner`].
     wat__kernel__Receiver(Arc<ReceiverInner>),
     /// A `:HashMap<K,V>` — Rust std's HashMap natively; stored as
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
@@ -917,7 +917,7 @@ pub enum SpawnOutcome {
 /// the canonical Process wait path through Process/join-result.
 #[derive(Debug)]
 pub enum ProgramHandleInner {
-    InThread(crate::typed_channel::Receiver<SpawnOutcome>),
+    InThread(crate::comms::thread::Receiver<SpawnOutcome>),
     Forked(Arc<ChildHandleInner>),
 }
 

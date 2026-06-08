@@ -173,7 +173,9 @@ fn spawn_with_world_into_result(
     // One-shot result channel — same shape kernel::spawn uses, so
     // the existing :wat::kernel::join / join-result primitives
     // work without modification on Process.join.
-    let (tx, rx) = crate::typed_channel::bounded::<SpawnOutcome>(1);
+    // Arc 214 Stone 6.1 — bounded<SpawnOutcome>(1) converted to comms::thread::pair
+    // (depth-1, cascade-aware). Semantics preserved: one-shot result channel.
+    let (tx, rx) = crate::comms::thread::pair::<SpawnOutcome>();
 
     // Arc 170 slice 1f-ζ — install the child-side pipes as the thread's
     // ambient stdio so `invoke_user_main`'s orchestrator picks them up
@@ -246,8 +248,8 @@ fn spawn_with_world_into_result(
     // uses pipe(2) too — see arc 103). spawn-program-ast retires in
     // arc 170 slice 2; until then this site populates both views to
     // match the new struct shape.
-    let tx = crate::typed_channel::sender_from_pipe(parent_stdin.clone());
-    let rx_pipe = crate::typed_channel::receiver_from_pipe(parent_stdout.clone());
+    let tx = crate::channel::sender_from_pipe(parent_stdin.clone());
+    let rx_pipe = crate::channel::receiver_from_pipe(parent_stdout.clone());
 
     let process = Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Process".into(),

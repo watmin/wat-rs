@@ -1,11 +1,11 @@
 //! Arc 170 slice 1c — typed-channel-over-EDN-pipes substrate tests.
 //!
 //! These tests exercise the tier-2 transport that
-//! `src/typed_channel.rs` mints. They DO NOT spawn child processes
+//! `src/channel/` home mints. They DO NOT spawn child processes
 //! — that's slice 2's wiring. They prove the substrate-level
 //! mechanic in isolation: a parent constructs a pipe-fd-backed
 //! `Sender<T>` / `Receiver<T>` pair via
-//! `crate::typed_channel::make_pipe_channel_pair`; sends typed
+//! `crate::channel::make_pipe_channel_pair`; sends typed
 //! Values through the Sender; reads them back through the Receiver
 //! and asserts the parsed Values round-trip exactly.
 //!
@@ -37,7 +37,7 @@ use wat::io::{WatReader, WatWriter};
 use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, Value};
 use wat::span::Span;
-use wat::typed_channel::{
+use wat::channel::{
     make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
     typed_send, ReceiverInner, RecvOutcome, SendOutcome, SenderInner,
 };
@@ -577,8 +577,10 @@ fn process_struct_has_typed_channel_fields_at_indices_4_and_5() {
     let tx_value = sender_from_pipe(stdin_writer.clone());
     let rx_value = receiver_from_pipe(stdout_reader.clone());
 
+    // Arc 214 Stone 6.1 — bounded converted to comms::thread::pair
+    // (depth-1, cascade-aware). Semantics preserved: drop tx → rx sees disconnect.
     let (handle_tx, handle_rx) =
-        wat::typed_channel::bounded::<wat::runtime::SpawnOutcome>(1);
+        wat::comms::thread::pair::<wat::runtime::SpawnOutcome>();
     drop(handle_tx);
 
     let process = Value::Struct(Arc::new(StructValue {
@@ -737,7 +739,7 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
 fn sender_close_memory_close_then_send_returns_disconnected() {
     // Memory transport (comms::thread, Stone 5.1): close the Sender, then
     // send → Disconnected.
-    use wat::typed_channel::sender_from_comms;
+    use wat::channel::sender_from_comms;
     let (tx, _rx) = wat::comms::thread::pair::<Value>();
     let sender_val = sender_from_comms(tx);
     let inner = unwrap_sender_inner(&sender_val);
@@ -760,7 +762,7 @@ fn sender_close_memory_close_then_send_returns_disconnected() {
 #[test]
 fn sender_close_memory_idempotent() {
     // Calling close twice on a memory-tier (comms-backed) Sender is a no-op.
-    use wat::typed_channel::sender_from_comms;
+    use wat::channel::sender_from_comms;
     let (tx, _rx) = wat::comms::thread::pair::<Value>();
     let sender_val = sender_from_comms(tx);
     let inner = unwrap_sender_inner(&sender_val);
@@ -838,7 +840,7 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
     // End-to-end wat-level test: bind a memory-tier (comms-backed) Sender;
     // call (:wat::kernel::Sender/close tx); then (:wat::kernel::send tx v)
     // returns Result.Err(...) — the ChannelDisconnected shape.
-    use wat::typed_channel::sender_from_comms;
+    use wat::channel::sender_from_comms;
     let world = empty_world();
 
     let (tx, _rx) = wat::comms::thread::pair::<Value>();

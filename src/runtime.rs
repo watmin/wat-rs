@@ -4011,7 +4011,7 @@ fn dispatch_keyword_head_value(
         // Wrap an IOWriter / IOReader as a PipeFd-backed Sender<T> /
         // Receiver<T>. The existing (:wat::kernel::send) /
         // (:wat::kernel::recv) dispatch already handles PipeFd transport
-        // (arc 170 slice 1c's typed_channel::SenderInner::PipeFd);
+        // (arc 170 slice 1c's channel::SenderInner::PipeFd);
         // these constructors are the wat-level bridge to that path.
         ":wat::kernel::Sender/from-pipe" => {
             eval_kernel_sender_from_pipe(args, env, sym, list_span)
@@ -17968,8 +17968,8 @@ fn eval_make_channel(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBre
     // cascade-aware). Replaces the bare crossbeam::bounded(1) construction.
     let (tx, rx) = crate::comms::thread::pair::<Value>();
     Ok(Value::Tuple(Arc::new(vec![
-        crate::typed_channel::sender_from_comms(tx),
-        crate::typed_channel::receiver_from_comms(rx),
+        crate::channel::sender_from_comms(tx),
+        crate::channel::receiver_from_comms(rx),
     ])))
 }
 
@@ -18018,17 +18018,17 @@ fn eval_kernel_send(
     // PipeFd). Both transports surface disconnect via the same
     // wat-level Result.Err(ChannelDisconnected) so user code matches
     // one shape regardless of tier.
-    let outcome = crate::typed_channel::typed_send(
+    let outcome = crate::channel::typed_send(
         sender.as_ref(),
         msg,
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     );
     match outcome {
-        crate::typed_channel::SendOutcome::Ok => {
+        crate::channel::SendOutcome::Ok => {
             Ok(Value::Result(Arc::new(Ok(Value::Unit))))
         }
-        crate::typed_channel::SendOutcome::Disconnected => {
+        crate::channel::SendOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Err(single_died_chain(
                 thread_died_error_channel_disconnected(),
             )))))
@@ -18068,7 +18068,7 @@ fn eval_kernel_sender_close(
             } }.into());
         }
     };
-    crate::typed_channel::sender_close(sender.as_ref(), list_span.clone())?;
+    crate::channel::sender_close(sender.as_ref(), list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -18106,23 +18106,23 @@ fn eval_kernel_recv(
     // shutdown shape); a PipeFd EDN parse failure surfaces as
     // RuntimeError so the user gets a diagnostic rather than a
     // silent shutdown.
-    let outcome = crate::typed_channel::typed_recv(
+    let outcome = crate::channel::typed_recv(
         receiver.as_ref(),
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     );
     match outcome {
-        crate::typed_channel::RecvOutcome::Value(v) => {
+        crate::channel::RecvOutcome::Value(v) => {
             // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
             // here because the surrounding Value::Option is structurally Value-typed;
             // converting to TrackedValue would require flipping Option's inner type
             // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
         }
-        crate::typed_channel::RecvOutcome::Disconnected => {
+        crate::channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
         }
-        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+        crate::channel::RecvOutcome::DecodeError(msg) => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::kernel::recv".into(),
                 reason: format!("EDN decode on pipe-channel recv: {}", msg)
@@ -18132,7 +18132,7 @@ fn eval_kernel_recv(
         // produce it. In Slice A this arm is unreachable at runtime.
         // Mapped to Err(Shutdown) per Slice B's contract so the shape
         // is correct once wired.
-        crate::typed_channel::RecvOutcome::Shutdown => {
+        crate::channel::RecvOutcome::Shutdown => {
             Ok(Value::Result(Arc::new(Err(
                 single_died_chain(thread_died_error_shutdown()),
             ))))
@@ -18175,23 +18175,23 @@ fn eval_kernel_try_recv(
     // (pipe fds aren't O_NONBLOCK by default). PipeFd try-recv
     // returns Disconnected as a stand-in (matches the empty /
     // disconnected collapse FOUNDATION mandates).
-    let outcome = crate::typed_channel::typed_try_recv(
+    let outcome = crate::channel::typed_try_recv(
         receiver.as_ref(),
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     );
     match outcome {
-        crate::typed_channel::RecvOutcome::Value(v) => {
+        crate::channel::RecvOutcome::Value(v) => {
             // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
             // here because the surrounding Value::Option is structurally Value-typed;
             // converting to TrackedValue would require flipping Option's inner type
             // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
         }
-        crate::typed_channel::RecvOutcome::Disconnected => {
+        crate::channel::RecvOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
         }
-        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+        crate::channel::RecvOutcome::DecodeError(msg) => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::kernel::try-recv".into(),
                 reason: format!("EDN decode on pipe-channel try-recv: {}", msg)
@@ -18201,7 +18201,7 @@ fn eval_kernel_try_recv(
         // (same as recv's contract). Consistent: callers can distinguish
         // shutdown from empty/disconnected via Result/Err vs Ok/None.
         // This overrides Slice A's placeholder (Ok(None) collapse).
-        crate::typed_channel::RecvOutcome::Shutdown => {
+        crate::channel::RecvOutcome::Shutdown => {
             Ok(Value::Result(Arc::new(Err(
                 single_died_chain(thread_died_error_shutdown()),
             ))))
@@ -18626,11 +18626,11 @@ fn eval_kernel_select(
     // We collect the comms::thread::Receiver references; lifetimes require
     // the underlying ReceiverInner Arcs to outlive the Select, so we keep a
     // Vec of the Arcs and borrow into Select.
-    let mut rx_arcs: Vec<Arc<crate::typed_channel::ReceiverInner>> = Vec::with_capacity(items.len());
+    let mut rx_arcs: Vec<Arc<crate::channel::ReceiverInner>> = Vec::with_capacity(items.len());
     for v in items.iter() {
         match v {
             Value::wat__kernel__Receiver(inner) => {
-                match crate::typed_channel::try_as_comms_receiver(inner.as_ref()) {
+                match crate::channel::try_as_comms_receiver(inner.as_ref()) {
                     Some(_) => rx_arcs.push(Arc::clone(inner)),
                     None => {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -18665,7 +18665,7 @@ fn eval_kernel_select(
         // SAFETY: the ReceiverInner Arc has the same lifetime as rx_arcs,
         // which outlives sel. try_as_comms_receiver checked above that each
         // arc is Comms-backed.
-        let rx_ref = crate::typed_channel::try_as_comms_receiver(arc.as_ref())
+        let rx_ref = crate::channel::try_as_comms_receiver(arc.as_ref())
             .expect("Comms-backed by construction; validated above");
         sel.recv(rx_ref);
     }
@@ -19148,7 +19148,9 @@ fn eval_kernel_spawn_thread(
     let (in_tx, in_rx) = crate::comms::thread::pair::<Value>();
     let (out_tx, out_rx) = crate::comms::thread::pair::<Value>();
     // SpawnOutcome channel — same one-shot shape ProgramHandle expects.
-    let (outcome_tx, outcome_rx) = crate::typed_channel::bounded::<SpawnOutcome>(1);
+    // Arc 214 Stone 6.1 — bounded<SpawnOutcome>(1) converted to comms::thread::pair
+    // (depth-1, cascade-aware). Semantics preserved: one-shot result channel.
+    let (outcome_tx, outcome_rx) = crate::comms::thread::pair::<SpawnOutcome>();
     let thread_sym = sym.clone();
     let span = crate::rust_caller_span!();
     // Derive the most informative name: prefer the keyword path from
@@ -19163,8 +19165,8 @@ fn eval_kernel_spawn_thread(
             .to_string(),
     };
     let body_args = vec![
-        crate::typed_channel::receiver_from_comms(in_rx),
-        crate::typed_channel::sender_from_comms(out_tx),
+        crate::channel::receiver_from_comms(in_rx),
+        crate::channel::sender_from_comms(out_tx),
     ];
     // Arc 170 slice 1f-γ — register the new thread with the three
     // stdio services so the body's `(:wat::kernel::println ...)` /
@@ -19243,8 +19245,8 @@ fn eval_kernel_spawn_thread(
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Thread".into(),
         fields: vec![
-            crate::typed_channel::sender_from_comms(in_tx),
-            crate::typed_channel::receiver_from_comms(out_rx),
+            crate::channel::sender_from_comms(in_tx),
+            crate::channel::receiver_from_comms(out_rx),
             Value::wat__kernel__ProgramHandle(Arc::new(
                 ProgramHandleInner::InThread(outcome_rx),
             )),
@@ -19435,15 +19437,15 @@ fn drain_thread_output_channel(
         }
     };
     loop {
-        match crate::typed_channel::typed_recv(
+        match crate::channel::typed_recv(
             receiver_inner.as_ref(),
             None,
             subject_ast.span().clone(),
         ) {
-            crate::typed_channel::RecvOutcome::Value(_) => continue,
-            crate::typed_channel::RecvOutcome::Disconnected
-            | crate::typed_channel::RecvOutcome::Shutdown
-            | crate::typed_channel::RecvOutcome::DecodeError(_) => break,
+            crate::channel::RecvOutcome::Value(_) => continue,
+            crate::channel::RecvOutcome::Disconnected
+            | crate::channel::RecvOutcome::Shutdown
+            | crate::channel::RecvOutcome::DecodeError(_) => break,
         }
     }
     Ok(())
@@ -19490,19 +19492,19 @@ fn eval_kernel_thread_readln(
             } }.into());
         }
     };
-    match crate::typed_channel::typed_recv(
+    match crate::channel::typed_recv(
         receiver_inner.as_ref(),
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::RecvOutcome::Value(v) => Ok(v),
-        crate::typed_channel::RecvOutcome::Disconnected
-        | crate::typed_channel::RecvOutcome::Shutdown => {
+        crate::channel::RecvOutcome::Value(v) => Ok(v),
+        crate::channel::RecvOutcome::Disconnected
+        | crate::channel::RecvOutcome::Shutdown => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } }.into())
         }
-        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+        crate::channel::RecvOutcome::DecodeError(msg) => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("EDN decode on ThreadPeer.rx: {}", msg)
@@ -19545,14 +19547,14 @@ fn eval_kernel_thread_println(
         }
     };
     let payload = eval_inner(&args[1], env, sym)?.value_owned();
-    match crate::typed_channel::typed_send(
+    match crate::channel::typed_send(
         sender_inner.as_ref(),
         payload,
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::SendOutcome::Ok => Ok(Value::Unit),
-        crate::typed_channel::SendOutcome::Disconnected => {
+        crate::channel::SendOutcome::Ok => Ok(Value::Unit),
+        crate::channel::SendOutcome::Disconnected => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } }.into())
@@ -19636,21 +19638,21 @@ fn eval_kernel_process_readln(
             } }.into());
         }
     };
-    match crate::typed_channel::typed_recv(
+    match crate::channel::typed_recv(
         receiver_inner.as_ref(),
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::RecvOutcome::Value(v) => {
+        crate::channel::RecvOutcome::Value(v) => {
             Ok(Value::Result(Arc::new(Ok(v))))
         }
-        crate::typed_channel::RecvOutcome::Disconnected
-        | crate::typed_channel::RecvOutcome::Shutdown => {
+        crate::channel::RecvOutcome::Disconnected
+        | crate::channel::RecvOutcome::Shutdown => {
             Ok(Value::Result(Arc::new(Err(single_died_chain(
                 process_died_error_channel_disconnected(),
             )))))
         }
-        crate::typed_channel::RecvOutcome::DecodeError(msg) => {
+        crate::channel::RecvOutcome::DecodeError(msg) => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("EDN decode on ProcessPeer.rx: {}", msg)
@@ -19692,16 +19694,16 @@ fn eval_kernel_process_println(
         }
     };
     let payload = eval_inner(&args[1], env, sym)?.value_owned();
-    match crate::typed_channel::typed_send(
+    match crate::channel::typed_send(
         sender_inner.as_ref(),
         payload,
         sym.types().map(|a| a.as_ref()),
         list_span.clone(),
     ) {
-        crate::typed_channel::SendOutcome::Ok => {
+        crate::channel::SendOutcome::Ok => {
             Ok(Value::Result(Arc::new(Ok(Value::Unit))))
         }
-        crate::typed_channel::SendOutcome::Disconnected => {
+        crate::channel::SendOutcome::Disconnected => {
             Ok(Value::Result(Arc::new(Err(single_died_chain(
                 process_died_error_channel_disconnected(),
             )))))
@@ -19760,7 +19762,7 @@ fn eval_kernel_sender_from_pipe(
             } }.into());
         }
     };
-    Ok(crate::typed_channel::sender_from_pipe(writer))
+    Ok(crate::channel::sender_from_pipe(writer))
 }
 
 /// `(:wat::kernel::Receiver/from-pipe reader) -> :wat::kernel::Receiver<T>` —
@@ -19769,7 +19771,7 @@ fn eval_kernel_sender_from_pipe(
 ///
 /// The returned Receiver is the same `Value::wat__kernel__Receiver` variant
 /// as crossbeam-backed Receivers; `(:wat::kernel::recv r)` works identically
-/// on both (PipeFd dispatch in `typed_channel::typed_recv`).
+/// on both (PipeFd dispatch in `channel::typed_recv`).
 fn eval_kernel_receiver_from_pipe(
     args: &[WatAST],
     env: &Environment,
@@ -19794,7 +19796,7 @@ fn eval_kernel_receiver_from_pipe(
             } }.into());
         }
     };
-    Ok(crate::typed_channel::receiver_from_pipe(reader))
+    Ok(crate::channel::receiver_from_pipe(reader))
 }
 
 /// `(:wat::kernel::process-send proc value) -> :Result<(),
@@ -28915,8 +28917,8 @@ mod tests {
         drop(tx0); // rx0 disconnected
         tx1.send(Value::i64(7)).unwrap();
         let rxs = Value::Vec(Arc::new(vec![
-            crate::typed_channel::receiver_from_comms(rx0),
-            crate::typed_channel::receiver_from_comms(rx1),
+            crate::channel::receiver_from_comms(rx0),
+            crate::channel::receiver_from_comms(rx1),
         ]));
         let env = Environment::new().child().bind_unknown_span("rxs", TrackedValue::from(rxs)).build();
         let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");

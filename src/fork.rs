@@ -338,7 +338,7 @@ pub fn eval_kernel_wait_child(
 
 /// Allocate a pipe pair; returns `(read_end, write_end)` as OwnedFds.
 ///
-/// Public for arc 170 slice 1c — `tests/wat_arc170_typed_channel_pipes.rs`
+/// Public for arc 170 slice 1c — `tests/wat_arc170_channel_pipes.rs`
 /// composes typed-channel pairs over fresh OS pipes. The function
 /// is otherwise substrate-internal; user code reaches for typed
 /// channels via `:wat::kernel::make-channel` (tier 1) or via the
@@ -731,8 +731,8 @@ pub fn eval_kernel_fork_program_ast(
     // exposed via Process<I,O>; user code picks the one matching its
     // tier-2 contract (`Process/tx` + `Process/rx`) or its legacy
     // byte-pipe shape.
-    let tx = crate::typed_channel::sender_from_pipe(stdin_writer.clone());
-    let rx = crate::typed_channel::receiver_from_pipe(stdout_reader.clone());
+    let tx = crate::channel::sender_from_pipe(stdin_writer.clone());
+    let rx = crate::channel::receiver_from_pipe(stdout_reader.clone());
 
     // Arc 112 — fork-program-ast returns the same :wat::kernel::Process
     // struct shape spawn-program returns. The join field carries a
@@ -1211,8 +1211,8 @@ pub fn eval_kernel_fork_program(
     // share the underlying fd; users pick the abstraction that
     // matches their tier (bytes for legacy `Process/stdin`,
     // typed Values for `Process/tx` / `Process/rx`).
-    let tx = crate::typed_channel::sender_from_pipe(stdin_writer.clone());
-    let rx = crate::typed_channel::receiver_from_pipe(stdout_reader.clone());
+    let tx = crate::channel::sender_from_pipe(stdin_writer.clone());
+    let rx = crate::channel::receiver_from_pipe(stdout_reader.clone());
 
     // Arc 112 — fork-program returns Process<I,O> like fork-program-ast.
     Ok(Value::Struct(Arc::new(StructValue {

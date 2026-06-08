@@ -48,7 +48,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use wat::io::{PipeReader, WatReader};
 use wat::span::Span;
-use wat::typed_channel::{ReceiverInner, RecvOutcome};
+use wat::channel::{ReceiverInner, RecvOutcome};
 
 /// Arc 170 Phase 2 — blocked PipeFd recv wakes on SIGTERM within 100ms.
 ///
@@ -100,7 +100,7 @@ fn probe_shutdown_cascade_pipefd_wakes_pipe_recv() {
 
                 // Now call typed_recv on the PipeFd receiver. This blocks
                 // on poll(pipe_fd, broadcast_fd) — Phase 2 wiring.
-                let outcome = wat::typed_channel::typed_recv(
+                let outcome = wat::channel::typed_recv(
                     rx_inner_clone.as_ref(),
                     None,
                     Span::unknown(),

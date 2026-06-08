@@ -83,7 +83,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     // Peer B is ThreadPeer<i64, String> — it READS i64 (its I = i64).
     let world = freeze_ok("");
     let (peer_a, peer_b) =
-        wat::typed_channel::make_thread_peer_pair_for_test();
+        wat::channel::make_thread_peer_pair_for_test();
 
     // peer A writes 42i64.
     let env_w = Environment::new()
@@ -126,7 +126,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     // value's runtime variant matches the expected I parameter.
     let world = freeze_ok("");
     let (peer_a, peer_b) =
-        wat::typed_channel::make_thread_peer_pair_for_test();
+        wat::channel::make_thread_peer_pair_for_test();
 
     // ── Direction 1: peer A writes i64 7 → peer B reads i64 7.
     let env_aw = Environment::new()

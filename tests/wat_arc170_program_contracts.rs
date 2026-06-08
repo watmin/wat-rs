@@ -176,31 +176,31 @@ fn t3_argv_reachable_via_ambient() {
 // ─── T4. spawn-process(fn) end-to-end via typed channels ───────────────
 
 fn drive_typed_recv(
-    receiver_inner: &wat::typed_channel::ReceiverInner,
+    receiver_inner: &wat::channel::ReceiverInner,
     types: Option<&wat::types::TypeEnv>,
 ) -> Value {
-    match wat::typed_channel::typed_recv(receiver_inner, types, wat::span::Span::unknown()) {
-        wat::typed_channel::RecvOutcome::Value(v) => v,
-        wat::typed_channel::RecvOutcome::Disconnected => {
+    match wat::channel::typed_recv(receiver_inner, types, wat::span::Span::unknown()) {
+        wat::channel::RecvOutcome::Value(v) => v,
+        wat::channel::RecvOutcome::Disconnected => {
             panic!("recv: clean shutdown before value flowed")
         }
-        wat::typed_channel::RecvOutcome::DecodeError(msg) => {
+        wat::channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
         }
-        wat::typed_channel::RecvOutcome::Shutdown => {
+        wat::channel::RecvOutcome::Shutdown => {
             panic!("recv: unexpected process-wide shutdown during test")
         }
     }
 }
 
-fn unwrap_sender_inner(v: &Value) -> &wat::typed_channel::SenderInner {
+fn unwrap_sender_inner(v: &Value) -> &wat::channel::SenderInner {
     match v {
         Value::wat__kernel__Sender(inner) => inner.as_ref(),
         other => panic!("expected Sender Value; got {:?}", other),
     }
 }
 
-fn unwrap_receiver_inner(v: &Value) -> &wat::typed_channel::ReceiverInner {
+fn unwrap_receiver_inner(v: &Value) -> &wat::channel::ReceiverInner {
     match v {
         Value::wat__kernel__Receiver(inner) => inner.as_ref(),
         other => panic!("expected Receiver Value; got {:?}", other),
@@ -272,16 +272,16 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent sends 41 to child via Sender/from-pipe wrapping Process/stdin (IOWriter).
     let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
     let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::typed_channel::typed_send(
+    let outcome = wat::channel::typed_send(
         sender_inner,
         Value::i64(41),
         types,
         wat::span::Span::unknown(),
     );
     assert!(
-        matches!(outcome, wat::typed_channel::SendOutcome::Ok),
+        matches!(outcome, wat::channel::SendOutcome::Ok),
         "send should succeed"
     );
     // Drop sender so child's readln sees EOF after the first read (not needed
@@ -290,16 +290,16 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     // Parent recvs response — should be 42. On unexpected close, drain
     // stderr so we surface the child's diagnostic in the panic message.
     let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let recv_outcome = wat::typed_channel::typed_recv(
+    let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
         wat::span::Span::unknown(),
     );
     let response = match recv_outcome {
-        wat::typed_channel::RecvOutcome::Value(v) => v,
-        wat::typed_channel::RecvOutcome::Disconnected => {
+        wat::channel::RecvOutcome::Value(v) => v,
+        wat::channel::RecvOutcome::Disconnected => {
             // Drain child stderr for diagnostic.
             let stderr_field = match &process {
                 Value::Struct(s) => &s.fields[2],
@@ -317,10 +317,10 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
             };
             panic!("recv: clean shutdown before value flowed; child stderr:\n{}", stderr_text);
         }
-        wat::typed_channel::RecvOutcome::DecodeError(msg) => {
+        wat::channel::RecvOutcome::DecodeError(msg) => {
             panic!("recv: decode error: {}", msg)
         }
-        wat::typed_channel::RecvOutcome::Shutdown => {
+        wat::channel::RecvOutcome::Shutdown => {
             panic!("recv: unexpected process-wide shutdown during test")
         }
     };
@@ -365,19 +365,19 @@ fn t5_spawn_process_inline_lambda_round_trips() {
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent sends 21 via Sender/from-pipe wrapping Process/stdin.
     let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
     let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::typed_channel::typed_send(
+    let outcome = wat::channel::typed_send(
         sender_inner,
         Value::i64(21),
         types,
         wat::span::Span::unknown(),
     );
-    assert!(matches!(outcome, wat::typed_channel::SendOutcome::Ok));
+    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
     drop(sender_val);
     // Parent recvs 42 via Receiver/from-pipe wrapping Process/stdout.
     let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let response = drive_typed_recv(receiver_inner, types);
     match response {
@@ -437,24 +437,24 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent sends 7 via Sender/from-pipe wrapping Process/stdin.
     let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::typed_channel::sender_from_pipe(stdin_writer);
+    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
     let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::typed_channel::typed_send(
+    let outcome = wat::channel::typed_send(
         sender_inner,
         Value::i64(7),
         types,
         wat::span::Span::unknown(),
     );
-    assert!(matches!(outcome, wat::typed_channel::SendOutcome::Ok));
+    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
     drop(sender_val);
     // Parent recvs 107 (100+7) via Receiver/from-pipe wrapping Process/stdout.
     let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let recv_outcome =
-        wat::typed_channel::typed_recv(receiver_inner, types, wat::span::Span::unknown());
+        wat::channel::typed_recv(receiver_inner, types, wat::span::Span::unknown());
     let response = match recv_outcome {
-        wat::typed_channel::RecvOutcome::Value(v) => v,
+        wat::channel::RecvOutcome::Value(v) => v,
         other => {
             // Drain child stderr for diagnostic.
             let stderr_text = match &process {
@@ -671,19 +671,19 @@ fn t10_spawn_thread_unchanged_positive_control() {
         Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => (&s.fields[0], &s.fields[1]),
         other => panic!("expected Thread Struct; got {:?}", other),
     };
-    let outcome = wat::typed_channel::typed_send(
+    let outcome = wat::channel::typed_send(
         unwrap_sender_inner(input),
         Value::i64(21),
         types,
         wat::span::Span::unknown(),
     );
-    assert!(matches!(outcome, wat::typed_channel::SendOutcome::Ok));
-    let response = match wat::typed_channel::typed_recv(
+    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
+    let response = match wat::channel::typed_recv(
         unwrap_receiver_inner(output),
         types,
         wat::span::Span::unknown(),
     ) {
-        wat::typed_channel::RecvOutcome::Value(v) => v,
+        wat::channel::RecvOutcome::Value(v) => v,
         other => panic!("expected Value; got {:?}", other),
     };
     match response {
@@ -732,7 +732,7 @@ fn t12_spawn_process_child_emits_without_recv() {
     let types = world.symbols().types().map(|a| a.as_ref());
     // Parent reads from Process/stdout via Receiver/from-pipe.
     let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let response = drive_typed_recv(receiver_inner, types);
     match response {
@@ -823,15 +823,15 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     // Parent reads from Process/stdout via Receiver/from-pipe.
     // Child panics before println → stdout pipe closes → Disconnected.
     let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::typed_channel::receiver_from_pipe(stdout_reader);
+    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let recv_outcome = wat::typed_channel::typed_recv(
+    let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
         wat::span::Span::unknown(),
     );
     assert!(
-        matches!(recv_outcome, wat::typed_channel::RecvOutcome::Disconnected),
+        matches!(recv_outcome, wat::channel::RecvOutcome::Disconnected),
         "expected Disconnected (child panicked before printing); got {:?}",
         recv_outcome,
     );

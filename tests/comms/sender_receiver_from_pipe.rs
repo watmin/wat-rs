@@ -21,7 +21,7 @@ use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-use wat::typed_channel::{receiver_from_pipe, sender_from_pipe, RecvOutcome, SendOutcome};
+use wat::channel::{receiver_from_pipe, sender_from_pipe, RecvOutcome, SendOutcome};
 
 fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
@@ -42,14 +42,14 @@ fn os_pipe() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
     (reader, writer)
 }
 
-fn unwrap_sender_inner(v: &Value) -> &wat::typed_channel::SenderInner {
+fn unwrap_sender_inner(v: &Value) -> &wat::channel::SenderInner {
     match v {
         Value::wat__kernel__Sender(inner) => inner.as_ref(),
         other => panic!("expected Sender Value; got {:?}", other),
     }
 }
 
-fn unwrap_receiver_inner(v: &Value) -> &wat::typed_channel::ReceiverInner {
+fn unwrap_receiver_inner(v: &Value) -> &wat::channel::ReceiverInner {
     match v {
         Value::wat__kernel__Receiver(inner) => inner.as_ref(),
         other => panic!("expected Receiver Value; got {:?}", other),
@@ -93,7 +93,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     };
 
     // Send an i64 through the PipeFd Sender — EDN-encodes 99.
-    let send_outcome = wat::typed_channel::typed_send(
+    let send_outcome = wat::channel::typed_send(
         unwrap_sender_inner(&sender_val),
         Value::i64(99),
         types,
@@ -106,7 +106,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     );
 
     // Recv it back — EDN-decodes the line.
-    let recv_outcome = wat::typed_channel::typed_recv(
+    let recv_outcome = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
         Span::unknown(),
@@ -121,7 +121,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     }
 
     // Verify String round-trip.
-    let send_outcome2 = wat::typed_channel::typed_send(
+    let send_outcome2 = wat::channel::typed_send(
         unwrap_sender_inner(&sender_val),
         Value::String(Arc::new("hello-pipe".to_string())),
         types,
@@ -131,7 +131,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
         matches!(send_outcome2, SendOutcome::Ok),
         "String send should succeed"
     );
-    let recv_outcome2 = wat::typed_channel::typed_recv(
+    let recv_outcome2 = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
         Span::unknown(),
@@ -150,7 +150,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     // see EOF (Disconnected).
     drop(sender_val);
     drop(writer_val);
-    let recv_outcome3 = wat::typed_channel::typed_recv(
+    let recv_outcome3 = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
         Span::unknown(),

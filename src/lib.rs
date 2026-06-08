@@ -106,8 +106,8 @@ pub use services::{
     ServiceMsg, ServicePeer, spawn_service_peer,
     RuntimeServices,
 };
+pub mod channel;
 pub mod time;
-pub mod typed_channel;
 pub mod types;
 pub mod value;
 pub mod vm_registry;
