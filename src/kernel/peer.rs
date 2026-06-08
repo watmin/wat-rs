@@ -162,6 +162,7 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     /// pairs + fork the child directly (e.g. `peer_process_round_trip.rs`).
     /// In-crate production paths use `spawn_process_peer` (kernel/spawn.rs)
     /// which constructs the peer via struct literal (pub(crate) access).
+    #[doc(hidden)]
     pub fn new_for_test(
         input: crate::comms::process::Sender<I>,
         output: crate::comms::process::Receiver<O>,
@@ -199,12 +200,12 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
 
     /// Close both channel endpoints and return the Pidfd.
     ///
-    /// Dropping the input Sender closes the parent's write end of the pipe
-    /// (the child's Receiver sees EOF on its next recv). Dropping the output
-    /// Receiver closes the parent's read end. The returned Pidfd lets the
-    /// caller block on child exit via `pidfd.wait_status()`. The Pidfd's
-    /// Drop also closes the persistent io_uring ring fd — two kernel
-    /// resources are released: the pidfd itself and the ring fd.
+    /// Dropping `self.output` (the `comms::process::Receiver`) closes the
+    /// parent's read end of the pipe AND releases the persistent io_uring
+    /// ring fd it owns (see `comms::process::Receiver::ring`). Dropping
+    /// `self.input` (the Sender) closes the parent's write end of the pipe
+    /// (the child's Receiver sees EOF on its next recv). The returned Pidfd
+    /// owns only the pidfd itself; its Drop closes that single fd.
     ///
     /// Prefer `wait(self)` for the common "close + wait" pattern.
     pub fn close(self) -> crate::process::Pidfd {
@@ -246,10 +247,11 @@ mod tests {
 
     /// Lib-safe unit test for Thread<I, O> round-trip.
     ///
-    /// Constructs a Thread peer by hand (no spawn dispatcher — Stone 4.5
-    /// is not yet built): create two comms::thread pairs, spawn a std::thread
-    /// that recvs I from its Receiver and sends O = transform(I) to its Sender,
-    /// then build a Thread peer using the parent-side endpoints. Assert that
+    /// Constructs a Thread peer by hand (bypassing the spawn dispatcher) to
+    /// stay lib-safe — no WatAST parsing or dispatcher wiring in a unit test.
+    /// Creates two comms::thread pairs, spawns a std::thread that recvs I
+    /// from its Receiver and sends O = transform(I) to its Sender, then
+    /// builds a Thread peer using the parent-side endpoints. Asserts that
     /// peer.send(x) followed by peer.recv() returns transform(x), and that
     /// join completes cleanly.
     ///

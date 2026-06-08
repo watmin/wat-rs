@@ -7,7 +7,8 @@
 //!   `std::thread` that applies the program fn to each message, wraps in
 //!   `kernel::peer::Thread<Value, Value>`, returns as `Value::RustOpaque`.
 //! - `:process` → validates fn captures for portability (sandbox walker),
-//!   creates a `comms::process` channel pair, forks via `spawn_lifelined`,
+//!   creates a `comms::process` channel pair, forks via `spawn_lifelined_any`
+//!   (the `!UnwindSafe`-compatible variant; `src/process/clone.rs`),
 //!   child runs the fn apply-loop, wraps result as `Value::RustOpaque`.
 //!
 //! ## Peer-as-Value representation
@@ -26,19 +27,23 @@
 //!
 //! ### Thread tier
 //!
-//! `Arc<ThreadOwnedCell<Thread<Value, Value>>>` where `Thread` =
-//! `kernel::peer::Thread`. `Thread<Value,Value>` holds a `JoinHandle<()>`
-//! which is `Send` but not `Sync` — the `ThreadOwnedCell` wrapping makes
-//! it `Sync` via the thread-id guard.
+//! `ThreadPeerCell` = `Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>` where
+//! `Thread` = `kernel::peer::Thread`. The `Option` lets `close'` take the peer
+//! while `send'`/`recv'`/`try-recv'` detect use-after-close via `.as_ref()`
+//! returning `None`. `Thread<Value,Value>` holds a `JoinHandle<()>` which is
+//! `Send` but not `Sync` — the `ThreadOwnedCell` wrapping makes it `Sync` via
+//! the thread-id guard.
 //!
 //! ### Process tier
 //!
-//! `Arc<ThreadOwnedCell<ProcessPeerBundle>>` where `ProcessPeerBundle`
-//! packages `kernel::peer::Process<String, String>` plus the lifeline
-//! `OwnedFd`. The wire type is `String` (EDN-encoded Value) rather than
-//! `Value` directly, because `comms::process::Receiver<Value>` is
-//! `!UnwindSafe` (Value contains `Arc<dyn WatReader>` / `UnsafeCell`),
-//! but `spawn_lifelined` requires `F: UnwindSafe` for its child closure.
+//! `ProcessPeerCell` = `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>` where
+//! `ProcessPeerBundle` packages `kernel::peer::Process<String, String>` plus
+//! the lifeline `OwnedFd`. The `Option` lets `close'` take the bundle while
+//! `send'`/`recv'`/`try-recv'` detect use-after-close. The wire type is
+//! `String` (EDN-encoded Value) rather than `Value` directly, because
+//! `comms::process::Receiver<Value>` is `!UnwindSafe` (Value contains
+//! `Arc<dyn WatReader>` / `UnsafeCell`), but `spawn_lifelined` requires
+//! `F: UnwindSafe` for its child closure.
 //! `String: UnwindSafe`, so `comms::process::Receiver<String>: UnwindSafe`.
 //!
 //! The encoding/decoding between `Value` and `String` (EDN) is done at the
@@ -82,11 +87,19 @@ use crate::value::Function;
 
 /// The thread-tier peer cell type — `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>`.
 ///
-/// Recurs ~8× at downcast sites (Stone 4.6a-ii Option-wrapping for close').
-/// The `Option` lets `close'` take the peer while `send'`/`recv'`/`try-recv'`
-/// detect use-after-close via `.as_ref()` returning `None`.
+/// Intended for the Stone 4.6a-ii downcast sites; adoption pending runtime.rs
+/// warding. The `Option` lets `close'` take the peer while `send'`/`recv'`/
+/// `try-recv'` detect use-after-close via `.as_ref()` returning `None`.
 /// At downcast sites use `ThreadPeerCell` instead of spelling out the 4-level type.
 pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
+
+/// The process-tier peer cell type — `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`.
+///
+/// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close'`
+/// take the bundle while `send'`/`recv'`/`try-recv'` detect use-after-close.
+/// Intended for the Stone 4.6a-ii downcast sites (runtime.rs uses the long form
+/// `Option<ProcessPeerBundle>` until runtime.rs warding).
+pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>;
 
 // ─── RustOpaque type-path sentinels ──────────────────────────────────────────
 
@@ -136,18 +149,18 @@ pub struct ProcessPeerBundle {
 /// Three positional args:
 /// - `args[0]` — tier keyword (`:thread` | `:process`).
 /// - `args[1]` — program-env (`wat::program::Env` — Stone 4.1–4.3): evaluated
-///   for type-check + side effects; the runtime wiring into the peer's fn
-///   invocation context is Stone 4.6a-i's task (see
-///   `docs/arc/2026/05/214-concurrency-toolkit/BRIEF-STONE-4.6a-i-TYPED-PEER-FOUNDATION.md`).
-///   // rune:exigere(attested-arc) — wiring env into the peer context is DESIGN'd
-///   // for 4.6a-i; the arity is fixed (3-arg form required by 4.6a-i BRIEF §work:args[1]).
+///   for side-effects; the check-time validation that args[1] unifies with
+///   `:wat::program::Env` was shipped by Stone 4.6a-i (check.rs:10709-10723).
+///   The 3-arg arity is fixed by that shipped check. Runtime threading of env
+///   into the peer's fn invocation context is tracked in task #211
+///   ("Thread :wat::program::Env into the spawned peer's eval context").
 /// - `args[2]` — program fn value: `fn [I] -> O`; applied to each message.
 ///
 /// Returns:
 /// - `:thread` → `Value::RustOpaque` type-path `":wat::kernel::Thread'"`,
-///   payload `Arc<ThreadOwnedCell<Thread<Value, Value>>>`.
+///   payload `ThreadPeerCell` (`Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>`).
 /// - `:process` → `Value::RustOpaque` type-path `":wat::kernel::Process'"`,
-///   payload `Arc<ThreadOwnedCell<ProcessPeerBundle>>`.
+///   payload `ProcessPeerCell` (`Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`).
 pub fn eval_kernel_spawn_program_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -183,10 +196,12 @@ pub fn eval_kernel_spawn_program_prime(
         }
     };
 
-    // arg 1: program-env — eval; the wiring into the peer invocation context is
-    // Stone 4.6a-i's task (BRIEF §work:args[1] — requires env unifies with
-    // :wat::program::Env at check time). The arity is fixed at 3 by that BRIEF.
-    // rune:exigere(attested-arc) — see BRIEF-STONE-4.6a-i-TYPED-PEER-FOUNDATION.md.
+    // arg 1: program-env — eval for side-effects. Stone 4.6a-i SHIPPED the
+    // check-time validation (check.rs:10709-10723 verifies args[1] unifies with
+    // :wat::program::Env); the 3-arg arity is fixed by that check. Runtime env
+    // threading into the peer's fn invocation context is tracked in task #211
+    // ("Thread :wat::program::Env into the spawned peer's eval context").
+    // rune:exigere(attested-arc) — runtime env threading tracked in task #211.
     let _program_env = eval_inner(&args[1], env, sym)?.value_owned();
 
     // arg 2: program fn.
@@ -273,10 +288,15 @@ pub fn spawn_thread_peer(
                     // Surfacing a typed error frame on output_tx is a PROTOCOL CHANGE:
                     // the parent can't separate a peer-internal error from a valid
                     // Value::Result(Err(...)) returned by the fn. Proper fix = a
-                    // separate error channel or a sentinel envelope — FOLLOW-UP for
-                    // the Stone 4.6a-ii recv' design (the recv' verb must declare the
-                    // contract: "errors observed via channel close; recover via join()
-                    // on :thread / close().wait_status() on :process").
+                    // separate error channel or a sentinel envelope.
+                    //
+                    // Present recovery contract (both tiers):
+                    //   :thread  → errors observed via channel close; recover via
+                    //              join() on the Thread peer.
+                    //   :process → errors observed via channel close + Exited(1);
+                    //              recover via close().wait_status() on the Process peer.
+                    // The Stone 4.6 recv'/close' verbs will surface this contract at
+                    // the wat level (tracked with Stone 4.6 in kernel/mod.rs).
                     Ok(Err(_)) | Err(_) => break,
                 };
                 if output_tx.send(result).is_err() {
