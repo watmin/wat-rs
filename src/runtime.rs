@@ -171,15 +171,60 @@ pub fn argv() -> Arc<Vec<String>> {
 
 // ── Arc 170 Slice A — process-wide shutdown signal infrastructure ──────────
 //
-// Three statics form the lock-free shutdown cascade.  All follow the
-// ZERO-MUTEX doctrine (docs/ZERO-MUTEX.md): AtomicPtr + OnceLock + Box,
-// NO Mutex / RwLock / CondVar.
+// Four statics form the lock-free shutdown cascade.  All follow the
+// ZERO-MUTEX doctrine (docs/ZERO-MUTEX.md): AtomicPtr + Box,
+// NO Mutex / RwLock / OnceLock / CondVar.
+//
+// Stone 214.6.4 — FORK-AWARE redesign: SHUTDOWN_RX_PTR replaces
+// SHUTDOWN_RX (OnceLock). AtomicPtr swap enables the pid-aware guard to
+// rebuild the entire shutdown infra in a clone3 child (the inherited worker
+// thread doesn't survive fork; the OnceLock guard was the lie that blocked
+// rebirth). SHUTDOWN_INIT_PID records which process last initialized so the
+// guard can detect "same-process no-op" vs "child needs rebirth".
 
-/// Receiver clone of the process-wide shutdown signal channel. Every
-/// `typed_recv` Crossbeam-arm select multiplexes on this (Slice B wires
-/// the select). Initialized once via [`init_shutdown_signal`]; cleared
-/// by [`trigger_shutdown`] dropping the corresponding Sender.
-pub static SHUTDOWN_RX: OnceLock<crossbeam_channel::Receiver<()>> = OnceLock::new();
+/// Heap-boxed Receiver for the process-wide shutdown signal channel.
+/// AtomicPtr allows the fork-aware guard in `init_shutdown_signal_with_inputs`
+/// to swap in a fresh Receiver after fork (the inherited Receiver is the
+/// child's process-local copy; it leaks by design — comment in the guard).
+///
+/// null = uninitialized; non-null = initialized. Load with SeqCst; the
+/// `shutdown_rx()` getter returns a `Option<&'static Receiver<()>>`.
+///
+/// Previously `SHUTDOWN_RX: OnceLock<Receiver<()>>` (Stone 214.6.4
+/// replaced OnceLock with AtomicPtr to allow fork-aware rebirth).
+static SHUTDOWN_RX_PTR: std::sync::atomic::AtomicPtr<crossbeam_channel::Receiver<()>> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+/// The pid of the process that last successfully initialized the shutdown
+/// infra. 0 = never initialized. Used by `init_shutdown_signal_with_inputs`
+/// to detect fork children: if `SHUTDOWN_RX_PTR` is non-null but
+/// `SHUTDOWN_INIT_PID != getpid()`, we are in a clone3 child whose
+/// inherited state is a zombie — rebuild (the inherited worker thread
+/// does not exist).
+static SHUTDOWN_INIT_PID: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(0);
+
+/// Get a shared reference to the process-wide shutdown Receiver, or
+/// `None` if the shutdown infra has not been initialized yet (pre-init
+/// or bootstrap fallback path).
+///
+/// SAFETY: The pointer was stored via `Box::into_raw` in
+/// `init_shutdown_signal_with_inputs`; it is valid for the lifetime of
+/// the pointer value (i.e., `'static`). The old box leaks by design on
+/// fork-rebirth (see the guard comment) — the pointer is never freed
+/// while any caller could still observe it.
+pub(crate) fn shutdown_rx() -> Option<&'static crossbeam_channel::Receiver<()>> {
+    let ptr = SHUTDOWN_RX_PTR.load(Ordering::SeqCst);
+    if ptr.is_null() {
+        None
+    } else {
+        // SAFETY: ptr is non-null and was produced by Box::into_raw in
+        // init_shutdown_signal_with_inputs. The lifetime is effectively
+        // 'static — the box leaks on fork-rebirth; in the normal single-process
+        // path the box is never freed (the shutdown infra lives forever).
+        Some(unsafe { &*ptr })
+    }
+}
 
 /// Heap-boxed Sender for the shutdown signal. AtomicPtr swap-to-null
 /// + Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
@@ -204,9 +249,14 @@ pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
 pub static SHUTDOWN_BROADCAST_READ_FD: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 
-/// Initialize the shutdown signal infrastructure. Idempotent — safe to
-/// call from every bootstrap path. Creates:
-///   1. A crossbeam unbounded channel pair (rx → SHUTDOWN_RX, tx → SHUTDOWN_TX_PTR)
+/// Initialize the shutdown signal infrastructure. Idempotent within a
+/// process; FORK-AWARE across them — a clone3 child's first call rebuilds
+/// (the inherited worker thread does not exist; the inherited state is a
+/// zombie). The 2026-06-07 live diagnosis is the WHY (SCORE-STONE-6.3
+/// § the live catch).
+///
+/// Creates:
+///   1. A crossbeam unbounded channel pair (rx → SHUTDOWN_RX_PTR, tx → SHUTDOWN_TX_PTR)
 ///   2. A wake pipe (write-end → SHUTDOWN_WAKE_WRITE_FD, read-end → worker)
 ///   3. A worker thread that blocks on the wake pipe read; on wake,
 ///      calls trigger_shutdown
@@ -227,21 +277,48 @@ pub fn init_shutdown_signal() {
 /// caller-managed (e.g., the bootstrap path keeps the lifeline read-end
 /// alive via an OwnedFd held in `ProcessRuntime`).
 ///
-/// Idempotent: second call is a no-op even if `extra_input_fds` differs.
-/// Callers must arrange for the FIRST call to include all needed inputs.
+/// Idempotent within a process: if `SHUTDOWN_RX_PTR` is non-null AND
+/// `SHUTDOWN_INIT_PID == getpid()`, this is a no-op. Fork-aware: if the
+/// ptr is non-null but the pid differs, we are in a clone3 child whose
+/// inherited shutdown worker thread does not exist — the guard fires and
+/// rebuilds the entire infra. The OLD heap boxes (Receiver + Sender) are
+/// NOT freed — they are the child's inherited process-local copies and
+/// must not be dropped (that would corrupt the parent's state via
+/// copy-on-write). They LEAK BY DESIGN. The old inherited wake write-fd
+/// is closed (it was the parent's fd; the new fd is stored BEFORE signal
+/// handler re-installation in the child sequence).
 pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
-    if SHUTDOWN_RX.get().is_some() {
-        return; // already initialized
+    let current_pid = unsafe { libc::getpid() };
+    // Guard: initialized AND same process → no-op.
+    let rx_ptr = SHUTDOWN_RX_PTR.load(Ordering::SeqCst);
+    if !rx_ptr.is_null() && SHUTDOWN_INIT_PID.load(Ordering::SeqCst) == current_pid {
+        return; // already initialized in this process
     }
+
+    // Either first call ever (rx_ptr is null) OR we are in a fork child
+    // (rx_ptr non-null, pid differs). In the fork-child case:
+    //   - rx_ptr and the old SHUTDOWN_TX_PTR point to the PARENT's
+    //     heap-boxed values (COW copy). We must NOT free them (Box::from_raw
+    //     would corrupt the parent on the next COW write). They LEAK.
+    //   - The inherited wake-write fd is the PARENT's fd; close it now
+    //     so the new fd takes its place before the signal handler fires.
+    if !rx_ptr.is_null() {
+        // Fork child — close the inherited wake write-fd.
+        // The new fd is stored below BEFORE signal handler installation.
+        let old_write_fd = SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
+        if old_write_fd >= 0 {
+            unsafe { libc::close(old_write_fd) };
+        }
+        // Do NOT free rx_ptr or SHUTDOWN_TX_PTR — they are the parent's
+        // COW-copied boxes; freeing would corrupt the parent. LEAK BY DESIGN.
+    }
+
     let (tx, rx) = crossbeam_channel::unbounded::<()>();
-    // First-set wins — race-safe; the OnceLock-set Err path means another
-    // thread initialized concurrently. Both paths leave the substrate
-    // correctly initialized; we just discard our local Sender if so.
-    if SHUTDOWN_RX.set(rx).is_err() {
-        return;
-    }
-    let boxed = Box::into_raw(Box::new(tx));
-    SHUTDOWN_TX_PTR.store(boxed, Ordering::SeqCst);
+    // Store the new Receiver via AtomicPtr.
+    let rx_boxed = Box::into_raw(Box::new(rx));
+    SHUTDOWN_RX_PTR.store(rx_boxed, Ordering::SeqCst);
+    let tx_boxed = Box::into_raw(Box::new(tx));
+    SHUTDOWN_TX_PTR.store(tx_boxed, Ordering::SeqCst);
 
     // Create wake pipe (async-signal-safe write-end; blocking read-end).
     // pipe2(O_CLOEXEC): atomic CLOEXEC — belt for any future exec path; in
@@ -326,6 +403,13 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
             // Worker exits — its job is done; subsequent attempts are no-ops.
         })
         .expect("wat-shutdown-worker thread spawn failed");
+
+    // Record this process as the owner. Done AFTER the worker spawns so
+    // there is no window where the pid is set but the worker is not yet
+    // running. (The ordering: new wake-fd stored, new rx_boxed stored,
+    // worker spawned, pid stored — ensures any concurrent reader that
+    // observes the new pid also observes the new wake-fd and new rx.)
+    SHUTDOWN_INIT_PID.store(current_pid, Ordering::SeqCst);
 }
 
 /// Drop the global SHUTDOWN_TX_PTR. All SHUTDOWN_RX recvs wake with
@@ -350,16 +434,20 @@ pub fn trigger_shutdown() {
 /// Test-only reset for the shutdown infrastructure. Production code
 /// runs init exactly once per process; tests that exercise the
 /// cascade re-init between runs.
+///
+/// Stone 214.6.4: SHUTDOWN_RX_PTR is now an AtomicPtr — unlike OnceLock,
+/// it CAN be reset for test purposes. Resets both the RX ptr and the
+/// SHUTDOWN_INIT_PID so the next `init_shutdown_signal` call rebuilds
+/// the infra fresh. The old boxed Receiver leaks (acceptable in tests;
+/// same as the fork-child leak-by-design pattern).
 #[cfg(test)]
 pub fn reset_shutdown_signal() {
     // Drop existing Sender (if any) so any blocked recvs disconnect.
     trigger_shutdown();
-    // NOTE: SHUTDOWN_RX (OnceLock) cannot be reset; tests should be
-    // structured to tolerate the once-set semantics — the same Rx
-    // value is reused across resets, and a fresh Sender cloned via
-    // init_shutdown_signal would not produce messages on the
-    // already-disconnected Rx. Slice B will refine this if tests
-    // require it.
+    // Null out the RX ptr and reset the pid so the guard treats the next
+    // init call as a fresh start. The old box leaks — acceptable in tests.
+    SHUTDOWN_RX_PTR.store(std::ptr::null_mut(), Ordering::SeqCst);
+    SHUTDOWN_INIT_PID.store(0, Ordering::SeqCst);
 }
 
 // ── End arc 170 Slice A shutdown infrastructure ────────────────────────────

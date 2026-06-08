@@ -172,7 +172,7 @@ pub fn typed_recv(
             match rx.recv() {
                 Ok(v) => RecvOutcome::Value(v),
                 Err(_) => {
-                    let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+                    let shutdown_rx = crate::runtime::shutdown_rx();
                     match shutdown_rx {
                         Some(srx) => match srx.try_recv() {
                             // Shutdown channel drained by comms recv or already
@@ -285,7 +285,7 @@ pub fn typed_try_recv(
             // which returns Option<T> (None for both Empty and Disconnected, per
             // arc 253 2-state collapse). Preserve the shutdown-first fast path
             // exactly as the old Crossbeam arm did.
-            let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+            let shutdown_rx = crate::runtime::shutdown_rx();
             if let Some(srx) = shutdown_rx {
                 // Non-blocking: check shutdown first (fast path on shutdown active).
                 // Treat Disconnected on SHUTDOWN_RX the same as a shutdown signal —

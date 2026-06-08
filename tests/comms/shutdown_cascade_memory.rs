@@ -53,7 +53,6 @@ use wat::channel::{ReceiverInner, RecvOutcome};
 /// Runs inside a forked child (process isolation). See module doc for
 /// full design.
 #[test]
-#[ignore = "arc 214 Stone 6.4 (the rebirth gate): DETECTOR for the fork-zombie shutdown-infra class — an earlier in-suite test inits the shutdown infra in the PARENT; the clone3 child inherits SHUTDOWN_RX=Some but NOT the worker thread; init_shutdown_signal's guard (runtime.rs:233) no-ops; SIGTERM's wake byte has no reader; the recv never wakes (live-diagnosed 2026-06-07, gdb stacks). Passes alone, hangs in-suite. Un-ignore when 6.4 makes the guard fork-aware + wires rebirth into child_post_fork_init."]
 fn probe_shutdown_cascade_wakes_crossbeam_recv() {
     wat::process::run_in_fork(|| {
         // ── Step 1: initialise substrate shutdown infrastructure ───────────

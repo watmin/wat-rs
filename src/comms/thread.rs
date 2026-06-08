@@ -134,7 +134,7 @@ impl<T> Receiver<T> {
     /// initialized before wat code executes.
     pub fn recv(&self) -> Result<T, RecvError> {
         // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+        let shutdown_rx = crate::runtime::shutdown_rx();
         match shutdown_rx {
             Some(srx) => {
                 crossbeam_channel::select! {
@@ -267,7 +267,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal;
         // explicit threading would bloat every select() signature in the codebase.
         // Fresh read per call — no init-order trap (mirrors process::Select pattern).
-        let shutdown_rx = crate::runtime::SHUTDOWN_RX.get();
+        let shutdown_rx = crate::runtime::shutdown_rx();
 
         // Guard: zero user arms + no shutdown = crossbeam would panic.
         if self.user_arms.is_empty() && shutdown_rx.is_none() {

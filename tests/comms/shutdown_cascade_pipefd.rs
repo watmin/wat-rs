@@ -55,7 +55,6 @@ use wat::channel::{ReceiverInner, RecvOutcome};
 /// Runs inside a forked child (process isolation). See module doc for
 /// full design.
 #[test]
-#[ignore = "arc 214 Stone 6.4 (the rebirth gate): same fork-zombie shutdown-infra class as shutdown_cascade_memory — see its ignore note; un-ignore with 6.4."]
 fn probe_shutdown_cascade_pipefd_wakes_pipe_recv() {
     wat::process::run_in_fork(|| {
         // ── Step 1: initialise substrate shutdown infrastructure ───────────
