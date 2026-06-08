@@ -87,8 +87,13 @@ use crate::value::Function;
 
 /// The thread-tier peer cell type — `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>`.
 ///
-/// Intended for the Stone 4.6a-ii downcast sites; adoption pending runtime.rs
-/// warding. The `Option` lets `close'` take the peer while `send'`/`recv'`/
+/// The Stone 4.6a-ii downcast sites in this kernel home already use this alias.
+/// runtime.rs spells the long form today; the kernel home will adopt the alias
+/// when the runtime.rs flat-sea is warded — that migration is the
+/// structurally-right owner.
+// rune:exigere(scope-affirmative) — ThreadPeerCell adoption in runtime.rs
+// rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
+/// The `Option` lets `close'` take the peer while `send'`/`recv'`/
 /// `try-recv'` detect use-after-close via `.as_ref()` returning `None`.
 /// At downcast sites use `ThreadPeerCell` instead of spelling out the 4-level type.
 pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
@@ -97,8 +102,11 @@ pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 ///
 /// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close'`
 /// take the bundle while `send'`/`recv'`/`try-recv'` detect use-after-close.
-/// Intended for the Stone 4.6a-ii downcast sites (runtime.rs uses the long form
-/// `Option<ProcessPeerBundle>` until runtime.rs warding).
+/// runtime.rs spells the long form today; the kernel home will adopt this alias
+/// when the runtime.rs flat-sea is warded — that migration is the
+/// structurally-right owner.
+// rune:exigere(scope-affirmative) — ProcessPeerCell adoption in runtime.rs
+// rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
 pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>;
 
 // ─── RustOpaque type-path sentinels ──────────────────────────────────────────
@@ -125,6 +133,9 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 ///
 /// Stone 4.6a-ii downcasts to `ProcessPeerBundle` to access
 /// `bundle.peer.send()` / `bundle.peer.recv()` / `bundle.peer.wait()`.
+// rune:struere(invariant-coupling) — declaration order is load-bearing: peer
+// (Pidfd + channels) must Drop before _lifeline_w so the child's fds close
+// before the lifeline signals exit; reversing races pending send/recv.
 pub struct ProcessPeerBundle {
     // INVARIANT: declaration order is load-bearing; DO NOT reorder.
     // Rust drops fields in declaration order. `peer` (Pidfd + channels) must
@@ -293,7 +304,8 @@ pub fn spawn_thread_peer(
                     // Present recovery contract (both tiers):
                     //   :thread  → errors observed via channel close; recover via
                     //              join() on the Thread peer.
-                    //   :process → errors observed via channel close + Exited(1);
+                    //   :process → errors observed via channel close + Exited(1) +
+                    //              a `#wat.kernel/ProcessPanics` envelope on fd 2;
                     //              recover via close().wait_status() on the Process peer.
                     // The Stone 4.6 recv'/close' verbs will surface this contract at
                     // the wat level (tracked with Stone 4.6 in kernel/mod.rs).
@@ -372,7 +384,7 @@ pub fn spawn_process_peer(
             use crate::closure_extract::ExtractionErrorKind::NonPortableCapture;
             if matches!(extract_err.kind, NonPortableCapture { .. }) {
                 return Err(RuntimeError {
-                    span: list_span.clone(),
+                    span: extract_err.span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("spawn-program' :process sandbox rejection: {}", extract_err),

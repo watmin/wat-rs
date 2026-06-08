@@ -33,7 +33,10 @@
 //! ## Not in this stone
 //!
 //! Wat-level type registration (`:wat::kernel::Thread<I,O>` / `Process<I,O>`)
-//! is intentionally absent — it ships with the polymorphic verbs in Stone 4.6.
+//! is not in this stone: the polymorphic verbs shipped in Stone 4.6a-ii/4.6b
+//! (live in `src/runtime.rs`; registered at runtime.rs:4206-4218); only
+//! no-prime wat-level type registration remains, tracked by the
+//! `mod.rs:26-27` attested-arc rune (arc 214 Stone 4.6).
 //! This stone is Rust structs + methods only.
 
 use crate::comms::{HolonRepresentable, RecvError, SendError};

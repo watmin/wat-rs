@@ -20,7 +20,10 @@
 //!   SHIPPED in Stone 4.6a-ii/4.6b — live in `src/runtime.rs`
 //!   (`eval_peer_send_prime` / `eval_peer_recv_prime` / `eval_peer_close_prime`,
 //!   registered at runtime.rs:4206-4218). Homing those impls INTO this kernel
-//!   home is pending (it rides the runtime.rs flat-sea warding, a separate campaign).
+//!   home is the structurally-right next step; that migration rides the
+//!   runtime.rs flat-sea (Phoenix) warding campaign.
+// rune:exigere(scope-affirmative) — verb-homing into kernel/ rides the
+// runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home's scope.
 //! - No-prime wat-level type registration (`:wat::kernel::Thread<I,O>` /
 //!   `Process<I,O>`) — still pending Stone 4.6.
 //!   rune:exigere(attested-arc) — arc 214 Stone 4.6 design at
