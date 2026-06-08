@@ -443,6 +443,14 @@ No risky code (one #[doc(hidden)] attr). The loop caught Strike 2's wake:
   follow-up ref rotted (4.6a-ii shipped without the recovery-contract doc) → land the "errors observed
   via channel close; recover via join()/close().wait_status()" note on the recv'/close' docs, or re-point.
 
+## CONVERGENCE BAR (builder, 2026-06-07): L1+L2=0 — L3 are polish, NOT chased
+The stamp/converged bar is **L1+L2=0** (+ clippy-in-home 0). L3 findings are recorded but
+do NOT gate convergence — they asymptote (every doc carries another nit; driving L3→0 is the
+diminishing-returns trap; warding terminates by judgment per [[feedback_runes_earned_through_combat]]).
+Per-home loop: cast vigilia → sweep L1+L2 (fold cheap adjacent L3 only if free) → ONE
+confirmation re-cast → L1+L2=0 → STAMP → next home. NOT a multi-round L3-chase (the kernel/
+4-round marathon over-applied; do not repeat for channel/ comms/ process/).
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
