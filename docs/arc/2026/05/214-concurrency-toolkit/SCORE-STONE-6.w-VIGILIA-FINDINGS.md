@@ -443,6 +443,15 @@ No risky code (one #[doc(hidden)] attr). The loop caught Strike 2's wake:
   follow-up ref rotted (4.6a-ii shipped without the recovery-contract doc) → land the "errors observed
   via channel close; recover via join()/close().wait_status()" note on the recv'/close' docs, or re-point.
 
+## PROCESS/ ROUND-3 CARRYOVER (found by kernel/ round-4 circumspicere, cross-home)
+- **child.rs:245 L2 (claim-vs-code):** `install_silent_panic_hook` doc says "Must be called
+  after dup2 (so fd 2 is the subprocess stderr pipe)" — but `spawn_process_peer` (kernel/) calls
+  child_post_fork_init_preserving → the hook with NO dup2 (fd 2 = inherited parent stderr there).
+  The hook (just set_hook) has no real dup2 dependency; the prerequisite is false for the comms-fork
+  path. FIX (process/ round-3): narrow the prerequisite doc — "when fd 2 is a subprocess pipe
+  (verbs.rs fork paths), call after dup2; for comms-only forks (spawn_process_peer) fd 2 is not a
+  pipe — the hook still suppresses Rust's default output." Fold into process/'s next re-cast sweep.
+
 ## CONVERGENCE BAR (builder, 2026-06-07): L1+L2=0 — L3 are polish, NOT chased
 The stamp/converged bar is **L1+L2=0** (+ clippy-in-home 0). L3 findings are recorded but
 do NOT gate convergence — they asymptote (every doc carries another nit; driving L3→0 is the

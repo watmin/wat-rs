@@ -14,13 +14,17 @@
 //! - `spawn::eval_kernel_spawn_program_prime` — `:tier` dispatch (Stone 4.5).
 //! - `spawn::spawn_thread_peer` / `spawn::spawn_process_peer` — tier impls.
 //!
-//! ## Scope boundary — Stone 4.6 (pending)
+//! ## Scope boundary
 //!
-//! - Polymorphic kernel verbs (`send'`/`recv'`/`try-recv'`/`close'`) — Stone 4.6.
-//! - Wat-level type registration (`:wat::kernel::Thread<I,O>` /
-//!   `Process<I,O>`) — Stone 4.6.
-//! - Design: `docs/arc/2026/05/214-concurrency-toolkit/DESIGN-STONE-4.6-POLYMORPHIC-VERBS.md`
-//! - rune:exigere(attested-arc) — arc 214 Stone 4.6 design on disk at the path above.
+//! - The polymorphic kernel verbs (`send'`/`recv'`/`try-recv'`/`close'`/`select'`)
+//!   SHIPPED in Stone 4.6a-ii/4.6b — live in `src/runtime.rs`
+//!   (`eval_peer_send_prime` / `eval_peer_recv_prime` / `eval_peer_close_prime`,
+//!   registered at runtime.rs:4206-4218). Homing those impls INTO this kernel
+//!   home is pending (it rides the runtime.rs flat-sea warding, a separate campaign).
+//! - No-prime wat-level type registration (`:wat::kernel::Thread<I,O>` /
+//!   `Process<I,O>`) — still pending Stone 4.6.
+//!   rune:exigere(attested-arc) — arc 214 Stone 4.6 design at
+//!   `docs/arc/2026/05/214-concurrency-toolkit/DESIGN-STONE-4.6-POLYMORPHIC-VERBS.md`.
 //!
 //! ## Comms tiers are DONE — this layer WRAPS them
 //!
