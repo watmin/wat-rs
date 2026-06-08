@@ -58,42 +58,57 @@ B's honest form was an **un-baking refactor** (lift the apply-loop into a wat pa
 add stdio capture). Bigger than "add a feature" — but then the builder dissolved
 even that:
 
-## THE ANSWER — the hermetic test IS a peer (builder, 2026-06-08)
+## THE ANSWER — the hermetic test is a SERVER; the caller is a CLIENT; the wire is a pipe (builder, 2026-06-08)
 
-The forked universe is interfaced **via its pipes** — that is the whole point of
-building the peer. There is no "run to completion + scrape stdout into a RunResult."
-Instead:
+The hermetic test knows it lives in another universe and communicates with the
+near side **over stdio** — exactly the way any networked program does. The test
+program is a **server**; the test caller is the **client**; the kernel pipe between
+the two procs is the wire. It is no different from a client measuring a
+`tcp → tls → http` endpoint — the transport just happens to be a proc-to-proc pipe.
+**There is exactly one way to write a hermetic test: a `readln`/`println` server.**
 
-- The hermetic test **computes in isolation** and **ships its assertable value(s)
-  back over the value channel** (`recv'`). The parent **asserts on the near side**,
-  on **real Values** — EDN encode/decode is masked away (the `send'`/`recv'`
-  contract). The whole computation of the value-to-be-asserted happens in the
-  hermetic universe; only the assertion is near-side.
-- **Many values?** The test is written to communicate + measure many (many
-  `send'`/`recv'`). So be it.
-- **Hard crash?** The channel closes (`recv'` → Err) AND `stderr` carries the
-  structured `#wat.kernel/ProcessPanics` reason; the test **fails with the
-  propagated reason**.
+- **`readln`** — the server reads its **inputs** (requests) from the caller (stdin).
+- **`println`** — the server writes its **outputs** (responses) to the caller
+  (stdout). EDN on the wire; the client gets **real values**, not EDN strings —
+  the substrate masks the encode/decode.
+- **`eprintln`** — reached **only** to communicate a **panic**. If it is exercised
+  the universe crashed loudly, and that reason ships over the wire (stderr); the
+  test fails with the propagated reason.
 
-Four-questions on THIS: Obvious YES (spawn the universe, talk over its pipes, assert
-what it ships) · Simple YES (one model — the peer — for both workers and hermetic
-tests; kills A/B *and* the un-baking — the apply-loop IS the peer interface, nothing
-to un-bake) · Honest YES (real isolation, real values, real propagated failure) ·
-Good UX YES (authors ship+assert real values instead of printf+regex on stdout).
+There is **no `send'`/`recv'` value channel in the hermetic path** — the interface
+is stdio. The whole computation of the value-to-be-asserted happens server-side;
+the client drives it (write request → read response) and asserts near-side.
 
-**The peer model SWALLOWS run-hermetic.** It is not a new capability bolted on; it
-is run-hermetic using the model we already built, the right way.
+This lands directly on the already-warded **services trio**: the child server's
+`readln`/`println`/`eprintln` route through StdInService / StdOutService /
+StdErrService, which read/write the pipes the parent-client controls.
+
+Four-questions on THIS: Obvious YES (it's a client/server over a pipe — the most
+familiar shape there is) · Simple YES (ONE way to write a hermetic test; stdio is
+the only interface) · Honest YES (real isolation; the crash channel is real and
+propagates) · Good UX YES (authors write a server + a client driver, not printf +
+regex). **The client/server-over-stdio model SWALLOWS run-hermetic** — it is not a
+new capability, it is the universe interfaced the way it was always meant to be.
 
 ## The migration shape
 
-### 1. Substrate enabler (small) — the peer's stderr becomes parent-readable
-The only substrate work. F3 already **emits** the `#wat.kernel/ProcessPanics`
-envelope on the `:process` child's fd 2; today fd 2 is the inherited parent stderr
-(no pipe). Add the parent-side **read**: capture the child's fd 2 into a reader the
-`Process'` peer exposes; on channel-close (`recv'` → Err / `close'`), drain it for
-the failure reason. (Values do NOT need stdout capture — they flow over the value
-channel. Only the crash reason needs stderr.) Decide: a `Process'/stderr` accessor,
-or `close'`/`recv'`-Err carrying the drained reason directly.
+### 1. Substrate enabler — `spawn-program :process` wires the child's full stdio to the parent-client
+The child server's three streams must reach the parent client over pipes (today
+they are **inherited**, not piped — the gap):
+- **stdin** — the client *writes* requests; the server `readln`s them.
+- **stdout** — the server `println`s responses; the client *reads* them. EDN on the
+  wire, real values at the client.
+- **stderr** — the server `eprintln`s a panic reason (the `#wat.kernel/ProcessPanics`
+  envelope F3 already emits); the client reads it on crash and fails with that reason.
+
+So the peer handle exposes a **stdin writer + stdout reader + stderr reader** — i.e.
+what `Program<I,O>` had (`Process/stdout`, `Process/stderr`) **plus** a stdin writer,
+unified onto the one spawned-process handle. The child's three services
+(StdInService / StdOutService / StdErrService — already warded) read/write these
+parent-controlled pipes instead of inheriting the parent's fds.
+(The `send'`/`recv'` typed value-channel remains for the *non-hermetic* peer use
+case; hermetic tests do not use it. Confirm during scoping whether the value-channel
+and the stdio pipes share plumbing or are independent.)
 
 ### 2. Test-corpus migration (the bulk) — hermetic-as-peer
 Rewrite `wat/kernel/hermetic.wat` (`run-sandboxed-hermetic-ast`) + `wat/test.wat`'s
