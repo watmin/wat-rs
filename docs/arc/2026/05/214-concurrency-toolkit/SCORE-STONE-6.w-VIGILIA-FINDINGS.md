@@ -285,10 +285,10 @@ the Strike 1b worklist (Strike 1 left residue — the loop caught it):
 NOT zero → Strike 1c. The complementarity law in action: 7 inward findings (0 L1, 4 L2, 3 L3),
 5 wards clean (sequi/temperare/exigere/secare/excusare), excusare HELD all of Strike 1b's runes.
 Split: 2 introduced by Strike 1b's dedup + 5 pre-existing instances the earlier passes' sampling
-missed. (circumspicere standalone running — trace shows it RULING OUT perimeter scares: the
-concurrent drop/wait race is impossible by Arc semantics; setpgid idempotent; no broadcast-fd
-leak; ZERO-MUTEX verified — perimeter looks clean; verdict pending, fold when it lands.)
-**Strike 1c worklist:**
+missed. circumspicere standalone REPORTED: 0 L1, 2 L2, 1 L3 — clean perimeter, ruled
+OUT the scares (Arc drop/wait race impossible; setpgid idempotent; no broadcast-fd leak;
+ZERO-MUTEX verified). Its 3 perimeter findings fold into Strike 1c below (CIRC-F1/F2/F3).
+**Strike 1c worklist (6 L2 + 4 L3):**
 - **struere L2 (handle.rs:34) — the sharpest:** ChildHandle's 4 fields are `pub` but the doc
   promises a reap-once invariant the public fields don't enforce — any crate code could
   `handle.reaped.store(true)` and silently disable the Drop reap → zombie leak. grep confirms
@@ -317,6 +317,20 @@ leak; ZERO-MUTEX verified — perimeter looks clean; verdict pending, fold when 
 - **purgare L3 (runtime.rs:465):** `#[cfg(test)] pub fn reset_shutdown_signal()` zero callers, doc
   claims a non-existent consumer → DECIDED: DELETE (leaf, no behavior change; no cascade-re-init
   test is planned). [pre-existing]
+- **CIRC-F1 L2 (claim-vs-code; mod.rs:9 vs clone.rs:310):** mod.rs:9 ships "Linux 5.3+" but
+  close_range is 5.9+; on 5.3-5.8 it ENOSYS-skips silently (child.rs:202) and the child inherits
+  all parent fds — the exact hygiene invariant the step claims. FIX = raise mod.rs:9 to the real
+  floor ("clone3 5.3+, close_range 5.9+, deploy floor 6.x") to match the code; (the breadcrumb +
+  realizations already state the 6.x deploy floor). [circumspicere]
+- **CIRC-F2 L2 (negative space; verbs.rs:396-403/:802-809 vs child.rs:292-294 claim):** dup2
+  failures BEFORE child_post_fork_init _exit(EXIT_STARTUP_ERROR) with NO ProcessPanics envelope,
+  while child.rs:292-294 claims "all failures" emit structured. DECIDED: emit a minimal
+  libc::write(2,...) diagnostic before each pre-init _exit (makes the claim TRUE by construction
+  rather than narrowing it — failure-engineering); the dup2 source fds are the just-created pipe
+  ends so the borrowed-stderr write is safe. [circumspicere]
+- **CIRC-F3 L3 (egress; stdio.rs:76-101):** lend_ambient passes fd -1 to OwnedFd::from_raw_fd on
+  dup failure (UB precondition; close(-1)=EBADF, benign). FIX = guard dup_fd failure explicitly
+  (return Result/Option or abort with a clear message) rather than hand an invalid fd to from_raw_fd. [circumspicere]
 
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
