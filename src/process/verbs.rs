@@ -77,7 +77,13 @@ fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types
 ///
 /// `world` is `None` for pre-world startup failures — those values only
 /// carry primitive Strings so TypeEnv-less EDN rendering is sufficient.
-pub(super) fn emit_structured_exit(
+///
+/// `pub(crate)` (Stone 6.w, circumspicere F3): also called by the `:process`
+/// peer apply-loop (`kernel::spawn::spawn_process_peer`) so a dying peer child
+/// names its cause on fd 2 in the SAME envelope shape as the fork children,
+/// instead of vanishing into a bare `Exited(1)`. One canonical emit; no
+/// duplicate envelope encoding.
+pub(crate) fn emit_structured_exit(
     world: Option<&crate::freeze::FrozenWorld>,
     value: crate::runtime::Value,
 ) {

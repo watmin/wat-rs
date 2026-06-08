@@ -121,12 +121,20 @@ fn spawn_program_prime_process_echo_round_trip() {
         got_str
     );
 
-    // ── Step 5: close channels → child exits ───────────────────────────────
-    // Dropping peer_val closes the parent's input Sender to the child.
-    // The child's apply-loop recv returns RecvError (EOF) → _exit(0).
+    // ── Step 5: close channels + reap the child on the WIRE (mora) ──────────
+    // Take the bundle and call `Process::wait` (= close + `Pidfd::wait_status`):
+    // closing the input Sender gives the child EOF → `_exit(0)`, then the
+    // blocking `waitid` on the pidfd reaps the zombie atomically. No sleep —
+    // a sleep was a race AND a leak (`Pidfd::Drop` closes the fd, never reaps).
+    let reaped = cell
+        .with_mut("test:reap", Span::unknown(), |opt| opt.take())
+        .expect("with_mut(reap) must not cross thread boundary")
+        .expect("bundle must still be present at reap time");
+    reaped
+        .peer
+        .wait()
+        .expect("peer.wait() must reap the child on the pidfd wire");
     drop(peer_val);
-    // Brief pause to allow the child process to reap.
-    std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 /// Sandbox rejection: `:process` tier must reject a fn that captures a
@@ -205,8 +213,20 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
         got
     );
 
+    // mora — reap the child on the WIRE, not on a guess. Take the bundle out
+    // of the cell and block on the pidfd via `Process::wait` (= close +
+    // `Pidfd::wait_status`, a `waitid` that reaps the zombie atomically). The
+    // old `sleep(100ms)` was both a race AND a leak: `Pidfd::Drop` only closes
+    // the fd, it never reaps — the sleep just hoped the child finished in time.
+    let reaped = cell
+        .with_mut("test:reap", Span::unknown(), |opt| opt.take())
+        .expect("with_mut(reap) must not cross thread boundary")
+        .expect("bundle must still be present at reap time");
+    reaped
+        .peer
+        .wait()
+        .expect("peer.wait() must reap the child on the pidfd wire");
     drop(peer_val);
-    std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 /// KR-1 regression: `:process` tier must resolve user-defined helpers.
@@ -296,6 +316,165 @@ fn spawn_program_prime_process_helper_round_trip() {
         got_str
     );
 
+    // mora — reap the child on the WIRE, not on a guess. Take the bundle out
+    // of the cell and block on the pidfd via `Process::wait` (= close +
+    // `Pidfd::wait_status`, a `waitid` that reaps the zombie atomically). The
+    // old `sleep(100ms)` was both a race AND a leak: `Pidfd::Drop` only closes
+    // the fd, it never reaps — the sleep just hoped the child finished in time.
+    let reaped = cell
+        .with_mut("test:reap", Span::unknown(), |opt| opt.take())
+        .expect("with_mut(reap) must not cross thread boundary")
+        .expect("bundle must still be present at reap time");
+    reaped
+        .peer
+        .wait()
+        .expect("peer.wait() must reap the child on the pidfd wire");
     drop(peer_val);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+}
+
+/// circumspicere F3 (Stone 6.w) regression: a `:process` peer child that hits
+/// an error path must NOT die silently — it emits a structured
+/// `#wat.kernel/ProcessPanics` envelope on fd 2 (the same shape every verbs.rs
+/// fork child emits), so a dead peer names its cause instead of vanishing into a
+/// bare `Exited(1)`.
+///
+/// Before the fix the child apply-loop did `Err(_) => libc::_exit(1)` on both
+/// the malformed-input and runtime-error arms — a silent swallow (dark class).
+///
+/// Capture mechanism: the kernel peer child inherits the parent's fd 2 (the
+/// close-sweep starts at fd 3; `child_post_fork_init_preserving` does not
+/// redirect fd 2 for comms-only forks). So we redirect the parent's fd 2 onto a
+/// pipe BEFORE the spawn; the child inherits the pipe; after the child dies we
+/// restore fd 2 and read the diagnostic the child wrote.
+///
+/// The malformed-input arm is the deterministic trigger; the runtime-error arm
+/// emits via the identical `emit_structured_exit` call (verified by reading).
+///
+/// Run via:
+///   cargo test --test comms spawn_program_prime_process_error_emits_diagnostic -- --ignored
+#[test]
+#[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
+fn spawn_program_prime_process_error_emits_diagnostic() {
+    // ── Step 1: build a world with an echo fn (the fn is irrelevant — the
+    //            child dies at EDN-decode, before it ever applies the fn). ────
+    let world = startup_from_source(
+        "(:wat::core::defn :my::echo [input <- :wat::core::i64] -> :wat::core::i64 input)",
+        None,
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup_from_source for echo fn must succeed");
+
+    let echo_fn_arc = world
+        .symbols
+        .get(":my::echo")
+        .expect(":my::echo must be in symbol table")
+        .clone();
+
+    // ── Step 2: redirect fd 2 → a pipe so we can read what the child emits. ──
+    let mut fds = [0i32; 2];
+    let rc = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(rc, 0, "pipe() must succeed");
+    let (pipe_r, pipe_w) = (fds[0], fds[1]);
+
+    // Save the real fd 2 so we can restore it after the child dies.
+    let saved_stderr = unsafe { libc::dup(2) };
+    assert!(saved_stderr >= 0, "dup(2) must succeed");
+
+    // fd 2 now points at the pipe's write end; the child inherits this.
+    assert!(unsafe { libc::dup2(pipe_w, 2) } >= 0, "dup2(pipe_w, 2) must succeed");
+    unsafe { libc::close(pipe_w) }; // the only write end is now fd 2 (+ child's inherited copy)
+
+    // ── Step 3: spawn the peer (child inherits fd 2 = pipe write end). ──────
+    let dummy_span = Span::unknown();
+    let peer_val =
+        wat::kernel::spawn::spawn_process_peer(echo_fn_arc, &world.symbols, &dummy_span)
+            .expect("spawn_process_peer must succeed");
+
+    let opaque_arc = rust_opaque_arc(
+        &peer_val,
+        PROCESS_PEER_TYPE_PATH,
+        "test:spawn_program_prime_process_error_emits_diagnostic",
+        dummy_span.clone(),
+    )
+    .expect("peer_val must be Value::RustOpaque(Process')");
+    let cell: &Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> = downcast_ref_opaque(
+        &opaque_arc,
+        PROCESS_PEER_TYPE_PATH,
+        "test:downcast:ProcessPeerBundle",
+        dummy_span.clone(),
+    )
+    .expect("downcast must succeed");
+
+    // ── Step 4: send malformed EDN → child fails to decode → emits + _exit(1). ─
+    cell.with_ref("test:send", |opt_bundle| {
+        opt_bundle
+            .as_ref()
+            .expect("bundle must not be closed")
+            .peer
+            .send("((( not valid edn".to_string())
+            .expect("peer.send(malformed) must succeed (the parent write does not fail)")
+    })
+    .expect("with_ref(send) must not cross thread boundary");
+
+    // The child dies; the parent observes it via channel-close (recv → Err).
+    let recv_result = cell
+        .with_ref("test:recv", |opt_bundle| {
+            opt_bundle
+                .as_ref()
+                .expect("bundle must not be closed")
+                .peer
+                .recv()
+        })
+        .expect("with_ref(recv) must not cross thread boundary");
+    assert!(
+        recv_result.is_err(),
+        "child must die on malformed input → parent recv() must be Err; got {:?}",
+        recv_result
+    );
+
+    // ── Step 5: restore fd 2, then drain the pipe for the diagnostic. ───────
+    assert!(unsafe { libc::dup2(saved_stderr, 2) } >= 0, "restore dup2 must succeed");
+    unsafe { libc::close(saved_stderr) }; // closes our fd-2 copy of the pipe write end
+
+    // All write ends are now closed (child exited; parent's copies closed) → read to EOF.
+    let mut captured = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        let n = unsafe {
+            libc::read(pipe_r, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
+        };
+        if n <= 0 {
+            break;
+        }
+        captured.extend_from_slice(&buf[..n as usize]);
+    }
+    unsafe { libc::close(pipe_r) };
+
+    let diagnostic = String::from_utf8_lossy(&captured);
+    assert!(
+        diagnostic.contains("#wat.kernel/ProcessPanics"),
+        "dead :process peer child must emit a structured ProcessPanics envelope on \
+         fd 2, not _exit silently; captured stderr was {:?}",
+        diagnostic
+    );
+    assert!(
+        diagnostic.contains("malformed EDN input"),
+        "the diagnostic must name the cause (malformed EDN input); captured stderr was {:?}",
+        diagnostic
+    );
+
+    // mora — reap the child on the WIRE, not on a guess. Take the bundle out
+    // of the cell and block on the pidfd via `Process::wait` (= close +
+    // `Pidfd::wait_status`, a `waitid` that reaps the zombie atomically). The
+    // old `sleep(100ms)` was both a race AND a leak: `Pidfd::Drop` only closes
+    // the fd, it never reaps — the sleep just hoped the child finished in time.
+    let reaped = cell
+        .with_mut("test:reap", Span::unknown(), |opt| opt.take())
+        .expect("with_mut(reap) must not cross thread boundary")
+        .expect("bundle must still be present at reap time");
+    reaped
+        .peer
+        .wait()
+        .expect("peer.wait() must reap the child on the pidfd wire");
+    drop(peer_val);
 }

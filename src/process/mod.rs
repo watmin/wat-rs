@@ -63,3 +63,7 @@ pub use verbs::{
     eval_kernel_spawn_process, eval_kernel_spawn_program, eval_kernel_spawn_program_ast,
 };
 pub use stdio::{lend_ambient, emit_panic_envelope};
+// Stone 6.w circumspicere F3 — the :process peer child (kernel::spawn) emits the
+// same structured ProcessPanics envelope as the fork children. pub(crate): one
+// canonical emit, reachable from kernel/ without exposing it on the public surface.
+pub(crate) use verbs::emit_structured_exit;

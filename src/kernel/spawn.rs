@@ -462,7 +462,23 @@ pub fn spawn_process_peer(
             // Step 2: decode EDN String → Value.
             let input_val = match crate::edn_shim::edn_string_to_value(&edn_str) {
                 Ok(v) => v,
-                Err(_) => unsafe { libc::_exit(1) }, // malformed input
+                Err(e) => {
+                    // circumspicere F3 — kill the silent swallow: emit the SAME
+                    // `#wat.kernel/ProcessPanics` envelope the verbs.rs fork
+                    // children emit, so a dead :process peer names its cause on
+                    // fd 2 instead of vanishing into a bare Exited(1). The parent
+                    // observes the death via channel-close (recv → Err); a
+                    // programmatic error CHANNEL (parent reads the cause without
+                    // scraping stderr) is the named Stone 4.6 follow-up, not 6.w.
+                    crate::process::emit_structured_exit(
+                        None,
+                        crate::runtime::process_died_error_runtime_value(format!(
+                            "malformed EDN input from parent: {}",
+                            e
+                        )),
+                    );
+                    unsafe { libc::_exit(1) }
+                }
             };
 
             // Step 3: apply the fn.
@@ -473,7 +489,19 @@ pub fn spawn_process_peer(
                 child_span.clone(),
             ) {
                 Ok(v) => v,
-                Err(_) => unsafe { libc::_exit(1) }, // runtime error
+                Err(runtime_err) => {
+                    // circumspicere F3 — emit the structured RuntimeError EDN
+                    // (mirrors finish_forked_child's `Ok(Err(_))` arm) before
+                    // `_exit`, via the one canonical emit_structured_exit.
+                    let runtime_edn = wat_edn::write(
+                        &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err),
+                    );
+                    crate::process::emit_structured_exit(
+                        None,
+                        crate::runtime::process_died_error_runtime_value(runtime_edn),
+                    );
+                    unsafe { libc::_exit(1) }
+                }
             };
 
             // Step 4: encode Value → EDN String.
