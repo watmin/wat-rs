@@ -155,7 +155,6 @@ fn row_a_single_thread_println() {
 // ─── B. Multi-thread program — 3 child threads println ─────────────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn row_b_multi_thread_println() {
     fresh_thread();
     let mut rig = build_rig();
@@ -176,7 +175,7 @@ fn row_b_multi_thread_println() {
                        _a (:wat::kernel::Thread/drain-and-join thr-a)
                        _b (:wat::kernel::Thread/drain-and-join thr-b)
                        _c (:wat::kernel::Thread/drain-and-join thr-c)]
-                      :wat::core::nil))
+                      nil))
     "#;
     let world = freeze(src);
     let stdout_capture = Arc::clone(&rig.stdout_capture);
@@ -193,7 +192,6 @@ fn row_b_multi_thread_println() {
 // ─── C. Panic recovery — child thread panics; main continues ───────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn row_c_panic_recovery() {
     fresh_thread();
     let mut rig = build_rig();
@@ -208,7 +206,7 @@ fn row_c_panic_recovery() {
           (:wat::core::let
                       [thr (:wat::kernel::spawn-thread :test::child-panic)
                        _join (:wat::kernel::Thread/drain-and-join thr)]
-                      :wat::core::nil))
+                      nil))
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
@@ -244,7 +242,6 @@ fn row_d_scope_drop_cascade() {
 // ─── E. readln roundtrip — main reads parsed form from stdin ───────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn row_e_readln_roundtrip() {
     fresh_thread();
     let mut rig = build_rig();
@@ -267,7 +264,7 @@ fn row_e_readln_roundtrip() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [_s (:wat::kernel::readln -> :wat::core::String)]
-                      :wat::core::nil))
+                      nil))
     "#;
     let world = freeze(src);
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
