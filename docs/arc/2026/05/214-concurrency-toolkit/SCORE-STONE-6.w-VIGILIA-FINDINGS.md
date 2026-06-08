@@ -347,6 +347,75 @@ NEW PLAN (off the one-home march): process/ spine is committed → kernel/, chan
 are file-disjoint → ward all in PARALLEL (concurrent inward workflows + standalone
 circumspicere each), loop each to consistent-zero, then vigilatum all four.
 
+## KERNEL/ — FIRST WARD (inward done; 26 findings 5 L1/15 L2/6 L3; circumspicere pending)
+secare/excusare/conformare CLEAN (excusare: 0 exemptions in the home). Strike 2 worklist:
+- **CAPABILITY FIX (KR-1) — struere/sequi/intueri all flag spawn.rs:420:** `:process` child
+  apply-loop uses capability-less `SymbolTable::new()` vs `:thread`'s `sym.clone()` (:265) →
+  programs calling defined helpers fail silently under :process. sequi: NO technical blocker
+  (fork copies the address space; captured sym.clone() is valid in the child). FIX = clone sym
+  into the child closure before the fork (mirror :thread) + a NEW process-tier-helper round-trip
+  test (a :process program that resolves a `:my::helper`). STOP only if sym holds a non-fork-safe
+  resource (fd/thread handle) making the clone unsound → then it's a deeper stone, fight first.
+- **HolonRepresentable for Value (solvere:97 L2 + purgare:97 L3 + solvere:431 L2):** DEAD (zero
+  consumers; process tier uses String wire), misplaced in the spawn dispatcher, AND a 3rd copy of
+  the Value↔EDN-string codec. FIX = DELETE the impl; extract `value_to_edn_string`/`edn_string_to_value`
+  in edn_shim.rs as the single codec; route the child apply-loop (spawn.rs:431/448) through them.
+- **peer fields pub→pub(crate) (struere:53 L2, peer.rs):** Thread<I,O>/Process<I,O> fields all pub
+  but doc says "never constructed by user code" + kernel is pub mod → external code could break the
+  input+output+join/child invariant. FIX = pub→pub(crate) (all constructors in-crate; zero-cost).
+- **thread-peer error swallow (struere:285 L2):** :thread loop `Ok(Err(_))|Err(_) => break` discards
+  the fn error/panic; parent's recv()→RecvError indistinguishable from clean close, while :process
+  signals via _exit(1). Tier asymmetry + silent-swallow dark class. DECIDE in sweep: surface the
+  error to the parent (typed error frame on the output channel — parity with :process) OR, if that's
+  a protocol change beyond 6.w, document the contract honestly + rune(host-constraint) and note as a
+  named follow-up feature. Lean: fight to surface; STOP→document if it ripples to consumers.
+- **temperare:347 L2:** `parent_types = sym.types().map(|t|(**t).clone())` deep-clones the ENTIRE
+  TypeEnv per :process spawn, only to pass `&parent_types` by borrow to extract_closure. FIX =
+  borrow the Arc'd TypeEnv directly (default only on None). Drops O(types) clone per spawn.
+- **exigere (5 L1 + ~8 L2):** L1 — mod.rs:15-17 stale "## What does NOT live here (pending stones)"
+  lists the spawn dispatcher as pending though it LIVES here → rewrite to present lineage; spawn.rs:231-233
+  ":remote is a future arc" in a USER-FACING error string → "supported tiers: :thread, :process";
+  spawn.rs:161 + :204-205 + :94 bare future-prose → present-tense. L2 — the many "Stone 4.6 will…" /
+  "until Slice 5 retires" refs are rune-eligible (4.6 + Slice 5 verifiable on disk) → add
+  rune:exigere(attested-arc) citing the DESIGN/BRIEF, OR convert to present-lineage where 4.6 sub-stones landed.
+- **_program_env phantom arg (struere:205 L3 / exigere:204):** arg[1] evaluated + discarded ("Stone 4.6
+  wires it"). 4.6a-i/ii/b are DONE per the breadcrumb — INVESTIGATE in sweep whether it should be threaded
+  NOW or the positional dropped; surface honestly either way (no bare deferral).
+- **perspicere:544 L3:** `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>` (4-level, recurs ~8×) →
+  mint `type ThreadPeerCell = …` typealias.
+- **intueri L3 ×3:** spawn.rs:335 duplicate doc summary (fold to one above #[allow]); :259 "mini-TCP"
+  metaphor → factual "crossbeam bounded(1) pairs"; :420 add the child_sym WHY comment (pairs w/ KR-1).
+
+## KERNEL/ circumspicere (perimeter; 2 L1 / 3 L2 / 1 L3 — fold into Strike 2)
+- **F-1 L1 (peer.rs:52,141 vs tests/comms/peer_process_round_trip.rs:118):** "never constructed
+  directly by user code" is FALSE — the integration test builds `Process{…}` via pub fields.
+  This is the COMPLEMENT to inward struere:53 (which assumed zero cross-module construction).
+  FIX = add a kernel peer test-constructor (mirror channel's make_thread_peer_pair_for_test) +
+  pub→pub(crate); OR keep pub + soften the doc claim with a rune. Prefer the constructor+pub(crate)
+  (enforces the invariant); STOP→soften if the test-constructor is too invasive.
+- **F-2 L1 (DESIGN.md:571 "same fn body runs in :thread or :process"):** contradicted by the empty
+  SymbolTable. RESOLVED BY the KR-1 capability fix (clone sym → claim becomes true). No separate work.
+- **F-4 L2 (spawn.rs:143-147 ProcessPeerBundle):** drop-order invariant (peer before _lifeline_w)
+  is load-bearing but unguarded → add `// INVARIANT: declaration order is load-bearing; DO NOT reorder`.
+- **F-5 L2 (spawn.rs:432-444):** :process child fn-error → _exit(1); parent gets bare RecvError with
+  no error channel. OVERLAPS inward struere:285 (resolve together: surface the error, or document the
+  close().wait_status() recovery path + the Stone 4.6 work item).
+- **F-7 L3 (peer.rs:189-195 Process::close):** doc says "closes the pipe read end" but Drop also
+  closes the persistent io_uring ring fd → add the second-resource note.
+- **F-3 L2** is in comms/ (PIPE_BUF comment overstated) — NOT kernel/; the comms/ drift re-cast catches it.
+
+## STDIO-SERVICES-AS-WAT (8.4 design direction — builder, 2026-06-07; post-6.w)
+GROUNDED CORRECTION: the trio is ALREADY the driver-model. `wat/kernel/services/{stdout,stderr,
+stdin}.wat` exist; `src/services/peer.rs:81 handle_fn: Arc<runtime::Function>` = the handler is a
+WAT fn. Shape: driver (Rust libc::write/read via IOWriter/IOReader, exposed `:wat::io::*`) ← wat
+service handler (wat/kernel/services/*.wat, EDN-encode + IOWriter/write-all) ← Rust universe loop
+(spawn_service_peer). Exactly the sqlite pattern (rust driver hidden, wat management tooling). So
+8.4 `:wat::services::start` = the wat-surface verb wrapping spawn_service_peer so USER wat code starts
+services the way freeze.rs starts the trio; DOGFOOD = route the trio boot through the verb (or ship a
+wat demo service). NOT "rewrite trio in Rust" (wrong) and NOT "trio can't be wat" (wrong — it already
+is). OPEN design Q for 8.4: can the verb run at freeze-time bootstrap, or does the trio boot stay a
+special Rust path with the verb proven via a user demo? Decide when 8.4 is drawn. SHIP, not cut.
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
