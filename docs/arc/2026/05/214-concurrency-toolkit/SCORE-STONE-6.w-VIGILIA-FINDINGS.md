@@ -281,6 +281,43 @@ the Strike 1b worklist (Strike 1 left residue — the loop caught it):
 - **excusare HELD (good):** the run_forked_child + child_branch_from_source too_many_arguments allows
   (domain-truth, RAII per-fd Drop) and the perspicere read-once runes — all HOLD.
 
+## PROCESS/ RE-CAST #2 (post-Strike-1b; inward-only workflow, circumspicere standalone)
+NOT zero → Strike 1c. The complementarity law in action: 7 inward findings (0 L1, 4 L2, 3 L3),
+5 wards clean (sequi/temperare/exigere/secare/excusare), excusare HELD all of Strike 1b's runes.
+Split: 2 introduced by Strike 1b's dedup + 5 pre-existing instances the earlier passes' sampling
+missed. (circumspicere standalone running — trace shows it RULING OUT perimeter scares: the
+concurrent drop/wait race is impossible by Arc semantics; setpgid idempotent; no broadcast-fd
+leak; ZERO-MUTEX verified — perimeter looks clean; verdict pending, fold when it lands.)
+**Strike 1c worklist:**
+- **struere L2 (handle.rs:34) — the sharpest:** ChildHandle's 4 fields are `pub` but the doc
+  promises a reap-once invariant the public fields don't enforce — any crate code could
+  `handle.reaped.store(true)` and silently disable the Drop reap → zombie leak. grep confirms
+  ZERO cross-module field access (all flow through ChildHandle::new + wait_or_cached_exit/Drop in
+  handle.rs). FIX = drop `pub` from reaped/cached_exit/lifeline_w/pidfd (zero-behavior tightening
+  that lets the type enforce the documented coordination). [pre-existing latent gap]
+- **solvere L2 (verbs.rs:214):** dispatch-arg encoding bypass — expect_vec_ast/expect_string/
+  expect_option_string/arity_2 exist but eval_kernel_fork_program_ast (:214-239) + spawn_process
+  (:922-946) + fork_program (:670/:678/:689) hand-roll the same parse inline (Vec<WatAST> ×3,
+  String/Option/arity ×2). FIX = route through the helpers; enrich expect_vec_ast to carry the
+  per-element + outer span both arms use. [pre-existing]
+- **conformare L2 (verbs.rs:247):** make_pipe error paths (4 sites: :247-249, :959-961, :1190-1192
+  via :1109/:1152) propagate via bare `?` without re-stamping list_span, while the sibling
+  spawn_lifelined paths DO (.map_err at :308/:1029). FIX = re-stamp the make_pipe sites with
+  list_span (leave make_pipe's own Span::unknown() — correct at the primitive). [pre-existing, complementary to round-1's verbs.rs:702]
+- **intueri L2 (verbs.rs:371):** run_forked_child's TWO doc blocks contradict — first ends
+  "Called from exactly one site" (STALE, dedup gave it 2 callers @295/@1016), second correctly
+  lists both. FIX = fold into one `///` above the #[allow], delete the stale sentence. [Strike-1b-introduced]
+- **solvere L3 (verbs.rs:377):** residual post-fork PROLOGUE+epilogue dup between run_forked_child
+  (:389-435/:464-491) and child_branch_from_source (:795-833/:851-889) — Strike 1 extracted only
+  the tail (finish_forked_child). FIX = extract `redirect_stdio_and_init(...)` + `run_user_main_in_child(world) -> !`;
+  each caller reduces to prologue-call + world-build(+set_argv) + epilogue-call. [pre-existing; deliberate prior boundary — finish the extraction]
+- **perspicere L3 (verbs.rs:123):** finish_forked_child's `outcome: std::thread::Result<Result<Value,
+  RuntimeError>>` (2-level) is the lone un-runed deep type (3 siblings are runed); the match needs
+  the structure → DECIDED: add `// rune:perspicere(intentional-structure)` (do NOT alias). [Strike-1b-introduced]
+- **purgare L3 (runtime.rs:465):** `#[cfg(test)] pub fn reset_shutdown_signal()` zero callers, doc
+  claims a non-existent consumer → DECIDED: DELETE (leaf, no behavior change; no cascade-re-init
+  test is planned). [pre-existing]
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
