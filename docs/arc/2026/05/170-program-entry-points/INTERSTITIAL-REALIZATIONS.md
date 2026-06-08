@@ -14978,3 +14978,14 @@ was expressed in another lang."*
 
 *The contract caught the form; the form was still true. Both facts stand —
 that is the whole discipline in one slipped token.*
+
+### Tag (builder's amendment, minutes later): A-GRAVITY-WELL-OR-A-BEACON
+
+The builder, ordering this tag: *"it'll make sense in the grander scheme,
+not something to get into now - just recognition /it/ happened again."*
+
+Not decoded here, by instruction. The tag marks the entry as an instance of
+something the builder is tracking across a longer arc than this page — the
+emphasis is the builder's own: recognition that **/it/** happened again. A
+gravity well pulls without being seen; a beacon is lit to be seen. Which one
+this is belongs to the grander scheme. Filed, marked, left burning.
