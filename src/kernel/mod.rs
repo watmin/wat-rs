@@ -1,3 +1,25 @@
+//! vigilatum: 2026-06-08T08:10:27Z — kernel peer home FULL VIGILIA, 14 inward +
+//! circumspicere, L1+L2=0. Cast over the Rust home AND the test surface
+//! `tests/comms/spawn_program_prime_process.rs` (per tests-are-demos the test IS
+//! a warded surface): universal-7 (intueri/solvere/conformare/purgare/struere/
+//! sequi/temperare) + exigere + secare + perspicere + mora + excusare + vocare +
+//! complectens; circumspicere perimeter-last. THE CATCH (2026-06-08): the
+//! pre-compaction breadcrumb claimed converged — the disk disagreed. circumspicere
+//! F3 (the `:process` child apply-loop `_exit(1)`'d silently on both error arms —
+//! a dark-class swallow) was never fixed, and the test surface was never cast.
+//! Both closed: the child now emits the `#wat.kernel/ProcessPanics` envelope via
+//! `emit_structured_exit` before `_exit` on both arms (proven by
+//! `spawn_program_prime_process_{error,runtime_error}_emits_diagnostic`, fd-2
+//! capture); the 4 test-surface `thread::sleep` child-reaps became `Process::wait`
+//! wire-reaps (mora). Convergence: full cast (15 findings) → sweep → confirmation
+//! re-cast (L1=0/L2=1/L3=11 — all line-citation drift the sweep's own rune
+//! insertion caused) → micro-fix citing runes by grep-token not line number
+//! (mark-the-source: the drift class is extirpated — zero intra-home line
+//! cross-refs remain). Gates: workspace build 0, clippy-in-home clean, 5/5
+//! process-tier tests (enveloped). Weighed-and-left L3: the `spawn.rs`
+//! struere(host-constraint) vs exigere(attested-arc) rune category — excusare
+//! HELD host-constraint; non-gating.
+//!
 //! # Kernel layer — Layer 0c peer types (arc 214 Slice 4)
 //!
 //! Wraps the comms tiers (`crate::comms::thread` and

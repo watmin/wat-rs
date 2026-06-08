@@ -88,9 +88,9 @@ use crate::value::Function;
 /// The thread-tier peer cell type — `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>`.
 ///
 /// The Stone 4.6a-ii downcast sites in this kernel home already use this alias.
-/// runtime.rs spells the long form today; the kernel home will adopt the alias
-/// when the runtime.rs flat-sea is warded — that migration is the
-/// structurally-right owner.
+/// runtime.rs defines its own local `ThreadCell` alias at the select' downcast
+/// sites today; unifying the two under the runtime.rs flat-sea (Phoenix) warding
+/// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ThreadPeerCell adoption in runtime.rs
 // rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
 /// The `Option` lets `close'` take the peer while `send'`/`recv'`/
@@ -102,9 +102,9 @@ pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 ///
 /// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close'`
 /// take the bundle while `send'`/`recv'`/`try-recv'` detect use-after-close.
-/// runtime.rs spells the long form today; the kernel home will adopt this alias
-/// when the runtime.rs flat-sea is warded — that migration is the
-/// structurally-right owner.
+/// runtime.rs defines its own local `ProcessCell` alias at the select' downcast
+/// sites today; unifying the two under the runtime.rs flat-sea (Phoenix) warding
+/// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ProcessPeerCell adoption in runtime.rs
 // rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
 pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>;
@@ -431,7 +431,7 @@ pub fn spawn_process_peer(
 
     // KR-1 — Tier symmetry: clone sym BEFORE the fork so the child apply-loop
     // gets the same populated SymbolTable as the :thread tier (which captures
-    // `thread_sym = sym.clone()` at spawn.rs:265). clone3 copies the address
+    // `thread_sym = sym.clone()` in `spawn_thread_peer`). clone3 copies the address
     // space; a pre-fork sym.clone() is valid in the child because SymbolTable
     // holds only Arc-wrapped fields (no raw fds, no live thread handles).
     // Without this, user-defined helpers called from the program fn fail with

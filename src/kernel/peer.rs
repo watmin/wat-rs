@@ -36,7 +36,8 @@
 //! is not in this stone: the polymorphic verbs shipped in Stone 4.6a-ii/4.6b
 //! (live in `src/runtime.rs`; registered at runtime.rs:4206-4218); only
 //! no-prime wat-level type registration remains, tracked by the
-//! `mod.rs:26-27` attested-arc rune (arc 214 Stone 4.6).
+//! `rune:exigere(attested-arc)` in `mod.rs` (arc 214 Stone 4.6) — cited by
+//! grep token, not line number, so the cross-ref cannot drift.
 //! This stone is Rust structs + methods only.
 
 use crate::comms::{HolonRepresentable, RecvError, SendError};
