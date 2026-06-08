@@ -48,15 +48,17 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 /// thread produces back to the parent (the parent reads `O` from
 /// `output: Receiver<O>`).
 ///
-/// Construct via the kernel's spawn dispatcher (Stone 4.5); this struct
-/// is never constructed directly by user code.
+/// Construct via the kernel's spawn dispatcher (Stone 4.5) or the
+/// lib-test harness in peer.rs (`Thread { input, output, join }` in-crate).
+/// Do not construct by naming fields externally — field visibility is
+/// `pub(crate)` to enforce the input+output+join invariant.
 pub struct Thread<I: Send + 'static, O: Send + 'static> {
     /// Parent → spawned thread.
-    pub input: crate::comms::thread::Sender<I>,
+    pub(crate) input: crate::comms::thread::Sender<I>,
     /// Spawned thread → parent.
-    pub output: crate::comms::thread::Receiver<O>,
+    pub(crate) output: crate::comms::thread::Receiver<O>,
     /// Handle for the spawned OS thread.
-    pub join: std::thread::JoinHandle<()>,
+    pub(crate) join: std::thread::JoinHandle<()>,
 }
 
 impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
@@ -137,20 +139,37 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 /// comms::process tier serializes values through `HolonAST` ↔ EDN bytes
 /// over the anonymous pipe.
 ///
-/// Construct via the kernel's spawn dispatcher (Stone 4.5); this struct
-/// is never constructed directly by user code.
+/// Construct via the kernel's spawn dispatcher (Stone 4.5) or via
+/// `Process::new_for_test` in integration tests. Do not construct by
+/// naming fields directly — field visibility is `pub(crate)` to enforce
+/// the invariant that input, output, and child are always co-created.
 pub struct Process<I: HolonRepresentable, O: HolonRepresentable> {
     /// Parent → child process.
-    pub input: crate::comms::process::Sender<I>,
+    pub(crate) input: crate::comms::process::Sender<I>,
     /// Child process → parent.
-    pub output: crate::comms::process::Receiver<O>,
+    pub(crate) output: crate::comms::process::Receiver<O>,
     /// Canonical child-process handle (arc 213 Pidfd). Race-free: the fd
     /// is bound to this exact child at fork time — not to the (potentially
     /// reused) PID. Used by `wait` and `close` for child lifecycle management.
-    pub child: crate::process::Pidfd,
+    /// The field name is `pidfd` to mirror the type name.
+    pub(crate) pidfd: crate::process::Pidfd,
 }
 
 impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
+    /// Construct a `Process` peer from its three components.
+    ///
+    /// Intended for integration tests that create the underlying channel
+    /// pairs + fork the child directly (e.g. `peer_process_round_trip.rs`).
+    /// In-crate production paths use `spawn_process_peer` (kernel/spawn.rs)
+    /// which constructs the peer via struct literal (pub(crate) access).
+    pub fn new_for_test(
+        input: crate::comms::process::Sender<I>,
+        output: crate::comms::process::Receiver<O>,
+        pidfd: crate::process::Pidfd,
+    ) -> Self {
+        Self { input, output, pidfd }
+    }
+
     /// Send a value to the child process via the comms::process pipe.
     ///
     /// Returns `Err(SendError(value))` if the child has exited and the
@@ -183,7 +202,9 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     /// Dropping the input Sender closes the parent's write end of the pipe
     /// (the child's Receiver sees EOF on its next recv). Dropping the output
     /// Receiver closes the parent's read end. The returned Pidfd lets the
-    /// caller block on child exit via `pidfd.wait_status()`.
+    /// caller block on child exit via `pidfd.wait_status()`. The Pidfd's
+    /// Drop also closes the persistent io_uring ring fd — two kernel
+    /// resources are released: the pidfd itself and the ring fd.
     ///
     /// Prefer `wait(self)` for the common "close + wait" pattern.
     pub fn close(self) -> crate::process::Pidfd {
@@ -191,7 +212,7 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
         // Drop output: RAII cleanup of parent's output receiver.
         drop(self.input);
         drop(self.output);
-        self.child
+        self.pidfd
     }
 
     /// Close both channel endpoints and block until the child process exits.
@@ -212,7 +233,7 @@ impl<I: HolonRepresentable + std::fmt::Debug, O: HolonRepresentable + std::fmt::
         f.debug_struct("Process")
             .field("input", &self.input)
             .field("output", &self.output)
-            .field("child", &self.child)
+            .field("pidfd", &self.pidfd)
             .finish()
     }
 }

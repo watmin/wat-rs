@@ -208,3 +208,94 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     drop(peer_val);
     std::thread::sleep(std::time::Duration::from_millis(100));
 }
+
+/// KR-1 regression: `:process` tier must resolve user-defined helpers.
+///
+/// Before the KR-1 fix (sym.clone() pre-fork), the child apply-loop used
+/// `SymbolTable::new()` — an empty registry. Any fn that called a user-defined
+/// helper (e.g. `:my::helper`) would fail with `UnknownFunction` in the child
+/// and `_exit(1)`, while the same fn worked fine under `:thread`.
+///
+/// This test proves the cloned sym survives the fork: the program fn is
+/// `:my::wrapper`, which internally calls `:my::helper` (a multiply-by-3 fn).
+/// The child must resolve `:my::helper` from the cloned sym to compute 21 * 3 = 63.
+///
+/// Run via:
+///   cargo test --test comms spawn_program_prime_process_helper_round_trip -- --ignored
+#[test]
+#[ignore = "KR-1 regression probe: run via integration-run.sh or with --ignored --test-threads=1"]
+fn spawn_program_prime_process_helper_round_trip() {
+    // Build a world with two fns: :my::helper (triple) + :my::wrapper (calls helper).
+    let world = startup_from_source(
+        "(:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 \
+         (:wat::core::i64::* x 3)) \
+         (:wat::core::defn :my::wrapper [x <- :wat::core::i64] -> :wat::core::i64 \
+         (:my::helper x))",
+        None,
+        Arc::new(InMemoryLoader::new()),
+    )
+    .expect("startup_from_source for helper+wrapper fns must succeed");
+
+    let wrapper_fn_arc = world
+        .symbols
+        .get(":my::wrapper")
+        .expect(":my::wrapper must be in symbol table")
+        .clone();
+
+    // Spawn a :process peer with the wrapper fn.
+    // KR-1: spawn_process_peer must clone sym before fork so the child can
+    // resolve :my::helper. Without the fix the child exits with _exit(1).
+    let dummy_span = Span::unknown();
+    let peer_val =
+        wat::kernel::spawn::spawn_process_peer(wrapper_fn_arc, &world.symbols, &dummy_span)
+            .expect("spawn_process_peer must succeed (KR-1 sym clone)");
+
+    let opaque_arc = rust_opaque_arc(
+        &peer_val,
+        PROCESS_PEER_TYPE_PATH,
+        "test:spawn_program_prime_process_helper_round_trip",
+        dummy_span.clone(),
+    )
+    .expect("peer_val must be Value::RustOpaque(Process')");
+
+    let cell: &Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> = downcast_ref_opaque(
+        &opaque_arc,
+        PROCESS_PEER_TYPE_PATH,
+        "test:downcast:ProcessPeerBundle",
+        dummy_span.clone(),
+    )
+    .expect("downcast to Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>> must succeed");
+
+    // Send "21" (EDN i64 21) → child calls :my::wrapper(21) → :my::helper(21) → 63.
+    cell.with_ref("test:send", |opt_bundle| {
+        opt_bundle
+            .as_ref()
+            .expect("bundle must not be closed")
+            .peer
+            .send("21".to_string())
+            .expect("peer.send(\"21\") must succeed")
+    })
+    .expect("with_ref(send) must not cross thread boundary");
+
+    let got_str = cell
+        .with_ref("test:recv", |opt_bundle| {
+            opt_bundle
+                .as_ref()
+                .expect("bundle must not be closed")
+                .peer
+                .recv()
+                .expect("peer.recv() must return helper result (KR-1 sym clone proof)")
+        })
+        .expect("with_ref(recv) must not cross thread boundary");
+
+    assert_eq!(
+        got_str.trim(),
+        "63",
+        "wrapper(:my::helper x * 3) must return 63 for input 21; got {:?} \
+         (KR-1: if this fails the child sym clone did not survive the fork)",
+        got_str
+    );
+
+    drop(peer_val);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+}

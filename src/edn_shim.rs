@@ -1495,6 +1495,29 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
     value_to_edn_with(v, None)
 }
 
+/// Encode a `Value` to a compact EDN `String` — the single codec for
+/// process-tier wire serialization (`spawn-program' :process` apply-loop).
+///
+/// This is the canonical `Value → String` conversion for the process
+/// tier; all encode sites in kernel/spawn.rs route through here so there
+/// is exactly ONE encode path. Inverse: [`edn_string_to_value`].
+pub(crate) fn value_to_edn_string(v: &Value) -> String {
+    wat_edn::write(&value_to_edn(v))
+}
+
+/// Decode a compact EDN `String` back to a `Value` — the inverse of
+/// [`value_to_edn_string`]. Used by the process-tier apply-loop to
+/// deserialize the parent's encoded messages in the child, and by
+/// `HolonRepresentable for Value` for completeness.
+///
+/// Passes `None` for the type registry — reconstructs only primitive
+/// Values (i64, f64, bool, nil, String, keyword, Vec, HashMap). User-
+/// defined structs/enums are not reconstructed without a TypeEnv; the
+/// process tier's program fn works on the decoded primitive scaffold.
+pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
+    read_edn(s, None)
+}
+
 /// Convert a wat `Value` to `wat_edn::OwnedValue` consulting the
 /// frozen type registry for struct field names. When a struct's
 /// `StructDef` is found in `types`, fields render as a Map keyed by

@@ -21,7 +21,7 @@
 //!   `RustOpaque`'s `Box<dyn Any + Send + Sync>` payload constraint.
 //! - The `Arc` ensures cheap clone at `Value::clone()` sites (only the
 //!   refcount bumps; the peer internals stay behind the Arc).
-//! - Stone 4.6 (polymorphic verbs) will downcast via
+//! - Stone 4.6a-ii (polymorphic verbs) downcasts via
 //!   `downcast_ref_opaque` to access `send`/`recv`/`join`/`wait`.
 //!
 //! ### Thread tier
@@ -45,15 +45,14 @@
 //! boundary: parent encodes Value → EDN String before sending; child
 //! receives EDN String, decodes to Value, applies fn, encodes result to
 //! EDN String, sends back. The process peer's Rust-level `send`/`recv` is
-//! thus `String`-typed; Stone 4.6's polymorphic verbs will bridge to
-//! `Value` via the EDN encode/decode layer.
+//! thus `String`-typed; Stone 4.6a-ii's polymorphic verbs bridge to
+//! `Value` via `edn_shim::value_to_edn_string` / `edn_string_to_value`.
 //!
 //! ## Value wire form (EDN encoding for process tier)
 //!
-//! `impl HolonRepresentable for Value` is provided here for completeness
-//! (the trait is used by comms::process::pair::<Value> tests). In Stone
-//! 4.5's process-tier spawn, we use `String` as the actual wire type and
-//! encode/decode Values manually via `value_to_edn` / `edn_to_value`.
+//! The process tier uses `String` as the wire type and encodes/decodes via
+//! `edn_shim::value_to_edn_string` / `edn_shim::edn_string_to_value` — the
+//! single codec for this boundary, co-located with the edn shim home.
 //!
 //! ## Sandbox walker for `:process`
 //!
@@ -68,7 +67,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::comms::{HolonRepresentable, RecvError, WireError};
+use crate::comms::RecvError;
 use crate::kernel::peer::{Process, Thread};
 use crate::rust_deps::custodia::ThreadOwnedCell;
 use crate::rust_deps::marshal::make_rust_opaque;
@@ -79,51 +78,24 @@ use crate::runtime::{
 use crate::span::Span;
 use crate::value::Function;
 
-// ─── HolonRepresentable for Value ─────────────────────────────────────────────
+// ─── Type aliases ────────────────────────────────────────────────────────────
 
-/// `HolonRepresentable` for `Value` — EDN-based wire form.
+/// The thread-tier peer cell type — `Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>`.
 ///
-/// Encoding: `Value → EDN string → HolonAST::String(edn_str)`.
-/// Decoding: `HolonAST::String(edn_str) → parse EDN → Value`.
-///
-/// Fidelity note: `edn_to_value` with `None` TypeEnv reconstructs only
-/// primitive Values (i64, f64, bool, nil, String, keyword, Vec, HashMap).
-/// User-defined structs/enums are not reconstructed — they need a TypeEnv.
-///
-/// This impl exists so `comms::process::pair::<Value>()` compiles in future
-/// tests. Stone 4.5's process-tier spawn uses `String` as the wire type
-/// instead (because `Value: !UnwindSafe` prevents using
-/// `comms::process::Receiver<Value>` in the `spawn_lifelined` closure).
-impl HolonRepresentable for Value {
-    fn to_holon_ast(&self) -> holon::HolonAST {
-        let edn_val = crate::edn_shim::value_to_edn(self);
-        let edn_str = wat_edn::write(&edn_val);
-        holon::HolonAST::String(edn_str.into())
-    }
-
-    fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
-    where
-        Self: Sized,
-    {
-        match ast {
-            holon::HolonAST::String(s) => crate::edn_shim::read_edn(s.as_ref(), None)
-                .map_err(|e| WireError::new(format!("Value::from_holon_ast: {}", e))),
-            other => Err(WireError::new(format!(
-                "Value::from_holon_ast: expected HolonAST::String, got {:?}",
-                other
-            ))),
-        }
-    }
-}
+/// Recurs ~8× at downcast sites (Stone 4.6a-ii Option-wrapping for close').
+/// The `Option` lets `close'` take the peer while `send'`/`recv'`/`try-recv'`
+/// detect use-after-close via `.as_ref()` returning `None`.
+/// At downcast sites use `ThreadPeerCell` instead of spelling out the 4-level type.
+pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 
 // ─── RustOpaque type-path sentinels ──────────────────────────────────────────
 
 /// `RustOpaque.type_path` for thread-tier peers. Primed name distinguishes
-/// from the legacy `:wat::kernel::Thread` struct until Slice 5 retires it.
+/// from the legacy `:wat::kernel::Thread` struct (Stone 4.6 polymorphic verbs).
 pub const THREAD_PEER_TYPE_PATH: &str = ":wat::kernel::Thread'";
 
 /// `RustOpaque.type_path` for process-tier peers. Primed name distinguishes
-/// from the legacy `:wat::kernel::Process` struct until Slice 5 retires it.
+/// from the legacy `:wat::kernel::Process` struct (Stone 4.6 polymorphic verbs).
 pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
@@ -138,9 +110,15 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 /// Wire type is `String` (EDN-encoded Value) rather than `Value` directly
 /// (see module doc § "Process tier" for the `UnwindSafe` rationale).
 ///
-/// Stone 4.6 will downcast to `ProcessPeerBundle` to access
+/// Stone 4.6a-ii downcasts to `ProcessPeerBundle` to access
 /// `bundle.peer.send()` / `bundle.peer.recv()` / `bundle.peer.wait()`.
 pub struct ProcessPeerBundle {
+    // INVARIANT: declaration order is load-bearing; DO NOT reorder.
+    // Rust drops fields in declaration order. `peer` (Pidfd + channels) must
+    // drop BEFORE `_lifeline_w` so the child's pipe fds + pidfd close first,
+    // then the lifeline write-end closing signals the child to exit cleanly.
+    // Reversing the order would signal the child to exit BEFORE closing the
+    // channels, racing with any pending send/recv.
     /// The kernel peer with String wire type.
     pub peer: Process<String, String>,
     /// Lifeline write-end. Closing this signals the child to exit.
@@ -156,9 +134,13 @@ pub struct ProcessPeerBundle {
 /// `(:wat::kernel::spawn-program' :tier env program)` — arc 214 Stone 4.5.
 ///
 /// Three positional args:
-/// - `args[0]` — tier keyword (`:thread` | `:process`; `:remote` is future).
-/// - `args[1]` — program-env value (Stones 4.1–4.3); accepted, not yet
-///   threaded into the peer (Stone 4.6 wires it).
+/// - `args[0]` — tier keyword (`:thread` | `:process`).
+/// - `args[1]` — program-env (`wat::program::Env` — Stone 4.1–4.3): evaluated
+///   for type-check + side effects; the runtime wiring into the peer's fn
+///   invocation context is Stone 4.6a-i's task (see
+///   `docs/arc/2026/05/214-concurrency-toolkit/BRIEF-STONE-4.6a-i-TYPED-PEER-FOUNDATION.md`).
+///   // rune:exigere(attested-arc) — wiring env into the peer context is DESIGN'd
+///   // for 4.6a-i; the arity is fixed (3-arg form required by 4.6a-i BRIEF §work:args[1]).
 /// - `args[2]` — program fn value: `fn [I] -> O`; applied to each message.
 ///
 /// Returns:
@@ -201,7 +183,10 @@ pub fn eval_kernel_spawn_program_prime(
         }
     };
 
-    // arg 1: program-env — eval for side effects; not yet consumed by the peer.
+    // arg 1: program-env — eval; the wiring into the peer invocation context is
+    // Stone 4.6a-i's task (BRIEF §work:args[1] — requires env unifies with
+    // :wat::program::Env at check time). The arity is fixed at 3 by that BRIEF.
+    // rune:exigere(attested-arc) — see BRIEF-STONE-4.6a-i-TYPED-PEER-FOUNDATION.md.
     let _program_env = eval_inner(&args[1], env, sym)?.value_owned();
 
     // arg 2: program fn.
@@ -228,8 +213,7 @@ pub fn eval_kernel_spawn_program_prime(
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "unknown tier `{}`; supported today: :thread, :process \
-                     (:remote is a future arc)",
+                    "unknown tier `{}`; supported tiers: :thread, :process",
                     other
                 ),
             },
@@ -256,7 +240,7 @@ pub fn spawn_thread_peer(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program':thread";
 
-    // Two mini-TCP pairs (comms::thread::pair = crossbeam bounded(1)).
+    // Two bounded channel pairs (comms::thread::pair, depth-1, cascade-aware).
     //   input:  parent→thread  (input_tx stays with parent; input_rx goes to thread)
     //   output: thread→parent  (output_tx goes to thread; output_rx stays with parent)
     let (input_tx, input_rx) = crate::comms::thread::pair::<Value>();
@@ -282,7 +266,18 @@ pub fn spawn_thread_peer(
                     apply_function(program_fn.clone(), vec![input_val], &thread_sym, span.clone())
                 })) {
                     Ok(Ok(v)) => v,
-                    Ok(Err(_)) | Err(_) => break, // error / panic → exit loop
+                    // rune:secare(host-constraint) — fn error / panic → break.
+                    // The parent's recv() sees RecvError (channel close) and cannot
+                    // distinguish fn failure from a clean close. Tier asymmetry with
+                    // :process (_exit(1) → parent calls close().wait_status() → Exited(1)).
+                    // Surfacing a typed error frame on output_tx is a PROTOCOL CHANGE:
+                    // the parent can't separate a peer-internal error from a valid
+                    // Value::Result(Err(...)) returned by the fn. Proper fix = a
+                    // separate error channel or a sentinel envelope — FOLLOW-UP for
+                    // the Stone 4.6a-ii recv' design (the recv' verb must declare the
+                    // contract: "errors observed via channel close; recover via join()
+                    // on :thread / close().wait_status() on :process").
+                    Ok(Err(_)) | Err(_) => break,
                 };
                 if output_tx.send(result).is_err() {
                     break; // parent dropped its receiver
@@ -313,11 +308,13 @@ pub fn spawn_thread_peer(
 
 // ─── Process tier ─────────────────────────────────────────────────────────────
 
-/// Spawn a process-tier program peer.
+/// Spawn a process-tier program peer. Called by the `spawn-program' :process`
+/// dispatcher (Stone 4.5) and exposed as `pub` for integration tests and
+/// Stone 4.6a-ii wiring.
 ///
 /// Wire type: `String` (EDN-encoded Value). The fn receives a `Value`
 /// (decoded from EDN String) and returns a `Value`; the child
-/// re-encodes the result to EDN String for the output pipe.
+/// re-encodes the result via `edn_shim::value_to_edn_string`.
 ///
 /// Using `String` rather than `Value` as the wire type avoids the
 /// `!UnwindSafe` bound on `comms::process::Receiver<Value>` —
@@ -332,8 +329,6 @@ pub fn spawn_thread_peer(
 ///
 /// `ProcessPeerBundle` wrapped in `Arc<ThreadOwnedCell<...>>` →
 /// `Value::RustOpaque(PROCESS_PEER_TYPE_PATH)`.
-/// Spawn a process-tier peer. Called by the `spawn-program' :process` dispatcher
-/// (Stone 4.5) and exposed as `pub` for integration tests and Stone 4.6 wiring.
 pub fn spawn_process_peer(
     program_fn: Arc<Function>,
     sym: &SymbolTable,
@@ -344,9 +339,15 @@ pub fn spawn_process_peer(
     // ── Sandbox walker ────────────────────────────────────────────────────────
     {
         let fn_as_value = Value::wat__core__fn(program_fn.clone());
-        let parent_types = sym.types().map(|t| (**t).clone()).unwrap_or_default();
+        // temperare: borrow the Arc'd TypeEnv directly (default only on None) —
+        // avoids an O(types) deep-clone per :process spawn.
+        let empty_types;
+        let parent_types: &crate::types::TypeEnv = match sym.types() {
+            Some(arc_types) => arc_types.as_ref(),
+            None => { empty_types = crate::types::TypeEnv::default(); &empty_types }
+        };
         if let Err(extract_err) =
-            crate::closure_extract::extract_closure(&fn_as_value, None, sym, &parent_types)
+            crate::closure_extract::extract_closure(&fn_as_value, None, sym, parent_types)
         {
             use crate::closure_extract::ExtractionErrorKind::NonPortableCapture;
             if matches!(extract_err.kind, NonPortableCapture { .. }) {
@@ -395,7 +396,17 @@ pub fn spawn_process_peer(
     // `spawn_lifelined_any` (src/process/clone.rs) removes the `UnwindSafe` bound and
     // wraps the `catch_unwind` call site in `AssertUnwindSafe` internally,
     // which is sound because `_exit` terminates before any unwinding occurs.
-    let (pidfd, lifeline_writer) = crate::process::clone::spawn_lifelined_any(move |lifeline_r_raw: i32| {
+
+    // KR-1 — Tier symmetry: clone sym BEFORE the fork so the child apply-loop
+    // gets the same populated SymbolTable as the :thread tier (which captures
+    // `thread_sym = sym.clone()` at spawn.rs:265). clone3 copies the address
+    // space; a pre-fork sym.clone() is valid in the child because SymbolTable
+    // holds only Arc-wrapped fields (no raw fds, no live thread handles).
+    // Without this, user-defined helpers called from the program fn fail with
+    // UnknownFunction in the child. Mirror the :thread tier exactly.
+    let child_sym = sym.clone();
+
+    let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
 
         // Collect ALL fds owned by the comms endpoints that must survive the
@@ -417,7 +428,8 @@ pub fn spawn_process_peer(
         //   3. apply fn(Value) → Value
         //   4. encode Value → EDN String
         //   5. send EDN String on output pipe
-        let child_sym = SymbolTable::new();
+        // child_sym: the pre-fork sym.clone() — gives the child the same
+        // function registry as the :thread tier (KR-1).
         let child_span = Span::unknown();
 
         loop {
@@ -428,7 +440,7 @@ pub fn spawn_process_peer(
             };
 
             // Step 2: decode EDN String → Value.
-            let input_val = match crate::edn_shim::read_edn(&edn_str, None) {
+            let input_val = match crate::edn_shim::edn_string_to_value(&edn_str) {
                 Ok(v) => v,
                 Err(_) => unsafe { libc::_exit(1) }, // malformed input
             };
@@ -445,7 +457,7 @@ pub fn spawn_process_peer(
             };
 
             // Step 4: encode Value → EDN String.
-            let output_str = wat_edn::write(&crate::edn_shim::value_to_edn(&output_val));
+            let output_str = crate::edn_shim::value_to_edn_string(&output_val);
 
             // Step 5: send EDN String back to parent.
             if output_tx.send(output_str).is_err() {
@@ -468,7 +480,7 @@ pub fn spawn_process_peer(
     let peer = Process {
         input: input_tx,
         output: output_rx,
-        child: pidfd,
+        pidfd,
     };
 
     let bundle = ProcessPeerBundle {
@@ -541,14 +553,14 @@ mod tests {
         // Downcast the payload to the concrete thread-peer type.
         // downcast_ref_opaque takes (&RustOpaqueInner, expected_path, op, span).
         // Stone 4.6a-ii: payload is now Option-wrapped so close' can take() it.
-        let cell: &Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>> =
+        let cell: &ThreadPeerCell =
             crate::rust_deps::marshal::downcast_ref_opaque(
                 &opaque_arc,
                 THREAD_PEER_TYPE_PATH,
                 "test:spawn_thread_peer_echo_round_trip:downcast",
                 dummy_span.clone(),
             )
-            .expect("downcast to Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>> must succeed");
+            .expect("downcast to ThreadPeerCell (Arc<ThreadOwnedCell<Option<Thread<Value,Value>>>>) must succeed");
 
         // Send via peer.send (Thread<Value,Value>.input Sender), recv via
         // peer.output Receiver, using 4.4 methods exposed through with_ref.
@@ -570,12 +582,14 @@ mod tests {
             got
         );
 
-        // Drop the peer value — this closes the Thread peer's input Sender
-        // (the spawned thread's input_rx sees disconnect → loop exits cleanly).
+        // Close the peer and join the spawned thread — eliminates the sleep.
+        // Take the Thread out of the Option (closes input_tx → thread sees disconnect)
+        // then call .join() on the JoinHandle.
+        let peer = cell
+            .with_mut("test:close", Span::unknown(), |opt_peer| opt_peer.take())
+            .expect("with_mut must not cross thread boundary")
+            .expect("peer must not already be closed");
+        peer.join().expect("thread join must succeed");
         drop(peer_val);
-        // Brief pause so the spawned thread can observe the disconnect.
-        // Not required for correctness (test is done), avoids spurious
-        // "detached thread" noise from the harness on some platforms.
-        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }

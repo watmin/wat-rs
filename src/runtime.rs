@@ -198,6 +198,9 @@ type ShutdownTx = crossbeam_channel::Sender<()>;
 ///
 /// Previously `SHUTDOWN_RX: OnceLock<Receiver<()>>` (Stone 214.6.4
 /// replaced OnceLock with AtomicPtr to allow fork-aware rebirth).
+// rune:sequi(ambient-context) — ZERO-MUTEX shutdown cascade channel; threading
+// this through every recv signature would bloat every blocking call. Documented
+// in ZERO-MUTEX.md as the declared ambient-context exception.
 static SHUTDOWN_RX_PTR: std::sync::atomic::AtomicPtr<ShutdownRx> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
@@ -236,6 +239,8 @@ pub(crate) fn shutdown_rx() -> Option<&'static ShutdownRx> {
 /// + Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
 /// Sender (waking all SHUTDOWN_RX clones with Disconnected). Initialized
 /// via [`init_shutdown_signal`]; consumed by [`trigger_shutdown`].
+// rune:sequi(ambient-context) — ZERO-MUTEX shutdown cascade trigger; paired
+// with SHUTDOWN_RX_PTR. trigger_shutdown() atomically drops the Sender.
 static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<ShutdownTx> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
@@ -254,6 +259,9 @@ pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
 /// after. RE-SET in fork children (init_shutdown_signal_with_inputs
 /// rebuilds the fd for each child's private shutdown worker — the
 /// inherited worker thread does not transfer across clone3).
+// rune:sequi(ambient-context) — ZERO-MUTEX broadcast fd; every poll()-based
+// recv in comms::process reads this fd. Threading it through every recv
+// signature is the alternative the doctrine explicitly rejects.
 pub static SHUTDOWN_BROADCAST_READ_FD: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 

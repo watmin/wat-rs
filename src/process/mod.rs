@@ -53,6 +53,7 @@ pub use clone::{
     ExitStatus, Pidfd, LifelineWriter,
     spawn_lifelined, make_pipe,
 };
+pub(crate) use clone::spawn_lifelined_any;
 pub use child::{install_substrate_signal_handlers, run_in_fork};
 pub(crate) use child::child_post_fork_init_preserving;
 pub use handle::{ChildHandle, ForkedProgramHandles};

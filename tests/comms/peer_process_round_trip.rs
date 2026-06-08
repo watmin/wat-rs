@@ -115,11 +115,10 @@ fn process_peer_round_trip() {
 
     // ── PARENT BRANCH ─────────────────────────────────────────────────────
     // Build the Process peer using the parent-side endpoints.
-    let peer = Process {
-        input: input_tx,
-        output: output_rx,
-        child: pidfd,
-    };
+    // Uses Process::new_for_test (the integration-test constructor — pub(crate)
+    // fields are not accessible cross-crate; the dispatcher uses struct literal
+    // internally via pub(crate) access).
+    let peer = Process::new_for_test(input_tx, output_rx, pidfd);
 
     // Send "hello" to the child; expect it echoed back.
     peer.send("hello".to_string()).expect("peer.send must succeed");

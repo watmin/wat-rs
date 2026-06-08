@@ -12,9 +12,15 @@
 //! - `peer::Process<I, O>` — a process-tier program peer (comms::process
 //!   Sender<I> + Receiver<O> + Pidfd). Stone 4.4.
 //!
-//! ## What does NOT live here (pending stones)
+//! ## What lives here (present lineage)
 //!
-//! - Spawn dispatcher (`spawn-program'` → `:tier` dispatch) — Stone 4.5.
+//! - `peer::Thread<I, O>` — thread-tier peer (Stone 4.4).
+//! - `peer::Process<I, O>` — process-tier peer (Stone 4.4).
+//! - `spawn::eval_kernel_spawn_program_prime` — `:tier` dispatch (Stone 4.5).
+//! - `spawn::spawn_thread_peer` / `spawn::spawn_process_peer` — tier impls.
+//!
+//! ## What is NOT yet here (pending stones)
+//!
 //! - Polymorphic kernel verbs (`send'`/`recv'`/`try-recv'`/`close'`) — Stone 4.6.
 //! - Wat-level type registration (`:wat::kernel::Thread<I,O>` /
 //!   `Process<I,O>`) — Stone 4.6.
