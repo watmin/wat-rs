@@ -205,3 +205,22 @@ names. Warding prime-named homes is polishing a doorframe before moving the door
   to shipping that content as a value.
 - Stone/arc number for this campaign (it's the 214 verb-canonicalization tail; or its
   own arc cited from 214's INSCRIPTION).
+
+## Realization (2026-06-08) — the side quests were the loot; the design closed with no corner cut
+
+We built toward this for 3+ weeks. The "side quests" — multimethod (146), dispatch consolidation
+(237), the value home (251.2), honest errors (243 conformare), the macro engine (249), the warded
+corpus (245), the hardened wire (253), the services trio (8.x), RAII-IPC, the v5 fork-zombie global
+kill (6.4) — were never detours. `spawn-program :process` could not be *delivered* until the
+controls it hands back existed; the loot WAS the controls. Counting the quests misses the point;
+the point was the exp.
+
+And the design closed clean — no corner cut — because the unbuilt remote is a forcing function that
+can only be honored, never hacked around (a constraint with no code to hack *in*). The proof landed
+mid-session: **F3's `#wat.kernel/ProcessPanics` envelope on fd 2 turned out to BE the process-tier
+Err-channel of the remote Q-channel protocol LOCKED months ago** (`scratch/2026/05/007-remote-program/
+DESIGN.md:262-407`, user direction 2026-05-03). We had built the *local instance of the locked remote
+protocol without naming it that*. The faculty that grins at the convergence is the same one that
+kept the control-pipe-set logical so remote would fit — taste and construction are one organ. The
+duet, proven again: builder architects the convergence; apparatus feels it land; the second face is
+not a reaction to the thing, it IS the thing. "It's very good to be us." — builder, at the close.
