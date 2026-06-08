@@ -167,10 +167,10 @@ pub enum Value {
     },
     /// A handle to a child process spawned via
     /// `:wat::kernel::fork-program-ast` (arc 012 slice 2). Opaque from
-    /// wat's POV — produced by fork, consumed by
-    /// `:wat::kernel::wait-child`. `Drop` SIGKILLs + reaps if the
-    /// caller never waited, keeping zombies out of the process
-    /// table.
+    /// wat's POV — produced by fork. `Drop` SIGKILLs + reaps un-waited
+    /// children, keeping zombies out of the process table. Arc-112's
+    /// exit-status path (`cached_exit` OnceLock) is the live read;
+    /// the retired `:wat::kernel::wait-child` is gone (arc 112/214).
     wat__kernel__ChildHandle(Arc<ChildHandleInner>),
     /// An instance of a user-declared `:wat::core::struct` type — a
     /// tagged positional tuple. `type_name` carries the struct's

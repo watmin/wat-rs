@@ -12323,10 +12323,6 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
     } }
 }
 
-/// Arc 050 — predicate. Recognizes `:i64` path specifically.
-fn is_i64(t: &TypeExpr) -> bool {
-    matches!(t, TypeExpr::Path(p) if p == ":wat::core::i64")
-}
 
 /// Arc 052 — predicate. Recognizes `:wat::holon::HolonAST` and
 /// `:wat::holon::Vector` — the two algebra-tier value types accepted

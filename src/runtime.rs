@@ -668,30 +668,6 @@ pub fn register_stdlib_defines(
     Ok(rest)
 }
 
-/// Arc 054 — byte-equivalence check for two `Function` values for the
-/// idempotent-redeclaration rule.
-///
-/// Compares param names + types, return type, type-parameter list, and
-/// the AST body. Ignores `name` (it's the registry key, identical by
-/// construction) and `closed_env` (always None for define-registered
-/// functions).
-///
-/// `WatAST::PartialEq` is span-agnostic (verified via Span's no-op
-/// PartialEq impl), so two ASTs parsed from different source paths
-/// compare equal iff their structural content matches.
-fn function_byte_equivalent(a: &Function, b: &Function) -> bool {
-    let bodies_match = match (&a.body, &b.body) {
-        (FunctionBody::Wat(ast_a), FunctionBody::Wat(ast_b)) => *ast_a == *ast_b,
-        (FunctionBody::Native, FunctionBody::Native) => true,
-        _ => false,
-    };
-    a.params == b.params
-        && a.type_params == b.type_params
-        && a.param_types == b.param_types
-        && a.ret_type == b.ret_type
-        && bodies_match
-}
-
 /// Walk every `:wat::core::struct` declaration in `types` and
 /// synthesize its auto-generated constructor + per-field accessors
 /// into `sym`. Runs after both stdlib and user defines have been
@@ -4148,8 +4124,8 @@ fn dispatch_keyword_head_value(
         }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
-        // ProcessDiedError>. The runtime fn in src/fork.rs is left
-        // for now (unreferenced) and removed in slice 5 closure.
+        // ProcessDiedError>. The orphaned eval body in src/fork.rs
+        // was removed in arc 214 Stone 6.2.
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1, list_span)
         }
@@ -19799,204 +19775,7 @@ fn eval_kernel_receiver_from_pipe(
     Ok(crate::channel::receiver_from_pipe(reader))
 }
 
-/// `(:wat::kernel::process-send proc value) -> :Result<(),
-/// :ProcessDiedError>` — arc 112 slice 2b. Renders the value as
-/// EDN (arc 092 v4), appends a newline, writes to the Process's
-/// stdin via the WatWriter trait. Returns Ok(:()) on landed write,
-/// Err(ProcessDiedError::ChannelDisconnected) if the pipe is
-/// closed (peer Program exited / panicked before reading).
-///
-/// Arc 170 Stone C — RETIRED. Dispatch arm emits TypeMismatch with
-/// migration hint. This fn body is preserved for reference only.
-fn eval_kernel_process_send(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::process-send";
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let value = eval_inner(&args[1], env, sym)?.value_owned();
 
-    let proc_struct = match proc_value {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let stdin_writer = match proc_struct.fields.first() {
-        Some(Value::io__IOWriter(w)) => w.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Process.stdin (IOWriter)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no — struct field lookup; no per-field AST
-            } }.into());
-        }
-    };
-
-    // Render the value via EDN — same path :wat::edn::write takes.
-    let edn = crate::edn_shim::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
-    let mut payload = wat_edn::write(&edn);
-    payload.push('\n');
-
-    match stdin_writer.write_all(payload.as_bytes(), list_span.clone()) {
-        Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
-        Err(_) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-            process_died_error_channel_disconnected(),
-        ))))),
-    }
-}
-
-/// `(:wat::kernel::process-recv proc) -> :Result<:Option<O>,
-/// :ProcessDiedError>` — arc 112 slice 2b. Reads one line from
-/// Process.stdout via the WatReader trait, parses as EDN. Three
-/// states mirror arc 111's intra-process recv:
-///
-/// - `Ok(Some v)` — child wrote one EDN-framed O; parsed; here.
-/// - `Ok(:None)`  — stdout EOF + clean exit (no stderr lines,
-///                   exit code 0).
-/// - `Err(died)`  — stdout EOF + stderr non-empty OR child died;
-///                   `died.message` carries the joined stderr +
-///                   exit-code text. Arc 113 widens this to a
-///                   Vec<ProgramDiedError> chained backtrace.
-///
-/// Slice-2b limitation (matches arc 105c hermetic.wat's pattern):
-/// reads stdout primarily; stderr drained only on stdout EOF.
-/// Children that write to stderr WHILE stdout is being read
-/// surface stderr only after stdout EOFs. Multiplex-during-stream
-/// is follow-up substrate work.
-///
-/// Pre-§J spelling. Post-arc-109 § J slice 10f this fn is reached
-/// via `:wat::kernel::Process/recv` (typed-method renaming).
-fn eval_kernel_process_recv(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::process-recv";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let proc_struct = match proc_value {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Process struct field order: stdin, stdout, stderr, join.
-    let stdout_reader = match proc_struct.fields.get(1) {
-        Some(Value::io__IOReader(r)) => r.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Process.stdout (IOReader)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no — struct field lookup; no per-field AST
-            } }.into());
-        }
-    };
-    let stderr_reader = match proc_struct.fields.get(2) {
-        Some(Value::io__IOReader(r)) => r.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Process.stderr (IOReader)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no — struct field lookup; no per-field AST
-            } }.into());
-        }
-    };
-    let handle = match proc_struct.fields.get(3) {
-        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Process.join (ProgramHandle)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field")),
-                // arc 138: no — struct field lookup; no per-field AST
-            } }.into());
-        }
-    };
-
-    // Read one line from stdout. If got a line: parse as EDN, return
-    // Ok(Some). If EOF: drain stderr, wait for program exit, build
-    // the terminal answer (Ok(:None) or Err).
-    let line_opt = stdout_reader.read_line(list_span.clone())?;
-    if let Some(line) = line_opt {
-        let trimmed = line.trim_end_matches('\n');
-        match crate::edn_shim::read_edn(trimmed, sym.types().map(|a| a.as_ref())) {
-            Ok(value) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(
-                value,
-            ))))))),
-            Err(e) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_runtime(format!("EDN parse on Process.stdout line: {}", e)),
-            ))))),
-        }
-    } else {
-        // stdout EOF — drain stderr, then wait for program exit.
-        let mut stderr_lines = Vec::new();
-        while let Some(line) = stderr_reader.read_line(list_span.clone())? {
-            stderr_lines.push(line);
-        }
-
-        let exit_outcome: Result<(), String> = match handle.as_ref() {
-            ProgramHandleInner::InThread(rx) => match rx.recv() {
-                Ok(SpawnOutcome::Ok(_)) => Ok(()),
-                Ok(SpawnOutcome::RuntimeErr(e)) => Err(format!("{}", e)),
-                Ok(SpawnOutcome::Panic { message, .. }) => Err(message),
-                Err(_) => Err("channel disconnected (substrate bug)".to_string()),
-            },
-            ProgramHandleInner::Forked(child) => {
-                let code = child.wait_or_cached();
-                if code == 0 {
-                    Ok(())
-                } else {
-                    Err(format!("forked program exited {}", code))
-                }
-            }
-        };
-
-        let stderr_msg = stderr_lines.join("\n");
-        match (exit_outcome, stderr_msg.is_empty()) {
-            (Ok(()), true) => {
-                // Clean shutdown — no stderr, exit 0.
-                Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
-            }
-            (Ok(()), false) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_panic(stderr_msg, None),
-            ))))),
-            (Err(exit_msg), true) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_panic(exit_msg, None),
-            ))))),
-            (Err(exit_msg), false) => Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_panic(format!("{}\n{}", exit_msg, stderr_msg), None),
-            ))))),
-        }
-    }
-}
 
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
 /// (arc 060 + arc 105c). Variant carries two fields:
@@ -20252,21 +20031,6 @@ pub(crate) fn process_died_error_startup_value(message: String) -> Value {
     process_died_error_startup(message)
 }
 
-/// Build a `:wat::kernel::ProcessDiedError::EntryFormFailure(message)`
-/// enum value (arc 170 slice 1i). Emitted by spawn-process child branch
-/// when `entry_form eval` fails or the fn arity is unsupported.
-fn process_died_error_entry_form_failure(message: String) -> Value {
-    Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
-        variant_name: "EntryFormFailure".into(),
-        fields: vec![Value::String(Arc::new(message))],
-    }))
-}
-
-/// Cross-module pub(crate) accessor.
-pub(crate) fn process_died_error_entry_form_failure_value(message: String) -> Value {
-    process_died_error_entry_form_failure(message)
-}
 
 /// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`
 /// enum value (arc 170 slice 1i). Emitted by fork child branches when

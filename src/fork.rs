@@ -172,21 +172,22 @@ where
 }
 
 /// The payload of a `Value::wat__kernel__ChildHandle`. Holds the
-/// child's pid plus a `reaped` flag set by
-/// `:wat::kernel::wait-child`, plus a `cached_exit` OnceLock that
-/// caches the exit code so double-`wait-child` is idempotent
-/// (sub-fog 2c resolution).
+/// child's pid plus a `reaped` flag set by `wait_or_cached`, plus a
+/// `cached_exit` OnceLock that caches the exit code for idempotent
+/// reads (arc-112 exit-status path; sub-fog 2c resolution). The
+/// retired `:wat::kernel::wait-child` is gone (arc 112/214) —
+/// `Drop` now owns the only unconditional SIGKILL+reap path.
 ///
 /// `Drop` sends `SIGKILL` and blocks on `waitpid` if the caller
-/// never waited — keeps zombies out of the process table. Drop
-/// does not populate `cached_exit` because nobody can read it (the
-/// Arc is going away).
+/// never called `wait_or_cached` — keeps zombies out of the process
+/// table. Drop does not populate `cached_exit` because nobody can
+/// read it (the Arc is going away).
 #[derive(Debug)]
 pub struct ChildHandleInner {
     /// Diagnostic + libc interop until δ-3 retires this field.
-    /// Libc paths (wait_or_cached, Drop, eval_kernel_wait_child) use this
-    /// directly via libc::waitpid / libc::kill. δ-2 migrates those paths
-    /// to use self.pidfd methods; δ-3 removes this field.
+    /// Libc paths (wait_or_cached, Drop) use this directly via
+    /// libc::waitpid / libc::kill. δ-2 migrates those paths to use
+    /// self.pidfd methods; δ-3 removes this field.
     pub pid: libc::pid_t,
     pub reaped: AtomicBool,
     pub cached_exit: OnceLock<i64>,
@@ -223,8 +224,9 @@ impl ChildHandleInner {
 
     /// Block on `waitpid` (idempotently) and return the exit code.
     /// Caches the first observation; subsequent calls return the
-    /// cached value. Used by both legacy `wait-child` and arc-112's
-    /// unified ProgramHandle Forked variant + Process/join-result.
+    /// cached value. Used by arc-112's unified ProgramHandle Forked
+    /// variant + Process/join-result. The retired
+    /// `:wat::kernel::wait-child` is gone (arc 112/214).
     pub fn wait_or_cached(&self) -> i64 {
         if let Some(&code) = self.cached_exit.get() {
             return code;
@@ -249,9 +251,9 @@ impl Drop for ChildHandleInner {
         if self.reaped.load(Ordering::SeqCst) {
             return;
         }
-        // Caller never called wait-child. Kill + reap. SIGKILL is
-        // unignorable; waitpid with status pointer reaps the
-        // zombie.
+        // Child was never reaped via wait_or_cached. Kill + reap.
+        // SIGKILL is unignorable; waitpid with status pointer reaps
+        // the zombie.
         unsafe {
             libc::kill(self.pid, libc::SIGKILL);
             let mut status: libc::c_int = 0;
@@ -277,64 +279,6 @@ fn extract_exit_code(status: libc::c_int) -> i64 {
     }
 }
 
-/// `(:wat::kernel::wait-child (handle :wat::kernel::ChildHandle)) ->
-/// :i64`.
-///
-/// Blocks on `waitpid(pid, …, 0)` until the child exits, returns
-/// the exit code. Idempotent — a second call on the same handle
-/// returns the cached code from the first call (sub-fog 2c).
-pub fn eval_kernel_wait_child(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::wait-child";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } });
-    }
-    let handle = match eval(&args[0], env, sym)?.value_owned() {
-        Value::wat__kernel__ChildHandle(h) => h,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::ChildHandle",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
-
-    // Already reaped? Return the cached code. Same call returns
-    // same value — idempotent under repeated wait-child.
-    if let Some(&code) = handle.cached_exit.get() {
-        return Ok(Value::i64(code));
-    }
-
-    // Block on waitpid. The child may have already exited and be
-    // sitting as a zombie — waitpid reaps it in that case.
-    let mut status: libc::c_int = 0;
-    let ret = unsafe { libc::waitpid(handle.pid, &mut status, 0) };
-    if ret < 0 {
-        let err = std::io::Error::last_os_error();
-        // arc 138: no span — waitpid OS error; no WatAST context after args evaluation
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("waitpid({}): {}", handle.pid, err)
-        } });
-    }
-
-    let code = extract_exit_code(status);
-    // Cache first, then flip the reaped flag. A reader that sees
-    // reaped=true must be able to load cached_exit, so SeqCst on
-    // the flag fences against the OnceLock publish.
-    let _ = handle.cached_exit.set(code);
-    handle.reaped.store(true, Ordering::SeqCst);
-    Ok(Value::i64(code))
-}
 
 /// Allocate a pipe pair; returns `(read_end, write_end)` as OwnedFds.
 ///
