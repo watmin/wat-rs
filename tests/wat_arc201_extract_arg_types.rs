@@ -22,7 +22,7 @@ use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
+use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
     let mut fds = [0i32; 2];
@@ -51,7 +51,7 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
 }
 
 fn run(src: &str) -> Vec<String> {
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let world = startup_from_source(
         src,
         Some(concat!(file!(), ":", line!())),
@@ -67,13 +67,13 @@ fn run(src: &str) -> Vec<String> {
         stderr: stderr_service,
     });
     invoke_user_main(&world, Vec::new()).expect("main");
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     drain_lines(&stdout_capture)
 }
 
 /// Run source EXPECTED to fail at runtime; return the error string.
 fn run_expecting_runtime_error(src: &str) -> Option<String> {
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let world = startup_from_source(
         src,
         Some(concat!(file!(), ":", line!())),
@@ -89,7 +89,7 @@ fn run_expecting_runtime_error(src: &str) -> Option<String> {
         stderr: stderr_service,
     });
     let result = invoke_user_main(&world, Vec::new());
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let _ = drain_lines(&stdout_capture);
     match result {
         Ok(_) => None,

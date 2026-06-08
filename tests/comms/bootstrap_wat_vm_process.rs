@@ -20,7 +20,7 @@ use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{startup_from_source, BootstrapArgs};
 use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, uninstall_thread_io, AmbientStdio};
+use wat::services::{install_ambient_stdio, take_ambient_stdio, uninstall_thread_io, AmbientStdio};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ fn install_rig() {
 #[test]
 fn probe_bootstrap_callable_services_threadio() {
     // Drain any leftover ambient from previous tests in this thread.
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let _ = uninstall_thread_io();
 
     let src = r#"
@@ -121,7 +121,7 @@ fn probe_bootstrap_callable_services_threadio() {
     );
 
     // Drain any leftover ambient to keep the thread clean for other tests.
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
 }
 
 // ─── Probe 2 — Drop runs cleanup: ThreadIO gone after drop ────────────────
@@ -133,7 +133,7 @@ fn probe_bootstrap_callable_services_threadio() {
 #[test]
 fn probe_bootstrap_drop_removes_threadio() {
     // Drain any leftover ambient from previous tests.
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let _ = uninstall_thread_io();
 
     let src = r#"
@@ -160,5 +160,5 @@ fn probe_bootstrap_drop_removes_threadio() {
     );
 
     // Drain any leftover ambient.
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
 }

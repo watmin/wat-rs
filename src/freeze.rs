@@ -190,28 +190,19 @@ impl Drop for ProcessRuntime {
         // the log-and-continue arm is correct (we're in teardown).
         if let Some(join) = self.stdin_service_join.take() {
             if let Err(e) = join.join() {
-                eprintln!(
-                    "[wat substrate] stdin service peer join error during ProcessRuntime::drop: {:?}",
-                    e
-                );
+                eprintln!("#wat.substrate/Diag{{:site \"process-runtime-drop\" :msg \"stdin service peer join error\" :error {:?}}}", format!("{:?}", e));
             }
         }
         // Step 6: Join the universe-resident stdout service peer (Rust thread).
         if let Some(join) = self.stdout_service_join.take() {
             if let Err(e) = join.join() {
-                eprintln!(
-                    "[wat substrate] stdout service peer join error during ProcessRuntime::drop: {:?}",
-                    e
-                );
+                eprintln!("#wat.substrate/Diag{{:site \"process-runtime-drop\" :msg \"stdout service peer join error\" :error {:?}}}", format!("{:?}", e));
             }
         }
         // Step 7: Join the universe-resident stderr service peer (Rust thread).
         if let Some(join) = self.stderr_service_join.take() {
             if let Err(e) = join.join() {
-                eprintln!(
-                    "[wat substrate] stderr service peer join error during ProcessRuntime::drop: {:?}",
-                    e
-                );
+                eprintln!("#wat.substrate/Diag{{:site \"process-runtime-drop\" :msg \"stderr service peer join error\" :error {:?}}}", format!("{:?}", e));
             }
         }
     }
@@ -330,7 +321,8 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // Step 4 — Register calling thread + install ThreadIO.
     let main_thread_id = crate::services::next_thread_id();
     let main_io =
-        crate::services::register_thread_with_services(main_thread_id, &services)?;
+        // boot-time registration — no user form exists; genuinely spanless-by-domain.
+        crate::services::register_thread_with_services(main_thread_id, &services, &crate::span::Span::unknown())?;
     crate::services::install_thread_io(main_io);
 
     Ok(ProcessRuntime {

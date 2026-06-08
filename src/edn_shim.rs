@@ -98,7 +98,7 @@ pub fn eval_edn_write_json(
     Ok(Value::String(Arc::new(wat_edn::to_json_string(&edn))))
 }
 
-fn require_one_arg(
+pub(crate) fn require_one_arg(
     op: &str,
     args: &[WatAST],
     env: &Environment,

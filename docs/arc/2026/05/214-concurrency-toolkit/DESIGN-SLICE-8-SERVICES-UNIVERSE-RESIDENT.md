@@ -68,7 +68,9 @@ own universe's business.
 ## The stones
 
 - **8.1 — StdOutService reborn** (the template): Req/Rep records minted; the
-  wat service rewritten as the pure tagged loop over `spawn-program' :thread`;
+  wat service rewritten as the pure handle fn driven by the Rust service loop
+  (`spawn_service_peer`, src/services/peer.rs — the 8.1w/8.2w lift made the
+  loop universe-resident in Rust; the wat half is the handle alone);
   the Rust fan-in/fan-out (bridge layer) re-pointed; `println` routes through
   it end to end. Probe: println round-trip + ordering + the panic-envelope
   ordering test stays green. stderr follows as 8.1b (same shape, fd 2).

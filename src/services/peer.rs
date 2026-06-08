@@ -8,6 +8,14 @@ use std::sync::Arc;
 use crate::runtime::Value;
 use crate::services::ThreadId;
 
+/// Reply sender routed back to a registered caller — Ok(R) means the
+/// handle call COMPLETED; Err carries the failure the caller surfaces.
+pub type ServiceReplySender<R> = crate::comms::thread::Sender<Result<R, String>>;
+/// The loop-owned routing table: thread-id → that thread's reply sender.
+type ReplyRegistry<R> = std::collections::HashMap<ThreadId, ServiceReplySender<R>>;
+/// The sender half of a service peer's input channel.
+pub type ServiceInputSender<R> = crate::comms::thread::Sender<ServiceMsg<R>>;
+
 /// Rust-internal input enum for the universe-resident service peer.
 /// NEVER a wat message; the Rust service loop owns it.
 ///
@@ -24,7 +32,7 @@ use crate::services::ThreadId;
 #[derive(Debug)]
 pub enum ServiceMsg<R: Send + 'static> {
     Req(Value),
-    Register(ThreadId, crate::comms::thread::Sender<Result<R, String>>),
+    Register(ThreadId, ServiceReplySender<R>),
     Deregister(ThreadId),
 }
 
@@ -33,7 +41,7 @@ pub enum ServiceMsg<R: Send + 'static> {
 /// service thread for clean teardown (AFTER dropping every sender — see the
 /// module-doc drop-order contract).
 pub struct ServicePeer<R: Send + 'static> {
-    pub input_tx: crate::comms::thread::Sender<ServiceMsg<R>>,
+    pub input_tx: ServiceInputSender<R>,
     /// The spawned loop's thread handle — joined at teardown (the thing you
     /// hold, not the call you make on it). A PANICKED stdin loop — EOF fired
     /// via assertion-failed! — joins Err; the Drop arm logs and continues.
@@ -80,10 +88,7 @@ pub fn spawn_service_peer<R: Send + 'static>(
     let join = std::thread::Builder::new()
         .name(thread_name)
         .spawn(move || {
-            let mut reply_registry: std::collections::HashMap<
-                ThreadId,
-                crate::comms::thread::Sender<Result<R, String>>,
-            > = std::collections::HashMap::new();
+            let mut reply_registry: ReplyRegistry<R> = std::collections::HashMap::new();
             loop {
                 let msg = match input_rx.recv() {
                     Ok(m) => m,
@@ -105,19 +110,13 @@ pub fn spawn_service_peer<R: Send + 'static>(
                                 match &sv.fields[0] {
                                     Value::i64(n) => *n,
                                     _ => {
-                                        eprintln!(
-                                            "[wat substrate] {}-peer: Req field[0] is not i64",
-                                            service_label
-                                        );
+                                        eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"Req field[0] is not i64\"}}", service_label);
                                         continue;
                                     }
                                 }
                             }
                             _ => {
-                                eprintln!(
-                                    "[wat substrate] {}-peer: Req is not a Struct",
-                                    service_label
-                                );
+                                eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"Req is not a Struct\"}}", service_label);
                                 continue;
                             }
                         };
@@ -153,10 +152,7 @@ pub fn spawn_service_peer<R: Send + 'static>(
                                 // caller surfaces it as a RuntimeError (the ack
                                 // means call-COMPLETED; acking a failure would
                                 // be a lie, so the reply carries Result).
-                                eprintln!(
-                                    "[wat substrate] {}-peer: handle failed: {}",
-                                    service_label, e
-                                );
+                                eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"handle failed\" :error {:?}}}", service_label, format!("{}", e));
                                 if let Some(reply_tx) = reply_registry.get(&thread_id) {
                                     let _ = reply_tx.send(Err(format!("{}", e)));
                                 }

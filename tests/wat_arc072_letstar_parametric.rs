@@ -30,7 +30,7 @@ use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
+use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
     let mut fds = [0i32; 2];
@@ -59,7 +59,7 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
 }
 
 fn run(src: &str) -> Result<Vec<String>, String> {
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup: {}", e))?;
     let (stdin_service, _stdin_inject) = pipe_pair();
@@ -71,7 +71,7 @@ fn run(src: &str) -> Result<Vec<String>, String> {
         stderr: stderr_service,
     });
     invoke_user_main(&world, Vec::new()).map_err(|e| format!("runtime: {}", e))?;
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     Ok(drain_lines(&stdout_capture))
 }
 

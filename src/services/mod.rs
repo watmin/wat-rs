@@ -1,3 +1,15 @@
+//! vigilatum: 2026-06-08T00:07:11Z — trio-completion FULL VIGILIA, 14 wards, L1+L2=0
+//! (universal-7: intueri/solvere/conformare/purgare/struere/sequi/temperare + exigere +
+//! secare + perspicere on the Rust home; cernere/probare/conferre on the wat trio;
+//! circumspicere perimeter-last). Convergence sweep: 27 fixes + 4 earned runes (sequi
+//! performance-counter, perspicere intentional-structure ×2, exigere attested-arc);
+//! the perimeter's field-order invariant + guard-arm gates live in
+//! tests/nursery/gate_arc214_service_record_field_order.rs; clippy-clean in-home;
+//! corpus 649/0 histogram all-zero at stamp time. The EDN-only diagnostic GATE
+//! (mechanical enforcement) tracks at docs/arc/2026/04/109-kill-std/
+//! NOTE-edn-only-rust-stdio-enforcement.md — the home's own diagnostics already
+//! speak tagged EDN.
+//!
 //! # services — the universe-resident service layer (arc 214 Slice 8)
 //!
 //! The 214 DESIGN's Layer 2, minted at Stone 8.1w (builder directive: lift
@@ -52,9 +64,10 @@
 //! 4. **Test rigs are miniature TRUE universes**, never puppets: a rig that
 //!    hand-builds the client half without a live loop behind it is a client
 //!    of a service that does not exist — its first send blocks forever. The
-//!    canonical rig is `MiniUniverse` in
-//!    `tests/wat_arc170_slice_1f_alpha_helpers.rs` (pipe-backed fd I/O —
-//!    tier-2 in-memory I/O cannot cross into the loop thread).
+//!    reference rig is `MiniUniverse` in `tests/wat_arc170_slice_1f_alpha_helpers.rs`
+//!    — new service tests either reuse it or rebuild its true-universe shape
+//!    (live loop + fd-backed resource + real Register exchange); the doctrine's
+//!    enforcement is review-time (the brief-authoring checklist).
 //!
 //! ## Residents
 //!
@@ -62,9 +75,9 @@
 //! - stderr (Stone 8.1b) — same shape, fd 2.
 //! - stdin (Stone 8.2) — `ServiceMsg<String>` + `spawn_service_peer("stdin", ...)`.
 //!
-//! Ward note: the vigilatum cast lands when the trio completes in this home
-//! (one ward for the finished home, in-slice — the stamp covers stdout +
-//! stderr + stdin together).
+//! Ward note: the trio-completion vigilatum LANDED (see the stamp at the top
+//! of this file) — one ward for the finished home, covering stdout + stderr +
+//! stdin together. A touch to any resident re-opens the watch (re-cast on touch).
 
 pub mod peer;
 pub mod client;
@@ -72,12 +85,13 @@ pub mod verbs;
 
 // Flat pub-use re-exports so every existing public name is reachable at
 // crate::services::X (callers never need to know which sub-module holds what).
-pub use peer::{ServiceMsg, ServicePeer, spawn_service_peer};
+pub use peer::{ServiceMsg, ServicePeer, spawn_service_peer, ServiceReplySender, ServiceInputSender};
 pub use client::{
     ThreadId, ThreadIO, install_thread_io, uninstall_thread_io,
     next_thread_id, RuntimeServices,
     register_thread_with_services, deregister_thread_from_services,
-    AmbientStdio, install_ambient_stdio, uninstall_ambient_stdio, take_ambient_stdio,
+    AmbientStdio, install_ambient_stdio, take_ambient_stdio,
+    WriteAckRx, ReadReplyRx,
 };
 pub use verbs::{eval_kernel_println, eval_kernel_eprintln, eval_kernel_readln};
 

@@ -3,14 +3,12 @@
 //! Arc 170 slice 1f-α. The substrate ships three "thread-aware
 //! helpers" that look up the calling thread's per-service channel
 //! handles from a thread-local cell and run the mini-TCP block-on-
-//! completion lockstep. Slice 1f-α delivers the substrate side;
-//! slices 1f-β / γ / δ ship the wat-side service implementations,
-//! the runtime orchestrator that populates ThreadIO from
-//! `:wat::kernel::spawn-thread`, and the wat-cli boot integration.
+//! completion lockstep. Slices 1f-β/γ/δ shipped the wat-side service
+//! implementations, the runtime orchestrator that populates ThreadIO
+//! from `:wat::kernel::spawn-thread`, and the wat-cli boot integration.
 //!
-//! For slice 1f-α tests, the cell is populated by hand via
-//! [`install_thread_io`] / [`uninstall_thread_io`]; later slices
-//! call these from the spawn-thread / reap-thread orchestrator.
+//! The spawn-thread/reap orchestrator (runtime.rs) calls these in
+//! production; tests call them directly.
 //!
 //! The architecture is the wat-substrate analog of POSIX stdio:
 //! every thread reaches three services through per-thread crossbeam
@@ -24,18 +22,21 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
-use crate::services::ServiceMsg;
+use crate::services::{ServiceMsg, peer::ServiceInputSender};
 
 /// Monotonic thread identifier. Mirrors the wat-side
 /// `:wat::kernel::ThreadId` typealias-to-i64 settled in pass 18.
-/// Slice 1f-γ will populate these from a monotonic counter in the
-/// runtime orchestrator.
+/// Allocated by `next_thread_id`; the spawn orchestrator assigns one per thread.
 pub type ThreadId = i64;
 
+/// Receiver of write-acks from a write-service peer (stdout/stderr).
+pub type WriteAckRx = crate::comms::thread::Receiver<Result<(), String>>;
+/// Receiver of read-replies from the stdin peer (the line, or the error).
+pub type ReadReplyRx = crate::comms::thread::Receiver<Result<String, String>>;
+
 /// Per-thread channel handles used by `:wat::kernel::println` /
-/// `eprintln` / `readln`. Populated by `:wat::kernel::spawn-thread`
-/// (slice 1f-γ); for slice 1f-α, populated by tests via
-/// [`install_thread_io`].
+/// `eprintln` / `readln`. Populated by the spawn orchestrator via
+/// `register_thread_with_services`; tests populate via `install_thread_io`.
 ///
 /// All channel ends are owned (not Arc'd) — the thread that
 /// owns the ThreadIO IS the thread that uses these channels.
@@ -62,7 +63,7 @@ pub struct ThreadIO {
     /// Block here for the StdOutService's ack of "line emitted" routed
     /// back from the peer's reply registry. Populated by Register at
     /// thread registration; each println send+recv is the mini-TCP ack.
-    pub stdout_reply_rx: crate::comms::thread::Receiver<Result<(), String>>,
+    pub stdout_reply_rx: WriteAckRx,
     // ── stderr (Arc 214 Stone 8.1b — universe-resident write peer) ─────────
     //
     // Mirrors the stdout side exactly. The Req send goes via
@@ -71,7 +72,7 @@ pub struct ThreadIO {
     /// Block here for the StdErrService's ack of "line emitted" routed
     /// back from the peer's reply registry. Populated by Register at
     /// thread registration; each eprintln send+recv is the mini-TCP ack.
-    pub stderr_reply_rx: crate::comms::thread::Receiver<Result<(), String>>,
+    pub stderr_reply_rx: WriteAckRx,
     /// This thread's monotonic id — embedded in every Req so the service
     /// peers can route the Rep ack back to this thread's reply channels.
     /// Shared across stdout, stderr, and stdin services (one id per thread).
@@ -86,9 +87,12 @@ pub struct ThreadIO {
     /// thread registration; each readln send+recv is the mini-TCP round trip.
     /// Ok(line) = a line was read; Err(msg) = handle error (write-side failure);
     /// Recv Err = the loop disconnected (EOF cascade via assertion-failed!).
-    pub stdin_reply_rx: crate::comms::thread::Receiver<Result<String, String>>,
+    pub stdin_reply_rx: ReadReplyRx,
 }
 
+// rune:perspicere(intentional-structure) — RefCell<Option<T>> is the
+// canonical thread_local interior-mutability idiom; the structure shows the
+// reader exactly how borrow_mut/take interact.
 thread_local! {
     /// Per-thread routing populated by the runtime orchestrator
     /// (or, in tests, by [`install_thread_io`]). `None` means
@@ -100,10 +104,9 @@ thread_local! {
     static THREAD_IO: RefCell<Option<ThreadIO>> = const { RefCell::new(None) };
 }
 
-/// Install a [`ThreadIO`] into the calling thread's cell. Slice
-/// 1f-γ will call this from `:wat::kernel::spawn-thread`'s
-/// substrate primitive after registering the spawned thread with
-/// each service. Slice 1f-α tests call this directly to populate
+/// Install a [`ThreadIO`] into the calling thread's cell. The spawn
+/// orchestrator (runtime.rs) calls this after registering the spawned
+/// thread with each service. Tests call this directly to populate
 /// the per-test ThreadIO.
 pub fn install_thread_io(io: ThreadIO) {
     THREAD_IO.with(|cell| {
@@ -112,9 +115,9 @@ pub fn install_thread_io(io: ThreadIO) {
 }
 
 /// Drain the calling thread's [`ThreadIO`], returning ownership to
-/// the caller. Slice 1f-γ calls this when reaping a thread so the
-/// channel handles drop in the orchestrator's controlled context;
-/// slice 1f-α tests call this between tests to keep the
+/// the caller. The reap orchestrator (runtime.rs) calls this when
+/// reaping a thread so the channel handles drop in the orchestrator's
+/// controlled context; tests call this between tests to keep the
 /// thread-local clean (cargo's test-thread reuse otherwise leaks
 /// state across tests).
 pub fn uninstall_thread_io() -> Option<ThreadIO> {
@@ -124,21 +127,22 @@ pub fn uninstall_thread_io() -> Option<ThreadIO> {
 /// Internal accessor used by the three eval arms. Borrows the
 /// ThreadIO for the duration of `f` and surfaces a clean
 /// `ServiceNotRunning` diagnostic when the cell is empty.
-pub(crate) fn with_thread_io<F, T>(op: &'static str, f: F) -> Result<T, crate::runtime::RuntimeError>
+pub(crate) fn with_thread_io<F, T>(op: &'static str, span: &crate::span::Span, f: F) -> Result<T, crate::runtime::RuntimeError>
 where
     F: FnOnce(&ThreadIO) -> Result<T, crate::runtime::RuntimeError>,
 {
     use crate::runtime::{RuntimeError, RuntimeErrorKind};
-    use crate::span::Span;
     THREAD_IO.with(|cell| match &*cell.borrow() {
         Some(io) => f(io),
-        None => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ServiceNotRunning {
+        None => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::ServiceNotRunning {
             op: op.into()
         } }),
     })
 }
 
-/// Three-Sender carrier per BRIEF Q5 + Q-carrier.
+/// Holds the three universe-resident service peer input channels; accessed via
+/// `sym.runtime_services()` rather than ThreadIO so the peers' lifetimes tie
+/// to `Arc<RuntimeServices>`, not to every per-thread cell.
 ///
 /// Arc 214 Stone 5.1 — ControlTx senders are comms::thread::Sender<Value>
 /// (cascade-aware, depth-1) instead of bare crossbeam Senders.
@@ -154,17 +158,17 @@ pub struct RuntimeServices {
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_readln accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdin_ctrl: crate::comms::thread::Sender<ServiceMsg<String>>,
+    pub stdin_ctrl: ServiceInputSender<String>,
     /// Arc 214 Stone 8.1 — the universe-resident StdOutService write peer's
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_println accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdout_ctrl: crate::comms::thread::Sender<ServiceMsg<()>>,
+    pub stdout_ctrl: ServiceInputSender<()>,
     /// Arc 214 Stone 8.1b — the universe-resident StdErrService write peer's
     /// input channel. Register/Deregister/Req flow through it.
     /// NOT cloned into ThreadIO — eval_kernel_eprintln accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stderr_ctrl: crate::comms::thread::Sender<ServiceMsg<()>>,
+    pub stderr_ctrl: ServiceInputSender<()>,
 }
 
 impl std::fmt::Debug for RuntimeServices {
@@ -177,17 +181,23 @@ impl std::fmt::Debug for RuntimeServices {
     }
 }
 
-/// Monotonic thread-id allocator. Starts at `1` so `0` is reserved as
-/// a "no thread" sentinel for future use. Each `invoke_user_main` is
-/// process-scoped; the counter survives across invocations, which is
-/// fine — ids only need to be unique within a single orchestrator's
-/// routing tables, and the wat-side services are torn down between
-/// invocations.
+/// Monotonic thread-id allocator. Starts at `1`; 0 is never allocated
+/// (the counter starts at 1); no current consumer reads 0 as a sentinel.
+/// Each `invoke_user_main` is process-scoped; the counter survives across
+/// invocations, which is fine — ids only need to be unique within a single
+/// orchestrator's routing tables, and the wat-side services are torn down
+/// between invocations.
+// rune:sequi(performance-counter) — uniqueness-only id allocator; no domain
+// state crosses threads through the counter (the allocated tid travels
+// VISIBLY in Register/Req messages); threading an AtomicI64 through every
+// spawn-site signature trades real legibility for monadic purity. Documented
+// bound: ZERO-MUTEX.md § honest caveats (hot atomic counters).
 static NEXT_THREAD_ID: AtomicI64 = AtomicI64::new(1);
 
 /// Allocate a fresh monotonic [`ThreadId`]. Atomic, lock-free.
 pub fn next_thread_id() -> ThreadId {
-    NEXT_THREAD_ID.fetch_add(1, Ordering::SeqCst)
+    // Relaxed: uniqueness-only; no happens-before ordering required.
+    NEXT_THREAD_ID.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Allocate per-thread service channels; register with all three
@@ -205,20 +215,20 @@ pub fn next_thread_id() -> ThreadId {
 pub fn register_thread_with_services(
     thread_id: ThreadId,
     services: &RuntimeServices,
+    caller_span: &crate::span::Span,
 ) -> Result<ThreadIO, crate::runtime::RuntimeError> {
     use crate::runtime::{RuntimeError, RuntimeErrorKind};
-    use crate::span::Span;
     const OP_ADD: &str = "register_thread_with_services";
 
     // ─── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ──────
     //
     // Mirrors the write pair: allocate a per-thread reply pair,
     // send Register(tid, reply_tx) on the stdin peer's input channel.
-    let (stdin_reply_tx, stdin_reply_rx) = crate::comms::thread::pair::<Result<String, String>>();
+    let (stdin_reply_tx, stdin_reply_rx): (_, ReadReplyRx) = crate::comms::thread::pair();
     services
         .stdin_ctrl
         .send(ServiceMsg::Register(thread_id, stdin_reply_tx))
-        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
 
@@ -230,22 +240,22 @@ pub fn register_thread_with_services(
     //
     // Registration: send Register(tid, reply_tx) on the service input so
     // the peer loop inserts the reply_tx into its HashMap keyed by tid.
-    let (stdout_reply_tx, stdout_reply_rx) = crate::comms::thread::pair::<Result<(), String>>();
+    let (stdout_reply_tx, stdout_reply_rx): (_, WriteAckRx) = crate::comms::thread::pair();
     services
         .stdout_ctrl
         .send(ServiceMsg::Register(thread_id, stdout_reply_tx))
-        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
 
     // ─── stderr (Arc 214 Stone 8.1b — universe-resident write peer) ───
     //
     // Mirrors the stdout side exactly. No bridge thread.
-    let (stderr_reply_tx, stderr_reply_rx) = crate::comms::thread::pair::<Result<(), String>>();
+    let (stderr_reply_tx, stderr_reply_rx): (_, WriteAckRx) = crate::comms::thread::pair();
     services
         .stderr_ctrl
         .send(ServiceMsg::Register(thread_id, stderr_reply_tx))
-        .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
             op: OP_ADD.into()
         } })?;
 
@@ -310,6 +320,9 @@ pub struct AmbientStdio {
     pub stderr: Arc<dyn crate::io::WatWriter>,
 }
 
+// rune:perspicere(intentional-structure) — RefCell<Option<T>> is the
+// canonical thread_local interior-mutability idiom; the structure shows the
+// reader exactly how borrow_mut/take interact.
 thread_local! {
     static AMBIENT_STDIO: RefCell<Option<AmbientStdio>> = const { RefCell::new(None) };
 }
@@ -325,17 +338,12 @@ pub fn install_ambient_stdio(stdio: AmbientStdio) {
     });
 }
 
-/// Drain the calling thread's ambient stdio. Tests call this between
-/// rows to keep cargo's worker-thread reuse from leaking handles
-/// across rows.
-pub fn uninstall_ambient_stdio() -> Option<AmbientStdio> {
-    AMBIENT_STDIO.with(|cell| cell.borrow_mut().take())
-}
-
 /// Take the calling thread's ambient stdio (consuming it) or return
 /// `None` if no test has installed one. Called by the orchestrator
 /// once per invoke_user_main; the orchestrator falls through to real
-/// fd 0/1/2 wrappers when this returns `None`.
+/// fd 0/1/2 wrappers when this returns `None`. Tests call this between
+/// rows to keep cargo's worker-thread reuse from leaking handles
+/// across rows.
 pub fn take_ambient_stdio() -> Option<AmbientStdio> {
-    uninstall_ambient_stdio()
+    AMBIENT_STDIO.with(|cell| cell.borrow_mut().take())
 }

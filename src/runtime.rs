@@ -19187,7 +19187,7 @@ fn eval_kernel_spawn_thread(
         match sym.runtime_services() {
             Some(services) => {
                 let tid = crate::services::next_thread_id();
-                let io = crate::services::register_thread_with_services(tid, services)?;
+                let io = crate::services::register_thread_with_services(tid, services, list_span)?;
                 Some((tid, io))
             }
             None => None,

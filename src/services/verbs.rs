@@ -7,27 +7,21 @@
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
-use crate::services::{ServiceMsg, with_thread_io};
+use crate::edn_shim::require_one_arg;
+use crate::runtime::{Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
+use crate::services::{ServiceMsg, ThreadId, with_thread_io};
 use crate::span::Span;
 
-/// Shared one-arg helper — mirrors `edn_shim::require_one_arg`'s
-/// shape. Inlined here to avoid leaking that helper across modules.
-fn require_one_arg(
-    op: &str,
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: op.into(),
-            expected: 1,
-            got: args.len()
-        } });
-    }
-    eval(&args[0], env, sym).map(|tv| tv.value_owned())
+/// Build a write-service Req {thread-id, line} — THE positional contract
+/// the peer's field[0] extraction and the wat defstructs share.
+fn build_write_req(type_name: &str, thread_id: ThreadId, line: String) -> Value {
+    Value::Struct(Arc::new(StructValue {
+        type_name: type_name.into(),
+        fields: vec![
+            Value::i64(thread_id),
+            Value::String(Arc::new(line)),
+        ],
+    }))
 }
 
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v`
@@ -57,33 +51,26 @@ pub fn eval_kernel_println(
     // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
     // so no clone of the sender lives in the ThreadIO struct.
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
-        span: Span::unknown(),
+        span: list_span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
     })?;
-    with_thread_io(OP, |io| {
-        // Build StdOutService::Req {thread-id, line} as a Value::Struct.
-        let req = Value::Struct(Arc::new(crate::runtime::StructValue {
-            type_name: ":wat::kernel::services::StdOutService::Req".into(),
-            fields: vec![
-                Value::i64(io.thread_id),
-                Value::String(Arc::new(line.clone())),
-            ],
-        }));
+    with_thread_io(OP, list_span, |io| {
+        let req = build_write_req(":wat::kernel::services::StdOutService::Req", io.thread_id, line);
         services
             .stdout_ctrl
             .send(ServiceMsg::Req(req))
-            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
         match io.stdout_reply_rx.recv() {
             Ok(Ok(())) => Ok(Value::Unit),
             // The service processed the Req but the write FAILED — surface it
             // (uniform with src/io.rs's IOWriter write-failure convention).
-            Ok(Err(msg)) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("stdout write failed: {}", msg),
             } }),
-            Err(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } }),
         }
@@ -118,33 +105,26 @@ pub fn eval_kernel_eprintln(
     // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
     // so no clone of the sender lives in the ThreadIO struct.
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
-        span: Span::unknown(),
+        span: list_span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
     })?;
-    with_thread_io(OP, |io| {
-        // Build StdErrService::Req {thread-id, line} as a Value::Struct.
-        let req = Value::Struct(Arc::new(crate::runtime::StructValue {
-            type_name: ":wat::kernel::services::StdErrService::Req".into(),
-            fields: vec![
-                Value::i64(io.thread_id),
-                Value::String(Arc::new(line.clone())),
-            ],
-        }));
+    with_thread_io(OP, list_span, |io| {
+        let req = build_write_req(":wat::kernel::services::StdErrService::Req", io.thread_id, line);
         services
             .stderr_ctrl
             .send(ServiceMsg::Req(req))
-            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
         match io.stderr_reply_rx.recv() {
             Ok(Ok(())) => Ok(Value::Unit),
             // The service processed the Req but the write FAILED — surface it
             // (uniform with src/io.rs's IOWriter write-failure convention).
-            Ok(Err(msg)) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("stderr write failed: {}", msg),
             } }),
-            Err(_) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } }),
         }
@@ -233,12 +213,12 @@ pub fn eval_kernel_readln(
     // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
     // so no clone of the sender lives in the ThreadIO struct.
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
-        span: Span::unknown(),
+        span: list_span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
     })?;
-    with_thread_io(OP, |io| {
+    with_thread_io(OP, list_span, |io| {
         // Build StdInService::Req {thread-id} as a Value::Struct.
-        let req = Value::Struct(Arc::new(crate::runtime::StructValue {
+        let req = Value::Struct(Arc::new(StructValue {
             type_name: ":wat::kernel::services::StdInService::Req".into(),
             fields: vec![
                 Value::i64(io.thread_id),
@@ -247,7 +227,7 @@ pub fn eval_kernel_readln(
         services
             .stdin_ctrl
             .send(ServiceMsg::Req(req))
-            .map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+            .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
         // Block on the reply. Ok(Ok(line)) = line read successfully.
@@ -259,23 +239,23 @@ pub fn eval_kernel_readln(
         let line = match io.stdin_reply_rx.recv() {
             Ok(Ok(line)) => line,
             Ok(Err(msg)) => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!("stdin read failed: {}", msg),
                 } });
             }
             Err(_) => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ChannelDisconnected {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                     op: OP.into()
                 } });
             }
         };
-        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("EDN parse error reading stdin line {:?}: {}", line, e)
         } })?;
         crate::edn_shim::edn_to_typed_value(&target_ty, &edn, sym).map_err(|e| {
-            RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EdnCoerceMismatch {
+            RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EdnCoerceMismatch {
                 op: OP.into(),
                 expected: e.expected,
                 got: e.got,

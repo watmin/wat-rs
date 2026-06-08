@@ -22,6 +22,7 @@
 ;; this typealias and every gate stayed green — the checker is LENIENT on
 ;; undeclared field-type keywords; see the #[ignore]'d
 ;; probe_diag_typealias_leniency nursery probe, banked for arc 255.)
+;; rune:exigere(attested-arc) — arc 255 (docs/arc/2026/06/255-builtin-registry/DESIGN.md); the leniency probe un-ignores when 255 makes undeclared type keywords check errors
 
 (:wat::core::typealias :wat::kernel::ThreadId
   :wat::core::i64)

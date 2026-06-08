@@ -31,7 +31,7 @@ use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
-use wat::services::{install_ambient_stdio, uninstall_ambient_stdio, AmbientStdio};
+use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 // ─── helpers ───────────────────────────────────────────────────────
 
@@ -97,13 +97,13 @@ where
     let stdio = rig.ambient.take().expect("rig.ambient consumed twice");
     install_ambient_stdio(stdio);
     let result = body();
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
     result
 }
 
 /// Drain any leftover ambient stdio before the row's body runs.
 fn fresh_thread() {
-    let _ = uninstall_ambient_stdio();
+    let _ = take_ambient_stdio();
 }
 
 /// Freeze a wat source as a `FrozenWorld`, running through the
