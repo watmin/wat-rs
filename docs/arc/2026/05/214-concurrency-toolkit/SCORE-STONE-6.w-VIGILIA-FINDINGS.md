@@ -239,6 +239,48 @@ verifiable (examinare: small strikes, weigh each):
   AFTER Strike 1 lands green (Strike 1's spine restructures handle.rs that kernel/ depends
   on at the type level; sequence it first to avoid a moving floor under Strike 2).
 
+## PROCESS/ RE-CAST #1 (post-Strike-1; the "consistently zero" loop — NOT yet zero → Strike 1b)
+Full inward vigilia re-cast over process/ via workflow (each agent fetched its signed spell).
+3 wards clean (temperare/secare/sequi). circumspicere HUNG mid-perimeter (killed; re-run
+standalone next round — it's the odd one out, must not block the barrier). Inward findings =
+the Strike 1b worklist (Strike 1 left residue — the loop caught it):
+- **solvere L2 (verbs.rs:415-469 ≡ 875-924):** Strike 1's dedup merged the two FORMS callers
+  into run_forked_child but left child_branch_from_source's BYTE-IDENTICAL exit-protocol tail
+  (validate→run-main→outcome→EXIT_*-map→envelope) un-extracted. FIX = extract
+  `fn finish_forked_child(world) -> !`; both callers keep only their world-builder + tail-call it.
+  (+ L3: emit_structured_exit/emit_panics_to_stderr share the ProcessPanics envelope encode →
+  extract `emit_chain_envelope`.)
+- **struere L2 (verbs.rs:1298):** `.spawn(...).expect("Thread::Builder::spawn failed")` PANICS on
+  EAGAIN/RLIMIT_NPROC while the OS-process siblings map_err to a clean RuntimeError. FIX =
+  return `Ok(startup_error_result("thread spawn failed: {e}"))` (match the freeze-fail path :1141).
+- **excusare L2 (verbs.rs:821) — STRUCK ILLEGITIMATE-AT-BIRTH:** the `rune:purgare(arc-031-
+  incomplete)` on inherit_config cites CLOSED arc-031; the awaited `startup_from_source_with_inherit`
+  doesn't exist; no open successor → deferral-to-nowhere silencing a live unused-binding finding.
+  FIX = re-point at a named OPEN arc that adds the freeze primitive (structurally-right owner =
+  freeze.rs) OR RIP the inherit_config param + its plumbing (the honest YAGNI cut). DECIDE in sweep.
+- **conformare L2 (verbs.rs:702):** eval_kernel_fork_program ScopedLoader error uses
+  Span::unknown() while args[1].span() is available (the sibling at :719 patches list_span). The
+  arc-138 "no WatAST trace" comment is FALSE. FIX = args[1].span().clone() + delete the wrong comment.
+- **exigere L2 (verbs.rs:363):** "deferred per DESIGN" — unverifiable tracker (work is arc 012's
+  Scope-through-fork slice). FIX = rune:exigere(attested-arc) naming arc 012, or scope-affirmative.
+- **exigere L2 (verbs.rs:818-820):** "not yet exposed / until that primitive exists" inherit_config
+  deferral — pairs with the excusare strike above; resolve together.
+  (+ L3 clone.rs:296-299 scope-defense "would require touching spawn_process.rs (scope violation)"
+  → present-tense rationale.)
+- **intueri L2 — STALE BREADCRUMBS from the merge:** comments point at DELETED files/symbols —
+  verbs.rs:350 "line 1116"→806; verbs.rs:954 "src/fork.rs:574"→verbs.rs (eval_kernel_fork_program_ast);
+  clone.rs:307 "fork.rs:1447"→clone.rs:191; child.rs:206 "fork.rs send_signal"→clone.rs::send_signal;
+  clone.rs:238/73 reference removed extract_exit_code; clone.rs:297/verbs.rs:247,626/stdio.rs:15 cite
+  deleted spawn_process.rs. FIX = re-point to live locations (prefer fn-names over line numbers — drift-proof).
+- **purgare L3 ×2 (clone.rs:129 poll_exit, :167 try_wait):** STOP-3 keep is LEGITIMATE but UNMARKED
+  → add `// rune:purgare(safety-margin) — completes the pidfd primitive surface; no current caller`
+  to each, OR delete. (excusare HELD the perspicere read-once runes on them; the deadness is purgare's.)
+- **perspicere L3 ×3 (runtime.rs:195/216/233):** SHUTDOWN_RX_PTR/shutdown_rx()/SHUTDOWN_TX_PTR carry
+  AtomicPtr<Receiver<()>> (2-level) → mint `type ShutdownRx/ShutdownTx` (reuse ×3) OR rune
+  intentional-structure (Receiver<()> is self-naming). Human/sweep judgment.
+- **excusare HELD (good):** the run_forked_child + child_branch_from_source too_many_arguments allows
+  (domain-truth, RAII per-fd Drop) and the perspicere read-once runes — all HOLD.
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
