@@ -380,7 +380,7 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
         }
     };
 
-    let child_pid = handles.child_handle.pidfd.pid();
+    let child_pid = handles.child_handle.child_pid();
 
     // Publish the child's process-group ID for signal-handler cascade
     // (arc 104d → arc 106). The substrate's `child_branch_from_source`
@@ -406,12 +406,9 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     // (arc 012 slice 2c) — Drop won't double-reap.
     let exit_code = wait_child(child_pid);
 
-    // Mark reaped so ChildHandleInner::Drop doesn't try to kill
-    // + waitpid the already-collected pid.
-    handles
-        .child_handle
-        .reaped
-        .store(true, Ordering::SeqCst);
+    // Mark reaped so ChildHandle::Drop doesn't try to kill
+    // + wait the already-collected pid.
+    handles.child_handle.mark_reaped();
 
     // Clear the published child PGID so any late signal arriving
     // between waitpid and exit doesn't get killpg'd to a group that's

@@ -120,6 +120,9 @@ fn emit_panics_to_stderr(
 /// - `Err(panic_payload)` → AssertionPayload chain or plain-string Panic → EXIT_PANIC
 fn finish_forked_child(
     world: &crate::freeze::FrozenWorld,
+    // rune:perspicere(intentional-structure) — outer = catch_unwind panic boundary,
+    // inner = eval Result; finish_forked_child matches both arms; a type alias
+    // would hide the structure the match needs to see.
     outcome: std::thread::Result<Result<Value, RuntimeError>>,
 ) -> ! {
     match outcome {
@@ -211,32 +214,7 @@ pub fn eval_kernel_fork_program_ast(
 
     // Evaluate the forms argument — same unwrap pattern as
     // run-sandboxed-ast.
-    let forms = match eval(&args[0], env, sym)?.value_owned() {
-        Value::Vec(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for item in items.iter() {
-                match item {
-                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
-                    other => {
-                        // Vec element iteration over Values — per-element WatAST span unavailable; list_span is the best available location
-                        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "wat::WatAST",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                        } });
-                    }
-                }
-            }
-            out
-        }
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<wat::WatAST>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
+    let forms = expect_vec_ast(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
 
     // Snapshot caller's Config before fork so the child can inherit
     // it through COW (arc 031). None when sym has no encoding context
@@ -244,9 +222,9 @@ pub fn eval_kernel_fork_program_ast(
     let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
     // Three pipes for stdin/stdout/stderr.
-    let (stdin_r, stdin_w) = make_pipe(OP)?;
-    let (stdout_r, stdout_w) = make_pipe(OP)?;
-    let (stderr_r, stderr_w) = make_pipe(OP)?;
+    let (stdin_r, stdin_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
+    let (stdout_r, stdout_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
+    let (stderr_r, stderr_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
 
     // RAII: parent holds all six OwnedFds. Pass raw i32 COPIES (as_raw_fd —
     // borrows, does not surrender ownership) into the clone3 closure so the
@@ -357,23 +335,133 @@ pub fn eval_kernel_fork_program_ast(
     })))
 }
 
-/// The child's post-fork pipeline. Never returns — exits via
-/// `libc::_exit` with one of the `EXIT_*` codes. Takes ownership of
-/// all six OwnedFds so Rust's Drop semantics close the child's
-/// copies cleanly after dup2.
+// ─── Post-fork shared prologue + epilogue ────────────────────────────────────
+
+/// Drop parent-side pipe ends, dup2 child-side pipes onto fd 0/1/2, run
+/// `child_post_fork_init`, and build the wat-level stdio Arcs. Called
+/// by BOTH `run_forked_child` (forms) and `child_branch_from_source` (source).
+///
+/// Exits via `libc::_exit(EXIT_STARTUP_ERROR)` if any dup2 fails; emits a
+/// minimal raw write to fd 2 before exiting so the parent sees a diagnostic
+/// rather than a silent empty stderr (CIRC-F2 — makes child.rs:292
+/// "all failures emit structured" true by construction). fd 2 is still the
+/// parent's stderr pipe at that point (dup2 has not yet succeeded for fd 2),
+/// so the write reaches the parent.
+///
+/// Returns `(stdin_reader, stdout_writer, stderr_writer)` on success.
+/// Registers the lifeline read-fd with the shutdown worker and transfers
+/// ownership via `mem::forget(lifeline_r)`.
+#[allow(clippy::too_many_arguments)]
+fn redirect_stdio_and_init(
+    stdin_r_raw: i32,
+    stdout_w_raw: i32,
+    stderr_w_raw: i32,
+    lifeline_r_raw: i32,
+    stdin_pair: (OwnedFd, OwnedFd),
+    stdout_pair: (OwnedFd, OwnedFd),
+    stderr_pair: (OwnedFd, OwnedFd),
+    lifeline_r: OwnedFd,
+) -> (Arc<dyn WatReader>, Arc<dyn WatWriter>, Arc<dyn WatWriter>) {
+    // Drop parent-side pipe ends (close our inherited copies).
+    drop(stdin_pair.1); // parent writes
+    drop(stdout_pair.0); // parent reads
+    drop(stderr_pair.0); // parent reads
+
+    // Redirect stdio onto the child-side pipes. fd 2 is still the parent's
+    // stderr pipe here; the write(2,...) calls below can reach the parent.
+    unsafe {
+        if libc::dup2(stdin_r_raw, 0) < 0 {
+            let msg = b"substrate: dup2 failed during child stdio setup (stdin)\n";
+            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+        if libc::dup2(stdout_w_raw, 1) < 0 {
+            let msg = b"substrate: dup2 failed during child stdio setup (stdout)\n";
+            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+        if libc::dup2(stderr_w_raw, 2) < 0 {
+            // fd 2 is now the process pipe; this write goes there.
+            let msg = b"substrate: dup2 failed during child stdio setup (stderr)\n";
+            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+    }
+    // Drop the originals — dup2 made copies at 0/1/2.
+    drop(stdin_pair.0);
+    drop(stdout_pair.1);
+    drop(stderr_pair.1);
+
+    // Arc 213 γ-1 — canonical Phase 3 post-fork init (shared between all
+    // child branches). Must run AFTER dup2 (fd 2 is now the subprocess
+    // stderr pipe) and AFTER dropping parent-side pipe ends.
+    //   (1) install_silent_panic_hook — fd 2 now subprocess stderr, safe
+    //   (2) setpgid(0, 0) — child becomes own pgrp leader
+    //   (3) close_inherited_fds_above_stdio(&[lifeline_r_raw]) — skip lifeline
+    //   (4) init_shutdown_signal_with_inputs — registers lifeline read-end
+    //   (5) install signal handlers — SIGTERM/SIGINT route through wake-pipe
+    child_post_fork_init(lifeline_r_raw);
+
+    // Transfer FD ownership to the shutdown worker thread — the substrate
+    // now owns the lifeline read-fd. Dropping OwnedFd here would close the
+    // FD and the worker would immediately POLLHUP (false-positive shutdown).
+    std::mem::forget(lifeline_r);
+
+    // Build wat-level stdio over fd 0/1/2.
+    let stdin_reader: Arc<dyn WatReader> =
+        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
+    let stdout_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
+    let stderr_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
+    (stdin_reader, stdout_writer, stderr_writer)
+}
+
+/// Run `:user::main` inside a `catch_unwind` and call `finish_forked_child`.
+/// Shared epilogue for all child branches. Holds the stdio keepalives alive
+/// across the catch_unwind (OwnedFd-keepalive discipline, arc 113 slice 3 /
+/// arc 170 slice 1e). Never returns — delegates to `finish_forked_child` which
+/// calls `libc::_exit`.
+fn run_user_main_in_child(
+    world: &FrozenWorld,
+    stdin_reader: Arc<dyn WatReader>,
+    stdout_writer: Arc<dyn WatWriter>,
+    stderr_writer: Arc<dyn WatWriter>,
+) -> ! {
+    // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive past
+    // the catch_unwind closure (Arc 170 slice 1e dropped the main_args
+    // plumbing but the OwnedFd-keepalive concern survives — the writer
+    // Arc is still held in this scope and its OwnedFd over fd 2 must
+    // outlive any post-catch writes).
+    let stderr_keepalive = Arc::clone(&stderr_writer);
+    let _ = &stdin_reader;  // OwnedFd keepalive — slice 1f services own this
+    let _ = &stdout_writer; // OwnedFd keepalive — slice 1f services own this
+
+    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
+    // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is ambient.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        invoke_user_main(world, Vec::new())
+    }));
+    let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
+    finish_forked_child(world, outcome)
+}
+
+/// Shared post-fork kernel for forms-based child branches (arc 214 Stone 6.w
+/// dedup). Used by `eval_kernel_fork_program_ast` and `eval_kernel_spawn_process`.
+/// `child_branch_from_source` is the source-string sibling (distinct world
+/// builder; shares the same fd/RAII discipline).
+///
+/// Never returns — exits via `libc::_exit` with one of the `EXIT_*` codes.
+/// Takes ownership of all six OwnedFds so Rust's Drop semantics close the
+/// child's copies cleanly after dup2.
 ///
 /// Ten parameters is the honest shape: six fds (three raw for
 /// dup2, three OwnedFd pairs whose Drop closes the parent-side
 /// ends the child inherited), plus the forms to evaluate, the
 /// optionally-inherited config, the lifeline raw fd (Arc 213 γ-1),
 /// and the lifeline OwnedFd wrapper (transferred to the shutdown
-/// worker via mem::forget after child_post_fork_init). Called from
-/// exactly one site.
+/// worker via mem::forget after child_post_fork_init).
 #[allow(clippy::too_many_arguments)]
-/// Shared post-fork kernel for forms-based child branches (arc 214 Stone 6.w
-/// dedup). Used by `eval_kernel_fork_program_ast` and `eval_kernel_spawn_process`.
-/// `child_branch_from_source` is the source-string sibling (distinct world
-/// builder; shares the same fd/RAII discipline).
 fn run_forked_child(
     forms: Vec<WatAST>,
     inherit_config: Option<Config>,
@@ -386,53 +474,12 @@ fn run_forked_child(
     stderr_pair: (OwnedFd, OwnedFd),
     lifeline_r: OwnedFd,
 ) -> ! {
-    // Drop parent-side pipe ends (close our inherited copies).
-    drop(stdin_pair.1); // parent writes
-    drop(stdout_pair.0); // parent reads
-    drop(stderr_pair.0); // parent reads
-
-    // Redirect stdio onto the child-side pipes.
-    unsafe {
-        if libc::dup2(stdin_r_raw, 0) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stdout_w_raw, 1) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stderr_w_raw, 2) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-    }
-    // Drop the originals — dup2 made copies at 0/1/2.
-    drop(stdin_pair.0);
-    drop(stdout_pair.1);
-    drop(stderr_pair.1);
-
-    // Arc 213 γ-1 — canonical Phase 3 post-fork init (shared with
-    // child_branch_from_source). Must run AFTER dup2 (fd 2 is now
-    // the subprocess stderr pipe) and AFTER dropping parent-side pipe ends.
-    // Replaces the old separate install_silent_panic_hook() +
-    // close_inherited_fds_above_stdio(&[]) calls:
-    //   (1) install_silent_panic_hook — fd 2 now subprocess stderr, safe
-    //   (2) setpgid(0, 0) — child becomes own pgrp leader
-    //   (3) close_inherited_fds_above_stdio(&[lifeline_r_raw]) — skip lifeline
-    //   (4) init_shutdown_signal_with_inputs — registers lifeline read-end
-    //   (5) install signal handlers — SIGTERM/SIGINT route through wake-pipe
-    child_post_fork_init(lifeline_r_raw);
-
-    // Transfer FD ownership to the shutdown worker thread — the substrate
-    // now owns the lifeline read-fd. Dropping OwnedFd here would close the
-    // FD and the worker would immediately POLLHUP (false-positive shutdown).
-    // Mirror of child_branch_from_source::mem::forget(lifeline_r).
-    std::mem::forget(lifeline_r);
-
-    // Build wat-level stdio over fd 0/1/2.
-    let stdin_reader: Arc<dyn WatReader> =
-        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
-    let stdout_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
-    let stderr_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
+    // Shared prologue: drop parent-side ends, dup2, child_post_fork_init,
+    // mem::forget(lifeline_r), build stdio Arcs.
+    let (stdin_reader, stdout_writer, stderr_writer) = redirect_stdio_and_init(
+        stdin_r_raw, stdout_w_raw, stderr_w_raw, lifeline_r_raw,
+        stdin_pair, stdout_pair, stderr_pair, lifeline_r,
+    );
 
     // Fresh world from the inherited AST. InMemoryLoader (no disk)
     // matches the `scope :None` behavior today's hermetic provides.
@@ -469,26 +516,8 @@ fn run_forked_child(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
-    // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive past
-    // the catch_unwind closure (Arc 170 slice 1e dropped the main_args
-    // plumbing but the OwnedFd-keepalive concern survives — the writer
-    // Arc is still held in this scope and its OwnedFd over fd 2 must
-    // outlive any post-catch writes).
-    let stderr_keepalive = Arc::clone(&stderr_writer);
-    let _ = &stdin_reader; // OwnedFd keepalive — slice 1f services own this
-    let _ = &stdout_writer; // OwnedFd keepalive — slice 1f services own this
-
-    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
-    // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
-    // ambient (already populated by wat-cli pre-fork; COW-inherited
-    // by the child). Slice 1f's three substrate services will own
-    // fd 0/1/2 directly; the byte-pipe stdio handles built above
-    // remain as keepalives until that slice lands.
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        invoke_user_main(&world, Vec::new())
-    }));
-    let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
-    finish_forked_child(&world, outcome);
+    // Shared epilogue: catch_unwind + finish_forked_child.
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
 }
 
 // ─── Source-string entry — `:wat::kernel::fork-program` (arc 104b) ──────
@@ -792,45 +821,12 @@ fn child_branch_from_source(
     stderr_pair: (OwnedFd, OwnedFd),
     lifeline_r: OwnedFd,
 ) -> ! {
-    // Drop parent-side pipe ends.
-    drop(stdin_pair.1);
-    drop(stdout_pair.0);
-    drop(stderr_pair.0);
-
-    // Redirect stdio onto child-side pipes via dup2.
-    unsafe {
-        if libc::dup2(stdin_r_raw, 0) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stdout_w_raw, 1) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-        if libc::dup2(stderr_w_raw, 2) < 0 {
-            libc::_exit(EXIT_STARTUP_ERROR);
-        }
-    }
-    drop(stdin_pair.0);
-    drop(stdout_pair.1);
-    drop(stderr_pair.1);
-
-    // Arc 170 FD-multiplex Phase 3 — canonical 5-step post-fork init:
-    // (1) silent panic hook, (2) setpgid, (3) close inherited fds,
-    // (4) init_shutdown_signal_with_inputs, (5) install signal handlers.
-    // All steps run in order; forgetting one is structurally impossible.
-    child_post_fork_init(lifeline_r_raw);
-
-    // Transfer FD ownership to the worker thread — the substrate now owns
-    // the lifeline read-fd. Dropping OwnedFd here would close the FD and
-    // the worker would immediately POLLHUP (false-positive shutdown).
-    std::mem::forget(lifeline_r);
-
-    // Build wat-level stdio over fd 0/1/2.
-    let stdin_reader: Arc<dyn WatReader> =
-        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
-    let stdout_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
-    let stderr_writer: Arc<dyn WatWriter> =
-        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
+    // Shared prologue: drop parent-side ends, dup2, child_post_fork_init,
+    // mem::forget(lifeline_r), build stdio Arcs.
+    let (stdin_reader, stdout_writer, stderr_writer) = redirect_stdio_and_init(
+        stdin_r_raw, stdout_w_raw, stderr_w_raw, lifeline_r_raw,
+        stdin_pair, stdout_pair, stderr_pair, lifeline_r,
+    );
 
     // Parse + freeze source. Config inheritance for the source path is a YAGNI
     // cut — startup_from_source_with_inherit doesn't exist in freeze.rs. When
@@ -856,14 +852,6 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
-    // Arc 113 slice 3 — see child_branch's matching keepalive for the
-    // full rationale (Arc 170 slice 1e dropped the main_args plumbing;
-    // OwnedFd-keepalive concern survives — the writer Arc must outlive
-    // any post-catch writes against fd 2).
-    let stderr_keepalive = Arc::clone(&stderr_writer);
-    let _ = &stdin_reader; // OwnedFd keepalive — slice 1f services own this
-    let _ = &stdout_writer; // OwnedFd keepalive — slice 1f services own this
-
     // Arc 170 slice 1e (REALIZATIONS pass 7) — argv is ambient. wat-cli
     // populated `runtime::ARGV` BEFORE forking; the child inherits the
     // OnceLock value via fork's COW snapshot and reads it via
@@ -877,16 +865,8 @@ fn child_branch_from_source(
     // common path).
     crate::runtime::set_argv(argv);
 
-    // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
-    // (REALIZATIONS pass 10). No stdio Values; nil-return maps to
-    // libc::exit(0). Slice 1f's three substrate services will own
-    // fd 0/1/2 directly; the byte-pipe stdio handles built above
-    // remain as keepalives until that slice lands.
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        invoke_user_main(&world, Vec::new())
-    }));
-    let _ = &stderr_keepalive;
-    finish_forked_child(&world, outcome);
+    // Shared epilogue: catch_unwind + finish_forked_child.
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
 }
 
 // ─── spawn-process (from spawn_process.rs) ───────────────────────────────────
@@ -919,31 +899,7 @@ pub fn eval_kernel_spawn_process(
     // `:wat::kernel::fork-program-ast` (see eval_kernel_fork_program_ast in this file). Macros
     // construct the program shape internally; user-facing surface
     // remains body-only.
-    let forms = match eval(&args[0], env, sym)?.value_owned() {
-        Value::Vec(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for item in items.iter() {
-                match item {
-                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
-                    other => {
-                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "wat::WatAST",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(other))
-                        } });
-                    }
-                }
-            }
-            out
-        }
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<wat::WatAST>",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            } });
-        }
-    };
+    let forms = expect_vec_ast(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
 
     // Snapshot caller's Config before fork so the child can inherit it
     // through COW (arc 031 discipline). None when sym has no encoding
@@ -956,9 +912,9 @@ pub fn eval_kernel_spawn_process(
 
     // Three pipes — stdin (parent→child), stdout (child→parent),
     // stderr (child→parent). The IPC contract mirrors `wat some-file.wat`.
-    let (stdin_r, stdin_w) = make_pipe(":wat::kernel::spawn-process")?;
-    let (stdout_r, stdout_w) = make_pipe(":wat::kernel::spawn-process")?;
-    let (stderr_r, stderr_w) = make_pipe(":wat::kernel::spawn-process")?;
+    let (stdin_r, stdin_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
+    let (stdout_r, stdout_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
+    let (stderr_r, stderr_w) = make_pipe(OP).map_err(|mut e| { e.span = list_span.clone(); e })?;
 
     // RAII: parent holds all six OwnedFds. Pass raw i32 COPIES (as_raw_fd —
     // borrows, does not surrender ownership) into the clone3 closure so the
@@ -1107,6 +1063,7 @@ pub fn eval_kernel_spawn_program(
     };
 
     spawn_with_world_into_result(OP, world)
+        .map_err(|mut e| { e.span = list_span.clone(); e })
 }
 
 /// `(:wat::kernel::spawn-program-ast forms scope)` →
@@ -1150,6 +1107,7 @@ pub fn eval_kernel_spawn_program_ast(
     world.symbols.outer_symbols = Some(Arc::new(sym.clone()));
 
     spawn_with_world_into_result(OP, world)
+        .map_err(|mut e| { e.span = list_span.clone(); e })
 }
 
 // No `spawn-program-hermetic-ast` substrate primitive. The hermetic

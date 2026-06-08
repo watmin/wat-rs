@@ -6,8 +6,12 @@
 //!
 //! ## OS-process tier (clone3 / pidfd / lifelines)
 //!
-//! Linux 5.3+ primitives (`clone3 + CLONE_PIDFD + CLONE_CLEAR_SIGHAND`) that
-//! create true forked OS processes with race-free process handles. Every
+//! Linux 5.3+ (`clone3 + CLONE_PIDFD + CLONE_CLEAR_SIGHAND`), 5.9+
+//! (`close_range` — fd hygiene sweep), deploy floor 6.x (per breadcrumbs).
+//! `close_range` is used opportunistically; 5.3-5.8 kernels ENOSYS-skip it
+//! (child.rs) and inherit all parent fds — the sweep invariant is not upheld on
+//! those kernels. Production use requires Linux 5.9+; the 6.x floor is
+//! recommended. These create true forked OS processes with race-free process handles. Every
 //! OS-process child runs its own frozen wat world, redirects stdio onto kernel
 //! pipes, and communicates with its parent exclusively through those pipes.
 //! Parent holds a `Pidfd` (the canonical process handle, PID-reuse-safe) and

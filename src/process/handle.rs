@@ -32,8 +32,8 @@ use super::clone::{exit_status_to_i64, Pidfd};
 /// the cascade / killpg interop callers (see `Pidfd::pid()` doc).
 #[derive(Debug)]
 pub struct ChildHandle {
-    pub reaped: AtomicBool,
-    pub cached_exit: OnceLock<i64>,
+    reaped: AtomicBool,
+    cached_exit: OnceLock<i64>,
     /// Arc 170 FD-multiplex — substrate-owned lifeline write-end.
     /// Parent holds this; never writes. When the parent process dies for
     /// any reason (clean exit / panic / SIGKILL / OOM-kill / segfault),
@@ -45,12 +45,16 @@ pub struct ChildHandle {
     /// Wrapped in Option because tier-1 callers (fork-program-ast and
     /// fork-program-from-source) wire a lifeline for every child (arc
     /// 213 γ-1/γ-2). Always Some for forked children post-Phase-1C.
-    pub lifeline_w: Option<OwnedFd>,
+    ///
+    /// Held for RAII — the OwnedFd close IS the signal (never read, never
+    /// written after construction). The dead_code allow is intentional.
+    #[allow(dead_code)]
+    lifeline_w: Option<OwnedFd>,
     /// δ-1: substrate-canonical pidfd for this forked child. Owned by
     /// ChildHandle; Drop fires when the last Arc<ChildHandle>
     /// drops (matches lifeline_w lifetime exactly). δ-2 routes all
     /// wait/kill through this; δ-3 retired the raw pid field.
-    pub pidfd: Pidfd,
+    pidfd: Pidfd,
 }
 
 impl ChildHandle {
@@ -61,6 +65,23 @@ impl ChildHandle {
             lifeline_w,
             pidfd,
         }
+    }
+
+    /// Return the child's OS PID via `Pidfd::pid()`. Used by wat-cli
+    /// (arc 104c) to store the PGID for signal forwarding (arc 106).
+    /// Callers MUST NOT use this pid for wait/kill — always go through
+    /// `wait_or_cached_exit` or the substrate's signal paths.
+    pub fn child_pid(&self) -> i32 {
+        self.pidfd.pid()
+    }
+
+    /// Mark the child as already-reaped by an external wait (e.g., wat-cli's
+    /// own `wait_child`). Prevents `Drop` from attempting a second reap on
+    /// an already-collected pid. Call ONLY after the caller has completed a
+    /// successful wait — this is the external coordination hook for the
+    /// reap-once invariant.
+    pub fn mark_reaped(&self) {
+        self.reaped.store(true, Ordering::Release);
     }
 
     /// Block on `pidfd.wait_status()` (idempotently) and return the

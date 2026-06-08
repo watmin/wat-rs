@@ -452,25 +452,6 @@ pub fn trigger_shutdown() {
     }
 }
 
-/// Test-only reset for the shutdown infrastructure. Production code
-/// runs init exactly once per process; tests that exercise the
-/// cascade re-init between runs.
-///
-/// Stone 214.6.4: SHUTDOWN_RX_PTR is now an AtomicPtr — unlike OnceLock,
-/// it CAN be reset for test purposes. Resets both the RX ptr and the
-/// SHUTDOWN_INIT_PID so the next `init_shutdown_signal` call rebuilds
-/// the infra fresh. The old boxed Receiver leaks (acceptable in tests;
-/// same as the fork-child leak-by-design pattern).
-#[cfg(test)]
-pub fn reset_shutdown_signal() {
-    // Drop existing Sender (if any) so any blocked recvs disconnect.
-    trigger_shutdown();
-    // Null out the RX ptr and reset the pid so the guard treats the next
-    // init call as a fresh start. The old box leaks — acceptable in tests.
-    SHUTDOWN_RX_PTR.store(std::ptr::null_mut(), Ordering::SeqCst);
-    SHUTDOWN_INIT_PID.store(0, Ordering::SeqCst);
-}
-
 // ── End arc 170 Slice A shutdown infrastructure ────────────────────────────
 
 // Stone 251.2e — Value cluster (Value enum + Clause/ClauseSet/ClauseAttempt/ClauseFailureReason

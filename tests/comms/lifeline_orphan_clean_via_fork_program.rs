@@ -107,7 +107,7 @@ fn grandchild_pid(process: &Value) -> libc::pid_t {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
             match &s.fields[3] {
                 Value::wat__kernel__ProgramHandle(h) => match h.as_ref() {
-                    ProgramHandleInner::Forked(child) => child.pidfd.pid(),
+                    ProgramHandleInner::Forked(child) => child.child_pid(),
                     other => panic!("expected Forked ProgramHandle; got {:?}", other),
                 },
                 other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),

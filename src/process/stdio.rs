@@ -68,22 +68,30 @@ use std::sync::Arc;
 /// # SAFETY
 ///
 /// `libc::dup` returns a freshly-opened fd on success or -1 on error.
-/// On failure we hand back -1; the resulting `PipeReader` / `PipeWriter`
-/// carries an unusable fd that surfaces clean diagnostics on
-/// read/write attempts. Orchestrator-level work still proceeds.
+/// On failure (EMFILE / ENFILE) this function aborts the child with a
+/// diagnostic to fd 2 rather than handing -1 to `OwnedFd::from_raw_fd`
+/// (which is undefined behaviour — the fd precondition requires a valid
+/// open fd). AmbientStdio setup runs early in the child's post-fork
+/// lifecycle; dup failure here is a substrate-level resource exhaustion
+/// that prevents safe operation.
 pub fn lend_ambient() -> crate::services::AmbientStdio {
     use std::os::fd::FromRawFd;
-    fn dup_fd(fd: i32) -> i32 {
+    fn dup_fd(fd: i32, name: &[u8]) -> i32 {
         let r = unsafe { libc::dup(fd) };
         if r < 0 {
-            -1
-        } else {
-            r
+            // EMFILE / ENFILE: substrate cannot safely operate. Emit a
+            // minimal raw diagnostic and abort. This is the child process;
+            // _exit skips atexit handlers (fork-safe).
+            unsafe {
+                libc::write(2, name.as_ptr() as *const libc::c_void, name.len());
+                libc::_exit(crate::process::EXIT_STARTUP_ERROR);
+            }
         }
+        r
     }
-    let stdin_fd = dup_fd(0);
-    let stdout_fd = dup_fd(1);
-    let stderr_fd = dup_fd(2);
+    let stdin_fd  = dup_fd(0, b"substrate: dup failed for ambient stdin\n");
+    let stdout_fd = dup_fd(1, b"substrate: dup failed for ambient stdout\n");
+    let stderr_fd = dup_fd(2, b"substrate: dup failed for ambient stderr\n");
     let stdin: Arc<dyn crate::io::WatReader> = Arc::new(
         crate::io::PipeReader::from_owned_fd(unsafe {
             std::os::fd::OwnedFd::from_raw_fd(stdin_fd)
