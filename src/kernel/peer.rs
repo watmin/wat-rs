@@ -260,7 +260,7 @@ mod tests {
     /// join completes cleanly.
     ///
     /// This is the lib-safe gate for Stone 4.4. The process peer round-trip
-    /// lives in the integration test (tests/comms/peer_process_round_trip.rs)
+    /// lives in the integration test (tests/kernel/peer_process_round_trip.rs)
     /// because it forks and must run under setsid containment.
     #[test]
     fn thread_peer_round_trip() {

@@ -1,6 +1,6 @@
 //! vigilatum: 2026-06-08T08:10:27Z — kernel peer home FULL VIGILIA, 14 inward +
 //! circumspicere, L1+L2=0. Cast over the Rust home AND the test surface
-//! `tests/comms/spawn_program_prime_process.rs` (per tests-are-demos the test IS
+//! `tests/kernel/spawn_program_prime_process.rs` (per tests-are-demos the test IS
 //! a warded surface): universal-7 (intueri/solvere/conformare/purgare/struere/
 //! sequi/temperare) + exigere + secare + perspicere + mora + excusare + vocare +
 //! complectens; circumspicere perimeter-last. THE CATCH (2026-06-08): the

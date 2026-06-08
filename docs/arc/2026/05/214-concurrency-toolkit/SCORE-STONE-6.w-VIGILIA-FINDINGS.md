@@ -466,9 +466,24 @@ confirmation re-cast → L1+L2=0 → STAMP → next home. NOT a multi-round L3-c
 guessing"). Obvious (tests-are-demos → same surface → same bar); Simple (one uniform bar; a
 two-tier "src full / tests mora-only" rule is an asymmetry [[feedback_asymmetries_meet_high_bar]]);
 Honest (a "full vigilia L1+L2=0" stamp over an un-warded test surface is the false-converged lie).
-So each home casts over `src/<home>/` AND its test file(s): kernel/ ↔
-`tests/comms/spawn_program_prime_process.rs`; process/ + comms/ ↔ the other `tests/comms/*` files
-(shutdown_cascade_*, pdeathsig_*, lifeline_orphan_*) — fold into their pending casts.
+**THE SCOPE IS `{src,tests}/<namespace>/*.rs` (builder, 2026-06-08) — dir-based, never cherry-picked.**
+A home `<ns>` = `src/<ns>/*.rs` + `tests/<ns>/*.rs` (the parallel namespace dir under BOTH trees;
+the established convention — see `tests/comms/mod.rs` doc + `build.rs`, which auto-generates the
+module list for any `tests/<group>/` with a `mod.rs`). **CONSEQUENCE — a test-homing stone (in
+flight 2026-06-08, sonnet `abd2607e`):** the `tests/comms/` junk-drawer held kernel/channel/process
+tests that belong in their own dirs. HOMED: `tests/kernel/` (peer_process_round_trip,
+peer_select_prime_process, peer_verb_round_trip_process, spawn_program_prime_process),
+`tests/channel/` (sender_receiver_from_pipe), `tests/process/` (pidfd_primitive,
+close_range_authoritative, lifeline_*×3, pdeathsig_*×2); AMBIGUOUS-home tests → `tests/nursery/` (the
+holding pen "for a better home": spawn_process_{stdio,stdin}, bootstrap_wat_vm_process,
+spawn_process_parent_type, shutdown_cascade_{memory,pipefd}); `tests/comms/` KEEPS the comms-tier
+tests (thread, process, foundation). **intueri is the homing discriminant** — does the test SPEAK its
+namespace? clear → home it; mumbles → nursery. **COVERAGE will drive the vigilatum** (cargo-llvm-cov,
+task #190): src+test coverage PER NAMESPACE becomes a stamp gate "soonish" — which is WHY the tests
+must be namespaced now. **kernel/ stamp note:** stamped over `src/kernel/` + the (then-mislocated)
+spawn_program_prime_process.rs; after the homing that file is `tests/kernel/spawn_program_prime_process.rs`
+and `tests/kernel/` gains 3 more peer tests → **kernel/ needs a RE-WARD over the full `tests/kernel/` +
+a stamp-reference refresh** before 6.w closes.
 
 ## KERNEL/ — FALSE-CONVERGED CATCH + FIX (2026-06-08, post-compaction)
 The pre-compaction breadcrumb claimed kernel/ converged L1+L2=0; the disk disagreed (the report

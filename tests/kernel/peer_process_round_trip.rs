@@ -54,7 +54,7 @@ use wat::kernel::peer::Process;
 /// per-binary), not via `cargo test --test test` which deadlocks on the old
 /// typed_channel/thread_io/fork stack per the campaign discipline. Run
 /// directly via:
-///   cargo test --test comms peer_process_round_trip -- --ignored
+///   cargo test --test kernel peer_process_round_trip -- --ignored
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored flag; never via raw cargo test --test test"]
 fn process_peer_round_trip() {

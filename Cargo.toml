@@ -90,6 +90,18 @@ name = "comms"
 path = "tests/comms/mod.rs"
 
 [[test]]
+name = "kernel"
+path = "tests/kernel/mod.rs"
+
+[[test]]
+name = "channel"
+path = "tests/channel/mod.rs"
+
+[[test]]
+name = "process"
+path = "tests/process/mod.rs"
+
+[[test]]
 name = "function"
 path = "tests/function/mod.rs"
 

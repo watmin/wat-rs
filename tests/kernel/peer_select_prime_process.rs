@@ -14,7 +14,7 @@
 //! The test forks via `spawn-program' :process`. Run under setsid + timeout
 //! to prevent fd/lock inheritance from the multi-threaded cargo test binary.
 //! Marked `#[ignore]` — run via:
-//!   setsid timeout 180 cargo test --release --test comms peer_select_prime_process -- --ignored --test-threads=1
+//!   setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
 use std::sync::Arc;
@@ -30,7 +30,7 @@ use wat::runtime::{Environment, Value};
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout with --test-threads=1.
 #[test]
-#[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test comms peer_select_prime_process -- --ignored --test-threads=1"]
+#[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1"]
 fn process_select_prime_picks_ready_peer() {
     let src = r#"
         (:wat::core::defn :user::mk [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>

@@ -27,7 +27,7 @@
 //! Marked `#[ignore]` — run via:
 //!   `bash scripts/integration-run.sh`
 //! or directly:
-//!   `cargo test --test comms spawn_program_prime_process -- --ignored`
+//!   `cargo test --test kernel spawn_program_prime_process -- --ignored`
 
 use std::os::unix::io::RawFd;
 use std::sync::Arc;
@@ -303,7 +303,7 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
 /// The child must resolve `:my::helper` from the cloned sym to compute 21 * 3 = 63.
 ///
 /// Run via:
-///   cargo test --test comms spawn_program_prime_process_helper_round_trip -- --ignored
+///   cargo test --test kernel spawn_program_prime_process_helper_round_trip -- --ignored
 #[test]
 #[ignore = "KR-1 regression probe: run via integration-run.sh or with --ignored --test-threads=1"]
 fn spawn_program_prime_process_helper_round_trip() {
@@ -385,7 +385,7 @@ fn spawn_program_prime_process_helper_round_trip() {
 /// arm is exercised by `spawn_program_prime_process_runtime_error_emits_diagnostic`.
 ///
 /// Run via:
-///   cargo test --test comms spawn_program_prime_process_error_emits_diagnostic -- --ignored
+///   cargo test --test kernel spawn_program_prime_process_error_emits_diagnostic -- --ignored
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_error_emits_diagnostic() {
@@ -473,7 +473,7 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
 /// which returns `Err(RuntimeError::DivisionByZero)`.
 ///
 /// Run via:
-///   cargo test --test comms spawn_program_prime_process_runtime_error_emits_diagnostic -- --ignored
+///   cargo test --test kernel spawn_program_prime_process_runtime_error_emits_diagnostic -- --ignored
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
