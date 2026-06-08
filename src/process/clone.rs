@@ -70,7 +70,7 @@ compile_error!("arc 213: SYS_pidfd_send_signal syscall number not defined for th
 /// Exit status of a child process, observed via `Pidfd::wait_status`.
 ///
 /// Arc 213 — canonical exit-status discriminated union. Used by all
-/// `Pidfd` wait methods. Distinct from the legacy `extract_exit_code`
+/// `Pidfd` wait methods. Distinct from `exit_status_to_i64` (this file)
 /// (which flattens to i64 with shell convention) — this type preserves
 /// the full discriminant so callers can pattern-match on the actual cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +126,8 @@ impl Pidfd {
     ///
     /// `timeout` of `None` blocks forever. `Some(Duration::ZERO)` is a
     /// non-blocking check.
+    // rune:purgare(safety-margin) — completes the pidfd primitive surface
+    // (blocking wait_status / non-blocking try_wait / poll_exit); no current caller.
     pub fn poll_exit(&self, timeout: Option<Duration>) -> std::io::Result<bool> {
         let timeout_ms: libc::c_int = match timeout {
             None => -1,
@@ -162,6 +164,8 @@ impl Pidfd {
     /// `waitid(P_PIDFD, fd, WEXITED | WNOHANG)` — non-blocking poll.
     /// Returns `Ok(Some(status))` if exited + reaped, `Ok(None)` if still
     /// running, `Err` on syscall failure.
+    // rune:purgare(safety-margin) — completes the pidfd primitive surface
+    // (blocking wait_status / non-blocking try_wait / poll_exit); no current caller.
     // rune:perspicere(read-once) — the nested Option<ExitStatus> is the minimal
     // type for a non-blocking wait; a caller that needs blocking uses wait_status().
     pub fn try_wait(&self) -> std::io::Result<Option<ExitStatus>> {
@@ -235,9 +239,9 @@ impl Pidfd {
 /// Map an `ExitStatus` to the shell-convention `i64` exit code.
 ///
 /// Shell convention: normal exit → the exit code (0–255); signal kill →
-/// `128 + signal_number`. Matches the legacy `handle.rs::extract_exit_code`
-/// (c_int-status decoder) so the migration preserves the exact same values
-/// callers observe through `ChildHandle::wait_or_cached_exit`.
+/// `128 + signal_number`. Supersedes the former `handle.rs::extract_exit_code`
+/// (c_int-status decoder; removed in Stone 6.w δ-3); migration preserves the
+/// exact same values callers observe through `ChildHandle::wait_or_cached_exit`.
 pub(super) fn exit_status_to_i64(status: ExitStatus) -> i64 {
     match status {
         ExitStatus::Exited(code) => code as i64,
@@ -291,12 +295,12 @@ pub struct LifelineWriter {
 
 impl LifelineWriter {
     /// Arc 213 γ-1 — extract the inner OwnedFd by consumption. Used by
-    /// `eval_kernel_fork_program_ast` to store the lifeline write-end in
+    /// all fork/spawn callers (verbs.rs) to store the lifeline write-end in
     /// `ChildHandle::lifeline_w` (which holds `Option<OwnedFd>`).
-    /// Preferred over changing ChildHandle's field type (option (a)
-    /// vs option (c)) because spawn_process.rs also constructs
-    /// ChildHandle with OwnedFd directly — changing the field type
-    /// would require touching spawn_process.rs (scope violation).
+    /// `ChildHandle::lifeline_w` is `Option<OwnedFd>` rather than
+    /// `Option<LifelineWriter>` because callers construct it from pre-existing
+    /// OwnedFd values (not always from `spawn_lifelined`) — keeping the field
+    /// type minimal avoids forcing every construction path through LifelineWriter.
     pub fn into_owned_fd(self) -> OwnedFd {
         self.fd
     }
@@ -304,7 +308,7 @@ impl LifelineWriter {
 
 // ── SYS_close_range syscall number ───────────────────────────────────────────
 // close_range(2) is Linux 5.9+. Used via raw libc::syscall — mirrors the
-// SYS_PIDFD_SEND_SIGNAL raw-syscall pattern (fork.rs:1447+send_signal).
+// SYS_PIDFD_SEND_SIGNAL raw-syscall pattern (Pidfd::send_signal in this file).
 // compile_error! arch-guard for future ports; x86_64 = 436.
 #[cfg(target_arch = "x86_64")]
 pub(super) const SYS_CLOSE_RANGE: libc::c_long = 436;

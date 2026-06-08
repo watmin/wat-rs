@@ -371,7 +371,6 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
         &source,
         canonical.as_deref(),
         Arc::new(FsLoader),
-        None, // no Config to inherit — cli has no outer wat program
         argv.clone(),
     ) {
         Ok(h) => h,

@@ -12,7 +12,7 @@
 //!    dup'd copies — NOT the raw fds.
 //!
 //! 2. **AFTER `:user::main` returns or panics** — substrate's
-//!    `emit_structured_exit` paths (in `spawn_process.rs` + `fork.rs`)
+//!    `emit_structured_exit` paths (in `verbs.rs` — Stone 6.w merge unified them)
 //!    emit `#wat.kernel/ProcessPanics{...}` EDN envelopes via
 //!    [`emit_panic_envelope`] so the parent's pipe reader can extract
 //!    the panic chain (per arc 170 slice 1i structured-exit protocol).

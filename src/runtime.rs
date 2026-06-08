@@ -182,17 +182,23 @@ pub fn argv() -> Arc<Vec<String>> {
 // rebirth). SHUTDOWN_INIT_PID records which process last initialized so the
 // guard can detect "same-process no-op" vs "child needs rebirth".
 
+// Type aliases for the shutdown channel endpoints (Stone 6.w perspicere L3):
+// AtomicPtr<ShutdownRx> / AtomicPtr<ShutdownTx> reads more clearly than the
+// 2-level nested form at every declaration site and in shutdown_rx()'s return.
+type ShutdownRx = crossbeam_channel::Receiver<()>;
+type ShutdownTx = crossbeam_channel::Sender<()>;
+
 /// Heap-boxed Receiver for the process-wide shutdown signal channel.
 /// AtomicPtr allows the fork-aware guard in `init_shutdown_signal_with_inputs`
 /// to swap in a fresh Receiver after fork (the inherited Receiver is the
 /// child's process-local copy; it leaks by design — comment in the guard).
 ///
 /// null = uninitialized; non-null = initialized. Load with SeqCst; the
-/// `shutdown_rx()` getter returns a `Option<&'static Receiver<()>>`.
+/// `shutdown_rx()` getter returns a `Option<&'static ShutdownRx>`.
 ///
 /// Previously `SHUTDOWN_RX: OnceLock<Receiver<()>>` (Stone 214.6.4
 /// replaced OnceLock with AtomicPtr to allow fork-aware rebirth).
-static SHUTDOWN_RX_PTR: std::sync::atomic::AtomicPtr<crossbeam_channel::Receiver<()>> =
+static SHUTDOWN_RX_PTR: std::sync::atomic::AtomicPtr<ShutdownRx> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 /// The pid of the process that last successfully initialized the shutdown
@@ -213,7 +219,7 @@ static SHUTDOWN_INIT_PID: std::sync::atomic::AtomicI32 =
 /// the pointer value (i.e., `'static`). The old box leaks by design on
 /// fork-rebirth (see the guard comment) — the pointer is never freed
 /// while any caller could still observe it.
-pub(crate) fn shutdown_rx() -> Option<&'static crossbeam_channel::Receiver<()>> {
+pub(crate) fn shutdown_rx() -> Option<&'static ShutdownRx> {
     let ptr = SHUTDOWN_RX_PTR.load(Ordering::SeqCst);
     if ptr.is_null() {
         None
@@ -230,7 +236,7 @@ pub(crate) fn shutdown_rx() -> Option<&'static crossbeam_channel::Receiver<()>> 
 /// + Box::from_raw drop is the ZERO-MUTEX way to atomically drop the
 /// Sender (waking all SHUTDOWN_RX clones with Disconnected). Initialized
 /// via [`init_shutdown_signal`]; consumed by [`trigger_shutdown`].
-static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<crossbeam_channel::Sender<()>> =
+static SHUTDOWN_TX_PTR: std::sync::atomic::AtomicPtr<ShutdownTx> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 /// Write-end of the wake pipe. The SIGTERM/SIGINT signal handler writes

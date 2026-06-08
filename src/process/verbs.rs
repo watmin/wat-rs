@@ -61,6 +61,15 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 // Stone 6.w merge: fork.rs + spawn_process.rs copies unified here.
 // One declaration; all child branches call this.
 
+/// Encode `chain` as a `#wat.kernel/ProcessPanics` EDN line and write it
+/// to stderr via `emit_panic_envelope`. Shared tail of `emit_structured_exit`
+/// and `emit_panics_to_stderr` (Stone 6.w L3 dedup).
+fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types::TypeEnv>) {
+    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
+    crate::process::stdio::emit_panic_envelope(&line);
+}
+
 /// Arc 170 slice 1i — unified structured exit helper for ALL fork child
 /// exit paths. Wraps `value` in the `#wat.kernel/ProcessPanics [...]`
 /// envelope and writes the EDN line to stderr before the caller
@@ -74,9 +83,7 @@ pub(super) fn emit_structured_exit(
 ) {
     let chain = crate::runtime::conj_died_chain_value(value, None);
     let types = world.map(|w| w.types());
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
-    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    crate::process::stdio::emit_panic_envelope(&line);
+    emit_chain_envelope(chain, types);
 }
 
 // ─── emit_panics_to_stderr ───────────────────────────────────────────────────
@@ -97,9 +104,79 @@ fn emit_panics_to_stderr(
     );
     let upstream = payload.upstream_chain.clone();
     let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
-    let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
-    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
-    crate::process::stdio::emit_panic_envelope(&line);
+    emit_chain_envelope(chain, Some(world.types()));
+}
+
+// ─── finish_forked_child — shared exit-protocol tail ────────────────────────
+
+/// Shared exit-protocol tail for all fork/spawn child branches (Stone 6.w
+/// solvere L2 dedup). Called after `catch_unwind(invoke_user_main)` returns.
+/// Never returns — exits via `libc::_exit` with the appropriate `EXIT_*` code.
+///
+/// Maps `outcome` to the canonical exit-code + envelope convention:
+/// - `Ok(Ok(Unit))` → EXIT_SUCCESS
+/// - `Ok(Ok(other))` → structured BadReturn envelope → EXIT_RUNTIME_ERROR
+/// - `Ok(Err(runtime_err))` → structured EDN RuntimeError envelope → EXIT_RUNTIME_ERROR
+/// - `Err(panic_payload)` → AssertionPayload chain or plain-string Panic → EXIT_PANIC
+fn finish_forked_child(
+    world: &crate::freeze::FrozenWorld,
+    outcome: std::thread::Result<Result<Value, RuntimeError>>,
+) -> ! {
+    match outcome {
+        // Arc 170 slice 1e — `:user::main` returns `:wat::core::nil`;
+        // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
+        // — nil IS the success exit code; user code never participates
+        // in exit-code arithmetic.
+        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        Ok(Ok(other)) => {
+            // Arc 170 slice 1i — structured BadReturn.
+            emit_structured_exit(
+                Some(world),
+                crate::runtime::process_died_error_bad_return_value(format!(
+                    ":user::main returned non-nil value: {}",
+                    other.type_name()
+                )),
+            );
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
+        }
+        Ok(Err(runtime_err)) => {
+            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError
+            // replaces the Display-text string inside the ProcessDiedError
+            // envelope. Structured fields flow over the wire as machine-
+            // consumable EDN rather than opaque text.
+            let runtime_edn = wat_edn::write(
+                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
+            );
+            emit_structured_exit(
+                Some(world),
+                crate::runtime::process_died_error_runtime_value(runtime_edn),
+            );
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
+        }
+        Err(panic_payload) => {
+            // Arc 170 slice 1i — all panic paths emit structured EDN.
+            // AssertionPayload carries the full cascade chain + Failure;
+            // plain panics (bare String / &str) emit a message-only Panic.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_panics_to_stderr(world, payload);
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    Some(world),
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
+            }
+            unsafe { libc::_exit(EXIT_PANIC) };
+        }
+    }
 }
 
 // ─── fork-program-ast ────────────────────────────────────────────────────────
@@ -242,9 +319,8 @@ pub fn eval_kernel_fork_program_ast(
     drop(stdout_w);
     drop(stderr_w);
 
-    // Extract the lifeline OwnedFd from LifelineWriter (option (a):
-    // into_owned_fd added to LifelineWriter; ChildHandle::lifeline_w
-    // field type stays Option<OwnedFd> — no changes to spawn_process.rs).
+    // Extract the lifeline OwnedFd from LifelineWriter. ChildHandle::lifeline_w
+    // is Option<OwnedFd> — all fork/spawn paths in this file share this shape.
     let lifeline_w = lifeline_writer.into_owned_fd();
 
     // δ-1/δ-2/δ-3 (Stone 6.w COMPLETE): pidfd in handle; waits/kills routed through pidfd; raw pid retired.
@@ -347,7 +423,7 @@ fn run_forked_child(
     // Transfer FD ownership to the shutdown worker thread — the substrate
     // now owns the lifeline read-fd. Dropping OwnedFd here would close the
     // FD and the worker would immediately POLLHUP (false-positive shutdown).
-    // Mirror of child_branch_from_source line 1116.
+    // Mirror of child_branch_from_source::mem::forget(lifeline_r).
     std::mem::forget(lifeline_r);
 
     // Build wat-level stdio over fd 0/1/2.
@@ -360,7 +436,8 @@ fn run_forked_child(
 
     // Fresh world from the inherited AST. InMemoryLoader (no disk)
     // matches the `scope :None` behavior today's hermetic provides.
-    // Scope-through-fork is deferred per DESIGN.
+    // rune:exigere(attested-arc) — Scope-through-fork tracked in arc 012
+    // (INSCRIPTION at docs/arc/2026/04/012-fork-and-pipes/INSCRIPTION.md).
     let loader = Arc::new(InMemoryLoader::new());
 
     // Arc 031: inherit the caller's Config through fork's COW so the
@@ -411,62 +488,7 @@ fn run_forked_child(
         invoke_user_main(&world, Vec::new())
     }));
     let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
-
-    match outcome {
-        // Arc 170 slice 1e — `:user::main` returns `:wat::core::nil`;
-        // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
-        // — nil IS the success exit code; user code never participates
-        // in exit-code arithmetic.
-        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
-        Ok(Ok(other)) => {
-            // Arc 170 slice 1i — structured BadReturn.
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_bad_return_value(format!(
-                    ":user::main returned non-nil value: {}",
-                    other.type_name()
-                )),
-            );
-            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
-        }
-        Ok(Err(runtime_err)) => {
-            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError
-            // replaces the Display-text string inside the ProcessDiedError
-            // envelope. Structured fields flow over the wire as machine-
-            // consumable EDN rather than opaque text.
-            let runtime_edn = wat_edn::write(
-                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
-            );
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_runtime_value(runtime_edn),
-            );
-            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
-        }
-        Err(panic_payload) => {
-            // Arc 170 slice 1i — all panic paths emit structured EDN.
-            // AssertionPayload carries the full cascade chain + Failure;
-            // plain panics (bare String / &str) emit a message-only Panic.
-            if let Some(payload) =
-                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
-            {
-                emit_panics_to_stderr(&world, payload);
-            } else {
-                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
-                    s.clone()
-                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                    (*s).to_string()
-                } else {
-                    "<unknown panic payload>".to_string()
-                };
-                emit_structured_exit(
-                    Some(&world),
-                    crate::runtime::process_died_error_panic_value(msg, None),
-                );
-            }
-            unsafe { libc::_exit(EXIT_PANIC) };
-        }
-    }
+    finish_forked_child(&world, outcome);
 }
 
 // ─── Source-string entry — `:wat::kernel::fork-program` (arc 104b) ──────
@@ -509,7 +531,6 @@ pub fn fork_program_from_source(
     source: &str,
     canonical: Option<&str>,
     loader: Arc<dyn SourceLoader>,
-    inherit_config: Option<&Config>,
     argv: Vec<String>,
 ) -> Result<ForkedProgramHandles, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program";
@@ -533,11 +554,9 @@ pub fn fork_program_from_source(
     let stderr_r_raw = stderr_r.as_raw_fd();
     let stderr_w_raw = stderr_w.as_raw_fd();
 
-    // Snapshot source + canonical + inherit_config so the child branch owns its copies.
+    // Snapshot source + canonical so the child branch owns its copies.
     let owned_source = source.to_string();
     let owned_canonical = canonical.map(|s| s.to_string());
-    // Arc 031 — clone config for inheritance into the child branch.
-    let owned_inherit_config: Option<Config> = inherit_config.cloned();
 
     // Arc 213 γ-2 — use spawn_lifelined (arc 213 α) instead of bare
     // libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD+
@@ -596,7 +615,6 @@ pub fn fork_program_from_source(
             owned_canonical,
             loader,
             argv,
-            owned_inherit_config,
             stdin_r_raw,
             stdout_w_raw,
             stderr_w_raw,
@@ -621,9 +639,8 @@ pub fn fork_program_from_source(
     drop(stdout_w);
     drop(stderr_w);
 
-    // Extract the lifeline OwnedFd from LifelineWriter (option (a):
-    // into_owned_fd added by γ-1; ChildHandle::lifeline_w field type
-    // stays Option<OwnedFd> — no changes to spawn_process.rs).
+    // Extract the lifeline OwnedFd from LifelineWriter. ChildHandle::lifeline_w
+    // is Option<OwnedFd> — all fork/spawn paths in this file share this shape.
     let lifeline_w = lifeline_writer.into_owned_fd();
 
     // δ-1/δ-2/δ-3 (Stone 6.w COMPLETE): pidfd stored in handle; all wait/kill
@@ -690,16 +707,16 @@ pub fn eval_kernel_fork_program(
         }
     };
 
-    // Inherit caller's Config through fork's COW (arc 031 discipline).
-    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
-
     // Build loader from the wat-level scope arg.
     //   :None       → InMemoryLoader (no disk reach)
     //   :Some path  → ScopedLoader rooted at canonical-of-path
     let loader: Arc<dyn SourceLoader> = match scope_opt.as_deref() {
         Some(path) => {
-            // arc 138: no span — ScopedLoader error; scope_opt is plain String, no WatAST trace
-            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            // conformare: args[1].span() is the scope arg's location — use it here
+            // (the arc-138 "no WatAST trace" comment was FALSE; list_span was
+            // the nearest available span at the time, but the scope string
+            // came from args[1] which does have a span).
+            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("scope path {:?}: {}", path, e)
             } })?;
@@ -715,7 +732,7 @@ pub fn eval_kernel_fork_program(
     // through to the child. `BareLegacyForkProgram` walker fires on
     // user-source callers; slice 3 sweeps; slice 4 retires the verb
     // wholesale.
-    let handles = fork_program_from_source(&src, None, loader, inherit_config.as_ref(), Vec::new())
+    let handles = fork_program_from_source(&src, None, loader, Vec::new())
         .map_err(|mut e| { e.span = list_span.clone(); e })?;
 
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(handles.stdin_w));
@@ -751,19 +768,21 @@ pub fn eval_kernel_fork_program(
 /// instead of an inherited Vec<WatAST>. Same EXIT_* codes; same
 /// dup2-then-_exit discipline.
 ///
-/// Thirteen parameters: four source-parse (source, canonical, loader, argv),
-/// one config-inheritance (inherit_config — mirrors fork-program-ast's
-/// capability; None falls back to startup_from_source's no-inherit path),
+/// Twelve parameters: four source-parse (source, canonical, loader, argv)
 /// plus the same eight fd/RAII params as run_forked_child:
 /// stdin_r_raw, stdout_w_raw, stderr_w_raw, lifeline_r_raw,
 /// stdin_pair, stdout_pair, stderr_pair, lifeline_r.
+///
+/// Config inheritance for the source-fork path is a YAGNI cut (Stone 6.w):
+/// `startup_from_source_with_inherit` does not exist in freeze.rs; no caller
+/// passes a config that would be applied. When that primitive exists, add the
+/// param back (freeze.rs is the right home for the API surface).
 #[allow(clippy::too_many_arguments)]
 fn child_branch_from_source(
     source: String,
     canonical: Option<String>,
     loader: Arc<dyn SourceLoader>,
     argv: Vec<String>,
-    inherit_config: Option<Config>,
     stdin_r_raw: i32,
     stdout_w_raw: i32,
     stderr_w_raw: i32,
@@ -813,13 +832,9 @@ fn child_branch_from_source(
     let stderr_writer: Arc<dyn WatWriter> =
         Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
 
-    // Parse + freeze source. Arc 031 capability consistency: inherit_config is
-    // wired so fork_program_from_source callers can pass config; this requires
-    // a startup_from_source_with_inherit freeze primitive (not yet exposed).
-    // Until that primitive exists, inherit_config is accepted + plumbed but
-    // not yet applied — the program must include its own config preamble.
-    // rune:purgare(arc-031-incomplete — freeze API lacks startup_from_source_with_inherit)
-    let _ = &inherit_config;
+    // Parse + freeze source. Config inheritance for the source path is a YAGNI
+    // cut — startup_from_source_with_inherit doesn't exist in freeze.rs. When
+    // that primitive lands, re-add it in freeze.rs first (the right home).
     let startup_result = startup_from_source(&source, canonical.as_deref(), loader);
     let world = match startup_result {
         Ok(w) => w,
@@ -871,57 +886,7 @@ fn child_branch_from_source(
         invoke_user_main(&world, Vec::new())
     }));
     let _ = &stderr_keepalive;
-
-    match outcome {
-        // Arc 170 slice 1e — `:user::main` returns `:wat::core::nil`;
-        // clean nil-return maps to libc::exit(0). REALIZATIONS pass 10
-        // — nil IS the success exit code; user code never participates
-        // in exit-code arithmetic.
-        Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
-        Ok(Ok(other)) => {
-            // Arc 170 slice 1i — structured BadReturn.
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_bad_return_value(format!(
-                    ":user::main returned non-nil value: {}",
-                    other.type_name()
-                )),
-            );
-            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
-        }
-        Ok(Err(runtime_err)) => {
-            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError.
-            let runtime_edn = wat_edn::write(
-                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
-            );
-            emit_structured_exit(
-                Some(&world),
-                crate::runtime::process_died_error_runtime_value(runtime_edn),
-            );
-            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
-        }
-        Err(panic_payload) => {
-            // Arc 170 slice 1i — all panic paths emit structured EDN.
-            if let Some(payload) =
-                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
-            {
-                emit_panics_to_stderr(&world, payload);
-            } else {
-                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
-                    s.clone()
-                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                    (*s).to_string()
-                } else {
-                    "<unknown panic payload>".to_string()
-                };
-                emit_structured_exit(
-                    Some(&world),
-                    crate::runtime::process_died_error_panic_value(msg, None),
-                );
-            }
-            unsafe { libc::_exit(EXIT_PANIC) };
-        }
-    }
+    finish_forked_child(&world, outcome);
 }
 
 // ─── spawn-process (from spawn_process.rs) ───────────────────────────────────
@@ -951,7 +916,7 @@ pub fn eval_kernel_spawn_process(
     }
 
     // Slice 6 — evaluate the program arg to Vec<WatAST>. Same shape as
-    // `:wat::kernel::fork-program-ast` (see src/fork.rs:574). Macros
+    // `:wat::kernel::fork-program-ast` (see eval_kernel_fork_program_ast in this file). Macros
     // construct the program shape internally; user-facing surface
     // remains body-only.
     let forms = match eval(&args[0], env, sym)?.value_owned() {
@@ -1254,7 +1219,7 @@ fn spawn_with_world_into_result(
     let ambient_stdout = child_stdout.clone();
     let ambient_stderr = child_stderr.clone();
 
-    std::thread::Builder::new()
+    let thread_result = std::thread::Builder::new()
         .name(format!("wat-thread::{}", op))
         .spawn(move || {
             // Install the ambient stdio before the orchestrator runs so
@@ -1294,8 +1259,11 @@ fn spawn_with_world_into_result(
             // Thread closure returns; child-side pipe Arcs drop; child's
             // stdout / stderr write-ends close; parent's read-line on
             // those readers returns :None — the drop-cascade contract.
-        })
-        .expect("Thread::Builder::spawn failed");
+        });
+        match thread_result {
+            Ok(_thread) => {}
+            Err(e) => return Ok(startup_error_result(format!("thread spawn failed: {e}"))),
+        }
 
     // Parent-side IO Values — caller writes child's stdin, reads
     // child's stdout / stderr.

@@ -203,7 +203,7 @@ where
 /// best-effort close(2) loop). EBADF from an already-closed fd is harmless.
 fn close_inherited_fds_above_stdio(skip: &[i32]) {
     // Inline helper: close_range(lo, hi, flags=0) via raw syscall (mirrors
-    // SYS_PIDFD_SEND_SIGNAL at fork.rs send_signal). Ignore errors: best-effort.
+    // SYS_PIDFD_SEND_SIGNAL at clone.rs Pidfd::send_signal). Ignore errors: best-effort.
     let sweep = |lo: libc::c_uint, hi: libc::c_uint| {
         if lo > hi {
             return; // empty range — no-op

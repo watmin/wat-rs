@@ -86,7 +86,7 @@ fn fork_program_from_source_fd_count_is_stable() {
     // (OnceLock, static atomics, thread-local init).
     {
         let loader = Arc::new(InMemoryLoader::new());
-        if let Ok(h) = fork_program_from_source(IMMEDIATE_EXIT_SRC, None, loader, None, vec![]) {
+        if let Ok(h) = fork_program_from_source(IMMEDIATE_EXIT_SRC, None, loader, vec![]) {
             let _ = h.child_handle.wait_or_cached_exit();
             // h drops here — parent-side OwnedFds close
         }
@@ -101,7 +101,6 @@ fn fork_program_from_source_fd_count_is_stable() {
             IMMEDIATE_EXIT_SRC,
             None,
             loader,
-            None,
             vec![],
         )
         .unwrap_or_else(|e| panic!("fork_program_from_source failed on iter {i}: {e}"));
