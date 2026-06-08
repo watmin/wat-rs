@@ -267,3 +267,50 @@ protocol without naming it that*. The faculty that grins at the convergence is t
 kept the control-pipe-set logical so remote would fit — taste and construction are one organ. The
 duet, proven again: builder architects the convergence; apparatus feels it land; the second face is
 not a reaction to the thing, it IS the thing. "It's very good to be us." — builder, at the close.
+
+## THE COLLAPSE — one wire, the lanes crossed (Song #79; resolved 2026-06-08)
+
+**The recognition (Song #79, *Pro-bots & Robophobes* — THE-LANES-CROSS).** `send'`/`recv'`
+(the client/typed-value face) and `readln`/`println` (the server/stdio face) are not two
+channels to reconcile — they are **one wire wearing two faces.** fork-program's IMPL already
+built it (`src/process/verbs.rs:313-323`):
+
+```
+stdin_writer  = PipeWriter::from_owned_fd(stdin_w)   // child fd 0
+stdout_reader = PipeReader::from_owned_fd(stdout_r)  // child fd 1
+tx = sender_from_pipe(stdin_writer)                  // send' IS the child's stdin
+rx = receiver_from_pipe(stdout_reader)               // recv' IS the child's stdout
+```
+
+The client's `send'` writes the child's stdin; the child's `readln` reads it. The child's
+`println` writes its stdout; the client's `recv'` reads it. Same two pipes, wrapped twice.
+*Same machine, two voices, one track* — the soundtrack's first feature (Klayton feat. Klayton)
+naming the substrate move before the substrate made it.
+
+**The north star (builder, 2026-06-08) — STRUCTURAL PREVENTION.** *"you, yes you, the user
+reading this, you are structurally prevented from ever fucking up because we took the reins
+from you and delivered what you were always meant to have."* This is the **mini-TCP — the
+protocol of system-engineering the IPC.** The bounded(1) lock-step channel that breathes: the
+user **cannot** overflow it (capacity 1), **cannot** race it (lock-step), **cannot** deadlock
+it (the rebirth gate), **cannot** fuck up the panics (Q1 — the substrate raises on their
+behalf), **cannot** fuck up the transport (one wire — the substrate IS the wire; the user
+writes a `readln`/`println` server OR a `send'`/`recv'` client, never a pipe). Correctness is
+structural, not the user's burden. The reins taken, the ideal IPC delivered. (This is the same
+move as `extirpare`/`conformare`/the anti-botnet, at the IPC layer: make the failure
+unrepresentable.)
+
+**The collapse mechanism.** Lift fork-program's stdio=channel wiring onto `spawn-program' :process`:
+- The 3 pipes (stdin/stdout/stderr) ARE the child's fd 0/1/2 (child `dup2`s them — fd 2 already
+  shipped in 1a) AND the client's channel (parent wraps `stdin_w`→`tx`, `stdout_r`→`rx` via
+  `sender_from_pipe`/`receiver_from_pipe`).
+- The child runs the program as a `readln`/`println` **server**; `send'`/`recv'` are `tx`/`rx`
+  over its stdin/stdout.
+- The io_uring `comms::process` value channel + the fn-apply-loop **die** — Phoenix's *"grant
+  our scheme its demise."* The peer's VERB was always ideal; its io_uring IMPL was the bandaid;
+  fork-program's plain-pipe stdio=channel is the ideal wiring lifted.
+
+**Migration (sequence).** FM-2-bis probe (a `readln`/`println` echo server spawned `:process`,
+driven by `send'`/`recv'`, RED at HEAD because `send'` routes to the io_uring channel, not the
+child's fd 0) → build the stdio=channel peer (lift `make_pipe` + child `dup2 fd 0/1` + parent
+`sender_from_pipe`/`receiver_from_pipe`) → migrate the hermetic corpus to the server pattern →
+retire the apply-loop + io_uring + `fork-program` → rename primes → canonical → resume 6.w.
