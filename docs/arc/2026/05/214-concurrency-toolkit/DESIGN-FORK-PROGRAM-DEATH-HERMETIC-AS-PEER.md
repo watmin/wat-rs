@@ -90,6 +90,49 @@ propagates) · Good UX YES (authors write a server + a client driver, not printf
 regex). **The client/server-over-stdio model SWALLOWS run-hermetic** — it is not a
 new capability, it is the universe interfaced the way it was always meant to be.
 
+## The peer/fork-program reconciliation (2026-06-08, grounded)
+
+Sharper than "peer ideal, fork-program bandaid": the peer's **verb/interface** is ideal; its
+**implementation** is the bandaid; **fork-program's implementation is the ideal wiring.** Grounded:
+- `spawn_process_peer` (spawn.rs:401) makes a SEPARATE `comms::process` value channel for
+  `send'`/`recv'` AND leaves the child's fd 0/1/2 inherited — two pipe-sets that never meet.
+- `spawn_thread_peer` (spawn.rs:272) does the identical thing — separate value channel; the
+  thread's stdio is NOT routed to it (zero `register_thread_with_services` in kernel/spawn.rs).
+- `fork-program` (process/verbs.rs) hands the parent the 3 pipe ends (`stdin_writer` /
+  `stdout_reader` / `stderr_reader`) AND lays `tx`/`rx` over in/out — the fork's 3 pipes ARE the
+  child's stdio AND the client's channel. One wire: server stdio ↔ client `send`/`recv`.
+
+So both peers carry the apply-loop-over-separate-value-channel bandaid (stdio disconnected);
+fork-program holds the ideal "stdio = channel" wiring. CONSOLIDATION: lift the *shape* of
+fork-program's wiring into the `spawn-program` verb, run the env as a `readln`/`println` server,
+delete the peers' separate-value-channel + inherited-stdio, `git rm` fork-program.
+
+## Remote guardrail — the forcing function, made concrete (LOCKED design, recovered 2026-06-08)
+
+Not building remote yet is a forcing function: it can only be *honored*, never hacked around.
+The spec is **LOCKED** — `scratch/2026/05/007-remote-program/DESIGN.md:262-407` (user direction
+2026-05-03) + `docs/arc/2026/05/170-program-entry-points/TIERS.md`. The model:
+
+**The wire IS `Result<T, E>` — the Q-channel.** Each emission is a length-prefixed EDN frame
+`[u32 BE len][EDN]`, tagged `{:channel :ok :payload <T>}` or `{:channel :err :payload <E>}`.
+- `readln` = the request (in). `println` = an **Ok-channel** emission (response value).
+  `eprintln` = an **Err-channel** emission (panic / diagnostic).
+- Err is NOT a third physical pipe — it is the Err-discriminant of the ONE response wire.
+  Diagnostic richness (Info/Warn/Error/Panic) lives inside the application's `E` enum, never as
+  frame proliferation; the wire stays binary Ok/Err.
+- Layer 2 (the `Result<T,E>` wire) is written ONCE, transport-agnostic; Layer 1 (transport) is
+  the only per-tier swap: thread = 2 crossbeam channels, process = fd1(Ok) + fd2(Err), remote =
+  both multiplexed over 1 socket via the frame tag.
+- STATUS: designed + LOCKED, NOT built. Arc 214 left the empty seat; arc 254 made the surface
+  socket-ready (uniform contract + fd-select); a future arc mints the `Socket` tier, zero caller change.
+
+**THE GUARDRAIL for this stone:** build the control-pipe-set as a LOGICAL contract — `in` +
+`Ok-channel` + `Err-channel` of a `Result<T,E>` response wire — NEVER as "3 raw fds." The process
+tier MAPS Ok→fd1, Err→fd2; remote will multiplex them; the verb + `send`/`recv`/`readln`/`println`
+operate on the logical channels, transport-blind. **F3's `#wat.kernel/ProcessPanics` envelope on
+fd 2 IS the process-tier Err-channel** — the local instance of the locked remote protocol, already
+built. Lift the *shape* (in / Ok / Err), not the fds, and remote fits by construction.
+
 ## The migration shape
 
 ### 1. Substrate enabler — `spawn-program :process` wires the child's full stdio to the parent-client
