@@ -17,11 +17,14 @@
    text). runtime.rs SHUTDOWN statics carry no suppressions — the prose-vs-rune
    question resolves CLEAN (a `// SAFETY:` on an `unsafe{}` is not a checker
    suppression, so sequi F9 needs no rune). One side-catch: a stale doc lie.
-2. **circumspicere** — NOT YET CAST (it is the perimeter, cast LAST with the
-   full inward map). Cast it over channel/+process/+kernel/ with these findings
-   embedded; add its perimeter findings to the sweep.
-Then: draw ONE convergence sweep (sonnet), execute, re-verify L1+L2=0, lay the
-TRIPLE vigilatum (channel/ + process/ + kernel/ each get the stamp).
+2. ~~**circumspicere**~~ — **REPORTED + GROUNDED (folded in below, "CIRCUMSPICERE
+   VERDICTS").** 0 L1, 3×L2, 1×L3 — clean perimeter, no ship-blocker. All 4
+   findings verified true at their cited file:lines by the orchestrator. It
+   explicitly ruled out the items already in this ledger (no double-report) and
+   ruled out the comms raw_fds() worry (design-aware, comms/process.rs:35).
+ALL 14 WARDS REPORTED. Now: draw the convergence sweep (sonnet, sequenced —
+process/ structural first), execute, re-verify L1+L2=0, lay the TRIPLE vigilatum
+(channel/ + process/ + kernel/ each get the stamp).
 
 ## THE SPINE — δ-2/δ-3 pidfd migration (resolves FIVE findings at once)
 `src/process/handle.rs` `wait_or_cached` + `Drop` use raw `libc::waitpid(self.pid)`
@@ -183,6 +186,58 @@ channel/ + kernel/ = 0 exemptions. runtime.rs SHUTDOWN statics = 0 suppressions
   `SHUTDOWN_BROADCAST_READ_FD` doc says "Once set, never re-set (idempotent init)"
   — now a LIE: 6.4's `init_shutdown_signal_with_inputs` re-sets it in fork children
   (~line 356). Stale doc lie → FIX the comment to state the fork-rebirth re-set.
+
+## CIRCUMSPICERE VERDICTS (the perimeter, cast LAST; reported post-curare; all GROUNDED true)
+0 L1, 3×L2, 1×L3. Every finding orchestrator-verified at its file:line. circumspicere
+did NOT re-report ledger items (stale-Crossbeam labels, the runtime.rs:248 idempotent
+doc-lie = excusare side-catch, the secare thread-tier swallow) and ruled OUT the comms
+raw_fds() worry (comms/process.rs:35 documents ring+pipe fd survival; 4.5 was design-aware).
+- **F1 (L2) CLAIM-VS-CODE — out-of-home doc lie:** `docs/ZERO-MUTEX.md:478-489` says
+  the cli's shared state is `CHILD_PID` + `kill(2)` forwarding. CODE (verified) is
+  `CHILD_PGID` (`crates/wat-cli/src/lib.rs:118`) + `killpg(2)` (`:615`) — arc 106
+  generalized PID→PGID (lib.rs:111 says so); the doc never caught up. FIX = two-word
+  doc edit (CHILD_PID→CHILD_PGID, kill(2)→killpg(2) broadcast). Out-of-home (not a
+  ward target) but a shipped claim circumspicere is built to catch → FIX in the sweep.
+- **F2 (L2) EGRESS — fork-unsafe exit, IN-SCOPE (runtime SHUTDOWN init):**
+  `runtime.rs:334` + `:349` use `std::process::exit(1)` in the pipe2()-failure branches
+  of `init_shutdown_signal_with_inputs` — which runs in FORK CHILDREN (via child.rs:327
+  step 4). `std::process::exit` runs atexit handlers (the parent's, COW-inherited) in a
+  fork child → unpredictable teardown. The adjacent `libc::write(2,…)` already uses raw
+  libc. FIX = `std::process::exit(1)` → `unsafe { libc::_exit(1) }` (×2; one-char-class,
+  matches the neighbor). VERIFIED on disk.
+- **F3 (L2) NEGATIVE-SPACE — silent opaque child exit (kernel/ home):** `spawn.rs:427/433/
+  444/452` the `spawn_process_peer` child apply-loop exits `libc::_exit(1/0)` with NO
+  structured diagnostic, unlike EVERY verbs.rs child (which calls `emit_structured_exit`
+  → `#wat.kernel/ProcessPanics` EDN to stderr). Parent sees only `Exited(1)`, no cascade.
+  This is also a SILENT-SWALLOW dark-class instance ([[feedback_silent_swallow_is_dark_class]]),
+  sibling to the inward secare L3 (thread-tier spawn.rs:285). FIX = emit a structured
+  diagnostic before the error `_exit`s (re-export/reuse emit_structured_exit or the
+  emit_panic_envelope pattern at stdio.rs:125) + a NEW process-tier-error-diagnostic test.
+- **F4 (L3) UNENFORCED-INVARIANT — undocumented benign double-close (runtime, IN-SCOPE):**
+  the wake-fd is closed at child.rs:322 (close_range step 3) then again at runtime.rs:309-311
+  (rebirth guard step 4) → EBADF, discarded. Benign (single-threaded child, no fd recycling
+  step3→4). CODE IS ALREADY the guarded `if old_write_fd >= 0` form. FIX = add the cross-step
+  comment so a future editor doesn't "fix" the ordering into a real recycled-fd double-close.
+
+## SWEEP DECOMPOSITION (sequenced; the convergence drawn from the full map)
+Greedy stance → every finding above FIXED. Sequenced by risk/file to keep each kill
+verifiable (examinare: small strikes, weigh each):
+- **Strike 1 — process/ structural (heaviest, riskiest, FIRST):** THE SPINE (δ-2/δ-3
+  pidfd migration, handle.rs) + 3-child-branch dedup (solvere F-PR-1, child.rs) +
+  emit_panics/emit_structured_exit merge + all process/ inward mechanical + excusare
+  P-1 strike/P-3/P-4 doc + circumspicere **F2** (_exit ×2) + **F4** (double-close comment)
+  + the runtime.rs:248 idempotent-doc side-catch. Verify: clippy process/ clean, lib
+  green, enveloped gamma/hermetic green, the δ-2 exit-code decode preserved.
+- **Strike 2 — kernel/:** KR-1 :process sym-clone capability fix + NEW process-tier-helper
+  test + circumspicere **F3** structured diagnostic + NEW diagnostic test + all kernel/
+  inward mechanical. Verify: clippy kernel/, lib, arc214 nursery, the 2 new tests.
+- **Strike 3 — channel/:** all channel/ inward mechanical (labels→comms::thread, decode
+  dedup, drop underscores, doc contracts, SeqCst→Acquire, exigere affirmative rewords).
+  Verify: clippy channel/, lib.
+- **F1** (ZERO-MUTEX.md doc) folded into Strike 1 (adjacent to the runtime fixes).
+- Strikes 2+3 are file-disjoint from each other (kernel/ vs channel/) → may run parallel
+  AFTER Strike 1 lands green (Strike 1's spine restructures handle.rs that kernel/ depends
+  on at the type level; sequence it first to avoid a moving floor under Strike 2).
 
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
