@@ -212,7 +212,6 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
 /// `/new` constructor and `/0` accessor. The body calls `:h::LocalAmount/new`
 /// and `:h::LocalAmount/0` successfully; the child exits 0.
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — newtype at program top-level.
     // Stone 241.11 — define hard-cut; use defn in the child program forms.
@@ -222,7 +221,7 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
                       (:wat::core::forms
                         (:wat::core::newtype :h::LocalAmount :wat::core::i64)
                         (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [a (:h::LocalAmount/new 100)] :wat::core::nil)))))
+                          (:wat::core::let [a (:h::LocalAmount/new 100)] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -242,7 +241,6 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
 /// the typealias. The body's `define` uses the alias as a return type annotation;
 /// the child type-checks it successfully and exits 0.
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — typealias at program top-level.
     // Stone 241.11 — define hard-cut; use defn in the child program forms.
@@ -253,7 +251,7 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
                         (:wat::core::typealias :h::LocalCount :wat::core::i64)
                         (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
                         (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [_c (:h::get-count)] :wat::core::nil)))))
+                          (:wat::core::let [_c (:h::get-count)] nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
@@ -295,7 +293,6 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 /// any macro call sites; the child registration is correct for future macro
 /// expansion in a subsequent spawn).
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_mixed_declaration_prelude_all_lift() {
     // Arc 170 slice 6 — all declaration kinds sit at program top-level
     // alongside :user::main. The new substrate makes the "lift" a no-op
@@ -327,7 +324,7 @@ fn probe_mixed_declaration_prelude_all_lift() {
                              _d  :h::MixDir::Up
                              _a  (:h::MixAmount/new 10)
                              _n  (:h::mix-i64 7)]
-                            :wat::core::nil)))))
+                            nil)))))
 
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

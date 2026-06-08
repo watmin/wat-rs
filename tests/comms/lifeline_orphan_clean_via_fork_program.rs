@@ -87,7 +87,7 @@ const BLOCKING_CHILD_SRC: &str = r#"
          _       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
                    (:wat::kernel::recv rx)
                    "recv failed — sender dropped before shutdown")]
-        :wat::core::nil))
+        nil))
 "#;
 
 fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
@@ -148,7 +148,6 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 ///    exactly when grandchild process exits. Kernel-guaranteed (Linux 5.3+).
 /// 7. POLLIN fired → grandchild is gone. pidfd POLLIN is the authoritative proof.
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn probe_lifeline_orphan_clean_via_fork_program() {
     // Step 1: Build the grandchild world before forking. The supervisor forks
     // and calls fork-program; the grandchild runs BLOCKING_CHILD_SRC as its
@@ -202,7 +201,7 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
                     format!(
                         "(:wat::core::defn :test::block-until-shutdown [] -> :wat::core::nil \
                          (:wat::core::let [[tx rx] (:wat::kernel::make-channel :wat::core::nil) \
-                         _ (:wat::kernel::recv rx)] :wat::core::nil))"
+                         _ (:wat::kernel::recv rx)] nil))"
                     ),
                     Span::unknown(),
                 ),

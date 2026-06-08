@@ -250,7 +250,6 @@ fn wait_child_exit_ok(handle: Arc<wat::runtime::ProgramHandleInner>) {
 }
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
     // (`Vec<WatAST>`). The child program is self-contained: a single
@@ -264,7 +263,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
           (:wat::core::let
                       [n    (:wat::kernel::readln -> :wat::core::i64)
                        _out (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                      :wat::core::nil))
+                      nil))
     "#,
     );
     let env = Environment::new();
@@ -635,7 +634,6 @@ fn t9b_spawn_program_ast_callsite_fires_walker() {
 // ─── T10. spawn-thread(fn) — UNCHANGED behavior ──────────────────────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: test source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn t10_spawn_thread_unchanged_positive_control() {
     // Same shape as before arc 170 — spawn-thread takes a fn whose
     // signature is :Receiver<I> + :Sender<O> → :nil. Behavior must
@@ -649,10 +647,10 @@ fn t10_spawn_thread_unchanged_positive_control() {
           (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
             ((:wat::core::Ok (:wat::core::Some n))
               (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::* n 2)) -> :wat::core::nil
-                ((:wat::core::Ok _) :wat::core::nil)
-                ((:wat::core::Err _) :wat::core::nil)))
-            ((:wat::core::Ok :wat::core::None) :wat::core::nil)
-            ((:wat::core::Err _died) :wat::core::nil)))
+                ((:wat::core::Ok _) nil)
+                ((:wat::core::Err _) nil)))
+            ((:wat::core::Ok :wat::core::None) nil)
+            ((:wat::core::Err _died) nil)))
     "#;
     let world = freeze_ok(src);
     // Build (:wat::kernel::spawn-thread :my::echo-thread).
@@ -992,7 +990,6 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
 // processing, dropping its tx, which signals EOF to the parent's drain.
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     // Define a function that uses run-hermetic-with-io to send 21 to the
     // child, have it double the value, and return the result.
@@ -1010,7 +1007,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
                       (:wat::core::let
                         [n (:wat::kernel::readln -> :wat::core::i64)
                          _ (:wat::kernel::println (:wat::core::i64::* n 2))]
-                        :wat::core::nil)))
+                        nil)))
     "#;
     let world = freeze_ok(src);
     let func = world
@@ -1065,7 +1062,6 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
 }
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     // Complementary to T18: a failing assertion inside the Layer 2 body.
     // Arc 170 slice 3 Gap A: macro now takes inner element types (:wat::core::i64).
@@ -1091,7 +1087,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
                          _ (:wat::test::assert-eq n 3)
                          ;; println never reached:
                          _2 (:wat::kernel::println n)]
-                        :wat::core::nil)))
+                        nil)))
     "#;
     let world = freeze_ok(src);
     let func = world

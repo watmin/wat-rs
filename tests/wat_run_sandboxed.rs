@@ -78,7 +78,6 @@ fn as_vec_string(v: &Value) -> Vec<String> {
 // ─── Happy path — no-op main ─────────────────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn noop_main_yields_empty_stdout_and_stderr() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — `set-capacity-mode!`
@@ -94,7 +93,7 @@ fn noop_main_yields_empty_stdout_and_stderr() {
         ;; Outer program: runs a hermetic no-op body.
         (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
           (:wat::test::run-hermetic
-                      :wat::core::nil))
+                      nil))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert!(stdout.is_empty(), "expected empty stdout; got {:?}", stdout);
@@ -127,7 +126,6 @@ fn main_writes_single_line_to_stdout() {
 // ─── Multi-line + stderr ─────────────────────────────────────────────────
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn main_writes_to_both_stdout_and_stderr() {
     // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
     // to `:wat::test::run-hermetic`. SEMANTIC SHIFT (see sibling tests):
@@ -142,7 +140,7 @@ fn main_writes_to_both_stdout_and_stderr() {
                         (:wat::kernel::println "one")
                         (:wat::kernel::println "two")
                         (:wat::kernel::eprintln "oops")
-                        :wat::core::nil)))
+                        nil)))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     // :wat::kernel::println EDN-serializes strings with quotes.
@@ -239,7 +237,6 @@ fn missing_user_main_surfaces_as_failure() {
 }
 
 #[test]
-#[ignore = "arc-170 fd-leak fixed (634b9ba4); this still fails: subprocess source uses ':wat::core::nil' in value position (arc-242 Doctrine 1 violation) — a separate nil-syntax migration issue, not the fd leak"]
 fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // Inner body writes "before panic" to stdout, then raises a panic
     // via `:wat::kernel::raise!`. Outer caller sees RunResult with
@@ -262,7 +259,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                       (:wat::core::let
                         [_ (:wat::kernel::println "before panic")
                          _ (:wat::kernel::raise! (:wat::holon::leaf "boom"))]
-                        :wat::core::nil)))
+                        nil)))
     "##;
     let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
     // Stdout captured BEFORE the raise! should survive.
