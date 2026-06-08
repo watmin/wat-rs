@@ -174,8 +174,18 @@ every site (src wat, `wat-tests/`, the namespaced `tests/`). Per
 
 ## Decomposition (sub-stones — sequence)
 1. **Enabler:** `:process` peer stderr → parent-readable (the crash-reason read).
-   FM-2-bis probe: spawn a `:process` peer whose program panics → parent reads the
-   `ProcessPanics` reason.
+   ✅ **DONE** — `spawn_process_peer` wires the child's fd 2 onto a diagnostic
+   Err-channel pipe the bundle owns (child `dup2`s it before the close-sweep, which
+   skips fd 0–2; parent closes its write copy, keeps the non-blocking read end);
+   `ProcessPeerBundle::take_crash_reason` drains it. The parent reads the
+   `#wat.kernel/ProcessPanics` reason THROUGH the peer API — no fd-2 redirect; the
+   process-tier instance of the locked remote Q-channel's Err-discriminant. The
+   FM-2-bis probe disconfirmed RED at HEAD, then flipped GREEN; its coverage
+   graduated into `tests/kernel/spawn_program_prime_process.rs` (both arms —
+   malformed-input + runtime-error — migrated off the fd-2-redirect harness onto
+   `take_crash_reason`). All 8 kernel integration tests GREEN. NEXT (1b, Q1): wire
+   `take_crash_reason` INTO the `recv'`/`close'` intrinsics so the substrate RAISES
+   the reason on the user's behalf (auto-raise; no user-facing crash verb).
 2. **Pattern:** rewrite ONE hermetic test as a peer (the reference); prove it green
    enveloped. This is the worked example the rest mirror.
 3. **Corpus sweep:** migrate `hermetic.wat` + `test.wat` + the `wat-tests/` hermetic

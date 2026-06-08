@@ -29,7 +29,6 @@
 //! or directly:
 //!   `cargo test --test kernel spawn_program_prime_process -- --ignored`
 
-use std::os::unix::io::RawFd;
 use std::sync::Arc;
 
 use wat::comms::RecvError;
@@ -87,67 +86,21 @@ fn peer_recv(cell: &ProcessPeerCell) -> Result<String, RecvError> {
     .expect("with_ref(recv) must not cross thread boundary")
 }
 
-/// Redirect fd 2 onto a fresh pipe so the child's stderr can be captured.
+/// Read the child's crash reason THROUGH the peer API — the process-tier read of
+/// the locked remote Q-channel's Err-discriminant (`ProcessPeerBundle::take_crash_reason`).
 ///
-/// Returns `(pipe_r, saved_fd2)`:
-/// - `pipe_r`    — the read end of the capture pipe; drain after child exits.
-/// - `saved_fd2` — a dup of the original fd 2; pass to `restore_fd2_and_drain`.
-///
-/// After this call, fd 2 points at the pipe's write end.  The caller must
-/// spawn the child (which inherits fd 2) and then call `restore_fd2_and_drain`.
-fn redirect_fd2_to_pipe() -> (RawFd, RawFd) {
-    let mut fds = [0i32; 2];
-    let rc = unsafe { libc::pipe(fds.as_mut_ptr()) };
-    assert_eq!(rc, 0, "pipe() must succeed");
-    let (pipe_r, pipe_w) = (fds[0], fds[1]);
-
-    let saved_fd2 = unsafe { libc::dup(2) };
-    assert!(saved_fd2 >= 0, "dup(2) must succeed");
-
-    // fd 2 now points at the pipe write end; the child inherits this.
-    assert!(
-        unsafe { libc::dup2(pipe_w, 2) } >= 0,
-        "dup2(pipe_w, 2) must succeed"
-    );
-    // Close the spare write end — the only open write end is now fd 2.
-    unsafe { libc::close(pipe_w) };
-
-    (pipe_r, saved_fd2)
-}
-
-/// Restore fd 2 from `saved_fd2`, then drain `pipe_r` to EOF and return its
-/// contents as a `String`.
-///
-/// After `dup2(saved_fd2, 2)` the pipe write end that was fd 2 is overwritten,
-/// closing it (the child's copy already closed when the child exited).  All
-/// write ends are now closed, so `read` runs to EOF.
-fn restore_fd2_and_drain(pipe_r: RawFd, saved_fd2: RawFd) -> String {
-    // Restore the original stderr.  The dup2 overwrites fd 2 (which was the
-    // pipe write end), closing the parent's write copy of the pipe.
-    assert!(
-        unsafe { libc::dup2(saved_fd2, 2) } >= 0,
-        "restore dup2 must succeed"
-    );
-    // closes the saved original stderr; the pipe write end was already closed
-    // by the dup2 restore above.
-    unsafe { libc::close(saved_fd2) };
-
-    // All write ends are now closed (child exited; parent's copy closed above)
-    // → read to EOF.
-    let mut captured = Vec::new();
-    let mut buf = [0u8; 4096];
-    loop {
-        let n = unsafe {
-            libc::read(pipe_r, buf.as_mut_ptr() as *mut libc::c_void, buf.len())
-        };
-        if n <= 0 {
-            break;
-        }
-        captured.extend_from_slice(&buf[..n as usize]);
-    }
-    unsafe { libc::close(pipe_r) };
-
-    String::from_utf8_lossy(&captured).into_owned()
+/// NO fd-2 redirect: the enabler (Stone 214 fork-death) wires the child's fd 2 to
+/// a diagnostic Err-channel pipe the bundle owns; this drains it. Call after the
+/// child is observed dead (recv → Err). Returns the `#wat.kernel/ProcessPanics`
+/// envelope text if the child errored, else `None`.
+fn peer_crash_reason(cell: &ProcessPeerCell) -> Option<String> {
+    cell.with_ref("test:crash-reason", |opt_bundle| {
+        opt_bundle
+            .as_ref()
+            .expect("bundle must not be closed")
+            .take_crash_reason()
+    })
+    .expect("with_ref(crash-reason) must not cross thread boundary")
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -375,11 +328,12 @@ fn spawn_program_prime_process_helper_round_trip() {
 /// Before the fix the child apply-loop did `Err(_) => libc::_exit(1)` on both
 /// the malformed-input and runtime-error arms — a silent swallow (dark class).
 ///
-/// Capture mechanism: the kernel peer child inherits the parent's fd 2 (the
-/// close-sweep starts at fd 3; `child_post_fork_init_preserving` does not
-/// redirect fd 2 for comms-only forks). So we redirect the parent's fd 2 onto a
-/// pipe BEFORE the spawn; the child inherits the pipe; after the child dies we
-/// restore fd 2 and read the diagnostic the child wrote.
+/// Capture mechanism (Stone 214 fork-death enabler): `spawn_process_peer` wires
+/// the child's fd 2 onto a diagnostic Err-channel pipe the bundle owns (the child
+/// `dup2`s it before the close-sweep). After the child dies (recv → Err), the
+/// parent drains the reason THROUGH the peer API via `take_crash_reason` — no
+/// fd-2-redirect harness trick; the process-tier read of the locked remote
+/// Q-channel's Err-discriminant.
 ///
 /// The malformed-input arm is the deterministic trigger here; the runtime-error
 /// arm is exercised by `spawn_program_prime_process_runtime_error_emits_diagnostic`.
@@ -404,10 +358,7 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
         .expect(":my::echo must be in symbol table")
         .clone();
 
-    // ── Step 2: redirect fd 2 → a pipe so we can read what the child emits. ──
-    let (pipe_r, saved_fd2) = redirect_fd2_to_pipe();
-
-    // ── Step 3: spawn the peer (child inherits fd 2 = pipe write end). ──────
+    // ── Step 3: spawn the peer (its diagnostic Err-channel captures fd 2). ──
     let dummy_span = Span::unknown();
     let peer_val =
         wat::kernel::spawn::spawn_process_peer(echo_fn_arc, &world.symbols, &dummy_span)
@@ -439,18 +390,18 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
         recv_result
     );
 
-    // ── Step 5: restore fd 2, then drain the pipe for the diagnostic. ───────
-    let diagnostic = restore_fd2_and_drain(pipe_r, saved_fd2);
+    // ── Step 5: read the crash reason THROUGH the peer API (no fd-2 redirect). ─
+    let diagnostic = peer_crash_reason(cell).unwrap_or_default();
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer child must emit a structured ProcessPanics envelope on \
-         fd 2, not _exit silently; captured stderr was {:?}",
+        "dead :process peer child must surface a structured ProcessPanics envelope \
+         through the peer's Err-channel (take_crash_reason), not vanish; reason was {:?}",
         diagnostic
     );
     assert!(
         diagnostic.contains("malformed EDN input"),
-        "the diagnostic must name the cause (malformed EDN input); captured stderr was {:?}",
+        "the reason must name the cause (malformed EDN input); reason was {:?}",
         diagnostic
     );
 
@@ -492,10 +443,7 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
         .expect(":my::boom must be in symbol table")
         .clone();
 
-    // ── Step 2: redirect fd 2 → a pipe so we can read what the child emits. ──
-    let (pipe_r, saved_fd2) = redirect_fd2_to_pipe();
-
-    // ── Step 3: spawn the peer (child inherits fd 2 = pipe write end). ──────
+    // ── Step 3: spawn the peer (its diagnostic Err-channel captures fd 2). ──
     let dummy_span = Span::unknown();
     let peer_val =
         wat::kernel::spawn::spawn_process_peer(boom_fn_arc, &world.symbols, &dummy_span)
@@ -528,20 +476,20 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
         recv_result
     );
 
-    // ── Step 5: restore fd 2, then drain the pipe for the diagnostic. ───────
-    let diagnostic = restore_fd2_and_drain(pipe_r, saved_fd2);
+    // ── Step 5: read the crash reason THROUGH the peer API (no fd-2 redirect). ─
+    let diagnostic = peer_crash_reason(cell).unwrap_or_default();
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer child must emit a structured ProcessPanics envelope on \
-         fd 2 for runtime errors; captured stderr was {:?}",
+        "dead :process peer child must surface a structured ProcessPanics envelope \
+         through the peer's Err-channel for runtime errors; reason was {:?}",
         diagnostic
     );
     assert!(
         diagnostic.contains("DivisionByZero"),
-        "the diagnostic must name the cause (#wat.kernel/DivisionByZero, the structured \
+        "the reason must name the cause (#wat.kernel/DivisionByZero, the structured \
          EDN tag — the runtime-error arm emits the serialized RuntimeError, not Display text); \
-         captured stderr was {:?}",
+         reason was {:?}",
         diagnostic
     );
 

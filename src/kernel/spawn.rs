@@ -67,7 +67,7 @@
 //! error maps to a `RuntimeError::MalformedForm` before the fork.
 //! `:thread` programs skip the walker (in-process sharing via `Arc` is safe).
 
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
@@ -145,6 +145,15 @@ pub struct ProcessPeerBundle {
     // channels, racing with any pending send/recv.
     /// The kernel peer with String wire type.
     pub peer: Process<String, String>,
+    /// Read end of the child's diagnostic Err-channel — the process-tier instance
+    /// of the locked remote Q-channel's Err-discriminant. The child's fd 2 is
+    /// `dup2`'d onto this pipe's write end at fork, so a `#wat.kernel/ProcessPanics`
+    /// envelope from `emit_structured_exit` lands here instead of the parent's
+    /// inherited stderr. Non-blocking; drained by `take_crash_reason` after the
+    /// peer is observed dead. RAII closes it (drops after `peer`, before the
+    /// lifeline, per the order invariant). Stone 214 fork-death enabler
+    /// (DESIGN-FORK-PROGRAM-DEATH step 1: "stderr → parent-readable").
+    pub(crate) err_channel_r: OwnedFd,
     /// Lifeline write-end. Closing this signals the child to exit.
     pub _lifeline_w: OwnedFd,
 }
@@ -152,6 +161,47 @@ pub struct ProcessPeerBundle {
 // Safety: Process<String,String> is Send (comms::process types are Send;
 // Pidfd is Send). OwnedFd is Send. So ProcessPeerBundle: Send.
 // ThreadOwnedCell<ProcessPeerBundle> becomes Sync via the unsafe impl in custodia.
+
+impl ProcessPeerBundle {
+    /// Drain the child's diagnostic Err-channel and return the crash reason, if any.
+    ///
+    /// The process-tier read of the locked remote Q-channel's Err-discriminant:
+    /// when the child fn errors (malformed input / runtime error) it emits a
+    /// `#wat.kernel/ProcessPanics [...]` envelope on fd 2, which is wired to this
+    /// pipe. After the peer is observed dead (recv → `Err`, or a non-zero exit),
+    /// this drains the pipe so the parent reads the cause THROUGH the peer API
+    /// instead of scraping inherited stderr.
+    ///
+    /// The read end is non-blocking: calling this while the child is still alive
+    /// (write end open, nothing buffered) returns `None` immediately rather than
+    /// hanging. Returns `Some(text)` only when a `#wat.kernel/ProcessPanics`
+    /// envelope is present; a clean exit leaves the channel empty → `None`.
+    pub fn take_crash_reason(&self) -> Option<String> {
+        let fd = self.err_channel_r.as_raw_fd();
+        let mut captured = Vec::new();
+        let mut buf = [0u8; 4096];
+        loop {
+            let n =
+                unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+            if n > 0 {
+                captured.extend_from_slice(&buf[..n as usize]);
+            } else {
+                // n == 0 → EOF (all write ends closed); n < 0 → EAGAIN (non-blocking,
+                // nothing ready) or error. Either way, stop draining.
+                break;
+            }
+        }
+        if captured.is_empty() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&captured).into_owned();
+        if text.contains("#wat.kernel/ProcessPanics") {
+            Some(text)
+        } else {
+            None
+        }
+    }
+}
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
@@ -418,6 +468,38 @@ pub fn spawn_process_peer(
         }
     })?;
 
+    // ── Diagnostic Err-channel pipe (process-tier Q-channel Err-discriminant) ──
+    // Created pre-fork so both sides inherit the fds. The child `dup2`s fd 2 onto
+    // the write end (see the CHILD BRANCH), so emit_structured_exit's
+    // `#wat.kernel/ProcessPanics` envelope lands in this pipe instead of the
+    // parent's inherited stderr. The closure captures only the raw write-fd NUMBER
+    // (Copy), so the parent retains ownership: it closes its write copy after the
+    // fork and keeps the read end (non-blocking) on the bundle.
+    let mut diag_fds = [0i32; 2];
+    if unsafe { libc::pipe(diag_fds.as_mut_ptr()) } != 0 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "diagnostic Err-channel pipe() failed: {}",
+                    std::io::Error::last_os_error()
+                ),
+            },
+        });
+    }
+    let (diag_r_raw, diag_w_raw) = (diag_fds[0], diag_fds[1]);
+    // Non-blocking read end: a drain before the child has died (write end still
+    // open, nothing buffered) returns immediately instead of hanging.
+    unsafe {
+        let flags = libc::fcntl(diag_r_raw, libc::F_GETFL);
+        libc::fcntl(diag_r_raw, libc::F_SETFL, flags | libc::O_NONBLOCK);
+    }
+    // SAFETY: diag_r_raw is a fresh fd from pipe(); the parent owns it. diag_w_raw
+    // stays a raw i32 (Copy) — captured by the child closure for dup2, closed by
+    // the parent after the fork.
+    let diag_r = unsafe { OwnedFd::from_raw_fd(diag_r_raw) };
+
     // ── Fork via spawn_lifelined_any ─────────────────────────────────────────
     // `spawn_lifelined` requires `F: FnOnce(i32) + UnwindSafe`. The child
     // closure captures `Arc<Function>` and `comms::process::Receiver<String>` /
@@ -440,6 +522,15 @@ pub fn spawn_process_peer(
 
     let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
+
+        // Wire the child's stderr (fd 2) to the diagnostic Err-channel BEFORE the
+        // close-sweep (which starts at fd 3 and never touches fd 0/1/2). After
+        // this, emit_structured_exit's fd-2 write lands in the parent's pipe.
+        // diag_w_raw and the inherited diag_r (both >= 3) are then closed by the
+        // sweep (not in `preserved`); fd 2 survives as the pipe write end.
+        unsafe {
+            libc::dup2(diag_w_raw, 2);
+        }
 
         // Collect ALL fds owned by the comms endpoints that must survive the
         // close-sweep. input_rx owns {read_fd, ring_fd}; output_tx owns {write_fd}.
@@ -536,6 +627,14 @@ pub fn spawn_process_peer(
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
     let lifeline_w = lifeline_writer.into_owned_fd();
 
+    // Close the parent's copy of the diagnostic write end. The only remaining
+    // write end is now the child's fd 2, so once the child dies the parent's
+    // non-blocking read (take_crash_reason) sees EOF and drains cleanly. Leaving
+    // it open would keep the read end from ever reaching EOF.
+    unsafe {
+        libc::close(diag_w_raw);
+    }
+
     // Build the parent-side Process<String, String> peer.
     let peer = Process {
         input: input_tx,
@@ -545,6 +644,7 @@ pub fn spawn_process_peer(
 
     let bundle = ProcessPeerBundle {
         peer,
+        err_channel_r: diag_r,
         _lifeline_w: lifeline_w,
     };
 
