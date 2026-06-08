@@ -40,11 +40,11 @@
 //! `ProcessPeerBundle` packages `kernel::peer::Process<String, String>` plus
 //! the lifeline `OwnedFd`. The `Option` lets `close'` take the bundle while
 //! `send'`/`recv'`/`try-recv'` detect use-after-close. The wire type is
-//! `String` (EDN-encoded Value) rather than `Value` directly, because
-//! `comms::process::Receiver<Value>` is `!UnwindSafe` (Value contains
-//! `Arc<dyn WatReader>` / `UnsafeCell`), but `spawn_lifelined` requires
-//! `F: UnwindSafe` for its child closure.
-//! `String: UnwindSafe`, so `comms::process::Receiver<String>: UnwindSafe`.
+//! `String` (EDN-encoded Value) rather than `Value` directly, because the
+//! process tier crosses a fork boundary (a separate address space) — only
+//! EDN-serializable bytes cross, never live `Value` handles. (The child
+//! closure's `!UnwindSafe`-ness is a separate concern, handled by
+//! `spawn_lifelined_any`; see the fork site.)
 //!
 //! The encoding/decoding between `Value` and `String` (EDN) is done at the
 //! boundary: parent encodes Value → EDN String before sending; child
@@ -281,7 +281,7 @@ pub fn spawn_thread_peer(
                     apply_function(program_fn.clone(), vec![input_val], &thread_sym, span.clone())
                 })) {
                     Ok(Ok(v)) => v,
-                    // rune:secare(host-constraint) — fn error / panic → break.
+                    // rune:struere(host-constraint) — fn error / panic → break.
                     // The parent's recv() sees RecvError (channel close) and cannot
                     // distinguish fn failure from a clean close. Tier asymmetry with
                     // :process (_exit(1) → parent calls close().wait_status() → Exited(1)).
@@ -336,12 +336,12 @@ pub fn spawn_thread_peer(
 /// (decoded from EDN String) and returns a `Value`; the child
 /// re-encodes the result via `edn_shim::value_to_edn_string`.
 ///
-/// Using `String` rather than `Value` as the wire type avoids the
-/// `!UnwindSafe` bound on `comms::process::Receiver<Value>` —
-/// `Value` contains `Arc<dyn WatReader>` / `UnsafeCell`, making it
-/// `!UnwindSafe`, while `String: UnwindSafe`. The `spawn_lifelined`
-/// closure's `F: UnwindSafe` bound is satisfied by the String-typed
-/// channels + the `AssertUnwindSafe` wrappers for the fn.
+/// The wire type is `String` (EDN) rather than `Value` because the process
+/// tier crosses a fork boundary — only serializable bytes cross, not live
+/// `Value` handles. The child closure is `!UnwindSafe` (it captures
+/// `Arc<Function>` + the comms channels, whose IoUring / `Arc<dyn WatReader>`
+/// are `!UnwindSafe`); `spawn_lifelined_any` removes the bound (the child
+/// never unwinds — every exit path calls `_exit`). See the fork site.
 ///
 /// Sandbox-walker: `closure_extract` on the fn; `NonPortableCapture` →
 /// reject. Other extraction errors are non-fatal (the fn body is
@@ -489,7 +489,7 @@ pub fn spawn_process_peer(
         span: list_span.clone(),
         kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("spawn_lifelined failed: {}", io_err),
+            reason: format!("spawn_lifelined_any failed: {}", io_err),
         },
     })?;
 
@@ -531,7 +531,7 @@ mod tests {
     /// 1. `spawn_thread_peer` returns `Value::RustOpaque` with the expected
     ///    type-path (`THREAD_PEER_TYPE_PATH`).
     /// 2. Downcast via `rust_opaque_arc` + `downcast_ref_opaque` succeeds to
-    ///    `Arc<ThreadOwnedCell<Thread<Value, Value>>>`.
+    ///    `ThreadPeerCell` (`Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>`).
     /// 3. `peer.send(Value::i64(42))` → `peer.recv()` returns `Value::i64(42)`.
     /// 4. Dropping the peer closes the input channel; the spawned thread exits
     ///    cleanly (proven by the test completing without hanging).
