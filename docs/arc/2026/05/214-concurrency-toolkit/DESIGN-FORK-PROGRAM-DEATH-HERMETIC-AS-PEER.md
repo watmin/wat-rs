@@ -196,15 +196,48 @@ reference the prime verbs and will churn in the rename. Finish the verb collapse
 rename FIRST, then re-ward kernel/ (+ channel/, process/, comms/) over canonical
 names. Warding prime-named homes is polishing a doorframe before moving the door.
 
-## Open questions for tomorrow
-- Enabler shape: dedicated `Process'/stderr` reader vs. `recv'`-Err/`close'` carrying
-  the drained reason. (Lean: whichever keeps the test-side API "fail with the reason"
-  simplest — probably the reason rides the channel-close error.)
-- Does any hermetic test genuinely need *stdout* capture (not just values + crash
-  reason)? Grep the corpus; if a test asserts on printed stdout content, it migrates
-  to shipping that content as a value.
-- Stone/arc number for this campaign (it's the 214 verb-canonicalization tail; or its
-  own arc cited from 214's INSCRIPTION).
+## Resolved (2026-06-08, the next-day re-ground — four-questions, grounded against the disk)
+
+**Q1 — enabler shape: how does a far-side crash reach the client? → THE SUBSTRATE RAISES IT; THERE IS NO USER-FACING CRASH VERB.**
+The governing constraint (builder, 2026-06-08): *panic control is abstracted away — a user
+cannot fuck up panics; the substrate panics on their behalf; if the far side crashes we
+handle it appropriately.* This is NOT a preference; it disqualifies a whole option. The
+four-questions, run against the constraint:
+- *Dedicated `Process'/stderr` reader the author consults* — **Honest? NO.** A reader you
+  can forget to drain is a silent-swallow site BY CONSTRUCTION (the far side dies, the
+  author didn't read `err`, the crash vanishes, the test greens on a corpse). That is the
+  exact dark-class this whole design annihilates; reintroducing it at the panic boundary is
+  the worst place to put it. **Rejected, not a runner-up.**
+- *The substrate raises the far-side reason on the near side, at the pending `recv`/`close`*
+  — Obvious YES (a far-side crash propagates exactly like any panic; the author writes
+  nothing new) · Simple YES (ONE wire, two discriminants — the Q-channel `Result<T,E>`; the
+  Err-discriminant is raised at the read site; no second reader, no opt-in drain) · Honest
+  YES (real isolation, true reason, the author CANNOT swallow it because they never opt in —
+  it is raised for them) · Good UX YES ("a user cannot fuck up panics" IS the Good-UX test;
+  the safe path is the only path).
+- **THE DECISION:** the author writes only the happy path (`send`→`recv`→`close` return
+  values); a crashed far-side becomes a near-side panic carrying the propagated reason,
+  raised by the substrate at whatever read the client is already waiting on. **F3's
+  `#wat.kernel/ProcessPanics` envelope on fd 2 IS that Err-channel, already built.** No
+  user-facing crash verb exists. (Source-marked here because the reader standing in the
+  enabler code must see it: *do not add a crash reader; the crash is the substrate's, raised
+  at the read.*)
+
+**Q2 — does any hermetic test need *stdout-content* capture, not just values + crash reason? → YES, and it still fits THE ANSWER.**
+Grounded against the corpus: `wat-tests/kernel/services/ambient-stdio.wat` asserts exact
+stdout lines via `:wat::test::assert-stdout-is`, and it MUST — its subject-under-test IS the
+stdio-capture mechanism (the StdOutService trio). You cannot "ship the asserted thing as a
+value" when the asserted thing is what landed on the captured pipe. The original lean
+("migrate printed-stdout asserts to value-asserts") does NOT hold for this class — but it
+doesn't need to: the server `println`s, the client reads stdout and asserts the *bytes*
+instead of decoding to a value. Same client/server-over-stdio shape, response asserted raw.
+**Enabler contract therefore keeps a stdout-content-readable path at the client, not only
+values + the crash channel.**
+
+**Q3 — stone/arc number → 214.x stones, cited from 214's eventual INSCRIPTION.**
+It is the verb-canonicalization tail 214 always pointed at (`DESIGN.md:365`); its DESIGN
+already lives in 214's arc dir; 6.w + 214 cannot close until it closes (spawn-block winding).
+No new arc.
 
 ## Realization (2026-06-08) — the side quests were the loot; the design closed with no corner cut
 
