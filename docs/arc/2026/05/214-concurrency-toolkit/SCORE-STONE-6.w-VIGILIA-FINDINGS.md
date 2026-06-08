@@ -332,7 +332,22 @@ ZERO-MUTEX verified). Its 3 perimeter findings fold into Strike 1c below (CIRC-F
   dup failure (UB precondition; close(-1)=EBADF, benign). FIX = guard dup_fd failure explicitly
   (return Result/Option or abort with a clear message) rather than hand an invalid fd to from_raw_fd. [circumspicere]
 
+## WARD SET — WIDENED to FOUR homes (2026-06-07, builder caught the gap)
+6.w was framed as the TRIPLE (channel/ process/ kernel/) but the real 214-touched
+surface is FOUR homes — and I had tunnel-visioned process/ alone for 3 strikes:
+- **process/** — created 6.3. Re-cast round 2 CLOSED (Strike 1/1b/1c green). Round 3 = confirm consistent-zero. (no stamp yet)
+- **channel/** — created 6.1. NOT warded. (Strike 3 brief committed.)
+- **kernel/** — created Slice 4. NOT warded. (Strike 2 — to draw.)
+- **comms/** — the engine (Slices 1-3), STAMPED 2026-06-01 (9-spell) — but **DRIFTED**:
+  5 commits touched it AFTER the stamp (arc253 try_recv 2-state collapse `d3150a04`;
+  4.5 raw_fds `5cf044e4`; 8.2/6.3/6.4), last modified 2026-06-07 19:21 (thread.rs).
+  The stamp certifies stale code → comms/ needs a DRIFT RE-CAST to the current bar + re-stamp.
+- (services/ STAMPED 2026-06-08 full 14-ward AFTER all the above — current, NOT in scope.)
+NEW PLAN (off the one-home march): process/ spine is committed → kernel/, channel/, comms/
+are file-disjoint → ward all in PARALLEL (concurrent inward workflows + standalone
+circumspicere each), loop each to consistent-zero, then vigilatum all four.
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
-  built (channel/ process/ kernel/). The INSCRIPTION names this affirmatively.
+  built/touched (channel/ process/ kernel/ + comms/-drift). The INSCRIPTION names this affirmatively.
