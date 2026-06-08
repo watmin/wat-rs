@@ -107,7 +107,7 @@ fn grandchild_pid(process: &Value) -> libc::pid_t {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
             match &s.fields[3] {
                 Value::wat__kernel__ProgramHandle(h) => match h.as_ref() {
-                    ProgramHandleInner::Forked(child) => child.pid,
+                    ProgramHandleInner::Forked(child) => child.pidfd.pid(),
                     other => panic!("expected Forked ProgramHandle; got {:?}", other),
                 },
                 other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),
@@ -239,7 +239,7 @@ fn probe_lifeline_orphan_clean_via_fork_program() {
         };
         assert_eq!(written, 4, "pid_pipe write failed");
 
-        // Leak the Process struct so ChildHandleInner::drop (SIGKILL + waitpid)
+        // Leak the Process struct so ChildHandle::drop (SIGKILL + waitpid)
         // does NOT run. The lifeline mechanism cleans up the grandchild instead.
         std::mem::forget(process);
         drop(pid_w);

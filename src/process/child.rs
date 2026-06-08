@@ -153,7 +153,7 @@ pub(crate) fn rebirth_substrate_after_fork() {
 /// caller.
 pub fn run_in_fork<F>(body: F)
 where
-    F: FnOnce() + std::panic::UnwindSafe,
+    F: FnOnce() + std::panic::UnwindSafe + 'static,
 {
     // Arc 213 β — use the canonical Pidfd + lifeline primitive instead of
     // bare libc::fork(). spawn_lifelined handles: clone3+CLONE_PIDFD,

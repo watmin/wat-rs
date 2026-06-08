@@ -40,19 +40,18 @@ const CLONE_CLEAR_SIGHAND_FLAG: u64 = 0x100000000; // CLONE_CLEAR_SIGHAND — Li
 // repr(C): kernel requires each field to be 64-bit aligned. All fields are
 // __u64 in the kernel header. We zero-initialize unused fields.
 #[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct CloneArgs {
-    pub flags: u64,        // mask of CLONE_* flags
-    pub pidfd: u64,        // pointer to pidfd (if CLONE_PIDFD set)
-    pub child_tid: u64,    // unused (CLONE_CHILD_SETTID)
-    pub parent_tid: u64,   // unused (CLONE_PARENT_SETTID)
-    pub exit_signal: u64,  // signal to parent on child exit (SIGCHLD = 17)
-    pub stack: u64,        // start of stack (0 = inherit)
-    pub stack_size: u64,   // stack size (0 = inherit)
-    pub tls: u64,          // new TLS (CLONE_SETTLS)
-    pub set_tid: u64,      // pointer to pid array
-    pub set_tid_size: u64, // size of pid array
-    pub cgroup: u64,       // CLONE_INTO_CGROUP target (0 = current cgroup)
+pub(super) struct CloneArgs {
+    pub(super) flags: u64,        // mask of CLONE_* flags
+    pub(super) pidfd: u64,        // pointer to pidfd (if CLONE_PIDFD set)
+    pub(super) child_tid: u64,    // unused (CLONE_CHILD_SETTID)
+    pub(super) parent_tid: u64,   // unused (CLONE_PARENT_SETTID)
+    pub(super) exit_signal: u64,  // signal to parent on child exit (SIGCHLD = 17)
+    pub(super) stack: u64,        // start of stack (0 = inherit)
+    pub(super) stack_size: u64,   // stack size (0 = inherit)
+    pub(super) tls: u64,          // new TLS (CLONE_SETTLS)
+    pub(super) set_tid: u64,      // pointer to pid array
+    pub(super) set_tid_size: u64, // size of pid array
+    pub(super) cgroup: u64,       // CLONE_INTO_CGROUP target (0 = current cgroup)
 }
 
 // ── P_PIDFD constant (waitid idtype_t = 3, Linux 5.4+) ───────────────────
@@ -163,6 +162,8 @@ impl Pidfd {
     /// `waitid(P_PIDFD, fd, WEXITED | WNOHANG)` — non-blocking poll.
     /// Returns `Ok(Some(status))` if exited + reaped, `Ok(None)` if still
     /// running, `Err` on syscall failure.
+    // rune:perspicere(read-once) — the nested Option<ExitStatus> is the minimal
+    // type for a non-blocking wait; a caller that needs blocking uses wait_status().
     pub fn try_wait(&self) -> std::io::Result<Option<ExitStatus>> {
         let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
         let ret = unsafe {
@@ -231,6 +232,20 @@ impl Pidfd {
     }
 }
 
+/// Map an `ExitStatus` to the shell-convention `i64` exit code.
+///
+/// Shell convention: normal exit → the exit code (0–255); signal kill →
+/// `128 + signal_number`. Matches the legacy `handle.rs::extract_exit_code`
+/// (c_int-status decoder) so the migration preserves the exact same values
+/// callers observe through `ChildHandle::wait_or_cached_exit`.
+pub(super) fn exit_status_to_i64(status: ExitStatus) -> i64 {
+    match status {
+        ExitStatus::Exited(code) => code as i64,
+        ExitStatus::Signaled(sig) => 128 + sig as i64,
+        ExitStatus::Stopped(_) => -1, // WIFSTOPPED — only with WUNTRACED; should not fire here
+    }
+}
+
 /// Extract `ExitStatus` from a `siginfo_t` populated by `waitid`.
 ///
 /// `si_code` discriminates: `CLD_EXITED` (1) → normal exit; `CLD_KILLED`
@@ -275,19 +290,12 @@ pub struct LifelineWriter {
 }
 
 impl LifelineWriter {
-    /// Explicit close — equivalent to dropping. Useful when the parent
-    /// wants to signal child shutdown WITHOUT waiting for the parent's
-    /// own death.
-    pub fn close(self) {
-        drop(self.fd)
-    }
-
     /// Arc 213 γ-1 — extract the inner OwnedFd by consumption. Used by
     /// `eval_kernel_fork_program_ast` to store the lifeline write-end in
-    /// `ChildHandleInner::lifeline_w` (which holds `Option<OwnedFd>`).
-    /// Preferred over changing ChildHandleInner's field type (option (a)
+    /// `ChildHandle::lifeline_w` (which holds `Option<OwnedFd>`).
+    /// Preferred over changing ChildHandle's field type (option (a)
     /// vs option (c)) because spawn_process.rs also constructs
-    /// ChildHandleInner with OwnedFd directly — changing the field type
+    /// ChildHandle with OwnedFd directly — changing the field type
     /// would require touching spawn_process.rs (scope violation).
     pub fn into_owned_fd(self) -> OwnedFd {
         self.fd
@@ -331,35 +339,15 @@ pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     Ok((r, w))
 }
 
-/// Canonical fork-and-observe primitive. Uses Linux 5.3+ syscalls
-/// (clone3 + CLONE_PIDFD + CLONE_CLEAR_SIGHAND) for atomic process
-/// creation with race-free pidfd binding. Installs lifeline pipe
-/// (parent holds write_end via returned `LifelineWriter`; child
-/// inherits read_end via fork inheritance and observes parent death
-/// via pipe-EOF).
+/// Shared fork-and-observe kernel. Called by both `spawn_lifelined` and
+/// `spawn_lifelined_any`; those public functions are the unwind-safe boundary.
 ///
-/// Child setup:
-/// 1. `setpgid(0, 0)` — child becomes its own process-group leader.
-/// 2. Drops the lifeline_w copy it inherited (parent-only handle).
-/// 3. Runs `child_body` with `lifeline_r_raw: i32` as the inherited fd.
-/// 4. `_exit(0)` on `Ok` return, `_exit(1)` on panic.
-///
-/// Parent receives:
-/// - `Pidfd` — canonical process handle (atomic with fork)
-/// - `LifelineWriter` — must be held until parent wants child cleanup
-///
-/// The `child_body` closure receives the lifeline_r fd; the child is
-/// responsible for incorporating it into its event loop
-/// (poll/select) for parent-death detection.
-///
-/// # Errors
-///
-/// Returns `Err` if the `clone3` syscall fails or the lifeline pipe
-/// cannot be created.
-pub fn spawn_lifelined<F>(child_body: F) -> std::io::Result<(Pidfd, LifelineWriter)>
-where
-    F: FnOnce(i32) + std::panic::UnwindSafe,
-{
+/// `child_body` is `Box<dyn FnOnce(i32)>` — already type-erased at the call
+/// site (the public fn wrapped the original closure). `AssertUnwindSafe` is
+/// applied here once; the safety argument: the child process calls `libc::_exit`
+/// on every code path, so no Rust panic-unwind machinery ever observes the
+/// erased closure after catch_unwind is entered.
+fn spawn_lifelined_inner(child_body: Box<dyn FnOnce(i32)>) -> std::io::Result<(Pidfd, LifelineWriter)> {
     // 1. Create lifeline pipe pre-fork. The child inherits both ends
     //    across clone3; parent drops lifeline_r; child drops lifeline_w.
     let (lifeline_r, lifeline_w) =
@@ -423,10 +411,13 @@ where
 
         // Step 3: run child_body inside catch_unwind. child_body receives
         // the raw fd for the lifeline_r (read end of the lifeline pipe).
-        // We do NOT wrap lifeline_r in OwnedFd here — the child should
-        // incorporate it into its event loop and close it when done.
-        // If child_body panics, we exit with code 1.
-        let outcome = std::panic::catch_unwind(|| child_body(lifeline_r_raw));
+        // AssertUnwindSafe: the public callers guarantee the child calls
+        // libc::_exit on every code path — no panic-unwinding can observe
+        // aliased state after _exit terminates the process. The boxed
+        // closure is erased at the public-fn boundary; unwind safety is
+        // the public fn's contract, not this inner fn's.
+        let outcome =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| child_body(lifeline_r_raw)));
 
         // Step 4: _exit (not exit) to skip parent atexit handlers.
         match outcome {
@@ -457,6 +448,46 @@ where
     ))
 }
 
+/// Canonical fork-and-observe primitive. Uses Linux 5.3+ syscalls
+/// (clone3 + CLONE_PIDFD + CLONE_CLEAR_SIGHAND) for atomic process
+/// creation with race-free pidfd binding. Installs lifeline pipe
+/// (parent holds write_end via returned `LifelineWriter`; child
+/// inherits read_end via fork inheritance and observes parent death
+/// via pipe-EOF).
+// rune:perspicere(read-once) — (Pidfd, LifelineWriter) is the only honest
+// return: the two are always born together at fork time and must always be
+// held together (Pidfd alone ≠ lifeline-managed; LifelineWriter alone ≠ handle).
+// A tuple is clearer than a named struct for a 2-field bundle with no invariants
+// beyond "produced by spawn_lifelined".
+///
+/// Child setup:
+/// 1. `setpgid(0, 0)` — child becomes its own process-group leader.
+/// 2. Drops the lifeline_w copy it inherited (parent-only handle).
+/// 3. Runs `child_body` with `lifeline_r_raw: i32` as the inherited fd.
+/// 4. `_exit(0)` on `Ok` return, `_exit(1)` on panic.
+///
+/// Parent receives:
+/// - `Pidfd` — canonical process handle (atomic with fork)
+/// - `LifelineWriter` — must be held until parent wants child cleanup
+///
+/// The `child_body` closure receives the lifeline_r fd; the child is
+/// responsible for incorporating it into its event loop
+/// (poll/select) for parent-death detection.
+///
+/// # Errors
+///
+/// Returns `Err` if the `clone3` syscall fails or the lifeline pipe
+/// cannot be created.
+pub fn spawn_lifelined<F>(child_body: F) -> std::io::Result<(Pidfd, LifelineWriter)>
+where
+    F: FnOnce(i32) + std::panic::UnwindSafe + 'static,
+{
+    // Box the closure (erasing the type). spawn_lifelined_inner wraps it in
+    // AssertUnwindSafe at the catch_unwind site — valid because the child
+    // calls _exit on every code path (F: UnwindSafe is the public guarantee).
+    spawn_lifelined_inner(Box::new(child_body))
+}
+
 /// Like [`spawn_lifelined`] but without the `UnwindSafe` bound on
 /// `child_body`. Callers use this when the child closure captures
 /// `!UnwindSafe` types (e.g. `Arc<Function>`, `comms::process::Receiver<T>`)
@@ -466,76 +497,12 @@ where
 /// The `UnwindSafe` contract (no aliased mutable refs across a panic
 /// boundary) is satisfied here because `_exit` terminates the child
 /// process before any panic-unwinding can observe aliased state.
-///
-/// `AssertUnwindSafe<F>: FnOnce(i32)` is not stable on all Rust versions,
-/// so this function is a full clone of `spawn_lifelined` with the bound
-/// removed and the `catch_unwind` call wrapped in `AssertUnwindSafe` at the
-/// call site (inside the child branch) rather than at the type level.
+/// `AssertUnwindSafe` is applied inside `spawn_lifelined_inner` so
+/// both public functions share one fork body without duplicating it.
 pub(crate) fn spawn_lifelined_any<F>(child_body: F) -> std::io::Result<(Pidfd, LifelineWriter)>
 where
-    F: FnOnce(i32),
+    F: FnOnce(i32) + 'static,
 {
-    // Mirror of spawn_lifelined — see that function's inline comments for
-    // the full rationale. The only difference: `child_body` is wrapped in
-    // `AssertUnwindSafe` at the catch_unwind call site so the compiler
-    // accepts the `!UnwindSafe` closure type.
-    let (lifeline_r, lifeline_w) =
-        make_pipe(":wat::process::spawn_lifelined_any").map_err(|e| {
-            std::io::Error::other(format!("{}", e))
-        })?;
-    let lifeline_r_raw = lifeline_r.as_raw_fd();
-    let lifeline_w_raw = lifeline_w.as_raw_fd();
-
-    let mut pidfd_raw: libc::c_int = -1;
-    let mut args = CloneArgs {
-        flags: CLONE_PIDFD_FLAG | CLONE_CLEAR_SIGHAND_FLAG,
-        pidfd: &mut pidfd_raw as *mut libc::c_int as u64,
-        child_tid: 0,
-        parent_tid: 0,
-        exit_signal: libc::SIGCHLD as u64,
-        stack: 0,
-        stack_size: 0,
-        tls: 0,
-        set_tid: 0,
-        set_tid_size: 0,
-        cgroup: 0,
-    };
-
-    let pid = unsafe {
-        libc::syscall(
-            libc::SYS_clone3,
-            &mut args as *mut CloneArgs,
-            std::mem::size_of::<CloneArgs>(),
-        )
-    };
-
-    if pid < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    if pid == 0 {
-        // ── CHILD BRANCH ──────────────────────────────────────────────
-        unsafe { libc::setpgid(0, 0) };
-        unsafe { libc::close(lifeline_w_raw) };
-
-        // AssertUnwindSafe: the child calls _exit on every code path.
-        let outcome =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| child_body(lifeline_r_raw)));
-        match outcome {
-            Ok(()) => unsafe { libc::_exit(0) },
-            Err(_) => unsafe { libc::_exit(1) },
-        }
-    }
-
-    // ── PARENT BRANCH ─────────────────────────────────────────────────
-    drop(lifeline_r);
-    let pidfd_owned = unsafe { OwnedFd::from_raw_fd(pidfd_raw) };
-
-    Ok((
-        Pidfd {
-            fd: pidfd_owned,
-            pid: pid as libc::pid_t,
-        },
-        LifelineWriter { fd: lifeline_w },
-    ))
+    // AssertUnwindSafe: the child calls _exit on every code path.
+    spawn_lifelined_inner(Box::new(child_body))
 }

@@ -29,7 +29,7 @@
 //! # ZERO-MUTEX compliance
 //!
 //! No `Mutex`, `RwLock`, or `CondVar`. Synchronisation via
-//! `waitpid(2)` inside `wait_or_cached`.
+//! `waitid(2)` inside `wait_or_cached_exit`.
 
 use std::sync::Arc;
 use wat::process::{fork_program_from_source, ForkedProgramHandles};
@@ -54,10 +54,10 @@ const IMMEDIATE_EXIT_SRC: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil :wat::core::nil)
 "#;
 
-/// Wait for the forked child to exit by calling `wait_or_cached` on its handle,
+/// Wait for the forked child to exit by calling `wait_or_cached_exit` on its handle,
 /// then drop `handles` (closes parent-side pipe OwnedFds via RAII).
 fn join_and_drop(handles: ForkedProgramHandles) {
-    let code = handles.child_handle.wait_or_cached();
+    let code = handles.child_handle.wait_or_cached_exit();
     // child_handle reports 0 for success, 1 for runtime error, 2 for panic, etc.
     // Immediate-exit programs exit 0.
     assert!(
@@ -87,7 +87,7 @@ fn fork_program_from_source_fd_count_is_stable() {
     {
         let loader = Arc::new(InMemoryLoader::new());
         if let Ok(h) = fork_program_from_source(IMMEDIATE_EXIT_SRC, None, loader, None, vec![]) {
-            let _ = h.child_handle.wait_or_cached();
+            let _ = h.child_handle.wait_or_cached_exit();
             // h drops here — parent-side OwnedFds close
         }
     }

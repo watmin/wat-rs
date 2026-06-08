@@ -475,10 +475,10 @@ Three proxy threads in the cli, no Mutex. Each runs a tight
 syscalls, no `std::io::Stdin`'s reentrant Mutex. Same discipline
 as arc 012's PipeReader / PipeWriter.
 
-The cli's only mutable shared state is `static AtomicI32 CHILD_PID`
-— set after fork, read by signal handlers for `kill(2)` forwarding,
+The cli's only mutable shared state is `static AtomicI32 CHILD_PGID`
+— set after fork, read by signal handlers for `killpg(2)` forwarding,
 cleared after `waitpid`. One atomic. No lock. Async-signal-safe by
-construction (atomic load + libc::kill are both legal in handler
+construction (atomic load + libc::killpg are both legal in handler
 context).
 
 **Why this is mutex-free, not "low-contention":** there's no
@@ -486,7 +486,7 @@ contention at all. The proxy threads each own one direction of
 one pipe — the parent writes its stdin proxy's `from_fd` (real
 stdin) and the proxy thread writes its `to_fd` (child stdin pipe);
 no other thread touches either. Same for stdout/stderr. The
-CHILD_PID atomic has one writer (the main thread post-fork +
+CHILD_PGID atomic has one writer (the main thread post-fork +
 post-waitpid) and one reader (the signal handler). Single-writer
 single-reader; an atomic is sufficient.
 

@@ -19,7 +19,7 @@
 //! - `child.rs` — child-side envelope (post-clone3, pre-user code):
 //!   `install_substrate_signal_handlers`, `run_in_fork`, `child_post_fork_init`,
 //!   `child_post_fork_init_preserving`.
-//! - `handle.rs` — parent-side handles: `ChildHandleInner`, `ForkedProgramHandles`.
+//! - `handle.rs` — parent-side handles: `ChildHandle`, `ForkedProgramHandles`.
 //! - `verbs.rs` — wat dispatch arms: `eval_kernel_fork_program_ast`,
 //!   `eval_kernel_fork_program`, `fork_program_from_source`,
 //!   `eval_kernel_spawn_process`, `eval_kernel_spawn_program`,
@@ -46,12 +46,12 @@ pub mod stdio;
 // Flat pub-use re-exports so every public name is reachable at
 // crate::process::X (callers never need to know which sub-module holds what).
 pub use clone::{
-    CloneArgs, ExitStatus, Pidfd, LifelineWriter,
+    ExitStatus, Pidfd, LifelineWriter,
     spawn_lifelined, make_pipe,
 };
 pub use child::{install_substrate_signal_handlers, run_in_fork};
 pub(crate) use child::child_post_fork_init_preserving;
-pub use handle::{ChildHandleInner, ForkedProgramHandles};
+pub use handle::{ChildHandle, ForkedProgramHandles};
 pub use verbs::{
     EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,
     eval_kernel_fork_program_ast, eval_kernel_fork_program, fork_program_from_source,

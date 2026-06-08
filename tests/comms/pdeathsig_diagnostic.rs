@@ -136,7 +136,7 @@ fn grandchild_pid(process: &Value) -> libc::pid_t {
         Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
             match &s.fields[3] {
                 Value::wat__kernel__ProgramHandle(h) => match h.as_ref() {
-                    ProgramHandleInner::Forked(child) => child.pid,
+                    ProgramHandleInner::Forked(child) => child.pidfd.pid(),
                     other => panic!("expected Forked ProgramHandle; got {:?}", other),
                 },
                 other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),
@@ -248,10 +248,10 @@ fn probe_pdeathsig_diagnostic() {
 
         // Drop pid_w (supervisor's copy). Drop the Process struct WITHOUT
         // calling wait — we're about to _exit, which orphans the grandchild
-        // intentionally. Arc's Drop on ChildHandleInner would SIGKILL it —
+        // intentionally. Arc's Drop on ChildHandle would SIGKILL it —
         // prevent that by leaking.
         //
-        // Leak strategy: forget the process value so ChildHandleInner::drop
+        // Leak strategy: forget the process value so ChildHandle::drop
         // (which sends SIGKILL + waitpid) does NOT run.
         std::mem::forget(process);
         drop(pid_w);

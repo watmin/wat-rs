@@ -12,7 +12,7 @@ use holon::HolonAST;
 use wat_macros::wat_value;
 
 use crate::ast::WatAST;
-use crate::process::ChildHandleInner;
+use crate::process::ChildHandle;
 use crate::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
@@ -171,7 +171,7 @@ pub enum Value {
     /// children, keeping zombies out of the process table. Arc-112's
     /// exit-status path (`cached_exit` OnceLock) is the live read;
     /// the retired `:wat::kernel::wait-child` is gone (arc 112/214).
-    wat__kernel__ChildHandle(Arc<ChildHandleInner>),
+    wat__kernel__ChildHandle(Arc<ChildHandle>),
     /// An instance of a user-declared `:wat::core::struct` type — a
     /// tagged positional tuple. `type_name` carries the struct's
     /// keyword path (e.g., `:wat::holon::CapacityExceeded`); `fields`
@@ -869,7 +869,7 @@ pub struct EnumValue {
 /// surface. The legacy `:wat::kernel::join` verb still panics the
 /// caller on either failure mode (with a `RuntimeError` carrying the
 /// captured message), preserving its "I trust this thread" semantic.
-// rune:solvere(historical-shape) — SpawnOutcome + ProgramHandleInner are spawn-domain types kept as Value-payload here transitionally; they relocate to the spawn/ home at its migration stone (SCOUT-LIFT-MAP), resolving the asymmetry with fork::ChildHandleInner (imported from its domain module).
+// rune:solvere(historical-shape) — SpawnOutcome + ProgramHandleInner are spawn-domain types kept as Value-payload here transitionally; they relocate to the spawn/ home at its migration stone (SCOUT-LIFT-MAP), resolving the asymmetry with fork::ChildHandle (imported from its domain module).
 #[derive(Debug)]
 pub enum SpawnOutcome {
     /// Spawned function returned a Value normally.
@@ -901,7 +901,7 @@ pub enum SpawnOutcome {
 ///   `recv` on the channel; produces `ThreadDiedError` variants on
 ///   failure.
 /// - [`Self::Forked`] — the fork-program path. The handle owns an
-///   `Arc<ChildHandleInner>` (libc pid + reaped flag + cached exit).
+///   `Arc<ChildHandle>` (libc pid + reaped flag + cached exit).
 ///   Wait = `waitpid` on the pid; produces `ProcessDiedError`
 ///   variants synthesized from the exit code + (in slice 2b) any
 ///   captured stderr framing.
@@ -918,7 +918,7 @@ pub enum SpawnOutcome {
 #[derive(Debug)]
 pub enum ProgramHandleInner {
     InThread(crate::comms::thread::Receiver<SpawnOutcome>),
-    Forked(Arc<ChildHandleInner>),
+    Forked(Arc<ChildHandle>),
 }
 
 impl Value {

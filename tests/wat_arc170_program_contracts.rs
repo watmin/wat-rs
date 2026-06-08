@@ -242,7 +242,7 @@ fn wait_child_exit_ok(handle: Arc<wat::runtime::ProgramHandleInner>) {
     use wat::runtime::ProgramHandleInner;
     match handle.as_ref() {
         ProgramHandleInner::Forked(child) => {
-            let code = child.wait_or_cached();
+            let code = child.wait_or_cached_exit();
             assert_eq!(code, 0, "expected child exit 0; got {}", code);
         }
         other => panic!("expected Forked variant; got {:?}", other),
@@ -768,14 +768,14 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
 // ─── T14. spawn-process(fn) — wait handle is idempotent ──────────────
 //
 // Slice 1f-λ rebuild for the arc-012 wait_child_is_idempotent scenario.
-// ChildHandleInner::wait_or_cached() uses OnceLock caching; calling it
+// ChildHandle::wait_or_cached_exit() uses OnceLock caching; calling it
 // twice must return the same exit code rather than re-waiting or
 // returning a sentinel. Child fn returns nil immediately (idle worker).
 
 #[test]
 fn t14_spawn_process_wait_handle_is_idempotent() {
     // Arc 170 slice 6 — child program returns immediately; idempotent
-    // wait_or_cached caches exit 0 on first wait and reuses it on the second.
+    // wait_or_cached_exit caches exit 0 on first wait and reuses it on the second.
     let world = freeze_ok(PARENT_TRIVIAL);
     let call = build_spawn_process_call(
         r#"
@@ -836,7 +836,7 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     // Handle exit code must be non-zero (EXIT_PANIC=2).
     use wat::runtime::ProgramHandleInner;
     let code = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached(),
+        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
         other => panic!("expected Forked ProgramHandle; got {:?}", other),
     };
     assert_ne!(code, 0, "expected non-zero exit on child panic; got 0");

@@ -381,7 +381,7 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
         }
     };
 
-    let child_pid = handles.child_handle.pid;
+    let child_pid = handles.child_handle.pidfd.pid();
 
     // Publish the child's process-group ID for signal-handler cascade
     // (arc 104d → arc 106). The substrate's `child_branch_from_source`

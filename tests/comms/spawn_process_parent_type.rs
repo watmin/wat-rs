@@ -94,7 +94,7 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
     // writing. Child's pipes are buffered; join-first is safe for small
     // assertion bodies (same pattern as run-hermetic-driver in test.wat).
     let exit_code: i64 = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached(),
+        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
         other => panic!("expected Forked handle; got {:?}", other),
     };
     let stderr = drain_stderr(&process);

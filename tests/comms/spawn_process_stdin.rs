@@ -164,7 +164,7 @@ fn probe_spawn_process_stdin() {
     use wat::runtime::ProgramHandleInner;
     let handle = process_handle(&process);
     let code = match handle.as_ref() {
-        ProgramHandleInner::Forked(child) => child.wait_or_cached(),
+        ProgramHandleInner::Forked(child) => child.wait_or_cached_exit(),
         other => panic!("expected Forked ProgramHandle; got {:?}", other),
     };
     assert_eq!(code, 0, "expected child exit 0; got {}", code);

@@ -245,7 +245,9 @@ pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
 /// Worker holds the write-end; drops it after trigger_shutdown.
 /// All `Receiver/from-pipe` recvs poll this fd; POLLHUP → Shutdown.
 /// Value -1 until init_shutdown_signal_with_inputs runs; valid fd
-/// after. Once set, never re-set (idempotent init).
+/// after. RE-SET in fork children (init_shutdown_signal_with_inputs
+/// rebuilds the fd for each child's private shutdown worker — the
+/// inherited worker thread does not transfer across clone3).
 pub static SHUTDOWN_BROADCAST_READ_FD: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 
@@ -305,6 +307,16 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     if !rx_ptr.is_null() {
         // Fork child — close the inherited wake write-fd.
         // The new fd is stored below BEFORE signal handler installation.
+        //
+        // CROSS-STEP NOTE (F4): child.rs::child_post_fork_init step 3
+        // (close_range) already closed this fd. This guard fires on the
+        // same raw int a second time → EBADF, which we discard. This is
+        // intentional and benign: single-threaded child at this point means
+        // no fd recycling can occur between step 3 and here. The guard
+        // exists so that if a future caller invokes init_shutdown_signal_with_inputs
+        // WITHOUT the close_range step, the fd is still closed safely.
+        // Do NOT reorder step 3 and step 4 — that would create a real
+        // recycled-fd double-close risk.
         let old_write_fd = SHUTDOWN_WAKE_WRITE_FD.load(Ordering::SeqCst);
         if old_write_fd >= 0 {
             unsafe { libc::close(old_write_fd) };
@@ -331,7 +343,9 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
         // (Using write(2) directly avoids stdio locking in this early context.)
         let msg = b"substrate: pipe2(2) failed during shutdown init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
-        std::process::exit(1);
+        // _exit(2): fork-safe; skips atexit/stdio flush which would
+        // corrupt shared parent state in a forked child context.
+        unsafe { libc::_exit(1) };
     }
     let read_fd = fds[0];
     let write_fd = fds[1];
@@ -346,7 +360,8 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
     if broadcast_result != 0 {
         let msg = b"substrate: pipe2(2) failed during broadcast init\n";
         unsafe { libc::write(2, msg.as_ptr() as *const _, msg.len()) };
-        std::process::exit(1);
+        // _exit(2): fork-safe; same rationale as pipe2 failure above.
+        unsafe { libc::_exit(1) };
     }
     let broadcast_r_fd = broadcast_fds[0];
     // SAFETY: broadcast_fds[1] is a valid owned fd from pipe2(2); wrapping as
@@ -18893,7 +18908,7 @@ fn eval_kernel_process_join_result(
             )))),
         },
         ProgramHandleInner::Forked(child) => {
-            let code = child.wait_or_cached();
+            let code = child.wait_or_cached_exit();
             if code == 0 {
                 Value::Result(Arc::new(Ok(Value::Unit)))
             } else {
@@ -18977,7 +18992,7 @@ fn eval_kernel_process_drain_and_join(
             )))),
         },
         ProgramHandleInner::Forked(child) => {
-            let code = child.wait_or_cached();
+            let code = child.wait_or_cached_exit();
             if code == 0 {
                 Value::Result(Arc::new(Ok(Value::Unit)))
             } else {
