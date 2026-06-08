@@ -337,7 +337,7 @@ ZERO-MUTEX verified). Its 3 perimeter findings fold into Strike 1c below (CIRC-F
 surface is FOUR homes — and I had tunnel-visioned process/ alone for 3 strikes:
 - **process/** — created 6.3. Re-cast round 2 CLOSED (Strike 1/1b/1c green). Round 3 = confirm consistent-zero. (no stamp yet)
 - **channel/** — created 6.1. NOT warded. (Strike 3 brief committed.)
-- **kernel/** — created Slice 4. NOT warded. (Strike 2 — to draw.)
+- **kernel/** — created Slice 4. ✅ **STAMPED 2026-06-08 (`5d500a22`), full 14-ward + circumspicere over src + test surface.** F3 silent-swallow + mora test-surface sleeps closed; test-surface-is-in-the-ward decision born here (see "KERNEL/ — FALSE-CONVERGED CATCH + FIX" above).
 - **comms/** — the engine (Slices 1-3), STAMPED 2026-06-01 (9-spell) — but **DRIFTED**:
   5 commits touched it AFTER the stamp (arc253 try_recv 2-state collapse `d3150a04`;
   4.5 raw_fds `5cf044e4`; 8.2/6.3/6.4), last modified 2026-06-07 19:21 (thread.rs).
