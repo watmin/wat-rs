@@ -460,6 +460,33 @@ Per-home loop: cast vigilia → sweep L1+L2 (fold cheap adjacent L3 only if free
 confirmation re-cast → L1+L2=0 → STAMP → next home. NOT a multi-round L3-chase (the kernel/
 4-round marathon over-applied; do not repeat for channel/ comms/ process/).
 
+**THE WARD SET INCLUDES THE TEST SURFACE (2026-06-08, four-questions decision).** A home's
+`tests/` surface is PART of the warded home — same full-vigilia bar as `src/`, NOT a lesser one
+([[feedback_tests_are_the_demos]]: the test is the demo; a `sleep` in a demo teaches "wait by
+guessing"). Obvious (tests-are-demos → same surface → same bar); Simple (one uniform bar; a
+two-tier "src full / tests mora-only" rule is an asymmetry [[feedback_asymmetries_meet_high_bar]]);
+Honest (a "full vigilia L1+L2=0" stamp over an un-warded test surface is the false-converged lie).
+So each home casts over `src/<home>/` AND its test file(s): kernel/ ↔
+`tests/comms/spawn_program_prime_process.rs`; process/ + comms/ ↔ the other `tests/comms/*` files
+(shutdown_cascade_*, pdeathsig_*, lifeline_orphan_*) — fold into their pending casts.
+
+## KERNEL/ — FALSE-CONVERGED CATCH + FIX (2026-06-08, post-compaction)
+The pre-compaction breadcrumb claimed kernel/ converged L1+L2=0; the disk disagreed (the report
+lied; the disk is the witness — recolligere/examinare). Two real findings:
+- **circumspicere F3 (dark-class silent swallow) — was on the Strike-2 worklist, NEVER landed;
+  later casts didn't re-surface it (sampling miss).** The `:process` child apply-loop `_exit(1)`'d
+  on malformed-input + runtime-error with NO diagnostic, unlike every verbs.rs child. **FIXED**
+  (`40466b6a`): `emit_structured_exit` widened `pub(super)`→`pub(crate)` (one canonical emit,
+  re-exported from process/mod.rs); kernel child now emits the `#wat.kernel/ProcessPanics` envelope
+  on fd 2 before `_exit`. New test `spawn_program_prime_process_error_emits_diagnostic` (captures
+  child fd 2 via pre-fork pipe redirect — fd 2 survives the close-sweep which starts at fd 3).
+- **mora on the TEST surface (caught by the builder) — the surface the 6.w casts never looked at.**
+  4× `thread::sleep(100ms)` "to let the child reap" = guess AND leak (`Pidfd::Drop` closes the fd,
+  never reaps). **FIXED**: all 4 reap on the WIRE via `Process::wait` (close + `Pidfd::wait_status`).
+  Suite 0.45s→0.05s. This is what exposed the test-surface-is-in-the-ward-set decision above.
+- **CONFIRMATION IN FLIGHT:** full vigilia (14 inward + standalone circumspicere) re-cast over
+  src/kernel/ + the test file — the honest cast-don't-narrate confirmation before the stamp.
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
