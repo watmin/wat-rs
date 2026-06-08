@@ -12,7 +12,7 @@ use holon::HolonAST;
 use wat_macros::wat_value;
 
 use crate::ast::WatAST;
-use crate::fork::ChildHandleInner;
+use crate::process::ChildHandleInner;
 use crate::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};

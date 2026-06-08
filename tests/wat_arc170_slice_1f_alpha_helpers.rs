@@ -77,7 +77,7 @@ impl MiniUniverse {
     fn build(world: &wat::freeze::FrozenWorld) -> Self {
         // ── stdin pipe + peer ──────────────────────────────────────────
         let (stdin_pipe_r, stdin_pipe_w) =
-            wat::fork::make_pipe(":test::stdin-universe").expect("pipe for the stdin reader");
+            wat::process::make_pipe(":test::stdin-universe").expect("pipe for the stdin reader");
         let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
         let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
 
@@ -103,7 +103,7 @@ impl MiniUniverse {
 
         // ── stdout pipe + peer ──────────────────────────────────────────
         let (stdout_pipe_r, stdout_pipe_w) =
-            wat::fork::make_pipe(":test::stdout-universe").expect("pipe for the stdout writer");
+            wat::process::make_pipe(":test::stdout-universe").expect("pipe for the stdout writer");
         let stdout_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stdout_pipe_w)));
         let stdout_reader = PipeReader::from_owned_fd(stdout_pipe_r);
 
@@ -123,7 +123,7 @@ impl MiniUniverse {
 
         // ── stderr pipe + peer ──────────────────────────────────────────
         let (stderr_pipe_r, stderr_pipe_w) =
-            wat::fork::make_pipe(":test::stderr-universe").expect("pipe for the stderr writer");
+            wat::process::make_pipe(":test::stderr-universe").expect("pipe for the stderr writer");
         let stderr_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stderr_pipe_w)));
         let stderr_reader = PipeReader::from_owned_fd(stderr_pipe_r);
 
@@ -528,7 +528,7 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
 
     // ── Build stdin peer directly (no full MiniUniverse needed) ───────
     let (stdin_pipe_r, stdin_pipe_w) =
-        wat::fork::make_pipe(":test::stdin-routing").expect("pipe for routing proof");
+        wat::process::make_pipe(":test::stdin-routing").expect("pipe for routing proof");
     let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
     let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
 
@@ -625,7 +625,7 @@ fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
     let world = freeze_skeleton();
 
     let (stdin_pipe_r, stdin_pipe_w) =
-        wat::fork::make_pipe(":test::stdin-eof").expect("pipe for eof test");
+        wat::process::make_pipe(":test::stdin-eof").expect("pipe for eof test");
     let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
     let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
 

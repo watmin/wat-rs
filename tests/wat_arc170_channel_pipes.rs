@@ -561,9 +561,9 @@ fn process_struct_has_typed_channel_fields_at_indices_4_and_5() {
     // handles wrap a real pipe pair; the byte-pipe handles wrap
     // a separate pipe pair (the wat-side struct expects them
     // populated with IOWriter/IOReader Values).
-    let (raw_stdin_r, raw_stdin_w) = wat::fork::make_pipe(":test").unwrap();
-    let (raw_stdout_r, raw_stdout_w) = wat::fork::make_pipe(":test").unwrap();
-    let (raw_stderr_r, _raw_stderr_w) = wat::fork::make_pipe(":test").unwrap();
+    let (raw_stdin_r, raw_stdin_w) = wat::process::make_pipe(":test").unwrap();
+    let (raw_stdout_r, raw_stdout_w) = wat::process::make_pipe(":test").unwrap();
+    let (raw_stderr_r, _raw_stderr_w) = wat::process::make_pipe(":test").unwrap();
 
     let stdin_writer: Arc<dyn WatWriter> =
         Arc::new(wat::io::PipeWriter::from_owned_fd(raw_stdin_w));

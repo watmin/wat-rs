@@ -12,19 +12,19 @@
 
 #[test]
 fn pidfd_observes_normal_exit() {
-    let (pidfd, _lifeline) = wat::fork::spawn_lifelined(|_lifeline_r| {
+    let (pidfd, _lifeline) = wat::process::spawn_lifelined(|_lifeline_r| {
         // Child exits with code 42 immediately.
         unsafe { libc::_exit(42) };
     })
     .expect("spawn_lifelined succeeds");
 
     let status = pidfd.wait_status().expect("wait_status returns exit status");
-    assert_eq!(status, wat::fork::ExitStatus::Exited(42));
+    assert_eq!(status, wat::process::ExitStatus::Exited(42));
 }
 
 #[test]
 fn pidfd_observes_signal_exit() {
-    let (pidfd, lifeline) = wat::fork::spawn_lifelined(|_lifeline_r| {
+    let (pidfd, lifeline) = wat::process::spawn_lifelined(|_lifeline_r| {
         // Child blocks until any signal arrives — libc::pause(2) is the
         // honest event-wait. The old shape was `loop { sleep(60s) }`
         // which was a mora L1 violation (chosen-duration mechanism; on a
@@ -44,7 +44,7 @@ fn pidfd_observes_signal_exit() {
     let status = pidfd
         .wait_status()
         .expect("wait_status returns signal status");
-    assert_eq!(status, wat::fork::ExitStatus::Signaled(libc::SIGTERM));
+    assert_eq!(status, wat::process::ExitStatus::Signaled(libc::SIGTERM));
 
     drop(lifeline); // explicit drop for clarity
 }

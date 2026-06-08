@@ -164,7 +164,7 @@ fn h2_guard_arm_non_struct_req_loop_survives() {
 
     // ── stdout pipe + peer ──────────────────────────────────────────────
     let (stdout_pipe_r, stdout_pipe_w) =
-        wat::fork::make_pipe(":test::h2-stdout").expect("pipe for stdout");
+        wat::process::make_pipe(":test::h2-stdout").expect("pipe for stdout");
     let stdout_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stdout_pipe_w)));
     let _stdout_reader = PipeReader::from_owned_fd(stdout_pipe_r);
 
@@ -239,7 +239,7 @@ fn h2_guard_arm_wrong_field0_type_loop_survives() {
     let world = freeze_skeleton();
 
     let (stdout_pipe_r, stdout_pipe_w) =
-        wat::fork::make_pipe(":test::h2-stdout-wrong-field").expect("pipe for stdout");
+        wat::process::make_pipe(":test::h2-stdout-wrong-field").expect("pipe for stdout");
     let stdout_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stdout_pipe_w)));
     let _stdout_reader = PipeReader::from_owned_fd(stdout_pipe_r);
 

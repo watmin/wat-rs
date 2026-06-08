@@ -32,7 +32,7 @@
 //! `waitpid(2)` inside `wait_or_cached`.
 
 use std::sync::Arc;
-use wat::fork::{fork_program_from_source, ForkedProgramHandles};
+use wat::process::{fork_program_from_source, ForkedProgramHandles};
 use wat::load::InMemoryLoader;
 
 // ── helpers ──────────────────────────────────────────────────────────────────

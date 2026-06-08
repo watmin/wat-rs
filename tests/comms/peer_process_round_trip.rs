@@ -45,7 +45,7 @@
 //! 5. `peer.wait()` must return `ExitStatus::Exited(0)`.
 
 use wat::comms::process::pair;
-use wat::fork::{spawn_lifelined, ExitStatus};
+use wat::process::{spawn_lifelined, ExitStatus};
 use wat::kernel::peer::Process;
 
 /// Process peer round-trip: send a String to the echo child; recv it back.

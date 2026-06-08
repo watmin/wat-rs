@@ -457,12 +457,12 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     // stdout until READY, THEN sends SIGTERM. No sleep; the wire IS
     // the synchronization.
     //
-    // The test runs in a forked subprocess via `wat::fork::run_in_fork`
+    // The test runs in a forked subprocess via `wat::process::run_in_fork`
     // for hermetic isolation — fresh signal-handler state, no SIGCHLD
     // residue from earlier tests in this binary. Same isolation
     // pattern `tests/wat_harness_deps.rs` uses against OnceLock
     // contention.
-    wat::fork::run_in_fork(|| {
+    wat::process::run_in_fork(|| {
         let program = r#"
             ;; Arc 170 migration: canonical [] -> :nil signatures;
             ;; IOWriter/println → (:wat::kernel::println ...);

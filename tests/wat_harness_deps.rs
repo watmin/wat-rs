@@ -40,13 +40,13 @@ const DEP_B: &[WatSource] = &[WatSource {
 // Each test body runs in a forked child — fresh OnceLock state per
 // test, no race between the three Harness::from_source_with_deps
 // callers even though cargo runs them in parallel within one binary.
-// `wat::fork::run_in_fork` is the promoted helper (was private in
+// `wat::process::run_in_fork` is the promoted helper (was private in
 // runtime.rs::tests as in_signal_subprocess; exposed publicly in arc
 // 024 slice 0 for general test isolation).
 
 #[test]
 fn harness_composes_multiple_deps_into_user_source() {
-    wat::fork::run_in_fork(|| {
+    wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main; dep functions verified
         // via eval_in_frozen on the frozen world.
         let user = r#"
@@ -76,7 +76,7 @@ fn harness_composes_multiple_deps_into_user_source() {
 
 #[test]
 fn harness_same_deps_usable_from_different_entry_source() {
-    wat::fork::run_in_fork(|| {
+    wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main; dep-a verified via eval.
         let user = r#"
             (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -98,7 +98,7 @@ fn harness_same_deps_usable_from_different_entry_source() {
 
 #[test]
 fn harness_with_zero_deps_matches_from_source() {
-    wat::fork::run_in_fork(|| {
+    wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main. Passing &[] uses no deps.
         // Verify both harness constructions succeed and run returns Ok.
         let src = r#"

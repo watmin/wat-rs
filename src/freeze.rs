@@ -239,7 +239,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     // Step 1 — Source the IOReader / IOWriter handles.
     let stdio = match crate::services::take_ambient_stdio() {
         Some(s) => s,
-        None => crate::process_stdio::lend_ambient(),
+        None => crate::process::lend_ambient(),
     };
 
     // Step 2 — Spawn the three services.

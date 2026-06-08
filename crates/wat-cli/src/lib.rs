@@ -117,7 +117,7 @@ use std::sync::Arc;
 // syscall. No registry maintenance required.
 static CHILD_PGID: AtomicI32 = AtomicI32::new(-1);
 
-use wat::fork::fork_program_from_source;
+use wat::process::fork_program_from_source;
 use wat::freeze::startup_from_source;
 use wat::load::FsLoader;
 use wat::runtime::{

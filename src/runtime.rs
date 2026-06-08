@@ -4070,12 +4070,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::make-channel" => eval_make_channel(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
         ":wat::kernel::fork-program-ast" => {
-            crate::fork::eval_kernel_fork_program_ast(args, list_span, env, sym).map_err(Into::into)
+            crate::process::eval_kernel_fork_program_ast(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::kernel::fork-program" => crate::fork::eval_kernel_fork_program(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::fork-program" => crate::process::eval_kernel_fork_program(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::spawn-program" => crate::process::eval_kernel_spawn_program(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::spawn-program-ast" => {
-            crate::spawn::eval_kernel_spawn_program_ast(args, list_span, env, sym).map_err(Into::into)
+            crate::process::eval_kernel_spawn_program_ast(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 170 slice 2 — `:wat::kernel::spawn-process` takes a fn
         // satisfying the `:user::process` contract and forks an OS
@@ -4083,11 +4083,11 @@ fn dispatch_keyword_head_value(
         // closure extraction packages the fn + captured environment;
         // slice 1c's PipeFd Sender/Receiver substrate carries typed
         // Values across the OS-process boundary via EDN-encoded pipes.
-        // See src/spawn_process.rs for the pipeline. Legacy
+        // See src/process/verbs.rs for the pipeline. Legacy
         // fork-program / spawn-program arms above stay unchanged
         // during the sweep window; slice 4 retires them.
         ":wat::kernel::spawn-process" => {
-            crate::spawn_process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
+            crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 214 Slice 4 Stone 4.5 — unified spawn dispatcher.
         // Dispatches on :tier keyword to produce a typed kernel peer
@@ -22763,15 +22763,15 @@ fn eval_peer_close_prime(
                 })
             })?;
             match exit_status {
-                crate::fork::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
-                crate::fork::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
+                crate::process::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
+                crate::process::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("Process peer killed by signal {}", sig),
                     },
                 })),
-                crate::fork::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
+                crate::process::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
@@ -25632,13 +25632,13 @@ mod tests {
     // mutable state; no race.
     //
     // Mechanism (arc 012 side quest, 2026-04-21): wraps each body in
-    // `crate::fork::run_in_fork` — child runs body in catch_unwind,
+    // `crate::process::run_in_fork` — child runs body in catch_unwind,
     // exits 0 on success / 1 on panic; parent waits + asserts. Arc 024
     // slice 0 promoted the helper from private here to public on fork.rs
     // so `tests/wat_harness_deps.rs` can use the same pattern for its
     // own OnceLock isolation.
 
-    use crate::fork::run_in_fork;
+    use crate::process::run_in_fork;
 
     #[test]
     fn sigusr1_query_reflects_flag_state() {

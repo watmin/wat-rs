@@ -1,0 +1,60 @@
+//! The process home — OS-process and in-thread program primitives.
+//!
+//! This home holds the full process family, organized into two tiers that both
+//! produce the ONE `:wat::kernel::Process` value shape (stdin IOWriter /
+//! stdout+stderr IOReader / join ProgramHandle).
+//!
+//! ## OS-process tier (clone3 / pidfd / lifelines)
+//!
+//! Linux 5.3+ primitives (`clone3 + CLONE_PIDFD + CLONE_CLEAR_SIGHAND`) that
+//! create true forked OS processes with race-free process handles. Every
+//! OS-process child runs its own frozen wat world, redirects stdio onto kernel
+//! pipes, and communicates with its parent exclusively through those pipes.
+//! Parent holds a `Pidfd` (the canonical process handle, PID-reuse-safe) and
+//! a `LifelineWriter` (closed = child shutdown signal).
+//!
+//! - `clone.rs` — Linux process-creation primitives: `CloneArgs`, `ExitStatus`,
+//!   `Pidfd` (+impls), `LifelineWriter`, `spawn_lifelined`, `spawn_lifelined_any`,
+//!   `make_pipe`.
+//! - `child.rs` — child-side envelope (post-clone3, pre-user code):
+//!   `install_substrate_signal_handlers`, `run_in_fork`, `child_post_fork_init`,
+//!   `child_post_fork_init_preserving`.
+//! - `handle.rs` — parent-side handles: `ChildHandleInner`, `ForkedProgramHandles`.
+//! - `verbs.rs` — wat dispatch arms: `eval_kernel_fork_program_ast`,
+//!   `eval_kernel_fork_program`, `fork_program_from_source`,
+//!   `eval_kernel_spawn_process`, `eval_kernel_spawn_program`,
+//!   `eval_kernel_spawn_program_ast`.
+//!
+//! ## In-thread tier (std::thread over kernel pipes)
+//!
+//! Arc 103 in-thread sibling. Same `:wat::kernel::Process` shape but the inner
+//! program runs on a `std::thread` instead of a forked OS process. No `fork(2)`,
+//! no `dup2`, no `_exit` — kernel pipes still provide the byte transport.
+//!
+//! ## stdio
+//!
+//! - `stdio.rs` — process-scope stdio surface: `lend_ambient` (dup'd copies for
+//!   AmbientStdio) + `emit_panic_envelope` (raw fd 2 write for post-teardown
+//!   panic emission).
+
+pub mod clone;
+pub mod child;
+pub mod handle;
+pub mod verbs;
+pub mod stdio;
+
+// Flat pub-use re-exports so every public name is reachable at
+// crate::process::X (callers never need to know which sub-module holds what).
+pub use clone::{
+    CloneArgs, ExitStatus, Pidfd, LifelineWriter,
+    spawn_lifelined, make_pipe,
+};
+pub use child::{install_substrate_signal_handlers, run_in_fork};
+pub(crate) use child::child_post_fork_init_preserving;
+pub use handle::{ChildHandleInner, ForkedProgramHandles};
+pub use verbs::{
+    EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,
+    eval_kernel_fork_program_ast, eval_kernel_fork_program, fork_program_from_source,
+    eval_kernel_spawn_process, eval_kernel_spawn_program, eval_kernel_spawn_program_ast,
+};
+pub use stdio::{lend_ambient, emit_panic_envelope};

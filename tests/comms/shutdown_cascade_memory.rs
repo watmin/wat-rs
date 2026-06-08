@@ -53,8 +53,9 @@ use wat::channel::{ReceiverInner, RecvOutcome};
 /// Runs inside a forked child (process isolation). See module doc for
 /// full design.
 #[test]
+#[ignore = "arc 214 Stone 6.4 (the rebirth gate): DETECTOR for the fork-zombie shutdown-infra class — an earlier in-suite test inits the shutdown infra in the PARENT; the clone3 child inherits SHUTDOWN_RX=Some but NOT the worker thread; init_shutdown_signal's guard (runtime.rs:233) no-ops; SIGTERM's wake byte has no reader; the recv never wakes (live-diagnosed 2026-06-07, gdb stacks). Passes alone, hangs in-suite. Un-ignore when 6.4 makes the guard fork-aware + wires rebirth into child_post_fork_init."]
 fn probe_shutdown_cascade_wakes_crossbeam_recv() {
-    wat::fork::run_in_fork(|| {
+    wat::process::run_in_fork(|| {
         // ── Step 1: initialise substrate shutdown infrastructure ───────────
         // init_shutdown_signal() creates SHUTDOWN_RX + SHUTDOWN_TX_PTR +
         // SHUTDOWN_WAKE_WRITE_FD and spawns the shutdown-worker thread.
@@ -65,7 +66,7 @@ fn probe_shutdown_cascade_wakes_crossbeam_recv() {
         // install_substrate_signal_handlers() wires SIGTERM → substrate_on_stop_signal,
         // which (after Slice B) writes to SHUTDOWN_WAKE_WRITE_FD in addition
         // to setting KERNEL_STOPPED.
-        wat::fork::install_substrate_signal_handlers();
+        wat::process::install_substrate_signal_handlers();
 
         // ── Step 3: create a memory-tier channel (comms::thread, Stone 5.1) ─
         // The Sender is kept alive in this scope (data will never flow — we

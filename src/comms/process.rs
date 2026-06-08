@@ -217,7 +217,7 @@ impl<T: HolonRepresentable> Sender<T> {
     /// pipe write-end occupies. Callers that fork and need to preserve this
     /// endpoint's fds across a `close_inherited_fds_above_stdio` sweep should
     /// pass the result of this method into the skip-list (via
-    /// `crate::fork::child_post_fork_init_preserving`).
+    /// `crate::process::child_post_fork_init_preserving`).
     ///
     /// Stone 4.5-fix: added as the intentional, portable preservation surface
     /// so fork children can enumerate "every fd I must keep alive across the

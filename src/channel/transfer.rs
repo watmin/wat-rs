@@ -400,7 +400,7 @@ pub fn make_pipe_channel_pair(
     op: &'static str,
 ) -> Result<(crate::runtime::Value, crate::runtime::Value), crate::value::RuntimeError> {
     use crate::channel::inner::{sender_from_pipe, receiver_from_pipe};
-    let (read_fd, write_fd) = crate::fork::make_pipe(op)?;
+    let (read_fd, write_fd) = crate::process::make_pipe(op)?;
     let writer: Arc<dyn crate::io::WatWriter> =
         Arc::new(crate::io::PipeWriter::from_owned_fd(write_fd));
     let reader: Arc<dyn crate::io::WatReader> =

@@ -392,10 +392,10 @@ pub fn spawn_process_peer(
     // contains `Arc<dyn WatReader>` / `UnsafeCell`; IoUring also).
     //
     // The child never actually unwinds — EVERY exit path calls `libc::_exit`.
-    // `spawn_lifelined_any` (src/fork.rs) removes the `UnwindSafe` bound and
+    // `spawn_lifelined_any` (src/process/clone.rs) removes the `UnwindSafe` bound and
     // wraps the `catch_unwind` call site in `AssertUnwindSafe` internally,
     // which is sound because `_exit` terminates before any unwinding occurs.
-    let (pidfd, lifeline_writer) = crate::fork::spawn_lifelined_any(move |lifeline_r_raw: i32| {
+    let (pidfd, lifeline_writer) = crate::process::clone::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
 
         // Collect ALL fds owned by the comms endpoints that must survive the
@@ -409,7 +409,7 @@ pub fn spawn_process_peer(
 
         // Post-fork init: setpgid, close inherited fds (preserving comms + lifeline),
         // shutdown cascade, signal handlers.
-        crate::fork::child_post_fork_init_preserving(lifeline_r_raw, &preserved);
+        crate::process::child_post_fork_init_preserving(lifeline_r_raw, &preserved);
 
         // Apply-loop:
         //   1. recv EDN String from input pipe

@@ -147,7 +147,7 @@ pub struct Process<I: HolonRepresentable, O: HolonRepresentable> {
     /// Canonical child-process handle (arc 213 Pidfd). Race-free: the fd
     /// is bound to this exact child at fork time — not to the (potentially
     /// reused) PID. Used by `wait` and `close` for child lifecycle management.
-    pub child: crate::fork::Pidfd,
+    pub child: crate::process::Pidfd,
 }
 
 impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
@@ -186,7 +186,7 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     /// caller block on child exit via `pidfd.wait_status()`.
     ///
     /// Prefer `wait(self)` for the common "close + wait" pattern.
-    pub fn close(self) -> crate::fork::Pidfd {
+    pub fn close(self) -> crate::process::Pidfd {
         // Drop input: child sees EOF on its input pipe.
         // Drop output: RAII cleanup of parent's output receiver.
         drop(self.input);
@@ -199,7 +199,7 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     /// Equivalent to `self.close().wait_status()`. Returns the child's exit
     /// status via Pidfd::wait_status (blocking waitid on the pidfd; reaps
     /// the zombie atomically).
-    pub fn wait(self) -> std::io::Result<crate::fork::ExitStatus> {
+    pub fn wait(self) -> std::io::Result<crate::process::ExitStatus> {
         let pidfd = self.close();
         pidfd.wait_status()
     }
