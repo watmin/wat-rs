@@ -12,8 +12,11 @@
 > ambient exemptions made grep-honest, (c) perspicere's intentional-depth.
 
 ## STILL PENDING (the next self does these FIRST, before the sweep)
-1. **excusare** — IN FLIGHT at curare (agent a25c4fa61b2f4becd). Collect its
-   rune-verdicts; fold into the sweep.
+1. ~~**excusare**~~ — **REPORTED (folded in below, "EXCUSARE VERDICTS").** channel/
+   + kernel/ carry ZERO exemptions; process/ has 4 (1 L1 strike, 1 HOLDS, 2 L3
+   text). runtime.rs SHUTDOWN statics carry no suppressions — the prose-vs-rune
+   question resolves CLEAN (a `// SAFETY:` on an `unsafe{}` is not a checker
+   suppression, so sequi F9 needs no rune). One side-catch: a stale doc lie.
 2. **circumspicere** — NOT YET CAST (it is the perimeter, cast LAST with the
    full inward map). Cast it over channel/+process/+kernel/ with these findings
    embedded; add its perimeter findings to the sweep.
@@ -158,6 +161,28 @@ clone.rs:159 wait_status / :190 send_signal):
   ADD rune:sequi(ambient-context) (ZERO-MUTEX cascade; grep-honest). FIX.
 - **Arc::clone per apply-loop iter** (temperare K-1 L3): structural (apply_function
   takes Arc by value) → LEAVE (callee-API-bound; not a defect).
+
+## EXCUSARE VERDICTS (reported post-curare; 4 exemptions, all in process/)
+channel/ + kernel/ = 0 exemptions. runtime.rs SHUTDOWN statics = 0 suppressions
+(sequi F9 resolves CLEAN — `// SAFETY:` is not a checker silence). process/ = 4:
+- **P-1 (clone.rs:43) L1 STRIKE:** `#[allow(non_camel_case_types)]` on `CloneArgs`
+  is INERT — the type is already UpperCamelCase; the lint never fires; no reason
+  text; dead since birth (arc 213 α `5e43d7cb`). **FIX: delete the allow** (no code
+  change). This is the only thing standing between process/ and clippy-zero-honest.
+- **P-2 (verbs.rs:296) HOLDS:** `too_many_arguments` on `child_branch` (10 params)
+  — structural warrant stated verbatim in the doc (six fds + forms + config +
+  lifeline raw + lifeline OwnedFd; one call site @218). CLEAN, no action.
+- **P-3 (verbs.rs:754) L3 TEXT:** `too_many_arguments` on `child_branch_from_source`
+  (12 params) HOLDS but the doc delegates to the sibling without naming the count
+  → state "Twelve parameters: four source-parse (source, canonical, loader, argv)
+  + the same eight fd/RAII params as child_branch."
+- **P-4 (verbs.rs:1111) L3 TEXT:** `too_many_arguments` on `spawn_process_child_branch`
+  (10 params) HOLDS but the doc cites `fork.rs::child_branch_from_source` — a DEAD
+  FILE (killed 6.3 `97542181`) → re-point to `src/process/verbs.rs::child_branch_from_source`.
+- **SIDE-CATCH (runtime.rs:248, out of excusare scope, for the sweep):** the
+  `SHUTDOWN_BROADCAST_READ_FD` doc says "Once set, never re-set (idempotent init)"
+  — now a LIE: 6.4's `init_shutdown_signal_with_inputs` re-sets it in fork children
+  (~line 356). Stale doc lie → FIX the comment to state the fork-rebirth re-set.
 
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
