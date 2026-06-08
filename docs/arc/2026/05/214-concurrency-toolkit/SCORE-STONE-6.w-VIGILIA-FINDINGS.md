@@ -416,6 +416,33 @@ wat demo service). NOT "rewrite trio in Rust" (wrong) and NOT "trio can't be wat
 is). OPEN design Q for 8.4: can the verb run at freeze-time bootstrap, or does the trio boot stay a
 special Rust path with the verb proven via a user demo? Decide when 8.4 is drawn. SHIP, not cut.
 
+## KERNEL/ RE-CAST #2 (post-Strike-2; Strike 2b worklist — ALL doc/comment drift from Strike 2's edits)
+NOT zero → Strike 2b. inward 8 (0 L1/3 L2/5 L3, 6 wards clean) + circumspicere 3 (1 L1/2 L2).
+No risky code (one #[doc(hidden)] attr). The loop caught Strike 2's wake:
+- **circ F1 L1 (peer.rs:205-207):** Process::close doc FALSELY credits Pidfd::Drop with closing the
+  io_uring ring fd — the ring fd is in self.output (Receiver), closed by drop(self.output) BEFORE the
+  Pidfd returns; Pidfd closes only the pidfd. (Strike 2's OWN F-7 doc-fix introduced this.) FIX = correct.
+- **circ F2 L2 (spawn.rs:29,36,148):** 3 doc sites describe the payload type WITHOUT the Option layer the
+  new ThreadPeerCell alias added → reference ThreadPeerCell + add a ProcessPeerCell alias for symmetry.
+- **circ F3 L2 (spawn.rs:10):** module doc "forks via spawn_lifelined" → "spawn_lifelined_any" (repointed at F-KE-1).
+- **excusare L2 ×2 (spawn.rs:142,189) CLOSED-DEFERRAL:** the attested-arc runes cite 4.6a-i for RUNTIME
+  env-wiring, but 4.6a-i SHIPPED check-only (validates args[1]:wat::program::Env at check.rs:10709-10723;
+  never owned runtime wiring; _program_env discarded at spawn.rs:190). FIX = convert to present-lineage
+  (4.6a-i shipped the check-time env validation; runtime accepts the 3rd arg to match the check arity,
+  evals for side-effects) + re-point the runtime-env-wiring to TASK #211 (the real open owner). NO shipped-stone citation.
+- **exigere L2 (peer.rs:249-250):** test doc "Stone 4.5 is not yet built" is a STALE LIE (4.5 IS built) →
+  present-tense (hand-built to stay lib-safe; mirror the sibling at spawn.rs:507-508).
+- **struere L3 (peer.rs:165):** Process::new_for_test pub+ungated → add #[doc(hidden)] (test-only ctor
+  shouldn't read as a sanctioned public constructor in rustdoc).
+- **purgare L3 (spawn.rs:89):** ThreadPeerCell doc overclaims adoption (the 6 downcast sites are in
+  runtime.rs flat-sea, un-updated; only the test uses it) → soften: "intended for the 4.6a-ii downcast
+  sites; adoption pending runtime.rs warding."
+- **intueri L3 (mod.rs:8):** dup "## What lives here" header (Strike 2's mod.rs rewrite) → merge.
+- **exigere L3 (mod.rs:22-26):** pending-stones Stone 4.6 → cite the DESIGN path inline or rune.
+- **excusare HOLDS-with-note (spawn.rs:269 secare rune):** core host-constraint HOLDS; the 4.6a-ii recv'
+  follow-up ref rotted (4.6a-ii shipped without the recovery-contract doc) → land the "errors observed
+  via channel close; recover via join()/close().wait_status()" note on the recv'/close' docs, or re-point.
+
 ## SCOPE BOUNDARY (NOT 6.w — affirmed, not banked)
 - The Phoenix flat-sea migration (runtime.rs 29k / check.rs 19k / freeze / edn_shim
   / load / io / lexer …) is a SEPARATE named campaign. 6.w wards only what 214
