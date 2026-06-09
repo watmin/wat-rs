@@ -523,12 +523,21 @@ pub fn spawn_process_peer(
     let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
 
-        // Wire the child's stderr (fd 2) to the diagnostic Err-channel BEFORE the
-        // close-sweep (which starts at fd 3 and never touches fd 0/1/2). After
-        // this, emit_structured_exit's fd-2 write lands in the parent's pipe.
-        // diag_w_raw and the inherited diag_r (both >= 3) are then closed by the
-        // sweep (not in `preserved`); fd 2 survives as the pipe write end.
+        // Wire the child's stdio to the comms pipe ends BEFORE the close-sweep
+        // (which starts at fd 3 and never touches fd 0/1/2) — THE ONE WIRE: the
+        // value channel IS the stdio (Song #79, the lanes crossed). fd 0 (stdin)
+        // = the input pipe read end (what the parent's `send'` writes); fd 1
+        // (stdout) = the output pipe write end (what the parent's `recv'` reads);
+        // fd 2 (stderr) = the diagnostic Err-channel (Stone 1a). A `readln`/
+        // `println` server child reads fd 0 / writes fd 1 — the SAME wire as
+        // `send'`/`recv'`; the fn-apply-loop child uses the io_uring channels and
+        // leaves fd 0/1 untouched (harmless). The input pipe read fd is
+        // `raw_fds()[0]` (Receiver: `[read_fd, ring_fd]`); the output pipe write fd
+        // is `raw_fds()[0]` (Sender: `[write_fd]`). The originals (>= 3) stay in
+        // `preserved` (io_uring needs them); the fd 0/1/2 dups survive the sweep.
         unsafe {
+            libc::dup2(input_rx.raw_fds()[0], 0);
+            libc::dup2(output_tx.raw_fds()[0], 1);
             libc::dup2(diag_w_raw, 2);
         }
 
