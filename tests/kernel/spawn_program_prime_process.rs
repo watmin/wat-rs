@@ -31,9 +31,8 @@
 
 use std::sync::Arc;
 
-use wat::comms::RecvError;
 use wat::freeze::startup_from_source;
-use wat::kernel::spawn::{ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
+use wat::kernel::spawn::{PeerRecvError, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
 use wat::load::InMemoryLoader;
 use wat::rust_deps::marshal::{downcast_ref_opaque, rust_opaque_arc};
 use wat::span::Span;
@@ -71,37 +70,22 @@ fn peer_send(cell: &ProcessPeerCell, input: &str) {
     .expect("with_ref(send) must not cross thread boundary");
 }
 
-/// Receive a result from the child via the peer channel.
+/// Receive a result from the child via the bundle's Select (Ok + Err arms).
 ///
-/// Returns `Ok(String)` on success or `Err(RecvError)` if the child died
-/// (channel disconnected) — callers that test the error path assert `is_err()`.
-fn peer_recv(cell: &ProcessPeerCell) -> Result<String, RecvError> {
+/// Stone 214 1b-ii-α: uses `bundle.recv()` (the 3-fd io_uring Select) instead
+/// of `bundle.peer.recv()`. Returns `Ok(String)` on success, or
+/// `Err(PeerRecvError::Crashed(reason))` when the child sent a crash reason,
+/// or `Err(PeerRecvError::Disconnected)` on clean disconnect.
+fn peer_recv(cell: &ProcessPeerCell) -> Result<String, PeerRecvError> {
     cell.with_ref("test:recv", |opt_bundle| {
         opt_bundle
             .as_ref()
             .expect("bundle must not be closed")
-            .peer
             .recv()
     })
     .expect("with_ref(recv) must not cross thread boundary")
 }
 
-/// Read the child's crash reason THROUGH the peer API — the process-tier read of
-/// the locked remote Q-channel's Err-discriminant (`ProcessPeerBundle::take_crash_reason`).
-///
-/// NO fd-2 redirect: the enabler (Stone 214 fork-death) wires the child's fd 2 to
-/// a diagnostic Err-channel pipe the bundle owns; this drains it. Call after the
-/// child is observed dead (recv → Err). Returns the `#wat.kernel/ProcessPanics`
-/// envelope text if the child errored, else `None`.
-fn peer_crash_reason(cell: &ProcessPeerCell) -> Option<String> {
-    cell.with_ref("test:crash-reason", |opt_bundle| {
-        opt_bundle
-            .as_ref()
-            .expect("bundle must not be closed")
-            .take_crash_reason()
-    })
-    .expect("with_ref(crash-reason) must not cross thread boundary")
-}
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -379,24 +363,30 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
-    // ── Step 4: send malformed EDN → child fails to decode → emits + _exit(1). ─
+    // ── Step 4: send malformed EDN → child fails to decode → sends crash reason → _exit(1). ─
     peer_send(cell, "((( not valid edn");
 
-    // The child dies; the parent observes it via channel-close (recv → Err).
+    // Stone 214 1b-ii-α: the crash reason arrives through the io_uring Err arm,
+    // so bundle.recv() (peer_recv) returns Crashed(reason) instead of a generic
+    // disconnect. Extract the reason directly from the error variant.
     let recv_result = peer_recv(cell);
-    assert!(
-        recv_result.is_err(),
-        "child must die on malformed input → parent recv() must be Err; got {:?}",
-        recv_result
-    );
-
-    // ── Step 5: read the crash reason THROUGH the peer API (no fd-2 redirect). ─
-    let diagnostic = peer_crash_reason(cell).unwrap_or_default();
+    let diagnostic = match recv_result {
+        Ok(s) => panic!(
+            "child must die on malformed input → bundle.recv() must return Err; got Ok({:?})",
+            s
+        ),
+        Err(PeerRecvError::Crashed(reason)) => reason,
+        Err(PeerRecvError::Disconnected) => panic!(
+            "child died on malformed input but crash reason was NOT delivered through \
+             the Err arm — got Disconnected instead of Crashed(reason); \
+             check that err_tx.send() ran before _exit in the child error arm"
+        ),
+    };
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
         "dead :process peer child must surface a structured ProcessPanics envelope \
-         through the peer's Err-channel (take_crash_reason), not vanish; reason was {:?}",
+         through the Err arm (bundle.recv()), not vanish; reason was {:?}",
         diagnostic
     );
     assert!(
@@ -465,24 +455,29 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
     .expect("downcast to ProcessPeerCell must succeed");
 
     // ── Step 4: send "0" (valid EDN) → decode succeeds → apply_function returns
-    //           Err(RuntimeError::DivisionByZero) → child emits + _exit(1). ───
+    //           Err(RuntimeError::DivisionByZero) → child sends crash reason → _exit(1). ───
     peer_send(cell, "0");
 
-    // The child dies; the parent observes it via channel-close (recv → Err).
+    // Stone 214 1b-ii-α: the crash reason arrives through the io_uring Err arm,
+    // so bundle.recv() (peer_recv) returns Crashed(reason) carrying the cause.
     let recv_result = peer_recv(cell);
-    assert!(
-        recv_result.is_err(),
-        "child must die on runtime division-by-zero → parent recv() must be Err; got {:?}",
-        recv_result
-    );
-
-    // ── Step 5: read the crash reason THROUGH the peer API (no fd-2 redirect). ─
-    let diagnostic = peer_crash_reason(cell).unwrap_or_default();
+    let diagnostic = match recv_result {
+        Ok(s) => panic!(
+            "child must die on division-by-zero → bundle.recv() must return Err; got Ok({:?})",
+            s
+        ),
+        Err(PeerRecvError::Crashed(reason)) => reason,
+        Err(PeerRecvError::Disconnected) => panic!(
+            "child died on division-by-zero but crash reason was NOT delivered through \
+             the Err arm — got Disconnected instead of Crashed(reason); \
+             check that err_tx.send() ran before _exit in the child runtime-error arm"
+        ),
+    };
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
         "dead :process peer child must surface a structured ProcessPanics envelope \
-         through the peer's Err-channel for runtime errors; reason was {:?}",
+         through the Err arm (bundle.recv()) for runtime errors; reason was {:?}",
         diagnostic
     );
     assert!(

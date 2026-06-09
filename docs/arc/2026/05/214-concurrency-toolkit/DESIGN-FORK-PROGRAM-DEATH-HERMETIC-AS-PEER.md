@@ -530,3 +530,35 @@ pattern already puts it. (An earlier γ-2 lean — written before the TCO resear
 leaned on a nonexistent `(loop …)` and a fn-projection model the real servers don't use. The
 research corrected it. `recv'` gains an optional `-> :T` ascription mirroring `readln` as part of
 γ; that is the client-side typed edge.)
+
+### α — SHIPPED (2026-06-08), with a correction worth keeping
+
+`1b-ii-α` is GREEN (probe `deae64fe` RED→GREEN; 9/9 kernel; 25× death-time soak
+clean). But the *briefed* shape — "Err becomes the 3rd arm of a `Select` over
+`[Ok, Err]`, the cap-4 ring dogfood" — was **wrong**, and the builder's question
+caught it: *"can an error and a data handle have concurrent data at all — is that
+a logical state?"*
+
+**No.** The Ok and Err channels are the two faces of ONE `Result<T,E>` response —
+a **SUM, not a product**. The child emits Ok XOR Err per response, never both
+(apply-loop: `output_tx.send` XOR `err_tx.send` + `_exit`). So Err is not a
+concurrent arm to `Select` against — it is a **death-time channel** that carries a
+payload ONLY at a crash, and a crash always EOFs the Ok channel (the same `_exit`
+closes fd 1 and fd 2). The `Select`-over-`[Ok, Err]` was modeling a sum as a
+product, which then *needed* a tiebreak (data-beats-EOF) for a tie that cannot
+logically occur.
+
+**The honest shape (shipped):** `ProcessPeerBundle::recv()` reads the Ok channel;
+on EOF — the one instant Err can hold a reason — reads the Err channel. Ok value →
+`Ok`; Ok-EOF + buffered Err → `Crashed(reason)` (auto-raised by `recv'`, closing
+Q1); clean exit / shutdown → `Disconnected`. Both reads are cascade-aware io_uring
+`recv()` — **no `poll`, no `Select`.** The fix *deleted* the `Select` rather than
+teaching it a tiebreak; deletion-as-answer was the tell.
+
+**The 3-fd io_uring dogfood is NOT here.** It lives where the concurrency is real —
+`select'` over N independent peers. Forcing Ok/Err into a Select to manufacture a
+"3 fds in a cap-4 ring" was dressing a sum up as a race. (`solvere`-class smell: a
+sum modeled as a product. The diagnostic question — "is that a logical state?" — is
+the instrument that finds it.) Determinism holds because the child `err_tx.send`s
+the reason *before* `_exit`, so when the parent sees Ok-EOF the reason is already
+buffered — no ordering race (25× soak confirms).

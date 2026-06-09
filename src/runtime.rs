@@ -22633,12 +22633,25 @@ fn eval_peer_recv_prime(
                             },
                         }
                         .into()),
-                        Some(bundle) => bundle.peer.recv().map_err(|_| {
+                        Some(bundle) => bundle.recv().map_err(|e| {
+                            use crate::kernel::spawn::PeerRecvError;
+                            let reason = match e {
+                                PeerRecvError::Crashed(crash_reason) => {
+                                    // Stone 214 1b-ii-α: Err arm fired — auto-raise the
+                                    // crash reason so the substrate raises on the user's
+                                    // behalf (Q1 closed). The crash reason is the full
+                                    // `#wat.kernel/ProcessPanics [...]` envelope text.
+                                    crash_reason
+                                }
+                                PeerRecvError::Disconnected => {
+                                    "recv failed: process channel disconnected".into()
+                                }
+                            };
                             RuntimeError {
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
-                                    reason: "recv failed: peer closed / child exited".into(),
+                                    reason,
                                 },
                             }
                             .into()

@@ -67,7 +67,7 @@
 //! error maps to a `RuntimeError::MalformedForm` before the fork.
 //! `:thread` programs skip the walker (in-process sharing via `Arc` is safe).
 
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::OwnedFd;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
@@ -121,7 +121,26 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
-/// Bundles a `Process<String, String>` peer with its lifeline `OwnedFd`.
+/// Outcome of `ProcessPeerBundle::recv`: a value from the Ok arm or an error
+/// from the Err arm (crashed child) / disconnect (clean exit).
+///
+/// Stone 214 1b-ii-α: the Ok and Err channels are the two faces of one
+/// `Result<T,E>` response (a SUM). When the child crashes it writes the reason via
+/// `err_tx.send(envelope_string)` then `_exit`s — closing the Ok channel. So
+/// `recv()` reads Ok, and on Ok-EOF reads the Err channel: a buffered reason →
+/// `Crashed(envelope_string)`; a clean exit (Err EOF too) → `Disconnected`.
+#[derive(Debug)]
+pub enum PeerRecvError {
+    /// The Ok channel closed without data — child exited cleanly or substrate
+    /// shutdown fired.
+    Disconnected,
+    /// The Err channel delivered a crash reason — child wrote the reason via
+    /// `err_tx.send()` before calling `_exit(1)`. The String is the full
+    /// `#wat.kernel/ProcessPanics [...]` envelope text.
+    Crashed(String),
+}
+
+/// Bundles a `Process<String, String>` peer with its Err channel and lifeline.
 ///
 /// The lifeline fd must outlive the peer: the parent holds the write-end
 /// open until the process exits. Rust field-drop order (declaration order)
@@ -132,7 +151,7 @@ pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 /// (see module doc § "Process tier" for the `UnwindSafe` rationale).
 ///
 /// Stone 4.6a-ii downcasts to `ProcessPeerBundle` to access
-/// `bundle.peer.send()` / `bundle.peer.recv()` / `bundle.peer.wait()`.
+/// `bundle.send()` / `bundle.recv()` / `bundle.peer.wait()`.
 // rune:struere(invariant-coupling) — declaration order is load-bearing: peer
 // (Pidfd + channels) must Drop before _lifeline_w so the child's fds close
 // before the lifeline signals exit; reversing races pending send/recv.
@@ -145,60 +164,54 @@ pub struct ProcessPeerBundle {
     // channels, racing with any pending send/recv.
     /// The kernel peer with String wire type.
     pub peer: Process<String, String>,
-    /// Read end of the child's diagnostic Err-channel — the process-tier instance
-    /// of the locked remote Q-channel's Err-discriminant. The child's fd 2 is
-    /// `dup2`'d onto this pipe's write end at fork, so a `#wat.kernel/ProcessPanics`
-    /// envelope from `emit_structured_exit` lands here instead of the parent's
-    /// inherited stderr. Non-blocking; drained by `take_crash_reason` after the
-    /// peer is observed dead. RAII closes it (drops after `peer`, before the
-    /// lifeline, per the order invariant). Stone 214 fork-death enabler
-    /// (DESIGN-FORK-PROGRAM-DEATH step 1: "stderr → parent-readable").
-    pub(crate) err_channel_r: OwnedFd,
+    /// Err channel receiver — the death-time half of the `Result<T,E>` response
+    /// (Stone 214 1b-ii-α). The child's fd 2 is `dup2`'d onto this pipe's write end
+    /// at fork. When the child errors, it calls `err_tx.send(envelope)` before
+    /// `_exit(1)`, placing the crash reason here; the same `_exit` EOFs the Ok
+    /// channel. `recv()` below reads Ok, and on Ok-EOF reads this channel for the
+    /// reason — never concurrently (Ok XOR Err per response). RAII closes it (drops
+    /// after `peer`, before the lifeline, per the order invariant).
+    pub(crate) err: crate::comms::process::Receiver<String>,
     /// Lifeline write-end. Closing this signals the child to exit.
     pub _lifeline_w: OwnedFd,
 }
 
 // Safety: Process<String,String> is Send (comms::process types are Send;
-// Pidfd is Send). OwnedFd is Send. So ProcessPeerBundle: Send.
-// ThreadOwnedCell<ProcessPeerBundle> becomes Sync via the unsafe impl in custodia.
+// Pidfd is Send). Receiver<String> is Send. OwnedFd is Send.
+// So ProcessPeerBundle: Send. ThreadOwnedCell<ProcessPeerBundle> becomes Sync
+// via the unsafe impl in custodia.
 
 impl ProcessPeerBundle {
-    /// Drain the child's diagnostic Err-channel and return the crash reason, if any.
+    /// Receive the next Ok response, or surface the child's crash reason.
     ///
-    /// The process-tier read of the locked remote Q-channel's Err-discriminant:
-    /// when the child fn errors (malformed input / runtime error) it emits a
-    /// `#wat.kernel/ProcessPanics [...]` envelope on fd 2, which is wired to this
-    /// pipe. After the peer is observed dead (recv → `Err`, or a non-zero exit),
-    /// this drains the pipe so the parent reads the cause THROUGH the peer API
-    /// instead of scraping inherited stderr.
+    /// Stone 214 1b-ii-α. The Ok channel (`peer.output`, fd 1) and the Err channel
+    /// (`err`, fd 2) are the two faces of ONE `Result<T,E>` response — a SUM, not a
+    /// product. The child emits Ok XOR Err per response, never both (apply-loop:
+    /// `output_tx.send` on success XOR `err_tx.send` + `_exit` on failure). So Err
+    /// is NOT a concurrent arm to multiplex against — it is a DEATH-TIME channel
+    /// that carries a payload ONLY at a crash, and a crash always EOFs the Ok
+    /// channel (the same `_exit` closes fd 1 and fd 2).
     ///
-    /// The read end is non-blocking: calling this while the child is still alive
-    /// (write end open, nothing buffered) returns `None` immediately rather than
-    /// hanging. Returns `Some(text)` only when a `#wat.kernel/ProcessPanics`
-    /// envelope is present; a clean exit leaves the channel empty → `None`.
-    pub fn take_crash_reason(&self) -> Option<String> {
-        let fd = self.err_channel_r.as_raw_fd();
-        let mut captured = Vec::new();
-        let mut buf = [0u8; 4096];
-        loop {
-            let n =
-                unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
-            if n > 0 {
-                captured.extend_from_slice(&buf[..n as usize]);
-            } else {
-                // n == 0 → EOF (all write ends closed); n < 0 → EAGAIN (non-blocking,
-                // nothing ready) or error. Either way, stop draining.
-                break;
-            }
-        }
-        if captured.is_empty() {
-            return None;
-        }
-        let text = String::from_utf8_lossy(&captured).into_owned();
-        if text.contains("#wat.kernel/ProcessPanics") {
-            Some(text)
-        } else {
-            None
+    /// Therefore: read the Ok channel; on EOF — the one moment Err can hold a
+    /// reason — read the Err channel. Ok arm → `Ok(String)` (the EDN value). Ok-EOF
+    /// with a buffered Err payload → `Crashed(reason)`. Clean exit / substrate
+    /// shutdown (Ok EOF, Err EOF) → `Disconnected`. Both reads are cascade-aware
+    /// io_uring `recv()` — no `poll`, no `Select`. (The 3-fd io_uring TCO-loop
+    /// dogfood lives where the concurrency is real — `select'` over N independent
+    /// peers — NOT here, where the two channels are mutually exclusive by
+    /// construction.)
+    ///
+    /// The Err `recv()` cannot block past child death: the child's `err_tx` + its
+    /// fd-2 dup are the ONLY Err write ends (the parent moved `err_tx` into the
+    /// child closure), and `_exit` closes them atomically with fd 1 — so it reads
+    /// any buffered reason, then sees EOF.
+    pub fn recv(&self) -> Result<String, PeerRecvError> {
+        match self.peer.output.recv() {
+            Ok(value) => Ok(value),
+            Err(_) => match self.err.recv() {
+                Ok(reason) => Err(PeerRecvError::Crashed(reason)),
+                Err(_) => Err(PeerRecvError::Disconnected),
+            },
         }
     }
 }
@@ -468,37 +481,21 @@ pub fn spawn_process_peer(
         }
     })?;
 
-    // ── Diagnostic Err-channel pipe (process-tier Q-channel Err-discriminant) ──
-    // Created pre-fork so both sides inherit the fds. The child `dup2`s fd 2 onto
-    // the write end (see the CHILD BRANCH), so emit_structured_exit's
-    // `#wat.kernel/ProcessPanics` envelope lands in this pipe instead of the
-    // parent's inherited stderr. The closure captures only the raw write-fd NUMBER
-    // (Copy), so the parent retains ownership: it closes its write copy after the
-    // fork and keeps the read end (non-blocking) on the bundle.
-    let mut diag_fds = [0i32; 2];
-    if unsafe { libc::pipe(diag_fds.as_mut_ptr()) } != 0 {
-        return Err(RuntimeError {
+    // ── Err channel pair (Stone 214 1b-ii-α — the 3rd comms::process channel) ──
+    // Mirrors the in/Ok pairs above. The child `dup2`s err_tx's write fd onto
+    // fd 2 (see CHILD BRANCH), so `emit_structured_exit` / `err_tx.send()` writes
+    // land in this channel instead of the parent's inherited stderr. The parent
+    // holds `err_rx` on the bundle and selects over it (together with peer.output)
+    // in `ProcessPeerBundle::recv()` — the 3rd arm of the cap-4 io_uring ring.
+    let (err_tx, err_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
+        RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!(
-                    "diagnostic Err-channel pipe() failed: {}",
-                    std::io::Error::last_os_error()
-                ),
+                reason: format!("comms::process::pair (err) failed: {}", io_err),
             },
-        });
-    }
-    let (diag_r_raw, diag_w_raw) = (diag_fds[0], diag_fds[1]);
-    // Non-blocking read end: a drain before the child has died (write end still
-    // open, nothing buffered) returns immediately instead of hanging.
-    unsafe {
-        let flags = libc::fcntl(diag_r_raw, libc::F_GETFL);
-        libc::fcntl(diag_r_raw, libc::F_SETFL, flags | libc::O_NONBLOCK);
-    }
-    // SAFETY: diag_r_raw is a fresh fd from pipe(); the parent owns it. diag_w_raw
-    // stays a raw i32 (Copy) — captured by the child closure for dup2, closed by
-    // the parent after the fork.
-    let diag_r = unsafe { OwnedFd::from_raw_fd(diag_r_raw) };
+        }
+    })?;
 
     // ── Fork via spawn_lifelined_any ─────────────────────────────────────────
     // `spawn_lifelined` requires `F: FnOnce(i32) + UnwindSafe`. The child
@@ -538,17 +535,20 @@ pub fn spawn_process_peer(
         unsafe {
             libc::dup2(input_rx.raw_fds()[0], 0);
             libc::dup2(output_tx.raw_fds()[0], 1);
-            libc::dup2(diag_w_raw, 2);
+            // Stone 214 1b-ii-α: dup2 the err channel write fd onto fd 2 (stderr).
+            // The child's error arms call err_tx.send(envelope) before _exit(1),
+            // writing the crash reason into the parent's err_rx Receiver.
+            libc::dup2(err_tx.raw_fds()[0], 2);
         }
 
         // Collect ALL fds owned by the comms endpoints that must survive the
-        // close-sweep. input_rx owns {read_fd, ring_fd}; output_tx owns {write_fd}.
-        // Both sets are needed: the child's recv uses io_uring (ring must survive)
-        // and the child's send uses the write pipe (write_fd must survive).
+        // close-sweep. input_rx owns {read_fd, ring_fd}; output_tx owns {write_fd};
+        // err_tx owns {write_fd} (the err channel write end).
         // Stone 4.5-fix: use child_post_fork_init_preserving so these fds are
         // added to the skip-list instead of being silently closed by the sweep.
         let mut preserved: Vec<i32> = input_rx.raw_fds();
         preserved.extend(output_tx.raw_fds());
+        preserved.extend(err_tx.raw_fds());
 
         // Post-fork init: setpgid, close inherited fds (preserving comms + lifeline),
         // shutdown cascade, signal handlers.
@@ -575,20 +575,20 @@ pub fn spawn_process_peer(
             let input_val = match crate::edn_shim::edn_string_to_value(&edn_str) {
                 Ok(v) => v,
                 Err(e) => {
-                    // circumspicere F3 — kill the silent swallow: emit the SAME
-                    // `#wat.kernel/ProcessPanics` envelope the verbs.rs fork
-                    // children emit, so a dead :process peer names its cause on
-                    // fd 2 instead of vanishing into a bare Exited(1). The parent
-                    // observes the death via channel-close (recv → Err); a
-                    // programmatic error CHANNEL (parent reads the cause without
-                    // scraping stderr) is the named Stone 4.6 follow-up, not 6.w.
-                    crate::process::emit_structured_exit(
-                        None,
-                        crate::runtime::process_died_error_runtime_value(format!(
-                            "malformed EDN input from parent: {}",
-                            e
-                        )),
-                    );
+                    // Stone 214 1b-ii-α: send the crash reason via err_tx (the Err
+                    // half of the Result<T,E> response) so the parent's death-time
+                    // Err read receives it. Build the same ProcessPanics envelope
+                    // shape that emit_structured_exit writes, but deliver it as a
+                    // properly-encoded Sender<String> frame (not a raw write) so
+                    // Receiver<String> can decode it.
+                    let value = crate::runtime::process_died_error_runtime_value(format!(
+                        "malformed EDN input from parent: {}",
+                        e
+                    ));
+                    let chain = crate::runtime::conj_died_chain_value(value, None);
+                    let edn = crate::edn_shim::value_to_edn_with(&chain, None);
+                    let envelope = format!("#wat.kernel/ProcessPanics {}", wat_edn::write(&edn));
+                    let _ = err_tx.send(envelope);
                     unsafe { libc::_exit(1) }
                 }
             };
@@ -602,16 +602,17 @@ pub fn spawn_process_peer(
             ) {
                 Ok(v) => v,
                 Err(runtime_err) => {
-                    // circumspicere F3 — emit the structured RuntimeError EDN
-                    // (mirrors finish_forked_child's `Ok(Err(_))` arm) before
-                    // `_exit`, via the one canonical emit_structured_exit.
+                    // Stone 214 1b-ii-α: send crash reason via err_tx (proper channel).
+                    // The runtime EDN contains the structured error (e.g. "DivisionByZero")
+                    // so the parent's recv' auto-raises it with the cause named.
                     let runtime_edn = wat_edn::write(
                         &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err),
                     );
-                    crate::process::emit_structured_exit(
-                        None,
-                        crate::runtime::process_died_error_runtime_value(runtime_edn),
-                    );
+                    let value = crate::runtime::process_died_error_runtime_value(runtime_edn);
+                    let chain = crate::runtime::conj_died_chain_value(value, None);
+                    let edn = crate::edn_shim::value_to_edn_with(&chain, None);
+                    let envelope = format!("#wat.kernel/ProcessPanics {}", wat_edn::write(&edn));
+                    let _ = err_tx.send(envelope);
                     unsafe { libc::_exit(1) }
                 }
             };
@@ -636,14 +637,6 @@ pub fn spawn_process_peer(
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
     let lifeline_w = lifeline_writer.into_owned_fd();
 
-    // Close the parent's copy of the diagnostic write end. The only remaining
-    // write end is now the child's fd 2, so once the child dies the parent's
-    // non-blocking read (take_crash_reason) sees EOF and drains cleanly. Leaving
-    // it open would keep the read end from ever reaching EOF.
-    unsafe {
-        libc::close(diag_w_raw);
-    }
-
     // Build the parent-side Process<String, String> peer.
     let peer = Process {
         input: input_tx,
@@ -651,9 +644,14 @@ pub fn spawn_process_peer(
         pidfd,
     };
 
+    // Stone 214 1b-ii-α: err_rx is the Err half of the Result<T,E> response —
+    // the death-time channel ProcessPeerBundle::recv() reads on Ok-EOF. err_tx was
+    // moved into the child closure; RAII closes it when the child exits (all fds
+    // close via _exit). The parent retains only err_rx. Drop order invariant: peer
+    // before err before _lifeline_w.
     let bundle = ProcessPeerBundle {
         peer,
-        err_channel_r: diag_r,
+        err: err_rx,
         _lifeline_w: lifeline_w,
     };
 
