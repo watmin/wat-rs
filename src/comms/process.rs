@@ -167,9 +167,10 @@ impl<T: HolonRepresentable> Sender<T> {
     // `SendError` at the bottom of the existing standard-idiom Result. Per
     // perspicere ward (Stone E-2 ward pass 2026-05-19); judgment to NOT mint.
     pub fn send(&self, value: T) -> Result<(), SendError<T>> {
-        // Encode T → HolonAST → tagged EDN string (single-line).
-        let ast = value.to_holon_ast();
-        let edn_str = crate::edn_shim::write_holon_ast_tagged(&ast);
+        // Stone 214 1b-ii-β.0: the wire is plain EDN (`to_wire`), NOT a holon-tagged
+        // envelope. For `String` (the process peer wire) this is raw passthrough —
+        // the boundary codec already produced the EDN line.
+        let edn_str = value.to_wire();
 
         // Frame: EDN bytes + '\n'. One allocation, then a write loop
         // (short writes resumed; EINTR retried). Single-writer endpoint —
@@ -695,8 +696,10 @@ fn wait_for_data_or_cascade(
 /// is in an honest but unrecoverable state per this call".
 fn decode_frame<T: HolonRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
     let s = std::str::from_utf8(bytes).map_err(|_| RecvError)?;
-    let ast_arc = crate::edn_shim::read_holon_ast_tagged(s).map_err(|_| RecvError)?;
-    T::from_holon_ast(&ast_arc).map_err(|_| RecvError)
+    // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
+    // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
+    // tag required (the `recv'` boundary codec runs `edn_string_to_value` upstream).
+    T::from_wire(s).map_err(|_| RecvError)
 }
 
 /// Pull the first newline-terminated frame out of `acc` (consuming the

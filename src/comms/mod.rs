@@ -113,6 +113,32 @@ pub trait HolonRepresentable: Send + 'static {
     fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
     where
         Self: Sized;
+
+    /// The EDN line transmitted across a universe (process) boundary — Stone 214
+    /// 1b-ii-β.0. **The wire is plain EDN.** Holon-tagging is NOT the transport —
+    /// it is one representation of EDN, meaningful INSIDE a holonic value, never
+    /// as the envelope. The `HolonRepresentable` bound is the CONTRACT (only
+    /// representable values cross a universe boundary); `to_wire`/`from_wire` is
+    /// the ENCODING (plain EDN). Conflating the two — forcing values into a
+    /// holon-tagged shape to "guarantee the contract" — is the abuse this split
+    /// removes (cf. the prior `defrecord` occurrence).
+    ///
+    /// Default: the holon-tagged EDN of `to_holon_ast` (kept only for wire types
+    /// whose natural EDN already IS the tagged form). `String` OVERRIDES with raw
+    /// passthrough — for the process peer the `String` already IS the finished EDN
+    /// line (the `send'`/`recv'` boundary codec ran `value_to_edn` upstream), so
+    /// the channel must transmit its bytes, not re-serialize it.
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
+    }
 }
 
 /// First concrete `HolonRepresentable` impl (Slice 3 Stone C).
@@ -142,6 +168,22 @@ impl HolonRepresentable for String {
                 other
             ))),
         }
+    }
+
+    /// Raw passthrough (Stone 214 1b-ii-β.0): the `String` IS the EDN line. No
+    /// holon tag — a forms-server's `(println 42)` writes plain `42\n`, and the
+    /// parent reads it back byte-for-byte. The boundary codec (`value_to_edn` /
+    /// `edn_string_to_value` at the `send'`/`recv'` intrinsics) already turned the
+    /// Value into this EDN line, so the channel must not re-encode it.
+    fn to_wire(&self) -> String {
+        self.clone()
+    }
+
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        Ok(s.to_string())
     }
 }
 
@@ -749,4 +791,38 @@ pub enum SelectOutcome<T> {
     },
     /// Substrate shutdown fired before any data receiver. Caller should unwind.
     Shutdown,
+}
+
+#[cfg(test)]
+mod beta0_wire_tests {
+    //! Stone 214 1b-ii-β.0 — the universe-boundary wire is plain EDN, never a
+    //! holon-tagged envelope. Holon-tagging is one representation of EDN, content
+    //! INSIDE a holonic value — not the transport.
+    use super::HolonRepresentable;
+
+    #[test]
+    fn string_wire_is_raw_edn_not_holon_tagged() {
+        // The process peer's String IS the finished EDN line (the send'/recv'
+        // boundary codec ran value_to_edn upstream). to_wire must NOT re-wrap it.
+        let edn_line = "42".to_string();
+        assert_eq!(
+            edn_line.to_wire(),
+            "42",
+            "String::to_wire must be raw passthrough — a forms-server's plain `42` is the wire"
+        );
+        assert!(
+            !edn_line.to_wire().contains("#wat-edn.holon"),
+            "the wire must carry no holon-AST envelope"
+        );
+        assert_eq!(String::from_wire("42").unwrap(), "42");
+
+        // A tagged literal (#wat.kernel/...) is itself valid EDN and rides the
+        // wire as-is — proving holon tags are content, not envelope.
+        let tagged = "#wat.kernel/ProcessPanics []".to_string();
+        assert_eq!(tagged.to_wire(), "#wat.kernel/ProcessPanics []");
+        assert_eq!(
+            String::from_wire("#wat.kernel/ProcessPanics []").unwrap(),
+            "#wat.kernel/ProcessPanics []"
+        );
+    }
 }

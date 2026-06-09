@@ -562,3 +562,36 @@ sum modeled as a product. The diagnostic question — "is that a logical state?"
 the instrument that finds it.) Determinism holds because the child `err_tx.send`s
 the reason *before* `_exit`, so when the parent sees Ok-EOF the reason is already
 buffered — no ordering race (25× soak confirms).
+
+### β.0 — SHIPPED (2026-06-08): the wire is EDN, not a holon envelope
+
+The first β strike (a sonnet) flailed on a real, unexpected defect — **`comms::process` was
+abusing HolonAST as the transport.** `send` did `value.to_holon_ast()` →
+`write_holon_ast_tagged` → `#wat-edn.holon/String "42"`; `decode_frame` did the inverse. So a
+forms-server's plain `(println 42)` → `42\n` could never decode (not holon-tagged). The sonnet
+band-aided it (`recv_raw_frame`/`recv_plain_edn_line`/`input_raw_write_fd`) → build went RED →
+killed (Mode-B; the brief was the upstream defect — it didn't anticipate the framing).
+
+**Builder's principle:** *"the requirement is that we transmit EDN between universes — that's
+it. What is transmitted must satisfy holon-representable, not that it's a holon-tagged form;
+holon is just another representation of EDN."* So `T: HolonRepresentable` is the **contract**
+(only representable values cross a universe boundary); **EDN is the encoding**. The
+holon-tagged form is one EDN representation — meaningful *inside* a holonic VSA value (`(Atom
+…)`), never as the transport envelope. (Same shape as the prior `defrecord` occurrence:
+forcing values into a holon shape to *guarantee* the contract, conflating contract with
+encoding.)
+
+**Fix (shipped):** a wire codec on `HolonRepresentable` — `to_wire`/`from_wire`. Default = the
+holon-tagged EDN (kept only for any wire type whose natural EDN IS the tagged form). `String`
+**overrides** with raw passthrough: for the process peer the `String` already IS the finished
+EDN line (the `send'`/`recv'` boundary codec ran `value_to_edn` upstream), so the channel
+transmits its bytes, never re-serializes. `comms::process` `send`/`decode_frame` call
+`to_wire`/`from_wire`. **The io_uring loop, `Select`, `pair`, `Process<I,O>` — all untouched;
+two call sites + the trait.** io_uring (parent) and `from-pipe`/`println`/`readln` (child) now
+speak the identical wire (plain line-EDN). Verified: `comms::beta0_wire_tests` (raw passthrough,
+no tag) + α kernel suite stays 9/9 (the apply-loop wire flipped to raw symmetrically). Tagged
+literals (`#wat.kernel/ProcessPanics`) ride as content, not envelope.
+
+**Corrected sequence:** β.0 (done) → β (forms-server, now over plain EDN) → γ (folded) → δ →
+ε → ζ. The killed sonnet's WIP (server runtime + test migrations) was reverted; it rebuilds on
+this fixed foundation in β.
