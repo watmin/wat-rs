@@ -317,6 +317,34 @@ retire the apply-loop + io_uring + `fork-program` → rename primes → canonica
 
 ### PROGRESS (2026-06-08)
 
+- 🔧 **1b-iii — the dispatcher unification: CORE PROVEN, cascade gate-measured + bounded.** The
+  `:process` arm of `eval_kernel_spawn_program_prime` (`src/kernel/spawn.rs`) delegates to
+  `spawn-process` — the proven snippet (compiles clean; lib green):
+  ```rust
+  ":process" => {
+      // arg 2 is the PROGRAM (forms); eval_kernel_spawn_process forks a
+      // :user::main readln/println server over fork-program's plain pipes.
+      crate::process::eval_kernel_spawn_process(&args[2..], list_span, env, sym).map_err(Into::into)
+  }
+  ":thread" => { /* eval arg2 as fn → spawn_thread_peer (apply-loop, unmigrated) */ }
+  ```
+  **GATE-MEASURED CASCADE (exact, bounded — run `cargo test --release --test kernel -- --ignored`):**
+  the delegation breaks exactly the wat-surface `:process` *prime-peer* tests, which pass a fn +
+  drive via `send'`/`recv'`/`select'` (the dispatcher now returns the server struct, not the
+  `Process'` apply-loop peer):
+  - `tests/kernel/peer_verb_round_trip_process.rs:36` — migrate to: `(spawn-program' :process {}
+    (forms (defn :user::main [] (println (readln)))))` + `Sender`/`Receiver/from-pipe` + `send`/`recv`
+    (the arc112_slice2b / spawn-process pattern).
+  - `tests/kernel/peer_select_prime_process.rs:37` — same migration, over `select` on N server peers.
+  - `tests/nursery/probe_arc214_stone46i_typed_peer.rs:88` — the check-time inference probe.
+  - `src/check.rs:10613` `infer_spawn_program_prime` — **the type-checker**: `:process` must now
+    infer the `spawn-process` server type (`:wat::kernel::Process` struct), not `Process'<I,O>`.
+  The `spawn_process_peer`-DIRECT tests (`spawn_program_prime_process.rs`, 5×) stay green — they
+  call the Rust fn, not the dispatcher; the apply-loop fn + its direct tests retire LAST.
+  **STATUS:** core delegation reverted to keep the foundation green (8/8); re-apply the snippet
+  above as the first move of the next strike, then the 4 bounded migrations. The type-checker
+  change (`infer_spawn_program_prime`) is the load-bearing one — do it eyes-open, not tired.
+
 - 🎯 **1b-ii DISCOVERY (the swing's real yield): the `sender_from_pipe` program-server ALREADY
   EXISTS and is GREEN — the collapse is UNIFICATION, not CONSTRUCTION.** Grounding from the gate's
   red led here: `:wat::kernel::spawn-process` (`eval_kernel_spawn_process`) already runs a wat
