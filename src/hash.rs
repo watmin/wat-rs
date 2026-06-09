@@ -129,6 +129,10 @@ const TAG_STRUCT_PATTERN: u8 = 0x19;
 /// Arc 244 — nil literal tag. Distinct from every other tag so
 /// `NilLit` does not hash-collide with e.g. `BoolLit(false)`.
 const TAG_NIL: u8 = 0x1a;
+/// Arc 257 slice 1 — map literal tag `{k v …}`.
+const TAG_MAP: u8 = 0x1b;
+/// Arc 257 slice 1 — set literal tag `#{x y …}`.
+const TAG_SET: u8 = 0x1c;
 
 /// Ed25519 signature length in bytes.
 const ED25519_SIG_LEN: usize = 64;
@@ -234,6 +238,23 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>, renumber: &mut ScopeRenu
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
                 write_canonical_wat(child, out, renumber);
+            }
+        }
+        // Arc 257 slice 1 — Map: distinct tag; pair count; then alternating k/v.
+        WatAST::Map(pairs, _) => {
+            out.push(TAG_MAP);
+            out.extend_from_slice(&(pairs.len() as u32).to_le_bytes());
+            for (k, v) in pairs {
+                write_canonical_wat(k, out, renumber);
+                write_canonical_wat(v, out, renumber);
+            }
+        }
+        // Arc 257 slice 1 — Set: distinct tag; element count; then elements.
+        WatAST::Set(items, _) => {
+            out.push(TAG_SET);
+            out.extend_from_slice(&(items.len() as u32).to_le_bytes());
+            for item in items {
+                write_canonical_wat(item, out, renumber);
             }
         }
     }

@@ -803,6 +803,24 @@ fn walk_template(
             )?;
             Ok(WatAST::Vector(out, call_site_span.clone()))
         }
+        // Arc 257 slice 1 — Map/Set literals: walk k/v and elements so that
+        // unquotes/splices inside them are expanded correctly.
+        WatAST::Map(pairs, _) => {
+            let mut out_pairs: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs.len());
+            for (k, v) in pairs {
+                let wk = walk_template(k, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?;
+                let wv = walk_template(v, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?;
+                out_pairs.push((wk, wv));
+            }
+            Ok(WatAST::Map(out_pairs, call_site_span.clone()))
+        }
+        WatAST::Set(items, _) => {
+            let mut out: Vec<WatAST> = Vec::with_capacity(items.len());
+            for child in items {
+                out.push(walk_template(child, bindings, macro_scope, macro_name, call_site_span, depth, env, sym)?);
+            }
+            Ok(WatAST::Set(out, call_site_span.clone()))
+        }
         // Literals and keywords pass through unchanged; keywords carry
         // no scope tracking.
         other => Ok(other.clone()),

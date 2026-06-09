@@ -676,6 +676,20 @@ fn walk_free_symbols(
             }
             Ok(())
         }
+        // Arc 257 slice 1 — Map/Set literals: recurse into all k/v and elements.
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                walk_free_symbols(k, locals, state)?;
+                walk_free_symbols(v, locals, state)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(items, _) => {
+            for item in items {
+                walk_free_symbols(item, locals, state)?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -849,10 +863,8 @@ fn walk_defenum_form(
     // args[0] is the enum name keyword (skip — new declaration).
     // args[1] may be a metadata-map (WatAST::List with :wat::core::HashMap head) — skip.
     // Remaining args: positional variants with one-token look-ahead grammar.
-    let start = match args.get(1) {
-        Some(WatAST::List(items, _)) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap") => 2,
-        _ => 1,
-    };
+    // Arc 257 slice 1: is_metadata_map() accepts Map literal and legacy HashMap List.
+    let start = if args.get(1).map(|n| n.is_metadata_map()).unwrap_or(false) { 2 } else { 1 };
     let mut vi = start;
     while vi < args.len() {
         match &args[vi] {
@@ -1050,6 +1062,20 @@ fn collect_pattern_bindings(
                         locals.insert(n.to_string());
                     }
                 }
+            }
+            Ok(())
+        }
+        // Arc 257 slice 1 — Map/Set at pattern position: recurse defensively.
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                collect_pattern_bindings(k, locals, state)?;
+                collect_pattern_bindings(v, locals, state)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(items, _) => {
+            for item in items {
+                collect_pattern_bindings(item, locals, state)?;
             }
             Ok(())
         }
@@ -2096,6 +2122,25 @@ fn rewrite_with_scope(
         WatAST::StructPattern(items, span) => {
             // Field-name positions stay verbatim (they are bindings).
             WatAST::StructPattern(items.clone(), span.clone())
+        }
+        // Arc 257 slice 1 — Map/Set literals: rewrite children (they may contain
+        // free symbols). Map keys/values and Set elements are value expressions.
+        WatAST::Map(pairs, span) => {
+            let new_pairs: Vec<(WatAST, WatAST)> = pairs
+                .iter()
+                .map(|(k, v)| (
+                    rewrite_with_scope(k, by_name, locals),
+                    rewrite_with_scope(v, by_name, locals),
+                ))
+                .collect();
+            WatAST::Map(new_pairs, span.clone())
+        }
+        WatAST::Set(items, span) => {
+            let new_items: Vec<WatAST> = items
+                .iter()
+                .map(|it| rewrite_with_scope(it, by_name, locals))
+                .collect();
+            WatAST::Set(new_items, span.clone())
         }
     }
 }

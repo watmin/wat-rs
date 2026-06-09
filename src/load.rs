@@ -848,25 +848,14 @@ fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
     // Vector arms but no StructPattern arm — setters buried inside
     // StructPattern slipped past load-time refusal. children() returns
     // &[] for leaf nodes (no-op).
-    for child in form.children() {
+    for child in form.children().iter() {
         scan_for_setter(child, path)?;
     }
     Ok(())
 }
 
 fn variant_name(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "int literal",
-        WatAST::FloatLit(_, _) => "float literal",
-        WatAST::BoolLit(_, _) => "bool literal",
-        WatAST::StringLit(_, _) => "string literal",
-        WatAST::NilLit(_) => "nil literal",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        WatAST::StructPattern(_, _) => "struct-pattern",
-    }
+    ast.variant_name()
 }
 
 // ─── Loaders ────────────────────────────────────────────────────────────

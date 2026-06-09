@@ -1869,13 +1869,11 @@ fn preregister_enum_constructors_from_form(
     };
 
     // Determine start index for variant items: skip optional metadata-map at items[2].
-    let variant_start = match items.get(2) {
-        Some(WatAST::List(meta_items, _))
-            if matches!(meta_items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap") =>
-        {
-            3 // metadata-map present; variants start at items[3]
-        }
-        _ => 2, // no metadata-map; variants start at items[2]
+    // Arc 257 slice 1: is_metadata_map() accepts Map literal and legacy HashMap List.
+    let variant_start = if items.get(2).map(|n| n.is_metadata_map()).unwrap_or(false) {
+        3 // metadata-map present; variants start at items[3]
+    } else {
+        2 // no metadata-map; variants start at items[2]
     };
 
     let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
@@ -1959,32 +1957,18 @@ fn preregister_enum_constructors_from_form(
 /// Caller is responsible for emitting an error on empty `{}` when `Some(empty)` is
 /// returned — this fn returns `Some(empty_map)` in that case so the caller can
 /// distinguish "not a map" from "empty map".
+// Arc 257 slice 1 — updated to use `is_metadata_map()` / `metadata_map_pairs()`
+// so both WatAST::Map and legacy List-with-HashMap-head are accepted.
 fn try_parse_metadata_map(node: &WatAST) -> Option<HashMap<String, WatAST>> {
-    let list_items = match node {
-        WatAST::List(items, _) => items,
-        _ => return None,
-    };
-    // Must have head keyword :wat::core::HashMap.
-    match list_items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
-        _ => return None,
-    }
-    // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
-    // Minimum: 3 items (head + K + V) = empty map.
-    if list_items.len() < 3 {
-        return None; // malformed — not a properly-synthesized map
-    }
-    // Extract alternating key/value pairs from index 3 onward.
-    let pairs = &list_items[3..];
+    // Use the authoritative predicate from ast.rs.
+    let pairs = node.metadata_map_pairs()?;
     let mut meta: HashMap<String, WatAST> = HashMap::new();
-    let mut i = 0;
-    while i + 1 < pairs.len() {
-        let key_str = match &pairs[i] {
+    for (k_node, v_node) in pairs {
+        let key_str = match &k_node {
             WatAST::Keyword(k, _) => k.clone(),
             _ => return None, // non-keyword key — malformed
         };
-        meta.insert(key_str, pairs[i + 1].clone());
-        i += 2;
+        meta.insert(key_str, v_node);
     }
     Some(meta)
 }
@@ -3087,6 +3071,54 @@ pub(crate) fn eval_inner(
                      supported"
                 .into()
         } }.into()),
+        // Arc 257 slice 1 — first-class map literal `{k0 v0 k1 v1 …}`.
+        // Reuses `eval_hashmap_ctor`'s inner loop (guard-and-insert) but
+        // skips the `:K :V` type-keyword sentinel check — a literal carries
+        // no explicit type sentinels.
+        WatAST::Map(pairs, span) => {
+            #[allow(clippy::mutable_key_type)]
+            let mut map: std::collections::HashMap<Value, Value> =
+                std::collections::HashMap::with_capacity(pairs.len());
+            for (k_node, v_node) in pairs {
+                let k = eval_inner(k_node, env, sym)?.value_owned();
+                let v = eval_inner(v_node, env, sym)?.value_owned();
+                if !value_is_key_hashable(&k) {
+                    return Err(RuntimeError { span: k_node.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                        op: "{…} map literal".into(),
+                        expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                        got: Box::new(ValueSnapshot::of(&k))
+                    } }.into());
+                }
+                map.insert(k, v);
+            }
+            Ok(TrackedValue::new(
+                Value::wat__std__HashMap(Arc::new(map)),
+                Provenance::Literal { span: span.clone() },
+            ))
+        }
+        // Arc 257 slice 1 — first-class set literal `#{x y z …}`.
+        // Reuses `eval_hashset_ctor`'s inner loop (guard-and-insert) but
+        // skips the `:T` type-keyword sentinel check.
+        WatAST::Set(items, span) => {
+            #[allow(clippy::mutable_key_type)]
+            let mut set: std::collections::HashSet<Value> =
+                std::collections::HashSet::with_capacity(items.len());
+            for item in items {
+                let v = eval_inner(item, env, sym)?.value_owned();
+                if !value_is_set_hashable(&v) {
+                    return Err(RuntimeError { span: item.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                        op: "#{…} set literal".into(),
+                        expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                        got: Box::new(ValueSnapshot::of(&v))
+                    } }.into());
+                }
+                set.insert(v);
+            }
+            Ok(TrackedValue::new(
+                Value::wat__std__HashSet(Arc::new(set)),
+                Provenance::Literal { span: span.clone() },
+            ))
+        }
         WatAST::Keyword(k, span) => {
             // Arc 153 slice 1a — `:wat::core::nil` at value
             // position evaluates to `Value::Unit` (the nil
@@ -8573,6 +8605,24 @@ fn walk_quasiquote(
             }
             Ok(WatAST::Vector(walked, span.clone()))
         }
+        // Arc 257 slice 1 — Map/Set literals: walk all k/v and elements
+        // at the same depth (may contain unquote forms in quasiquote templates).
+        WatAST::Map(pairs, span) => {
+            let mut walked_pairs: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs.len());
+            for (k, v) in pairs {
+                let wk = walk_quasiquote(k, env, sym, depth)?;
+                let wv = walk_quasiquote(v, env, sym, depth)?;
+                walked_pairs.push((wk, wv));
+            }
+            Ok(WatAST::Map(walked_pairs, span.clone()))
+        }
+        WatAST::Set(items, span) => {
+            let mut walked: Vec<WatAST> = Vec::with_capacity(items.len());
+            for child in items {
+                walked.push(walk_quasiquote(child, env, sym, depth)?);
+            }
+            Ok(WatAST::Set(walked, span.clone()))
+        }
         // Leaves are preserved verbatim. (StructPattern admits only
         // bare Symbols at parse time per `src/ast.rs:99`; cannot
         // contain unquotes; treated as leaf.)
@@ -11543,6 +11593,11 @@ fn try_match_pattern(
             Value::Unit => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
+        // Arc 257 slice 1 — Map/Set literals are not match sub-patterns.
+        WatAST::Map(_, span) | WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "map/set literal is not a valid match sub-pattern".into()
+        } }.into()),
     }
 }
 
@@ -13725,6 +13780,28 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // re-tag distinctly.
         WatAST::StructPattern(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
+        }
+        // Arc 257 slice 1 — `Map` lowers to `Bind(Atom(String("Map")), Bundle([Bind(k,v), …]))`
+        // matching `from_holon_item`'s existing "Map" classifier arm (~11553).
+        // The symmetric encoding ensures the holon round-trip is correct.
+        WatAST::Map(pairs, _) => {
+            let pair_holons: Vec<HolonAST> = pairs
+                .iter()
+                .map(|(k, v)| HolonAST::bind(watast_to_holon(k), watast_to_holon(v)))
+                .collect();
+            HolonAST::bind(
+                HolonAST::string("Map"),
+                HolonAST::bundle(pair_holons),
+            )
+        }
+        // Arc 257 slice 1 — `Set` lowers to `Bind(Atom(String("Set")), Bundle([…]))`
+        // matching `from_holon_item`'s existing "Set" classifier arm.
+        WatAST::Set(items, _) => {
+            let elem_holons: Vec<HolonAST> = items.iter().map(watast_to_holon).collect();
+            HolonAST::bind(
+                HolonAST::string("Set"),
+                HolonAST::bundle(elem_holons),
+            )
         }
     }
 }
@@ -20892,6 +20969,14 @@ fn step_form(
         WatAST::StructPattern(_, sp_span) => Err(RuntimeError { span: sp_span.clone(), kind: RuntimeErrorKind::NoStepRule {
             op: "<struct-pattern>".into()
         } }.into()),
+        // Arc 257 slice 1 — Map/Set literals reaching the stepper
+        // fall through to eval via NoStepRule.
+        WatAST::Map(_, map_span) => Err(RuntimeError { span: map_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: "<map literal>".into()
+        } }.into()),
+        WatAST::Set(_, set_span) => Err(RuntimeError { span: set_span.clone(), kind: RuntimeErrorKind::NoStepRule {
+            op: "<set literal>".into()
+        } }.into()),
     }
 }
 
@@ -21052,6 +21137,10 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         // are binding-position grammar (let struct-destructure);
         // not a value shape.
         WatAST::StructPattern(_, _) => None,
+        // Arc 257 slice 1 — Map/Set literals are not stepper value-shapes.
+        // They evaluate to HashMap/HashSet values but the stepper path
+        // doesn't reduce them; fall through to eval via NoStepRule.
+        WatAST::Map(_, _) | WatAST::Set(_, _) => None,
     }
 }
 
@@ -21817,6 +21906,11 @@ fn try_match_pattern_ast(
                 } }.into())
             }
         }
+        // Arc 257 slice 1 — Map/Set literals are not match sub-patterns at AST level.
+        WatAST::Map(_, span) | WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "map/set literal is not a valid match sub-pattern".into()
+        } }.into()),
     }
 }
 
@@ -21843,6 +21937,22 @@ fn substitute(
         // textual substitution reaches binder targets buried in
         // a fn-sig vector (slice 2 territory).
         WatAST::Vector(items, span) => WatAST::Vector(
+            items
+                .iter()
+                .map(|i| substitute(i, target, replacement))
+                .collect(),
+            span.clone(),
+        ),
+        // Arc 257 slice 1 — recurse into Map/Set children so substitution
+        // reaches any symbol references inside map keys, values, or set elements.
+        WatAST::Map(pairs, span) => WatAST::Map(
+            pairs
+                .iter()
+                .map(|(k, v)| (substitute(k, target, replacement), substitute(v, target, replacement)))
+                .collect(),
+            span.clone(),
+        ),
+        WatAST::Set(items, span) => WatAST::Set(
             items
                 .iter()
                 .map(|i| substitute(i, target, replacement))

@@ -21,16 +21,9 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
     if args.is_empty() {
         return args;
     }
-    match &args[0] {
-        WatAST::List(meta_items, _) => {
-            let is_metadata_map = meta_items
-                .first()
-                .map(|h| matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::HashMap"))
-                .unwrap_or(false);
-            if is_metadata_map { &args[1..] } else { args }
-        }
-        _ => args,
-    }
+    // Arc 257 slice 1 — use the authoritative is_metadata_map() predicate
+    // (accepts both WatAST::Map and the legacy List-with-HashMap-head form).
+    if args[0].is_metadata_map() { &args[1..] } else { args }
 }
 
 #[cfg(test)]

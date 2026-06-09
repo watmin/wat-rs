@@ -362,7 +362,7 @@ fn check_form(
     // the generic recursion ensures call forms nested inside bracketed
     // shapes (e.g., let-binding vector RHSes) are still resolved.
     // children() returns &[] for leaf nodes (no-op).
-    for child in form.children() {
+    for child in form.children().iter() {
         check_form(child, sym, macros, use_decls, unresolved);
     }
 }
@@ -400,7 +400,7 @@ fn check_quasiquote_template(
     // StructPattern uniformly. Walkers that only recurse into List silently
     // miss unquote escapes inside bracketed forms (e.g. let-binding vectors).
     // children() returns &[] for leaf nodes so this is a no-op for atoms.
-    for child in node.children() {
+    for child in node.children().iter() {
         check_quasiquote_template(child, sym, macros, use_decls, unresolved);
     }
     // Atoms (symbols, keywords, literals): children() → &[]; loop is a no-op.

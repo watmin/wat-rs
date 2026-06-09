@@ -170,6 +170,8 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
         // here only if a `{...}` reaches lower() through an
         // unexpected path.
         WatAST::StructPattern(_, span) => Err(LowerError { span: span.clone(), kind: LowerErrorKind::UnsupportedForm("struct-pattern `{...}` in lower() (algebra-core does not admit brace-forms)".into()) }),
+        // Arc 257 slice 1 — Map/Set literals have no algebra-core lowering.
+        WatAST::Map(_, span) | WatAST::Set(_, span) => Err(LowerError { span: span.clone(), kind: LowerErrorKind::UnsupportedForm("map/set literal in lower() (algebra-core does not admit map/set literals)".into()) }),
     }
 }
 

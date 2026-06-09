@@ -66,44 +66,24 @@ fn parse_defstruct_metadata(
     let mut ctor_whitelist: Vec<String> = Vec::new();
     let mut field_restrictions: HashMap<String, Vec<String>> = HashMap::new();
 
-    // Validate it IS a HashMap list.
-    let meta_items = match &meta_node {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(TypeError {
-                span: meta_node.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "expected a metadata-map `{...}` as second arg".into(),
-                },
-            });
-        }
-    };
-    // Head must be :wat::core::HashMap.
-    match meta_items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
-        _ => {
-            return Err(TypeError {
-                span: meta_node.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "second arg must be a metadata-map `{...}` (HashMap form)".into(),
-                },
-            });
-        }
-    }
-    // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
-    // Minimum: 3 items (head + K + V). Pairs start at index 3.
-    if meta_items.len() < 3 {
+    // Arc 257 slice 1: use is_metadata_map() / metadata_map_pairs() to accept
+    // both WatAST::Map and the legacy List-with-HashMap-head form.
+    if !meta_node.is_metadata_map() {
         return Err(TypeError {
             span: meta_node.span().clone(),
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
-                reason: "malformed metadata-map (internal structure corrupt)".into(),
+                reason: "expected a metadata-map `{...}` as second arg".into(),
             },
         });
     }
-    let pairs = &meta_items[3..];
+    let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError {
+        span: meta_node.span().clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: "malformed metadata-map (internal structure corrupt)".into(),
+        },
+    })?;
     // Empty {} → pairs.len() == 0 → REJECTED per FORM-COLLAPSE-NOTES.
     if pairs.is_empty() {
         return Err(TypeError {
@@ -115,9 +95,8 @@ fn parse_defstruct_metadata(
         });
     }
     // Walk key/value pairs.
-    let mut meta_pair_idx = 0;
-    while meta_pair_idx + 1 < pairs.len() {
-        let key_str = match &pairs[meta_pair_idx] {
+    for (k_node, val) in &pairs {
+        let key_str = match k_node {
             WatAST::Keyword(k, _) => k.clone(),
             other => {
                 return Err(TypeError {
@@ -129,7 +108,6 @@ fn parse_defstruct_metadata(
                 });
             }
         };
-        let val = &pairs[meta_pair_idx + 1];
         match key_str.as_str() {
             ":restricted-to" => {
                 // Value must be a Vector of keyword prefixes.
@@ -168,7 +146,6 @@ fn parse_defstruct_metadata(
                 // Unknown metadata keys silently accepted (D5).
             }
         }
-        meta_pair_idx += 2;
     }
 
     Ok((ctor_whitelist, field_restrictions))
@@ -182,50 +159,30 @@ fn parse_field_metadata_key(
     val: &WatAST,
     field_restrictions: &mut HashMap<String, Vec<String>>,
 ) -> Result<(), TypeError> {
-    // Value must be a HashMap list mapping field-symbols to metadata-maps.
-    let fm_items = match val {
-        WatAST::List(items, _) => items,
-        _ => {
-            return Err(TypeError {
-                span: val.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: ":field-metadata value must be a map `{field {meta} ...}`".into(),
-                },
-            });
-        }
-    };
-    // Head must be :wat::core::HashMap.
-    match fm_items.first() {
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
-        _ => {
-            return Err(TypeError {
-                span: val.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: ":field-metadata value must be a HashMap map form `{...}`".into(),
-                },
-            });
-        }
-    }
-    // Structure: [head, K-type, V-type, field0, meta0, field1, meta1, ...]
-    if fm_items.len() < 3 {
+    // Arc 257 slice 1: use is_metadata_map() / metadata_map_pairs() to accept
+    // both WatAST::Map and the legacy List-with-HashMap-head form.
+    if !val.is_metadata_map() {
         return Err(TypeError {
             span: val.span().clone(),
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
-                reason: "malformed :field-metadata map (internal structure corrupt)".into(),
+                reason: ":field-metadata value must be a map `{field {meta} ...}`".into(),
             },
         });
     }
-    let fm_pairs = &fm_items[3..];
-    let mut field_pair_idx = 0;
-    while field_pair_idx + 1 < fm_pairs.len() {
+    let fm_pairs = val.metadata_map_pairs().ok_or_else(|| TypeError {
+        span: val.span().clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: "malformed :field-metadata map (internal structure corrupt)".into(),
+        },
+    })?;
+    for (fk_node, fmeta) in &fm_pairs {
         // field identifier — Keyword with optional leading colon stripped to get bare name.
-        // In the HashMap literal form {witness {meta}}, `witness` must be written as
+        // In the Map literal form {witness {meta}}, `witness` must be written as
         // `:witness` (keyword) because the parser routes `{sym {map}}` to
         // struct-destructure (parse error). Keyword `:witness` → strip colon → "witness".
-        let field_sym = match &fm_pairs[field_pair_idx] {
+        let field_sym = match fk_node {
             WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
             WatAST::Symbol(ident, _) => ident.as_str().to_owned(),
             other => {
@@ -238,56 +195,33 @@ fn parse_field_metadata_key(
                 });
             }
         };
-        // field metadata-map — a HashMap list.
-        let fmeta = &fm_pairs[field_pair_idx + 1];
-        let fmeta_items = match fmeta {
-            WatAST::List(items, _) => items,
-            _ => {
-                return Err(TypeError {
-                    span: fmeta.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
-                        head: HEAD.into(),
-                        reason: format!(
-                            ":field-metadata value for field '{}' must be a map `{{...}}`",
-                            field_sym
-                        ),
-                    },
-                });
-            }
-        };
-        match fmeta_items.first() {
-            Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
-            _ => {
-                return Err(TypeError {
-                    span: fmeta.span().clone(),
-                    kind: TypeErrorKind::MalformedDecl {
-                        head: HEAD.into(),
-                        reason: format!(
-                            ":field-metadata value for field '{}' must be a HashMap map form",
-                            field_sym
-                        ),
-                    },
-                });
-            }
-        }
-        if fmeta_items.len() < 3 {
+        // field metadata-map — must be a metadata-map itself.
+        if !fmeta.is_metadata_map() {
             return Err(TypeError {
                 span: fmeta.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
                     reason: format!(
-                        "malformed :field-metadata for field '{}' (corrupt structure)",
+                        ":field-metadata value for field '{}' must be a map `{{...}}`",
                         field_sym
                     ),
                 },
             });
         }
-        let fpairs = &fmeta_items[3..];
+        let fpairs = fmeta.metadata_map_pairs().ok_or_else(|| TypeError {
+            span: fmeta.span().clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    "malformed :field-metadata for field '{}' (corrupt structure)",
+                    field_sym
+                ),
+            },
+        })?;
         // Parse inner keys: recognize :restricted-to.
         let mut field_wlist: Vec<String> = Vec::new();
-        let mut inner_key_idx = 0;
-        while inner_key_idx + 1 < fpairs.len() {
-            let fkey = match &fpairs[inner_key_idx] {
+        for (fkey_node, fval) in &fpairs {
+            let fkey = match fkey_node {
                 WatAST::Keyword(k, _) => k.clone(),
                 other => {
                     return Err(TypeError {
@@ -302,7 +236,6 @@ fn parse_field_metadata_key(
                     });
                 }
             };
-            let fval = &fpairs[inner_key_idx + 1];
             if fkey == ":restricted-to" {
                 match fval {
                     WatAST::Vector(prefix_items, _) => {
@@ -339,12 +272,10 @@ fn parse_field_metadata_key(
                 }
             }
             // Unknown inner keys silently accepted (D5).
-            inner_key_idx += 2;
         }
         if !field_wlist.is_empty() {
             field_restrictions.insert(field_sym, field_wlist);
         }
-        field_pair_idx += 2;
     }
     Ok(())
 }

@@ -1672,11 +1672,8 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     let remaining: Vec<WatAST> = iter.collect();
 
     // Discriminate: does args[1] look like a metadata-map?
-    // A metadata-map is a WatAST::List with head :wat::core::HashMap.
-    let is_metadata = matches!(
-        remaining.first(),
-        Some(WatAST::List(items, _)) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap")
-    );
+    // Arc 257 slice 1: is_metadata_map() accepts WatAST::Map and legacy HashMap List.
+    let is_metadata = remaining.first().map(|n| n.is_metadata_map()).unwrap_or(false);
     let (metadata_node_opt, variant_args): (Option<WatAST>, Vec<WatAST>) = if is_metadata {
         let mut it = remaining.into_iter();
         let meta = it.next().unwrap();
@@ -1688,23 +1685,14 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     // Parse optional metadata-map (D5: silently store; no EnumDef schema extension).
     // We validate the structure but don't extend EnumDef with per-variant metadata.
     if let Some(ref meta_node) = metadata_node_opt {
-        let meta_items = match meta_node {
-            WatAST::List(items, _) => items,
-            _ => unreachable!("discriminator already checked"),
-        };
-        // meta_items[0] = :wat::core::HashMap (checked above)
-        // Structure: [head, K-type, V-type, k0, v0, k1, v1, ...]
-        // Minimum 3 items (head + K + V).
-        if meta_items.len() < 3 {
-            return Err(TypeError {
-                span: meta_node.span().clone(),
-                kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: "malformed metadata-map (internal structure corrupt)".into(),
-                },
-            });
-        }
-        let pairs = &meta_items[3..];
+        // Arc 257 slice 1: use metadata_map_pairs() to handle both Map and legacy List.
+        let pairs = meta_node.metadata_map_pairs().ok_or_else(|| TypeError {
+            span: meta_node.span().clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "malformed metadata-map (internal structure corrupt)".into(),
+            },
+        })?;
         // Empty {} → pairs.len() == 0 → REJECTED (FORM-COLLAPSE D4).
         if pairs.is_empty() {
             return Err(TypeError {
@@ -1716,11 +1704,10 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
             });
         }
         // Walk key/value pairs — silently accept :variant-metadata + unknown keys (D5).
-        let mut idx = 0;
-        while idx + 1 < pairs.len() {
-            match &pairs[idx] {
+        for (k_node, _) in &pairs {
+            match k_node {
                 WatAST::Keyword(_k, _) => {
-                    // Key recognized; value at pairs[idx+1].
+                    // Key recognized; value already extracted.
                     // :variant-metadata inner keys must be keywords (T5 trap-door).
                     // Silently store for this stone (D5 — no consumer-driven semantic yet).
                     // Unknown keys also silently accepted (D5).
@@ -1735,7 +1722,6 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
                     });
                 }
             }
-            idx += 2;
         }
     }
 

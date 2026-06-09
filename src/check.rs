@@ -976,7 +976,7 @@ fn validate_comm_positions(
                     }
                 } else {
                     // Malformed let (no bindings vector) — recurse generically.
-                    for child in node.children() {
+                    for child in node.children().iter() {
                         validate_comm_positions(child, CommCtx::Forbidden, errors);
                     }
                 }
@@ -1100,7 +1100,7 @@ fn validate_comm_positions(
     // scope-aware case; List-head logic above covers all List nodes;
     // this handles Vector and StructPattern (children() returns &[] for
     // leaf nodes, so this is a no-op for atoms).
-    for child in node.children() {
+    for child in node.children().iter() {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
     }
 }
@@ -1133,7 +1133,7 @@ fn collect_consumed_names_in_let(
             WatAST::List(items, _) => items,
             _ => {
                 // Recurse into Vector/StructPattern children.
-                for child in node.children() {
+                for child in node.children().iter() {
                     walk(child, consumed);
                 }
                 return;
@@ -1243,7 +1243,7 @@ fn validate_sandbox_scope_leak(
     // nested sandbox calls (e.g., a top-level form holding a deftest
     // holding another sandbox primitive). children() returns &[] for leaf
     // nodes (no-op).
-    for child in node.children() {
+    for child in node.children().iter() {
         validate_sandbox_scope_leak(child, sym, errors);
     }
 
@@ -1360,7 +1360,7 @@ fn check_calls_for_sandbox_leak(
     // positions (always List); the generic recursion ensures nested scope
     // inside bracketed forms (let-binding vectors, fn-param vectors) is
     // still traversed.
-    for child in node.children() {
+    for child in node.children().iter() {
         check_calls_for_sandbox_leak(child, inner_names, sym, errors);
     }
 }
@@ -1640,7 +1640,7 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
     // and StructPattern uniformly so legacy keywords buried inside ANY
     // bracketed shape are caught. children() returns &[] for leaf nodes
     // (no-op).
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_bare_primitives(child, errors);
     }
 }
@@ -1849,7 +1849,7 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
     // Arc 212 — generic recursion via children() covers List, Vector, and
     // StructPattern uniformly so legacy stream keywords buried inside
     // bracketed forms (let-binding vectors, fn-param vectors) are caught.
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_legacy_stream(child, errors);
     }
 }
@@ -1876,7 +1876,7 @@ fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>
     // Arc 212 — generic recursion via children() covers List, Vector, and
     // StructPattern uniformly so legacy telemetry keywords inside bracketed
     // forms (let-binding vectors, fn-param vectors) are caught.
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_legacy_telemetry_service(child, errors);
     }
 }
@@ -1917,7 +1917,7 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
     // Arc 212 — generic recursion via children() covers List, Vector, and
     // StructPattern uniformly so legacy LRU keywords inside bracketed forms
     // (let-binding vectors, fn-param vectors) are caught.
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_legacy_lru_cache_service(child, errors);
     }
 }
@@ -1984,7 +1984,7 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
     // Arc 212 — generic recursion via children() covers List, Vector, and
     // StructPattern uniformly so legacy kernel queue keywords inside
     // bracketed forms (let-binding vectors, fn-param vectors) are caught.
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_legacy_kernel_queue(child, errors);
     }
 }
@@ -2123,7 +2123,7 @@ fn walk_for_restricted_call(
     // List + Vector arms but no StructPattern — call sites buried inside
     // StructPattern slipped past restriction enforcement. children()
     // returns &[] for leaf nodes (no-op).
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_restricted_call(child, enclosing_fn, env, errors);
     }
 }
@@ -2458,7 +2458,7 @@ fn collect_process_calls(
     // Arc 212 — generic recursion via children() covers List, Vector, and
     // StructPattern uniformly. Scope-boundary arms above return without
     // descending. children() returns &[] for leaf nodes (no-op).
-    for child in node.children() {
+    for child in node.children().iter() {
         collect_process_calls(child, joins, accessors);
     }
 }
@@ -2540,7 +2540,7 @@ fn collect_process_stdin_and_joins(
     // StructPattern uniformly. children() returns &[] for leaf nodes (no-op).
     // The fn/lambda early-return above ensures we never descend into nested
     // fn bodies (separate scopes).
-    for child in node.children() {
+    for child in node.children().iter() {
         collect_process_stdin_and_joins(child, joins, stdin_procs);
     }
 }
@@ -2658,7 +2658,7 @@ fn walk_for_pair_deadlock(
             Some(WatAST::Keyword(k, _)) => k.as_str(),
             _ => {
                 // No keyword head — fall through to generic children() recursion.
-                for child in node.children() {
+                for child in node.children().iter() {
                     walk_for_pair_deadlock(child, types, binding_scope, errors);
                 }
                 return;
@@ -2802,7 +2802,7 @@ fn walk_for_pair_deadlock(
     // exclusions; all remaining compound nodes (including List fall-through
     // from check_call_for_pair_deadlock) recurse here. children() returns
     // &[] for leaf nodes (no-op).
-    for child in node.children() {
+    for child in node.children().iter() {
         walk_for_pair_deadlock(child, types, binding_scope, errors);
     }
 }
@@ -3495,6 +3495,19 @@ pub(crate) fn infer(
             } });
             // HARVEST (236.1): error path already had diagnostic (Classification 3).
             CheckResult::errs(local_errors)
+        }
+        // Arc 257 slice 1 — first-class map literal `{k0 v0 k1 v1 …}`.
+        // Reuses the K/V unification logic from `infer_hashmap_constructor`
+        // but skips the leading type-keyword sentinel slots (a literal carries
+        // no explicit `:K :V`; inference starts from fresh type variables).
+        WatAST::Map(pairs, span) => {
+            infer_map_literal(pairs, span, env, locals, fresh, subst)
+        }
+        // Arc 257 slice 1 — first-class set literal `#{x y z …}`.
+        // Reuses the element unification logic from `infer_hashset_constructor`
+        // but skips the leading type-keyword sentinel slot.
+        WatAST::Set(items, span) => {
+            infer_set_literal(items, span, env, locals, fresh, subst)
         }
     }
 }
@@ -7067,6 +7080,15 @@ fn check_subpattern(
             } });
             None
         }
+        // Arc 257 slice 1 — Map/Set literals are not valid match sub-patterns.
+        WatAST::Map(_, _) | WatAST::Set(_, _) => {
+            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "map/set literal is not a valid match sub-pattern".into(),
+                remedies: vec![],
+            } });
+            None
+        }
     }
 }
 
@@ -7656,18 +7678,12 @@ fn infer_def(
     };
 
     // Stone 241.6 — if 3 args, args[1] is the metadata-map; validate it.
-    // Discrimination: head keyword must be :wat::core::HashMap (map literal).
-    // Empty {} (no pairs — list length 3: head + K-type + V-type) is ILLEGAL.
+    // Arc 257 slice 1: use is_metadata_map() (accepts Map literal and legacy
+    // List-with-HashMap-head). Empty {} is ILLEGAL per FORM-COLLAPSE-NOTES.
     let expr_idx = if args.len() == 3 {
         let meta_node = &args[1];
-        // Verify it is a HashMap list.
-        let is_hashmap = match meta_node {
-            WatAST::List(meta_items, _) => {
-                matches!(meta_items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap")
-            }
-            _ => false,
-        };
-        if !is_hashmap {
+        // Verify it is a metadata-map (native Map or legacy HashMap List).
+        if !meta_node.is_metadata_map() {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::def".into(),
                 reason: "second arg of 4-item def must be a metadata-map `{key val ...}`".into(),
@@ -7675,8 +7691,9 @@ fn infer_def(
             } });
             return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
         }
-        // Empty {} check: list with only [head, K-type, V-type] = 3 items, 0 pairs.
+        // Empty {} check: Map with 0 pairs or legacy List with only [head, K, V] = 3 items.
         let is_empty = match meta_node {
+            WatAST::Map(pairs, _) => pairs.is_empty(),
             WatAST::List(meta_items, _) => meta_items.len() <= 3,
             _ => false,
         };
@@ -10557,6 +10574,8 @@ fn infer_make_channel(
                         WatAST::StructPattern(_, _) => "struct-pattern",
                         WatAST::NilLit(_) => "nil",
                         WatAST::Keyword(_, _) => unreachable!(),
+                        WatAST::Map(_, _) => "map",
+                        WatAST::Set(_, _) => "set",
                     }
                 ),
                 remedies: vec![],
@@ -10648,6 +10667,8 @@ fn infer_spawn_program_prime(
                             WatAST::StructPattern(_, _) => "struct-pattern",
                             WatAST::NilLit(_) => "nil",
                             WatAST::Keyword(_, _) => unreachable!(),
+                            WatAST::Map(_, _) => "map",
+                            WatAST::Set(_, _) => "set",
                         }
                     ),
                     remedies: vec![],
@@ -13009,6 +13030,96 @@ fn infer_hashmap_constructor(
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashMap".into(),
         args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 257 slice 1 — type-check a `WatAST::Map(pairs, _)` literal.
+///
+/// Skips the leading `:K :V` type-keyword sentinel slots that
+/// `infer_hashmap_constructor` expects from the verb form. Inference starts
+/// from fresh type variables; the K/V unification loop is identical to the
+/// constructor path.
+///
+/// An empty map literal `{}` produces `HashMap<fresh_K, fresh_V>` — the type
+/// variables are concretised by the surrounding context (e.g. assignment to a
+/// typed variable). This matches the behaviour of an empty `(:wat::core::HashMap
+/// :wat::type::Infer :wat::type::Infer)` call.
+fn infer_map_literal(
+    pairs: &[(WatAST, WatAST)],
+    _span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Fresh K and V — inferred from actual key/value types.
+    let k_ty = fresh.fresh();
+    let v_ty = fresh.fresh();
+    for (i, (k_node, v_node)) in pairs.iter().enumerate() {
+        if let Some(k_arg_ty) = infer(k_node, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: k_node.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "{…} map literal".into(),
+                    param: format!("key #{}", i + 1),
+                    expected: format_type(&apply_subst(&k_ty, subst)),
+                    got: format_type(&apply_subst(&k_arg_ty, subst))
+                } });
+            }
+        }
+        if let Some(v_arg_ty) = infer(v_node, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: v_node.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "{…} map literal".into(),
+                    param: format!("value #{}", i + 1),
+                    expected: format_type(&apply_subst(&v_ty, subst)),
+                    got: format_type(&apply_subst(&v_arg_ty, subst))
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::HashMap".into(),
+        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 257 slice 1 — type-check a `WatAST::Set(items, _)` literal.
+///
+/// Skips the leading `:T` type-keyword sentinel slot that
+/// `infer_hashset_constructor` expects from the verb form. Inference starts
+/// from a fresh type variable; the element unification loop is identical to
+/// the constructor path.
+///
+/// An empty set literal `#{}` produces `HashSet<fresh_T>`.
+fn infer_set_literal(
+    items: &[WatAST],
+    _span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Fresh T — inferred from actual element types.
+    let t_ty = fresh.fresh();
+    for (i, item) in items.iter().enumerate() {
+        if let Some(elem_ty) = infer(item, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&elem_ty, &t_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: item.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "#{…} set literal".into(),
+                    param: format!("element #{}", i + 1),
+                    expected: format_type(&apply_subst(&t_ty, subst)),
+                    got: format_type(&apply_subst(&elem_ty, subst))
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::HashSet".into(),
+        args: vec![apply_subst(&t_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }

@@ -467,19 +467,22 @@ impl<'a> Cursor<'a> {
     /// body is empty (empty map) or begins with a Keyword (map literal).
     ///
     /// Arc 215 stone 1 — replaces pinned `:wat::holon::HolonAST` V-type and
-    /// Atom auto-wrap with `:wat::type::Infer`; values pass through as-is.
-    ///
-    /// Arc 215 stone 2 — Synthesizes `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer k0 v0 ...)`.
-    ///
-    /// Both K and V slots use `:wat::type::Infer`; check.rs infers concrete
-    /// types from the first key and first value respectively, and unifies all
-    /// subsequent keys/values against the inferred types.
+    /// Arc 257 slice 1 — `{k0 v0 k1 v1 ...}` map literal. Produces a
+    /// first-class `WatAST::Map(pairs, span)` node (no eager desugar to a
+    /// `(:wat::core::HashMap …)` constructor call).
     ///
     /// Validation rules:
     /// - Body length must be even (alternating key/value pairs).
-    /// - Any value shape is accepted as a key at parse time; check phase
+    /// - Any value shape is accepted as a key at parse time; check.rs
     ///   handles type uniformity (K-inference + unification).
-    /// - Odd-indexed children (value positions) pass through as-is.
+    ///
+    /// Previously (arc 215 stone 2) this synthesized a `(:wat::core::HashMap
+    /// :wat::type::Infer :wat::type::Infer k v …)` constructor-call List.
+    /// That eager desugar made the AST non-EDN (a function-call form, not a
+    /// map literal). Arc 257 fixes this at the source: the parser now emits
+    /// the native `Map` node directly. K/V inference is unchanged — check.rs
+    /// still starts from fresh type vars and unifies against the actual keys
+    /// and values.
     fn parse_map_literal_body(
         &self,
         items: Vec<WatAST>,
@@ -498,73 +501,37 @@ impl<'a> Cursor<'a> {
             });
         }
 
-        // Arc 215 stone 2 — keyword-key restriction dropped.
-        // Previously: keys at even indices must be WatAST::Keyword.
-        // Now: any key shape is accepted at parse time; check.rs
-        //      infers K from the actual keys and rejects mixed-K literals
-        //      at check time with a TypeMismatch diagnostic.
-
-        // Synthesize `(:wat::core::HashMap :wat::type::Infer :wat::type::Infer k0 v0 ...)`.
-        // K is :wat::type::Infer — check.rs infers K from actual key types.
-        // V is :wat::type::Infer — check.rs infers V from actual value types.
-        let mut list_items: Vec<WatAST> = Vec::with_capacity(3 + items.len());
-        list_items.push(WatAST::Keyword(
-            ":wat::core::HashMap".to_string(),
-            open_span.clone(),
-        ));
-        // Arc 215 stone 2 — K is now :wat::type::Infer (was :wat::core::keyword).
-        // Inferred K from the actual key types at check time.
-        list_items.push(WatAST::Keyword(
-            ":wat::type::Infer".to_string(),
-            open_span.clone(),
-        ));
-        // Arc 215 stone 1 — V is :wat::type::Infer; check.rs infers from values.
-        // Retired: `:wat::holon::HolonAST` + `(:wat::holon::Atom v)` wrap.
-        list_items.push(WatAST::Keyword(
-            ":wat::type::Infer".to_string(),
-            open_span.clone(),
-        ));
-        // Alternating key / raw-value pairs (no Atom wrap).
+        // Build the pairs vec. Odd arity is unrepresentable in Vec<(k,v)>
+        // by construction; the even-arity check above is the safety net.
+        let mut pairs: Vec<(WatAST, WatAST)> = Vec::with_capacity(items.len() / 2);
         let mut i = 0;
         while i < items.len() {
             let key = items[i].clone();
             let val = items[i + 1].clone();
-            list_items.push(key);
-            list_items.push(val);
+            pairs.push((key, val));
             i += 2;
         }
-        Ok(Some(WatAST::List(list_items, open_span)))
+        Ok(Some(WatAST::Map(pairs, open_span)))
     }
 
-    /// Arc 215 stone 1 — `#{x y z ...}` set literal. Desugars to
-    /// `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
+    /// Arc 257 slice 1 — `#{x y z ...}` set literal. Produces a first-class
+    /// `WatAST::Set(items, span)` node (no eager desugar to a
+    /// `(:wat::core::HashSet …)` constructor call).
     ///
     /// T is inferred by check.rs from the first element; subsequent
     /// elements must unify against T. Empty `#{}` produces
-    /// `(:wat::core::HashSet :wat::type::Infer)` — T stays as a fresh
-    /// type variable until the set is used in a typed context.
+    /// `WatAST::Set([], span)` — T stays as a fresh type variable until
+    /// the set is used in a typed context.
     ///
-    /// All elements are values; there is no key/value structure in a
-    /// set. Every body child is an element.
+    /// Previously (arc 215 stone 1) this synthesized a `(:wat::core::HashSet
+    /// :wat::type::Infer x y z …)` constructor-call List. Arc 257 produces
+    /// the native `Set` node directly, making the AST EDN-conformant.
     fn parse_hashset_literal_body(
         &self,
         items: Vec<WatAST>,
         open_span: Span,
     ) -> Result<Option<WatAST>, ParseError> {
-        // Synthesize `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
-        let mut list_items: Vec<WatAST> = Vec::with_capacity(2 + items.len());
-        list_items.push(WatAST::Keyword(
-            ":wat::core::HashSet".to_string(),
-            open_span.clone(),
-        ));
-        // T is :wat::type::Infer — check.rs infers from the first element.
-        list_items.push(WatAST::Keyword(
-            ":wat::type::Infer".to_string(),
-            open_span.clone(),
-        ));
-        // All body children are set elements (no key/value structure).
-        list_items.extend(items);
-        Ok(Some(WatAST::List(list_items, open_span)))
+        Ok(Some(WatAST::Set(items, open_span)))
     }
 
     /// Arc 214 P2 — struct-destructure semantic path (arc 169 preserved).
@@ -688,6 +655,9 @@ fn ast_variant_label(ast: &WatAST) -> &'static str {
         WatAST::List(_, _) => "list",
         WatAST::Vector(_, _) => "vector",
         WatAST::StructPattern(_, _) => "nested struct-pattern",
+        // Arc 257 slice 1.
+        WatAST::Map(_, _) => "map literal",
+        WatAST::Set(_, _) => "set literal",
     }
 }
 

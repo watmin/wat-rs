@@ -221,6 +221,20 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
             }
             Ok(())
         }
+        // Arc 257 slice 1 — Map/Set literals are pure (recurse into k/v and elements).
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                validate_pure_total(k)?;
+                validate_pure_total(v)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(items, _) => {
+            for item in items {
+                validate_pure_total(item)?;
+            }
+            Ok(())
+        }
         // Leaf nodes — no sub-forms to check.
         WatAST::IntLit(_, _)
         | WatAST::FloatLit(_, _)
@@ -284,6 +298,20 @@ fn validate_quasiquote_template(form: &WatAST, depth: u32) -> Result<(), MacroEr
             Ok(())
         }
         WatAST::Vector(items, _) => {
+            for child in items {
+                validate_quasiquote_template(child, depth)?;
+            }
+            Ok(())
+        }
+        // Arc 257 slice 1 — Map/Set template nodes: walk all children at the same depth.
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                validate_quasiquote_template(k, depth)?;
+                validate_quasiquote_template(v, depth)?;
+            }
+            Ok(())
+        }
+        WatAST::Set(items, _) => {
             for child in items {
                 validate_quasiquote_template(child, depth)?;
             }

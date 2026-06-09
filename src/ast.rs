@@ -20,6 +20,8 @@
 //! scopes per Racket's sets-of-scopes model. Keywords (full paths)
 //! carry no scope tracking — hygiene only matters for bare names.
 
+use std::borrow::Cow;
+
 use crate::scope::Identifier;
 use crate::span::Span;
 
@@ -106,6 +108,28 @@ pub enum WatAST {
     /// fields is the consumer's job at check / runtime — the
     /// parser does not consult any type registry.
     StructPattern(Vec<WatAST>, Span),
+
+    /// Map literal `{k0 v0 k1 v1 ...}` — a first-class key/value
+    /// collection node. Pairs are stored as `(key, value)` tuples so
+    /// odd arity is unrepresentable by construction.
+    ///
+    /// Arc 257 slice 1 (additive substrate). In value position this
+    /// evaluates to `Value::wat__std__HashMap` (same as the explicit
+    /// `(:wat::core::HashMap :K :V k v ...)` constructor, but without
+    /// the leading type-keyword sentinels). In binder/pattern position
+    /// (after arc 257.3) it becomes a map-destructure.
+    ///
+    /// Odd-arity body → parse error before this node is ever produced.
+    Map(Vec<(WatAST, WatAST)>, Span),
+
+    /// Set literal `#{x y z ...}` — a first-class unordered collection
+    /// node. Elements are stored as a flat `Vec<WatAST>`; duplicates
+    /// collapse at eval time (HashSet semantics).
+    ///
+    /// Arc 257 slice 1 (additive substrate). Evaluates to
+    /// `Value::wat__std__HashSet` (same as the explicit
+    /// `(:wat::core::HashSet :T x y z)` constructor form).
+    Set(Vec<WatAST>, Span),
 }
 
 impl WatAST {
@@ -121,7 +145,9 @@ impl WatAST {
             | WatAST::Symbol(_, s)
             | WatAST::List(_, s)
             | WatAST::Vector(_, s)
-            | WatAST::StructPattern(_, s) => s,
+            | WatAST::StructPattern(_, s)
+            | WatAST::Map(_, s)
+            | WatAST::Set(_, s) => s,
         }
     }
 
@@ -165,11 +191,92 @@ impl WatAST {
     pub fn struct_pattern(items: Vec<WatAST>) -> Self {
         WatAST::StructPattern(items, Span::unknown())
     }
+    /// Synthetic Map literal with [`Span::unknown`] — for tests
+    /// and runtime-constructed map forms. Arc 257 slice 1.
+    pub fn map(pairs: Vec<(WatAST, WatAST)>) -> Self {
+        WatAST::Map(pairs, Span::unknown())
+    }
+    /// Synthetic Set literal with [`Span::unknown`] — for tests
+    /// and runtime-constructed set forms. Arc 257 slice 1.
+    pub fn set(items: Vec<WatAST>) -> Self {
+        WatAST::Set(items, Span::unknown())
+    }
 
     /// Returns true if this is a bare `Symbol` whose name equals `name`.
     /// Used to detect structural tokens (`<-`, `->`, `&`) without allocating.
     pub(crate) fn is_bare_symbol(&self, name: &str) -> bool {
         matches!(self, WatAST::Symbol(ident, _) if ident.as_str() == name)
+    }
+
+    /// Arc 257 slice 1 — ONE authoritative metadata-map discriminant.
+    ///
+    /// Returns `Some(pairs)` when `self` is a metadata-map literal in either
+    /// of its two forms:
+    ///
+    /// - **`WatAST::Map(pairs, _)`** — the new native form produced by the
+    ///   parser after arc 257.1 (e.g. `{:tag "foo"}`).
+    /// - **`WatAST::List`** with head `:wat::core::HashMap` — the legacy
+    ///   constructor-call form produced by the OLD parser (pre-arc-257) and
+    ///   still emitted by `closure_extract::encode_value_with_path` for
+    ///   runtime re-encoding of captured HashMaps (where types are known).
+    ///
+    /// Returns `None` for anything else (keyword, symbol, vector, set, etc.).
+    ///
+    /// Called at all 8 metadata-sniff sites (parser.rs, check.rs,
+    /// runtime.rs, types.rs, closure_extract.rs, function/metadata.rs,
+    /// types/defstruct.rs) so every site stays in sync when the
+    /// `is_metadata_map` contract changes.
+    ///
+    /// PARTITION — CLAUSE vs INTRINSIC: this is a structural predicate on an
+    /// AST node (no type-var flow, monomorphic args). It lives here at the
+    /// substrate layer so the source is the single authoritative home.
+    pub(crate) fn is_metadata_map(&self) -> bool {
+        match self {
+            WatAST::Map(_, _) => true,
+            WatAST::List(items, _) => {
+                matches!(
+                    items.first(),
+                    Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap"
+                )
+            }
+            _ => false,
+        }
+    }
+
+    /// Arc 257 slice 1 — extract key/value pairs from a metadata-map node.
+    ///
+    /// For `WatAST::Map(pairs, _)` returns the pairs directly.
+    /// For a legacy `WatAST::List` with `:wat::core::HashMap` head, rebuilds
+    /// pairs from the flat `[head, K-type, V-type, k0, v0, …]` layout
+    /// (allocates). Returns `None` if `self` is not a metadata-map.
+    ///
+    /// Callers that only need the bool discriminant should use `is_metadata_map`.
+    pub(crate) fn metadata_map_pairs(&self) -> Option<Vec<(WatAST, WatAST)>> {
+        match self {
+            WatAST::Map(pairs, _) => Some(pairs.clone()),
+            WatAST::List(items, _) => {
+                match items.first() {
+                    Some(WatAST::Keyword(k, _)) if k == ":wat::core::HashMap" => {}
+                    _ => return None,
+                }
+                // Legacy layout: [head, K-type, V-type, k0, v0, k1, v1, ...]
+                if items.len() < 3 {
+                    return None;
+                }
+                let pairs_flat = &items[3..];
+                if !pairs_flat.len().is_multiple_of(2) {
+                    return None;
+                }
+                let mut pairs: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs_flat.len() / 2);
+                let mut i = 0;
+                while i < pairs_flat.len() {
+                    pairs.push((pairs_flat[i].clone(), pairs_flat[i + 1].clone()));
+                    i += 2;
+                }
+                Some(pairs)
+            }
+            _ => None,
+        }
     }
 
     /// The children of this AST node. Compound shapes return their
@@ -201,12 +308,31 @@ impl WatAST {
     ///
     /// **The bug class is structurally eliminated** — failure
     /// engineering at the walker layer.
-    pub fn children(&self) -> &[WatAST] {
+    /// Arc 257 slice 1 — returns `Cow::Borrowed` for flat-children variants
+    /// (List, Vector, StructPattern, Set) and `Cow::Owned` for `Map` (pairs
+    /// flattened to `[k0, v0, k1, v1, …]`). Leaf nodes return `Cow::Borrowed(&[])`.
+    ///
+    /// **Callers must use `.iter()` on the returned `Cow` to iterate**, e.g.:
+    /// `for child in node.children().iter() { … }`.
+    ///
+    /// `Cow::Borrowed` variants are zero-cost (no allocation). `Map` allocates
+    /// once to produce the flattened slice; this is acceptable for the
+    /// generic-walk paths.
+    pub fn children(&self) -> Cow<'_, [WatAST]> {
         match self {
             WatAST::List(items, _)
             | WatAST::Vector(items, _)
-            | WatAST::StructPattern(items, _) => items,
-            _ => &[],
+            | WatAST::StructPattern(items, _)
+            | WatAST::Set(items, _) => Cow::Borrowed(items.as_slice()),
+            WatAST::Map(pairs, _) => {
+                let mut flat: Vec<WatAST> = Vec::with_capacity(pairs.len() * 2);
+                for (k, v) in pairs {
+                    flat.push(k.clone());
+                    flat.push(v.clone());
+                }
+                Cow::Owned(flat)
+            }
+            _ => Cow::Borrowed(&[]),
         }
     }
 
@@ -227,6 +353,8 @@ impl WatAST {
             WatAST::List(_, _) => "list",
             WatAST::Vector(_, _) => "vector",
             WatAST::StructPattern(_, _) => "struct-pattern",
+            WatAST::Map(_, _) => "map",
+            WatAST::Set(_, _) => "set",
         }
     }
 }
@@ -274,6 +402,8 @@ impl std::hash::Hash for WatAST {
             WatAST::List(items, _) => items.hash(state),
             WatAST::Vector(items, _) => items.hash(state),
             WatAST::StructPattern(items, _) => items.hash(state),
+            WatAST::Map(pairs, _) => pairs.hash(state),
+            WatAST::Set(items, _) => items.hash(state),
         }
         // Span: no-op — Span's Hash impl contributes nothing (span.rs:128).
     }

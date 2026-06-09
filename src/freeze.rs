@@ -1328,7 +1328,7 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     // accepted mutation forms buried inside Vector (let-binding-vector
     // RHSes) and StructPattern bracketed shapes — they slipped past
     // freeze-time refusal. children() returns &[] for leaf nodes (no-op).
-    for child in ast.children() {
+    for child in ast.children().iter() {
         refuse_mutation_forms(child)?;
     }
     Ok(())
