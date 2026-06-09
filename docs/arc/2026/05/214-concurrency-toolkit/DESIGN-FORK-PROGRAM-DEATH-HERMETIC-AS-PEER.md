@@ -332,6 +332,22 @@ retire the apply-loop + io_uring + `fork-program` → rename primes → canonica
   coordinated atomic change (runtime + services + input + tests move together — green-or-broken;
   do it WHOLE in a clean window, never half-committed). The physical wire (1a + 1b-i) is the
   settled foundation it operates on.
+- ⚠️ **1b-ii FINDING (the gate measured it, 2026-06-08): the one wire is one PIPE but TWO
+  PROTOCOLS.** A first attempt built the program-server runtime (`run_forms_as_server_child` —
+  lifts fork-program's `startup_from_forms` + `run_user_main_in_child`, CORRECT) and a
+  `spawn_process_program` over the **comms::process (io_uring)** channel. A `:user::main` that
+  `println`s "ok" exited CLEAN (`take_crash_reason` = None — not a crash) but `recv'` returned
+  `RecvError`: the `println` bytes reached the output pipe, but `recv'` could not FRAME them.
+  **`send'`/`recv'` (comms::process io_uring frames) and `readln`/`println` (stdio lines) speak
+  DIFFERENT protocols on the SAME physical pipe.** THE FIX: the collapse peer must use
+  fork-program's `sender_from_pipe`/`receiver_from_pipe` channel — the stdio-line protocol
+  `readln`/`println` speak (`verbs.rs:322-323`) — NOT comms::process, and `send'`/`recv'`/`close'`
+  must operate on THAT channel type (the genuine type unification). `run_forms_as_server_child` is
+  correct + reusable; only the channel choice was wrong. The wrong-channel WIP was discarded (the
+  gate caught it before commit — the not-trusting-the-self leaning on the gate, working). **Next
+  strike:** rebuild the `:process` peer over `sender_from_pipe`/`receiver_from_pipe` (so one pipe =
+  one protocol), re-add `run_forms_as_server_child` as the child runtime, adapt the verbs, then
+  the corpus migration.
 - ⏭️ **Then:** retire apply-loop + io_uring + `fork-program` → rename primes → canonical →
   whitelist `spawn-thread`/`spawn-process` internal (only `spawn-program` + brackets reach them)
   → re-use for parallel-for-each brackets (#196) → resume 6.w.
