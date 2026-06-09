@@ -410,3 +410,123 @@ retire the apply-loop + io_uring + `fork-program` → rename primes → canonica
 - ⏭️ **Then:** retire apply-loop + io_uring + `fork-program` → rename primes → canonical →
   whitelist `spawn-thread`/`spawn-process` internal (only `spawn-program` + brackets reach them)
   → re-use for parallel-for-each brackets (#196) → resume 6.w.
+
+---
+
+## ⛔ THE STRIKE — io_uring-unified (2026-06-08, builder direction; SUPERSEDES the plain-pipe plan above)
+
+> **The plain-pipe plan above (lines ~348–412) is WRONG and is hereby superseded.** It would
+> `git rm` io_uring — and io_uring is the SUBSTRATE'S ONLY io-select loop. Drawn up against the
+> live disk after a full re-ground + the builder's clarification of the north star.
+
+### The north star (builder, verbatim, 2026-06-08)
+*"i wanted io_uring to replace all the poll and epoll work we do — the only way we do any
+io-select loop is via io_uring. We made it this incredibly powerful TCO loop that autoscales up
+and down. For the IPC between processes it's a fixed amount, but we can totally support http
+servers or whatever that use a scaling process to handle file handles. Making it work for 3 FDs
+in a power-of-2 box of 4 is the proving point to me that we dogfood the entire TCO loop."*
+
+So io_uring is not a peer-channel transport to be retired — it is **the** event loop, and the
+3-fd cross-process IPC is the **fixed-size dogfood** of the autoscaling TCO loop that also drives
+HTTP-scale fd sets. The collapse rides io_uring; **plain pipes are what we delete, not io_uring.**
+
+### Ground truth (verified this session, against the disk)
+- **io_uring's SOLE consumer is `comms::process`** (`src/comms/process.rs`, 59 refs). Thread peer =
+  crossbeam (`comms::thread`). All stdio (`readln`/`println`, `from-pipe`, the Std services,
+  `spawn-process`, `fork-program`) = **plain `libc::read`/`write`** (`src/io.rs` `PipeReader`/
+  `PipeWriter`). ⇒ moving the peer off `comms::process` = io_uring dies entirely.
+- **`Select<'a, T>` already fans in over N+1 arms** (Stone D2, `comms/process.rs:809`) and the ring
+  is **cap-4 = Read (1 SQE) + POLL_ADD pair (2 SQEs)**. The 3-fd response wire (`Ok` + `Err` +
+  broadcast = 3 POLL_ADD + 1 Read = 4 SQEs) is *exactly* the cap-4 box the builder named. The
+  multi-arm machinery the dogfood needs is ALREADY BUILT.
+- **The server-child runtime exists**: `run_forked_child` → `redirect_stdio_and_init` →
+  `run_user_main_in_child` via `startup_from_forms[_with_inherit]` (`src/process/verbs.rs:471/361/
+  431/502`). Liftable as-is.
+- **`try-recv'` has ZERO wat-surface callers** AND is the **sole carrier of `libc::poll`** in the
+  codebase (`comms/process.rs:412`, its non-blocking probe). `Select` does NOT use it (independent
+  io_uring fan-in). ⇒ retiring `try_recv` completes "io_uring is the only io-select" by deleting
+  the last `poll(2)`. In lock-step, arrival is deterministic — the non-blocking peek has no honest
+  use; `select` (timeouts = a `timerfd` arm) subsumes every legitimate need (`mora`: a wait
+  arrives via the wire, not via mechanism).
+
+### End-state shape
+```
+  PARENT (manager)                          CHILD (server program)
+  ───────────────                           ──────────────────────
+  io_uring TCO loop (cap-4 ring)            plain readln/println (one fd each,
+   ├─ in   → write fd0  (send')              no multiplexing needed child-side)
+   ├─ Ok   → read  fd1  (recv')              :user::main loops: (println (work (readln)))
+   └─ Err  → read  fd2  (crash → auto-raise) eprintln → Err frame on crash
+```
+- `(spawn-program' :process <env> <program>)` spawns a `readln`/`println` SERVER; the parent peer
+  is the CLIENT; `send'`/`recv'`/`select'`/`close'` drive the io_uring loop.
+- The child is a plain process (blocking readln/println). **The io_uring loop lives PARENT-side**,
+  multiplexing the child's 3 fds — and scales to N children (HTTP) as 3N arms of the same fan-in.
+- The apply-loop (fn), `fork-program`, the plain-pipe peer path, `try_recv`, and `libc::poll` all
+  die. io_uring LIVES and grows the Err arm.
+
+### The strike (sequenced sub-stones — each its own commit, green-or-broken)
+
+1. **`1b-ii-α` — Err-channel becomes the 3rd io_uring arm.** Extend `comms::process::Receiver`
+   from 2-arm (data + broadcast) to carry the `Err` fd as an additional data arm (reuse Stone D2's
+   N+1 fan-in). The `1a` diagnostic pipe (currently a separate plain `libc::pipe` drained by
+   `take_crash_reason`) folds INTO the ring: `recv'` returns the `Ok` payload OR, when the `Err`
+   arm fires, auto-raises the `#wat.kernel/ProcessPanics` reason (closes Q1 — substrate raises on
+   the user's behalf; no user crash verb). This is the dogfood proof: one loop, 3 fds, cap-4 ring.
+
+2. **`1b-ii-β` — the child runs a server program, not an apply-loop.** In `spawn_process_peer`,
+   replace the fn-apply-loop child body with the lifted `run_forked_child` server runtime
+   (`startup_from_forms` → `:user::main` over fd0/1/2). Spawn input flips from `Arc<Function>` to
+   the program forms. `1b-i`'s fd0/1 dup2 onto the comms pipe ends is now POSITIVELY exercised —
+   it was right all along.
+
+3. **`1b-ii-γ` — the type-checker.** `infer_spawn_program_prime` (`check.rs:10613`) for `:process`
+   must infer the server peer type. **OPEN SUB-DECISION (the one genuine fork — see below).**
+
+4. **`1b-ii-δ` — corpus migration.** Migrate the kernel peer tests + the hermetic corpus
+   (`hermetic.wat`, `test.wat`, `wat-tests/`) from fn-spawn/`fork-program-ast` to server-spawn,
+   driven via `send'`/`recv'` (KEEP the prime verbs — they are the future canonical names).
+
+5. **`1b-ii-ε` — poll-death / `try_recv` excision.** Delete `try-recv'` (verb +
+   `eval_peer_try_recv_prime` + `infer_try_recv_prime` + dispatch + `check.rs` entries), the old
+   non-prime `try-recv` (`eval_kernel_try_recv`/`typed_try_recv`), `comms::process::try_recv` (←
+   the lone `libc::poll`), `comms::thread::try_recv`, and the `peer` `try_recv` methods. Zero
+   surface callers ⇒ pure excision. Verify `grep -rn 'libc::poll' src/` ⇒ 0. **The doctrine
+   becomes literally exact.**
+
+6. **`1b-ii-ζ` — collapse + rename.** `git rm fork-program`/`fork-program-ast`/`spawn-program-ast`/
+   non-prime `spawn-program` + legacy channel `send`/`select`. Rename primes → canonical
+   (`send'`→`send` …, `Process'`→`Process`), each its own commit. Whitelist `spawn-thread`/
+   `spawn-process` internal. Then resume 6.w over canonical names.
+
+### RESOLVED — the server peer's type (`1b-ii-γ`): **γ-1, by the four-questions**
+
+**Substrate reality (researched 2026-06-08, builder direction):** wat has **no `loop`/`recur`** —
+recursion is a `defn` self-calling in TAIL position (TCO automatic via `TailCall` → `apply_function`
+trampoline). A server loop is `(defn :user::serve [] (do (println (work (readln))) (:user::serve)))`.
+The **real, existing** server model (`wat-tests/counter-actor-proof-process.wat`): the server is a
+PROGRAM with **ambient, typed** `readln`/`println` — `(readln -> :counter::Request)` deserializes
+EDN to a typed enum; `println` serializes the typed response. The CLIENT declares the peer type by
+wrapping `Receiver/from-pipe(stdout)` + `Sender/from-pipe(stdin)` into `ProcessPeer<Resp,Req>` —
+explicitly, *verbose-is-honest, no constructor verb minted.* Typing lives at the EDGES, not
+projected from a spawned fn.
+
+A `readln`/`println` server has no `[I]->O` fn signature to project, so `:process` cannot infer
+`Process'<I,O>` the way the apply-loop did. The options:
+- **(γ-1) Value wire, typed at the edges** — `:process` infers `Process'<Value,Value>`; safety comes
+  from the program's `readln -> :T` / `println` annotations + the client's `recv'` ascription.
+  Matches the one existing server model exactly.
+- **(γ-2) Fn-spawn as typed sugar** — `(spawn-program' :process env <fn>)` desugars to a wat server
+  whose `:user::main` self-tail-recurses `(do (println (f (readln))) (:user::serve))`, projecting
+  `Process'<I,O>` from `f`. Preserves the echo/map typed case; needs desugar machinery + a two-case
+  checker; introduces a second spawn mode no existing server uses.
+
+**FOUR-QUESTIONS VERDICT → γ-1.** Obvious: YES (one spawn shape; matches the existing model) vs NO
+(two modes). Simple: YES (checker returns `Process'<Value,Value>`, no desugar) vs NO. Honest: YES
+(wire genuinely carries EDN; edges give real typing) vs PARTIAL (projection hides the server-ness).
+γ-2 fails Obvious + Simple before UX is even weighed. The typed-peer win of arc 214.4.6 is NOT lost
+— it MOVES to the edges (`readln`/`println` annotations + `recv'` ascription), where the counter
+pattern already puts it. (An earlier γ-2 lean — written before the TCO research — was wrong: it
+leaned on a nonexistent `(loop …)` and a fn-projection model the real servers don't use. The
+research corrected it. `recv'` gains an optional `-> :T` ascription mirroring `readln` as part of
+γ; that is the client-side typed edge.)
