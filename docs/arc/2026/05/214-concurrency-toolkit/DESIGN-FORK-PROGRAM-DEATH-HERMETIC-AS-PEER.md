@@ -314,3 +314,24 @@ driven by `send'`/`recv'`, RED at HEAD because `send'` routes to the io_uring ch
 child's fd 0) → build the stdio=channel peer (lift `make_pipe` + child `dup2 fd 0/1` + parent
 `sender_from_pipe`/`receiver_from_pipe`) → migrate the hermetic corpus to the server pattern →
 retire the apply-loop + io_uring + `fork-program` → rename primes → canonical → resume 6.w.
+
+### PROGRESS (2026-06-08)
+- ✅ **1a — the crash channel.** `spawn_process_peer` wires the child's fd 2 to a diagnostic
+  Err-channel pipe; `ProcessPeerBundle::take_crash_reason` drains it; the parent reads the
+  `#wat.kernel/ProcessPanics` reason through the peer API (no fd-2 redirect). 8/8 kernel GREEN.
+  Commit `28c2f5a1`.
+- ✅ **1b-i — the one wire (physical).** The child's fd 0/1 are `dup2`'d onto the comms pipe ends
+  (fd 0 = input pipe read = the `send'` wire; fd 1 = output pipe write = the `recv'` wire),
+  mirroring 1a's fd 2. The value channel IS the stdio. The fn-apply-loop rides io_uring untouched
+  (zero regression, 8/8 GREEN). Commit `bff95319`. NOTE: positively exercised only when a
+  `readln`/`println` server child reads fd 0 / writes fd 1 — that needs 1b-ii.
+- ⏭️ **1b-ii — the server runtime (THE HEART, scoped, fog-free).** Lift fork-program's
+  `run_forked_child` (the full program runtime — runs forms as `:user::main`) + the StdIn/StdOut
+  services trio that routes `readln`/`println` to fd 0/1, into the `:process` peer path; flip the
+  spawn input from a fn (apply-loop) to a program (server); migrate the peer/hermetic corpus. ONE
+  coordinated atomic change (runtime + services + input + tests move together — green-or-broken;
+  do it WHOLE in a clean window, never half-committed). The physical wire (1a + 1b-i) is the
+  settled foundation it operates on.
+- ⏭️ **Then:** retire apply-loop + io_uring + `fork-program` → rename primes → canonical →
+  whitelist `spawn-thread`/`spawn-process` internal (only `spawn-program` + brackets reach them)
+  → re-use for parallel-for-each brackets (#196) → resume 6.w.
