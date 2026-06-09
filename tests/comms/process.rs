@@ -10,13 +10,14 @@
 //!   5. accumulator correctly splits two frames received in one read
 //!   6. large string spans multiple io_uring reads
 //!
-//! `probe_slice3d1_*` (9 tests; Stone D1 — mechanical methods + traits):
-//!   1-3. try_recv: None (no data), None (after drop), Some(..) (data ready)
-//!   4. len reports accumulator frame count
-//!   5-6. Sender::close, Receiver::close consume the endpoint
-//!   7. (retired) Sender::clone — Clone impl removed; single-writer by design
-//!   8. Receiver clone has fresh accumulator + shares pipe fd
-//!   9-10. CommSender / CommReceiver trait dispatch
+//! `probe_slice3d1_*` (Stone D1 — mechanical methods + traits):
+//!   - len reports accumulator frame count
+//!   - Sender::close, Receiver::close consume the endpoint
+//!   - (retired) Sender::clone — Clone impl removed; single-writer by design
+//!   - Receiver clone has fresh accumulator + shares pipe fd
+//!   - CommSender / CommReceiver trait dispatch
+//!   - (retired at arc 214 ε) the three try_recv probes — try_recv annihilated;
+//!     a non-blocking-None probe has no blocking-recv equivalent
 //!
 //! `probe_slice3d2_*` (2 tests; Stone D2 — Select<'a, T> cascade-aware fan-in):
 //!   1. select picks the fired receiver (correct ReceiverIndex + value)
@@ -86,8 +87,8 @@ fn probe_slice3c_recv_returns_err_after_sender_drop() {
     let result = rx.recv();
     assert_eq!(
         result,
-        Err(RecvError),
-        "recv must return Err(RecvError) after sender drop (EOF)"
+        Err(RecvError::Disconnected),
+        "recv must return Err(RecvError::Disconnected) after sender drop (EOF — the data arm)"
     );
 }
 
@@ -130,49 +131,26 @@ fn probe_slice3c_large_string_spans_multiple_io_uring_reads() {
 
 // ─── Stone D1 probes ──────────────────────────────────────────────────────────
 
-#[test]
-fn probe_slice3d1_try_recv_none_when_no_data() {
-    // Arc 253 2-state: try_recv returns None when no data is ready
-    // (old Empty). _tx kept alive so the channel stays connected.
-    let (_tx, rx) = pair::<String>().expect("pair");
-    assert_eq!(rx.try_recv(), None);
-}
-
-#[test]
-fn probe_slice3d1_try_recv_none_after_sender_drop() {
-    // Arc 253 2-state: try_recv returns None after all senders drop
-    // (old Disconnected). No sleep: libc::close(2) is synchronous;
-    // the kernel state-changes the pipe at close-time. Per
-    // `feedback_lock_step_via_pipe`: sleep is a guess; we use the wire.
-    let (tx, rx) = pair::<String>().expect("pair");
-    drop(tx);
-    assert_eq!(rx.try_recv(), None);
-}
-
-#[test]
-fn probe_slice3d1_try_recv_some_when_data_ready() {
-    // Arc 253 2-state: try_recv returns Some(value) when data is ready.
-    // No sleep: libc::write(2) is synchronous; bytes are in the kernel
-    // pipe buffer when send() returns. Lock-step via the wire.
-    let (tx, rx) = pair::<String>().expect("pair");
-    tx.send("hello".to_string()).expect("send");
-    let result = rx.try_recv();
-    assert_eq!(result, Some("hello".to_string()));
-}
+// The three `probe_slice3d1_try_recv_*` probes were RETIRED at arc 214 ε:
+// `try_recv` was annihilated (it was the last non-blocking poll in the io_uring
+// data path, dead with zero callers). A non-blocking-None probe cannot be mapped
+// onto blocking `recv` (recv would park forever on no-data / return Err on EOF),
+// so the subject is gone, not relocated — the tests go with it. `recv`'s
+// data + EOF contracts are covered by `probe_slice3c_single_string_round_trip`
+// and `probe_slice3c_recv_returns_err_after_sender_drop`.
 
 #[test]
 fn probe_slice3d1_len_reports_accumulator_frames() {
     // Verifies len() returns the count of complete frames in the
     // accumulator.
     //
-    // Intermediate len after ONE try_recv:
-    // After send("one") + send("two"), one try_recv is issued. try_recv
-    // does one libc::poll (non-blocking) then one io_uring Read. If the
-    // kernel delivered both frames in the pipe buffer before the Read (very
-    // likely for small sends — both writes complete before our Read syscall),
-    // the accumulator after take_frame holds frame 2 → len == 1.
-    // If the kernel only has frame 1's bytes in the buffer at Read time,
-    // accumulator is empty after take_frame → len == 0.
+    // Intermediate len after ONE recv:
+    // After send("one") + send("two"), one recv is issued. recv does one
+    // io_uring Read. If the kernel delivered both frames in the pipe buffer
+    // before the Read (very likely for small sends — both writes complete
+    // before our Read syscall), the accumulator after take_frame holds
+    // frame 2 → len == 1. If the kernel only has frame 1's bytes in the
+    // buffer at Read time, accumulator is empty after take_frame → len == 0.
     // The invariant we CAN assert: len <= 1 (at most one leftover frame)
     // and len >= 0 (trivially). The exact value is kernel-scheduling
     // dependent. We assert the bound and verify correct consumption below.
@@ -180,13 +158,13 @@ fn probe_slice3d1_len_reports_accumulator_frames() {
     assert_eq!(rx.len(), 0, "fresh receiver has empty accumulator");
     tx.send("one".to_string()).expect("send 1");
     tx.send("two".to_string()).expect("send 2");
-    // One try_recv — consume frame 1; frame 2 may or may not be in accumulator.
+    // One recv — consume frame 1; frame 2 may or may not be in accumulator.
     assert_eq!(
-        rx.try_recv().expect("try_recv must succeed — frame 1 is in the kernel pipe"),
+        rx.recv().expect("recv must succeed — frame 1 is in the kernel pipe"),
         "one",
         "first frame must be 'one'"
     );
-    assert!(rx.len() <= 1, "accumulator holds at most one leftover frame after one try_recv (arc 253: try_recv returns Option<T>)");
+    assert!(rx.len() <= 1, "accumulator holds at most one leftover frame after one recv");
     // After the second recv, accumulator must be fully drained.
     assert_eq!(rx.recv().expect("recv 2"), "two");
     assert_eq!(rx.len(), 0, "accumulator empty after consuming both frames");

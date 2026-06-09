@@ -39,29 +39,16 @@ fn probe_slice1_send_error_carries_unsent_value() {
 }
 
 #[test]
-fn probe_slice1_recv_error_is_unit_struct() {
-    // RecvError is a unit struct (no payload; senders dropped or shutdown fired).
-    let _r = wat::comms::RecvError;
-}
-
-#[test]
-fn probe_slice1_try_recv_is_two_state() {
-    // Arc 253 — try_recv returns Option<T> (2-state: Some/None).
-    // TryRecvError (3-state: Value/Empty/Disconnected) is eliminated.
-    // The old Empty/Disconnected timing race is structurally unrepresentable.
-    // This probe verifies the 2-state API compiles + works at the comms
-    // tier by exercising CommReceiver::try_recv via the thread tier.
-    use wat::comms::{CommReceiver, CommSender};
-    use wat::comms::thread::pair;
-    let (tx, rx) = pair::<i64>();
-    // Connected + empty → None.
-    assert_eq!(rx.try_recv(), None, "empty connected channel must return None");
-    // Value present → Some.
-    tx.send(42).expect("send");
-    assert_eq!(rx.try_recv(), Some(42), "data-ready channel must return Some(42)");
-    // Disconnected → None (same as empty; no distinct state).
-    drop(tx);
-    assert_eq!(rx.try_recv(), None, "disconnected channel must return None");
+fn probe_slice1_recv_error_is_two_variant_enum() {
+    // Arc 214 ε — RecvError is a two-variant enum: the recv arm knows WHICH
+    // cause fired. `Disconnected` = all senders dropped / peer closed the
+    // write-end (the data EOF arm); `Shutdown` = the substrate shutdown cascade
+    // fired (the broadcast / SHUTDOWN_RX arm). The old unit struct collapsed
+    // both into one and forced channel/transfer to re-derive the distinction
+    // with a SHUTDOWN_RX peek — the peek the select had already computed and
+    // thrown away. The enum carries the cause the source already knows.
+    let _d = wat::comms::RecvError::Disconnected;
+    let _s = wat::comms::RecvError::Shutdown;
 }
 
 #[test]
@@ -89,15 +76,15 @@ fn probe_slice1_select_outcome_constructs() {
         SelectOutcome::Shutdown => panic!("expected Recv"),
     }
 
-    // Disconnected recv (the fired receiver's senders all dropped).
+    // Disconnected recv (the fired receiver's senders all dropped — the data arm).
     let err: SelectOutcome<i64> = SelectOutcome::Recv {
         index: ReceiverIndex(1),
-        result: Err(RecvError),
+        result: Err(RecvError::Disconnected),
     };
     match err {
         SelectOutcome::Recv { index, result } => {
             assert_eq!(index, ReceiverIndex(1));
-            assert_eq!(result, Err(RecvError));
+            assert_eq!(result, Err(RecvError::Disconnected));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
     }

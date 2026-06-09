@@ -163,13 +163,15 @@
 ;;   2. select; blocks until ANY rx has data
 ;;   3. on :None — remove pairs[idx] (drops both ReqRx and AckTx of
 ;;      the disconnected client), recurse
-;;   4. on Some(first-entries) — drain every OTHER rx via try-recv;
-;;      on each hit, accumulate entries + the matching ack-tx from
-;;      pairs[j].second
+;;   4. on Some(first-entries) — that ONE select-chosen client is the
+;;      tick's contribution (arc 214 ε: try-recv is dead, so there is
+;;      no opportunistic peek of the other rxs; each ready client is
+;;      handled on its own select, which fires immediately while its
+;;      fd stays readable)
 ;;   5. dispatch via the per-batch dispatcher
-;;   6. ack-all — release every contributing client's batch-log
+;;   6. ack — release the contributing client's batch-log
 ;;      (preserves the "in-memory TCP" discipline)
-;;   7. update Stats with combined batch size + tick window
+;;   7. update Stats with batch size + tick window
 ;;   8. recurse with (stats', cadence')
 
 ;; Pending — accumulator threaded through drain-rest. (entries,
@@ -199,11 +201,14 @@
 
 
 ;; Merge one indexed pair into the accumulator. On the first-idx
-;; pair, attach `first-entries` (already drained by select) +
-;; pair.ack. On every other pair, try-recv pair.rx; on a hit,
-;; attach entries + pair.ack. The single foldl over ALL pairs
-;; eliminates the prior split between "first" and "rest" and the
-;; need for an out-of-band lookup.
+;; pair — the one `select` woke on — attach `first-entries` (already
+;; drained by select) + pair.ack. Every OTHER pair is skipped this
+;; tick: arc 214 ε annihilated `try-recv` (the non-blocking peek), so
+;; there is no opportunistic cross-channel drain. The lock-step model
+;; handles exactly the select-chosen client per tick; any other pair
+;; with data is picked up on the next `select` (which returns
+;; immediately while its fd stays readable). The foldl still locates
+;; the contributing pair + its ack by index — no out-of-band lookup.
 (:wat::core::define
   (:wat::telemetry::maybe-merge<E>
     (acc :wat::telemetry::Pending<E>)
@@ -214,21 +219,16 @@
   (:wat::core::let
     [pair (:wat::core::first indexed)
      idx (:wat::core::second indexed)
-     rx (:wat::core::first pair)
      ack (:wat::core::second pair)]
     (:wat::core::if (:wat::core::= idx first-idx)
       -> :wat::telemetry::Pending<E>
       (:wat::telemetry::extend acc first-entries ack)
-      (:wat::core::match (:wat::kernel::try-recv rx)
-        -> :wat::telemetry::Pending<E>
-        ((:wat::core::Ok (:wat::core::Some req-entries))
-          (:wat::telemetry::extend acc req-entries ack))
-        ((:wat::core::Ok :wat::core::None) acc)
-        ((:wat::core::Err _died) acc)))))
+      acc)))
 
 
-;; Drain — single foldl over all pairs. The first-idx pair gets
-;; first-entries from select; every other pair tries try-recv.
+;; Drain — single foldl over all pairs. Only the first-idx pair (the
+;; one select woke on) contributes its first-entries; every other pair
+;; is skipped this tick (no try-recv peek — see maybe-merge).
 (:wat::core::define
   (:wat::telemetry::drain-pairs<E>
     (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
@@ -292,9 +292,10 @@
       (:wat::core::first p))))
 
 
-;; One drain-and-dispatch cycle. drain-pairs handles BOTH first-idx
-;; (which gets first-entries from select) and the rest (which try-recv).
-;; No separate first-pair lookup needed.
+;; One drain-and-dispatch cycle. drain-pairs contributes the first-idx
+;; pair (which gets first-entries from select); every other pair is
+;; skipped this tick and re-selected next loop. No separate first-pair
+;; lookup needed.
 (:wat::core::define
   (:wat::telemetry::loop-step<E,G>
     (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)

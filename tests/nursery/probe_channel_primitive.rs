@@ -5,10 +5,10 @@
 //!
 //! Arc 214 Stone 6.1: the χ-1 bounded wrapper (typed_channel quarry) is dead;
 //! this probe now exercises `comms::thread::pair` directly (the same
-//! depth-1 backing `make-channel` uses). Arc 253 2-state collapse:
-//! `try_recv` returns `Option<T>` (`None` = empty OR disconnected).
+//! depth-1 backing `make-channel` uses). Arc 214 ε: `RecvError` is a
+//! two-variant enum — a sender-drop EOF surfaces as `RecvError::Disconnected`.
 
-use wat::comms::{RecvError};
+use wat::comms::RecvError;
 use wat::comms::thread::pair;
 
 #[test]
@@ -22,12 +22,13 @@ fn probe_chi1_depth1_round_trip() {
 fn probe_chi1_sender_drop_triggers_recv_err() {
     let (tx, rx) = pair::<i32>();
     drop(tx);
-    assert!(matches!(rx.recv(), Err(RecvError)));
+    // EOF / all-senders-dropped is the data arm → Disconnected (NOT Shutdown).
+    // Note: `Err(RecvError)` here would bind a catch-all, not match the enum —
+    // the variant must be named for this to be a real assertion.
+    assert!(matches!(rx.recv(), Err(RecvError::Disconnected)));
 }
 
-#[test]
-fn probe_chi1_try_recv_empty_returns_none() {
-    // Arc 253 2-state collapse: Empty and Disconnected both → None.
-    let (_tx, rx) = pair::<i32>();
-    assert!(matches!(rx.try_recv(), None));
-}
+// `probe_chi1_try_recv_empty_returns_none` was RETIRED at arc 214 ε:
+// `try_recv` was annihilated. A non-blocking empty→None probe has no
+// blocking-`recv` equivalent (recv would park on an empty channel), so the
+// subject is gone, not relocated.
