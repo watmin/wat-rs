@@ -1,7 +1,26 @@
 # Arc 251 — The Clojure-faithful symbolic surface (types-as-forms)
 
-**Status:** OPEN 2026-06-06. Builder-directed; the destination is settled (full
-core.typed/Typed Clojure acceptance), the stone sequencing is being drawn.
+**Status:** OPEN 2026-06-06; **PROMOTED to THE active arc 2026-06-09** — the
+arc-213 program-over-the-wire serializer surfaced the `/`-in-keyword non-EDN abuse
+(the third symptom this session after struct-destructure and `::`), and the builder
+made the call: *"the wat invented forms are nearing their end — they were a bridge
+to get us here… we go for parity."* 251 is now 213's prerequisite. Destination
+settled: full core.typed/Typed Clojure acceptance.
+
+> ### ⛕ PARITY REFINEMENT (2026-06-09) — `->` retires fully
+> The pre-today moves (below) kept `->` for the **return** arrow and for fn-types.
+> Full core.typed parity (builder, 2026-06-09, confirmed against the User-Guide /
+> getting-started reference) retires `->` ENTIRELY:
+> - **`:-`** = ascription, in BOTH param AND return position:
+>   `(wat.core/defn add5 {:doc "..."} [x :- wat.type/i64] :- wat.type/i64 (wat.core/+ 5 x))`
+> - **`:->`** = the function-type arrow, only INSIDE a type expression:
+>   `[f :- [wat.type/i64 :-> wat.type/i64]]`
+> - **`ann-form`** `(ann-form expr type)` = expression ascription (verified parity);
+>   **`defalias`** names a type; **`ann`** annotates a var. There is NO `ann-type`
+>   wrapper — a parametric arg type is just the form inline in the `:-` slot:
+>   `[m :- (wat.type/HashMap wat.type/String wat.type/i64)]`.
+> Move 1 below expands accordingly (`<-`→`:-` AND return `->`→`:-`); move 4's fn-type
+> arrow becomes `:->`. Everything else in the design holds.
 
 **Name is PROVISIONAL** — `251-types-as-forms` names move 4 (one facet). The true
 scope is broader: the keyword→symbol role inversion of the head/type/operator
