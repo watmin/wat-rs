@@ -1324,7 +1324,7 @@ fn tagged_to_value(
     }
 }
 
-fn ns_to_wat_path(ns: &str, name: &str) -> String {
+pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
     format!(":{}::{}", ns.replace('.', "::"), name)
 }
 
@@ -1706,7 +1706,7 @@ pub fn value_to_edn_with(
 /// rest joined with `.` is the namespace, per common Clojure
 /// convention). Single-segment wat keywords (`:foo`) become
 /// non-namespaced EDN keywords.
-fn keyword_from_wat_path(k: &str) -> OwnedValue {
+pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
     let stripped = k.strip_prefix(':').unwrap_or(k);
     if let Some(idx) = stripped.rfind("::") {
         let ns = stripped[..idx].replace("::", ".");

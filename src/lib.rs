@@ -108,6 +108,7 @@ pub mod time;
 pub mod types;
 pub mod value;
 pub mod vm_registry;
+pub mod wat_edn_bridge;
 
 pub use compose::{compose_and_run, compose_and_run_with_loader};
 pub use source::WatSource;
