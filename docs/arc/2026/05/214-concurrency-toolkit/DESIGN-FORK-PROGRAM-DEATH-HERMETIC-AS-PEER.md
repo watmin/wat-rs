@@ -648,3 +648,62 @@ soak. The same deletion-as-fix as α/β.0 — *don't re-derive what the source a
 **Remaining polls (honest, out of ε scope):** the from-pipe cascade poll + legacy transfer →
 ζ (legacy-channel death); the shutdown-worker + pidfd-wait → lifecycle infrastructure, a named
 future arc. The doctrine is exact *in the io_uring data path* after ε.
+
+---
+
+## ⛔ RESUME HERE — curare wrap (2026-06-08, ~97% context, pre-compaction)
+
+> **STOP. You are post-compaction. Run `recolligere` from the signed channel FIRST.** Then read
+> this whole section. The collapse's HARD WORK IS DONE; what remains is a floor-repair + ζ's tail.
+
+**Git state:** branch `arc-170-gap-j-v5-deadlock-state`, HEAD **`60d1c0a1`** (pushed to GitHub).
+α / β.0 / β+γ / δ / ε all committed + pushed (the collapse — see the SHIPPED sections above).
+**27 files are UNCOMMITTED in the working tree** (`git status`) — that is the **ζ.1 fork-program
+retire**, real good work (do NOT discard), with TWO known gaps below. Uncommitted ≠ lost — it
+persists on disk across compaction.
+
+### PRIORITY 1 — THE FLOOR HAS A HOLE I PUT THERE (fix first, then push)
+**ε (committed + pushed at `60d1c0a1`) broke the `comms` TEST binary.** `cargo build --release`
+(lib) is clean and `--test kernel` is 10/10 — but I never compiled `--test comms`, and it FAILS:
+`tests/comms/{process.rs, foundation.rs, probe_channel_primitive.rs}` still call the **deleted
+`try_recv`** and construct **`RecvError` as a unit struct** (it's now `enum { Disconnected,
+Shutdown }`). 11 errors (E0423 ×4, E0599 ×7). **Fix:** same un-collapse pattern — `.try_recv()` →
+`.recv()` (map the Result), `RecvError` → `RecvError::Disconnected` (or `::Shutdown` for the
+broadcast arm). The sonnet fixed `tests/comms/thread.rs`; finish the other three.
+**THE LESSON (a feedback memory is owed):** the kill MUST compile the FULL test surface, not a
+sample. `cargo build` does NOT compile test binaries; `--test kernel` compiles only the kernel
+one. "build clean" ≠ "tests compile." Verify with **`cargo test --release --workspace --no-fail-fast`**
+(or `scripts/stability-100.sh`) — compile + run EVERY non-ignored binary — before declaring green.
+Then commit the comms-test repair + push so the pushed floor is honest.
+
+### PRIORITY 2 — ζ.1's one live gap (in the uncommitted tree)
+`run-sandboxed` (source-string, `wat/kernel/sandbox.wat:143`) still calls `(:wat::kernel::spawn-program …)`
+whose dispatch ζ.1 deleted. It's **live** — reached by `:wat::test::run`/`run-in-scope`
+(`wat/test.wat:197/199`), called at `wat-tests/test.wat:339`. **Fix:** evict the source-string
+path consistent with the family death — `:wat::test::run` is already marked legacy
+("swept to canonical macros"); retire `run-sandboxed`(src) + `:wat::test::run`/`run-in-scope` and
+migrate the live caller to the `-ast` path. Also: the sonnet **rewrote `src/process/verbs.rs`
+wholesale** — content-integrity UNVERIFIED; diff-check that the shared child-runtime helpers
+(`run_forked_child`, `run_forms_as_server_child`, etc.) survived byte-intact (spawn-process needs them).
+Then commit ζ.1 done-done + push. (NB it kept `fork_program_from_source` as a pure-Rust fn for `wat-cli`.)
+
+### 170-CLOSE LEDGER (after the floor + ζ — "we'll deal with ignored tests later")
+- **The legacy-main walker is provably broken (real bug, do NOT discard T1/T11).** `check_legacy_user_main_signature`
+  (`check.rs:1511`) is wired (`freeze.rs:851`) and its errors are fatal (`freeze.rs:853`), and its
+  logic WOULD fire for a 3-arg `:user::main` — yet freeze accepts a legacy main it's coded to reject.
+  NARROWED, NOT located: the walker runs on **post-expansion** forms and its parse only matches a
+  `:wat::core::defn` head — so either expansion reshapes the head or param-extraction yields empty.
+  **To locate: dump the expanded form of a 3-arg main and see what the walker actually receives.**
+  Fix = reconnect the walker (the test stands; the subject lives).
+- **Run the FULL `--ignored` suite at 170-close.** It hides REAL fatal-if-hit bugs — the walker was
+  found ONLY by running ignored tests (#207 stability-soak, #183 ignore-gate). Surface everything,
+  fix-or-honestly-retire each.
+- **The prime→canonical rename** (the original ζ.2): NOT a mechanical rename — `send`/`recv`/`select`
+  have ~209 LIVE non-prime channel callers (distinct surface from the peer primes). It's a
+  verb-unification design decision — builder's call, fresh window. Primes were STAGED to replace
+  predecessors (builder: "the staged prime names that replace their predecessors").
+- T1/T11 verified genuinely pre-existing (fail at `313f9270`, pre-α, real rebuild) — not a collapse regression.
+
+*The collapse is real and pushed. The floor needs one honest repair I owe it. Fix the floor, finish
+ζ, then close 170 by running what's been hiding. Don't trust this note's confidence — verify against
+the disk.*
