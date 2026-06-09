@@ -316,6 +316,28 @@ child's fd 0) → build the stdio=channel peer (lift `make_pipe` + child `dup2 f
 retire the apply-loop + io_uring + `fork-program` → rename primes → canonical → resume 6.w.
 
 ### PROGRESS (2026-06-08)
+
+- 🎯 **1b-ii DISCOVERY (the swing's real yield): the `sender_from_pipe` program-server ALREADY
+  EXISTS and is GREEN — the collapse is UNIFICATION, not CONSTRUCTION.** Grounding from the gate's
+  red led here: `:wat::kernel::spawn-process` (`eval_kernel_spawn_process`) already runs a wat
+  PROGRAM (`(forms (defn :user::main ...))`) as a `readln`/`println` server over fork-program's
+  plain-pipe machinery, and the parent drives it by wrapping `Process/stdin` →
+  `:wat::kernel::Sender/from-pipe` and `Process/stdout` → `:wat::kernel::Receiver/from-pipe`, then
+  `send`/`recv` on those wrappers (EDN over OS pipes). PROVEN: `tests/arc112_slice2b_process_send_recv.rs`
+  (type-check) + `tests/probe_spawn_process_stdio.rs` (runtime). **My `spawn_process_program`
+  re-invented this over the WRONG channel (comms io_uring) — it was redundant AND wrong.** So the
+  whole "build the stdio=channel server peer" framing was a misread: **the server is built.** The
+  collapse is: (1) point `spawn-program' :process` at the `spawn-process` machinery (the program-
+  server), retiring the **comms io_uring fn-apply-loop** prime peer (`spawn_process_peer`) — *that*
+  is the bandaid, not just fork-program; (2) `fork-program` dies (spawn-process supersedes it);
+  (3) the prime verbs reconcile — the canonical `send`/`recv` already operate on the
+  `Sender`/`Receiver`-from-pipe wrappers (the surface the server uses); (4) whitelist
+  `spawn-thread`/`spawn-process` internal, only `spawn-program` (+ brackets) reach them. **1b-i's
+  fd 0/1 comms-pipe wiring was toward the wrong (io_uring) mechanism — re-evaluate whether it
+  survives the unification (the server path uses fork-program's separate plain pipes, not the comms
+  pipes).** The path is now low-risk (wiring onto proven machinery), not a from-scratch fork-safety
+  build. The gate + grounding turned "construct a thing I kept getting wrong" into "unify onto a
+  thing that already works."
 - ✅ **1a — the crash channel.** `spawn_process_peer` wires the child's fd 2 to a diagnostic
   Err-channel pipe; `ProcessPeerBundle::take_crash_reason` drains it; the parent reads the
   `#wat.kernel/ProcessPanics` reason through the peer API (no fd-2 redirect). 8/8 kernel GREEN.
