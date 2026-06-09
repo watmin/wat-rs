@@ -1095,10 +1095,10 @@ fn validate_comm_positions(
         return;
     }
 
-    // Arc 212 — generic recursion via children() covers Vector and
-    // StructPattern uniformly. Let-form handler above intercepts the
+    // Arc 212 — generic recursion via children() covers Vector, Map, and
+    // Set uniformly. Let-form handler above intercepts the
     // scope-aware case; List-head logic above covers all List nodes;
-    // this handles Vector and StructPattern (children() returns &[] for
+    // this handles Vector, Map, and Set (children() returns &[] for
     // leaf nodes, so this is a no-op for atoms).
     for child in node.children().iter() {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
@@ -1132,7 +1132,7 @@ fn collect_consumed_names_in_let(
         let items = match node {
             WatAST::List(items, _) => items,
             _ => {
-                // Recurse into Vector/StructPattern children.
+                // Recurse into Vector/Map/Set children.
                 for child in node.children().iter() {
                     walk(child, consumed);
                 }
@@ -1238,8 +1238,8 @@ fn validate_sandbox_scope_leak(
     sym: &SymbolTable,
     errors: &mut Vec<CheckError>,
 ) {
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Recurse first into all children — handles
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Recurse first into all children — handles
     // nested sandbox calls (e.g., a top-level form holding a deftest
     // holding another sandbox primitive). children() returns &[] for leaf
     // nodes (no-op).
@@ -1355,8 +1355,8 @@ fn check_calls_for_sandbox_leak(
         }
     }
 
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Sandbox-leak detection fires on call-head
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Sandbox-leak detection fires on call-head
     // positions (always List); the generic recursion ensures nested scope
     // inside bracketed forms (let-binding vectors, fn-param vectors) is
     // still traversed.
@@ -1637,7 +1637,7 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
         return;
     }
     // Arc 212 — generic recursion via children() covers List, Vector,
-    // and StructPattern uniformly so legacy keywords buried inside ANY
+    // Map, and Set uniformly so legacy keywords buried inside ANY
     // bracketed shape are caught. children() returns &[] for leaf nodes
     // (no-op).
     for child in node.children().iter() {
@@ -1846,8 +1846,8 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
             } });
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so legacy stream keywords buried inside
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so legacy stream keywords buried inside
     // bracketed forms (let-binding vectors, fn-param vectors) are caught.
     for child in node.children().iter() {
         walk_for_legacy_stream(child, errors);
@@ -1873,8 +1873,8 @@ fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>
             } });
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so legacy telemetry keywords inside bracketed
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so legacy telemetry keywords inside bracketed
     // forms (let-binding vectors, fn-param vectors) are caught.
     for child in node.children().iter() {
         walk_for_legacy_telemetry_service(child, errors);
@@ -1914,8 +1914,8 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
             } });
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so legacy LRU keywords inside bracketed forms
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so legacy LRU keywords inside bracketed forms
     // (let-binding vectors, fn-param vectors) are caught.
     for child in node.children().iter() {
         walk_for_legacy_lru_cache_service(child, errors);
@@ -1981,8 +1981,8 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so legacy kernel queue keywords inside
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so legacy kernel queue keywords inside
     // bracketed forms (let-binding vectors, fn-param vectors) are caught.
     for child in node.children().iter() {
         walk_for_legacy_kernel_queue(child, errors);
@@ -2119,9 +2119,9 @@ fn walk_for_restricted_call(
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector,
-    // and StructPattern uniformly. Pre-arc-212 this walker had explicit
-    // List + Vector arms but no StructPattern — call sites buried inside
-    // StructPattern slipped past restriction enforcement. children()
+    // Map, and Set uniformly. Pre-arc-212 this walker had explicit
+    // List + Vector arms but no Map/Set — call sites buried inside
+    // bracketed shapes slipped past restriction enforcement. children()
     // returns &[] for leaf nodes (no-op).
     for child in node.children().iter() {
         walk_for_restricted_call(child, enclosing_fn, env, errors);
@@ -2455,8 +2455,8 @@ fn collect_process_calls(
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Scope-boundary arms above return without
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Scope-boundary arms above return without
     // descending. children() returns &[] for leaf nodes (no-op).
     for child in node.children().iter() {
         collect_process_calls(child, joins, accessors);
@@ -2536,8 +2536,8 @@ fn collect_process_stdin_and_joins(
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. children() returns &[] for leaf nodes (no-op).
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. children() returns &[] for leaf nodes (no-op).
     // The fn/lambda early-return above ensures we never descend into nested
     // fn bodies (separate scopes).
     for child in node.children().iter() {
@@ -2570,8 +2570,8 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so a join call inside a bracketed form is
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so a join call inside a bracketed form is
     // still detected. children() returns &[] for leaf nodes (no-op).
     node.children()
         .iter()
@@ -2796,8 +2796,8 @@ fn walk_for_pair_deadlock(
         check_call_for_pair_deadlock(node, binding_scope, types, errors);
     }
 
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Walker-specific special-case logic above
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Walker-specific special-case logic above
     // handles sandbox boundaries, let-form scope, and comm-primitive
     // exclusions; all remaining compound nodes (including List fall-through
     // from check_call_for_pair_deadlock) recurse here. children() returns
@@ -7026,8 +7026,6 @@ fn check_subpattern(
             } });
             None
         }
-        // Arc 169 slice 1 — struct-pattern brace-forms are
-        // consumed only at let binding-position. Match
         // Arc 244 — NilLit is a literal pattern; valid at :wat::core::nil position
         // (catches the single nil value exhaustively), type-error otherwise.
         WatAST::NilLit(_) => match expected_ty {
@@ -10170,8 +10168,8 @@ fn node_contains_recv(node: &WatAST) -> bool {
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly so a recv call inside a bracketed form is
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly so a recv call inside a bracketed form is
     // still detected.
     node.children().iter().any(node_contains_recv)
 }
@@ -11320,7 +11318,7 @@ fn process_let_binding(
                 }
                 crate::ast::MapDestructureKind::Keys => {
                     // Keys-destructure check path (arc 169 / arc 257.2).
-                    // Same struct-field lookup as the old StructPattern binder.
+                    // Same struct-field lookup as the old struct-destructure binder.
                     let span = map_span;
                     let field_names: Vec<String> = m.bindings
                         .iter()
