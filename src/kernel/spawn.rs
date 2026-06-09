@@ -29,7 +29,7 @@
 //!
 //! `ThreadPeerCell` = `Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>` where
 //! `Thread` = `kernel::peer::Thread`. The `Option` lets `close'` take the peer
-//! while `send'`/`recv'`/`try-recv'` detect use-after-close via `.as_ref()`
+//! while `send'`/`recv'` detect use-after-close via `.as_ref()`
 //! returning `None`. `Thread<Value,Value>` holds a `JoinHandle<()>` which is
 //! `Send` but not `Sync` — the `ThreadOwnedCell` wrapping makes it `Sync` via
 //! the thread-id guard.
@@ -39,7 +39,7 @@
 //! `ProcessPeerCell` = `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>` where
 //! `ProcessPeerBundle` packages `kernel::peer::Process<String, String>` plus
 //! the lifeline `OwnedFd`. The `Option` lets `close'` take the bundle while
-//! `send'`/`recv'`/`try-recv'` detect use-after-close. The wire type is
+//! `send'`/`recv'` detect use-after-close. The wire type is
 //! `String` (EDN-encoded Value) rather than `Value` directly, because the
 //! process tier crosses a fork boundary (a separate address space) — only
 //! EDN-serializable bytes cross, never live `Value` handles. (The child
@@ -72,7 +72,6 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::comms::RecvError;
 use crate::kernel::peer::{Process, Thread};
 use crate::rust_deps::custodia::ThreadOwnedCell;
 use crate::rust_deps::marshal::make_rust_opaque;
@@ -93,15 +92,15 @@ use crate::value::Function;
 /// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ThreadPeerCell adoption in runtime.rs
 // rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
-/// The `Option` lets `close'` take the peer while `send'`/`recv'`/
-/// `try-recv'` detect use-after-close via `.as_ref()` returning `None`.
+/// The `Option` lets `close'` take the peer while `send'`/`recv'`
+/// detect use-after-close via `.as_ref()` returning `None`.
 /// At downcast sites use `ThreadPeerCell` instead of spelling out the 4-level type.
 pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 
 /// The process-tier peer cell type — `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`.
 ///
 /// Mirrors `ThreadPeerCell` for the process tier. The `Option` lets `close'`
-/// take the bundle while `send'`/`recv'`/`try-recv'` detect use-after-close.
+/// take the bundle while `send'`/`recv'` detect use-after-close.
 /// runtime.rs defines its own local `ProcessCell` alias at the select' downcast
 /// sites today; unifying the two under the runtime.rs flat-sea (Phoenix) warding
 /// is the structurally-right migration.
@@ -360,7 +359,7 @@ pub fn spawn_thread_peer(
             loop {
                 let input_val = match input_rx.recv() {
                     Ok(v) => v,
-                    Err(RecvError) => break, // channel closed → clean exit
+                    Err(_) => break, // channel closed or shutdown → clean exit
                 };
                 let result = match std::panic::catch_unwind(AssertUnwindSafe(|| {
                     apply_function(program_fn.clone(), vec![input_val], &thread_sym, span.clone())
@@ -406,7 +405,7 @@ pub fn spawn_thread_peer(
     };
 
     // Wrapped in Option so close' can `.take()` the peer (consuming it for
-    // `close()+join`) while send'/recv'/try-recv' detect use-after-close via
+    // `close()+join`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
     let wrapped = Arc::new(ThreadOwnedCell::new(Some(peer)));
     Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
@@ -556,7 +555,7 @@ pub fn spawn_process_peer(
     };
 
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for
-    // `close()+wait`) while send'/recv'/try-recv' detect use-after-close via
+    // `close()+wait`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
     let wrapped = Arc::new(ThreadOwnedCell::new(Some(bundle)));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))

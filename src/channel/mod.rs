@@ -77,5 +77,5 @@ pub mod transfer;
 pub use inner::{SenderInner, ReceiverInner, sender_from_comms, receiver_from_comms,
     sender_from_pipe, receiver_from_pipe};
 pub use transfer::{SendOutcome, RecvOutcome, typed_send, sender_close, typed_recv,
-    typed_try_recv, try_as_comms_receiver, make_pipe_channel_pair,
+    try_as_comms_receiver, make_pipe_channel_pair,
     make_thread_peer_pair_for_test};

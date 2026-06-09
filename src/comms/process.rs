@@ -20,7 +20,7 @@
 //! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
 //! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware multi-arm
 //! POLL_ADD (Stone B). io_uring bytes foundation with newline framing
-//! (Stone A). Stone D1: try_recv + len + close + Clone + CommSender/
+//! (Stone A). Stone D1: len + close + Clone + CommSender/
 //! CommReceiver trait impls. Stone D2: `Select<'a, T>` — cascade-aware
 //! fan-in over N receivers (generalizes Stone B's 2-arm POLL_ADD to
 //! N+1 arms; broadcast wins ties). Stone E-1: Receiver owns persistent
@@ -87,7 +87,7 @@ use crate::comms::{
 };
 
 /// Byte accumulator for newline-framed pipe reads. `RefCell` provides
-/// interior mutability so `recv(&self)` + `try_recv(&self)` can extend
+/// interior mutability so `recv(&self)` can extend
 /// the buffer without `&mut self`. Per `perspicere` (Stone E-1 ward
 /// pass 2026-05-19): the field and helper signatures both wrap
 /// `RefCell<Vec<u8>>`; the noun the type is ABOUT is "accumulator,"
@@ -336,7 +336,7 @@ impl<T: HolonRepresentable> Receiver<T> {
             // (Stone A behavior; no cascade available).
             if let Some(broadcast_fd) = broadcast_opt {
                 match wait_for_data_or_cascade(read_fd, broadcast_fd, &self.ring)? {
-                    PollOutcome::Shutdown => return Err(RecvError),
+                    PollOutcome::Shutdown => return Err(RecvError::Shutdown),
                     PollOutcome::DataReady => {
                         // Data is ready; fall through to Read step.
                     }
@@ -344,10 +344,10 @@ impl<T: HolonRepresentable> Receiver<T> {
             }
 
             // Read step — uses the Receiver's persistent ring (Stone E-1).
-            let n = self.read_into_acc().map_err(|_| RecvError)?;
+            let n = self.read_into_acc().map_err(|_| RecvError::Disconnected)?;
             if n == 0 {
                 // EOF — peer closed the write-end.
-                return Err(RecvError);
+                return Err(RecvError::Disconnected);
             }
 
             if let Some(frame) = self.take_buffered_frame() {
@@ -359,90 +359,6 @@ impl<T: HolonRepresentable> Receiver<T> {
 }
 
 impl<T: HolonRepresentable> Receiver<T> {
-    /// Non-blocking recv. Returns `Some(value)` if a frame is already
-    /// buffered (in the accumulator) OR if the data fd has bytes ready
-    /// RIGHT NOW that complete a frame. Returns `None` otherwise — whether
-    /// no data is available yet OR the peer has closed the pipe. The two
-    /// cases are not distinguished (arc 253 2-state collapse).
-    ///
-    /// Arc 253: `libc::poll(timeout=0)` intermittently reported no-POLLHUP
-    /// after sender drop, racing between "Empty" and "Disconnected". Both
-    /// are "no value" to the caller, so the split is eliminated. `None`
-    /// is the sole non-value outcome; the poll timing race is structurally
-    /// unrepresentable.
-    ///
-    /// Per substrate convention (typed_channel.rs:407-470): broadcast wins
-    /// ties — shutdown overrides any pending Value (process going down;
-    /// honest reporting).
-    ///
-    /// Mechanism: `libc::poll(timeout=0)` on `[data_fd, broadcast_fd]`
-    /// for the non-blocking arm check (one syscall; sync). If data is
-    /// ready, do an io_uring Read to fetch and try to complete a frame.
-    /// If the Read produces partial bytes (no newline yet), accumulator
-    /// retains them and `try_recv` returns `None` — a subsequent call
-    /// may complete the frame.
-    pub fn try_recv(&self) -> Option<T> {
-        // Fast path — accumulator already has a complete frame.
-        if let Some(frame) = self.take_buffered_frame() {
-            return decode_frame::<T>(&frame).ok();
-        }
-
-        // current_broadcast_fd() encapsulates the atomic-load + sentinel-check;
-        // see helper's rune:sequi(ambient-context) for rationale.
-        let broadcast_opt = current_broadcast_fd();
-        let read_fd = self.read_fd.as_raw_fd();
-
-        // Non-blocking poll on [data_fd] + [broadcast_fd if initialized].
-        // Mirrors typed_channel.rs:431-470 PipeFd typed_try_recv discipline.
-        let mut fds = [
-            libc::pollfd {
-                fd: read_fd,
-                events: libc::POLLIN | libc::POLLHUP,
-                revents: 0,
-            },
-            libc::pollfd {
-                fd: broadcast_opt.unwrap_or(-1),
-                events: libc::POLLHUP,
-                revents: 0,
-            },
-        ];
-        let nfds = if broadcast_opt.is_some() { 2 } else { 1 };
-
-        // SAFETY: fds is a stack-allocated array whose lifetime covers
-        // the poll call. libc::poll with timeout=0 returns immediately.
-        let n = unsafe { libc::poll(fds.as_mut_ptr(), nfds as libc::nfds_t, 0) };
-        if n <= 0 {
-            // poll error or no-ready-fd (includes both "nothing available"
-            // and the timing window where POLLHUP hasn't fired yet) → None.
-            return None;
-        }
-
-        // Broadcast wins ties — shutdown overrides any pending Value.
-        if nfds == 2 && fds[1].revents != 0 {
-            return None;
-        }
-        if fds[0].revents == 0 {
-            return None;
-        }
-
-        // Data is ready — uses the Receiver's persistent ring (Stone E-1).
-        let n = match self.read_into_acc() {
-            Ok(n) => n,
-            Err(_) => return None,
-        };
-        if n == 0 {
-            // EOF — peer closed the write-end.
-            return None;
-        }
-
-        if let Some(frame) = self.take_buffered_frame() {
-            decode_frame::<T>(&frame).ok()
-        } else {
-            // Partial bytes; no complete frame yet. Caller can retry.
-            None
-        }
-    }
-
     /// Issue one io_uring Read on `self.read_fd` into `self.accumulator`
     /// using `self.ring`. Returns `Ok(n)` where `n` is bytes appended
     /// (0 means EOF / peer closed write end), or `Err(())` on io_uring
@@ -506,9 +422,7 @@ impl<T: HolonRepresentable> Receiver<T> {
     ///
     /// APPROXIMATION — the kernel pipe buffer may hold additional bytes
     /// (and additional frames) that aren't visible without consuming
-    /// them via `recv` or `try_recv`. Callers needing an exact count
-    /// should drain via `try_recv` until `None` first; the resulting
-    /// `len()` reflects the accumulator only.
+    /// them via `recv`. The resulting `len()` reflects the accumulator only.
     ///
     /// Non-blocking; cascade-irrelevant. Useful for capacity-tracking
     /// callers (e.g., `wat::kernel::HandlePool`) that need a fast
@@ -571,9 +485,6 @@ impl<T: HolonRepresentable> Clone for Receiver<T> {
 impl<T: HolonRepresentable> CommReceiver<T> for Receiver<T> {
     fn recv(&self) -> Result<T, RecvError> {
         Receiver::recv(self)
-    }
-    fn try_recv(&self) -> Option<T> {
-        Receiver::try_recv(self)
     }
     fn len(&self) -> usize {
         Receiver::len(self)
@@ -639,10 +550,10 @@ fn wait_for_data_or_cascade(
     unsafe {
         ring.submission()
             .push(&poll_data)
-            .map_err(|_| RecvError)?;
+            .map_err(|_| RecvError::Disconnected)?;
         ring.submission()
             .push(&poll_broadcast)
-            .map_err(|_| RecvError)?;
+            .map_err(|_| RecvError::Disconnected)?;
     }
 
     // EINTR retry: a signal arriving during wait returns EINTR; resume waiting.
@@ -652,7 +563,7 @@ fn wait_for_data_or_cascade(
         match ring.submit_and_wait(1) {
             Ok(_) => break,
             Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
-            Err(_) => return Err(RecvError),
+            Err(_) => return Err(RecvError::Disconnected),
         }
     }
 
@@ -661,13 +572,13 @@ fn wait_for_data_or_cascade(
     let mut got_broadcast = false;
     while let Some(cqe) = ring.completion().next() {
         if cqe.result() < 0 {
-            return Err(RecvError);
+            return Err(RecvError::Disconnected);
         }
         match cqe.user_data() {
             DATA_TOKEN => got_data = true,
             BROADCAST_TOKEN => got_broadcast = true,
             // Unreachable: we only push two SQEs with these two tokens.
-            _ => return Err(RecvError),
+            _ => return Err(RecvError::Disconnected),
         }
     }
 
@@ -680,9 +591,9 @@ fn wait_for_data_or_cascade(
     } else {
         // Unreachable with min_complete=1: submit_and_wait(1) success
         // guarantees ≥1 CQE, so at least one arm fires. If this branch
-        // ever fires it is a substrate defect — propagate as Err(RecvError)
+        // ever fires it is a substrate defect — propagate as Err(RecvError::Disconnected)
         // (fatal; the caller's `?` surfaces it).
-        Err(RecvError)
+        Err(RecvError::Disconnected)
     }
 }
 
@@ -695,11 +606,11 @@ fn wait_for_data_or_cascade(
 /// failures all mean "the frame did not roundtrip cleanly; the channel
 /// is in an honest but unrecoverable state per this call".
 fn decode_frame<T: HolonRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
-    let s = std::str::from_utf8(bytes).map_err(|_| RecvError)?;
+    let s = std::str::from_utf8(bytes).map_err(|_| RecvError::Disconnected)?;
     // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
     // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
     // tag required (the `recv'` boundary codec runs `edn_string_to_value` upstream).
-    T::from_wire(s).map_err(|_| RecvError)
+    T::from_wire(s).map_err(|_| RecvError::Disconnected)
 }
 
 /// Pull the first newline-terminated frame out of `acc` (consuming the
@@ -738,8 +649,7 @@ fn current_broadcast_fd() -> Option<std::os::fd::RawFd> {
 /// the calling Receiver (or, in Select's Read-step, from the fired
 /// Receiver). Per-call `IoUring::new(2)` is retired.
 ///
-/// Callers map `Err(())` to their domain outcome (RecvError, or `None` for
-/// `try_recv`'s 2-state `Option<T>` since arc 253) at the call site.
+/// Callers map `Err(())` to their domain outcome (RecvError) at the call site.
 fn uring_read_into_acc(
     fd: std::os::fd::RawFd,
     acc: &Accumulator,
@@ -1042,14 +952,14 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 Err(_) => {
                     return Ok(SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
-                        result: Err(RecvError),
+                        result: Err(RecvError::Disconnected),
                     });
                 }
                 Ok(0) => {
                     // EOF — peer closed write end.
                     return Ok(SelectOutcome::Recv {
                         index: ReceiverIndex(arm_idx),
-                        result: Err(RecvError),
+                        result: Err(RecvError::Disconnected),
                     });
                 }
                 Ok(_) => {}

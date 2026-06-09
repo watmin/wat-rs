@@ -616,3 +616,35 @@ isolation`, `wat_arc113_cross_fork_cascade`) is green identically before and aft
 preserving swap onto an already-soaked verb. (The peer-model "assert values not stdout"
 authoring improvement is a separate future arc, NOT fork-program's death.) The direct
 `fork-program` Rust test callers test the dying mechanism itself — they retire in ζ with it.
+
+### ε — SHIPPED (2026-06-08): `try_recv` annihilated; the io_uring data path is poll-free
+
+The crawl first *disconfirmed ε's own premise*: the doc claimed "`try_recv` is the last
+`libc::poll`, excise it → `grep poll → 0`." **False** — `libc::poll` lives in 5 places
+(`comms/process.rs` `try_recv`, `channel/transfer.rs` legacy + from-pipe cascade,
+`process/clone.rs` pidfd-wait, `runtime.rs` shutdown-worker). The honest claim is narrower and
+true: **ε makes the io_uring data path poll-free.**
+
+Then the builder cut through the rest: of all the `try_recv`s, **exactly one did real work** —
+`channel/transfer.rs` peeked `SHUTDOWN_RX` with `try_recv` after a `recv` Err, to distinguish
+*data-disconnect* from *substrate-shutdown*. Everything else (`try-recv'` peer verb, non-prime
+`try-recv`, the `comms` `try_recv` methods + trait + the `:413` `libc::poll`) was **dead** —
+zero callers. And the one real use existed only because the comms `select!` *already computed*
+the distinction (broadcast arm vs data EOF) and then **threw it away**, collapsing both into one
+`RecvError`. The peek re-derived what the source deleted one line up.
+
+**Fix:** `RecvError` unit struct → `enum { Disconnected, Shutdown }`. The select arms return the
+variant they already know (`comms::thread` `recv(srx)` → `Shutdown`; `comms::process`
+`PollOutcome::Shutdown` → `Shutdown`; every other cause → `Disconnected`). `channel/transfer`
+matches the variant directly — the `SHUTDOWN_RX` peek **deleted**. Then the dead chain excised
+wholesale (the verbs, the intrinsics, the inference, the `comms` `try_recv` methods + trait, the
+peer methods, the `:413` poll, the test callers). One `try_recv` → `recv` substitution survived
+(`HandlePool::pop`) — verified sound: the pool's sender is `drop(tx)`'d at construction
+(`runtime.rs:18484`), so `recv()` returns immediately (buffered → Ok; drained → Err), never
+blocks. Net: **~400 lines deleted.** Verified: `grep -rn '\.try_recv()\|try-recv' src/` → **0**;
+`grep libc::poll src/comms/process.rs` → **0**; kernel suite 10/10; hermetic corpus 7/7; 25×
+soak. The same deletion-as-fix as α/β.0 — *don't re-derive what the source already computed.*
+
+**Remaining polls (honest, out of ε scope):** the from-pipe cascade poll + legacy transfer →
+ζ (legacy-channel death); the shutdown-worker + pidfd-wait → lifecycle infrastructure, a named
+future arc. The doctrine is exact *in the io_uring data path* after ε.

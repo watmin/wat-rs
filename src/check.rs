@@ -1387,7 +1387,7 @@ fn check_calls_for_sandbox_leak(
 //   the function-table boundary).
 // - The captured-name's RHS must be `(:wat::core::second pair)` and
 //   pair's RHS must be `(:wat::kernel::make-channel ...)` — no transitive helpers.
-// - `select` is not yet pattern-matched (only `recv` / `try-recv`).
+// - `select` is not yet pattern-matched (only `recv`).
 
 /// Arc 109 slice 1c — walk every WatAST node, parse keywords as
 /// type expressions WITHOUT canonicalization, and structurally
@@ -2782,7 +2782,6 @@ fn walk_for_pair_deadlock(
             ":wat::kernel::send"
                 | ":wat::kernel::Sender/close"
                 | ":wat::kernel::recv"
-                | ":wat::kernel::try-recv"
                 | ":wat::kernel::select"
                 | ":wat::kernel::process-send"
                 | ":wat::kernel::process-recv"
@@ -4819,13 +4818,12 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
-            // PARTITION — CLAUSE vs INTRINSIC: all four are intrinsic.
+            // Arc 214 Stone 4.6a-ii — three peer verb intrinsics.
+            // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
             //   send'     — projective: I flows from peer<I,O> into the payload arg.
             //   recv'     — projective: O flows from peer<I,O> into the return.
-            //   try-recv' — projective: Option<O> return is a function of peer's O.
             //   close'    — ∀-parametric: peer<∀I,∀O>; clause cannot enumerate all (I,O).
-            // See `infer_send_prime` / `infer_recv_prime` / `infer_try_recv_prime` /
+            // See `infer_send_prime` / `infer_recv_prime` /
             // `infer_close_prime` for the per-op reasoning.
             ":wat::kernel::send'" => {
                 let (val, mut errs) = infer_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4837,14 +4835,6 @@ fn infer_list(
             }
             ":wat::kernel::recv'" => {
                 let (val, mut errs) = infer_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            ":wat::kernel::try-recv'" => {
-                let (val, mut errs) = infer_try_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -10105,7 +10095,7 @@ fn rhs_is_thread_input_extractor(rhs: &WatAST) -> bool {
 /// `(:wat::kernel::spawn-program ...)` / `(:wat::kernel::fork-program ...)`
 /// call whose `<fn>` argument is an inline `(:wat::core::fn ...)`,
 /// walk the fn body looking for any `(:wat::kernel::recv ...)`
-/// (or `try-recv` / `select`) call. Returns true ONLY when we
+/// (or `select`) call. Returns true ONLY when we
 /// affirmatively walk a fn body and find zero recv calls — the
 /// thread cannot have a recv-loop, so no Sender lifetime can deadlock
 /// it.
@@ -10178,9 +10168,9 @@ fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
     !body_forms.iter().any(node_contains_recv)
 }
 
-/// Walk `node` looking for any `(:wat::kernel::recv ...)`,
-/// `(:wat::kernel::try-recv ...)`, or `(:wat::kernel::select ...)`
-/// call. Helper for arc 134's body-form narrowing.
+/// Walk `node` looking for any `(:wat::kernel::recv ...)`
+/// or `(:wat::kernel::select ...)` call.
+/// Helper for arc 134's body-form narrowing.
 fn node_contains_recv(node: &WatAST) -> bool {
     // Walker-specific List-head logic: recv detection applies only to
     // List forms with matching Keyword heads.
@@ -10189,7 +10179,6 @@ fn node_contains_recv(node: &WatAST) -> bool {
             if matches!(
                 k.as_str(),
                 ":wat::kernel::recv"
-                    | ":wat::kernel::try-recv"
                     | ":wat::kernel::select"
             ) {
                 return true;
@@ -10824,13 +10813,12 @@ fn infer_spawn_program_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-// ─── Arc 214 Stone 4.6a-ii — four peer verb intrinsics ───────────────────────
+// ─── Arc 214 Stone 4.6a-ii — three peer verb intrinsics ─────────────────────
 //
 // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md):
-// All four are INTRINSIC (projective / ∀-parametric):
+// All three are INTRINSIC (projective / ∀-parametric):
 //   send'      — projective: I flows from peer<I,O> into the payload arg.
 //   recv'      — projective: O flows from peer<I,O> into the return type.
-//   try-recv'  — projective: Option<O> return is a function of peer<I,O>'s O.
 //   close'     — ∀-parametric: the peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>;
 //                a clause matcher cannot enumerate all (I,O) instantiations.
 // The pattern for each: infer args[0], apply_subst+reduce, match
@@ -11058,66 +11046,6 @@ fn infer_recv_prime(
         Err(()) => {
             let t = fresh.fresh();
             CheckResult::partial_with(t, local_errors)
-        }
-    }
-}
-
-// PARTITION — CLAUSE vs INTRINSIC: `infer_try_recv_prime` is INTRINSIC (projective).
-// Option<O> return is a function of the peer's O type param.
-/// Type-check `(:wat::kernel::try-recv' peer)` — Stone 4.6a-ii.
-///
-/// One positional arg: `args[0]` peer of type `Thread'<I,O>` or `Process'<I,O>`.
-/// Result: `Option<O>` (`:wat::core::Option<O>`).
-fn infer_try_recv_prime(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::try-recv'";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 1 {
-        local_errors.push(CheckError {
-            span: head_span.clone(),
-            kind: CheckErrorKind::ArityMismatch {
-                callee: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        });
-        for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        }
-        let t = fresh.fresh();
-        let ret = TypeExpr::Parametric {
-            head: "wat::core::Option".into(),
-            args: vec![t],
-        };
-        return CheckResult::partial_with(ret, local_errors);
-    }
-
-    match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
-        Ok((_i_ty, o_ty)) => {
-            let o_reduced = apply_subst(&o_ty, subst);
-            let ret = TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![o_reduced],
-            };
-            if local_errors.is_empty() {
-                CheckResult::ok(ret)
-            } else {
-                CheckResult::partial_with(ret, local_errors)
-            }
-        }
-        Err(()) => {
-            let t = fresh.fresh();
-            let ret = TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![t],
-            };
-            CheckResult::partial_with(ret, local_errors)
         }
     }
 }
@@ -16276,22 +16204,6 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: TypeExpr::Tuple(vec![]),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::try-recv receiver) —
-    //   ∀T. Receiver<T> -> Result<Option<T>, ThreadDiedError>.
-    // Ok(:None) covers both empty and clean-disconnected (try-recv
-    // doesn't block; Err only fires for sender-thread panic).
-    env.register(
-        ":wat::kernel::try-recv".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Receiver".into(),
-                args: vec![t_var()],
-            }],
-            ret: comm_ok_option_t(),
             rest_param_type: None,
         },
     );

@@ -84,15 +84,6 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
         self.output.recv()
     }
 
-    /// Non-blocking recv. Returns `Some(value)` if a value is immediately
-    /// available; `None` if nothing is ready now OR the thread has exited.
-    ///
-    /// Arc 253 2-state: the old 3-state Empty/Disconnected split is
-    /// eliminated — both map to `None` (inherited from comms tier).
-    pub fn try_recv(&self) -> Option<O> {
-        self.output.try_recv()
-    }
-
     /// Close both channel endpoints and return the JoinHandle.
     ///
     /// Dropping the input Sender disconnects the thread's channel (the
@@ -191,15 +182,6 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     /// and the pipe's write end is closed (EOF).
     pub fn recv(&self) -> Result<O, RecvError> {
         self.output.recv()
-    }
-
-    /// Non-blocking recv. Returns `Some(value)` if a frame is immediately
-    /// available; `None` if nothing is ready now OR the child has exited.
-    ///
-    /// Arc 253 2-state: the old 3-state Empty/Disconnected split is
-    /// eliminated — both map to `None` (inherited from comms tier).
-    pub fn try_recv(&self) -> Option<O> {
-        self.output.try_recv()
     }
 
     /// Close both channel endpoints and return the Pidfd.

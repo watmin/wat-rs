@@ -3,8 +3,7 @@
 //! Layer 0a tier implementation per arc 214 (the comms-layer redesign;
 //! full design at `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md`).
 //! Builds on the Slice 1 traits (`crate::comms::{CommSender, CommReceiver,
-//! SelectOutcome, ReceiverIndex, SendError, RecvError}`; `try_recv` returns
-//! `Option<T>` since arc 253 — no `TryRecvError`) with `crossbeam_channel` underneath.
+//! SelectOutcome, ReceiverIndex, SendError, RecvError}`) with `crossbeam_channel` underneath.
 //!
 //! ## Cascade contract (LOAD-BEARING)
 //!
@@ -84,8 +83,8 @@ impl<T> Sender<T> {
 
     /// Signal end-of-stream from this sender. Consumes self so the endpoint
     /// is gone after close. Other cloned `Sender` handles (if any) remain
-    /// valid. Peer receivers will see `RecvError` / `None` (from `try_recv`)
-    /// on their next operation only after ALL `Sender` clones close.
+    /// valid. Peer receivers will see `RecvError::Disconnected`
+    /// on their next recv only after ALL `Sender` clones close.
     ///
     /// Infallible: self is dropped at end of scope; crossbeam decrements its
     /// internal sender count; when count hits zero, receivers see Disconnected.
@@ -138,23 +137,12 @@ impl<T> Receiver<T> {
         match shutdown_rx {
             Some(srx) => {
                 crossbeam_channel::select! {
-                    recv(&self.inner) -> msg => msg.map_err(|_| RecvError),
-                    recv(srx) -> _ => Err(RecvError),
+                    recv(&self.inner) -> msg => msg.map_err(|_| RecvError::Disconnected),
+                    recv(srx) -> _ => Err(RecvError::Shutdown),
                 }
             }
-            None => self.inner.recv().map_err(|_| RecvError),
+            None => self.inner.recv().map_err(|_| RecvError::Disconnected),
         }
-    }
-
-    /// Non-blocking recv. Returns `Some(value)` when a value is immediately
-    /// available; `None` when the channel is empty or all senders have
-    /// dropped. Cascade-irrelevant (does not block).
-    ///
-    /// Arc 253 — 2-state collapse: crossbeam's `Empty` and `Disconnected`
-    /// both map to `None`. The distinction is irrelevant to all current
-    /// consumers; collapsing eliminates the crossbeam/process-tier asymmetry.
-    pub fn try_recv(&self) -> Option<T> {
-        self.inner.try_recv().ok()
     }
 
     /// Number of values currently queued in the channel awaiting recv.
@@ -190,10 +178,6 @@ impl<T> Clone for Receiver<T> {
 impl<T: Send + 'static> CommReceiver<T> for Receiver<T> {
     fn recv(&self) -> Result<T, RecvError> {
         Receiver::recv(self)
-    }
-
-    fn try_recv(&self) -> Option<T> {
-        Receiver::try_recv(self)
     }
 
     fn len(&self) -> usize {
@@ -307,7 +291,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         // User arm — map crossbeam index back to user_pos.
         let user_pos = arm_idx - user_arm_start;
         let fired_rx = self.user_arms[user_pos];
-        let result = selected_op.recv(&fired_rx.inner).map_err(|_| RecvError);
+        let result = selected_op.recv(&fired_rx.inner).map_err(|_| RecvError::Disconnected);
         SelectOutcome::Recv {
             index: ReceiverIndex(user_pos),
             result,

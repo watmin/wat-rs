@@ -1,8 +1,7 @@
 //! Arc 214 Slice 2 smoke probe — verify thread tier round-trip + cascade.
 //!
-//! Nine tests covering: round-trip, sender-drop, try_recv (empty +
-//! disconnected), Clone semantics (sender + receiver), Select firing +
-//! index ordering, close multi-clone behavior.
+//! Seven tests covering: round-trip, sender-drop, Clone semantics (sender +
+//! receiver), Select firing + index ordering, close multi-clone behavior.
 //!
 //! SHUTDOWN_RX is NOT initialized in these tests (bootstrap fallback path).
 //! The cascade-aware recv falls back to bare crossbeam recv, which is correct
@@ -31,32 +30,8 @@ fn probe_slice2_sender_drop_triggers_recv_err() {
     drop(tx);
     assert_eq!(
         rx.recv(),
-        Err(RecvError),
-        "recv on disconnected channel must return Err(RecvError)"
-    );
-}
-
-#[test]
-fn probe_slice2_try_recv_none_when_no_data() {
-    // Arc 253 2-state: try_recv returns None when no value is ready.
-    // _tx kept alive so the channel stays connected.
-    let (_tx, rx) = pair::<i64>();
-    assert_eq!(
-        rx.try_recv(),
-        None,
-        "try_recv on empty connected channel must return None"
-    );
-}
-
-#[test]
-fn probe_slice2_try_recv_none_after_sender_drop() {
-    // Arc 253 2-state: try_recv returns None after all senders drop.
-    let (tx, rx) = pair::<i64>();
-    drop(tx);
-    assert_eq!(
-        rx.try_recv(),
-        None,
-        "try_recv after sender drop must return None"
+        Err(RecvError::Disconnected),
+        "recv on disconnected channel must return Err(RecvError::Disconnected)"
     );
 }
 
@@ -77,27 +52,6 @@ fn probe_slice2_clone_sender_multi_producer() {
     let mut got = [a, b];
     got.sort();
     assert_eq!(got, [1, 2], "both values must arrive regardless of ordering");
-}
-
-#[test]
-fn probe_slice2_clone_receiver_exactly_one_gets_frame() {
-    // Verifies that cloned receivers compete for messages: exactly ONE of the
-    // two clones gets the value; the other sees Empty (not a duplicate recv).
-    // Test shape is serial (non-blocking try_recv competition) — the name
-    // reflects the actual contract exercised, not multi-threaded concurrency.
-    let (tx, rx) = pair::<i64>();
-    let rx2 = rx.clone();
-    tx.send(99).expect("send");
-    let from_a = rx.try_recv();
-    let from_b = rx2.try_recv();
-    // Arc 253 2-state: try_recv returns Option<T>; None covers old Empty.
-    assert!(
-        matches!(
-            (from_a, from_b),
-            (Some(99), None) | (None, Some(99))
-        ),
-        "exactly one receiver must get the value; the other must see None"
-    );
 }
 
 #[test]

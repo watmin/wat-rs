@@ -4031,7 +4031,6 @@ fn dispatch_keyword_head_value(
             eval_kernel_sender_close(args, env, sym, list_span)
         }
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
-        ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym, list_span),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
@@ -4198,7 +4197,6 @@ fn dispatch_keyword_head_value(
         // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814):
         //   send'     — intrinsic (projective: I from peer<I,O>)
         //   recv'     — intrinsic (projective: O from peer<I,O>)
-        //   try-recv' — intrinsic (projective: Option<O>)
         //   close'    — intrinsic (∀-parametric: peer<∀I,∀O>)
         // Each arm downcasts the peer RustOpaque by sentinel (Thread' first,
         // then Process', else TypeMismatch). Thread' passes Value through;
@@ -4208,9 +4206,6 @@ fn dispatch_keyword_head_value(
         }
         ":wat::kernel::recv'" => {
             eval_peer_recv_prime(args, list_span, env, sym)
-        }
-        ":wat::kernel::try-recv'" => {
-            eval_peer_try_recv_prime(args, list_span, env, sym)
         }
         ":wat::kernel::close'" => {
             eval_peer_close_prime(args, list_span, env, sym)
@@ -18214,75 +18209,6 @@ fn eval_kernel_recv(
     }
 }
 
-/// `(:wat::kernel::try-recv receiver)` — non-blocking receive. Typed
-/// `∀T. Receiver<T> -> :Option<T>`. Returns `(:wat::core::Some v)` if a value is
-/// ready, `:wat::core::None` if the queue is empty OR the sender has dropped.
-/// Per FOUNDATION: both cases collapse to `:wat::core::None` — callers that need
-/// to distinguish them wrap `try-recv` + `recv` differently, or use
-/// `select`.
-fn eval_kernel_try_recv(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::kernel::try-recv".into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let receiver = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::wat__kernel__Receiver(r) => r,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::try-recv".into(),
-                expected: "wat::kernel::Receiver",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
-    // Arc 170 slice 1c — Crossbeam path uses crossbeam's try_recv;
-    // PipeFd transport doesn't have non-blocking semantics today
-    // (pipe fds aren't O_NONBLOCK by default). PipeFd try-recv
-    // returns Disconnected as a stand-in (matches the empty /
-    // disconnected collapse FOUNDATION mandates).
-    let outcome = crate::channel::typed_try_recv(
-        receiver.as_ref(),
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    );
-    match outcome {
-        crate::channel::RecvOutcome::Value(v) => {
-            // Arc 233 Stone 233.2.j — planned honest delta: producer provenance is lost
-            // here because the surrounding Value::Option is structurally Value-typed;
-            // converting to TrackedValue would require flipping Option's inner type
-            // (out of scope). Arc 233 Stone 233.2.e revisits via AST-derived provenance.
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))))
-        }
-        crate::channel::RecvOutcome::Disconnected => {
-            Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
-        }
-        crate::channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::kernel::try-recv".into(),
-                reason: format!("EDN decode on pipe-channel try-recv: {}", msg)
-            } }.into())
-        }
-        // arc 170 Slice B — try-recv maps Shutdown to Err(Shutdown)
-        // (same as recv's contract). Consistent: callers can distinguish
-        // shutdown from empty/disconnected via Result/Err vs Ok/None.
-        // This overrides Slice A's placeholder (Ok(None) collapse).
-        crate::channel::RecvOutcome::Shutdown => {
-            Ok(Value::Result(Arc::new(Err(
-                single_died_chain(thread_died_error_shutdown()),
-            ))))
-        }
-    }
-}
-
 /// `(:wat::kernel::drop handle)` — declares the caller is done with a
 /// sender or receiver. Typed `∀T. Sender<T> -> :()` and
 /// `∀T. Receiver<T> -> :()` (two registered schemes; runtime accepts
@@ -18505,8 +18431,9 @@ fn eval_stat_stddev(
 ///
 /// Implementation: a bounded crossbeam channel of size N pre-filled
 /// with the given handles, whose sender is dropped immediately so
-/// further puts are impossible. Consumers `pop` via `try_recv`;
-/// `finish` checks the channel is empty. No Mutex; the channel's
+/// further puts are impossible. Consumers `pop` via `recv` (the sender
+/// is already gone so recv returns immediately on empty); `finish`
+/// checks the channel is empty. No Mutex; the channel's
 /// lock-free multi-consumer semantics are the synchronization.
 fn eval_handle_pool_new(
     args: &[WatAST],
@@ -18588,7 +18515,10 @@ fn eval_handle_pool_pop(
             } }.into());
         }
     };
-    match rx.try_recv() {
+    // The sender was dropped at pool construction — recv() returns immediately
+    // (either a value or Err on empty). Equivalent to try_recv without the
+    // try_recv surface (Stone 214 1b-ii-ε: try_recv annihilated from substrate).
+    match rx.recv() {
         Ok(v) => Ok(v),
         Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::kernel::HandlePool::pop".into(),
@@ -18750,7 +18680,7 @@ fn eval_kernel_select(
             // Substrate shutdown fired. Return a Shutdown-shaped outcome:
             // index 0, Err(None) — the caller will see Err(RecvError) → nil.
             // All recv callers treat this as "channel done".
-            (0_usize, Err(crate::comms::RecvError))
+            (0_usize, Err(crate::comms::RecvError::Shutdown))
         }
     };
     // Arc 111 slice 1 — second tuple element is
@@ -22441,7 +22371,7 @@ fn is_mutation_head(head: &str) -> bool {
 // Pattern: eval args[0] → try downcast as Thread' first → else try Process' →
 // else TypeMismatch. Thread' passes Value through; Process' bridges via EDN.
 // The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
-// lets send'/recv'/try-recv' detect use-after-close (None → RuntimeError).
+// lets send'/recv' detect use-after-close (None → RuntimeError).
 
 /// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii.
 ///
@@ -22745,110 +22675,6 @@ fn eval_peer_recv_prime(
                     .into()
                 }),
             }
-        }
-        other => Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
-                got: Box::new(ValueSnapshot::of(other)),
-            },
-        }
-        .into()),
-    }
-}
-
-/// `(:wat::kernel::try-recv' peer)` — Stone 4.6a-ii.
-///
-/// Thread': `peer.try_recv()` → `:Some` / `:None`.
-/// Process': `peer.try_recv()` → decode EDN String → Value → `:Some` / `:None`.
-/// Use-after-close (Option is None) → RuntimeError.
-fn eval_peer_try_recv_prime(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::try-recv'";
-    if args.len() != 1 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
-        }
-        .into());
-    }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
-
-    match &peer_val {
-        Value::RustOpaque(inner)
-            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
-        {
-            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::peer::Thread<Value, Value>>,
-            >> = crate::rust_deps::marshal::downcast_ref_opaque(
-                inner,
-                crate::kernel::spawn::THREAD_PEER_TYPE_PATH,
-                OP,
-                list_span.clone(),
-            )?;
-            let maybe_val = cell
-                .with_ref(OP, |opt_peer| -> Result<Option<Value>, EvalBreak> {
-                    match opt_peer {
-                        None => Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "peer already closed".into(),
-                            },
-                        }
-                        .into()),
-                        Some(peer) => Ok(peer.try_recv()),
-                    }
-                })
-                .map_err(Into::<EvalBreak>::into)??;
-            Ok(Value::Option(std::sync::Arc::new(maybe_val)))
-        }
-        Value::RustOpaque(inner)
-            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
-        {
-            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::spawn::ProcessPeerBundle>,
-            >> = crate::rust_deps::marshal::downcast_ref_opaque(
-                inner,
-                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
-                OP,
-                list_span.clone(),
-            )?;
-            let maybe_edn = cell
-                .with_ref(OP, |opt_bundle| -> Result<Option<String>, EvalBreak> {
-                    match opt_bundle {
-                        None => Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "peer already closed".into(),
-                            },
-                        }
-                        .into()),
-                        Some(bundle) => Ok(bundle.peer.try_recv()),
-                    }
-                })
-                .map_err(Into::<EvalBreak>::into)??;
-            Ok(match maybe_edn {
-                Some(edn_str) => {
-                    let v = crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("try-recv' EDN decode failed: {}", e),
-                            },
-                        }
-                    })?;
-                    Value::Option(std::sync::Arc::new(Some(v)))
-                }
-                None => Value::Option(std::sync::Arc::new(None)),
-            })
         }
         other => Err(RuntimeError {
             span: list_span.clone(),
@@ -27259,42 +27085,7 @@ mod tests {
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
 
-    // ─── try-recv + drop ───────────────────────────────────────────────
-
-    #[test]
-    fn try_recv_on_empty_queue_returns_none() {
-        let src = r#"
-            (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :i64)]
-              (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
-                ((:wat::core::Ok (:wat::core::Some _)) false)
-                ((:wat::core::Ok :wat::core::None) true)
-                ((:wat::core::Err _died) false)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::bool(true) => {}
-            v => panic!("expected true, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn try_recv_on_ready_queue_returns_some() {
-        let src = r#"
-            (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :i64)
-               _ (:wat::core::Result/expect -> :()
-                          (:wat::kernel::send tx 7)
-                          "try_recv_on_ready: send failed")]
-              (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
-                ((:wat::core::Ok (:wat::core::Some v)) v)
-                ((:wat::core::Ok :wat::core::None) 0)
-                ((:wat::core::Err _died) -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(7) => {}
-            v => panic!("expected 7, got {:?}", v),
-        }
-    }
+    // ─── drop ──────────────────────────────────────────────────────────
 
     #[test]
     fn drop_accepts_sender_returns_unit() {
@@ -27326,12 +27117,6 @@ mod tests {
     fn drop_refuses_non_handle() {
         let err = eval_expr("(:wat::kernel::drop 42)").unwrap_err();
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
-    }
-
-    #[test]
-    fn try_recv_wrong_arity() {
-        let err = eval_expr("(:wat::kernel::try-recv)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── spawn + join + join-result deleted in arc 114 ─────────────────
