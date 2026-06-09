@@ -6,6 +6,17 @@
 > β (runtime) and γ (type-checker) are ONE strike — a forms-server can't type-check,
 > hence can't run, without the checker that accepts it.
 
+> ## ⚠️ PREREQ LANDED — β.0 fixed the wire (commit `f358f7a6`)
+> A prior β attempt flailed because `comms::process` was abusing HolonAST as the transport
+> (wrapping the EDN line in `#wat-edn.holon/String "42"`), so a forms-server's plain
+> `(println 42)` → `42\n` could not decode. **That is FIXED.** `comms::process` now transmits
+> **plain line-EDN** (`HolonRepresentable::to_wire`/`from_wire`; `String` = raw passthrough).
+> The io_uring parent and the plain-stdio child (`readln`/`println`) now speak the IDENTICAL
+> wire. **You do NOT touch `comms/process.rs` or the wire framing — it is done.** The
+> forms-server's `(println 42)` flows straight to the parent's `recv'`. If a value won't
+> cross, it is a *boundary-codec* issue (`value_to_edn`/`edn_string_to_value` at the
+> `send'`/`recv'` intrinsics), NEVER a wire issue — and almost certainly not in scope.
+
 ## The model (builder, verbatim, 2026-06-08)
 
 *"In a fork the program operates like any other wat program — it reads from fd0 using
@@ -104,6 +115,11 @@ crate::process::run_forms_as_server_child(forms, inherit_config);  // replaces t
 
 ## STOP triggers (halt + surface; do not improvise)
 
+- **STOP-0 (the prior-flail guard):** the wire is DONE (β.0). If a value won't cross between
+  parent `send'`/`recv'` and the child `readln`/`println`, STOP — do NOT add `recv_raw_frame`/
+  `recv_plain_edn_line`/`input_raw_write_fd` or touch `comms/process.rs` framing (that was the
+  prior band-aid spiral). The wire is plain line-EDN; surface the actual mismatch (almost
+  always a `value_to_edn`/`edn_string_to_value` boundary-codec detail), don't re-plumb transport.
 - **STOP-1:** if `startup_from_forms` in the child needs something the 1b-i-dup2'd fd 0/1/2
   don't provide (e.g. it expects `redirect_stdio_and_init` to have run its own setup), STOP
   and surface the exact missing setup step — do NOT double-dup2 or re-plumb.
