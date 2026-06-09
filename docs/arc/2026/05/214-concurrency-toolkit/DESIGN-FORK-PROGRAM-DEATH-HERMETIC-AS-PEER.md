@@ -595,3 +595,24 @@ literals (`#wat.kernel/ProcessPanics`) ride as content, not envelope.
 **Corrected sequence:** β.0 (done) → β (forms-server, now over plain EDN) → γ (folded) → δ →
 ε → ζ. The killed sonnet's WIP (server runtime + test migrations) was reverted; it rebuilds on
 this fixed foundation in β.
+
+### δ — SHIPPED (2026-06-08): the hermetic driver swaps to `spawn-process`
+
+The crawl found a design fork the doc's §2 had blurred: the hermetic test model is **batch
+run-and-capture over raw byte-pipes** (write stdin bytes → program works → drain stdout bytes →
+join), NOT the interactive `send'`/`recv'` peer model. Forcing it onto the peer would decode-
+then-restringify what it wants raw, and rewrite `RunResult` + every assertion + every test.
+Builder confirmed: *"we're done passing forms; we run programs who interface with the actual
+stdio pipes we provide and lock-step interact with them — write bytes in, it works, writes bytes
+out, repeat until done."* That is the `:wat::kernel::Process` struct (raw `IOWriter`/`IOReader`),
+which `spawn-process` returns — same struct `fork-program-ast` returned.
+
+So δ = **a one-line verb swap**: `run-sandboxed-hermetic-ast` (`hermetic.wat:107`)
+`fork-program-ast forms` → `spawn-process forms`. The entire drain/RunResult logic is unchanged
+(it's the same logic `test.wat`'s `run-hermetic-driver` already runs on a `spawn-process`'d
+proc). `fork-program-ast` now has **zero wat-surface callers**. Verified: the hermetic corpus
+(`wat_hermetic_round_trip`, `probe_run_hermetic_ast_stdout_capture`, `probe_deftest_hermetic_
+isolation`, `wat_arc113_cross_fork_cascade`) is green identically before and after — a behavior-
+preserving swap onto an already-soaked verb. (The peer-model "assert values not stdout"
+authoring improvement is a separate future arc, NOT fork-program's death.) The direct
+`fork-program` Rust test callers test the dying mechanism itself — they retire in ζ with it.

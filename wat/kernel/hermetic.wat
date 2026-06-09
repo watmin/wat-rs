@@ -104,7 +104,12 @@
       (:wat::core::None
        (:wat::core::let
          [proc
-           (:wat::kernel::fork-program-ast forms)
+           ;; Arc 214 1b-ii-δ: spawn the program via spawn-process (the canonical
+           ;; forms-server spawn — same :wat::kernel::Process struct + raw stdio
+           ;; pipes), retiring fork-program-ast. The driver writes stdin bytes,
+           ;; drains stdout/stderr bytes, joins — the byte-pipe model is unchanged;
+           ;; only the dying spawn verb is swapped (mirrors test.wat run-hermetic-driver).
+           (:wat::kernel::spawn-process forms)
           ;; Write stdin (if any). An empty vec joins to "", which
           ;; write-all handles as a zero-byte write.
           _
