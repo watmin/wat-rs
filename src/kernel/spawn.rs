@@ -278,25 +278,36 @@ pub fn eval_kernel_spawn_program_prime(
     // rune:exigere(attested-arc) — runtime env threading tracked in task #211.
     let _program_env = eval_inner(&args[1], env, sym)?.value_owned();
 
-    // arg 2: program fn.
-    let program_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
-        Value::wat__core__fn(f) => f,
-        other => {
-            return Err(RuntimeError {
-                span: args[2].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "fn value (program body)",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
-            .into());
-        }
-    };
-
     match tier.as_str() {
-        ":thread" => spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into),
-        ":process" => spawn_process_peer(program_fn, sym, list_span).map_err(Into::into),
+        ":thread" => {
+            // arg 2: program fn (thread tier: fn apply-loop).
+            let program_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
+                Value::wat__core__fn(f) => f,
+                other => {
+                    return Err(RuntimeError {
+                        span: args[2].span().clone(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: "fn value (program body) for :thread tier",
+                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                        },
+                    }
+                    .into());
+                }
+            };
+            spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into)
+        }
+        ":process" => {
+            // Arc 214 β — arg 2: program forms (process tier: readln/println server).
+            // Evaluate args[2] as forms (Vec<WatAST>); mirrors eval_kernel_spawn_process
+            // (verbs.rs:908). The forms run as a :user::main server in the child.
+            let forms = crate::process::expect_vec_ast_pub(
+                OP,
+                eval_inner(&args[2], env, sym)?,
+                args[2].span().clone(),
+            ).map_err(EvalBreak::from)?;
+            spawn_process_peer(forms, sym, list_span).map_err(Into::into)
+        }
         other => Err(RuntimeError {
             span: args[0].span().clone(),
             kind: RuntimeErrorKind::MalformedForm {
@@ -403,60 +414,29 @@ pub fn spawn_thread_peer(
 
 // ─── Process tier ─────────────────────────────────────────────────────────────
 
-/// Spawn a process-tier program peer. Called by the `spawn-program' :process`
+/// Spawn a process-tier program peer (arc 214 β). Called by the `spawn-program' :process`
 /// dispatcher (Stone 4.5) and exposed as `pub` for integration tests and
 /// Stone 4.6a-ii wiring.
 ///
-/// Wire type: `String` (EDN-encoded Value). The fn receives a `Value`
-/// (decoded from EDN String) and returns a `Value`; the child
-/// re-encodes the result via `edn_shim::value_to_edn_string`.
+/// Takes a WAT PROGRAM (forms — a `Vec<WatAST>`) and runs it as a
+/// `readln`/`println` server child. The parent drives it with `send'`/`recv'`
+/// on the returned `ProcessPeerBundle`.
 ///
-/// The wire type is `String` (EDN) rather than `Value` because the process
-/// tier crosses a fork boundary — only serializable bytes cross, not live
-/// `Value` handles. The child closure is `!UnwindSafe` (it captures
-/// `Arc<Function>` + the comms channels, whose IoUring / `Arc<dyn WatReader>`
-/// are `!UnwindSafe`); `spawn_lifelined_any` removes the bound (the child
-/// never unwinds — every exit path calls `_exit`). See the fork site.
-///
-/// Sandbox-walker: `closure_extract` on the fn; `NonPortableCapture` →
-/// reject. Other extraction errors are non-fatal (the fn body is
-/// available in the forked address space via `Arc<Function>`).
+/// The wire is plain line-EDN (`comms::process` β.0 fix, commit f358f7a6):
+/// the parent's `send'` encodes Value → EDN String; the child's `readln`
+/// decodes EDN String → Value; the child's `println` encodes Value → EDN
+/// String back; the parent's `recv'` decodes. The comms ring is the transport;
+/// the child reads fd 0 / writes fd 1 directly (the same fds dup2'd onto the
+/// comms pipe ends). No apply-loop; no fn captures; no sandbox walker.
 ///
 /// `ProcessPeerBundle` wrapped in `Arc<ThreadOwnedCell<...>>` →
 /// `Value::RustOpaque(PROCESS_PEER_TYPE_PATH)`.
 pub fn spawn_process_peer(
-    program_fn: Arc<Function>,
+    forms: Vec<WatAST>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program':process";
-
-    // ── Sandbox walker ────────────────────────────────────────────────────────
-    {
-        let fn_as_value = Value::wat__core__fn(program_fn.clone());
-        // temperare: borrow the Arc'd TypeEnv directly (default only on None) —
-        // avoids an O(types) deep-clone per :process spawn.
-        let empty_types;
-        let parent_types: &crate::types::TypeEnv = match sym.types() {
-            Some(arc_types) => arc_types.as_ref(),
-            None => { empty_types = crate::types::TypeEnv::default(); &empty_types }
-        };
-        if let Err(extract_err) =
-            crate::closure_extract::extract_closure(&fn_as_value, None, sym, parent_types)
-        {
-            use crate::closure_extract::ExtractionErrorKind::NonPortableCapture;
-            if matches!(extract_err.kind, NonPortableCapture { .. }) {
-                return Err(RuntimeError {
-                    span: extract_err.span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("spawn-program' :process sandbox rejection: {}", extract_err),
-                    },
-                });
-            }
-            // Other errors (Internal, UnresolvedSymbol): non-fatal at this gate.
-        }
-    }
 
     // ── Create comms::process channel pairs (String wire type) ────────────────
     // input:  parent → child  (input_tx stays; input_rx goes to child)
@@ -508,14 +488,13 @@ pub fn spawn_process_peer(
     // wraps the `catch_unwind` call site in `AssertUnwindSafe` internally,
     // which is sound because `_exit` terminates before any unwinding occurs.
 
-    // KR-1 — Tier symmetry: clone sym BEFORE the fork so the child apply-loop
-    // gets the same populated SymbolTable as the :thread tier (which captures
-    // `thread_sym = sym.clone()` in `spawn_thread_peer`). clone3 copies the address
-    // space; a pre-fork sym.clone() is valid in the child because SymbolTable
-    // holds only Arc-wrapped fields (no raw fds, no live thread handles).
-    // Without this, user-defined helpers called from the program fn fail with
-    // UnknownFunction in the child. Mirror the :thread tier exactly.
-    let child_sym = sym.clone();
+    // Arc 214 β — snapshot the caller's Config before fork so the child can inherit
+    // it through COW (arc 031 discipline). Mirrors eval_kernel_spawn_process (verbs.rs:917).
+    // None when sym has no encoding context (test harnesses). When present, the child's
+    // startup_from_forms_with_inherit pre-seeds every config field, so program forms can
+    // OMIT setters and still freeze; when None, the program forms must carry their own
+    // setters (the "wat program" entry-file discipline).
+    let inherit_config: Option<crate::config::Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
     let (pidfd, lifeline_writer) = crate::process::spawn_lifelined_any(move |lifeline_r_raw: i32| {
         // ── CHILD BRANCH ──────────────────────────────────────────────────
@@ -525,106 +504,27 @@ pub fn spawn_process_peer(
         // value channel IS the stdio (Song #79, the lanes crossed). fd 0 (stdin)
         // = the input pipe read end (what the parent's `send'` writes); fd 1
         // (stdout) = the output pipe write end (what the parent's `recv'` reads);
-        // fd 2 (stderr) = the diagnostic Err-channel (Stone 1a). A `readln`/
-        // `println` server child reads fd 0 / writes fd 1 — the SAME wire as
-        // `send'`/`recv'`; the fn-apply-loop child uses the io_uring channels and
-        // leaves fd 0/1 untouched (harmless). The input pipe read fd is
-        // `raw_fds()[0]` (Receiver: `[read_fd, ring_fd]`); the output pipe write fd
-        // is `raw_fds()[0]` (Sender: `[write_fd]`). The originals (>= 3) stay in
-        // `preserved` (io_uring needs them); the fd 0/1/2 dups survive the sweep.
+        // fd 2 (stderr) = the diagnostic Err-channel (Stone 1a). The forms-server
+        // child reads fd 0 with readln / writes fd 1 with println — the SAME wire as
+        // send'/recv'. The input pipe read fd is `raw_fds()[0]` (Receiver: [read_fd,
+        // ring_fd]); the output pipe write fd is `raw_fds()[0]` (Sender: [write_fd]).
         unsafe {
             libc::dup2(input_rx.raw_fds()[0], 0);
             libc::dup2(output_tx.raw_fds()[0], 1);
             // Stone 214 1b-ii-α: dup2 the err channel write fd onto fd 2 (stderr).
-            // The child's error arms call err_tx.send(envelope) before _exit(1),
-            // writing the crash reason into the parent's err_rx Receiver.
+            // emit_structured_exit (called by run_forms_as_server_child on startup error)
+            // and the child's panic hook write to fd 2 — the Err channel delivers the
+            // crash reason to the parent's err_rx Receiver.
             libc::dup2(err_tx.raw_fds()[0], 2);
         }
 
-        // Collect ALL fds owned by the comms endpoints that must survive the
-        // close-sweep. input_rx owns {read_fd, ring_fd}; output_tx owns {write_fd};
-        // err_tx owns {write_fd} (the err channel write end).
-        // Stone 4.5-fix: use child_post_fork_init_preserving so these fds are
-        // added to the skip-list instead of being silently closed by the sweep.
-        let mut preserved: Vec<i32> = input_rx.raw_fds();
-        preserved.extend(output_tx.raw_fds());
-        preserved.extend(err_tx.raw_fds());
-
-        // Post-fork init: setpgid, close inherited fds (preserving comms + lifeline),
-        // shutdown cascade, signal handlers.
-        crate::process::child_post_fork_init_preserving(lifeline_r_raw, &preserved);
-
-        // Apply-loop:
-        //   1. recv EDN String from input pipe
-        //   2. decode EDN → Value
-        //   3. apply fn(Value) → Value
-        //   4. encode Value → EDN String
-        //   5. send EDN String on output pipe
-        // child_sym: the pre-fork sym.clone() — gives the child the same
-        // function registry as the :thread tier (KR-1).
-        let child_span = Span::unknown();
-
-        loop {
-            // Step 1: receive an EDN-encoded Value as a String.
-            let edn_str = match input_rx.recv() {
-                Ok(s) => s,
-                Err(RecvError) => unsafe { libc::_exit(0) }, // clean EOF
-            };
-
-            // Step 2: decode EDN String → Value.
-            let input_val = match crate::edn_shim::edn_string_to_value(&edn_str) {
-                Ok(v) => v,
-                Err(e) => {
-                    // Stone 214 1b-ii-α: send the crash reason via err_tx (the Err
-                    // half of the Result<T,E> response) so the parent's death-time
-                    // Err read receives it. Build the same ProcessPanics envelope
-                    // shape that emit_structured_exit writes, but deliver it as a
-                    // properly-encoded Sender<String> frame (not a raw write) so
-                    // Receiver<String> can decode it.
-                    let value = crate::runtime::process_died_error_runtime_value(format!(
-                        "malformed EDN input from parent: {}",
-                        e
-                    ));
-                    let chain = crate::runtime::conj_died_chain_value(value, None);
-                    let edn = crate::edn_shim::value_to_edn_with(&chain, None);
-                    let envelope = format!("#wat.kernel/ProcessPanics {}", wat_edn::write(&edn));
-                    let _ = err_tx.send(envelope);
-                    unsafe { libc::_exit(1) }
-                }
-            };
-
-            // Step 3: apply the fn.
-            let output_val = match apply_function(
-                program_fn.clone(),
-                vec![input_val],
-                &child_sym,
-                child_span.clone(),
-            ) {
-                Ok(v) => v,
-                Err(runtime_err) => {
-                    // Stone 214 1b-ii-α: send crash reason via err_tx (proper channel).
-                    // The runtime EDN contains the structured error (e.g. "DivisionByZero")
-                    // so the parent's recv' auto-raises it with the cause named.
-                    let runtime_edn = wat_edn::write(
-                        &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err),
-                    );
-                    let value = crate::runtime::process_died_error_runtime_value(runtime_edn);
-                    let chain = crate::runtime::conj_died_chain_value(value, None);
-                    let edn = crate::edn_shim::value_to_edn_with(&chain, None);
-                    let envelope = format!("#wat.kernel/ProcessPanics {}", wat_edn::write(&edn));
-                    let _ = err_tx.send(envelope);
-                    unsafe { libc::_exit(1) }
-                }
-            };
-
-            // Step 4: encode Value → EDN String.
-            let output_str = crate::edn_shim::value_to_edn_string(&output_val);
-
-            // Step 5: send EDN String back to parent.
-            if output_tx.send(output_str).is_err() {
-                unsafe { libc::_exit(0) }; // parent closed → clean exit
-            }
-        }
+        // Arc 214 β: forms-server child. The io_uring comms fds (> 2) are NOT needed
+        // by the forms-server (it reads fd 0 / writes fd 1/2 directly). Use the
+        // non-preserving child_post_fork_init — the close-sweep removes them.
+        // The dup2'd fd 0/1/2 survive (they are stdio, always below the sweep start).
+        // run_forms_as_server_child never returns (calls _exit via run_user_main_in_child).
+        crate::process::child_post_fork_init(lifeline_r_raw);
+        crate::process::run_forms_as_server_child(forms, inherit_config);
     })
     .map_err(|io_err| RuntimeError {
         span: list_span.clone(),

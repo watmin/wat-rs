@@ -22551,12 +22551,16 @@ fn eval_peer_send_prime(
     }
 }
 
-/// `(:wat::kernel::recv' peer)` — Stone 4.6a-ii.
+/// `(:wat::kernel::recv' peer)` or `(:wat::kernel::recv' peer -> :T)` — Stone 4.6a-ii / arc 214 γ-1.
 ///
 /// Thread': `peer.recv()` → Value.
-/// Process': `peer.recv()` → decode EDN String → Value.
+/// Process': `peer.recv()` → decode EDN String → Value (optionally coerce to T).
 /// RecvError (peer closed / child gone) → RuntimeError.
 /// Use-after-close (Option is None) → RuntimeError.
+///
+/// The optional `-> :T` ascription (3-arg form [peer, "->", ":T"]) coerces the
+/// received EDN to the declared type T. Mirrors `eval_kernel_readln`'s typed decode.
+/// The 1-arg form is unchanged (STOP-3 guard).
 fn eval_peer_recv_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -22564,13 +22568,58 @@ fn eval_peer_recv_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::recv'";
-    if args.len() != 1 {
+
+    // Arc 214 γ-1 — optional `-> :T` ascription: detect 3-arg form.
+    let target_ty: Option<crate::types::TypeExpr> = if args.len() == 3 {
+        match &args[1] {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+            other => {
+                return Err(RuntimeError {
+                    span: other.span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "expected `->` as the second argument; (recv' peer -> :T); got {}",
+                            other.variant_name()
+                        ),
+                    },
+                }.into());
+            }
+        }
+        let ty = match &args[2] {
+            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(RuntimeError {
+                        span: args[2].span().clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("declared type {:?} failed to parse: {}", k, e),
+                        },
+                    }.into());
+                }
+            },
+            other => {
+                return Err(RuntimeError {
+                    span: other.span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "expected type keyword after `->` in (recv' peer -> :T)".into(),
+                    },
+                }.into());
+            }
+        };
+        Some(ty)
+    } else if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
         }
         .into());
-    }
+    } else {
+        None
+    };
+
     let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
 
     match &peer_val {
@@ -22659,16 +22708,43 @@ fn eval_peer_recv_prime(
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
-            crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
-                RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("recv' EDN decode failed: {}", e),
-                    },
+            // Arc 214 γ-1: if `-> :T` ascription is present, use typed EDN coercion
+            // (mirrors eval_kernel_readln). Otherwise use the permissive read_edn path.
+            match &target_ty {
+                Some(ty) => {
+                    let edn = wat_edn::parse_owned(&edn_str).map_err(|e| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("recv' EDN parse failed: {}", e),
+                            },
+                        }
+                    })?;
+                    crate::edn_shim::edn_to_typed_value(ty, &edn, sym).map_err(|e| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::EdnCoerceMismatch {
+                                op: OP.into(),
+                                expected: e.expected,
+                                got: e.got,
+                                path: e.path,
+                            },
+                        }
+                        .into()
+                    })
                 }
-                .into()
-            })
+                None => crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                    RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("recv' EDN decode failed: {}", e),
+                        },
+                    }
+                    .into()
+                }),
+            }
         }
         other => Err(RuntimeError {
             span: list_span.clone(),

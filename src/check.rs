@@ -10733,7 +10733,36 @@ fn infer_spawn_program_prime(
         });
     }
 
-    // args[2]: program fn — infer and project [I] -> O.
+    // args[2]: tier-specific program argument.
+    //
+    // Arc 214 γ-1 — `:process` takes a PROGRAM (forms: `Vector<WatAST>`) and
+    // returns `Process'<T,T>` where T is a fresh inference variable (the wire is
+    // plain line-EDN; the program owns its protocol via `readln -> :T` / `println`).
+    // Fresh T lets `send'` accept any payload (T unifies with the payload type) and
+    // `recv'` return T or be overridden by the `-> :T` ascription. The fn-projection
+    // is inappropriate here because the program's I/O protocol is opaque at spawn time.
+    // `:thread` keeps the old fn-projection path.
+    if tier == ":process" {
+        // Infer args[2] for error coverage only (type errors in the forms body
+        // are caught at startup_from_forms time, not here). Accept any type —
+        // the runtime validates it's `Vector<WatAST>` (forms).
+        let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        // Return Process'<I,O> with INDEPENDENT fresh vars (arc 214 γ-1). The
+        // forms-server is a request→response program — `send'`ing an I and
+        // `recv'`ing a different O is the common case (e.g. a Request enum in,
+        // a Response enum out). A single shared `T` would force I = O and break
+        // every non-echo server. `send' peer v` drives I from v; `recv' peer -> :U`
+        // drives O from the ascription; the two never alias.
+        let i = fresh.fresh();
+        let o = fresh.fresh();
+        let ty = TypeExpr::Parametric {
+            head: "wat::kernel::Process'".into(),
+            args: vec![i, o],
+        };
+        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+    }
+
+    // `:thread` — infer args[2] as a fn and project [I] -> O.
     let fn_inferred = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
@@ -10923,10 +10952,15 @@ fn infer_send_prime(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_recv_prime` is INTRINSIC (projective).
 // O flows from the peer's Parametric type param into the return type.
-/// Type-check `(:wat::kernel::recv' peer)` — Stone 4.6a-ii.
+/// Type-check `(:wat::kernel::recv' peer)` or `(:wat::kernel::recv' peer -> :T)` — Stone 4.6a-ii.
 ///
-/// One positional arg: `args[0]` peer of type `Thread'<I,O>` or `Process'<I,O>`.
-/// Result: `O`.
+/// One positional arg:   `args[0]` peer → returns O (the peer's output type).
+/// Three positional args: `args = [peer, Symbol("->"), Keyword(":T")]` → returns T
+///   (mirrors `infer_kernel_readln`; the declared type overrides O at the call site).
+///   Used with `Process'<Value,Value>` peers where O is the opaque EDN wire type and
+///   the caller names the concrete decode target.
+///
+/// The 1-arg form is unchanged for all existing callers (STOP-3 guard).
 fn infer_recv_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -10937,6 +10971,65 @@ fn infer_recv_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::recv'";
     let mut local_errors: Vec<CheckError> = Vec::new();
+
+    // Arc 214 γ-1 — optional `-> :T` ascription: 3-arg form [peer, "->", ":T"].
+    // Mirrors infer_kernel_readln (check.rs:8937). The 1-arg form is the base case.
+    if args.len() == 3 {
+        // Validate `->` symbol at args[1].
+        match &args[1] {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+            _ => {
+                local_errors.push(CheckError {
+                    span: args[1].span().clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "expected `->` as the second argument; (recv' peer -> :T)".into(),
+                        remedies: vec![],
+                    },
+                });
+                let t = fresh.fresh();
+                return CheckResult::partial_with(t, local_errors);
+            }
+        }
+        // Validate `:T` keyword at args[2] and parse the declared type.
+        let declared_ty = match &args[2] {
+            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+                Ok(t) => t,
+                Err(e) => {
+                    local_errors.push(CheckError {
+                        span: args[2].span().clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("declared type {:?} failed to parse: {}", k, e),
+                            remedies: vec![],
+                        },
+                    });
+                    let t = fresh.fresh();
+                    return CheckResult::partial_with(t, local_errors);
+                }
+            },
+            _ => {
+                local_errors.push(CheckError {
+                    span: args[2].span().clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "expected type keyword after `->` in (recv' peer -> :T)".into(),
+                        remedies: vec![],
+                    },
+                });
+                let t = fresh.fresh();
+                return CheckResult::partial_with(t, local_errors);
+            }
+        };
+        // Still infer the peer (args[0]) for error coverage (peer must be valid).
+        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        return if local_errors.is_empty() {
+            CheckResult::ok(declared_ty)
+        } else {
+            CheckResult::partial_with(declared_ty, local_errors)
+        };
+    }
+
     if args.len() != 1 {
         local_errors.push(CheckError {
             span: head_span.clone(),

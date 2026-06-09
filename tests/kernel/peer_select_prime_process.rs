@@ -22,24 +22,36 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-/// Process-tier `select'` over two echo peers — only one has data.
+/// Process-tier `select'` over two echo+1 peers — only one has data.
 ///
-/// Spawns two `:process` echo peers (a at index 0, b at index 1).
-/// Sends 99 to b only. `select'` over [a b] must return (1, 99).
+/// Spawns two `:process` forms-server peers (a at index 0, b at index 1).
+/// Arc 214 β: each peer is a forms-server (readln -> :i64, println (i64::+ n 1)).
+/// Sends 98 to b only. `select'` over [a b] must return (1, 99) (98+1=99).
 /// Both peers are closed after.
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout with --test-threads=1.
 #[test]
 #[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1"]
 fn process_select_prime_picks_ready_peer() {
+    // Arc 214 β: spawn-program' :process takes a forms-server (not a fn).
+    // Each spawned peer runs readln -> :i64, println (i64::+ n 1) — echo+1 server.
+    // The select' test sends 98 to peer b only; select' fires on b (index 1)
+    // and returns (1, 99) — 98+1=99 from the echo+1 server.
     let src = r#"
-        (:wat::core::defn :user::mk [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :process {}
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
         (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
-          (:wat::core::let [a (:user::mk)
-                            b (:user::mk)
-                            _ (:wat::kernel::send' b 99)
+          (:wat::core::let [a (:wat::kernel::spawn-program' :process {}
+                                (:wat::core::forms
+                                  (:wat::core::defn :user::main [] -> :wat::core::nil
+                                    (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                                                      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
+                                      nil))))
+                            b (:wat::kernel::spawn-program' :process {}
+                                (:wat::core::forms
+                                  (:wat::core::defn :user::main [] -> :wat::core::nil
+                                    (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                                                      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
+                                      nil))))
+                            _ (:wat::kernel::send' b 98)
                             picked (:wat::kernel::select' [a b])
                             _ (:wat::kernel::close' a)
                             _ (:wat::kernel::close' b)]

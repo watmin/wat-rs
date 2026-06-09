@@ -526,6 +526,53 @@ fn run_forked_child(
     run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
 }
 
+// ─── Post-dup2 server runtime for spawn-program' :process (arc 214 β) ───────
+//
+// Called AFTER the child branch has already dup2'd fd 0/1/2 and called
+// child_post_fork_init (non-preserving — the io_uring comms fds are swept;
+// the forms-server child reads fd 0 / writes fd 1 directly via PipeReader /
+// PipeWriter). This is the tail of run_forked_child lifted into its own fn so
+// kernel/spawn.rs can call it without going through the full 6-fd redirect_stdio_and_init
+// setup (which would double-dup2 fds already wired by spawn_process_peer's child branch).
+//
+// Never returns — exits via run_user_main_in_child → finish_forked_child → libc::_exit.
+pub(crate) fn run_forms_as_server_child(
+    forms: Vec<WatAST>,
+    inherit_config: Option<Config>,
+) -> ! {
+    // Build wat-level stdio over the already-dup2'd fd 0/1/2.
+    // SAFETY: The child branch in spawn_process_peer has already dup2'd
+    // the comms pipe ends onto fd 0/1/2 and called child_post_fork_init
+    // (which swept everything > 2 except the lifeline, installed the
+    // silent panic hook, and rebuilt the shutdown infra). These fds are
+    // live and exclusively owned by this child process.
+    let stdin_reader: Arc<dyn WatReader> =
+        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
+    let stdout_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
+    let stderr_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
+
+    let loader = Arc::new(InMemoryLoader::new());
+    let startup_result = match &inherit_config {
+        Some(cfg) => startup_from_forms_with_inherit(forms, None, loader, cfg),
+        None => startup_from_forms(forms, None, loader),
+    };
+    let world = match startup_result {
+        Ok(w) => w,
+        Err(e) => {
+            emit_structured_exit(
+                None,
+                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+            );
+            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+        }
+    };
+
+    // run_user_main_in_child never returns.
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
+}
+
 // ─── Source-string entry — `:wat::kernel::fork-program` (arc 104b) ──────
 //
 // NAME-LIE NOTE: "fork" is the wat verb name; the implementation uses
@@ -1312,6 +1359,11 @@ fn expect_option_string(
 
 // rune:perspicere(read-once) — Vec<WatAST> is the value the dispatch arm
 // was given; the flat helper matches the caller's expected shape exactly.
+// pub(crate): also called by kernel/spawn.rs dispatcher for the :process tier
+// (arc 214 β — forms extraction from the evaluated args[2]).
+pub(crate) fn expect_vec_ast_pub(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
+    expect_vec_ast(op, tv, span)
+}
 fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
     match tv.value_owned() {
         Value::Vec(items) => {

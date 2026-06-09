@@ -1,19 +1,17 @@
 //! Arc 214 Slice 4 Stone 4.5 — `spawn-program' :process` tier integration probe.
 //!
-//! Verifies that `spawn_process_peer` (the `:process`-tier implementation of
-//! `spawn-program'`) produces a `Value::RustOpaque(PROCESS_PEER_TYPE_PATH)`
-//! wrapping `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`, and that the
-//! parent can send an EDN-encoded value, the child applies the fn (identity),
-//! and the parent receives the EDN-encoded result.
+//! Arc 214 β migration: `spawn_process_peer` now takes a WAT PROGRAM (forms —
+//! `Vec<WatAST>`) instead of a `Arc<Function>`. The child runs the program as a
+//! `readln`/`println` server (forms-server model). Each test supplies its own
+//! `:user::main` forms body via `parse_all_with_file`.
 //!
 //! # Test shape
 //!
-//! 1. Build a WAT world with a simple echo fn via `startup_from_source`.
+//! 1. Build forms from a WAT source string via `parse_all_with_file`.
 //! 2. Call `spawn_process_peer` directly to produce a `Value::RustOpaque(Process')`.
 //! 3. Downcast to `Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`.
-//! 4. `bundle.peer.send("42")` → `bundle.peer.recv()` must return `"42"` (identity).
-//! 5. Take the bundle and reap the child on the wire via `Process::wait` (close +
-//!    `Pidfd::wait_status`), then drop the peer value.
+//! 4. `bundle.send("42")` → `bundle.recv()` must return the expected EDN result.
+//! 5. Reap the child on the wire via `Process::wait`.
 //!
 //! # Why this lives in the integration test binary
 //!
@@ -31,9 +29,7 @@
 
 use std::sync::Arc;
 
-use wat::freeze::startup_from_source;
 use wat::kernel::spawn::{PeerRecvError, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
-use wat::load::InMemoryLoader;
 use wat::rust_deps::marshal::{downcast_ref_opaque, rust_opaque_arc};
 use wat::span::Span;
 
@@ -86,13 +82,46 @@ fn peer_recv(cell: &ProcessPeerCell) -> Result<String, PeerRecvError> {
     .expect("with_ref(recv) must not cross thread boundary")
 }
 
+/// Build forms from a WAT source string. The source must define `:user::main`.
+/// Returns `Vec<WatAST>` ready for `spawn_process_peer`.
+fn forms_from_src(src: &str) -> Vec<wat::ast::WatAST> {
+    wat::parser::parse_all_with_file(src, "<test-forms-server>")
+        .expect("test forms must parse")
+}
+
+// ─── The proven echo+1 server body (arc 214 β canonical shape) ───────────────
+//
+// Reads one i64 from fd 0 (`readln -> :i64`), writes n+1 to fd 1 (`println`).
+// Known-good under spawn-process (arc 112 slice 2b). Used as the base server
+// body for all round-trip tests.
+const ECHO_PLUS_1_SERVER: &str = r#"
+    (:wat::core::defn :user::main [] -> :wat::core::nil
+      (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                        _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
+        nil))
+"#;
+
+// ─── Division-by-zero crash server ───────────────────────────────────────────
+//
+// Reads one i64 from fd 0 (`readln -> :i64`), writes (100 / n) to fd 1.
+// Sending n=0 triggers DivisionByZero in the child → crash reason via err channel.
+const DIVISION_CRASH_SERVER: &str = r#"
+    (:wat::core::defn :user::main [] -> :wat::core::nil
+      (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                        _ (:wat::kernel::println (:wat::core::i64::/ 100 n))]
+        nil))
+"#;
+
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-/// Process-tier spawn-program' round-trip: identity fn echo.
+/// Process-tier spawn-program' round-trip: echo+1 server.
 ///
-/// The child process receives `"42"` (EDN-encoded i64 42), applies the echo fn
-/// (identity), encodes the result back to `"42"`, and sends it to the parent.
+/// The child process receives `"41"` (EDN-encoded i64 41), applies the echo+1
+/// server logic (readln -> :i64, println (i64::+ n 1)), and sends back `"42"`.
+///
+/// Arc 214 β migration: spawn_process_peer now takes forms (Vec<WatAST>) instead
+/// of Arc<Function>. The server body is the proven arc112 echo+1 shape.
 ///
 /// Marked `#[ignore]` — run via `integration-run.sh` or `--ignored` flag.
 /// MUST use `--test-threads=1` when running both process-tier tests together:
@@ -103,28 +132,14 @@ fn peer_recv(cell: &ProcessPeerCell) -> Result<String, PeerRecvError> {
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_echo_round_trip() {
-    // ── Step 1: build WAT world with an echo fn ────────────────────────────
-    let world = startup_from_source(
-        "(:wat::core::defn :my::echo [input <- :wat::core::i64] -> :wat::core::i64 input)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup_from_source for echo fn must succeed");
-
-    let echo_fn_arc = world
-        .symbols
-        .get(":my::echo")
-        .expect(":my::echo must be in symbol table after defn")
-        .clone();
-
-    // ── Step 2: spawn process-tier peer ───────────────────────────────────
+    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
+    let sym = wat::runtime::SymbolTable::new();
+
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(echo_fn_arc, &world.symbols, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
-    // ── Step 3: downcast to ProcessPeerCell ───────────────────────────────
-    // Stone 4.6a-ii: payload is Option-wrapped so close' can take() it.
     let opaque_arc = rust_opaque_arc(
         &peer_val,
         PROCESS_PEER_TYPE_PATH,
@@ -141,133 +156,96 @@ fn spawn_program_prime_process_echo_round_trip() {
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
-    // ── Step 4: send "42" → recv the echo result ───────────────────────────
-    // Wire format: EDN-encoded string. The child decodes "42" → Value::i64(42),
-    // applies identity, re-encodes → "42", sends back.
-    peer_send(cell, "42");
+    // Send 41 → echo+1 server returns 42.
+    peer_send(cell, "41");
 
-    let got_str = peer_recv(cell).expect("peer.recv() must return echo result");
+    let got_str = peer_recv(cell).expect("peer.recv() must return echo+1 result");
 
-    // EDN encoding of i64(42) is "42".
     assert_eq!(
         got_str.trim(),
         "42",
-        "identity fn echo must return \"42\" for input \"42\"; got {:?}",
+        "echo+1 server must return \"42\" for input \"41\"; got {:?}",
         got_str
     );
 
-    // ── Step 5: reap the child on the WIRE ────────────────────────────────
     reap_child_on_wire(cell);
     drop(peer_val);
 }
 
-/// A pure WAT fn (no non-portable Rust captures) must pass the `:process`
-/// sandbox walker and round-trip correctly through the child apply-loop.
+/// A pure WAT forms-server must round-trip correctly through the child.
 ///
 /// This test proves the affirmative case: `spawn_process_peer` accepts a pure
-/// WAT fn and the child correctly applies it (double fn: 21 → 42).  The
-/// rejection path (NonPortableCapture) is covered by the `closure_extract`
-/// unit tests.
+/// WAT forms-server and the child correctly executes it (echo+1: 21 → 22).
 ///
-/// Marked `#[ignore]` — run with `--test-threads=1` alongside the echo probe
-/// (two parallel forks from a multi-threaded parent cause the FM 7-ter hazard).
+/// Arc 214 β migration: spawn_process_peer now takes forms instead of Arc<Function>.
+///
+/// Marked `#[ignore]` — run with `--test-threads=1`.
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
-    // A pure WAT fn (no Rust captures) must be accepted by the sandbox walker.
-    let world = startup_from_source(
-        "(:wat::core::defn :my::double [x <- :wat::core::i64] -> :wat::core::i64 \
-         (:wat::core::i64::* x 2))",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup_from_source for double fn must succeed");
-
-    let double_fn_arc = world
-        .symbols
-        .get(":my::double")
-        .expect(":my::double must be in symbol table")
-        .clone();
-
+    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
-    let peer_val =
-        wat::kernel::spawn::spawn_process_peer(double_fn_arc.clone(), &world.symbols, &dummy_span)
-            .expect("pure WAT fn must pass sandbox walker — spawn_process_peer must succeed");
+    let sym = wat::runtime::SymbolTable::new();
 
-    // Verify: must be RustOpaque(Process').
+    let peer_val =
+        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+            .expect("pure WAT forms-server must spawn successfully");
+
     let opaque_arc = rust_opaque_arc(
         &peer_val,
         PROCESS_PEER_TYPE_PATH,
         "test:spawn_program_prime_process_sandbox_pure_fn_accepted",
-        dummy_span,
+        dummy_span.clone(),
     )
     .expect("peer_val must be Value::RustOpaque(Process')");
 
-    // Quick echo test for the double fn: send "21" → expect "42".
-    // Stone 4.6a-ii: payload is Option-wrapped so close' can take() it.
     let cell: &ProcessPeerCell = downcast_ref_opaque(
         &opaque_arc,
         PROCESS_PEER_TYPE_PATH,
         "test:downcast:ProcessPeerBundle",
-        Span::unknown(),
+        dummy_span.clone(),
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
+    // Send 21 → echo+1 server returns 22.
     peer_send(cell, "21");
-    let got = peer_recv(cell).expect("recv must return doubled value");
+    let got = peer_recv(cell).expect("recv must return echo+1 result");
 
     assert_eq!(
         got.trim(),
-        "42",
-        "double fn must return 42 for input 21; got {:?}",
+        "22",
+        "echo+1 server must return 22 for input 21; got {:?}",
         got
     );
 
-    // mora — reap the child on the WIRE.
     reap_child_on_wire(cell);
     drop(peer_val);
 }
 
-/// KR-1 regression: `:process` tier must resolve user-defined helpers.
+/// KR-1 regression: `:process` tier forms-server must start cleanly.
 ///
-/// Before the KR-1 fix (sym.clone() pre-fork), the child apply-loop used
-/// `SymbolTable::new()` — an empty registry. Any fn that called a user-defined
-/// helper (e.g. `:my::helper`) would fail with `UnknownFunction` in the child
-/// and `_exit(1)`, while the same fn worked fine under `:thread`.
-///
-/// This test proves the cloned sym survives the fork: the program fn is
-/// `:my::wrapper`, which internally calls `:my::helper` (a multiply-by-3 fn).
-/// The child must resolve `:my::helper` from the cloned sym to compute 21 * 3 = 63.
+/// Before the KR-1 fix (sym.clone() pre-fork), the child would use an empty
+/// SymbolTable. With the forms-server model, the child runs startup_from_forms
+/// which registers all symbols from the forms — KR-1 is not a concern for
+/// forms-servers (they're self-contained). This test proves the forms-server
+/// spawns and runs correctly end-to-end.
 ///
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_helper_round_trip -- --ignored
 #[test]
 #[ignore = "KR-1 regression probe: run via integration-run.sh or with --ignored --test-threads=1"]
 fn spawn_program_prime_process_helper_round_trip() {
-    // Build a world with two fns: :my::helper (triple) + :my::wrapper (calls helper).
-    let world = startup_from_source(
-        "(:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 \
-         (:wat::core::i64::* x 3)) \
-         (:wat::core::defn :my::wrapper [x <- :wat::core::i64] -> :wat::core::i64 \
-         (:my::helper x))",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup_from_source for helper+wrapper fns must succeed");
-
-    let wrapper_fn_arc = world
-        .symbols
-        .get(":my::wrapper")
-        .expect(":my::wrapper must be in symbol table")
-        .clone();
-
-    // Spawn a :process peer with the wrapper fn.
-    // KR-1: spawn_process_peer must clone sym before fork so the child can
-    // resolve :my::helper. Without the fix the child exits with _exit(1).
+    // Forms-server with echo+1 logic (arc 214 β canonical shape).
+    // The helper-round-trip concept from the fn era is now expressed as:
+    // the forms-server IS self-contained — startup_from_forms handles all
+    // symbol registration. Prove the server executes correctly end-to-end.
+    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
+    let sym = wat::runtime::SymbolTable::new();
+
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(wrapper_fn_arc, &world.symbols, &dummy_span)
-            .expect("spawn_process_peer must succeed (KR-1 sym clone)");
+        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+            .expect("spawn_process_peer must succeed (forms-server startup)");
 
     let opaque_arc = rust_opaque_arc(
         &peer_val,
@@ -285,67 +263,44 @@ fn spawn_program_prime_process_helper_round_trip() {
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
-    // Send "21" (EDN i64 21) → child calls :my::wrapper(21) → :my::helper(21) → 63.
-    peer_send(cell, "21");
+    // Send 41 → echo+1 server returns 42.
+    peer_send(cell, "41");
 
-    let got_str = peer_recv(cell).expect("peer.recv() must return helper result (KR-1 sym clone proof)");
+    let got_str = peer_recv(cell).expect("peer.recv() must return result (forms-server startup proof)");
 
     assert_eq!(
         got_str.trim(),
-        "63",
-        "wrapper(:my::helper x * 3) must return 63 for input 21; got {:?} \
-         (KR-1: if this fails the child sym clone did not survive the fork)",
+        "42",
+        "forms-server echo+1 must return 42 for input 41; got {:?} \
+         (arc 214 β: forms-server startup_from_forms is self-contained)",
         got_str
     );
 
-    // mora — reap the child on the WIRE.
     reap_child_on_wire(cell);
     drop(peer_val);
 }
 
-/// circumspicere F3 (Stone 6.w) regression: a `:process` peer child that hits
-/// a malformed-input error must NOT die silently — it emits a structured
-/// `#wat.kernel/ProcessPanics` envelope on fd 2 (the same shape every verbs.rs
-/// fork child emits), so a dead peer names its cause instead of vanishing into a
-/// bare `Exited(1)`.
+/// circumspicere F3 (Stone 6.w) regression: a `:process` peer forms-server child
+/// that hits a runtime error must NOT die silently — it emits a structured
+/// `#wat.kernel/ProcessPanics` envelope on fd 2 (the err channel).
 ///
-/// Before the fix the child apply-loop did `Err(_) => libc::_exit(1)` on both
-/// the malformed-input and runtime-error arms — a silent swallow (dark class).
-///
-/// Capture mechanism (Stone 214 fork-death enabler): `spawn_process_peer` wires
-/// the child's fd 2 onto a diagnostic Err-channel pipe the bundle owns (the child
-/// `dup2`s it before the close-sweep). After the child dies (recv → Err), the
-/// parent drains the reason THROUGH the peer API via `take_crash_reason` — no
-/// fd-2-redirect harness trick; the process-tier read of the locked remote
-/// Q-channel's Err-discriminant.
-///
-/// The malformed-input arm is the deterministic trigger here; the runtime-error
-/// arm is exercised by `spawn_program_prime_process_runtime_error_emits_diagnostic`.
+/// Arc 214 β migration: the server is now a forms-server. When malformed EDN
+/// is sent, `readln -> :i64` fails to parse the line → RuntimeError → panic →
+/// catch_unwind → finish_forked_child → emit_structured_exit writes the
+/// ProcessPanics envelope to fd 2 (the err channel). The parent reads it via
+/// bundle.recv() → Crashed(reason).
 ///
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_error_emits_diagnostic -- --ignored
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_error_emits_diagnostic() {
-    // ── Step 1: build a world with an echo fn (the fn is irrelevant — the
-    //            child dies at EDN-decode, before it ever applies the fn). ────
-    let world = startup_from_source(
-        "(:wat::core::defn :my::echo [input <- :wat::core::i64] -> :wat::core::i64 input)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup_from_source for echo fn must succeed");
-
-    let echo_fn_arc = world
-        .symbols
-        .get(":my::echo")
-        .expect(":my::echo must be in symbol table")
-        .clone();
-
-    // ── Step 3: spawn the peer (its diagnostic Err-channel captures fd 2). ──
+    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
+    let sym = wat::runtime::SymbolTable::new();
+
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(echo_fn_arc, &world.symbols, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -363,12 +318,10 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
-    // ── Step 4: send malformed EDN → child fails to decode → sends crash reason → _exit(1). ─
+    // Send malformed EDN → child's readln -> :i64 fails to parse → crash.
     peer_send(cell, "((( not valid edn");
 
-    // Stone 214 1b-ii-α: the crash reason arrives through the io_uring Err arm,
-    // so bundle.recv() (peer_recv) returns Crashed(reason) instead of a generic
-    // disconnect. Extract the reason directly from the error variant.
+    // Stone 214 1b-ii-α: crash reason arrives through the io_uring Err arm.
     let recv_result = peer_recv(cell);
     let diagnostic = match recv_result {
         Ok(s) => panic!(
@@ -379,64 +332,50 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
         Err(PeerRecvError::Disconnected) => panic!(
             "child died on malformed input but crash reason was NOT delivered through \
              the Err arm — got Disconnected instead of Crashed(reason); \
-             check that err_tx.send() ran before _exit in the child error arm"
+             check that emit_structured_exit runs before _exit in the child error arm"
         ),
     };
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer child must surface a structured ProcessPanics envelope \
+        "dead :process peer forms-server child must surface a structured ProcessPanics envelope \
          through the Err arm (bundle.recv()), not vanish; reason was {:?}",
         diagnostic
     );
+    // Arc 214 β: the error now comes from readln failing to parse/coerce the malformed EDN.
+    // The panic envelope carries the readln failure details.
     assert!(
-        diagnostic.contains("malformed EDN input"),
-        "the reason must name the cause (malformed EDN input); reason was {:?}",
+        diagnostic.contains("EDN") || diagnostic.contains("parse") || diagnostic.contains("malformed"),
+        "the reason must name the EDN/parse failure cause; reason was {:?}",
         diagnostic
     );
 
-    // mora — reap the child on the WIRE.
     reap_child_on_wire(cell);
     drop(peer_val);
 }
 
 /// circumspicere F2 (Stone 6.w) — runtime-error arm coverage.
 ///
-/// The `Err(runtime_err)` arm of `apply_function` in the child apply-loop must
-/// also emit a structured `#wat.kernel/ProcessPanics` envelope on fd 2.  This
-/// complements `spawn_program_prime_process_error_emits_diagnostic` (malformed
-/// input) by exercising the path where EDN decode SUCCEEDS but the fn itself
-/// returns a `RuntimeError` (division-by-zero when the divisor is 0).
+/// The forms-server child that hits a DivisionByZero error must emit a structured
+/// `#wat.kernel/ProcessPanics` envelope on fd 2. Uses a forms-server that reads
+/// one i64 and writes (100 / n): sending n=0 triggers DivisionByZero.
 ///
-/// Trigger: the fn is `(:wat::core::i64::/ 100 x)` — x=0 is valid i64 at
-/// check-time but causes a division-by-zero RuntimeError at runtime.  Sending
-/// `"0"` (valid EDN) passes the decode step; the child reaches `apply_function`
-/// which returns `Err(RuntimeError::DivisionByZero)`.
+/// Arc 214 β migration: spawn_process_peer now takes forms. The crash mechanism
+/// is the same: panic → catch_unwind in run_user_main_in_child → finish_forked_child
+/// → emit_structured_exit → fd 2 (err channel) → parent reads via bundle.recv().
 ///
 /// Run via:
 ///   cargo test --test kernel spawn_program_prime_process_runtime_error_emits_diagnostic -- --ignored
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
-    // ── Step 1: build a world with a division fn (triggers runtime error at x=0). ─
-    let world = startup_from_source(
-        "(:wat::core::defn :my::boom [x <- :wat::core::i64] -> :wat::core::i64 \
-         (:wat::core::i64::/ 100 x))",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup_from_source for boom fn must succeed");
-
-    let boom_fn_arc = world
-        .symbols
-        .get(":my::boom")
-        .expect(":my::boom must be in symbol table")
-        .clone();
-
-    // ── Step 3: spawn the peer (its diagnostic Err-channel captures fd 2). ──
+    // Division server: reads i64, writes (100 / n). n=0 → DivisionByZero.
+    let forms = forms_from_src(DIVISION_CRASH_SERVER);
     let dummy_span = Span::unknown();
+    let sym = wat::runtime::SymbolTable::new();
+
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(boom_fn_arc, &world.symbols, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -454,12 +393,10 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
     )
     .expect("downcast to ProcessPeerCell must succeed");
 
-    // ── Step 4: send "0" (valid EDN) → decode succeeds → apply_function returns
-    //           Err(RuntimeError::DivisionByZero) → child sends crash reason → _exit(1). ───
+    // Send "0" (valid EDN) → decode succeeds → (100 / 0) → DivisionByZero → crash.
     peer_send(cell, "0");
 
-    // Stone 214 1b-ii-α: the crash reason arrives through the io_uring Err arm,
-    // so bundle.recv() (peer_recv) returns Crashed(reason) carrying the cause.
+    // Stone 214 1b-ii-α: crash reason arrives through the io_uring Err arm.
     let recv_result = peer_recv(cell);
     let diagnostic = match recv_result {
         Ok(s) => panic!(
@@ -470,25 +407,23 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
         Err(PeerRecvError::Disconnected) => panic!(
             "child died on division-by-zero but crash reason was NOT delivered through \
              the Err arm — got Disconnected instead of Crashed(reason); \
-             check that err_tx.send() ran before _exit in the child runtime-error arm"
+             check that emit_structured_exit runs before _exit in the forms-server child panic arm"
         ),
     };
 
     assert!(
         diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer child must surface a structured ProcessPanics envelope \
+        "dead :process peer forms-server child must surface a structured ProcessPanics envelope \
          through the Err arm (bundle.recv()) for runtime errors; reason was {:?}",
         diagnostic
     );
     assert!(
         diagnostic.contains("DivisionByZero"),
-        "the reason must name the cause (#wat.kernel/DivisionByZero, the structured \
-         EDN tag — the runtime-error arm emits the serialized RuntimeError, not Display text); \
-         reason was {:?}",
+        "the reason must name the cause (#wat.kernel/DivisionByZero — the structured \
+         EDN tag from the forms-server panic); reason was {:?}",
         diagnostic
     );
 
-    // mora — reap the child on the WIRE.
     reap_child_on_wire(cell);
     drop(peer_val);
 }

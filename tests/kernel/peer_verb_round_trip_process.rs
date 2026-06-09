@@ -25,7 +25,9 @@ use wat::runtime::{Environment, Value};
 
 /// Process-tier send'/recv'/close' round-trip via the WAT surface.
 ///
-/// spawn-program' :process echo → send' 42 → recv' → close' → assert 42.
+/// Arc 214 β: spawn-program' :process now takes a forms-server program.
+/// The server reads one i64 and writes n+1 (the proven arc112 echo+1 shape).
+/// Parent sends 41, server returns 42.
 ///
 /// `#[ignore]` — process-tier probe; run under setsid + timeout with --test-threads=1.
 #[test]
@@ -34,9 +36,13 @@ fn process_peer_verb_round_trip() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let [peer (:wat::kernel::spawn-program' :process {}
-                                   (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))
-                            _ (:wat::kernel::send' peer 42)
-                            got (:wat::kernel::recv' peer)
+                                   (:wat::core::forms
+                                     (:wat::core::defn :user::main [] -> :wat::core::nil
+                                       (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                                                         _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
+                                         nil))))
+                            _   (:wat::kernel::send' peer 41)
+                            got (:wat::kernel::recv' peer -> :wat::core::i64)
                             exit-code (:wat::kernel::close' peer)]
             got))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -54,7 +60,7 @@ fn process_peer_verb_round_trip() {
         Value::i64(n) => assert_eq!(
             n,
             42,
-            "process-tier echo peer must return 42; got {}",
+            "process-tier forms-server echo+1 must return 42 for input 41; got {}",
             n
         ),
         other => panic!("expected i64(42); got {:?}", other),

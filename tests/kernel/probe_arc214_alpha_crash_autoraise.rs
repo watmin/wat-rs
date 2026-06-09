@@ -47,16 +47,20 @@ use wat::runtime::Environment;
 #[test]
 #[ignore = "process-tier FM-2-bis probe (arc 214 1b-ii-α): run via setsid timeout 180 cargo test --release --test kernel probe_arc214_alpha_crash_autoraise -- --ignored --test-threads=1"]
 fn alpha_recv_prime_autoraises_child_crash_reason() {
-    // A boom fn: 100 / x. Type-checks (i64 -> i64); x = 0 is a runtime
-    // DivisionByZero. The child decodes "0", applies the fn, hits the runtime
-    // error, emits the structured `#wat.kernel/ProcessPanics` envelope on its
-    // fd 2 (the Err channel), and `_exit(1)`. The parent's `recv'` must surface
-    // THAT reason — through the io_uring Err arm — not a generic disconnect.
+    // Arc 214 β migration: the child is now a forms-server (not a fn apply-loop).
+    // The server reads one i64 via readln, then computes (100 / n).
+    // Sending n=0 triggers DivisionByZero in the child's :user::main at runtime:
+    // the panic propagates up through invoke_user_main → catch_unwind →
+    // finish_forked_child → emit_structured_exit → fd 2 (the Err channel) →
+    // parent's err_rx → recv' raises the crash reason (which names DivisionByZero).
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let [peer (:wat::kernel::spawn-program' :process {}
-                                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                                     (:wat::core::i64::/ 100 x)))
+                                   (:wat::core::forms
+                                     (:wat::core::defn :user::main [] -> :wat::core::nil
+                                       (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                                                         _ (:wat::kernel::println (:wat::core::i64::/ 100 n))]
+                                         nil))))
                             _ (:wat::kernel::send' peer 0)
                             got (:wat::kernel::recv' peer)]
             got))
