@@ -844,10 +844,10 @@ fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector,
-    // and StructPattern uniformly. Pre-arc-212 this walker had List +
-    // Vector arms but no StructPattern arm — setters buried inside
-    // StructPattern slipped past load-time refusal. children() returns
-    // &[] for leaf nodes (no-op).
+    // Map, and Set uniformly. Pre-arc-212 this walker had List + Vector
+    // arms but missed bracketed shapes — setters buried inside them
+    // slipped past load-time refusal. children() returns &[] for leaf
+    // nodes (no-op).
     for child in form.children().iter() {
         scan_for_setter(child, path)?;
     }

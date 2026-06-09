@@ -242,8 +242,7 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)
         | WatAST::Keyword(_, _)
-        | WatAST::Symbol(_, _)
-        | WatAST::StructPattern(_, _) => Ok(()),
+        | WatAST::Symbol(_, _) => Ok(()),
     }
 }
 

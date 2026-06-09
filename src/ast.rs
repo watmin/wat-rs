@@ -25,6 +25,28 @@ use std::borrow::Cow;
 use crate::scope::Identifier;
 use crate::span::Span;
 
+/// Arc 257 slice 2 — discriminant for `MapDestructure`.
+///
+/// `Keys` → `{:keys [x y z]}` (keys-destructure; binding_name == field_name).
+/// `Hash` → `{var :field var2 :field2 ...}` (hash-destructure; var ← field).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MapDestructureKind {
+    Keys,
+    Hash,
+}
+
+/// Arc 257 slice 2 — result of `WatAST::classify_map_destructure`.
+///
+/// `bindings` is a flat list of `(binding_identifier, field_name_bare, binding_span)`:
+/// - For `Keys`: `binding_identifier.as_str() == field_name_bare` (same name).
+/// - For `Hash`: `binding_identifier` is the user var; `field_name_bare` is the
+///   keyword stripped of its leading `:` (e.g. `:magnitude` → `"magnitude"`).
+#[derive(Debug, Clone)]
+pub struct MapDestructure {
+    pub kind: MapDestructureKind,
+    pub bindings: Vec<(Identifier, String, Span)>,
+}
+
 /// The parsed source tree. One variant per terminal kind plus a `List`
 /// variant for any parenthesized form.
 ///
@@ -95,20 +117,6 @@ pub enum WatAST {
     /// shape. Each child is a bare `Symbol` that is BOTH the
     /// field-name (looked up against the struct type of the
     /// adjacent expression) AND the local binding-name in the
-    /// enclosing let scope.
-    ///
-    /// Arc 169 slice 1 (additive substrate). Admitted only in
-    /// `:wat::core::let` binding-position alongside a struct-typed
-    /// expression; appearing anywhere else errors at parse / check
-    /// time. The 12-word semantic rule: *bind the field's value to
-    /// the field's name in this scope*.
-    ///
-    /// Empty `{}` and non-Symbol contents are rejected at PARSE
-    /// time. Field-name validation against a registered struct's
-    /// fields is the consumer's job at check / runtime — the
-    /// parser does not consult any type registry.
-    StructPattern(Vec<WatAST>, Span),
-
     /// Map literal `{k0 v0 k1 v1 ...}` — a first-class key/value
     /// collection node. Pairs are stored as `(key, value)` tuples so
     /// odd arity is unrepresentable by construction.
@@ -145,7 +153,6 @@ impl WatAST {
             | WatAST::Symbol(_, s)
             | WatAST::List(_, s)
             | WatAST::Vector(_, s)
-            | WatAST::StructPattern(_, s)
             | WatAST::Map(_, s)
             | WatAST::Set(_, s) => s,
         }
@@ -185,11 +192,6 @@ impl WatAST {
     /// runtime-constructed bracketed forms.
     pub fn vector(items: Vec<WatAST>) -> Self {
         WatAST::Vector(items, Span::unknown())
-    }
-    /// Synthetic StructPattern with [`Span::unknown`] — for tests
-    /// and runtime-constructed brace forms. Arc 169 slice 1.
-    pub fn struct_pattern(items: Vec<WatAST>) -> Self {
-        WatAST::StructPattern(items, Span::unknown())
     }
     /// Synthetic Map literal with [`Span::unknown`] — for tests
     /// and runtime-constructed map forms. Arc 257 slice 1.
@@ -279,6 +281,71 @@ impl WatAST {
         }
     }
 
+    /// Arc 257 slice 2 — classify a Map node in binder/pattern position.
+    ///
+    /// Returns `Some(MapDestructure)` when `pairs` encodes a valid destructure:
+    ///
+    /// - **keys-destructure**: exactly one pair `(Keyword(":keys"), Vector([Symbol, ...]))`.
+    ///   Each symbol in the vector binds the same-named field
+    ///   (binding_name == field_name). Field-name normalization: bare symbol
+    ///   name (no leading `:`).
+    ///
+    /// - **hash-destructure**: every pair is `(Symbol(var), Keyword(":field"))`.
+    ///   `var` binds field `:field`; field_name = keyword stripped of leading `:`.
+    ///
+    /// Returns `None` for anything else (value-position map literal, malformed
+    /// binder, empty map). The caller is responsible for raising an appropriate
+    /// error when `None` is returned in a binder context.
+    ///
+    /// PARTITION — CLAUSE vs INTRINSIC: this is a structural predicate on a
+    /// concrete slice of pairs (monomorphic args, no type-var flow). Lives at
+    /// the substrate layer so check, runtime, AND closure_extract share ONE
+    /// authoritative home.
+    pub fn classify_map_destructure(pairs: &[(WatAST, WatAST)]) -> Option<MapDestructure> {
+        if pairs.is_empty() {
+            return None;
+        }
+        // Keys-destructure: exactly one pair (Keyword(":keys"), Vector([Symbol, ...]))
+        if pairs.len() == 1 {
+            if let (WatAST::Keyword(k, _), WatAST::Vector(syms, sym_span)) = &pairs[0] {
+                if k == ":keys" {
+                    if syms.is_empty() {
+                        return None; // empty :keys vector → not a destructure
+                    }
+                    let mut bindings = Vec::with_capacity(syms.len());
+                    for sym in syms {
+                        if let WatAST::Symbol(ident, sp) = sym {
+                            let name = ident.as_str().to_owned();
+                            bindings.push((ident.clone(), name.clone(), sp.clone()));
+                        } else {
+                            return None; // non-Symbol inside :keys vector
+                        }
+                    }
+                    let _ = sym_span; // suppress unused-var
+                    return Some(MapDestructure {
+                        kind: MapDestructureKind::Keys,
+                        bindings,
+                    });
+                }
+            }
+        }
+        // Hash-destructure: every pair is (Symbol(var), Keyword(":field"))
+        let mut bindings = Vec::with_capacity(pairs.len());
+        for (k, v) in pairs {
+            match (k, v) {
+                (WatAST::Symbol(ident, sp), WatAST::Keyword(field_kw, _)) => {
+                    let field_name = field_kw.trim_start_matches(':').to_string();
+                    bindings.push((ident.clone(), field_name, sp.clone()));
+                }
+                _ => return None, // not a hash-destructure pair
+            }
+        }
+        Some(MapDestructure {
+            kind: MapDestructureKind::Hash,
+            bindings,
+        })
+    }
+
     /// The children of this AST node. Compound shapes return their
     /// `items`; leaves return an empty slice.
     ///
@@ -309,8 +376,8 @@ impl WatAST {
     /// **The bug class is structurally eliminated** — failure
     /// engineering at the walker layer.
     /// Arc 257 slice 1 — returns `Cow::Borrowed` for flat-children variants
-    /// (List, Vector, StructPattern, Set) and `Cow::Owned` for `Map` (pairs
-    /// flattened to `[k0, v0, k1, v1, …]`). Leaf nodes return `Cow::Borrowed(&[])`.
+    /// (List, Vector, Set) and `Cow::Owned` for `Map` (pairs flattened to
+    /// `[k0, v0, k1, v1, …]`). Leaf nodes return `Cow::Borrowed(&[])`.
     ///
     /// **Callers must use `.iter()` on the returned `Cow` to iterate**, e.g.:
     /// `for child in node.children().iter() { … }`.
@@ -322,7 +389,6 @@ impl WatAST {
         match self {
             WatAST::List(items, _)
             | WatAST::Vector(items, _)
-            | WatAST::StructPattern(items, _)
             | WatAST::Set(items, _) => Cow::Borrowed(items.as_slice()),
             WatAST::Map(pairs, _) => {
                 let mut flat: Vec<WatAST> = Vec::with_capacity(pairs.len() * 2);
@@ -338,7 +404,7 @@ impl WatAST {
 
     /// Canonical bare-word name for this AST variant — "int", "float",
     /// "bool", "string", "keyword", "symbol", "list", "vector",
-    /// "struct-pattern". Used in type-error messages across check.rs,
+    /// "map", "set". Used in type-error messages across check.rs,
     /// types.rs, and runtime.rs; one authoritative site so all paths
     /// emit the same label for the same node kind.
     pub fn variant_name(&self) -> &'static str {
@@ -352,7 +418,6 @@ impl WatAST {
             WatAST::Symbol(_, _) => "symbol",
             WatAST::List(_, _) => "list",
             WatAST::Vector(_, _) => "vector",
-            WatAST::StructPattern(_, _) => "struct-pattern",
             WatAST::Map(_, _) => "map",
             WatAST::Set(_, _) => "set",
         }
@@ -401,7 +466,6 @@ impl std::hash::Hash for WatAST {
             WatAST::Symbol(ident, _) => ident.hash(state),
             WatAST::List(items, _) => items.hash(state),
             WatAST::Vector(items, _) => items.hash(state),
-            WatAST::StructPattern(items, _) => items.hash(state),
             WatAST::Map(pairs, _) => pairs.hash(state),
             WatAST::Set(items, _) => items.hash(state),
         }

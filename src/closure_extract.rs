@@ -665,18 +665,7 @@ fn walk_free_symbols(
             Ok(())
         }
 
-        WatAST::StructPattern(items, _span) => {
-            // Field-name bare Symbols inside `{...}` are bindings, not
-            // references. They're accumulated by the surrounding `let`
-            // form's binder pass; we don't recurse into them here.
-            // (But arc 169's StructPattern only legally appears as a
-            // let binder, so this branch is defensive.)
-            for item in items {
-                walk_free_symbols(item, locals, state)?;
-            }
-            Ok(())
-        }
-        // Arc 257 slice 1 — Map/Set literals: recurse into all k/v and elements.
+        // Arc 257.2 — Map/Set literals: recurse into all k/v and elements.
         WatAST::Map(pairs, _) => {
             for (k, v) in pairs {
                 walk_free_symbols(k, locals, state)?;
@@ -734,12 +723,19 @@ fn walk_let_form(
                     }
                 }
             }
-            WatAST::StructPattern(inner, _) => {
-                for it in inner {
-                    if let WatAST::Symbol(ident, _) = it {
+            // Arc 257.2 — Map binder: classify and extract binding names.
+            // Binder symbols (inside :keys [..] or hash-destructure vars)
+            // are BINDINGS, not free references — add them to locals BEFORE
+            // walking the body. The binder Map itself is NOT walked as a
+            // value expression (its symbols are binding positions).
+            WatAST::Map(pairs, _) => {
+                if let Some(md) = WatAST::classify_map_destructure(pairs) {
+                    for (ident, _, _) in &md.bindings {
                         current_locals.insert(ident.as_str().to_owned());
                     }
                 }
+                // If not a destructure (value-position map in binder
+                // slot — malformed), fall through with no new locals.
             }
             _ => {}
         }
@@ -1052,19 +1048,10 @@ fn collect_pattern_bindings(
             }
             Ok(())
         }
-        // StructPattern at pattern position — let-binder territory
-        // today, not match-arm; defensive recurse so any name surfaces.
-        WatAST::StructPattern(items, _) => {
-            for it in items {
-                if let WatAST::Symbol(ident, _) = it {
-                    let n = ident.as_str();
-                    if n != "_" {
-                        locals.insert(n.to_string());
-                    }
-                }
-            }
-            Ok(())
-        }
+        // Arc 257.2 — Map at pattern position: classify and extract binding names.
+        // collect_pattern_bindings is called for match-arm patterns; a Map at
+        // pattern position may be a hash-destructure. Extract binding names so
+        // the closure walker correctly shadows them.
         // Arc 257 slice 1 — Map/Set at pattern position: recurse defensively.
         WatAST::Map(pairs, _) => {
             for (k, v) in pairs {
@@ -2119,12 +2106,11 @@ fn rewrite_with_scope(
             WatAST::Vector(new_items, span.clone())
         }
 
-        WatAST::StructPattern(items, span) => {
-            // Field-name positions stay verbatim (they are bindings).
-            WatAST::StructPattern(items.clone(), span.clone())
-        }
-        // Arc 257 slice 1 — Map/Set literals: rewrite children (they may contain
+        // Arc 257.2 — Map/Set literals: rewrite children (they may contain
         // free symbols). Map keys/values and Set elements are value expressions.
+        // NOTE: binder-position Maps (in rewrite_let) are copied verbatim by
+        // rewrite_let itself (out_inner.push(binder.clone())); this arm only
+        // fires for value-position Maps.
         WatAST::Map(pairs, span) => {
             let new_pairs: Vec<(WatAST, WatAST)> = pairs
                 .iter()
@@ -2181,9 +2167,14 @@ fn rewrite_let(
                             }
                         }
                     }
-                    WatAST::StructPattern(bv, _) => {
-                        for it in bv {
-                            if let WatAST::Symbol(ident, _) = it {
+                    // Arc 257.2 — Map binder: classify and extract binding
+                    // names. Binder symbols must be added to current_locals
+                    // BEFORE the body is rewritten so they are treated as
+                    // local (not free) refs. The binder Map is copied verbatim
+                    // (out_inner.push(binder.clone()) below) — never substituted.
+                    WatAST::Map(pairs, _) => {
+                        if let Some(md) = WatAST::classify_map_destructure(pairs) {
+                            for (ident, _, _) in &md.bindings {
                                 current_locals.insert(ident.as_str().to_owned());
                             }
                         }

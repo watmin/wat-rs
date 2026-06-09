@@ -357,8 +357,8 @@ fn check_form(
             }
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Call-head resolution fires on List forms;
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Call-head resolution fires on List forms;
     // the generic recursion ensures call forms nested inside bracketed
     // shapes (e.g., let-binding vector RHSes) are still resolved.
     // children() returns &[] for leaf nodes (no-op).
@@ -396,8 +396,8 @@ fn check_quasiquote_template(
             // looking for unquote/unquote-splicing escapes deeper in the tree.
         }
     }
-    // Arc 212 — generic recursion via children() covers List, Vector, and
-    // StructPattern uniformly. Walkers that only recurse into List silently
+    // Arc 212 — generic recursion via children() covers List, Vector, Map,
+    // and Set uniformly. Walkers that only recurse into List silently
     // miss unquote escapes inside bracketed forms (e.g. let-binding vectors).
     // children() returns &[] for leaf nodes so this is a no-op for atoms.
     for child in node.children().iter() {

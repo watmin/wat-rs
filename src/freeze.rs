@@ -1324,10 +1324,10 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
         }
     }
     // Arc 212 — generic recursion via children() covers List, Vector,
-    // and StructPattern uniformly. Pre-arc-212 this walker silently
-    // accepted mutation forms buried inside Vector (let-binding-vector
-    // RHSes) and StructPattern bracketed shapes — they slipped past
-    // freeze-time refusal. children() returns &[] for leaf nodes (no-op).
+    // Map, and Set uniformly. Pre-arc-212 this walker silently accepted
+    // mutation forms buried inside bracketed shapes (let-binding vectors,
+    // map/set literals) — they slipped past freeze-time refusal.
+    // children() returns &[] for leaf nodes (no-op).
     for child in ast.children().iter() {
         refuse_mutation_forms(child)?;
     }

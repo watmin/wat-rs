@@ -1,33 +1,21 @@
 //! Arc 214 P2 — `{...}` map literal in expression position.
 //!
-//! Verifies that the content-shape brace dispatch added in P2 correctly:
-//! - Routes empty `{}` to an empty `HashMap<keyword, Infer>`
-//! - Routes keyword-headed `{:k v ...}` to a desugared HashMap verb-call
-//! - Preserves arc 169 bare-symbol struct-destructure path
-//! - Rejects malformed shapes at parse time with `MalformedBraceLiteral`
-//!
-//! Arc 215 stone 1 amendment — Probe 5's LIMITATION is resolved.
-//! The `{...}` desugar no longer uses `:wat::holon::HolonAST` + Atom
-//! auto-wrap; it uses `:wat::type::Infer` instead, and values pass
-//! through without wrapping. `{:outer {:inner 42}}` now type-checks
-//! AND executes correctly at runtime.
+//! Arc 257.2 amendment — ALL `{…}` now parse to `WatAST::Map`. The old
+//! content-shape BraceKind dispatch (Symbol-head → StructPattern) is deleted.
+//! Binder-position interpretation is check/runtime's job via
+//! `classify_map_destructure`.
 //!
 //! ## The 9 probes
 //!
-//! 1. Empty `{}` → empty HashMap (length 0); arc 169 degeneracy retired
-//! 2. Single pair `{:foo 42}` → length 1, contains :foo; proves inferred V
-//! 3. Multi pair `{:a 1 :b 2 :c 3}` → length 3, contains :b; alternation proven
-//! 4. Nested in expression `(:wat::core::length {:a 1 :b 2})` → 2; expression composability
-//! 5. Map-literal-of-map-literal `{:outer {:inner 42}}` — RESOLVED by arc 215
-//!    stone 1: V inferred as HashMap<keyword,i64>; no Atom wrap; succeeds at runtime.
-//! 6. Non-keyword key `{42 :v}` → `MalformedBraceLiteral` at parse
+//! 1. Empty `{}` → empty HashMap (length 0)
+//! 2. Single pair `{:foo 42}` → length 1, contains :foo
+//! 3. Multi pair `{:a 1 :b 2 :c 3}` → length 3, contains :b
+//! 4. Nested in expression `(:wat::core::length {:a 1 :b 2})` → 2
+//! 5. Map-literal-of-map-literal `{:outer {:inner 42}}` → length 1
+//! 6. Non-keyword key `{42 :v}` accepted (arc 215 stone 2)
 //! 7. Odd count `{:foo}` → `MalformedBraceLiteral` at parse
-//! 8. Bare symbols still parse as struct pattern in let-binding position
-//! 9. Keyword in binding position `(:wat::core::let [{:foo bar} ...] ...)` →
-//!    LIMITATION: rejected at CHECK time with MalformedForm (not parser time),
-//!    because `{:foo bar}` parses to a List (desugared HashMap call), and
-//!    the let type-checker emits a diagnostic for non-binder shapes (arc 214 P2
-//!    fix to process_let_binding in check.rs).
+//! 8. Arc 257.2 — old `{outcome grace-residue}` form now errors (migrate to `{:keys […]}`)
+//! 9. Keyword in binding position `{:foo bar}` rejected at CHECK time
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
@@ -229,12 +217,16 @@ fn probe_7_odd_count_rejected_at_parse() {
     );
 }
 
-// ─── Probe 8: Arc 169 struct-pattern preserved ───────────────────────────────
+// ─── Probe 8: Arc 257.2 — old bare-symbol struct-pattern form rejected ──────
 
-/// `{outcome residue}` in let-binding position still parses as StructPattern
-/// and binds struct fields. Arc 169 path preserved by P2 dispatch.
+/// `{outcome grace-residue}` in let-binding position is no longer a valid
+/// struct-destructure form. Arc 257.2 deleted `WatAST::StructPattern`; ALL
+/// `{…}` now parse to `WatAST::Map`. A map with two Symbol values (no `:keys`,
+/// no Symbol→Keyword pairs) is not a valid destructure; the binder dispatch
+/// surfaces a clear "malformed binder" error guiding migration to
+/// `{:keys [outcome grace-residue]}`.
 #[test]
-fn probe_8_struct_pattern_preserved() {
+fn probe_8_old_struct_pattern_now_errors() {
     let src = r#"
         (:wat::core::defstruct :test214::PaperResult
           [outcome       <- :wat::core::String
@@ -246,26 +238,27 @@ fn probe_8_struct_pattern_preserved() {
                       outcome))
     "#;
     let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed — arc 169 struct destructure still works");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
-        Value::String(s) => assert_eq!(s.as_str(), "kept", "struct destructure must bind outcome field"),
-        other => panic!("expected String; got {:?}", other),
+    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+        Ok(_) => panic!(
+            "arc 257.2: old bare-symbol brace-form must now be rejected; got Ok (migrate to {{:keys [outcome grace-residue]}})"
+        ),
+        Err(e) => {
+            let err = format!("{}\n---\n{:?}", e, e);
+            assert!(
+                err.to_lowercase().contains("malformed") || err.to_lowercase().contains("binder") || err.to_lowercase().contains("keys"),
+                "error must explain the rejection; migrate to {{:keys [outcome grace-residue]}}; got: {}",
+                err
+            );
+        }
     }
 }
 
 // ─── Probe 9: Keyword in binding position ────────────────────────────────────
 
-/// `(:wat::core::let [{:foo bar} val] ...)` — `{:foo bar}` parses as a map
-/// literal (keyword head → keyword-headed dispatch). The resulting List form
-/// is not a legal let binder (must be Symbol/Vector/StructPattern).
-///
-/// LIMITATION: rejection happens at CHECK time (type-checker's
-/// process_let_binding emits MalformedForm for List binders — arc 214 P2
-/// fix in check.rs), NOT at parser time (the parser successfully produces a
-/// well-formed List). The startup pipeline returns a Check error.
+/// `(:wat::core::let [{:foo bar} val] ...)` — `{:foo bar}` parses as a Map
+/// with pair `(:foo, bar)` (keyword key, symbol value). `classify_map_destructure`
+/// returns None (not `:keys`-destructure, not hash-destructure). The binder
+/// dispatch emits MalformedForm at CHECK time.
 #[test]
 fn probe_9_keyword_in_binding_position_rejected() {
     let src = r#"

@@ -121,11 +121,6 @@ const TAG_PROGRAM: u8 = 0x17;
 /// so a `[a b]` and `(a b)` hash to different bytes (preserves the
 /// structural distinction the surface syntax expresses).
 const TAG_VECTOR: u8 = 0x18;
-/// Arc 169 slice 1 — struct-pattern AST node tag, distinct from
-/// `TAG_VECTOR` and `TAG_LIST` so `{a b}`, `[a b]`, and `(a b)` all
-/// hash to different bytes (each surface form is structurally
-/// distinct in canonical-EDN).
-const TAG_STRUCT_PATTERN: u8 = 0x19;
 /// Arc 244 — nil literal tag. Distinct from every other tag so
 /// `NilLit` does not hash-collide with e.g. `BoolLit(false)`.
 const TAG_NIL: u8 = 0x1a;
@@ -226,15 +221,6 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>, renumber: &mut ScopeRenu
         // list-vs-vector structural distinction in canonical bytes.
         WatAST::Vector(items, _) => {
             out.push(TAG_VECTOR);
-            out.extend_from_slice(&(items.len() as u32).to_le_bytes());
-            for child in items {
-                write_canonical_wat(child, out, renumber);
-            }
-        }
-        // Arc 169 slice 1 — distinct tag preserves the
-        // struct-pattern-vs-vector-vs-list structural distinction.
-        WatAST::StructPattern(items, _) => {
-            out.push(TAG_STRUCT_PATTERN);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
                 write_canonical_wat(child, out, renumber);

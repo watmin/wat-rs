@@ -3058,19 +3058,6 @@ pub(crate) fn eval_inner(
                 Provenance::Literal { span: span.clone() },
             ))
         }
-        // Arc 169 slice 1 — struct-pattern brace-forms are
-        // consumed only in `:wat::core::let` binding-position
-        // alongside a struct-typed expression. Reaching `eval` is a
-        // value-position use; surface as MalformedForm.
-        WatAST::StructPattern(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: "<struct-pattern>".into(),
-            reason: "struct-destructure brace-form `{...}` is only legal \
-                     at let binding-position alongside a struct-typed \
-                     expression (e.g. `(:wat::core::let [{outcome residue} \
-                     p] body...)`); appearing at value position is not \
-                     supported"
-                .into()
-        } }.into()),
         // Arc 257 slice 1 — first-class map literal `{k0 v0 k1 v1 …}`.
         // Reuses `eval_hashmap_ctor`'s inner loop (guard-and-insert) but
         // skips the `:K :V` type-keyword sentinel check — a literal carries
@@ -5714,11 +5701,11 @@ fn destructure_tuple(
 ///   tuple-element type from that declaration. Structural destructure
 ///   — types flow from the RHS's declared shape through the pattern;
 ///   no inference from literals.
-/// - **StructDestructure** (arc 169) — binder is a
-///   `WatAST::StructPattern` of bare symbols (each is BOTH a
-///   field-name AND the local binding-name). RHS must be a struct-
-///   typed expression; each field name resolves against the struct
-///   type's registered fields.
+/// - **StructDestructure** (arc 169 / arc 257.2) — binder is a
+///   `WatAST::Map` with `:keys`-destructure form (`{:keys [f1 f2 ...]}`);
+///   each name is BOTH the field-name AND the local binding-name.
+///   RHS must be a struct-typed expression; each field name resolves
+///   against the struct type's registered fields.
 /// Arc 233 Stone 233.2.e: added per-name spans to all three variants so
 /// bind_let_binding can store binding_span in BoundEntry and env.lookup
 /// can construct SymbolBound provenance at lookup time.
@@ -5762,8 +5749,8 @@ enum LetBinding<'a> {
 /// - `WatAST::Symbol` → `LetBinding::Single { name, rhs }` (canonical)
 /// - `WatAST::Vector` of bare symbols → `LetBinding::Destructure`
 ///   (tuple destructure; arc 168)
-/// - `WatAST::StructPattern` of bare symbols →
-///   `LetBinding::StructDestructure` (struct destructure; arc 169)
+/// - `WatAST::Map` with `:keys`-destructure →
+///   `LetBinding::StructDestructure` (struct destructure; arc 169 / 257.2)
 fn parse_let_binding<'a>(
     binder: &'a WatAST,
     rhs: &'a WatAST,
@@ -5801,98 +5788,54 @@ fn parse_let_binding<'a>(
             }
             Ok(LetBinding::Destructure { names, rhs })
         }
-        WatAST::StructPattern(inner, _) => {
-            // Arc 234 Stone 234.4 — detect hash-destructure vs arc-169
-            // struct-destructure by inspecting items[1].
-            //   items[1] is Keyword → hash-destructure {var :field ...}
-            //   items[1] is Symbol  → arc-169 struct-destructure {f1 f2 ...}
-            //   single item         → arc-169 (degenerate single-field form)
-            let is_hash_destructure = matches!(inner.get(1), Some(WatAST::Keyword(_, _)));
-
-            if is_hash_destructure {
-                // Arc 234 Stone 234.4 — hash-destructure.
-                // Parser guarantees alternating Symbol/Keyword + even count.
-                // Defense-in-depth: re-validate here for synthesized nodes.
-                if inner.len() % 2 != 0 || inner.is_empty() {
-                    return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::let".into(),
-                        reason: format!(
-                            "hash-destructure brace-form must have an even number of items (alternating var :field pairs); got {}",
-                            inner.len()
-                        )
-                    } }.into());
-                }
-                let mut bindings = Vec::with_capacity(inner.len() / 2);
-                let mut i = 0;
-                while i + 1 < inner.len() {
-                    let (var_name, var_span) = match &inner[i] {
-                        WatAST::Symbol(ident, sp) => (crate::scope::env_key(ident).into_owned(), sp.clone()),
-                        other => {
-                            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                                head: ":wat::core::let".into(),
-                                reason: format!(
-                                    "hash-destructure: expected bare symbol at position {}; got {}",
-                                    i,
-                                    other.variant_name()
-                                )
-                            } }.into());
-                        }
-                    };
-                    let bare_field = match &inner[i + 1] {
-                        WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
-                        other => {
-                            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                                head: ":wat::core::let".into(),
-                                reason: format!(
-                                    "hash-destructure: expected keyword (field name) at position {}; got {}",
-                                    i + 1,
-                                    other.variant_name()
-                                )
-                            } }.into());
-                        }
-                    };
-                    bindings.push((var_name, bare_field, var_span));
-                    i += 2;
-                }
-                return Ok(LetBinding::HashDestructure { bindings, rhs });
-            }
-
-            // Arc 169 — struct-destructure binder: parser guarantees every
-            // element is a bare Symbol and the form is non-empty.
-            // Defense-in-depth: re-verify the shape so a future
-            // caller that synthesizes a StructPattern with wrong
-            // contents surfaces a clear diagnostic instead of
-            // panicking deep in the runtime.
-            // Arc 233 Stone 233.2.e: capture per-field-name spans.
-            let mut field_names = Vec::with_capacity(inner.len());
-            for item in inner {
-                match item {
-                    WatAST::Symbol(ident, name_span) => {
-                        field_names.push((crate::scope::env_key(ident).into_owned(), name_span.clone()))
-                    }
-                    other => {
-                        return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+        // Arc 257.2 — Map binder: keys-destructure ({:keys [x y z]}) or
+        // hash-destructure ({var :field ...}). classify_map_destructure is
+        // the ONE authoritative helper (ast.rs) for both forms.
+        WatAST::Map(pairs, _) => {
+            let md = WatAST::classify_map_destructure(pairs).ok_or_else(|| {
+                RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason: "map in binder position must be a keys-destructure \
+                        ({:keys [field1 field2 ...]}) or a hash-destructure \
+                        ({var :field  var2 :field2 ...}); got neither".into()
+                } }
+            })?;
+            match md.kind {
+                crate::ast::MapDestructureKind::Keys => {
+                    // Keys-destructure: same semantics as the old StructDestructure —
+                    // each binding name IS the field name.
+                    let field_names: Vec<(String, Span)> = md.bindings
+                        .into_iter()
+                        .map(|(ident, _field, sp)| {
+                            (crate::scope::env_key(&ident).into_owned(), sp)
+                        })
+                        .collect();
+                    if field_names.is_empty() {
+                        return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::let".into(),
-                            reason: format!(
-                                "struct-destructure brace-form must contain only bare symbols; got {}",
-                                other.variant_name()
-                            )
+                            reason: "keys-destructure {:keys [...]} cannot have an empty vector".into()
                         } }.into());
                     }
+                    Ok(LetBinding::StructDestructure { field_names, rhs })
+                }
+                crate::ast::MapDestructureKind::Hash => {
+                    // Hash-destructure: (var_name, bare_field_name, var_span).
+                    let bindings: Vec<(String, String, Span)> = md.bindings
+                        .into_iter()
+                        .map(|(ident, field, sp)| {
+                            (crate::scope::env_key(&ident).into_owned(), field, sp)
+                        })
+                        .collect();
+                    Ok(LetBinding::HashDestructure { bindings, rhs })
                 }
             }
-            if field_names.is_empty() {
-                return Err(RuntimeError { span: binder.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::let".into(),
-                    reason: "struct-destructure brace-form cannot be empty — at least one field name is required".into()
-                } }.into());
-            }
-            Ok(LetBinding::StructDestructure { field_names, rhs })
         }
         other => Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::let".into(),
             reason: format!(
-                "let binder must be a Symbol (single), a Vector of symbols (tuple destructure), or a StructPattern of symbols (struct destructure); got {}",
+                "let binder must be a Symbol (single), a Vector of symbols (tuple destructure), \
+                 a Map keys-destructure ({{:keys [f1 f2 ...]}}), or a Map hash-destructure \
+                 ({{var :field ...}}); got {}",
                 other.variant_name()
             )
         } }.into()),
@@ -8623,9 +8566,8 @@ fn walk_quasiquote(
             }
             Ok(WatAST::Set(walked, span.clone()))
         }
-        // Leaves are preserved verbatim. (StructPattern admits only
-        // bare Symbols at parse time per `src/ast.rs:99`; cannot
-        // contain unquotes; treated as leaf.)
+        // Leaves (IntLit, FloatLit, BoolLit, StringLit, NilLit,
+        // Keyword, Symbol) are preserved verbatim — no unquotes inside.
         other => Ok(other.clone()),
     }
 }
@@ -11491,40 +11433,20 @@ fn try_match_pattern(
             head: ":wat::core::match".into(),
             reason: "vector sub-patterns are not supported in arc 167".into()
         } }.into()),
-        // Arc 167 slice 1 / Arc 169 slice 1 / Arc 234 Stone 234.4.match
-        // — StructPattern brace-forms.
-        //
-        // Hash-destructure form `{var :field ...}` (items[1] is Keyword):
-        //   Match-arm hash-destructure — receiver-polymorphic over
-        //   wat::Record / Struct / wat::core::HashMap. Reuses the same
-        //   field-access helpers as Stone 234.4 let-binding dispatch.
-        //   Returns Some(env_extended) when scrutinee is one of the three
-        //   receiver types; Ok(None) otherwise (arm falls to next arm).
-        //
-        // Arc-169 struct-destructure form `{field1 field2 ...}` (all-Symbol):
-        //   Let-binding-position only; not a match sub-pattern. Error.
-        WatAST::StructPattern(items, span) => {
-            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
-            if is_hash_destructure {
-                // Collect (var_name, bare_field_name) pairs.
-                // Parser guarantees even count + alternating Symbol/Keyword shape.
-                let mut pairs: Vec<(String, String)> = Vec::new();
-                let mut i = 0;
-                while i + 1 < items.len() {
-                    let var_name = match &items[i] {
-                        WatAST::Symbol(ident, _) => crate::scope::env_key(ident).into_owned(),
-                        _ => { i += 2; continue; }
-                    };
-                    let bare_field = match &items[i + 1] {
-                        WatAST::Keyword(k, _) => {
-                            // Strip leading colon to get bare field name.
-                            k.trim_start_matches(':').to_string()
-                        }
-                        _ => { i += 2; continue; }
-                    };
-                    pairs.push((var_name, bare_field));
-                    i += 2;
-                }
+        // Arc 257.2 — Map brace-forms in match-arm pattern position.
+        // classify_map_destructure detects hash-destructure ({var :field ...});
+        // keys-destructure ({:keys [x y z]}) is not a valid match sub-pattern
+        // (let-binding position only). Plain map literals are not match patterns.
+        WatAST::Map(map_pairs, span) => {
+            let md = WatAST::classify_map_destructure(map_pairs);
+            let is_hash = matches!(&md, Some(m) if m.kind == crate::ast::MapDestructureKind::Hash);
+            if is_hash {
+                let md = md.unwrap();
+                // Collect (var_name, bare_field_name) pairs from classifier.
+                let pairs: Vec<(String, String)> = md.bindings
+                    .into_iter()
+                    .map(|(ident, field, _)| (crate::scope::env_key(&ident).into_owned(), field))
+                    .collect();
                 // Dispatch on scrutinee receiver type.
                 match value {
                     // Stone S-C.2c — or-pattern: base and holonic both ride
@@ -11580,11 +11502,13 @@ fn try_match_pattern(
                     _ => Ok(None),
                 }
             } else {
-                // Arc-169 struct-destructure `{field1 field2 ...}` —
-                // let-binding-position only; not a match sub-pattern.
+                // Not a hash-destructure (keys-destructure or plain map literal
+                // in match-arm position): not a valid match sub-pattern.
                 Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
-                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into()
+                    reason: "map in match-arm position must be a hash-destructure \
+                        ({var :field ...}); keys-destructure and plain map literals \
+                        are not valid match sub-patterns".into()
                 } }.into())
             }
         }
@@ -11593,10 +11517,10 @@ fn try_match_pattern(
             Value::Unit => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
-        // Arc 257 slice 1 — Map/Set literals are not match sub-patterns.
-        WatAST::Map(_, span) | WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        // Set literals are not match sub-patterns.
+        WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "map/set literal is not a valid match sub-pattern".into()
+            reason: "set literal is not a valid match sub-pattern".into()
         } }.into()),
     }
 }
@@ -13770,15 +13694,6 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // a future arc that exposes vector-as-value at the
         // algebra level may re-tag these distinctly.
         WatAST::Vector(items, _) => {
-            HolonAST::bundle(items.iter().map(watast_to_holon).collect())
-        }
-        // Arc 169 slice 1 — same algebra-level lowering as Vector
-        // / List. The brace-form's surface-syntax role (struct-
-        // destructure binder) doesn't translate to algebra; if a
-        // captured wat form happens to carry a `{...}` it surfaces
-        // as a Bundle of its symbol children. Future arcs may
-        // re-tag distinctly.
-        WatAST::StructPattern(items, _) => {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
         }
         // Arc 257 slice 1 — `Map` lowers to `Bind(Atom(String("Map")), Bundle([Bind(k,v), …]))`
@@ -20962,13 +20877,6 @@ fn step_form(
         WatAST::Vector(_, vec_span) => Err(RuntimeError { span: vec_span.clone(), kind: RuntimeErrorKind::NoStepRule {
             op: "<vector literal>".into()
         } }.into()),
-        // Arc 169 slice 1 — same shape: brace-forms reaching the
-        // stepper escaped the let consumer. Surface as NoStepRule;
-        // eval will raise the canonical "struct-pattern at value
-        // position" error.
-        WatAST::StructPattern(_, sp_span) => Err(RuntimeError { span: sp_span.clone(), kind: RuntimeErrorKind::NoStepRule {
-            op: "<struct-pattern>".into()
-        } }.into()),
         // Arc 257 slice 1 — Map/Set literals reaching the stepper
         // fall through to eval via NoStepRule.
         WatAST::Map(_, map_span) => Err(RuntimeError { span: map_span.clone(), kind: RuntimeErrorKind::NoStepRule {
@@ -21133,10 +21041,6 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         // expression tree. Refuse recognition so the caller falls
         // through to step_form, which surfaces NoStepRule.
         WatAST::Vector(_, _) => None,
-        // Arc 169 slice 1 — same reasoning as Vector. Brace-forms
-        // are binding-position grammar (let struct-destructure);
-        // not a value shape.
-        WatAST::StructPattern(_, _) => None,
         // Arc 257 slice 1 — Map/Set literals are not stepper value-shapes.
         // They evaluate to HashMap/HashSet values but the stepper path
         // doesn't reduce them; fall through to eval via NoStepRule.
@@ -21879,37 +21783,33 @@ fn try_match_pattern_ast(
             WatAST::NilLit(_) => Some(Vec::new()),
             _ => None,
         }),
-        // Arc 234 Stone 234.4.match / Arc 169 slice 1 — StructPattern.
-        //
-        // Hash-destructure form `{var :field ...}` (items[1] is Keyword):
-        //   The AST-level mirror cannot evaluate hash-destructure patterns
-        //   because receiver-dispatch requires runtime Value types
-        //   (wat::Record / Struct / HashMap). At the AST level the scrutinee
-        //   is a parse tree, not a runtime value — there is no way to
-        //   inspect its runtime type here. Decision (T9): return Ok(None)
-        //   so the arm does not match at AST level (quasiquote/macro paths
-        //   fall to the next arm). This is correct: hash-destructure arms
-        //   only fire at runtime.
-        //
-        // Arc-169 struct-destructure `{field1 field2 ...}` (all-Symbol):
-        //   Let-binding-position only; not a match sub-pattern. Error.
-        WatAST::StructPattern(items, span) => {
-            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
-            if is_hash_destructure {
-                // AST-level match cannot dispatch on runtime receiver type.
-                // Arm does not match at AST level.
-                Ok(None)
-            } else {
-                Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into()
-                } }.into())
+        // Arc 257.2 — Map in AST-level match pattern.
+        // Hash-destructure form `{var :field ...}`: the AST-level mirror
+        // cannot evaluate hash-destructure patterns because receiver-dispatch
+        // requires runtime Value types. Return Ok(None) so the arm does not
+        // match at AST level (quasiquote/macro paths fall to the next arm).
+        // Keys-destructure and plain map literals are not match sub-patterns.
+        WatAST::Map(map_pairs, span) => {
+            let md = WatAST::classify_map_destructure(map_pairs);
+            match &md {
+                Some(m) if m.kind == crate::ast::MapDestructureKind::Hash => {
+                    // Hash-destructure: AST-level match cannot dispatch on runtime type.
+                    Ok(None)
+                }
+                _ => {
+                    Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: "map in match-arm position at AST level must be a hash-destructure \
+                            ({var :field ...}); keys-destructure and plain map literals are not \
+                            valid match sub-patterns".into()
+                    } }.into())
+                }
             }
         }
-        // Arc 257 slice 1 — Map/Set literals are not match sub-patterns at AST level.
-        WatAST::Map(_, span) | WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        // Set literals are not match sub-patterns at AST level.
+        WatAST::Set(_, span) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "map/set literal is not a valid match sub-pattern".into()
+            reason: "set literal is not a valid match sub-pattern".into()
         } }.into()),
     }
 }

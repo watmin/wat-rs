@@ -85,12 +85,12 @@ pub enum Token {
     LBracket,
     /// `]`
     RBracket,
-    /// `{` — opens a brace-form. Arc 169 slice 1: produces
-    /// `WatAST::StructPattern` at the parser layer; admitted only
-    /// in `:wat::core::let` binding-position alongside a struct-
-    /// typed expression. The parser produces the node uniformly;
-    /// the consumer rejects out-of-position uses with a clean
-    /// MalformedForm.
+    /// `{` — opens a brace-form. Arc 257: produces `WatAST::Map`
+    /// at the parser layer. In value position it is a map literal;
+    /// in `:wat::core::let` / match binder position it is interpreted
+    /// as a destructure (`{:keys [..]}` or `{var :field ..}`) via
+    /// `WatAST::classify_map_destructure`. Out-of-position uses are
+    /// rejected with a clean MalformedForm.
     LBrace,
     /// `}`
     RBrace,
@@ -305,8 +305,8 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
-        // Braces — arc 169 slice 1. Emit `LBrace` / `RBrace` tokens
-        // which the parser turns into `WatAST::StructPattern`.
+        // Braces — arc 257. Emit `LBrace` / `RBrace` tokens
+        // which the parser turns into `WatAST::Map`.
         //
         // Arc 215 stone 1 — `#{` two-character prefix emits `LHashBrace`
         // (set literal). Must check BEFORE plain `{` so `#{` is not

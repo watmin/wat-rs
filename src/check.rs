@@ -3477,25 +3477,6 @@ pub(crate) fn infer(
                 }
             }
         }
-        // Arc 169 slice 1 — struct-pattern brace-forms are
-        // consumed only in `:wat::core::let` binding-position
-        // alongside a struct-typed expression. Appearing at value
-        // position is a clean MalformedForm pointing the user at
-        // the legal consumption path.
-        WatAST::StructPattern(_, span) => {
-            local_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                head: "<struct-pattern>".into(),
-                reason: "struct-destructure brace-form `{...}` is only \
-                         legal at let binding-position alongside a struct-\
-                         typed expression (e.g. `(:wat::core::let \
-                         [{outcome residue} p] body...)`); appearing at \
-                         value position is not supported"
-                    .into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.1): error path already had diagnostic (Classification 3).
-            CheckResult::errs(local_errors)
-        }
         // Arc 257 slice 1 — first-class map literal `{k0 v0 k1 v1 …}`.
         // Reuses the K/V unification logic from `infer_hashmap_constructor`
         // but skips the leading type-keyword sentinel slots (a literal carries
@@ -5854,48 +5835,38 @@ fn infer_match(
 
         let mut arm_locals = locals.clone();
 
-        // Arc 234 Stone 234.4.match — hash-destructure match-arm:
-        // `{var :field var2 :field2 ...}` in pattern position.
-        // These arms are receiver-polymorphic over wat::Record /
-        // Struct / wat::core::HashMap. They bypass the shape/coverage
-        // machinery (Option/Result/Enum shape does not apply).
-        //
-        // Detection: pattern is StructPattern AND items[1] is Keyword.
-        // Per D4 (polymorphic T): each binding var receives fresh.fresh().
-        // Coverage: treat as Wildcard (sets wildcard_seen) so the
-        // exhaustiveness check is satisfied when only hash-destructure
-        // arms are present. The arm body is type-checked against
-        // declared_ty independently, mirroring other arms.
-        if let WatAST::StructPattern(items, _) = pattern {
-            let is_hash_destructure = matches!(items.get(1), Some(WatAST::Keyword(_, _)));
-            if is_hash_destructure {
-                // Bind each (Symbol, Keyword) pair → fresh type var in arm_locals.
-                let mut i = 0;
-                while i + 1 < items.len() {
-                    if let WatAST::Symbol(ident, _) = &items[i] {
+        // Arc 257.2 — hash-destructure match-arm: Map with {var :field ...} shape.
+        // Receiver-polymorphic over wat::Record / Struct / wat::core::HashMap.
+        // Bypasses shape/coverage machinery (Option/Result/Enum shape does not apply).
+        // Per D4: each binding var receives fresh.fresh(). Coverage: Wildcard.
+        if let WatAST::Map(pairs, _) = pattern {
+            let md = WatAST::classify_map_destructure(pairs);
+            if let Some(m) = &md {
+                if m.kind == crate::ast::MapDestructureKind::Hash {
+                    // Bind each (var, field) pair → fresh type var in arm_locals.
+                    for (ident, _, _) in &m.bindings {
                         arm_locals.insert(crate::scope::resolution::env_key(ident).into_owned(), fresh.fresh());
                     }
-                    i += 2;
-                }
-                // Hash-destructure arm acts as Wildcard coverage.
-                wildcard_seen = true;
-                covers_option_none = true;
-                covers_option_some = true;
-                covers_result_ok = true;
-                covers_result_err = true;
-                // Check the arm body against the declared type.
-                let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
-                if let Some(t) = arm_ty {
-                    if unify(&t, &declared_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: ":wat::core::match".into(),
-                            param: format!("arm #{} (hash-destructure)", idx + 1),
-                            expected: format_type(&apply_subst(&declared_ty, subst)),
-                            got: format_type(&apply_subst(&t, subst))
-                        } });
+                    // Hash-destructure arm acts as Wildcard coverage.
+                    wildcard_seen = true;
+                    covers_option_none = true;
+                    covers_option_some = true;
+                    covers_result_ok = true;
+                    covers_result_err = true;
+                    // Check the arm body against the declared type.
+                    let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    if let Some(t) = arm_ty {
+                        if unify(&t, &declared_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::core::match".into(),
+                                param: format!("arm #{} (hash-destructure)", idx + 1),
+                                expected: format_type(&apply_subst(&declared_ty, subst)),
+                                got: format_type(&apply_subst(&t, subst))
+                            } });
+                        }
                     }
+                    continue;
                 }
-                continue;
             }
         }
 
@@ -6226,14 +6197,16 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                             }
                         }
                     }
-                    // Arc 234 Stone 234.4.match — hash-destructure StructPattern.
-                    // These arms are open-typed (no variant constructor);
-                    // skip them here. detect_match_shape only considers
-                    // variant-constructor arms for shape determination.
-                    // If only hash-destructure/wildcard arms exist, the
-                    // function falls through to MatchShape::Open below.
-                    WatAST::StructPattern(sp_items, _)
-                        if matches!(sp_items.get(1), Some(WatAST::Keyword(_, _))) => {
+                    // Arc 257.2 — hash-destructure Map pattern.
+                    // Open-typed (no variant constructor); skip here.
+                    // detect_match_shape only considers variant-constructor
+                    // arms for shape determination. If only hash-destructure/
+                    // wildcard arms exist, falls through to MatchShape::Open.
+                    WatAST::Map(mp, _)
+                        if matches!(
+                            WatAST::classify_map_destructure(mp),
+                            Some(m) if m.kind == crate::ast::MapDestructureKind::Hash
+                        ) => {
                         // hash-destructure — skip, do not determine shape
                     }
                     _ => {}
@@ -7072,15 +7045,9 @@ fn check_subpattern(
             }
         },
         // sub-pattern position is not one of them.
-        WatAST::StructPattern(_, _) => {
-            errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "struct-pattern brace-form `{...}` is not a match sub-pattern; it is the let-binding-position struct destructure shape (arc 169)".into(),
-                remedies: vec![],
-            } });
-            None
-        }
         // Arc 257 slice 1 — Map/Set literals are not valid match sub-patterns.
+        // (Hash-destructure Maps are handled above in infer_match before
+        // pattern_coverage is called — they bypass shape/coverage machinery.)
         WatAST::Map(_, _) | WatAST::Set(_, _) => {
             errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::match".into(),
@@ -9940,16 +9907,19 @@ fn check_let_for_scope_deadlock_inferred(
                         _ => None,
                     })
                     .collect(),
-                // Struct-destructure (arc 169): items[0] is a
-                // StructPattern of Symbols. Each symbol is BOTH the
-                // field-name and the local binding-name in scope.
-                WatAST::StructPattern(parts, _) => parts
-                    .iter()
-                    .filter_map(|p| match p {
-                        WatAST::Symbol(id, _) => Some(id.as_str().to_owned()),
-                        _ => None,
-                    })
-                    .collect(),
+                // Arc 257.2 — Map binder: keys-destructure ({:keys [f1 f2 ...]})
+                // or hash-destructure ({var :field ...}). classify_map_destructure
+                // extracts (ident, field, span); binding names are the idents.
+                WatAST::Map(pairs, _) => {
+                    WatAST::classify_map_destructure(pairs)
+                        .map(|md| {
+                            md.bindings
+                                .into_iter()
+                                .map(|(ident, _, _)| ident.as_str().to_owned())
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                }
                 // Defensive: any pre-arc-168 List binder shape that
                 // reaches here. No current callers post-slice-3.
                 WatAST::List(parts, _) => parts
@@ -10571,7 +10541,6 @@ fn infer_make_channel(
                         WatAST::Symbol(_, _) => "symbol",
                         WatAST::List(_, _) => "list",
                         WatAST::Vector(_, _) => "vector",
-                        WatAST::StructPattern(_, _) => "struct-pattern",
                         WatAST::NilLit(_) => "nil",
                         WatAST::Keyword(_, _) => unreachable!(),
                         WatAST::Map(_, _) => "map",
@@ -10664,7 +10633,6 @@ fn infer_spawn_program_prime(
                             WatAST::Symbol(_, _) => "symbol",
                             WatAST::List(_, _) => "list",
                             WatAST::Vector(_, _) => "vector",
-                            WatAST::StructPattern(_, _) => "struct-pattern",
                             WatAST::NilLit(_) => "nil",
                             WatAST::Keyword(_, _) => unreachable!(),
                             WatAST::Map(_, _) => "map",
@@ -11328,170 +11296,115 @@ fn process_let_binding(
         };
     }
 
-    // Arc 169 — StructPattern binder (struct destructure):
-    // `{field1 field2 ...} rhs`. Each child is a bare Symbol that
-    // is BOTH a field-name on the struct rhs evaluates to AND a
-    // local binding-name in this let scope. The 12-word rule:
-    // *bind the field's value to the field's name in this scope*.
-    //
-    // Resolution path:
-    //   1. Infer the rhs's type. It must resolve (post-subst) to a
-    //      `:Type/Struct(StructDef)` registered in the TypeEnv. Any
-    //      other shape → TypeMismatch pointing at rhs.
-    //   2. For each field-name in the brace-form: look up the field
-    //      in the struct's `fields` declaration. Unknown field →
-    //      MalformedForm naming the field + listing the struct's
-    //      actual field names (substrate-as-teacher).
-    //   3. Push (field-name, field-type) into the local scope.
-    if let WatAST::StructPattern(inner, _span) = &kv[0] {
-        // Arc 234 Stone 234.4 — detect hash-destructure vs arc-169
-        // struct-destructure by inspecting items[1].
-        //   items[1] is Keyword → hash-destructure {var :field  var2 :field2 ...}
-        //   items[1] is Symbol  → arc-169 struct-destructure {field1 field2 ...}
-        //   items absent or len==1 → arc-169 (single-field form)
-        let is_hash_destructure = matches!(inner.get(1), Some(WatAST::Keyword(_, _)));
-
-        if is_hash_destructure {
-            // Arc 234 Stone 234.4 — hash-destructure check path.
-            //
-            // Per D4 / DESIGN: per-class TypeDef registration not shipped yet
-            // (arc 232.1 future-lift). Each binding var receives a fresh
-            // type variable (polymorphic T). This lets the body unify the
-            // binding's type from usage context (e.g., f64 from a return-type
-            // annotation, Option<V> from Option/expect). Runtime catches
-            // unknown-field errors.
-            //
-            // Collect (var_name, field_name_bare) pairs. Parser guarantees
-            // even count + alternating Symbol/Keyword shape.
-            let rhs = &kv[1];
-            // Evaluate rhs type so downstream unification has context.
-            // We don't use it for binding-type assignment (polymorphic T
-            // per D4), but inferring it catches type errors in the rhs
-            // expression itself.
-            let _ = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
-            let mut i = 0;
-            while i + 1 < inner.len() {
-                let var_name = match &inner[i] {
-                    WatAST::Symbol(ident, _) => crate::scope::resolution::env_key(ident).into_owned(),
-                    _ => { i += 2; continue; }
-                };
-                // Assign a fresh type variable for each binding.
-                // The body's usage will unify it to the concrete type.
-                let binding_ty = fresh.fresh();
-                new_bindings.insert(var_name, binding_ty);
-                i += 2;
-            }
-            return if binding_errors.is_empty() {
-                CheckResult::ok(new_bindings)
-            } else {
-                CheckResult::partial_with(new_bindings, binding_errors)
-            };
-        }
-
-        // Arc 169 — StructPattern binder (struct destructure):
-        // `{field1 field2 ...} rhs`. Each child is a bare Symbol that
-        // is BOTH a field-name on the struct rhs evaluates to AND a
-        // local binding-name in this let scope. The 12-word rule:
-        // *bind the field's value to the field's name in this scope*.
-        //
-        // Resolution path:
-        //   1. Infer the rhs's type. It must resolve (post-subst) to a
-        //      `:Type/Struct(StructDef)` registered in the TypeEnv. Any
-        //      other shape → TypeMismatch pointing at rhs.
-        //   2. For each field-name in the brace-form: look up the field
-        //      in the struct's `fields` declaration. Unknown field →
-        //      MalformedForm naming the field + listing the struct's
-        //      actual field names (substrate-as-teacher).
-        //   3. Push (field-name, field-type) into the local scope.
-        //
-        // Defense-in-depth: parser already enforced shape, but
-        // re-collect here so a synthesized StructPattern with bad
-        // contents emits a clear diagnostic instead of silently
-        // ignoring the binding.
-        let span = _span;
-        let mut field_names: Vec<String> = Vec::with_capacity(inner.len());
-        for item in inner {
-            match item {
-                WatAST::Symbol(ident, _) => field_names.push(ident.as_str().to_owned()),
-                _ => return CheckResult::ok(new_bindings),
-            }
-        }
-        if field_names.is_empty() {
-            return CheckResult::ok(new_bindings);
-        }
-        let rhs = &kv[1];
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
-        let rhs_ty = match rhs_ty {
-            Some(t) => apply_subst(&t, subst),
-            None => return CheckResult::errs(binding_errors),
-        };
-        // The rhs must be a struct type — TypeExpr::Path naming a
-        // registered StructDef. Parametric struct instances flow
-        // through Path uniformly (the struct registry is keyed on
-        // the bare name; type parameters are resolved at use site).
-        let struct_name = match &rhs_ty {
-            TypeExpr::Path(n) => n.clone(),
-            // Parametric structs: head is the struct's name.
-            TypeExpr::Parametric { head, .. } => {
-                if head.starts_with(':') {
-                    head.clone()
-                } else {
-                    format!(":{}", head)
+    // Arc 257.2 — Map binder: keys-destructure ({:keys [f1 f2 ...]}) or
+    // hash-destructure ({var :field ...}). classify_map_destructure is the
+    // ONE authoritative helper (ast.rs).
+    if let WatAST::Map(pairs, map_span) = &kv[0] {
+        let md = WatAST::classify_map_destructure(pairs);
+        if let Some(m) = md {
+            match m.kind {
+                crate::ast::MapDestructureKind::Hash => {
+                    // Hash-destructure check path (arc 234 Stone 234.4 / arc 257.2).
+                    // Per D4: each binding var receives a fresh type variable.
+                    let rhs = &kv[1];
+                    let _ = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
+                    for (ident, _, _) in &m.bindings {
+                        let var_name = crate::scope::resolution::env_key(ident).into_owned();
+                        new_bindings.insert(var_name, fresh.fresh());
+                    }
+                    return if binding_errors.is_empty() {
+                        CheckResult::ok(new_bindings)
+                    } else {
+                        CheckResult::partial_with(new_bindings, binding_errors)
+                    };
                 }
-            }
-            other => {
-                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: form.into(),
-                    param: format!("struct-destructure ({})", field_names.join(" ")),
-                    expected: "a struct type".into(),
-                    got: format_type(other)
-                } });
-                return CheckResult::errs(binding_errors);
-            }
-        };
-        let struct_def = match env.types().get(&struct_name) {
-            Some(crate::types::TypeDef::Struct(sd)) => sd.clone(),
-            _ => {
-                binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: form.into(),
-                    param: format!("struct-destructure ({})", field_names.join(" ")),
-                    expected: "a struct type".into(),
-                    got: format_type(&rhs_ty)
-                } });
-                return CheckResult::errs(binding_errors);
-            }
-        };
-        // Look up each requested field; emit MalformedForm naming
-        // the offending field + listing the struct's actual fields
-        // when a name doesn't match (substrate-as-teacher).
-        for fname in &field_names {
-            match struct_def.fields.iter().find(|(n, _)| n == fname) {
-                Some((_, fty)) => {
-                    new_bindings.insert(fname.clone(), apply_subst(fty, subst));
-                }
-                None => {
-                    let declared = struct_def
-                        .fields
+                crate::ast::MapDestructureKind::Keys => {
+                    // Keys-destructure check path (arc 169 / arc 257.2).
+                    // Same struct-field lookup as the old StructPattern binder.
+                    let span = map_span;
+                    let field_names: Vec<String> = m.bindings
                         .iter()
-                        .map(|(n, _)| n.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    binding_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
-                        head: form.into(),
-                        reason: format!(
-                            "struct-destructure: field {:?} is not declared on struct {} (declared fields: {})",
-                            fname, struct_def.name, declared
-                        ),
-                        remedies: vec![],
-                    } });
+                        .map(|(ident, _, _)| ident.as_str().to_owned())
+                        .collect();
+                    if field_names.is_empty() {
+                        return CheckResult::ok(new_bindings);
+                    }
+                    let rhs = &kv[1];
+                    let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
+                    let rhs_ty = match rhs_ty {
+                        Some(t) => apply_subst(&t, subst),
+                        None => return CheckResult::errs(binding_errors),
+                    };
+                    // The rhs must be a struct type — TypeExpr::Path naming a
+                    // registered StructDef. Parametric struct instances flow
+                    // through Path uniformly (the struct registry is keyed on
+                    // the bare name; type parameters are resolved at use site).
+                    let struct_name = match &rhs_ty {
+                        TypeExpr::Path(n) => n.clone(),
+                        // Parametric structs: head is the struct's name.
+                        TypeExpr::Parametric { head, .. } => {
+                            if head.starts_with(':') {
+                                head.clone()
+                            } else {
+                                format!(":{}", head)
+                            }
+                        }
+                        other => {
+                            binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: form.into(),
+                                param: format!("struct-destructure ({})", field_names.join(" ")),
+                                expected: "a struct type".into(),
+                                got: format_type(other)
+                            } });
+                            return CheckResult::errs(binding_errors);
+                        }
+                    };
+                    let struct_def = match env.types().get(&struct_name) {
+                        Some(crate::types::TypeDef::Struct(sd)) => sd.clone(),
+                        _ => {
+                            binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: form.into(),
+                                param: format!("struct-destructure ({})", field_names.join(" ")),
+                                expected: "a struct type".into(),
+                                got: format_type(&rhs_ty)
+                            } });
+                            return CheckResult::errs(binding_errors);
+                        }
+                    };
+                    // Look up each requested field; emit MalformedForm naming
+                    // the offending field + listing the struct's actual fields
+                    // when a name doesn't match (substrate-as-teacher).
+                    for fname in &field_names {
+                        match struct_def.fields.iter().find(|(n, _)| n == fname) {
+                            Some((_, fty)) => {
+                                new_bindings.insert(fname.clone(), apply_subst(fty, subst));
+                            }
+                            None => {
+                                let declared = struct_def
+                                    .fields
+                                    .iter()
+                                    .map(|(n, _)| n.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                binding_errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
+                                    head: form.into(),
+                                    reason: format!(
+                                        "struct-destructure: field {:?} is not declared on struct {} (declared fields: {})",
+                                        fname, struct_def.name, declared
+                                    ),
+                                    remedies: vec![],
+                                } });
+                            }
+                        }
+                    }
+                    return if binding_errors.is_empty() {
+                        CheckResult::ok(new_bindings)
+                    } else {
+                        CheckResult::partial_with(new_bindings, binding_errors)
+                    };
                 }
             }
         }
-        return if binding_errors.is_empty() {
-            CheckResult::ok(new_bindings)
-        } else {
-            CheckResult::partial_with(new_bindings, binding_errors)
-        };
     }
 
     // Anything else — malformed binder shape. Arc 168 slice 3
