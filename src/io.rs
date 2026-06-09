@@ -428,7 +428,7 @@ impl WatWriter for StringIoWriter {
 //
 // Dual role: the `:wat::kernel::pipe` primitive produces these around
 // a fresh `pipe2(O_CLOEXEC)` pair (parent-side pipe ends). The
-// `:wat::kernel::fork-program-ast` primitive (slice 2) produces them
+// `:wat::kernel::spawn-process` primitive produces them
 // around the child's dup2'd fd 0 / 1 / 2 via
 // `from_owned_fd(OwnedFd::from_raw_fd(0))` etc. Same type, different
 // owning fd.
@@ -1136,8 +1136,8 @@ pub fn eval_iowriter_close(
 ///
 /// Arc 012 slice 1. Standalone useful (any IPC pattern that wants a
 /// byte stream between wat threads or into a child process);
-/// load-bearing for `:wat::kernel::fork-program-ast` (slice 2) which
-/// allocates three pipes per fork call.
+/// load-bearing for `:wat::kernel::spawn-process` which allocates
+/// three pipes per fork call.
 pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     use std::os::fd::FromRawFd;
     let op = ":wat::kernel::pipe";

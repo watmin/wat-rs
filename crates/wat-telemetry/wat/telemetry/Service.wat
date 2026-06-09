@@ -45,27 +45,25 @@
 
 ;; ─── Self-heartbeat contract — Stats + MetricsCadence ────────────
 
-(:wat::core::struct :wat::telemetry::Stats
-  (batches :wat::core::i64)
-  (entries :wat::core::i64)
-  (max-batch-size :wat::core::i64))
+(:wat::core::defstruct :wat::telemetry::Stats
+  [batches        <- :wat::core::i64
+   entries        <- :wat::core::i64
+   max-batch-size <- :wat::core::i64])
 
-(:wat::core::struct :wat::telemetry::MetricsCadence<G>
-  (gate :G)
-  (tick :wat::core::Fn(G,wat::telemetry::Stats)->(G,wat::core::bool)))
+(:wat::core::defstruct :wat::telemetry::MetricsCadence<G>
+  [gate <- :G
+   tick <- :wat::core::Fn(G,wat::telemetry::Stats)->(G,wat::core::bool)])
 
-(:wat::core::define
-  (:wat::telemetry::null-metrics-cadence
-    -> :wat::telemetry::MetricsCadence<wat::core::nil>)
+(:wat::core::defn :wat::telemetry::null-metrics-cadence
+  [] -> :wat::telemetry::MetricsCadence<wat::core::nil>
   (:wat::telemetry::MetricsCadence/new
-    :wat::core::nil
+    nil
     (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::telemetry::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
-(:wat::core::define
-  (:wat::telemetry::Stats/zero
-    -> :wat::telemetry::Stats)
+(:wat::core::defn :wat::telemetry::Stats/zero
+  [] -> :wat::telemetry::Stats
   (:wat::telemetry::Stats/new 0 0 0))
 
 
@@ -129,13 +127,12 @@
 
 ;; ─── Tick the heartbeat window ───────────────────────────────────
 
-(:wat::core::define
-  (:wat::telemetry::tick-window<E,G>
-    (stats :wat::telemetry::Stats)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    (dispatcher :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
-    -> :wat::telemetry::Step<G>)
+(:wat::core::defn :wat::telemetry::tick-window<E,G>
+  [stats <- :wat::telemetry::Stats
+   cadence <- :wat::telemetry::MetricsCadence<G>
+   dispatcher <- :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil
+   stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
+  -> :wat::telemetry::Step<G>
   (:wat::core::let
     [gate
       (:wat::telemetry::MetricsCadence/gate cadence)
@@ -184,12 +181,11 @@
 ;; Add one client's contribution into the Pending accumulator.
 ;; Entries come from the Request payload; ack-tx comes from the
 ;; server's paired DriverPair.
-(:wat::core::define
-  (:wat::telemetry::extend<E>
-    (acc :wat::telemetry::Pending<E>)
-    (req-entries :wat::core::Vector<E>)
-    (ack :wat::telemetry::AckTx)
-    -> :wat::telemetry::Pending<E>)
+(:wat::core::defn :wat::telemetry::extend<E>
+  [acc <- :wat::telemetry::Pending<E>
+   req-entries <- :wat::core::Vector<E>
+   ack <- :wat::telemetry::AckTx]
+  -> :wat::telemetry::Pending<E>
   (:wat::core::let
     [entries (:wat::core::first acc)
      acks (:wat::core::second acc)
@@ -209,13 +205,12 @@
 ;; with data is picked up on the next `select` (which returns
 ;; immediately while its fd stays readable). The foldl still locates
 ;; the contributing pair + its ack by index — no out-of-band lookup.
-(:wat::core::define
-  (:wat::telemetry::maybe-merge<E>
-    (acc :wat::telemetry::Pending<E>)
-    (first-idx :wat::core::i64)
-    (first-entries :wat::core::Vector<E>)
-    (indexed :wat::telemetry::IndexedDriverPair<E>)
-    -> :wat::telemetry::Pending<E>)
+(:wat::core::defn :wat::telemetry::maybe-merge<E>
+  [acc <- :wat::telemetry::Pending<E>
+   first-idx <- :wat::core::i64
+   first-entries <- :wat::core::Vector<E>
+   indexed <- :wat::telemetry::IndexedDriverPair<E>]
+  -> :wat::telemetry::Pending<E>
   (:wat::core::let
     [pair (:wat::core::first indexed)
      idx (:wat::core::second indexed)
@@ -229,44 +224,45 @@
 ;; Drain — single foldl over all pairs. Only the first-idx pair (the
 ;; one select woke on) contributes its first-entries; every other pair
 ;; is skipped this tick (no try-recv peek — see maybe-merge).
-(:wat::core::define
-  (:wat::telemetry::drain-pairs<E>
-    (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
-    (first-idx :wat::core::i64)
-    (first-entries :wat::core::Vector<E>)
-    (init :wat::telemetry::Pending<E>)
-    -> :wat::telemetry::Pending<E>)
+(:wat::core::defn :wat::telemetry::drain-pairs<E>
+  [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>
+   first-idx <- :wat::core::i64
+   first-entries <- :wat::core::Vector<E>
+   init <- :wat::telemetry::Pending<E>]
+  -> :wat::telemetry::Pending<E>
   (:wat::core::let
     [indices
       (:wat::core::range 0 (:wat::core::length pairs))
      indexed
       (:wat::std::list::zip pairs indices)]
-    (:wat::core::foldl indexed init
+    (:wat::core::foldl
       (:wat::core::fn
         [acc <- :wat::telemetry::Pending<E>
          pair <- :wat::telemetry::IndexedDriverPair<E>]
          -> :wat::telemetry::Pending<E>
-        (:wat::telemetry::maybe-merge acc first-idx first-entries pair)))))
+        (:wat::telemetry::maybe-merge acc first-idx first-entries pair))
+      init
+      indexed)))
 
 
 ;; Send () on every contributing client's ack-tx.
-(:wat::core::define
-  (:wat::telemetry::ack-all
-    (ack-txs :wat::core::Vector<wat::telemetry::AckTx>)
-    -> :wat::core::nil)
-  (:wat::core::foldl ack-txs :wat::core::nil
+(:wat::core::defn :wat::telemetry::ack-all
+  [ack-txs <- :wat::core::Vector<wat::telemetry::AckTx>]
+  -> :wat::core::nil
+  (:wat::core::foldl
     (:wat::core::fn
       [_acc <- :wat::core::nil tx <- :wat::telemetry::AckTx] -> :wat::core::nil
-      (:wat::core::match (:wat::kernel::send tx :wat::core::nil) -> :wat::core::nil
-        ((:wat::core::Ok _) :wat::core::nil)
-        ((:wat::core::Err _) :wat::core::nil)))))
+      (:wat::core::match (:wat::kernel::send tx nil) -> :wat::core::nil
+        ((:wat::core::Ok _) nil)
+        ((:wat::core::Err _) nil)))
+    nil
+    ack-txs))
 
 
-(:wat::core::define
-  (:wat::telemetry::bump-stats
-    (stats :wat::telemetry::Stats)
-    (batch-size :wat::core::i64)
-    -> :wat::telemetry::Stats)
+(:wat::core::defn :wat::telemetry::bump-stats
+  [stats <- :wat::telemetry::Stats
+   batch-size <- :wat::core::i64]
+  -> :wat::telemetry::Stats
   (:wat::core::let
     [max-prev
       (:wat::telemetry::Stats/max-batch-size stats)
@@ -281,31 +277,30 @@
 
 
 ;; Extract the wat::core::Vector<ReqRx> half of pairs for the kernel select.
-(:wat::core::define
-  (:wat::telemetry::pair-rxs<E>
-    (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
-    -> :wat::core::Vector<wat::telemetry::ReqRx<E>>)
-  (:wat::core::map pairs
+(:wat::core::defn :wat::telemetry::pair-rxs<E>
+  [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>]
+  -> :wat::core::Vector<wat::telemetry::ReqRx<E>>
+  (:wat::core::map
     (:wat::core::fn
       [p <- :wat::telemetry::DriverPair<E>]
        -> :wat::telemetry::ReqRx<E>
-      (:wat::core::first p))))
+      (:wat::core::first p))
+    pairs))
 
 
 ;; One drain-and-dispatch cycle. drain-pairs contributes the first-idx
 ;; pair (which gets first-entries from select); every other pair is
 ;; skipped this tick and re-selected next loop. No separate first-pair
 ;; lookup needed.
-(:wat::core::define
-  (:wat::telemetry::loop-step<E,G>
-    (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
-    (first-idx :wat::core::i64)
-    (first-entries :wat::core::Vector<E>)
-    (stats :wat::telemetry::Stats)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    (dispatcher :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::loop-step<E,G>
+  [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>
+   first-idx <- :wat::core::i64
+   first-entries <- :wat::core::Vector<E>
+   stats <- :wat::telemetry::Stats
+   cadence <- :wat::telemetry::MetricsCadence<G>
+   dispatcher <- :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil
+   stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
+  -> :wat::core::nil
   (:wat::core::let
     [init
       (:wat::core::Tuple
@@ -331,16 +326,15 @@
       pairs stats'' cadence' dispatcher stats-translator)))
 
 
-(:wat::core::define
-  (:wat::telemetry::loop<E,G>
-    (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
-    (stats :wat::telemetry::Stats)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    (dispatcher :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::loop<E,G>
+  [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>
+   stats <- :wat::telemetry::Stats
+   cadence <- :wat::telemetry::MetricsCadence<G>
+   dispatcher <- :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil
+   stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
+  -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
-    :wat::core::nil
+    nil
     (:wat::core::let
       [rxs
         (:wat::telemetry::pair-rxs pairs)
@@ -357,7 +351,7 @@
           (:wat::telemetry::loop
             (:wat::std::list::remove-at pairs idx)
             stats cadence dispatcher stats-translator))
-        ((:wat::core::Err _died) :wat::core::nil)))))
+        ((:wat::core::Err _died) nil)))))
 
 
 ;; ─── Client helper — single primitive, batch + ack ───────────────
@@ -365,12 +359,11 @@
 ;; Two channel ends. Block-write the entries; block-read the ack.
 ;; Single-entry callers wrap in a one-element vec.
 
-(:wat::core::define
-  (:wat::telemetry::batch-log<E>
-    (req-tx :wat::telemetry::ReqTx<E>)
-    (ack-rx :wat::telemetry::AckRx)
-    (entries :wat::core::Vector<E>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::batch-log<E>
+  [req-tx <- :wat::telemetry::ReqTx<E>
+   ack-rx <- :wat::telemetry::AckRx
+   entries <- :wat::core::Vector<E>]
+  -> :wat::core::nil
   (:wat::core::let
     [_send
       (:wat::core::Result/expect -> :wat::core::nil
@@ -380,18 +373,17 @@
       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
         "Service/batch-log: ack-rx disconnected — telemetry service died mid-flush?")]
-    :wat::core::nil))
+    nil))
 
 
 ;; ─── Worker entry — initial Stats + enter loop ──────────────────
 
-(:wat::core::define
-  (:wat::telemetry::run<E,G>
-    (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    (dispatcher :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::run<E,G>
+  [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>
+   cadence <- :wat::telemetry::MetricsCadence<G>
+   dispatcher <- :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil
+   stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
+  -> :wat::core::nil
   (:wat::telemetry::loop
     pairs
     (:wat::telemetry::Stats/zero)
@@ -405,30 +397,28 @@
 ;; The server gets (req-rx, ack-tx) — its DriverPair. Pool hands
 ;; out Handles; worker thread carries the Vec of DriverPairs.
 
-(:wat::core::define
-  (:wat::telemetry::spawn<E,G>
-    (count :wat::core::i64)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    (dispatcher :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
-    -> :wat::telemetry::Spawn<E>)
+(:wat::core::defn :wat::telemetry::spawn<E,G>
+  [count <- :wat::core::i64
+   cadence <- :wat::telemetry::MetricsCadence<G>
+   dispatcher <- :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil
+   stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
+  -> :wat::telemetry::Spawn<E>
   (:wat::core::let
     [req-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
           (:wat::kernel::make-channel
-            :wat::telemetry::Request<E>)))
+            :wat::telemetry::Request<E>))
+        (:wat::core::range 0 count))
      ack-pairs
       (:wat::core::map
-        (:wat::core::range 0 count)
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
-          (:wat::kernel::make-channel :wat::core::nil)))
+          (:wat::kernel::make-channel :wat::core::nil))
+        (:wat::core::range 0 count))
      handles
       (:wat::core::map
-        (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::Handle<E>
@@ -437,10 +427,10 @@
              ap (:wat::core::second rp+ap)
              req-tx (:wat::core::first rp)
              ack-rx (:wat::core::second ap)]
-            (:wat::core::Tuple req-tx ack-rx))))
+            (:wat::core::Tuple req-tx ack-rx)))
+        (:wat::std::list::zip req-pairs ack-pairs))
      driver-pairs
       (:wat::core::map
-        (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::DriverPair<E>
@@ -449,7 +439,8 @@
              ap (:wat::core::second rp+ap)
              req-rx (:wat::core::second rp)
              ack-tx (:wat::core::first ap)]
-            (:wat::core::Tuple req-rx ack-tx))))
+            (:wat::core::Tuple req-rx ack-tx)))
+        (:wat::std::list::zip req-pairs ack-pairs))
      pool
       (:wat::kernel::HandlePool::new "telemetry::Service" handles)
      driver

@@ -19,17 +19,15 @@
 ;; Wrapper defines under :wat::sqlite::* — mirrors the
 ;; :wat::lru / :rust::lru pattern. Each thin define forwards
 ;; to the underlying #[wat_dispatch]'d Rust method.
-(:wat::core::define
-  (:wat::sqlite::open
-    (path :wat::core::String)
-    -> :wat::sqlite::Db)
+(:wat::core::defn :wat::sqlite::open
+  [path <- :wat::core::String]
+  -> :wat::sqlite::Db
   (:rust::sqlite::Db::open path))
 
-(:wat::core::define
-  (:wat::sqlite::execute-ddl
-    (db :wat::sqlite::Db)
-    (ddl :wat::core::String)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::sqlite::execute-ddl
+  [db <- :wat::sqlite::Db
+   ddl <- :wat::core::String]
+  -> :wat::core::nil
   (:rust::sqlite::Db::execute_ddl db ddl))
 
 ;; ─── Param + execute (arc 084) ─────────────────────────────────
@@ -46,11 +44,11 @@
 ;; each value at the call site is explicitly tagged with its
 ;; SQLite affinity. rusqlite hides this on the Rust side via
 ;; `params![]`; wat surfaces it.
-(:wat::core::enum :wat::sqlite::Param
-  (I64  (n :wat::core::i64))
-  (F64  (x :wat::core::f64))
-  (Str  (s :wat::core::String))
-  (Bool (b :wat::core::bool)))
+(:wat::core::defenum :wat::sqlite::Param
+  :I64  [n <- :wat::core::i64]
+  :F64  [x <- :wat::core::f64]
+  :Str  [s <- :wat::core::String]
+  :Bool [b <- :wat::core::bool])
 
 ;; Execute a parameterized statement. Each `?N` placeholder binds
 ;; to `params[N-1]` (1-indexed per rusqlite/SQLite). Panics with a
@@ -66,12 +64,11 @@
 ;;       (:wat::sqlite::Param::I64 7)
 ;;       (:wat::sqlite::Param::I64 1730000000000)))
 ;;     -> :()
-(:wat::core::define
-  (:wat::sqlite::execute
-    (db :wat::sqlite::Db)
-    (sql :wat::core::String)
-    (params :wat::core::Vector<wat::sqlite::Param>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::sqlite::execute
+  [db <- :wat::sqlite::Db
+   sql <- :wat::core::String
+   params <- :wat::core::Vector<wat::sqlite::Param>]
+  -> :wat::core::nil
   (:rust::sqlite::Db::execute db sql params))
 
 
@@ -83,24 +80,21 @@
 ;; wrap a batch of writes in one transaction (the archive's
 ;; `flush()` discipline; arc 089 slice 1).
 
-(:wat::core::define
-  (:wat::sqlite::pragma
-    (db :wat::sqlite::Db)
-    (name :wat::core::String)
-    (value :wat::core::String)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::sqlite::pragma
+  [db <- :wat::sqlite::Db
+   name <- :wat::core::String
+   value <- :wat::core::String]
+  -> :wat::core::nil
   (:rust::sqlite::Db::pragma db name value))
 
-(:wat::core::define
-  (:wat::sqlite::begin
-    (db :wat::sqlite::Db)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::sqlite::begin
+  [db <- :wat::sqlite::Db]
+  -> :wat::core::nil
   (:rust::sqlite::Db::begin db))
 
-(:wat::core::define
-  (:wat::sqlite::commit
-    (db :wat::sqlite::Db)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::sqlite::commit
+  [db <- :wat::sqlite::Db]
+  -> :wat::core::nil
   (:rust::sqlite::Db::commit db))
 
 

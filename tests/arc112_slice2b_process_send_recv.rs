@@ -7,8 +7,8 @@
 //!     :wat::kernel::Receiver<I>    -> :Result<:Option<I>, :wat::kernel::RecvError>
 //!
 //! History:
-//! - Arc 112 original: `fork-program-ast` + 3-arg main shape.
-//! - Arc 170 slice 1f-ζ: migrated to `spawn-process` with 2-arg worker fn
+//! - Arc 112 original: `spawn-process` (forms-based OS-fork path).
+//! - Arc 170 slice 1f-ζ: `spawn-process` with 2-arg worker fn
 //!   `[rx <- Receiver<I> tx <- Sender<O>]` — typed channels passed
 //!   into the child as fn params.
 //! - Arc 170 Stone C: retired the 2-arg shape. Child fn contract is now

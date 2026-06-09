@@ -10,7 +10,7 @@
 //! (Slice C historical artifact). The observable contract is identical —
 //! grandchild dies within 1s — but the mechanism is the lifeline pipe wired
 //! through `spawn_process_child_branch` (Phase 1B: `init_shutdown_signal_with_inputs`)
-//! and `child_branch_from_source` (Phase 1C: symmetric lifeline for fork-program).
+//! and `spawn_process_child_branch` (the shared fork entry point).
 //!
 //! Cross-references:
 //! - Phase 1B SCORE: `SCORE-FD-MULTIPLEX-PHASE-1B-SPAWN-PROCESS-LIFELINE.md`

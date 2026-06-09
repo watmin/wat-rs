@@ -816,8 +816,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // variants identical in shape to ThreadDiedError; the name
     // tracks the SUBJECT (Process — a running Program — vs
     // ThreadDiedError's thread peer on a channel). After arc 112
-    // unifies spawn-program (in-thread) and fork-program
-    // (out-of-process) under a single Process<I,O> return type, the
+    // unifies the in-thread (spawn-program') and OS-fork (spawn-process)
+    // paths under a single Process<I,O> return type, the
     // Forked variant of ProgramHandle synthesizes ProcessDiedError
     // from waitpid + exit code; the InThread variant of
     // ProgramHandle (returned by :wat::kernel::spawn) keeps
@@ -995,15 +995,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
     // The struct collapsed into :wat::kernel::Process<I,O> — both
-    // spawn-program and fork-program now return the unified Process
+    // spawn-process and spawn-program' now return the unified Process
     // shape. The wait mechanism lives inside ProgramHandle's
     // InThread / Forked enum variant; the ChildHandle is no longer
     // wat-visible. Pre-arc-112 fixtures used:
-    //   (child :wat::kernel::ForkedChild<I,O>) (fork-program-ast forms)
+    //   (child :wat::kernel::ForkedChild<I,O>) (spawn-process forms)
     //   (handle :wat::kernel::ChildHandle)     (ForkedChild/handle child)
     //   (exit  :i64)                           (wait-child handle)
     // Migration:
-    //   (proc  :wat::kernel::Process<I,O>)     (fork-program-ast forms)
+    //   (proc  :wat::kernel::Process<I,O>)     (spawn-process forms)
     //   (rcv   :Result<:(),:ProcessDiedError>) (Process/join-result proc)
 
     // :wat::kernel::StartupError — error variant of the Result
@@ -1024,8 +1024,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::Process<I,O> — return type of
-    // `:wat::kernel::spawn-program` and siblings (arc 103) and of
-    // `:wat::kernel::fork-program-ast` (arc 012 + arc 112).
+    // `:wat::kernel::spawn-process` (arc 012 + arc 112) and
+    // `:wat::kernel::spawn-program'` (arc 214).
     //
     // Arc 170 slice 1c: ADDITIVE reshape. Existing fields (stdin /
     // stdout / stderr / join) preserved for back-compat with the

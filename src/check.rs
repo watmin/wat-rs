@@ -2606,7 +2606,7 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
 // Sandbox boundary (arc 128): `walk_for_pair_deadlock` inherits the
 // same boundary guard as `walk_for_deadlock`. The first argument of
 // `run-sandboxed-ast` / `run-sandboxed-hermetic-ast` /
-// `fork-program-ast` / `spawn-program-ast` is a forms-block
+// `spawn-process` is a forms-block
 // representing an INNER program; the inner program freezes when the
 // primitive fires at runtime. Outer freeze must NOT walk into it —
 // doing so cascades inner-program errors into the outer file's
@@ -10092,7 +10092,7 @@ fn rhs_is_thread_input_extractor(rhs: &WatAST) -> bool {
 
 /// Arc 134 — body-form narrowing. Find `thr_name`'s binding RHS; if
 /// it's a `(:wat::kernel::spawn-thread <fn> ...)` or
-/// `(:wat::kernel::spawn-program ...)` / `(:wat::kernel::fork-program ...)`
+/// `(:wat::kernel::spawn-process ...)` /
 /// call whose `<fn>` argument is an inline `(:wat::core::fn ...)`,
 /// walk the fn body looking for any `(:wat::kernel::recv ...)`
 /// (or `select`) call. Returns true ONLY when we
@@ -10133,10 +10133,9 @@ fn spawn_thread_fn_body_has_no_recv(
     false
 }
 
-/// True iff `rhs` is a spawn-thread / spawn-program / fork-program
-/// call whose function argument is an inline fn whose body does
-/// not contain any kernel recv call. See
-/// `spawn_thread_fn_body_has_no_recv` for the framing.
+/// True iff `rhs` is a spawn-thread / spawn-process call whose function
+/// argument is an inline fn whose body does not contain any kernel recv
+/// call. See `spawn_thread_fn_body_has_no_recv` for the framing.
 fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
     let WatAST::List(call, _) = rhs else { return false; };
     if call.len() < 2 { return false; }
@@ -10147,8 +10146,7 @@ fn rhs_spawn_fn_has_no_recv(rhs: &WatAST) -> bool {
     let is_spawn = matches!(
         head_str,
         ":wat::kernel::spawn-thread"
-            | ":wat::kernel::spawn-program"
-            | ":wat::kernel::fork-program"
+            | ":wat::kernel::spawn-process"
     );
     if !is_spawn { return false; }
     let fn_arg = &call[1];
@@ -14070,11 +14068,11 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // The string-entry hermetic primitive was retired in arc 012
     // slice 3; its AST-entry sibling lives in wat/kernel/hermetic.wat
-    // atop fork-program-ast.
+    // atop spawn-process.
 
     // :wat::kernel::run-sandboxed-hermetic-ast — retired as a Rust
     // primitive in arc 012 slice 3. Shipped as wat stdlib in
-    // wat/kernel/hermetic.wat on top of fork-program-ast
+    // wat/kernel/hermetic.wat on top of spawn-process
     // + struct-new. The keyword path + signature + return type are
     // identical; only the implementation layer moved. See
     // docs/arc/2026/04/012-fork-and-pipes/ for the arc's record.
@@ -15575,120 +15573,12 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::Process<I, O>.
-    // Arc 012 slice 2 + arc 112 unification. Forks the current
-    // wat process (COW-inheriting the loaded substrate), runs the
-    // caller's forms as a fresh :user::main in the child, returns the
-    // unified Process<I,O> struct (same shape spawn-program returns;
-    // only the internal join handle's variant differs — Forked vs
-    // InThread). Pre-arc-112 returned a separate :wat::kernel::ForkedChild
-    // type; that type retired in arc 112 because the only difference
-    // from Process was the wait mechanism, which lives inside
-    // ProgramHandle's enum variant.
-    let process_ty = || TypeExpr::Parametric {
-        head: "wat::kernel::Process".into(),
-        args: vec![
-            TypeExpr::Path(":I".into()),
-            TypeExpr::Path(":O".into()),
-        ],
-    };
-    env.register(
-        ":wat::kernel::fork-program-ast".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::WatAST".into())],
-            }],
-            ret: process_ty(),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::fork-program src scope) → :wat::kernel::Process<I, O>.
-    // Arc 104b + arc 112 unification.
-    env.register(
-        ":wat::kernel::fork-program".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![
-                TypeExpr::Path(":wat::core::String".into()),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ],
-            ret: process_ty(),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::spawn-program src scope) →
-    //   :Result<:wat::kernel::Process, :wat::kernel::StartupError>.
-    // (:wat::kernel::spawn-program-ast forms scope) → same.
-    //
-    // Arc 103. The in-thread sibling of `fork-program-ast` — same
-    // `(IOWriter, IOReader, IOReader, ProgramHandle<()>)` shape, but
-    // the inner program runs on a `std::thread` instead of a forked
-    // OS process. Caller writes EDN+newline to `proc.stdin`, blocks
-    // on `read-line` from `proc.stdout` — mini-TCP via kernel pipes.
-    // See `docs/ZERO-MUTEX.md` §"Mini-TCP via paired channels".
-    //
-    // Arc 105a: failures during freeze (parse / type-check / config)
-    // or `:user::main` signature validation surface as
-    // `(Err startup-error)` data instead of raising — wat-level
-    // callers pattern-match. A successful spawn yields `(Ok proc)`.
-    //
-    // No substrate `spawn-program-hermetic-ast`. Today's hermetic
-    // distinction means real fork (`fork-program-ast`); in-thread
-    // "hermetic" reduces to "inner program declares its own Config
-    // preamble," which is a wat-level discipline.
-    // Arc 112 — Process<I, O> phantom-param lift; uses the
-    // `process_ty` closure declared above for fork-program-ast.
-    let process_or_startup_error = || TypeExpr::Parametric {
-        head: "wat::core::Result".into(),
-        args: vec![
-            process_ty(),
-            TypeExpr::Path(":wat::kernel::StartupError".into()),
-        ],
-    };
-    env.register(
-        ":wat::kernel::spawn-program".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![
-                TypeExpr::Path(":wat::core::String".into()),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ],
-            ret: process_or_startup_error(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::kernel::spawn-program-ast".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
-                },
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ],
-            ret: process_or_startup_error(),
-            rest_param_type: None,
-        },
-    );
     // (:wat::kernel::Process/join-result proc) →
     //   :Result<:(), :wat::kernel::ProcessDiedError>.
     // Arc 112 — the canonical death-as-data wait verb on a unified
     // Process<I,O>. Internally dispatches on the Process's join-field
-    // ProgramHandle variant: InThread (spawn-program origin) does
-    // arc 060's recv-on-channel; Forked (fork-program origin) does
+    // ProgramHandle variant: InThread (spawn-program' origin) does
+    // arc 060's recv-on-channel; Forked (spawn-process origin) does
     // waitpid. Both arms synthesize the outcome as ProcessDiedError
     // so the receiver matches one shape regardless of how the Program
     // was spawned. Symmetric with arc 060's bare
@@ -15699,6 +15589,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // `(wait-child (ForkedChild/handle child))` →
     // `(:wat::kernel::Process/join-result proc)`.
     // Arc 113 — Err arm widens to Vec<ProcessDiedError> chain.
+    let process_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::Process".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
     let process_died_chain_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
@@ -15779,7 +15676,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::kernel::spawn-thread body) →
     //   :wat::kernel::Thread<I,O>.
     //
-    // Arc 114 slice 1. The in-thread sibling of `:wat::kernel::fork-program`,
+    // Arc 114 slice 1. The in-thread sibling of `:wat::kernel::spawn-process`,
     // satisfying the same Program contract — input channel, output
     // channel, error mechanism via join. Body is a function whose
     // signature MUST be

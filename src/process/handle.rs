@@ -1,7 +1,7 @@
 //! Parent-side process handles.
 //!
 //! `ChildHandle` — the payload of `Value::wat__kernel__ChildHandle`.
-//! `ForkedProgramHandles` — bundle returned by `fork_program_from_source`.
+//! `ForkedProgramHandles` — bundle returned by the OS-process spawn paths.
 
 use std::os::fd::OwnedFd;
 use std::sync::{Arc, OnceLock};
@@ -42,9 +42,9 @@ pub struct ChildHandle {
     /// lifeline read-end fires POLLHUP and the substrate shutdown
     /// cascade triggers.
     ///
-    /// Wrapped in Option because tier-1 callers (fork-program-ast and
-    /// fork-program-from-source) wire a lifeline for every child (arc
-    /// 213 γ-1/γ-2). Always Some for forked children post-Phase-1C.
+    /// Wrapped in Option because all OS-process callers (spawn-process)
+    /// wire a lifeline for every child (arc 213 γ-3). Always Some for
+    /// forked children.
     ///
     /// Held for RAII — the OwnedFd close IS the signal (never read, never
     /// written after construction). The dead_code allow is intentional.
@@ -140,10 +140,9 @@ impl Drop for ChildHandle {
     }
 }
 
-/// Bundle of pipe ends + child handle returned by
-/// `fork_program_from_source` for Rust callers (arc 104c's wat-cli).
-/// The wat-level `eval_kernel_fork_program` wraps these into a
-/// `:wat::kernel::Process` struct value.
+/// Bundle of pipe ends + child handle returned by the OS-process
+/// spawn substrate. Used by `spawn_process_peer` (kernel/spawn.rs)
+/// and exposed for external callers that need the raw handle.
 pub struct ForkedProgramHandles {
     pub child_handle: Arc<ChildHandle>,
     pub stdin_w: OwnedFd,

@@ -42,20 +42,20 @@
 ;; logger's responsibility, not the caller's. (The "labels are
 ;; ASTs" memory still holds for `data` — that one IS HolonAST.)
 
-(:wat::core::struct :wat::telemetry::WorkUnitLog
+(:wat::core::defstruct :wat::telemetry::WorkUnitLog
   ;; The Service<Event,_>::Handle the logger ships through. Same
   ;; paired (ReqTx<Event>, AckRx) tuple WorkUnit/make-scope captures.
   ;; Two loggers can share a destination by closing over clones of
   ;; the same handle.
-  (handle :wat::telemetry::SinkHandles)
-  ;; Producer identity — set once at construction. Stamped on every
-  ;; emitted row's `caller` column. Caller-discriminator at query
-  ;; time: filter rows by who emitted them.
-  (caller :wat::core::keyword)
-  ;; Clock injection — a closure taking unit, returning a wall-
-  ;; clock Instant. Tests pass a deterministic now-fn; production
-  ;; passes (fn ((_) -> :wat::time::Instant) (:wat::time::now)). Same pattern as arc 087.
-  (now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant))
+  [handle <- :wat::telemetry::SinkHandles
+   ;; Producer identity — set once at construction. Stamped on every
+   ;; emitted row's `caller` column. Caller-discriminator at query
+   ;; time: filter rows by who emitted them.
+   caller <- :wat::core::keyword
+   ;; Clock injection — a closure taking unit, returning a wall-
+   ;; clock Instant. Tests pass a deterministic now-fn; production
+   ;; passes (fn ((_) -> :wat::time::Instant) (:wat::time::now)). Same pattern as arc 087.
+   now-fn <- :wat::core::Fn(wat::core::nil)->wat::time::Instant])
 
 
 ;; ─── /log — universal form (caller passes level explicitly) ─────
@@ -63,13 +63,12 @@
 ;; Build the Event::Log row, ship it as a single-element batch,
 ;; block on ack. Convenience methods (/debug /info /warn /error)
 ;; sugar over this with the level keyword baked in.
-(:wat::core::define
-  (:wat::telemetry::WorkUnitLog/log
-    (logger :wat::telemetry::WorkUnitLog)
-    (wu     :wat::telemetry::WorkUnit)
-    (level  :wat::core::keyword)
-    (data   :wat::WatAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnitLog/log
+  [logger <- :wat::telemetry::WorkUnitLog
+   wu     <- :wat::telemetry::WorkUnit
+   level  <- :wat::core::keyword
+   data   <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::core::let
     [handle
       (:wat::telemetry::WorkUnitLog/handle logger)
@@ -77,7 +76,7 @@
       (:wat::telemetry::WorkUnitLog/caller logger)
      now-fn
       (:wat::telemetry::WorkUnitLog/now-fn logger)
-     now (now-fn :wat::core::nil)
+     now (now-fn nil)
      time-ns (:wat::time::epoch-nanos now)
      ;; Per-scope identity — pulled from the wu at every emit so
      ;; each row carries the scope's uuid for cross-table joins
@@ -122,34 +121,30 @@
 ;; — the Event::Log table. Level is a column value (queryable filter),
 ;; not a routing key.
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnitLog/debug
-    (logger :wat::telemetry::WorkUnitLog)
-    (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::WatAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnitLog/debug
+  [logger <- :wat::telemetry::WorkUnitLog
+   wu     <- :wat::telemetry::WorkUnit
+   data   <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::telemetry::WorkUnitLog/log logger wu :debug data))
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnitLog/info
-    (logger :wat::telemetry::WorkUnitLog)
-    (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::WatAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnitLog/info
+  [logger <- :wat::telemetry::WorkUnitLog
+   wu     <- :wat::telemetry::WorkUnit
+   data   <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::telemetry::WorkUnitLog/log logger wu :info data))
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnitLog/warn
-    (logger :wat::telemetry::WorkUnitLog)
-    (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::WatAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnitLog/warn
+  [logger <- :wat::telemetry::WorkUnitLog
+   wu     <- :wat::telemetry::WorkUnit
+   data   <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::telemetry::WorkUnitLog/log logger wu :warn data))
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnitLog/error
-    (logger :wat::telemetry::WorkUnitLog)
-    (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::WatAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnitLog/error
+  [logger <- :wat::telemetry::WorkUnitLog
+   wu     <- :wat::telemetry::WorkUnit
+   data   <- :wat::WatAST]
+  -> :wat::core::nil
   (:wat::telemetry::WorkUnitLog/log logger wu :error data))

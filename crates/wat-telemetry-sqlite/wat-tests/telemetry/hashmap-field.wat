@@ -14,9 +14,8 @@
 ;; literal `{:asset :BTC :stage :market}`.
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::enum :test::Tagged::Event
-     (Log
-       (tags :wat::telemetry::Tags)))
+  ((:wat::core::defenum :test::Tagged::Event
+     :Log [tags <- :wat::telemetry::Tags])
 
 
    (:wat::core::defn :test::Tagged::send-one

@@ -55,7 +55,7 @@
 ;; cascade type without re-typing `wat::core::Vector<wat::kernel::*DiedError>`
 ;; at every binding site. `ProcessPanics` is the cross-fork
 ;; shape (the element type ProcessDiedError matches what
-;; fork-program-ast's substrate emits in its
+;; spawn-process's substrate emits in its
 ;; `#wat.kernel/ProcessPanics` stderr marker per arc 113 slice 3);
 ;; `ThreadPanics` is the in-process cousin (chain produced by
 ;; spawn-thread cascade). Arc 109 § J will introduce a shared

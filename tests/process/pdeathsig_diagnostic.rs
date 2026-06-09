@@ -17,8 +17,7 @@
 //!
 //! # Post-Phase-1C mechanism
 //!
-//! After Phase 1B (spawn-process lifeline) and Phase 1C (fork-program lifeline),
-//! the PDEATHSIG mechanism is retired. The grandchild's death is now driven by
+//! After Phase 1B (spawn-process lifeline), the PDEATHSIG mechanism is retired. The grandchild's death is now driven by
 //! the lifeline pipe: the parent holds the write-end; when the parent exits for
 //! ANY reason, the kernel closes its FDs including the lifeline write-end →
 //! grandchild's shutdown worker detects POLLHUP on the lifeline read-end →

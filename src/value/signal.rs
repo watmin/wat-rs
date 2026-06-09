@@ -169,7 +169,7 @@ pub enum RuntimeErrorKind {
     /// handle channel's Sender was dropped without sending, so the
     /// join's `recv` sees disconnected.
     ///
-    /// User channels (`:wat::kernel::send` / `recv` / `try-recv`)
+    /// User channels (`:wat::kernel::send` / `recv`)
     /// are symmetric on disconnect — both endpoints report it via
     /// `:Option` rather than via this error, so no call path in the
     /// user-level channel primitives produces this variant. It
@@ -236,7 +236,7 @@ pub enum RuntimeErrorKind {
     },
     /// Arc 140 slice 1 — runtime panic enrichment. Fires when a
     /// sub-program (`run-sandboxed-ast` / `run-sandboxed-hermetic-ast`
-    /// / `fork-program-ast` / `spawn-program-ast`) hits an
+    /// / `spawn-process`) hits an
     /// `UnknownFunction` AND the offending name (canonical form,
     /// stripping `<T,...>`) IS registered in the OUTER scope's
     /// `SymbolTable`. The substrate teaches: *"sandbox-scope leak —

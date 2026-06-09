@@ -4166,23 +4166,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
         ":wat::kernel::make-channel" => eval_make_channel(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
-        ":wat::kernel::fork-program-ast" => {
-            crate::process::eval_kernel_fork_program_ast(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::kernel::fork-program" => crate::process::eval_kernel_fork_program(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::spawn-program" => crate::process::eval_kernel_spawn_program(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::spawn-program-ast" => {
-            crate::process::eval_kernel_spawn_program_ast(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 170 slice 2 — `:wat::kernel::spawn-process` takes a fn
-        // satisfying the `:user::process` contract and forks an OS
-        // process running it. "The fn IS the program." Slice 1b's
-        // closure extraction packages the fn + captured environment;
-        // slice 1c's PipeFd Sender/Receiver substrate carries typed
-        // Values across the OS-process boundary via EDN-encoded pipes.
-        // See src/process/verbs.rs for the pipeline. Legacy
-        // fork-program / spawn-program arms above stay unchanged
-        // during the sweep window; slice 4 retires them.
         ":wat::kernel::spawn-process" => {
             crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
         }

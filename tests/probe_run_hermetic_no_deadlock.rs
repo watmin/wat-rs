@@ -21,7 +21,7 @@
 //! services; `(:wat::kernel::println ...)` would error with
 //! `ServiceNotRunning` in a spawn-process body. stdout-capture verification
 //! lives in `tests/probe_run_hermetic_ast_stdout_capture.rs` which
-//! exercises the fork-program-ast path where ambient stdio IS installed.
+//! exercises the spawn-process path where ambient stdio IS installed.
 //!
 //! ## Row C1 verification
 //!

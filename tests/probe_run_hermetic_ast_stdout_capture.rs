@@ -1,13 +1,13 @@
-//! Arc 170 slice 3 Gap K — fork-program-ast stdout-capture verification.
+//! Arc 170 slice 3 Gap K — spawn-process stdout-capture verification.
 //!
-//! Verifies that `run-hermetic-ast` (the fork-program-ast Layer 2 path) can
+//! Verifies that `run-hermetic-ast` (the spawn-process Layer 2 path) can
 //! capture stdout written by the child program, and that the drain-before-join
 //! shape in `run-sandboxed-hermetic-ast` does not lose the captured output.
 //!
 //! ## Path exercised
 //!
 //! This file uses `:wat::test::run-hermetic-ast` exclusively — the Layer 2
-//! fork-program-ast surface. This path forks the current process (COW clone)
+//! spawn-process surface. This path forks the current process (COW clone)
 //! and builds a fresh FrozenWorld from the provided AST forms. The forked
 //! child inherits the parent's ambient stdio services; `(:wat::kernel::println ...)`
 //! writes to the child's ambient stdout, which the substrate captures in the
@@ -15,24 +15,11 @@
 //! `run-sandboxed-hermetic-ast` (fixed in Gap K) ensures the stdout IOReader
 //! is drained BEFORE `Process/join-result` is called.
 //!
-//! ## Why NOT spawn-process for this probe
-//!
-//! stdout-capture on the spawn-process path is OUT OF SCOPE for Gap K.
-//! The spawn-process child does NOT install ThreadIO or the ambient stdio
-//! services; `(:wat::kernel::println ...)` would error with `ServiceNotRunning`.
-//! That gap depends on arc 170 slice 1F services landing on spawn-process.
-//! Verifying stdout-capture on a path that cannot produce stdout would require
-//! switching paths — exactly the path-honesty violation that Row G forbids.
-//!
-//! This probe therefore uses the fork-program-ast path, which does have
-//! ambient stdio, and whose file name openly identifies that path.
-//!
 //! ## Row C2 + Row G verification
 //!
 //! File name: `probe_run_hermetic_ast_stdout_capture.rs`
-//! Surface exercised: `:wat::test::run-hermetic-ast` (fork-program-ast)
-//! These match. Every probe body in this file exercises the fork-program-ast
-//! path. No spawn-process calls appear here.
+//! Surface exercised: `:wat::test::run-hermetic-ast` (spawn-process)
+//! These match. Every probe body in this file exercises the spawn-process path.
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};

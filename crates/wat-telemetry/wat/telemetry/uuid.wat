@@ -12,6 +12,5 @@
 ;; Arc 091 slice 2 minted; arc 206 slice 3 retired the duplicate impl;
 ;; arc 207 slice 3 retargets to the typed constructor.
 
-(:wat::core::define
-  (:wat::telemetry::uuid::v4 -> :wat::core::Uuid)
+(:wat::core::defn :wat::telemetry::uuid::v4 [] -> :wat::core::Uuid
   (:wat::core::Uuid/v4))

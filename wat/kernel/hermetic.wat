@@ -10,14 +10,13 @@
 ;; program in isolation. That primitive coupled the runtime to its
 ;; own binary path — honest for its time, dishonest long-term.
 ;;
-;; The fork substrate (pipe + fork-program-ast + Process/join-result,
-;; arc 012 + arc 112) makes hermetic expressible in wat. The child
-;; inherits the parent's loaded runtime via COW and builds a fresh
-;; FrozenWorld from the caller's inherited wat::core::Vector<wat::WatAST> — no
-;; binary reload, no tempfile, no re-parse.
+;; The spawn-process substrate (pipe + clone3 + Process/join-result,
+;; arc 012 + arc 112 + arc 214) makes hermetic expressible in wat.
+;; The child inherits the parent's loaded runtime via COW and builds
+;; a fresh FrozenWorld from the caller's inherited
+;; wat::core::Vector<wat::WatAST> — no binary reload, no tempfile, no re-parse.
 ;;
-;; Arc 112 — fork-program-ast now returns the unified
-;; :wat::kernel::Program<I,O> (same struct spawn-program-ast returns).
+;; Arc 112 — spawn-process returns the unified :wat::kernel::Program<I,O>.
 ;; The wait mechanism is hidden inside ProgramHandle's Forked variant;
 ;; (:wat::kernel::Process/join-result proc) produces wat::core::Result<wat::core::nil,
 ;; ProcessDiedError> uniformly. The pre-arc-112 ForkedChild +
@@ -104,11 +103,11 @@
       (:wat::core::None
        (:wat::core::let
          [proc
-           ;; Arc 214 1b-ii-δ: spawn the program via spawn-process (the canonical
-           ;; forms-server spawn — same :wat::kernel::Process struct + raw stdio
-           ;; pipes), retiring fork-program-ast. The driver writes stdin bytes,
-           ;; drains stdout/stderr bytes, joins — the byte-pipe model is unchanged;
-           ;; only the dying spawn verb is swapped (mirrors test.wat run-hermetic-driver).
+           ;; spawn-process: canonical forms-server spawn — clone3 OS fork,
+           ;; same :wat::kernel::Process struct + raw stdio pipes. The driver
+           ;; writes stdin bytes, drains stdout/stderr bytes, joins — the
+           ;; byte-pipe model is the substrate contract (mirrors test.wat
+           ;; run-hermetic-driver).
            (:wat::kernel::spawn-process forms)
           ;; Write stdin (if any). An empty vec joins to "", which
           ;; write-all handles as a zero-byte write.

@@ -261,8 +261,7 @@ fn install_silent_panic_hook() {
 /// Stone 4.5-fix: the single implementation. `child_post_fork_init` is now
 /// a thin wrapper calling this with `extra_preserved = &[]`.
 ///
-/// Both fork paths (`fork_program_from_source` :: `child_branch_from_source`
-/// and `spawn_process` :: `spawn_process_child_branch`) call
+/// Both fork paths (`run_forked_child` and `spawn_process_peer`) call
 /// `child_post_fork_init(l)` (the zero-extra-preserve variant) immediately
 /// after their pipe-specific dup2 + drop work. `spawn_process_peer` calls
 /// this directly with the comms endpoint fds in `extra_preserved`.

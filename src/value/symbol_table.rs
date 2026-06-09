@@ -64,8 +64,8 @@ pub struct SymbolTable {
     /// + INSERT statements without consumer code.
     pub types: Option<Arc<TypeEnv>>,
     /// Arc 140 slice 1 — when this SymbolTable belongs to a sub-
-    /// program (one started via `:wat::kernel::spawn-program-ast` /
-    /// run-sandboxed-ast / fork-program-ast), this field carries an
+    /// program (one started via `:wat::kernel::run-sandboxed-ast` /
+    /// `run-sandboxed-hermetic-ast`), this field carries an
     /// Arc to the OUTER scope's frozen SymbolTable. Used by the
     /// runtime's UnknownFunction site to detect sandbox-scope leaks:
     /// when a call head doesn't resolve in the inner scope but DOES

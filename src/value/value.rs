@@ -117,7 +117,7 @@ pub enum Value {
     io__IOWriter(Arc<dyn WatWriter>),
     /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
-    /// `:wat::kernel::recv` / `try-recv` / `select` and of structural
+    /// `:wat::kernel::recv` / `select` and of structural
     /// retrieval (`get` on HashMap/Vec/HashSet). The `std::option::Option`
     /// here is the Rust host's own Option — wat's `:Option<T>`
     /// compiles to it directly.
@@ -142,11 +142,11 @@ pub enum Value {
     /// crossbeam result channel); arc 112 lifts the inner repr to
     /// an enum so the SAME wat-level type can carry either an
     /// in-thread receiver (the classic spawn / spawn-program path)
-    /// OR a forked-process pid (the fork-program path). Returned
+    /// OR a forked-process pidfd (the spawn-process path). Returned
     /// by `:wat::kernel::spawn` (InThread) and stored as the
     /// internal wait field of `:wat::kernel::Process<I,O>` (InThread
     /// or Forked depending on whether the Process came from
-    /// spawn-program or fork-program). Consumed by
+    /// spawn-program' or spawn-process). Consumed by
     /// `:wat::kernel::join` / `:wat::kernel::join-result` (operating
     /// on the bare handle from `spawn` — InThread arm only) and
     /// `:wat::kernel::Process/join-result` (operating on a Process —
@@ -166,7 +166,7 @@ pub enum Value {
         rx: Arc<crossbeam_channel::Receiver<Value>>,
     },
     /// A handle to a child process spawned via
-    /// `:wat::kernel::fork-program-ast` (arc 012 slice 2). Opaque from
+    /// `:wat::kernel::spawn-process` (arc 012 + arc 214). Opaque from
     /// wat's POV — produced by fork. `Drop` SIGKILLs + reaps un-waited
     /// children, keeping zombies out of the process table. Arc-112's
     /// exit-status path (`cached_exit` OnceLock) is the live read;
@@ -900,7 +900,7 @@ pub enum SpawnOutcome {
 ///   the spawned thread sends its [`SpawnOutcome`] on. Wait =
 ///   `recv` on the channel; produces `ThreadDiedError` variants on
 ///   failure.
-/// - [`Self::Forked`] — the fork-program path. The handle owns an
+/// - [`Self::Forked`] — the spawn-process path. The handle owns an
 ///   `Arc<ChildHandle>` (libc pid + reaped flag + cached exit).
 ///   Wait = `waitpid` on the pid; produces `ProcessDiedError`
 ///   variants synthesized from the exit code + (in slice 2b) any

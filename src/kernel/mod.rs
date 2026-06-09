@@ -38,7 +38,7 @@
 //!
 //! ## Scope boundary
 //!
-//! - The polymorphic kernel verbs (`send'`/`recv'`/`try-recv'`/`close'`/`select'`)
+//! - The polymorphic kernel verbs (`send'`/`recv'`/`close'`/`select'`)
 //!   SHIPPED in Stone 4.6a-ii/4.6b — live in `src/runtime.rs`
 //!   (`eval_peer_send_prime` / `eval_peer_recv_prime` / `eval_peer_close_prime`,
 //!   registered at runtime.rs:4206-4218). Homing those impls INTO this kernel

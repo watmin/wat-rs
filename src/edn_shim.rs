@@ -2146,6 +2146,15 @@ fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
     if let Some(s) = h.as_symbol() {
         return keyword_from_wat_path(s);
     }
+    // Arc 230: Keyword composition is Bind(Atom(String("Keyword")), Atom(String(s))).
+    // as_keyword() recognises the composition; pass the content through keyword_from_wat_path
+    // to translate wat-path `::` separators to EDN `/` (e.g. `test::reader` → `:test/reader`).
+    // Without this arm, keyword compositions fall to the `_ => holon_ast_to_edn(h)` branch
+    // which calls Keyword::new(s) without namespace translation, producing `:test::reader`
+    // — invalid EDN (double-colon inside a keyword).
+    if let Some(s) = h.as_keyword() {
+        return keyword_from_wat_path(s);
+    }
     match h {
         HolonAST::String(s) => OwnedValue::String(std::borrow::Cow::Owned(s.to_string())),
         HolonAST::I64(n) => OwnedValue::Integer(*n),

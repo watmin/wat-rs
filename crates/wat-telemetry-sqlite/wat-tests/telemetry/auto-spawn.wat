@@ -14,15 +14,13 @@
 
 (:wat::test::make-deftest :deftest
   (;; Tiny test enum with two Tagged variants and mixed types.
-   (:wat::core::enum :test::Event
-     (Buy
-       (price :wat::core::f64)
-       (qty :wat::core::i64))
-     (Sell
-       (price :wat::core::f64)
-       (qty :wat::core::i64)
-       (reason :wat::core::String)
-       (forced :wat::core::bool)))
+   (:wat::core::defenum :test::Event
+     :Buy [price <- :wat::core::f64
+           qty   <- :wat::core::i64]
+     :Sell [price  <- :wat::core::f64
+            qty    <- :wat::core::i64
+            reason <- :wat::core::String
+            forced <- :wat::core::bool])
 
 
    ;; Two-level let helper — outer holds driver; inner sends

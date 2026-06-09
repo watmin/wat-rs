@@ -40,10 +40,9 @@
 ;;
 ;;   (:wat::sqlite::open-readonly "runs/proof-003.db")
 ;;     -> :wat::sqlite::ReadHandle
-(:wat::core::define
-  (:wat::sqlite::open-readonly
-    (path :wat::core::String)
-    -> :wat::sqlite::ReadHandle)
+(:wat::core::defn :wat::sqlite::open-readonly
+  [path <- :wat::core::String]
+  -> :wat::sqlite::ReadHandle
   (:rust::sqlite::ReadHandle::open path))
 
 ;; (:wat::sqlite::ReadHandle/path handle) -> :wat::core::String
@@ -55,8 +54,7 @@
 ;; itself across the spawn boundary; transferring the path
 ;; string is fine, then opening a fresh handle inside the new
 ;; thread is cheap).
-(:wat::core::define
-  (:wat::sqlite::ReadHandle/path
-    (handle :wat::sqlite::ReadHandle)
-    -> :wat::core::String)
+(:wat::core::defn :wat::sqlite::ReadHandle/path
+  [handle <- :wat::sqlite::ReadHandle]
+  -> :wat::core::String
   (:rust::sqlite::ReadHandle::path handle))

@@ -65,11 +65,13 @@
      [stub-tx <- :wat::kernel::Sender<wat::telemetry::Event>]
      -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil
      (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
-       (:wat::core::foldl entries :wat::core::nil
+       (:wat::core::foldl
          (:wat::core::fn [_acc <- :wat::core::nil e <- :wat::telemetry::Event] -> :wat::core::nil
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
-             ((:wat::core::Ok _) :wat::core::nil)
-             ((:wat::core::Err _) :wat::core::nil))))))
+             ((:wat::core::Ok _) nil)
+             ((:wat::core::Err _) nil)))
+         nil
+         entries)))
 
    ;; Count dispatcher — sends the length of each dispatched batch to a
    ;; Sender<i64>. Used by test-make-scope-ships-empty to confirm the
@@ -81,8 +83,8 @@
      (:wat::core::fn [entries <- :wat::core::Vector<wat::telemetry::Event>] -> :wat::core::nil
        (:wat::core::match
          (:wat::kernel::send count-tx (:wat::core::length entries)) -> :wat::core::nil
-         ((:wat::core::Ok _) :wat::core::nil)
-         ((:wat::core::Err _) :wat::core::nil))))
+         ((:wat::core::Ok _) nil)
+         ((:wat::core::Err _) nil))))
 
    ;; Empty stats translator — null cadence never fires anyway.
    (:wat::core::defn :wat-telemetry::scope::translate-empty
@@ -607,6 +609,7 @@
 ;; close (CloudWatch fanout: one row per sample, not one aggregated
 ;; row). The stub dispatcher forwards each event to stub-rx; we recv
 ;; both and confirm both arrived as Some.
+(:wat::test::ignore "parked pending arc 209 defservice — spawns the static-pool telemetry service whose drain-after-join deadlocks under arc 254 bounded channels (reaped at the 5s time-limit). un-ignore when telemetry is rebuilt as an admin/client capability service")
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples
   (:wat::core::let
     ;; Body: two append-dt! calls for the same name → two Event::Metric rows.

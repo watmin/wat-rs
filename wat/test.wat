@@ -234,9 +234,9 @@
 ;; inner program in a forked child with real thread-safe stdio.
 ;;
 ;; Arc 012 slice 3: the implementation lives in wat/kernel/hermetic.wat
-;; (pure wat stdlib on top of fork-program-ast). The
-;; child inherits AST in memory via COW — no subprocess reload, no
-;; serialization, no binary-path coupling.
+;; (pure wat stdlib on top of spawn-process). The child inherits AST
+;; in memory via COW — no subprocess reload, no serialization, no
+;; binary-path coupling.
 (:wat::core::defn :wat::test::run-hermetic-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
 
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5; arc 170 slice 4a-γ-flip) ───

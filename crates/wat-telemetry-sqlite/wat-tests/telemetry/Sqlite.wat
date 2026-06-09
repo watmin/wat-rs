@@ -79,9 +79,11 @@
      [db <- :wat::sqlite::Db
       entries <- :wat::core::Vector<wat::core::i64>]
      -> :wat::core::nil
-     (:wat::core::foldl entries ()
+     (:wat::core::foldl
        (:wat::core::fn [_acc <- :wat::core::nil entry <- :wat::core::i64] -> :wat::core::nil
-         (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))))
+         (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))
+       ()
+       entries))
 
 
    ;; ─── Helpers — function-decomposed lockstep (Step 9) ────────

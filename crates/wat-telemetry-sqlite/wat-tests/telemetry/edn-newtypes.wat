@@ -14,10 +14,9 @@
 ;; NoTag column should not.
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::enum :test::Edn::Event
-     (Log
-       (data    :wat::edn::Tagged)
-       (subject :wat::edn::NoTag)))
+  ((:wat::core::defenum :test::Edn::Event
+     :Log [data    <- :wat::edn::Tagged
+           subject <- :wat::edn::NoTag])
 
 
    ;; Driver: pop tx, build one HolonAST, wrap it in Tagged AND NoTag,

@@ -39,40 +39,35 @@
 (:wat::core::typealias :wat::telemetry::WorkUnit :rust::telemetry::WorkUnit)
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit::new
-    (namespace :wat::holon::HolonAST)
-    (tags      :wat::telemetry::Tags)
-    -> :wat::telemetry::WorkUnit)
+(:wat::core::defn :wat::telemetry::WorkUnit::new
+  [namespace <- :wat::holon::HolonAST
+   tags      <- :wat::telemetry::Tags]
+  -> :wat::telemetry::WorkUnit
   (:rust::telemetry::WorkUnit::new namespace tags))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/namespace
-    (wu :wat::telemetry::WorkUnit) -> :wat::holon::HolonAST)
+(:wat::core::defn :wat::telemetry::WorkUnit/namespace
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::holon::HolonAST
   (:rust::telemetry::WorkUnit::namespace wu))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/uuid
-    (wu :wat::telemetry::WorkUnit) -> :wat::core::String)
+(:wat::core::defn :wat::telemetry::WorkUnit/uuid
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::core::String
   (:rust::telemetry::WorkUnit::uuid wu))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/incr!
-    (wu :wat::telemetry::WorkUnit)
-    (name :wat::holon::HolonAST)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnit/incr!
+  [wu <- :wat::telemetry::WorkUnit
+   name <- :wat::holon::HolonAST]
+  -> :wat::core::nil
   (:rust::telemetry::WorkUnit::incr wu name))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/append-dt!
-    (wu :wat::telemetry::WorkUnit)
-    (name :wat::holon::HolonAST)
-    (secs :wat::core::f64)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::WorkUnit/append-dt!
+  [wu <- :wat::telemetry::WorkUnit
+   name <- :wat::holon::HolonAST
+   secs <- :wat::core::f64]
+  -> :wat::core::nil
   ;; The Rust shim's path mirrors its Rust ident verbatim — the
   ;; #[wat_dispatch] macro uses `method.sig.ident` directly, so the
   ;; path is `append_dt` (underscore), not `append-dt` (kebab). The
@@ -81,42 +76,37 @@
   (:rust::telemetry::WorkUnit::append_dt wu name secs))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/counter
-    (wu :wat::telemetry::WorkUnit)
-    (name :wat::holon::HolonAST)
-    -> :wat::core::i64)
+(:wat::core::defn :wat::telemetry::WorkUnit/counter
+  [wu <- :wat::telemetry::WorkUnit
+   name <- :wat::holon::HolonAST]
+  -> :wat::core::i64
   (:rust::telemetry::WorkUnit::counter wu name))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/durations
-    (wu :wat::telemetry::WorkUnit)
-    (name :wat::holon::HolonAST)
-    -> :wat::core::Vector<wat::core::f64>)
+(:wat::core::defn :wat::telemetry::WorkUnit/durations
+  [wu <- :wat::telemetry::WorkUnit
+   name <- :wat::holon::HolonAST]
+  -> :wat::core::Vector<wat::core::f64>
   (:rust::telemetry::WorkUnit::durations wu name))
 
 
 ;; ─── Slice 4 accessors — read state needed by WorkUnit/scope ────
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/started-epoch-nanos
-    (wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+(:wat::core::defn :wat::telemetry::WorkUnit/started-epoch-nanos
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::core::i64
   ;; Rust ident `started_epoch_nanos`; the macro registers with
   ;; underscore (cf. slice-3's append_dt). The wat-side keeps the
   ;; kebab name.
   (:rust::telemetry::WorkUnit::started_epoch_nanos wu))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/counters-keys
-    (wu :wat::telemetry::WorkUnit) -> :wat::holon::Holons)
+(:wat::core::defn :wat::telemetry::WorkUnit/counters-keys
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::holon::Holons
   (:rust::telemetry::WorkUnit::counters_keys wu))
 
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/durations-keys
-    (wu :wat::telemetry::WorkUnit) -> :wat::holon::Holons)
+(:wat::core::defn :wat::telemetry::WorkUnit/durations-keys
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::holon::Holons
   (:rust::telemetry::WorkUnit::durations_keys wu))
 
 
@@ -133,12 +123,11 @@
 ;; through SinkHandles. Splitting the slice keeps each stepping
 ;; stone testable independently.
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/scope<T>
-    (namespace :wat::holon::HolonAST)
-    (tags      :wat::telemetry::Tags)
-    (body      :wat::core::Fn(wat::telemetry::WorkUnit)->T)
-    -> :T)
+(:wat::core::defn :wat::telemetry::WorkUnit/scope<T>
+  [namespace <- :wat::holon::HolonAST
+   tags      <- :wat::telemetry::Tags
+   body      <- :wat::core::Fn(wat::telemetry::WorkUnit)->T]
+  -> :T
   (:wat::core::let
     [wu (:wat::telemetry::WorkUnit::new namespace tags)
      result                        (body wu)]
@@ -157,11 +146,10 @@
 ;; captured handle.
 ;;
 ;; Returns :Scope<T> per the typealias in types.wat.
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/make-scope<T>
-    (handle    :wat::telemetry::SinkHandles)
-    (namespace :wat::holon::HolonAST)
-    -> :wat::telemetry::WorkUnit::Scope<T>)
+(:wat::core::defn :wat::telemetry::WorkUnit/make-scope<T>
+  [handle    <- :wat::telemetry::SinkHandles
+   namespace <- :wat::holon::HolonAST]
+  -> :wat::telemetry::WorkUnit::Scope<T>
   (:wat::core::fn
     [tags <- :wat::telemetry::Tags
      body <- :wat::telemetry::WorkUnit::Body<T>]
@@ -196,12 +184,11 @@
 ;; the row count predictable: N timed calls under one name ⇒ ONE
 ;; counter row at scope-close (CloudWatch model: counter = N) plus
 ;; N duration rows (one per sample).
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/timed<T>
-    (wu   :wat::telemetry::WorkUnit)
-    (name :wat::holon::HolonAST)
-    (body :wat::core::Fn()->T)
-    -> :T)
+(:wat::core::defn :wat::telemetry::WorkUnit/timed<T>
+  [wu   <- :wat::telemetry::WorkUnit
+   name <- :wat::holon::HolonAST
+   body <- :wat::core::Fn()->T]
+  -> :T
   (:wat::core::let
     [_bump  (:wat::telemetry::WorkUnit/incr! wu name)
      start (:wat::time::epoch-nanos (:wat::time::now))
@@ -228,16 +215,15 @@
 ;; inlined into the foldl bodies, and the helper's signature is its
 ;; own contract.
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/scope::build-counter-metric
-    (start-time-ns :wat::core::i64)
-    (end-time-ns   :wat::core::i64)
-    (namespace     :wat::holon::HolonAST)
-    (uuid          :wat::core::String)
-    (tags          :wat::telemetry::Tags)
-    (name          :wat::holon::HolonAST)
-    (count         :wat::core::i64)
-    -> :wat::telemetry::Event)
+(:wat::core::defn :wat::telemetry::WorkUnit/scope::build-counter-metric
+  [start-time-ns <- :wat::core::i64
+   end-time-ns   <- :wat::core::i64
+   namespace     <- :wat::holon::HolonAST
+   uuid          <- :wat::core::String
+   tags          <- :wat::telemetry::Tags
+   name          <- :wat::holon::HolonAST
+   count         <- :wat::core::i64]
+  -> :wat::telemetry::Event
   (:wat::telemetry::Event::Metric
     start-time-ns
     end-time-ns
@@ -253,16 +239,15 @@
 ;; iterates each named timer; for each name it foldls over its
 ;; samples Vec, calling this helper per sample. metric-value is
 ;; the f64 lifted to HolonAST::F64 via leaf; unit is :seconds.
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/scope::build-duration-metric
-    (start-time-ns :wat::core::i64)
-    (end-time-ns   :wat::core::i64)
-    (namespace     :wat::holon::HolonAST)
-    (uuid          :wat::core::String)
-    (tags          :wat::telemetry::Tags)
-    (name          :wat::holon::HolonAST)
-    (sample        :wat::core::f64)
-    -> :wat::telemetry::Event)
+(:wat::core::defn :wat::telemetry::WorkUnit/scope::build-duration-metric
+  [start-time-ns <- :wat::core::i64
+   end-time-ns   <- :wat::core::i64
+   namespace     <- :wat::holon::HolonAST
+   uuid          <- :wat::core::String
+   tags          <- :wat::telemetry::Tags
+   name          <- :wat::holon::HolonAST
+   sample        <- :wat::core::f64]
+  -> :wat::telemetry::Event
   (:wat::telemetry::Event::Metric
     start-time-ns
     end-time-ns
@@ -279,18 +264,16 @@
 ;; let (per the "simple forms per func" feedback rule). The
 ;; outer walker calls this once per duration-name; inside we
 ;; foldl over that name's samples Vec.
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
-    (start-time-ns :wat::core::i64)
-    (end-time-ns   :wat::core::i64)
-    (namespace     :wat::holon::HolonAST)
-    (uuid          :wat::core::String)
-    (tags          :wat::telemetry::Tags)
-    (name          :wat::holon::HolonAST)
-    (samples       :wat::core::Vector<wat::core::f64>)
-    -> :wat::core::Vector<wat::telemetry::Event>)
-  (:wat::core::foldl samples
-    (:wat::core::Vector :wat::telemetry::Event)
+(:wat::core::defn :wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
+  [start-time-ns <- :wat::core::i64
+   end-time-ns   <- :wat::core::i64
+   namespace     <- :wat::holon::HolonAST
+   uuid          <- :wat::core::String
+   tags          <- :wat::telemetry::Tags
+   name          <- :wat::holon::HolonAST
+   samples       <- :wat::core::Vector<wat::core::f64>]
+  -> :wat::core::Vector<wat::telemetry::Event>
+  (:wat::core::foldl
     (:wat::core::fn
       [acc    <- :wat::core::Vector<wat::telemetry::Event>
        sample <- :wat::core::f64]
@@ -298,7 +281,9 @@
       (:wat::core::concat acc
         (:wat::core::Vector :wat::telemetry::Event
           (:wat::telemetry::WorkUnit/scope::build-duration-metric
-            start-time-ns end-time-ns namespace uuid tags name sample))))))
+            start-time-ns end-time-ns namespace uuid tags name sample))))
+    (:wat::core::Vector :wat::telemetry::Event)
+    samples))
 
 
 ;; collect-metric-events — at scope-close, walks the wu's counters
@@ -306,12 +291,11 @@
 ;; piece. Counters: ONE row per name (final count). Durations:
 ;; ONE row per sample (CloudWatch fanout). Namespace pulled
 ;; from wu (per the user's "namespace adjacent to tags" rule).
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/scope::collect-metric-events
-    (wu            :wat::telemetry::WorkUnit)
-    (start-time-ns :wat::core::i64)
-    (end-time-ns   :wat::core::i64)
-    -> :wat::core::Vector<wat::telemetry::Event>)
+(:wat::core::defn :wat::telemetry::WorkUnit/scope::collect-metric-events
+  [wu            <- :wat::telemetry::WorkUnit
+   start-time-ns <- :wat::core::i64
+   end-time-ns   <- :wat::core::i64]
+  -> :wat::core::Vector<wat::telemetry::Event>
   (:wat::core::let
     [namespace        (:wat::telemetry::WorkUnit/namespace wu)
      uuid                     (:wat::telemetry::WorkUnit/uuid wu)
@@ -319,8 +303,7 @@
      counter-keys   (:wat::telemetry::WorkUnit/counters-keys wu)
      duration-keys   (:wat::telemetry::WorkUnit/durations-keys wu)
      counter-events
-      (:wat::core::foldl counter-keys
-        (:wat::core::Vector :wat::telemetry::Event)
+      (:wat::core::foldl
         (:wat::core::fn
           [acc <- :wat::core::Vector<wat::telemetry::Event>
            key <- :wat::holon::HolonAST]
@@ -331,10 +314,11 @@
               (:wat::telemetry::WorkUnit/scope::build-counter-metric
                 start-time-ns end-time-ns namespace uuid tags key count)]
             (:wat::core::concat acc
-              (:wat::core::Vector :wat::telemetry::Event event)))))
-     duration-events
-      (:wat::core::foldl duration-keys
+              (:wat::core::Vector :wat::telemetry::Event event))))
         (:wat::core::Vector :wat::telemetry::Event)
+        counter-keys)
+     duration-events
+      (:wat::core::foldl
         (:wat::core::fn
           [acc <- :wat::core::Vector<wat::telemetry::Event>
            key <- :wat::holon::HolonAST]
@@ -345,7 +329,9 @@
              per-name
               (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
                 start-time-ns end-time-ns namespace uuid tags key samples)]
-            (:wat::core::concat acc per-name))))]
+            (:wat::core::concat acc per-name)))
+        (:wat::core::Vector :wat::telemetry::Event)
+        duration-keys)]
     (:wat::core::concat counter-events duration-events)))
 
 
@@ -362,7 +348,6 @@
 ;; map: `{:asset :BTC, :stage :market-eval}`. Slice 4 picks the
 ;; field-type shape that drives that rendering.
 
-(:wat::core::define
-  (:wat::telemetry::WorkUnit/tags
-    (wu :wat::telemetry::WorkUnit) -> :wat::telemetry::Tags)
+(:wat::core::defn :wat::telemetry::WorkUnit/tags
+  [wu <- :wat::telemetry::WorkUnit] -> :wat::telemetry::Tags
   (:rust::telemetry::WorkUnit::tags wu))

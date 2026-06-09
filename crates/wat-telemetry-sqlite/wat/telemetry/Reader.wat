@@ -61,54 +61,48 @@
 ;;
 ;; AND-semantics across the vec. Empty vec = no narrowing
 ;; (full-table scan, slice-1 behavior preserved).
-(:wat::core::enum :wat::telemetry::TimeConstraint
-  (Since (instant :wat::time::Instant))
-  (Until (instant :wat::time::Instant)))
+(:wat::core::defenum :wat::telemetry::TimeConstraint
+  :Since [instant <- :wat::time::Instant]
+  :Until [instant <- :wat::time::Instant])
 
 ;; Builders: one-line wraps around the variant constructors.
 ;; Reads more naturally at the call site than the variant form —
 ;; `(since (hours-ago 1))` vs
 ;; `(:wat::telemetry::TimeConstraint::Since (hours-ago 1))`.
-(:wat::core::define
-  (:wat::telemetry::since
-    (instant :wat::time::Instant)
-    -> :wat::telemetry::TimeConstraint)
+(:wat::core::defn :wat::telemetry::since
+  [instant <- :wat::time::Instant]
+  -> :wat::telemetry::TimeConstraint
   (:wat::telemetry::TimeConstraint::Since instant))
 
-(:wat::core::define
-  (:wat::telemetry::until
-    (instant :wat::time::Instant)
-    -> :wat::telemetry::TimeConstraint)
+(:wat::core::defn :wat::telemetry::until
+  [instant <- :wat::time::Instant]
+  -> :wat::telemetry::TimeConstraint
   (:wat::telemetry::TimeConstraint::Until instant))
 
 ;; ─── Cursor constructors (thin Rust forwarders) ────────────────
 
 ;; Cursor constructors. The constraint vec narrows the prepared
 ;; statement's WHERE clause; empty vec = full-table scan.
-(:wat::core::define
-  (:wat::telemetry::sqlite/log-cursor
-    (handle :wat::sqlite::ReadHandle)
-    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::telemetry::sqlite::LogCursor)
+(:wat::core::defn :wat::telemetry::sqlite/log-cursor
+  [handle      <- :wat::sqlite::ReadHandle
+   constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
+  -> :wat::telemetry::sqlite::LogCursor
   (:rust::telemetry::sqlite::LogCursor::new handle constraints))
 
-(:wat::core::define
-  (:wat::telemetry::sqlite/metric-cursor
-    (handle :wat::sqlite::ReadHandle)
-    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::telemetry::sqlite::MetricCursor)
+(:wat::core::defn :wat::telemetry::sqlite/metric-cursor
+  [handle      <- :wat::sqlite::ReadHandle
+   constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
+  -> :wat::telemetry::sqlite::MetricCursor
   (:rust::telemetry::sqlite::MetricCursor::new handle constraints))
 
-(:wat::core::define
-  (:wat::telemetry::sqlite::LogCursor/step!
-    (cursor :wat::telemetry::sqlite::LogCursor)
-    -> :wat::core::Option<wat::telemetry::Event>)
+(:wat::core::defn :wat::telemetry::sqlite::LogCursor/step!
+  [cursor <- :wat::telemetry::sqlite::LogCursor]
+  -> :wat::core::Option<wat::telemetry::Event>
   (:rust::telemetry::sqlite::LogCursor::step cursor))
 
-(:wat::core::define
-  (:wat::telemetry::sqlite::MetricCursor/step!
-    (cursor :wat::telemetry::sqlite::MetricCursor)
-    -> :wat::core::Option<wat::telemetry::Event>)
+(:wat::core::defn :wat::telemetry::sqlite::MetricCursor/step!
+  [cursor <- :wat::telemetry::sqlite::MetricCursor]
+  -> :wat::core::Option<wat::telemetry::Event>
   (:rust::telemetry::sqlite::MetricCursor::step cursor))
 
 ;; ─── Event::Log/data-ast / data-value (slice 3) ─────────────
@@ -134,24 +128,22 @@
 ;;
 ;; Both return `:None` on the Metric variant (no data column).
 
-(:wat::core::define
-  (:wat::telemetry::Event::Log/data-ast
-    (e :wat::telemetry::Event)
-    -> :wat::core::Option<wat::holon::HolonAST>)
+(:wat::core::defn :wat::telemetry::Event::Log/data-ast
+  [e <- :wat::telemetry::Event]
+  -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::match e -> :wat::core::Option<wat::holon::HolonAST>
     ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
       (:wat::core::Some (:wat::edn::Tagged/0 data)))
     (_ :wat::core::None)))
 
-(:wat::core::define
-  (:wat::telemetry::Event::Log/data-value<T>
-    (e :wat::telemetry::Event)
-    -> :wat::core::Option<T>)
+(:wat::core::defn :wat::telemetry::Event::Log/data-value<T>
+  [e <- :wat::telemetry::Event]
+  -> :wat::core::Option<T>
   (:wat::core::match e -> :wat::core::Option<T>
     ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
       (:wat::core::match
         (:wat::eval-ast!
-          (:wat::holon::to-watast (:wat::edn::Tagged/0 data)))
+          (:wat::holon::to-wat (:wat::edn::Tagged/0 data)))
         -> :wat::core::Option<T>
         ((:wat::core::Ok v) (:wat::core::Some v))
         ((:wat::core::Err _) :wat::core::None)))
@@ -169,39 +161,37 @@
 ;; :wat::stream::spawn-producer. Tail-recursive for unbounded
 ;; row counts.
 
-(:wat::core::define
-  (:wat::telemetry::sqlite/log-loop
-    (cursor :wat::telemetry::sqlite::LogCursor)
-    (tx :wat::kernel::Sender<wat::telemetry::Event>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::sqlite/log-loop
+  [cursor <- :wat::telemetry::sqlite::LogCursor
+   tx     <- :wat::kernel::Sender<wat::telemetry::Event>]
+  -> :wat::core::nil
   (:wat::core::match
     (:wat::telemetry::sqlite::LogCursor/step! cursor)
     -> :wat::core::nil
-    (:wat::core::None :wat::core::nil)
+    (:wat::core::None nil)
     ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :wat::core::nil
         ((:wat::core::Ok _)
           (:wat::telemetry::sqlite/log-loop cursor tx))
-        ((:wat::core::Err _) :wat::core::nil)))))
+        ((:wat::core::Err _) nil)))))
 
-(:wat::core::define
-  (:wat::telemetry::sqlite/metric-loop
-    (cursor :wat::telemetry::sqlite::MetricCursor)
-    (tx :wat::kernel::Sender<wat::telemetry::Event>)
-    -> :wat::core::nil)
+(:wat::core::defn :wat::telemetry::sqlite/metric-loop
+  [cursor <- :wat::telemetry::sqlite::MetricCursor
+   tx     <- :wat::kernel::Sender<wat::telemetry::Event>]
+  -> :wat::core::nil
   (:wat::core::match
     (:wat::telemetry::sqlite::MetricCursor/step! cursor)
     -> :wat::core::nil
-    (:wat::core::None :wat::core::nil)
+    (:wat::core::None nil)
     ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :wat::core::nil
         ((:wat::core::Ok _)
           (:wat::telemetry::sqlite/metric-loop cursor tx))
-        ((:wat::core::Err _) :wat::core::nil)))))
+        ((:wat::core::Err _) nil)))))
 
 ;; (sqlite/stream-logs handle query) -> Stream<Event>
 ;;
@@ -209,11 +199,10 @@
 ;; cells can't cross the spawn boundary; opening a fresh handle
 ;; from the captured path is cheap — sqlite handles many concurrent
 ;; read connections), construct a fresh cursor, drive the loop.
-(:wat::core::define
-  (:wat::telemetry::sqlite/stream-logs
-    (handle :wat::sqlite::ReadHandle)
-    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::stream::Stream<wat::telemetry::Event>)
+(:wat::core::defn :wat::telemetry::sqlite/stream-logs
+  [handle      <- :wat::sqlite::ReadHandle
+   constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
+  -> :wat::stream::Stream<wat::telemetry::Event>
   (:wat::core::let
     [path (:wat::sqlite::ReadHandle/path handle)]
     (:wat::stream::spawn-producer
@@ -226,11 +215,10 @@
             (:wat::telemetry::sqlite/log-cursor local-handle constraints)]
           (:wat::telemetry::sqlite/log-loop cursor tx))))))
 
-(:wat::core::define
-  (:wat::telemetry::sqlite/stream-metrics
-    (handle :wat::sqlite::ReadHandle)
-    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::stream::Stream<wat::telemetry::Event>)
+(:wat::core::defn :wat::telemetry::sqlite/stream-metrics
+  [handle      <- :wat::sqlite::ReadHandle
+   constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
+  -> :wat::stream::Stream<wat::telemetry::Event>
   (:wat::core::let
     [path (:wat::sqlite::ReadHandle/path handle)]
     (:wat::stream::spawn-producer

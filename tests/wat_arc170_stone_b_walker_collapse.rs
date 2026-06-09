@@ -103,9 +103,8 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
 // `Process/join-result` directly — for Thread, `:wat::test::run-thread-
 // driver` at `wat/test.wat`; for Process, `:wat::test::run-hermetic-
 // driver-with-io` at `wat/test.wat` (plus
-// `:wat::kernel::run-sandboxed-fork-direct` at `wat/kernel/sandbox.wat`
-// and `:wat::kernel::fork-program-with-inputs` at
-// `wat/kernel/hermetic.wat`). A trivial user-code startup exercising the
+// `:wat::kernel::run-sandboxed-ast` at `wat/kernel/sandbox.wat`
+// (plus helpers in `wat/kernel/hermetic.wat`). A trivial user-code startup exercising the
 // full freeze pipeline runs the new walker over those substrate bodies;
 // IF the substrate-namespace exemption is broken, freeze fails with the
 // new walker variant on those substrate bodies.

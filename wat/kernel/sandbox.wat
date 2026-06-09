@@ -2,8 +2,7 @@
 ;;
 ;; Restored from git history (eb655d1^:wat/std/sandbox.wat) in
 ;; arc 170 slice 1f-δ′. File location updated to wat/kernel/ per
-;; arc 109 K-namespace doctrine. Content is literal restore; the
-;; TIERS.md migration to spawn-process remains a separate future arc.
+;; arc 109 K-namespace doctrine.
 ;;
 ;; This file MUST be loaded AFTER wat/kernel/hermetic.wat. The
 ;; drain-lines-acc / drain-lines / failure-from-process-died helpers
@@ -11,28 +10,27 @@
 ;; redefinition.
 ;;
 ;; Reimplements the test-convenience `run-sandboxed` family on top
-;; of the arc 103a spawn-program substrate + arc 105a's Result-
-;; returning failure-as-data shape + arc 105b's
-;; ThreadDiedError/message accessor.
+;; of the spawn-program (source-string) and spawn-process (AST forms)
+;; substrates. run-sandboxed (source-string) still uses spawn-program;
+;; run-sandboxed-ast (AST) uses spawn-process (arc 214 1b-ii-ζ.1).
 ;;
 ;; What this file replaces (arc 105c): the Rust primitives of the
 ;; same names in src/sandbox.rs, which collected stdin / stdout /
 ;; stderr as wat::core::Vector<String> buffers — buffer-in / buffer-out, no
-;; interleaving, no back-pressure. The arc 103a spawn-program
-;; substrate gives real kernel pipes; this file moves the test-
-;; convenience "collect output to wat::core::Vector<String>" shape to the wat
-;; layer where it belongs. wat::core::Vector<String> is the ASSERTION TARGET
-;; for tests, not a substrate concern. Same surface (run-sandboxed
-;; src stdin scope → RunResult); same return shape; same wat-test
-;; calls — only the mechanism changed.
+;; interleaving, no back-pressure. The spawn substrates give real
+;; kernel pipes; this file moves the test-convenience "collect output
+;; to wat::core::Vector<String>" shape to the wat layer where it belongs.
+;; wat::core::Vector<String> is the ASSERTION TARGET for tests, not a substrate
+;; concern. Same surface (run-sandboxed src stdin scope → RunResult);
+;; same return shape; same wat-test calls — only the mechanism changed.
 ;;
 ;; Failure path:
 ;; - spawn-program returns :wat::core::Result<:Process, :StartupError>.
 ;;   On (Err startup-err), startup-failure-result synthesizes a
 ;;   RunResult with empty stdout/stderr + Some(Failure) carrying the
 ;;   error message. Same shape the deleted substrate produced.
-;; - join-result returns :wat::core::Result<wat::core::nil,
-;;   wat::core::Vector<ProcessDiedError>> after a successful spawn.
+;; - spawn-process returns :Process directly; join-result returns
+;;   :wat::core::Result<wat::core::nil, wat::core::Vector<ProcessDiedError>>.
 ;;   On (Err chain), drive-sandbox builds a Failure with
 ;;   failure-from-process-died extracting the panic or runtime-error
 ;;   message. Captured stdout/stderr (whatever the child wrote before
@@ -116,12 +114,11 @@
           ((:wat::core::Ok _)    :wat::core::None)
           ((:wat::core::Err err)
            (:wat::core::Some (:wat::kernel::failure-from-process-died
-                   ;; spawn-program / spawn-program-ast use in-process thread
-                   ;; spawns, not forked processes. The thread panic chain comes
-                   ;; through the crossbeam channel (join-result Err arm), not
-                   ;; through a subprocess stderr pipe. extract-panics returns
-                   ;; None for thread-based spawns; fall through to the
-                   ;; join-result chain (err) which carries the full ProcessDiedError.
+                   ;; spawn-process forks a real OS process; the panic chain
+                   ;; comes through the subprocess stderr pipe as EDN.
+                   ;; extract-panics recovers it; if absent, fall through to
+                   ;; the join-result chain (err) which carries the full
+                   ;; ProcessDiedError from the wait path.
                    (:wat::core::match stderr-chain
                      -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                      ((:wat::core::Some chain) chain)
@@ -150,8 +147,10 @@
 
 
 ;; --- :wat::kernel::run-sandboxed-ast (AST entry) ---
+;; Arc 214 1b-ii-ζ.1 — migrated to spawn-process (retired in-thread AST spawn).
+;; spawn-process returns Process<I,O> directly (no Result wrapper); startup
+;; errors flow through drive-sandbox's join-result Err arm. The scope
+;; parameter is kept for API compatibility but is not forwarded (spawn-process
+;; takes only the forms; scope-through-fork is a separate future arc).
 (:wat::core::defn :wat::kernel::run-sandboxed-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::Option<wat::core::String>] -> :wat::kernel::RunResult
-  (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
-      -> :wat::kernel::RunResult
-      ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
-      ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
+  (:wat::kernel::drive-sandbox (:wat::kernel::spawn-process forms) stdin))

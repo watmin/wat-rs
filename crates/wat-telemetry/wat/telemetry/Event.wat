@@ -29,21 +29,22 @@
 ;;
 ;; Arc 091 slice 4.
 
-(:wat::core::enum :wat::telemetry::Event
-  (Metric
-    (start-time-ns :wat::core::i64)              ; wu start (wall-clock epoch ns)
-    (end-time-ns   :wat::core::i64)              ; wu end
-    (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
-    (uuid          :wat::core::String)           ; from the WorkUnit
-    (tags          :wat::telemetry::Tags) ; HolonAST→HolonAST map
-    (metric-name   :wat::edn::NoTag)  ; the counter/duration key
-    (metric-value  :wat::edn::NoTag)  ; primitive HolonAST leaf — never a Bundle
-    (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
-  (Log
-    (time-ns   :wat::core::i64)                   ; emit moment (wall-clock epoch ns)
-    (namespace :wat::edn::NoTag)       ; producing fn's fqdn keyword
-    (caller    :wat::edn::NoTag)       ; producer identity
-    (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
-    (uuid      :wat::core::String)                ; from the WorkUnit
-    (tags      :wat::telemetry::Tags)    ; same map, attached to every log line
-    (data      :wat::edn::Tagged)))    ; round-trip-safe message HolonAST
+;; Arc 241.9 — `:wat::core::enum` was hard-cut in favour of
+;; `:wat::core::defenum` (keyword variant heads + argspec-triple
+;; tagged fields). Same two flat-field variants, new declaration form.
+(:wat::core::defenum :wat::telemetry::Event
+  :Metric [start-time-ns <- :wat::core::i64              ; wu start (wall-clock epoch ns)
+           end-time-ns   <- :wat::core::i64              ; wu end
+           namespace     <- :wat::edn::NoTag             ; producing fn's fqdn keyword
+           uuid          <- :wat::core::String           ; from the WorkUnit
+           tags          <- :wat::telemetry::Tags        ; HolonAST→HolonAST map
+           metric-name   <- :wat::edn::NoTag             ; the counter/duration key
+           metric-value  <- :wat::edn::NoTag             ; primitive HolonAST leaf — never a Bundle
+           metric-unit   <- :wat::edn::NoTag]            ; :count, :seconds, etc.
+  :Log [time-ns   <- :wat::core::i64                     ; emit moment (wall-clock epoch ns)
+        namespace <- :wat::edn::NoTag                    ; producing fn's fqdn keyword
+        caller    <- :wat::edn::NoTag                    ; producer identity
+        level     <- :wat::edn::NoTag                    ; :info/:warn/:error/:debug
+        uuid      <- :wat::core::String                  ; from the WorkUnit
+        tags      <- :wat::telemetry::Tags               ; same map, attached to every log line
+        data      <- :wat::edn::Tagged])                 ; round-trip-safe message HolonAST

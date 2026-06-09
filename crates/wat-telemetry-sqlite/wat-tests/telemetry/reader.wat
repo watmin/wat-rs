@@ -229,8 +229,10 @@
       (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
         ((:wat::core::Some e) e)
         (:wat::core::None
-          (:wat::test::assertion-failed
-            "expected at least one event")))
+          (:wat::kernel::assertion-failed!
+            "expected at least one event"
+            :wat::core::None
+            :wat::core::None)))
      ;; data-ast returns Some(HolonAST::String "first").
      msg
       (:wat::core::match
@@ -264,8 +266,10 @@
       (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
         ((:wat::core::Some e) e)
         (:wat::core::None
-          (:wat::test::assertion-failed
-            "expected at least one event")))
+          (:wat::kernel::assertion-failed!
+            "expected at least one event"
+            :wat::core::None
+            :wat::core::None)))
      ;; data-value<:wat::core::String> — lift Tagged HolonAST → String.
      msg
       (:wat::core::match

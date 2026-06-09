@@ -117,16 +117,15 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/kernel/services/stderr.wat"),
     },
     // Arc 170 slice 1f-δ — restore :wat::kernel::run-sandboxed-hermetic-ast
-    // as wat-side wrapper around fork-program-ast (closes § Row K from
-    // slice 1f-β-i V2 SCORE). The TIERS.md migration to spawn-process
-    // remains a separate future arc. Also defines drain-lines-acc,
+    // as wat-side wrapper around spawn-process (closes § Row K from
+    // slice 1f-β-i V2 SCORE). Also defines drain-lines-acc,
     // drain-lines, and failure-from-process-died helpers.
     WatSource {
         path: "wat/kernel/hermetic.wat",
         source: include_str!("../wat/kernel/hermetic.wat"),
     },
     // Arc 170 slice 1f-δ′ — restore :wat::kernel::run-sandboxed-ast as
-    // wat-side wrapper around spawn-program-ast (closes the largest
+    // wat-side wrapper around spawn-process (closes the largest
     // baseline failure category; sibling of slice 1f-δ's hermetic
     // restore). Loaded AFTER hermetic.wat so drain-lines /
     // failure-from-process-died helpers are already registered.
@@ -169,7 +168,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // `:wat::kernel::run-sandboxed` / `:wat::kernel::run-sandboxed-ast`
     // verbs were the legacy "spawn a fresh-world program from
     // forms or source" surface; built on `spawn-program` /
-    // `spawn-program-ast` which slice 4 destructively retires.
+    // the retired spawn-program substrate (arc 214 1b-ii-ζ.1).
     // Per `docs/arc/2026/05/170-program-entry-points/TIERS.md`,
     // tier-2 spawning post-arc-170 is `(:wat::kernel::spawn-process
     // fn)` — a fn satisfies the `:user::process` contract;
@@ -235,7 +234,7 @@ const STDLIB_FILES: &[WatSource] = &[
 /// fork) uses this function, so external wat crates' wat surface
 /// is uniformly available to any wat code running in the process —
 /// including code inside `:wat::kernel::run-sandboxed-ast` and
-/// `:wat::kernel::fork-program-ast`.
+/// `:wat::kernel::spawn-process` children.
 ///
 /// Called by [`crate::freeze::startup_from_source`] and
 /// [`crate::freeze::startup_from_forms`] to register stdlib
