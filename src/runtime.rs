@@ -2777,16 +2777,21 @@ fn eval_if_tail(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() == 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::if".into(),
-            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into()
-        } }.into());
+        // Arc 258.1 — bare `(if cond then else)`.
+        let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
+        return match cond_val {
+            Value::bool(true) => eval_tail(&args[1], env, sym),
+            Value::bool(false) => eval_tail(&args[2], env, sym),
+            other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
+        };
     }
     if args.len() != 5 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
+                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             )
         } }.into());
@@ -5878,16 +5883,21 @@ fn eval_if(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     if args.len() == 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::if".into(),
-            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into()
-        } }.into());
+        // Arc 258.1 — bare `(if cond then else)`.
+        let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
+        return match cond_val {
+            Value::bool(true) => eval_inner(&args[1], env, sym).map(|tv| tv.value_owned()),
+            Value::bool(false) => eval_inner(&args[2], env, sym).map(|tv| tv.value_owned()),
+            other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
+        };
     }
     if args.len() != 5 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
+                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             )
         } }.into());
@@ -21411,11 +21421,29 @@ fn step_if(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
+    if args.len() == 3 {
+        // Arc 258.1 — bare `(if cond then else)`: args = [cond, then, else].
+        let cond = &args[0];
+        return match cond {
+            WatAST::BoolLit(true, _) => Ok(StepValue::Next(args[1].clone())),
+            WatAST::BoolLit(false, _) => Ok(StepValue::Next(args[2].clone())),
+            _ => {
+                let new_cond = step_to_watast(cond, env, sym)?;
+                let new_items = vec![
+                    WatAST::Keyword(":wat::core::if".into(), Span::unknown()),
+                    new_cond,
+                    args[1].clone(),
+                    args[2].clone(),
+                ];
+                Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
+            }
+        };
+    }
     if args.len() != 5 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat::core::if cond -> :T then else); got {} args",
+                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             )
         } }.into());

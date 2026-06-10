@@ -7127,23 +7127,43 @@ fn infer_if(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() == 3 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-            head: ":wat::core::if".into(),
-            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
-            remedies: vec![],
-        } });
-        // Still recurse into the body so inner errors surface too.
-        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        // HARVEST (236.2): existing diagnostic; straight conversion.
-        return CheckResult::errs(local_errors);
+        // Arc 258.1 — the BARE form `(if cond then else)`: no `-> :T`. The form's type is
+        // unify(then, else); cond must be bool. (The annotated 5-arg path is kept below.)
+        let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        if let Some(c) = cond_ty {
+            if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::if".into(),
+                    param: "cond".into(),
+                    expected: ":wat::core::bool".into(),
+                    got: format_type(&apply_subst(&c, subst))
+                } });
+            }
+        }
+        let then_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        let else_ty = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        match (then_ty, else_ty) {
+            (Some(t), Some(e)) => {
+                if unify(&t, &e, subst, env.types()).is_err() {
+                    local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: ":wat::core::if".into(),
+                        param: "else-branch".into(),
+                        expected: format_type(&apply_subst(&t, subst)),
+                        got: format_type(&apply_subst(&e, subst))
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                let ty = apply_subst(&t, subst);
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
+            _ => return CheckResult::errs(local_errors),
+        }
     }
     if args.len() != 5 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
+                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             ),
             remedies: vec![],
