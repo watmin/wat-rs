@@ -17,13 +17,16 @@
 //! `/`-preserving candidate is structurally unreachable, and the named latent gap for
 //! type-member symbol heads.
 //!
-//! ## Quote-family boundary discipline
+//! ## Special-form boundary discipline
 //!
-//! Mirrors the boundary discipline in [`super::walk::check_form`]:
-//! - `:wat::core::forms` / `:wat::core::quote` / `:wat::core::define` — all
-//!   arguments are data; return the form unchanged.
-//! - `:wat::core::quasiquote` — the template argument is data EXCEPT inside
-//!   `:wat::core::unquote` / `:wat::core::unquote-splicing` escapes (live code).
+//! A namespaced symbol sitting in a **data** position (a quoted form, a `match`
+//! arm's pattern) must NOT be rewritten. The boundary-head classification lives
+//! once in [`super::boundary::quote_boundary`] and is shared with
+//! [`super::walk::check_form`] — both passes match it exhaustively, so they
+//! cannot drift on which heads capture arguments as data. This pass applies the
+//! one invariant — *never rewrite a symbol in a data position* — to every such
+//! position (`quote`/`forms`/`define`, `quasiquote` templates, and the patterns
+//! of `matches?`/`cond`/`match`).
 //!
 //! ## Dual-read (arc 251.1b)
 //!
@@ -35,6 +38,7 @@ use crate::ast::WatAST;
 use crate::edn_shim::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use super::boundary::{quote_boundary, Boundary};
 use super::error::{ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
 
@@ -84,9 +88,37 @@ fn normalize_form(
             }
         }
 
-        // List: check for quote-family boundary before recursing.
+        // List: a special-form boundary may capture some arguments as data.
+        // The head's `Boundary` (classified once in `super::boundary`, shared
+        // with `walk`) decides which child regions are live code to rewrite and
+        // which are data to leave untouched — the SAME invariant normalize
+        // already applies to quoted forms, extended to every data position.
+        // Exhaustive match: a new boundary variant is a compile error here until
+        // handled, so walk and normalize cannot drift on the boundary-head set.
         WatAST::List(items, span) => {
-            WatAST::List(normalize_list(items, sym, macros, errors), span)
+            let boundary = match items.first() {
+                Some(WatAST::Keyword(k, _)) => quote_boundary(k),
+                _ => Boundary::Ordinary,
+            };
+            let new_items = match boundary {
+                // Ordinary call: every child is live code — rewrite throughout.
+                Boundary::Ordinary => items
+                    .into_iter()
+                    .map(|c| normalize_form(c, sym, macros, errors))
+                    .collect(),
+                // quote / forms / define: every argument is data. A quoted
+                // `(wat.core/+ ...)` must keep its symbol, not be rewritten.
+                Boundary::AllData => items,
+                // quasiquote: template data except unquote/unquote-splicing escapes.
+                Boundary::Quasiquote => normalize_quasiquote_list(items, sym, macros, errors),
+                // matches?: only the subject (items[1]) is code; pattern is data.
+                Boundary::MatchesSubject => normalize_matches(items, sym, macros, errors),
+                // cond: arms are code except a leading `:else` marker.
+                Boundary::Cond => normalize_cond(items, sym, macros, errors),
+                // match: scrutinee + arm bodies are code; patterns + `-> :T` are data.
+                Boundary::Match => normalize_match(items, sym, macros, errors),
+            };
+            WatAST::List(new_items, span)
         }
 
         // Vector: recurse uniformly (no boundary guards needed).
@@ -127,55 +159,111 @@ fn normalize_form(
     }
 }
 
-/// Handle list normalization with quote-family boundary discipline.
-///
-/// Mirrors `check_form`'s boundary logic exactly:
-/// - `quote` / `forms` / `define` → return all items unchanged (data).
-/// - `quasiquote` → recurse only through `unquote`/`unquote-splicing` escapes.
-/// - Everything else → normalize all children.
-fn normalize_list(
+/// Normalize a `:wat::core::quasiquote` list. The template (items[1]) is data
+/// EXCEPT inside `unquote` / `unquote-splicing` escapes (live code).
+fn normalize_quasiquote_list(
     items: Vec<WatAST>,
     sym: &SymbolTable,
     macros: &MacroRegistry,
     errors: &mut Vec<UnresolvedReference>,
 ) -> Vec<WatAST> {
-    // Peek at the head to detect quote-family boundaries.
-    let head_kw: Option<String> = match items.first() {
-        Some(WatAST::Keyword(k, _)) => Some(k.clone()),
-        _ => None,
-    };
+    let mut normalized_items = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    // Keep the head keyword as-is.
+    normalized_items.extend(iter.next());
+    // items[1] = template (if present) — descend quasiquote-aware.
+    if let Some(template) = iter.next() {
+        normalized_items.push(normalize_quasiquote_template(template, sym, macros, errors));
+    }
+    // Any remaining items pass through unchanged (shouldn't appear in a
+    // well-formed quasiquote, but be conservative).
+    normalized_items.extend(iter);
+    normalized_items
+}
 
-    if let Some(ref head) = head_kw {
-        // Quote / forms / define: entire argument list is data. Return as-is.
-        if head == ":wat::core::quote"
-            || head == ":wat::core::forms"
-            || head == ":wat::core::define"
-        {
-            return items;
-        }
+/// Normalize a `:wat::form::matches?` list. Only the subject (items[1]) is code;
+/// the pattern (items[2..]) is DSL data — left untouched, mirroring `walk`.
+fn normalize_matches(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    out.extend(iter.next()); // matches? head, as-is
+    if let Some(subject) = iter.next() {
+        out.push(normalize_form(subject, sym, macros, errors)); // subject: code
+    }
+    out.extend(iter); // pattern + any extra args: data, as-is
+    out
+}
 
-        // Quasiquote: template is data except inside unquote/unquote-splicing.
-        if head == ":wat::core::quasiquote" {
-            let mut normalized_items = Vec::with_capacity(items.len());
-            let mut iter = items.into_iter();
-            // Keep the head keyword as-is.
-            normalized_items.extend(iter.next());
-            // items[1] = template (if present) — descend quasiquote-aware.
-            if let Some(template) = iter.next() {
-                normalized_items.push(normalize_quasiquote_template(template, sym, macros, errors));
+/// Normalize a `:wat::core::cond` list. Every arm is code, EXCEPT a leading
+/// `:else` marker (cond's own DSL keyword) heading the default arm: keep the
+/// marker as-is, normalize the arm body.
+fn normalize_cond(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    out.extend(iter.next()); // cond head, as-is
+    for item in iter {
+        match item {
+            WatAST::List(arm_items, arm_span)
+                if matches!(arm_items.first(), Some(WatAST::Keyword(k, _)) if k == ":else") =>
+            {
+                let mut new_arm = Vec::with_capacity(arm_items.len());
+                let mut ai = arm_items.into_iter();
+                new_arm.extend(ai.next()); // :else marker, as-is
+                for body in ai {
+                    new_arm.push(normalize_form(body, sym, macros, errors));
+                }
+                out.push(WatAST::List(new_arm, arm_span));
             }
-            // Any remaining items pass through unchanged (shouldn't appear in
-            // well-formed quasiquote, but be conservative).
-            normalized_items.extend(iter);
-            return normalized_items;
+            other => out.push(normalize_form(other, sym, macros, errors)),
         }
     }
+    out
+}
 
-    // Default: normalize all items recursively.
-    items
-        .into_iter()
-        .map(|item| normalize_form(item, sym, macros, errors))
-        .collect()
+/// Normalize a `:wat::core::match` list. The scrutinee (items[1]) and each arm
+/// body are code; the `-> :T` annotation (items[2..=3]) and each arm's pattern
+/// are data — left untouched, mirroring `walk`.
+fn normalize_match(
+    items: Vec<WatAST>,
+    sym: &SymbolTable,
+    macros: &MacroRegistry,
+    errors: &mut Vec<UnresolvedReference>,
+) -> Vec<WatAST> {
+    let mut out = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    out.extend(iter.next()); // match head, as-is
+    if let Some(scrutinee) = iter.next() {
+        out.push(normalize_form(scrutinee, sym, macros, errors)); // scrutinee: code
+    }
+    out.extend(iter.next()); // `->` symbol, as-is (data)
+    out.extend(iter.next()); // return-type keyword, as-is (data)
+    for arm in iter {
+        match arm {
+            WatAST::List(arm_items, arm_span) => {
+                let mut new_arm = Vec::with_capacity(arm_items.len());
+                let mut ai = arm_items.into_iter();
+                new_arm.extend(ai.next()); // pattern (arm_items[0]): data, as-is
+                if let Some(body) = ai.next() {
+                    new_arm.push(normalize_form(body, sym, macros, errors)); // body: code
+                }
+                new_arm.extend(ai); // any trailing arm items: data, as-is
+                out.push(WatAST::List(new_arm, arm_span));
+            }
+            // Non-list arm (e.g. a bare-symbol wildcard): live code.
+            other => out.push(normalize_form(other, sym, macros, errors)),
+        }
+    }
+    out
 }
 
 /// Walk a quasiquote template, normalizing only inside unquote/unquote-splicing

@@ -10,6 +10,7 @@ use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
 use super::error::{ResolveError, UnresolvedReference};
+use super::boundary::{quote_boundary, Boundary};
 use super::reserved::is_reserved_prefix;
 use super::rust_use::collect_use_declarations;
 use super::quote::check_quasiquote_template;
@@ -17,6 +18,13 @@ use super::quote::check_quasiquote_template;
 /// Check that every call-position keyword-path reference in `forms`
 /// resolves somewhere. Returns Ok iff all references are known;
 /// otherwise reports every failure at once.
+///
+/// `forms` is the program's **top-level** form sequence (the freeze residue).
+/// Pass 1's `use!` scan is program-global precisely because it reads the
+/// top-level forms; a nested slice would silently lose `use!` declarations
+/// hoisted above it. The sole caller (`freeze.rs` step 7) always passes the
+/// top-level residue. (The `&[WatAST]` type cannot express "top-level only";
+/// a `TopLevelForms` newtype would make it structural — tracked, not urgent.)
 pub fn resolve_references(
     forms: &[WatAST],
     sym: &SymbolTable,
@@ -49,11 +57,12 @@ pub fn resolve_references(
     }
 }
 
-// rune:intueri(length) — a multi-way call-head-boundary dispatch (the quote-family
-// boundaries + match/cond pattern-arm boundaries + generic children() recursion). Each
-// arm is short and carries its own arc-attribution comment; the length is an
+// rune:intueri(length) — a call-head check followed by a `match` on the head's
+// [`Boundary`] (classified once in `super::boundary`, shared with `normalize`).
+// Each arm is short, carries its own arc-attribution, and applies this pass's
+// action (call-head resolution) to that boundary's code regions. The length is an
 // orchestration sequence over the language's special-form boundaries, not braided
-// concerns. The match-arm boundary is the natural extraction candidate if it grows.
+// concerns — and the boundary-head SET no longer lives here, so it cannot drift.
 pub(super) fn check_form(
     form: &WatAST,
     sym: &SymbolTable,
@@ -96,151 +105,83 @@ pub(super) fn check_form(
                 }
             }
 
-            // Arc 170 slice 3 Gap F-2 — quote-family boundary.
-            //
-            // Quote-family forms capture their arguments as AST data;
-            // the arguments are NOT live code and must not be walked for
-            // call-head resolution.
-            //
-            // :wat::core::forms — variadic data-capture; ALL arguments are
-            //   data. Do not recurse into any child.
-            //
-            // :wat::core::quote — single argument is data. Do not recurse.
-            //
-            // :wat::core::quasiquote — the template argument is data EXCEPT
-            //   inside :wat::core::unquote / :wat::core::unquote-splicing
-            //   escape forms. Use quasiquote-aware descent: recurse only
-            //   through the unquote/unquote-splicing children, treating the
-            //   rest of the template as opaque data.
-            //
-            // Nested quasiquote (depth > 1) is out of scope for F-2:
-            // a (:wat::core::quasiquote ...) encountered INSIDE a quasiquote
-            // template is treated as data (not descended into). This is
-            // conservative and correct for all current callers; if nested-
-            // quasiquote resolver semantics are needed, a dedicated arc
-            // should address them.
-            if head == ":wat::core::forms" || head == ":wat::core::quote" {
-                // Arguments are data — do not recurse into any child.
-                return;
-            }
-            // Stone 241.11 — HARD CUT: :wat::core::define is retired.
-            // The checker (step 8) rejects it with a structured MalformedForm
-            // retirement remedy. The resolver must NOT recurse into the body
-            // (step 7 runs before the checker); the body's call references are
-            // irrelevant since the form itself will be rejected.
-            if head == ":wat::core::define" {
-                return;
-            }
-            if head == ":wat::core::quasiquote" {
-                // Template is data except inside unquote/unquote-splicing.
-                // items[1] is the template argument (if present).
-                if let Some(template) = items.get(1) {
-                    check_quasiquote_template(template, sym, macros, use_decls, unresolved);
-                }
-                return;
-            }
+            // Special-form argument boundary. The head's [`Boundary`] (classified
+            // once in `super::boundary`) decides which child regions are live code
+            // to resolve and which are data to leave alone. This `match` is
+            // exhaustive: a new boundary variant is a compile error here until it
+            // is handled — the structural guarantee that walk and normalize cannot
+            // drift on the boundary-head set.
+            match quote_boundary(head) {
+                // quote / forms / define — every argument is data. (define is
+                // retired at the checker (Stone 241.11); the resolver still must
+                // not walk its body, since step 7 runs before the rejection.)
+                Boundary::AllData => return,
 
-            // Arc 098 — :wat::form::matches? boundary (mirrors quote-family above).
-            //
-            // (:wat::form::matches? SUBJECT PATTERN)
-            //
-            // SUBJECT (items[1]) is ordinary code — let-bound locals, constructor
-            // calls — and MUST be walked for call-head resolution.
-            //
-            // PATTERN (items[2]) is DSL data owned by the matches? grammar walker
-            // (src/check.rs `infer_form_matches`).  Its head is a struct-type name
-            // in pattern position (e.g. `:test::PaperResolved`), which is NOT a
-            // call-head — it is a struct name the checker validates against the
-            // struct registry.  The clause sub-forms inside the pattern use DSL
-            // clause heads (`=`, `<`, `>`, `:not=`, `:and`, `:or`, `:not`,
-            // `:where`) that are likewise not ordinary call heads.  Resolving them
-            // as call heads would always produce false `UnresolvedReference` errors.
-            //
-            // Do NOT recurse into items[2..] (the pattern and any extra args).
-            // Recurse ONLY into items[1] (the subject).
-            if head == ":wat::form::matches?" {
-                if let Some(subject) = items.get(1) {
-                    check_form(subject, sym, macros, use_decls, unresolved);
+                // quasiquote (arc 170 F-2) — the template (items[1]) is data
+                // except inside unquote / unquote-splicing escapes. Nested
+                // quasiquote is treated as opaque data (out of scope for F-2).
+                Boundary::Quasiquote => {
+                    if let Some(template) = items.get(1) {
+                        check_quasiquote_template(template, sym, macros, use_decls, unresolved);
+                    }
+                    return;
                 }
-                return;
-            }
 
-            // Arc 245 room 4 — :wat::core::cond `:else` marker boundary
-            // (the finer sibling of the matches? boundary above).
-            //
-            // (:wat::core::cond -> :T (test1 r1) ... (:else default))
-            //
-            // Unlike matches?'s pattern, cond's arms ARE ordinary code — every
-            // test and every result must be walked. The ONE exception is the
-            // `:else` marker heading the default arm: it is the cond grammar's
-            // DSL keyword (check.rs `infer_cond` owns it), not a call head.
-            // Walking it as a call head produces a false UnresolvedReference.
-            //
-            // Walk every child as usual, but for an arm headed by the `:else`
-            // keyword, skip the marker and walk only the arm's body.
-            if head == ":wat::core::cond" {
-                for item in items.iter().skip(1) {
-                    if let WatAST::List(arm_items, _) = item {
-                        if let Some(WatAST::Keyword(arm_head, _)) = arm_items.first() {
-                            if arm_head == ":else" {
-                                for body in arm_items.iter().skip(1) {
-                                    check_form(body, sym, macros, use_decls, unresolved);
+                // matches? (arc 098) — only the subject (items[1]) is code; the
+                // pattern (items[2..]) is DSL data owned by check.rs
+                // `infer_form_matches` (struct-name head + clause keywords, none
+                // of which are call heads).
+                Boundary::MatchesSubject => {
+                    if let Some(subject) = items.get(1) {
+                        check_form(subject, sym, macros, use_decls, unresolved);
+                    }
+                    return;
+                }
+
+                // cond (arc 245 room 4) — every arm is ordinary code, EXCEPT a
+                // leading `:else` marker (cond's own DSL keyword, owned by
+                // check.rs `infer_cond`): skip the marker, walk the arm body.
+                Boundary::Cond => {
+                    for item in items.iter().skip(1) {
+                        if let WatAST::List(arm_items, _) = item {
+                            if let Some(WatAST::Keyword(arm_head, _)) = arm_items.first() {
+                                if arm_head == ":else" {
+                                    for body in arm_items.iter().skip(1) {
+                                        check_form(body, sym, macros, use_decls, unresolved);
+                                    }
+                                    continue;
                                 }
-                                continue;
                             }
                         }
+                        check_form(item, sym, macros, use_decls, unresolved);
                     }
-                    check_form(item, sym, macros, use_decls, unresolved);
+                    return;
                 }
-                return;
-            }
 
-            // Arc 245 long-tail — :wat::core::match arm boundary.
-            //
-            // (:wat::core::match scrutinee -> :T arm1 arm2 ...)
-            //
-            // Each arm is `(pattern body)`. The PATTERN is DSL data owned by
-            // check.rs `infer_match` — its head keyword is a variant name or
-            // Option/Result constructor in PATTERN position, not a call head.
-            // Examples: `(:None false)`, `(:wat::core::Some x)`, `((:Ns::E::V) body)`.
-            //
-            // Walking arm patterns as call heads produces false
-            // UnresolvedReference errors (e.g. `:None` in `(:None false)`).
-            //
-            // Structure: items[1]=scrutinee (walk), items[2..3]=`-> :T` (skip),
-            // items[4..]=arms; each arm is `(pattern body)` — walk only the body.
-            if head == ":wat::core::match" {
-                // Walk the scrutinee (items[1]) as live code.
-                if let Some(scrutinee) = items.get(1) {
-                    check_form(scrutinee, sym, macros, use_decls, unresolved);
-                }
-                // Skip items[2] (`->` symbol) and items[3] (return type keyword).
-                // Walk each arm's body (items[1] of the arm); skip the pattern
-                // (items[0] of the arm) — it is DSL data, not a call head.
-                for arm in items.iter().skip(4) {
-                    if let WatAST::List(arm_items, _) = arm {
-                        // arm_items[0] = pattern (DSL data — skip call-head check)
-                        // arm_items[1] = body (live code — walk)
-                        if let Some(body) = arm_items.get(1) {
-                            check_form(body, sym, macros, use_decls, unresolved);
-                        }
-                        // Also walk nested call forms inside the PATTERN only for
-                        // composite patterns like `((:wat::core::Some x) body)`:
-                        // the inner `(:wat::core::Some x)` is itself a list whose
-                        // head IS a reserved prefix and is fine to walk — but the
-                        // outermost pattern head (e.g. `:None`) is the DSL marker.
-                        // We skip the outermost pattern head entirely to avoid the
-                        // false-positive; nested resolution inside composite patterns
-                        // is handled by the recursive walk of the arm body above.
-                        // (The pattern sub-forms like `(:wat::core::Some x)` are data
-                        // nodes that the checker owns; resolving them is unnecessary
-                        // and can only produce false positives.)
-                    } else {
-                        // Non-list arm (e.g. a bare symbol wildcard) — walk it.
-                        check_form(arm, sym, macros, use_decls, unresolved);
+                // match (arc 245 long-tail) — items[1]=scrutinee (walk),
+                // items[2..=3]=`-> :T` (skip), items[4..]=arms. Each arm is
+                // `(pattern body)`: the pattern is DSL data owned by check.rs
+                // `infer_match` (variant/constructor head, not a call head), so
+                // walk only the body (arm_items[1]). A bare-symbol wildcard arm is
+                // walked directly.
+                Boundary::Match => {
+                    if let Some(scrutinee) = items.get(1) {
+                        check_form(scrutinee, sym, macros, use_decls, unresolved);
                     }
+                    for arm in items.iter().skip(4) {
+                        if let WatAST::List(arm_items, _) = arm {
+                            if let Some(body) = arm_items.get(1) {
+                                check_form(body, sym, macros, use_decls, unresolved);
+                            }
+                        } else {
+                            check_form(arm, sym, macros, use_decls, unresolved);
+                        }
+                    }
+                    return;
                 }
-                return;
+
+                // Not a boundary — fall through to the generic children() walk.
+                Boundary::Ordinary => {}
             }
         }
     }

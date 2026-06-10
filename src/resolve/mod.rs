@@ -45,6 +45,9 @@
 //! - [`error`] — [`ResolveError`] and [`UnresolvedReference`] types.
 //! - [`reserved`] — [`RESERVED_PREFIXES`], [`is_reserved_prefix`], [`reserved_prefix_list`].
 //! - [`rust_use`] — `:wat::core::use!` declaration collection and rust-deps coverage.
+//! - [`boundary`] — the single source of truth for special-form argument
+//!   boundaries (`quote_boundary`), shared by `walk` and `normalize` so the two
+//!   passes cannot drift on which heads capture arguments as data.
 //! - [`quote`] — quasiquote/quote boundary descent.
 //! - [`normalize`] — [`normalize_symbol_refs`]: namespaced symbol-ref → keyword FQDN (arc 251.1b).
 //! - [`walk`] — [`resolve_references`] entry, [`check_form`] recursive walk.
@@ -56,6 +59,7 @@
 //!
 //! <!-- rune:vigilatum(...) PLACEHOLDER — ward earned in orchestrator's follow-up vigilia pass; do NOT self-stamp -->
 
+mod boundary;
 mod error;
 mod normalize;
 mod quote;
