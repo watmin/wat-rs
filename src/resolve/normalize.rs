@@ -7,17 +7,15 @@
 //! UNTOUCHED downstream dispatch (`eval_list` / `dispatch_keyword_head`) resolves
 //! it. Bare symbols (no `/`) are left untouched — they are local binders.
 //!
-//! ## Mapping (primary → fallback)
+//! ## Mapping
 //!
-//! Given `a.b/c`:
-//! - Split on the LAST `/` → ns=`a.b`, name=`c`.
-//! - **Primary**: `ns_to_wat_path(ns, name)` = `:` + ns(`.`→`::`) + `::` + name
-//!   → `wat.core/+` → `:wat::core::+`.
-//! - **Fallback** (type members): `:` + ns(`.`→`::`) + `/` + name
-//!   → `wat.core/HashMap/length` → `:wat::core/HashMap/length`. (Kept as-is for
-//!   `Type/member` heads.)
-//!
-//! First candidate that passes the resolution predicate wins.
+//! Given `a.b/c` — split on the LAST `/` → ns=`a.b`, name=`c` — the keyword FQDN is
+//! `ns_to_wat_path(ns, name)` = `:` + ns(`.`→`::`) + `::` + name
+//! (`wat.core/+` → `:wat::core::+`). If it passes the resolution predicate the symbol
+//! rewrites to that keyword; otherwise a located error names the unknown entity. There
+//! is NO `Type/member` fallback — see the NOTE in `resolve_namespaced_symbol` for why a
+//! `/`-preserving candidate is structurally unreachable, and the named latent gap for
+//! type-member symbol heads.
 //!
 //! ## Quote-family boundary discipline
 //!
@@ -246,34 +244,39 @@ fn normalize_quasiquote_template(
 /// (`:wat::core::+`) and validate it resolves. Returns the rewritten
 /// `WatAST::Keyword` on success, or a located `UnresolvedReference` error.
 fn resolve_namespaced_symbol(
-    raw: &str,
+    symbol_text: &str,
     span: &crate::span::Span,
     sym: &SymbolTable,
     macros: &MacroRegistry,
 ) -> Result<WatAST, UnresolvedReference> {
-    // Split on the LAST `/` → (ns_part, name_part).
-    let slash_pos = raw.rfind('/').expect("caller guarantees '/' present");
-    let ns_part = &raw[..slash_pos];
-    let name_part = &raw[slash_pos + 1..];
+    // Split on the LAST `/` → (namespace, local_name).
+    let slash_pos = symbol_text.rfind('/').expect("caller guarantees '/' present");
+    let namespace = &symbol_text[..slash_pos];
+    let local_name = &symbol_text[slash_pos + 1..];
 
-    // Primary: `ns_to_wat_path` — replaces `.` with `::` and joins with `::`.
-    // e.g. `wat.core/+` → `:wat::core::+`.
-    let primary = ns_to_wat_path(ns_part, name_part);
+    // `ns_to_wat_path` replaces `.` with `::` and joins with `::`:
+    // `wat.core/+` → `:wat::core::+`.
+    let primary = ns_to_wat_path(namespace, local_name);
 
     if is_resolvable_call_head(&primary, sym, macros) {
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
 
-    // Fallback: Type/member style — `:` + ns(`.`→`::`) + `/` + name.
-    // Preserves the `/` separator for Type/member dispatch heads.
-    // e.g. `wat.core/HashMap/length` → `:wat::core/HashMap/length`.
-    let fallback = format!(":{}/{}", ns_part.replace('.', "::"), name_part);
+    // NOTE — there is intentionally NO `Type/member` fallback (purgare, 251.1b ward).
+    // A `/`-preserving candidate (`:wat::core::HashMap/length`) is structurally
+    // unreachable: for any `:wat::`/`:rust::` head the PRIMARY already passes
+    // `is_resolvable_call_head` via the reserved-prefix shortcut (it accepts the
+    // namespace without leaf validation), so primary-fail never happens for the
+    // reserved namespaces; and non-reserved entities register under `:ns::name`
+    // keys (never `:ns/name`), so a `/`-shaped candidate matches nothing there either.
+    // LATENT GAP, named not buried: a type-member SYMBOL head (`wat.core.HashMap/length`)
+    // normalizes to `:wat::core::HashMap::length`, which passes resolve but is NOT the
+    // runtime op (`:wat::core::HashMap/length`), so it would not dispatch. No current
+    // program uses symbol-head type-members (the corpus is keyword-spelled); correct
+    // `Type/member` symbol normalization is deferred to the 251.5 corpus cut, where
+    // symbol-head type-members first appear.
 
-    if is_resolvable_call_head(&fallback, sym, macros) {
-        return Ok(WatAST::Keyword(fallback, span.clone()));
-    }
-
-    // Neither candidate resolves → located error naming the unknown entity.
+    // Primary did not resolve → located error naming the unknown entity.
     Err(UnresolvedReference {
         path: primary.clone(),
         context: "namespaced symbol ref — not a builtin, not a registered function (arc 251)",

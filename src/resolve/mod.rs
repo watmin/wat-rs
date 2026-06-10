@@ -37,7 +37,8 @@
 //! - It does NOT check type-position references. That's the type
 //!   checker's job (see [`crate::check`]); this pass treats type
 //!   annotations and field types as opaque.
-//! - It does NOT transform the AST. Just validates references.
+//! - It validates call-head references AND, since 251.1b, normalizes namespaced
+//!   symbol refs (`wat.core/+`) to their keyword FQDN via the [`normalize`] module.
 //!
 //! # Module layout
 //!
@@ -45,6 +46,7 @@
 //! - [`reserved`] — [`RESERVED_PREFIXES`], [`is_reserved_prefix`], [`reserved_prefix_list`].
 //! - [`rust_use`] — `:wat::core::use!` declaration collection and rust-deps coverage.
 //! - [`quote`] — quasiquote/quote boundary descent.
+//! - [`normalize`] — [`normalize_symbol_refs`]: namespaced symbol-ref → keyword FQDN (arc 251.1b).
 //! - [`walk`] — [`resolve_references`] entry, [`check_form`] recursive walk.
 //!
 //! # Warded home
@@ -66,7 +68,7 @@ mod walk;
 // without any changes.
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
-pub use reserved::{is_reserved_prefix, reserved_prefix_list, RESERVED_PREFIXES};
+pub use reserved::{is_reserved_prefix, reserved_prefix_list};
 pub use walk::resolve_references;
 
 #[cfg(test)]
