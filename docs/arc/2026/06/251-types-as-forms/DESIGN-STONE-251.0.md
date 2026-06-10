@@ -81,9 +81,13 @@ surface.
 
 ## Out of scope = rejected (affirmative cuts)
 
-- **Native symbol-AST head representation** — NOT 251.1; types get it at 251.3, the
-  general head flip (if ever needed beyond types) is its own later call. 251.1 is
-  normalize-layer only.
+- **Native symbol-AST head representation** — NOT 251.1; types get it at 251.3. The
+  general operator/declarator head flip is **stone 251.6 — COMMITTED, not "if ever
+  needed"** (builder, 2026-06-09): it reads `WatAST::Symbol` heads natively and then
+  ANNIHILATES `src/resolve/normalize.rs`. The normalize-layer is SCAFFOLDING — symbol→
+  keyword-FQDN is the last vestige of the keyword abuse in the bones; proper Clojure has
+  symbols canonical end-to-end, no keyword core. 251.1 is normalize-layer only; the
+  layer's deletion is scheduled into the final measurement (see `DESIGN.md`).
 - **The `:-` arrow / `ann-form`** — 251.4 (folds into the signature cascade).
 - **The `wat.type/` namespace + parametrics** — 251.2 / 251.3.
 - **HARD-CUT of keyword spellings** — 251.5 (dual-read holds until then).

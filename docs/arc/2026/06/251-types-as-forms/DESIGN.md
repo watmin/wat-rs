@@ -213,8 +213,19 @@ disconfirming probe:
 - **251.4** `:-` annotation arrow + `ann-form` expression-ascription — folded into the
   signature-rewrite cascade (the corpus-wide `<-`→`:-` + keyword-head→symbol-head sweep).
 - **251.5** HARD-CUT the keyword-as-type/operator surface (one-canonical-path) — the
-  dotted symbol form becomes the ONLY form; resolution rejects keyword spellings.
-- **251.N** INSCRIPTION (every touched segment a stamped home; FM-11 grep clean).
+  dotted symbol form becomes the ONLY surface form; resolution rejects keyword spellings.
+- **251.6 — NATIVE SYMBOL DISPATCH (ANNIHILATE the normalize-layer).** Flip `eval_list` /
+  `dispatch_keyword_head` + every `if let Some(WatAST::Keyword(head, _)) = items.first()`
+  head-reading site across check.rs/runtime.rs to read `WatAST::Symbol` heads NATIVELY —
+  the big-bang 251.0 deliberately deferred, safe now that the corpus is symbols-only
+  (post-251.5) so the blast radius no longer hides the contract. Then **DELETE
+  `src/resolve/normalize.rs`** — with native dispatch it has nothing left to translate.
+  Symbol is canonical end-to-end; the keyword-FQDN internal core is GONE. This is the act
+  that zeroes the normalize half of the final measurement. (Disconfirming probe: a symbol
+  head dispatches with NO normalize pass in the pipeline.)
+- **251.N** INSCRIPTION (every touched segment a stamped home; FM-11 grep clean; THE FINAL
+  MEASUREMENT verified — wat_edn codec + normalize.rs both deleted, vanilla EDN reader
+  round-trips the corpus).
 
 ### ⊹ THE FINAL MEASUREMENT (the acceptance gate — builder, 2026-06-09)
 
@@ -233,11 +244,20 @@ its largest scale (*the right fix deletes code*). Post-251 this is dead code to 
 - the bracket `lex_keyword` machinery in BOTH lexers — **251.3 deletes** it.
 - the 213.S bridge (`src/wat_edn_bridge.rs`) keyword translation collapses to a pure
   structural pass-through (a wat keyword IS an EDN keyword; the `/`-in-name STOP vanishes).
+- **the arc-251 normalize-layer ITSELF** (`src/resolve/normalize.rs`) — it is the SAME
+  species of translation magic (symbol→keyword-FQDN), the **last vestige of the keyword
+  abuse living in the bones.** It is SCAFFOLDING, scheduled for demolition (builder,
+  2026-06-09): once dispatch reads `WatAST::Symbol` heads NATIVELY (stone 251.6 below),
+  normalize has nothing left to translate and is **DELETED**. Symbol is canonical
+  end-to-end; no keyword-FQDN core remains. Keeping normalize would leave wat "symbols on
+  the skin, keywords in the bones" — NOT proper Clojure. The dual-read it provides is the
+  bridge; the translation it performs is also condemned.
 
 Corpus side: **~10,400 `::` occurrences** across `.wat` files → `.`/`/` (mechanical:
 `:a::b::c` → `a.b/c`; `:a::b::T/m` → `a.b.T/m`). **251.N does not close until the
-translation-magic grep is ZERO and the round-trip holds with a vanilla EDN reader.**
-This also retires 213's whole keyword-codec problem (don't patch it — 251 deletes it).
+translation-magic grep is ZERO — wat_edn codec AND `src/resolve/normalize.rs` deleted —
+and the round-trip holds with a vanilla EDN reader.** This also retires 213's whole
+keyword-codec problem (don't patch it — 251 deletes it).
 
 Roughly 6-10 stones. Campaign-scale — bigger than arc 234. Substrate-as-teacher
 cascade will be wide (every `.wat` file + every test fixture + src synthesis sites).
