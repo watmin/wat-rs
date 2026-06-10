@@ -216,6 +216,29 @@ disconfirming probe:
   dotted symbol form becomes the ONLY form; resolution rejects keyword spellings.
 - **251.N** INSCRIPTION (every touched segment a stamped home; FM-11 grep clean).
 
+### ⊹ THE FINAL MEASUREMENT (the acceptance gate — builder, 2026-06-09)
+
+The arc is DONE when the **wat_edn translation layer is DELETED** — not bypassed,
+*deleted* — and a wat program still round-trips through a **plain, spec-conforming EDN
+reader**. That deletion IS the proof that wat is EDN; it is the session-wide lesson at
+its largest scale (*the right fix deletes code*). Post-251 this is dead code to rip out
+(sized 2026-06-09):
+- the `::`↔`.` magic in wat-edn — `translate_and_validate_ns`, the `Keyword::try_ns`/`ns`
+  rewrite (**~21 sites**).
+- the wat↔EDN keyword codec in `edn_shim` — `keyword_from_wat_path`, `ns_to_wat_path`,
+  `make_qualified_keyword`, `strip_keyword_colon`, `type_path_to_namespace` (**~27 sites**).
+- the **wire-escape mode** (`Lexer::new_wire` + the `_`↔`,` swap, woven through
+  parser/lexer/vocab/writer/value) — its sole job is smuggling `:Foo<A,B>` parametric
+  commas, which **251.3 dissolves** (parametrics-as-forms).
+- the bracket `lex_keyword` machinery in BOTH lexers — **251.3 deletes** it.
+- the 213.S bridge (`src/wat_edn_bridge.rs`) keyword translation collapses to a pure
+  structural pass-through (a wat keyword IS an EDN keyword; the `/`-in-name STOP vanishes).
+
+Corpus side: **~10,400 `::` occurrences** across `.wat` files → `.`/`/` (mechanical:
+`:a::b::c` → `a.b/c`; `:a::b::T/m` → `a.b.T/m`). **251.N does not close until the
+translation-magic grep is ZERO and the round-trip holds with a vanilla EDN reader.**
+This also retires 213's whole keyword-codec problem (don't patch it — 251 deletes it).
+
 Roughly 6-10 stones. Campaign-scale — bigger than arc 234. Substrate-as-teacher
 cascade will be wide (every `.wat` file + every test fixture + src synthesis sites).
 
