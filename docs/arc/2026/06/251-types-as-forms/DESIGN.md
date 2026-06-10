@@ -197,9 +197,13 @@ disconfirming probe:
     precedent); resolve gains validate **+ normalize** (transform, lifting its current
     "does NOT transform" limitation). Probe `probe_arc251_stone0_symbol_head` RED→GREEN.
     Dual-read (keyword + symbol). Re-earn the stamp.
-  - **251.1c** CONSOLIDATE: migrate `check.rs:1637` `BARE_PRIMITIVES`/
-    `BARE_CONTAINER_HEADS` into the resolve home — resolution becomes the single
-    surface→entity canonicalization authority. Behavior-preserving. Re-earn the stamp.
+  - **251.1c — RETIRED** (misread, grounded against the disk 2026-06-09): the
+    `BARE_PRIMITIVES`/`BARE_CONTAINER_HEADS` tables are NOT bare→FQDN resolution — they
+    are a bare-scalar-TYPE deprecation lint (`walk_type_for_bare` emits
+    `BareLegacyPrimitive`: "you wrote bare `:i64`, use the FQDN"). Resolve is ALREADY the
+    single CALL-HEAD authority after 251.1b. The bare-TYPE discipline is a TYPES concern
+    that 251.2 subsumes — once types are `wat.type/i64` symbols, the bare-`:i64`-keyword
+    lint has nothing to lint. **251.1 closes at a+b**; the home is warded after 251.1b.
   - (Lexer untouched throughout — it already reads the token.)
 - **251.2** the `wat.type/` namespace: type atoms move out of `:wat::core::` into the
   type namespace; the lexeme-carries-the-role property replaces position-polymorphism

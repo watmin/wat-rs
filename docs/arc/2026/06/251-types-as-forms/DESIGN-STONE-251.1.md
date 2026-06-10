@@ -33,11 +33,15 @@ gives each stone a single verification axis (recovery-doc § Proactive slicing):
   Verification: `probe_arc251_stone0_symbol_head` C01 RED→GREEN, C02 stays GREEN
   (dual-read); lib + corpus baseline green. Re-earn the stamp.
 
-- **251.1c — CONSOLIDATE (behavior-preserving migration).** Move `check.rs:1637`
-  `BARE_PRIMITIVES` / `BARE_CONTAINER_HEADS` (+ the :1753/:1770 application sites) into
-  the resolve home, so resolution is the single surface→entity canonicalization
-  authority (bare→FQDN AND symbol→entity in one place). Verification: lib + corpus
-  identical; no behavior drift. Re-earn the stamp.
+- **251.1c — RETIRED** (premise was a misread; grounded against the disk 2026-06-09).
+  `BARE_PRIMITIVES`/`BARE_CONTAINER_HEADS` (check.rs:1650/1665) are NOT bare→FQDN
+  resolution — they are a bare-scalar-TYPE deprecation lint, consumed by
+  `walk_type_for_bare` (a `TypeExpr` walk) emitting `BareLegacyPrimitive` /
+  `BareLegacyContainerHead` ("you wrote bare `:i64`, use the FQDN"). After 251.1b resolve
+  is ALREADY the single CALL-HEAD authority — nothing left to consolidate for heads. The
+  bare-TYPE discipline belongs to the TYPES work and EVAPORATES at 251.2 (when types
+  become `wat.type/i64` symbols, the bare-`:i64`-keyword lint has nothing to lint).
+  **251.1 closes at a+b.**
 
 ---
 
