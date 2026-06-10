@@ -18,13 +18,12 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-/// fix-source's home, loaded verbatim — the ONE definition (no inline duplication).
-const FIX_HOME: &str = include_str!("../wat/fix.wat");
+// fix-source loads as blessed stdlib (wat/fix.wat is listed in src/stdlib.rs), so it is
+// available at `:wat::fix::*` after startup — no inline definition, no include_str!.
 
 fn eval_string(body: &str) -> Result<String, String> {
     let src = format!(
-        "{FIX_HOME}\n\
-         (:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST \
+        "(:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST \
             (:wat::core::Option/expect -> :wat::WatAST \
               (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))) \"topform\"))\n\
          (:wat::core::defn :user::compute [] -> :wat::core::String {body})\n\
@@ -48,7 +47,7 @@ fn embed(payload: &str) -> String {
 
 fn fix(src: &str) -> Result<String, String> {
     eval_string(&format!(
-        "(:wat::core::write-forms (:fix::fix-source (:user::topform \"{}\")))",
+        "(:wat::core::write-forms (:wat::fix::fix-source (:user::topform \"{}\")))",
         embed(src)
     ))
 }

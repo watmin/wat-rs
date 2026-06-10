@@ -17,7 +17,7 @@
 ;; the head-rule turns that head into the `wat.core/if` symbol.
 
 ;; structural? — a node whose children we recurse into (list/vector/set/map).
-(:wat::core::defn :fix::structural? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :wat::fix::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
     (:wat::core::if (:wat::core::= k "list") true
       (:wat::core::if (:wat::core::= k "vector") true
@@ -27,7 +27,7 @@
 ;; annotated-if? — a List whose head is the `:wat::core::if` keyword and whose child[2] is
 ;; the bare Symbol `->` (the redundant return annotation). Keys on the EXACT head so an
 ;; `Option/expect -> :T` (different head) is never mistaken for an if annotation.
-(:wat::core::defn :fix::annotated-if? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :wat::fix::annotated-if? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
@@ -43,14 +43,14 @@
 
 ;; strip-if — rebuild the bare `(if cond then else)` from `(if cond -> :T then else)`,
 ;; dropping children [2] (`->`) and [3] (the type).
-(:wat::core::defn :fix::strip-if [node <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defn :wat::fix::strip-if [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::with-children node
     (:wat::core::concat (:wat::core::take (:wat::core::ast->children node) 2)
                         (:wat::core::drop (:wat::core::ast->children node) 4))))
 
 ;; head-keyword? — a `::`-namespaced keyword: a rust-scheme call head / reference, the kind
 ;; `keyword/to-symbol` converts. Bare data keywords (`:else`) have no `::` and are left alone.
-(:wat::core::defn :fix::head-keyword? [node <- :wat::WatAST] -> :wat::core::bool
+(:wat::core::defn :wat::fix::head-keyword? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::string::contains? (:wat::core::ast-name node) "::")
     false))
@@ -58,13 +58,13 @@
 ;; convert-head — if `node` is a List whose head is a `::`-keyword, rewrite that head to a
 ;; faithful-Clojure symbol; otherwise leave it. A threading head (`->`/`->>`, a Symbol) and
 ;; an already-converted symbol head are not keywords, so they pass through untouched.
-(:wat::core::defn :fix::convert-head [node <- :wat::WatAST] -> :wat::WatAST
+(:wat::core::defn :wat::fix::convert-head [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [kids (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? kids)
         node
         (:wat::core::let [h0 (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first kids) "head")]
-          (:wat::core::if (:fix::head-keyword? h0)
+          (:wat::core::if (:wat::fix::head-keyword? h0)
             (:wat::core::with-children node
               (:wat::core::concat (:wat::core::Vector :wat::WatAST (:wat::core::keyword/to-symbol h0))
                                   (:wat::core::drop kids 1)))
@@ -73,14 +73,14 @@
 
 ;; fix-source — the recursive walk. Bottom-up: fix children, strip an if annotation, then
 ;; convert the head keyword.
-(:wat::core::defn :fix::fix-source [node <- :wat::WatAST] -> :wat::WatAST
-  (:wat::core::if (:fix::structural? node)
+(:wat::core::defn :wat::fix::fix-source [node <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [rebuilt  (:wat::core::with-children node
                                  (:wat::core::map
-                                   (:wat::core::fn [c <- :wat::WatAST] -> :wat::WatAST (:fix::fix-source c))
+                                   (:wat::core::fn [c <- :wat::WatAST] -> :wat::WatAST (:wat::fix::fix-source c))
                                    (:wat::core::ast->children node)))
-                      stripped (:wat::core::if (:fix::annotated-if? rebuilt)
-                                 (:fix::strip-if rebuilt)
+                      stripped (:wat::core::if (:wat::fix::annotated-if? rebuilt)
+                                 (:wat::fix::strip-if rebuilt)
                                  rebuilt)]
-      (:fix::convert-head stripped))
+      (:wat::fix::convert-head stripped))
     node))

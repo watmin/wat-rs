@@ -225,6 +225,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/list.wat",
         source: include_str!("../wat/list.wat"),
     },
+    // Arc 251 — fix-source: the wat-to-wat faithful-Clojure converter (the corpus migrator,
+    // written IN wat). Loads after core.wat so its substrate verbs (keyword/to-symbol,
+    // the read-string/with-children bridge) are in place. Lives under :wat::fix:: because
+    // wat/ is the blessed stdlib dir — a vended tool, explicitly listed here.
+    WatSource {
+        path: "wat/fix.wat",
+        source: include_str!("../wat/fix.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
