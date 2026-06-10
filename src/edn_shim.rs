@@ -266,6 +266,45 @@ pub fn eval_read_string(
     ))
 }
 
+/// `(:wat::core::write-forms <forms>)` — arc 251 Stone 251.5a-ii.
+///
+/// The write side of the homoiconic round-trip: serialize a forms-value
+/// (`Value::wat__WatAST`, as produced by `read-string` or `quote`) to a clean EDN
+/// String, via the structural bridge (`watast_to_edn` + `wat_edn::write`). This is
+/// what the general `edn::write` is NOT for forms: `value_to_edn` renders a
+/// `wat__WatAST` as opaque-nil (an AST is opaque to general EDN serialization);
+/// `write-forms` serializes the AST faithfully — so `read-string → transform →
+/// write-forms` is the wat-to-wat fixer's full read→rewrite→write cycle, all in
+/// wat's own primitives.
+pub fn eval_write_forms(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::write-forms";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let edn = crate::wat_edn_bridge::watast_to_edn(ast);
+    let text = wat_edn::write(&edn);
+    Ok(crate::value::TrackedValue::new(
+        Value::String(std::sync::Arc::new(text)),
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in

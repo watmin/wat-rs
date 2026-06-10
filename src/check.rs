@@ -16521,6 +16521,17 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 251.5a-ii — `(:wat::core::write-forms ast)` → `:wat::core::String`. The
+    // write side of the homoiconic round-trip: forms-as-data → clean EDN text.
+    env.register(
+        ":wat::core::write-forms".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
