@@ -174,7 +174,7 @@ pub(in crate::function) fn parse_fn_signature_prefix(
     // Arc 251.3a — accept Keyword (existing), Symbol (wat.type/X pre-normalize), or
     // List ((wat.type/Vector wat.type/i64) parametric form) in the return-type slot.
     let ret_type: TypeExpr = match &sig[2] {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
             parse_type_node(&sig[2]).map_err(|te| ParseStep {
                 span: te.span,
                 kind: ParseStepKind::BadRetType(Box::new(te.kind)),

@@ -194,7 +194,7 @@ fn parse_keyword_type(
     head: &str,
 ) -> Result<TypeExpr, ArgSpecError> {
     match ast {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
             parse_type_node(ast).map_err(|inner| {
                 ArgSpecError {
                     span: ast.span().clone(),

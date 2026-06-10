@@ -1832,7 +1832,7 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     let (name, type_params) = parse_declared_name("newtype", &name_kw, &decl_span)?;
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let inner = match &inner_kw {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
             parse_type_node(&inner_kw)?
         }
         other => {
@@ -1874,7 +1874,7 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     let (name, type_params) = parse_declared_name("typealias", &name_kw, &decl_span)?;
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let expr = match &expr_kw {
-        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
             parse_type_node(&expr_kw)?
         }
         other => {
@@ -1943,7 +1943,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
         let item_span = item.span().clone();
         // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
         match &item {
-            WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+            WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
                 members.push(parse_type_node(&item)?);
             }
             other => {
@@ -2237,17 +2237,66 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
             parse_type_expr_with_span(&kw, span)
         }
         WatAST::List(_, _) => parse_type_form(node),
+        // Arc 251.4c — a `[T… :-> R]` bracket is a function type (core.typed parity).
+        WatAST::Vector(items, span) => parse_fn_type_bracket(items, span),
         other => Err(TypeError {
             span: other.span().clone(),
             kind: TypeErrorKind::MalformedTypeExpr {
                 raw: format!("{:?}", other),
                 reason: format!(
-                    "type annotation must be a keyword, namespaced symbol, or parametric form `(Ctor arg…)`; got {}",
+                    "type annotation must be a keyword, namespaced symbol, parametric form `(Ctor arg…)`, or function-type bracket `[arg… :-> ret]`; got {}",
                     other.variant_name()
                 ),
             },
         }),
     }
+}
+
+/// Arc 251.4c — parse a function-type bracket `[arg… :-> ret]` → `TypeExpr::Fn`.
+///
+/// core.typed's function-type surface. Produces the SAME `TypeExpr::Fn { args, ret }`
+/// the keyword form `:wat::core::Fn(args)->ret` yields (`parse_fn_body`), so the two
+/// spellings unify. Args and the return type are each parsed via [`parse_type_node`]
+/// (so they inherit the keyword / `wat.type/` / parametric-form surfaces). The lone
+/// `:->` keyword separates the argument types from the single return type.
+fn parse_fn_type_bracket(items: &[WatAST], span: &Span) -> Result<TypeExpr, TypeError> {
+    let arrow_pos = items
+        .iter()
+        .position(|n| matches!(n, WatAST::Keyword(k, _) if k == ":->"));
+    let arrow_pos = match arrow_pos {
+        Some(p) => p,
+        None => {
+            return Err(TypeError {
+                span: span.clone(),
+                kind: TypeErrorKind::MalformedTypeExpr {
+                    raw: "[…]".into(),
+                    reason: "function-type bracket needs a `:->` arrow: `[arg… :-> ret]`".into(),
+                },
+            })
+        }
+    };
+    let ret_nodes = &items[arrow_pos + 1..];
+    if ret_nodes.len() != 1 {
+        return Err(TypeError {
+            span: span.clone(),
+            kind: TypeErrorKind::MalformedTypeExpr {
+                raw: "[…]".into(),
+                reason: format!(
+                    "function-type bracket needs exactly one return type after `:->`; got {}",
+                    ret_nodes.len()
+                ),
+            },
+        });
+    }
+    let args = items[..arrow_pos]
+        .iter()
+        .map(parse_type_node)
+        .collect::<Result<Vec<_>, _>>()?;
+    let ret = Box::new(parse_type_node(&ret_nodes[0])?);
+    let result = TypeExpr::Fn { args, ret };
+    // Enforce the :Any ban in fn-type args/ret, mirroring the other parse paths.
+    reject_any(&result, "[… :-> …]", span)?;
+    Ok(result)
 }
 
 /// Arc 251.3a — parse a parametric-type FORM `(CTOR arg…)` → `TypeExpr::Parametric`.
