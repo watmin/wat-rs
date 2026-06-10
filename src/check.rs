@@ -16532,6 +16532,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 251.5a-iii — `(:wat::core::ast->children ast)` → `Vector<:wat::WatAST>`.
+    // The AST↔walkable bridge: a node's children as the collection the first/rest/map
+    // vocab walks (same shape as `:wat::core::forms`).
+    env.register(
+        ":wat::core::ast->children".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-

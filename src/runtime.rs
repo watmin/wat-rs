@@ -3306,6 +3306,10 @@ fn dispatch_keyword_head(
         // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
         // of read-string; the fixer's read→transform→write cycle closes here).
         ":wat::core::write-forms" => return crate::edn_shim::eval_write_forms(args, list_span, env, sym).map_err(Into::into),
+        // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
+        // into a Vector<:wat::WatAST> the first/rest/map vocab walks (so a recursive
+        // role-inversion transform can be written IN WAT).
+        ":wat::core::ast->children" => return crate::edn_shim::eval_ast_children(args, list_span, env, sym).map_err(Into::into),
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
         ":wat::core::let" => return eval_let(args, list_span, env, sym),

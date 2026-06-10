@@ -305,6 +305,53 @@ pub fn eval_write_forms(
     ))
 }
 
+/// `(:wat::core::ast->children <ast>)` — arc 251 Stone 251.5a-iii (the bridge).
+///
+/// The AST↔walkable bridge: decompose a `:wat::WatAST` node into a
+/// `Vector<:wat::WatAST>` of its children — the SAME walkable shape `:wat::core::forms`
+/// produces (`Value::Vec` of `wat__WatAST`), so the existing `first`/`rest`/`map`
+/// collection vocab applies for free. A List/Vector/Set node yields its items; a Map
+/// yields its keys and values interleaved; a leaf (Symbol/Keyword/literal) yields the
+/// empty vector. This is what lets a recursive transform written IN WAT walk a form
+/// read by `read-string` — the tendon between the read/write spine and the fixer's will.
+pub fn eval_ast_children(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast->children";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let wrap = |n: &WatAST| Value::wat__WatAST(std::sync::Arc::new(n.clone()));
+    let children: Vec<Value> = match ast {
+        WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+            items.iter().map(&wrap).collect()
+        }
+        WatAST::Map(pairs, _) => pairs
+            .iter()
+            .flat_map(|(k, val)| [wrap(k), wrap(val)])
+            .collect(),
+        _ => Vec::new(),
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::Vec(std::sync::Arc::new(children)),
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in
