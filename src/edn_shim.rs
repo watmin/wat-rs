@@ -587,6 +587,97 @@ pub fn eval_keyword_to_symbol(
     ))
 }
 
+/// Arc 251 type-position rendering — convert a closed [`crate::types::TypeExpr`] into a
+/// faithful WatAST node for the type FORM surface:
+///
+/// - `Path` with `::` (named type): `Symbol("wat.type/Name")` — flat type namespace, simple name only.
+/// - `Path` without `::` (type-var): `Symbol("T")` — stays bare, NOT `wat.type/T`.
+/// - `Parametric{head,args}`: `List([Symbol("wat.type/Head"), …rendered-args])`.
+/// - `Fn{args,ret}`: `Vector([…args, Keyword(":->"), ret])`.
+/// - `Tuple(items)`: `List([Symbol("wat.type/Tuple"), …rendered-items])`. The empty `:()`
+///   renders as `(wat.type/Tuple)` — a distinct zero-arity product, NOT unit (`nil` is wat's
+///   unit, Rust's `()`; wat's `()` empty list is distinct from `nil`).
+/// - `Var`: synthetic — NEVER produced by parsing source (the `TypeExpr` doc guarantees it).
+pub(crate) fn type_expr_to_faithful_watast(t: &crate::types::TypeExpr) -> WatAST {
+    use crate::types::TypeExpr;
+    let unk = crate::span::Span::unknown();
+    match t {
+        TypeExpr::Path(s) => {
+            // Named types have `::` in the body (after stripping the leading `:`).
+            // Type-vars (`:T`) do NOT.
+            let body = s.strip_prefix(':').unwrap_or(s);
+            if body.contains("::") {
+                let name = body.rsplit("::").next().unwrap();
+                WatAST::Symbol(Identifier::bare(format!("wat.type/{name}")), unk)
+            } else {
+                // Type-var: stays as a bare symbol (T, K, V, …).
+                WatAST::Symbol(Identifier::bare(body.to_string()), unk)
+            }
+        }
+        TypeExpr::Parametric { head, args } => {
+            // head is stored WITHOUT a leading colon (e.g. "wat::core::Vector").
+            let name = head.rsplit("::").next().unwrap();
+            let mut items = vec![WatAST::Symbol(Identifier::bare(format!("wat.type/{name}")), unk.clone())];
+            items.extend(args.iter().map(type_expr_to_faithful_watast));
+            WatAST::List(items, unk)
+        }
+        TypeExpr::Fn { args, ret } => {
+            let mut items: Vec<WatAST> = args.iter().map(type_expr_to_faithful_watast).collect();
+            items.push(WatAST::Keyword(":->".into(), unk.clone()));
+            items.push(type_expr_to_faithful_watast(ret));
+            WatAST::Vector(items, unk)
+        }
+        TypeExpr::Tuple(items) => {
+            // Faithful form `(wat.type/Tuple …items)`. Empty `:()` → `(wat.type/Tuple)`, a
+            // distinct zero-arity product (NOT unit — `nil` is wat's unit).
+            let mut elems = vec![WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
+            elems.extend(items.iter().map(type_expr_to_faithful_watast));
+            WatAST::List(elems, unk)
+        }
+        // Var is synthetic — NEVER produced by parsing source (the TypeExpr doc guarantees it),
+        // so this verb (which only ever sees parsed-from-source types) cannot reach it.
+        TypeExpr::Var(_) => unreachable!("type_expr_to_faithful_watast: Var is never produced by parsing source"),
+    }
+}
+
+/// `(:wat::core::keyword/to-type-form <keyword-node>)` — arc 251 type-position rendering.
+/// Convert an old rust-scheme TYPE keyword (`:wat::core::Vector<wat::core::i64>`) into the
+/// faithful-Clojure type FORM (`(wat.type/Vector wat.type/i64)`). Parses the keyword string
+/// via the EXISTING type parser ([`crate::types::parse_type_expr_with_span`] → `TypeExpr`),
+/// then renders the closed `TypeExpr` enum via [`type_expr_to_faithful_watast`].
+pub fn eval_keyword_to_type_form(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::keyword/to-type-form";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let kw: String = match &v {
+        Value::wat__WatAST(a) => match a.as_ref() {
+            WatAST::Keyword(s, _) => s.clone(),
+            _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "keyword/to-type-form requires a Keyword node".to_string(),
+            } }),
+        },
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("type-keyword parse failed: {:?}", e.kind),
+        },
+    })?;
+    let node = type_expr_to_faithful_watast(&te);
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in

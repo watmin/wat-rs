@@ -88,3 +88,38 @@ fn contract_05_multi_arg() {
         Ok("(wat.type/HashMap wat.type/String wat.type/i64)".into())
     );
 }
+
+#[test]
+fn contract_06_tuple() {
+    assert_eq!(
+        to_type(":(wat::core::i64,wat::core::String)"),
+        Ok("(wat.type/Tuple wat.type/i64 wat.type/String)".into())
+    );
+}
+
+#[test]
+fn contract_07_empty_tuple_is_not_nil() {
+    // `:()` is the 0-tuple — a distinct zero-arity product, NOT unit (`nil` is wat's unit).
+    assert_eq!(to_type(":()"), Ok("(wat.type/Tuple)".into()));
+}
+
+#[test]
+fn contract_08_nested_tuple() {
+    assert_eq!(
+        to_type(":(wat::core::Vector<T>,wat::core::i64)"),
+        Ok("(wat.type/Tuple (wat.type/Vector T) wat.type/i64)".into())
+    );
+}
+
+#[test]
+fn contract_09_tuple_form_round_trips_as_a_type() {
+    // The faithful form must PARSE BACK as a tuple type — proving the parser case
+    // (`(wat.type/Tuple …)` → TypeExpr::Tuple), so the conversion is a real re-spelling.
+    let src = "(:wat::core::defn :user::f [t :- (wat.type/Tuple wat.type/i64 wat.type/String)] \
+                  -> :wat::core::nil nil)\n\
+               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+    let r = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .map(|_| ())
+        .map_err(|e| format!("{e:?}"));
+    assert!(r.is_ok(), "(wat.type/Tuple wat.type/i64 wat.type/String) must parse as a type; got {r:?}");
+}

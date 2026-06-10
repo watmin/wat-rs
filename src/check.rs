@@ -16419,6 +16419,11 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(":wat::core::keyword/to-symbol".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+    // Arc 251 type-position rendering — a rust-scheme TYPE Keyword node → the faithful-Clojure
+    // type FORM node (`:wat::core::Vector<wat::core::i64>` → `(wat.type/Vector wat.type/i64)`).
+    env.register(":wat::core::keyword/to-type-form".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-

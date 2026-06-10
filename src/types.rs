@@ -2378,8 +2378,16 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
         .map(parse_type_node)
         .collect();
     let args = args?;
-    let result = TypeExpr::Parametric { head: raw_head, args };
-    // Re-use reject_any to enforce the :Any ban in parametric form heads/args.
+    // Arc 251 — the `Tuple` constructor head produces a TUPLE type, not a generic Parametric:
+    // `(wat.type/Tuple A B)` → `TypeExpr::Tuple([A,B])`; the empty `(wat.type/Tuple)` → the
+    // 0-tuple. This is the faithful-Clojure spelling of the legacy `:(A,B)` keyword tuple
+    // (both produce the SAME `TypeExpr::Tuple`, so they unify identically).
+    let result = if raw_head == "wat::core::Tuple" {
+        TypeExpr::Tuple(args)
+    } else {
+        TypeExpr::Parametric { head: raw_head, args }
+    };
+    // Re-use reject_any to enforce the :Any ban in parametric/tuple form heads/args.
     reject_any(&result, &format!("({}…)", items[0].variant_name()), span)?;
     Ok(result)
 }
