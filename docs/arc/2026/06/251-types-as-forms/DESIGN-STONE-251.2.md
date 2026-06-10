@@ -64,17 +64,31 @@ the type parser the new FQDN.**
 
 Verify C01 disconfirms at HEAD before any build (probe-first discipline).
 
-## Sequencing within 251.2
+## Sequencing within 251.2 — CHURN-ONCE refinement (four-questions, 2026-06-10)
 
-- **251.2a** — parser dual-read + probe RED→GREEN (the substrate change; sonnet-buildable on
-  the 251.1b brief pattern). Re-earn nothing yet (mid-stone).
-- **251.2b** — corpus migration (scalar atoms only) + bare-lint subsumption. Mechanical sweep.
-- **251.2w** — vigilia on `src/types.rs` + `src/types/`; drive 0 L1/L2; re-earn the stamp
-  (the home was last stamped at 243.5 / the conformare arc — re-ward diff-scoped to 251.2).
+The arc DESIGN's sequencing verdict is **"the corpus churns once"** — 251.4 folds the
+corpus-wide `<-`→`:-` + keyword-head→symbol-head + type-spelling rewrite into ONE sweep. A
+SEPARATE scalar-type corpus migration here would churn the corpus for types now and again at
+251.4 (3× total) — fails Simple + Honest against that verdict. So 251.2 ships the SUBSTRATE
+CAPABILITY only; the corpus moves wholesale at the unified sweep.
+
+- **251.2a ✓ DONE** — parser dual-read: `:wat::type::<atom>` aliases to `:wat::core::<atom>`
+  on the type-checker path (`parse_type_inner`, types.rs ~2364). Probe RED→GREEN (C01 i64
+  load-bearing; C03 f64/bool/String load-bearing; C02 legacy dual-read preserved). Internal
+  canonical stays `:wat::core::` for dual-read — the flip is 251.5. ~12 lines.
+- **251.2w** — diff-scoped re-ward of the `src/types.rs` touch (the home carries vigilatum
+  stamps at `src/types/defstruct.rs` / `error.rs`; the 251.2a addition is gated + clippy-clean;
+  cast the applicable spells on the diff, not a full from-scratch vigilia).
+- **(corpus migration DEFERRED)** — scalar `:wat::core::i64`/`:i64` → `wat.type/i64` rides the
+  unified 251.4/5 sweep, NOT a separate 251.2b. The `BareLegacyPrimitive` lint stays ACTIVE
+  until then — it is the migration guide, not yet subsumed. (Subsumption lands when the corpus
+  is `wat.type/`-clean at the unified sweep.)
 
 ## Out of scope (named, not deferred-prose)
 
+- Corpus migration of scalar type spellings → the **unified 251.4/5 sweep** (churn-once).
 - Parametrics-as-forms → **251.3** (the `(wat.type/Vector wat.type/i64)` form surface +
   `lex_keyword` bracket-machinery deletion).
 - `:rust::` interop → **251.5** corpus cut (DESIGN move 6).
-- Hard-cut of the legacy keyword type spellings → **251.5** (one-canonical-path).
+- Hard-cut of the legacy keyword type spellings + the internal-canonical flip to
+  `:wat::type::` → **251.5** (one-canonical-path).

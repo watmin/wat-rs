@@ -2362,6 +2362,19 @@ fn parse_type_inner(
     // substrate-as-teacher § "Retire the hint when its window
     // closes."
     let raw_path = format!(":{}", s);
+    // Arc 251.2 — the `wat.type/` namespace. A scalar type atom written
+    // `wat.type/i64` (Symbol) is normalized to the keyword `:wat::type::i64`
+    // before it reaches here. On the type-checker path (`canonicalize=true`) it
+    // aliases to the internal canonical `:wat::core::<atom>` the checker keys on
+    // (literal types + Path comparisons). The INTERNAL canonical deliberately
+    // stays `:wat::core::` for the dual-read transition; the flip to `:wat::type::`
+    // is deferred to the 251.5 hard-cut (see DESIGN-STONE-251.2.md). The audit
+    // walk (`canonicalize=false`) preserves source spelling, and only ATOM paths
+    // reach this arm — parametric heads parse via the `<>`/`()` branches above.
+    let raw_path = match (canonicalize, raw_path.strip_prefix(":wat::type::")) {
+        (true, Some(tail)) => format!(":wat::core::{}", tail),
+        _ => raw_path,
+    };
     if canonicalize && raw_path == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
     }

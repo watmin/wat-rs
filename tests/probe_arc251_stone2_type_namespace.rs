@@ -64,3 +64,33 @@ fn contract_02_legacy_keyword_type_still_checks() {
         ":wat::core::i64 keyword type must keep type-checking during the transition"
     );
 }
+
+// ─── C03: the alias is GENERAL across the scalar atom set ───────────────────────
+
+#[test]
+fn contract_03_wat_type_atoms_across_scalars() {
+    // The `:wat::type::` → `:wat::core::` canonicalization is general, not i64-only.
+    // Exercise f64, bool, and String through `wat.type/` with type-identity load-
+    // bearing bodies (each op demands the param actually BE that scalar).
+    assert!(
+        checks("(:wat::core::defn :user::fadd [x <- wat.type/f64] -> wat.type/f64 \
+                  (:wat::core::f64::+ x 1.0))")
+        .is_ok(),
+        "wat.type/f64 must be recognized as f64"
+    );
+    assert!(
+        checks("(:wat::core::defn :user::neg [b <- wat.type/bool] -> wat.type/bool \
+                  (:wat::core::not b))")
+        .is_ok(),
+        "wat.type/bool must be recognized as bool"
+    );
+    // String: a `:wat::core::String`-typed sink fn that `s` must unify against —
+    // load-bearing without depending on any builtin's signature.
+    assert!(
+        checks("(:wat::core::defn :user::sink [t <- :wat::core::String] -> :wat::core::i64 0)\n\
+                (:wat::core::defn :user::pass [s <- wat.type/String] -> :wat::core::i64 \
+                  (:user::sink s))")
+        .is_ok(),
+        "wat.type/String must be recognized as String (it must unify with a String param)"
+    );
+}
