@@ -433,7 +433,6 @@ fn is_pure_total(head: &str) -> bool {
 
         // ── Control flow ──────────────────────────────────────────────
         | ":wat::core::if"
-        | ":wat::core::cond"
         | ":wat::core::match"
         | ":wat::core::let"
         | ":wat::core::do"

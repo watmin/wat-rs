@@ -490,23 +490,6 @@ mod tests {
     }
 
     #[test]
-    fn normalize_rewrites_cond_arm_bodies_keeps_else_marker() {
-        // cond arms are CODE; the leading `:else` marker is cond's DSL keyword.
-        let ast = normalize_ast(
-            r#"(:wat::core::cond -> :wat::core::bool
-                  ((wat.core/i64::> x 0) (wat.core/i64::+ x 1))
-                  (:else (wat.core/i64::- x 1)))"#,
-        );
-        assert!(contains_keyword(&ast, ":wat::core::i64::>"), "cond test is code");
-        assert!(contains_keyword(&ast, ":wat::core::i64::+"), "cond result is code");
-        assert!(contains_keyword(&ast, ":wat::core::i64::-"), ":else body is code");
-        assert!(
-            contains_keyword(&ast, ":else"),
-            "the :else marker must be preserved as cond's DSL keyword"
-        );
-    }
-
-    #[test]
     fn normalize_rewrites_matches_subject_keeps_pattern() {
         // `matches?` — subject (items[1]) is CODE; pattern (items[2..]) is DATA.
         let ast = normalize_ast(r#"(:wat::form::matches? (wat.core/i64::+ y 1) (pat.ns/Shape a))"#);

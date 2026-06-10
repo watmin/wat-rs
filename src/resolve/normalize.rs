@@ -113,8 +113,6 @@ fn normalize_form(
                 Boundary::Quasiquote => normalize_quasiquote_form(items, sym, macros, errors),
                 // matches?: only the subject (items[1]) is code; pattern is data.
                 Boundary::MatchesSubject => normalize_matches(items, sym, macros, errors),
-                // cond: arms are code except a leading `:else` marker.
-                Boundary::Cond => normalize_cond(items, sym, macros, errors),
                 // match: scrutinee + arm bodies are code; patterns + `-> :T` are data.
                 Boundary::Match => normalize_match(items, sym, macros, errors),
             };
@@ -196,37 +194,6 @@ fn normalize_matches(
         out.push(normalize_form(subject, sym, macros, errors)); // subject: code
     }
     out.extend(iter); // pattern + any extra args: data, as-is
-    out
-}
-
-/// Normalize a `:wat::core::cond` list. Every arm is code, EXCEPT a leading
-/// `:else` marker (cond's own DSL keyword) heading the default arm: keep the
-/// marker as-is, normalize the arm body.
-fn normalize_cond(
-    items: Vec<WatAST>,
-    sym: &SymbolTable,
-    macros: &MacroRegistry,
-    errors: &mut Vec<UnresolvedReference>,
-) -> Vec<WatAST> {
-    let mut out = Vec::with_capacity(items.len());
-    let mut iter = items.into_iter();
-    out.extend(iter.next()); // cond head, as-is
-    for item in iter {
-        match item {
-            WatAST::List(arm_items, arm_span)
-                if matches!(arm_items.first(), Some(WatAST::Keyword(k, _)) if k == ":else") =>
-            {
-                let mut new_arm = Vec::with_capacity(arm_items.len());
-                let mut ai = arm_items.into_iter();
-                new_arm.extend(ai.next()); // :else marker, as-is
-                for body in ai {
-                    new_arm.push(normalize_form(body, sym, macros, errors));
-                }
-                out.push(WatAST::List(new_arm, arm_span));
-            }
-            other => out.push(normalize_form(other, sym, macros, errors)),
-        }
-    }
     out
 }
 

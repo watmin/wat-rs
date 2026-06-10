@@ -145,26 +145,6 @@ pub(super) fn check_form(
                     return;
                 }
 
-                // cond (arc 245 room 4) — every arm is ordinary code, EXCEPT a
-                // leading `:else` marker (cond's own DSL keyword, owned by
-                // check.rs `infer_cond`): skip the marker, walk the arm body.
-                Boundary::Cond => {
-                    for item in items.iter().skip(1) {
-                        if let WatAST::List(arm_items, _) = item {
-                            if let Some(WatAST::Keyword(arm_head, _)) = arm_items.first() {
-                                if arm_head == ":else" {
-                                    for body in arm_items.iter().skip(1) {
-                                        check_form(body, sym, macros, use_decls, unresolved);
-                                    }
-                                    continue;
-                                }
-                            }
-                        }
-                        check_form(item, sym, macros, use_decls, unresolved);
-                    }
-                    return;
-                }
-
                 // match (arc 245 long-tail) — items[1]=scrutinee (walk),
                 // items[2..=3]=`-> :T` (skip), items[4..]=arms. Each arm is
                 // `(pattern body)`: the pattern is DSL data owned by check.rs

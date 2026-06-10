@@ -40,9 +40,6 @@ pub(super) enum Boundary {
     /// `:wat::form::matches?` — only the subject (`items[1]`) is code; the
     /// pattern (`items[2..]`) is DSL data owned by the matches? grammar walker.
     MatchesSubject,
-    /// `:wat::core::cond` — every arm is code, EXCEPT a leading `:else` marker
-    /// keyword heading the default arm (that marker is cond's own DSL keyword).
-    Cond,
     /// `:wat::core::match` — the scrutinee (`items[1]`) and each arm body are
     /// code; the `-> :T` return annotation (`items[2..=3]`) and each arm's
     /// pattern are data.
@@ -60,7 +57,6 @@ pub(super) fn quote_boundary(head: &str) -> Boundary {
         ":wat::core::quote" | ":wat::core::forms" | ":wat::core::define" => Boundary::AllData,
         ":wat::core::quasiquote" => Boundary::Quasiquote,
         ":wat::form::matches?" => Boundary::MatchesSubject,
-        ":wat::core::cond" => Boundary::Cond,
         ":wat::core::match" => Boundary::Match,
         _ => Boundary::Ordinary,
     }

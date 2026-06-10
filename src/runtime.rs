@@ -2696,7 +2696,6 @@ fn eval_tail(
             let head = k.as_str();
             match head {
                 ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
-                ":wat::core::cond" => eval_cond_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
                 // for eval_tail's caller (apply_function trampoline uses bare Value).
@@ -3494,7 +3493,6 @@ fn dispatch_keyword_head_value(
         ":wat::core::let" => eval_let(args, list_span, env, sym).map(|tv| tv.value_owned()),
         ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
-        ":wat::core::cond" => eval_cond(args, list_span, env, sym),
         // Arc 251 Stone 251.4b — checked, type-erased identity.
         // The type slot is ERASED at runtime; only the expr is evaluated.
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
@@ -5963,188 +5961,6 @@ fn eval_if(
     }
 }
 
-/// `(:wat::core::cond -> :T arm1 arm2 ... (:else default))`.
-///
-/// Multi-way conditional. Each arm is a 2-element list `(test body)`;
-/// tests evaluate in order; first `Value::bool(true)` wins its body.
-/// The final arm MUST be `(:else default-body)` — no implicit unit,
-/// no "fell through" runtime ambiguity; if no test matches, the
-/// `:else` body runs.
-///
-/// Typed once at the head via `-> :T`; every body type-unifies with
-/// `:T` (enforced by `infer_cond`). The type annotation lives at the
-/// declaration point, not per-arm — arc 023's `/gaze` pressure
-/// against repeated-annotation ceremony.
-fn eval_cond(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    validate_cond_shape(args, list_span)?;
-    let arms = &args[2..];
-    for (i, arm) in arms.iter().enumerate() {
-        let items = match arm {
-            WatAST::List(xs, _) => xs,
-            _ => unreachable!("validate_cond_shape checked list"),
-        };
-        let is_last = i + 1 == arms.len();
-        // `:else` arm — last-only; its body is always evaluated.
-        if let WatAST::Keyword(k, _) = &items[0] {
-            if k == ":else" {
-                return eval_inner(&items[1], env, sym).map(|tv| tv.value_owned());
-            }
-        }
-        // Test arm — evaluate test; truthy → body; falsy → next arm.
-        // Only the last arm may be `:else`; non-`:else` arms before
-        // the last are test arms by the grammar.
-        if is_last {
-            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::cond".into(),
-                reason: "last arm must be (:else body); got a test arm".into()
-            } }.into());
-        }
-        match eval_inner(&items[0], env, sym)?.value_owned() {
-            Value::bool(true) => return eval_inner(&items[1], env, sym).map(|tv| tv.value_owned()),
-            Value::bool(false) => continue,
-            other => {
-                return Err(RuntimeError { span: items[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
-                    got: Box::new(ValueSnapshot::of(&other))
-                } }.into());
-            }
-        }
-    }
-    // Unreachable: validate_cond_shape requires a final :else arm.
-    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-        head: ":wat::core::cond".into(),
-        reason: "cond fell through without matching :else — validation bug".into()
-    } }.into())
-}
-
-/// Tail-position twin of [`eval_cond`]. Selected body inherits tail
-/// position via `eval_tail` so a tail-call inside a cond arm
-/// trampolines correctly. Matches [`eval_if_tail`]'s shape.
-fn eval_cond_tail(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    validate_cond_shape(args, list_span)?;
-    let arms = &args[2..];
-    for (i, arm) in arms.iter().enumerate() {
-        let items = match arm {
-            WatAST::List(xs, _) => xs,
-            _ => unreachable!("validate_cond_shape checked list"),
-        };
-        let is_last = i + 1 == arms.len();
-        if let WatAST::Keyword(k, _) = &items[0] {
-            if k == ":else" {
-                return eval_tail(&items[1], env, sym);
-            }
-        }
-        if is_last {
-            return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::cond".into(),
-                reason: "last arm must be (:else body); got a test arm".into()
-            } }.into());
-        }
-        match eval_inner(&items[0], env, sym)?.value_owned() {
-            Value::bool(true) => return eval_tail(&items[1], env, sym),
-            Value::bool(false) => continue,
-            other => {
-                return Err(RuntimeError { span: items[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
-                    got: Box::new(ValueSnapshot::of(&other))
-                } }.into());
-            }
-        }
-    }
-    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-        head: ":wat::core::cond".into(),
-        reason: "cond fell through without matching :else — validation bug".into()
-    } }.into())
-}
-
-/// Shape check shared between `eval_cond` and `eval_cond_tail`. Runs
-/// before any arm evaluation — same belt-and-suspenders discipline
-/// as `eval_if`, for programs that reach the dispatcher without the
-/// checker having run.
-fn validate_cond_shape(args: &[WatAST], list_span: &Span) -> Result<(), EvalBreak> {
-    if args.len() < 3 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::cond".into(),
-            reason: format!(
-                "expected (:wat::core::cond -> :T (:else body)) — at least 3 args; got {}",
-                args.len()
-            )
-        } }.into());
-    }
-    match &args[0] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::cond".into(),
-                reason: format!(
-                    "expected `->` at position 1; got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    match &args[1] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::cond".into(),
-                reason: format!(
-                    "expected type keyword at position 2 (after `->`); got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    let arms = &args[2..];
-    // Each arm must be a 2-element list.
-    for (i, arm) in arms.iter().enumerate() {
-        match arm {
-            WatAST::List(xs, _) if xs.len() == 2 => {}
-            WatAST::List(xs, _) => {
-                return Err(RuntimeError { span: arm.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::cond".into(),
-                    reason: format!(
-                        "arm #{} must be (test body); got {}-element list",
-                        i + 1,
-                        xs.len()
-                    )
-                } }.into());
-            }
-            other => {
-                return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::cond".into(),
-                    reason: format!(
-                        "arm #{} must be a list (test body); got {}",
-                        i + 1,
-                        other.variant_name()
-                    )
-                } }.into());
-            }
-        }
-    }
-    // Last arm must be `:else`.
-    let last = &arms[arms.len() - 1];
-    let last_items = match last {
-        WatAST::List(xs, _) => xs,
-        _ => unreachable!(),
-    };
-    match &last_items[0] {
-        WatAST::Keyword(k, _) if k == ":else" => Ok(()),
-        _ => Err(RuntimeError { span: last.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::cond".into(),
-            reason: "last arm must be (:else body) — cond requires an explicit default".into()
-        } }.into()),
-    }
-}
-
 // ─── Built-ins ──────────────────────────────────────────────────────────
 
 /// Integer arith: `:wat::core::i64::{+,-,*,/}`. Strictly i64 × i64 →
@@ -6869,7 +6685,6 @@ fn eval_apply(
         ":wat::core::fn",
         ":wat::core::let",
         ":wat::core::if",
-        ":wat::core::cond",
         ":wat::core::do",
         ":wat::core::match",
         ":wat::core::quote",

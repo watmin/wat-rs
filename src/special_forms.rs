@@ -144,7 +144,6 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // ─── Control / branching ────────────────────────────────────────────
     // Dispatch sites: `src/check.rs:2956-2959` + `src/runtime.rs:2402-2405`.
     insert(&mut m, ":wat::core::if", &["<cond>", "<then>", "<else>"]);
-    insert(&mut m, ":wat::core::cond", &["<clause>+"]);
     // Bindings: layout is `(let ((<name> <expr>)*) <body>+)` — the
     // bindings slot is a list of name/expr pairs; the type checker
     // walks it specially (arc 057 et al.). Arc 154 made `:wat::core::let`
