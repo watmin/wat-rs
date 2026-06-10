@@ -1,7 +1,7 @@
 use crate::ast::WatAST;
 use crate::scope::Identifier;
 use crate::span::Span;
-use crate::types::{parse_type_expr_with_span, TypeExpr};
+use crate::types::{parse_type_node, TypeExpr};
 use super::error::{ArgSpecError, ArgSpecErrorKind};
 
 /// Result of parsing a canonical `[name <- :T name <- :T ... [& rest <- :T]]` argspec.
@@ -174,19 +174,25 @@ fn parse_triple(
     Ok((name, ty))
 }
 
-/// Parse a type-keyword slot — the shared logic for fixed-param slot 2 and the
-/// rest-binder type slot. If `ast` is a `Keyword`, delegates to
-/// `parse_type_expr_with_span` and wraps parse failures as `MalformedTypeKeyword`.
-/// If `ast` is any other form, returns `TypeNotKeyword`.
+/// Parse a type-annotation slot — the shared logic for fixed-param slot 2 and the
+/// rest-binder type slot.
+///
+/// Arc 251.3a — accepts three node shapes:
+/// - `WatAST::Keyword` — the existing surface; delegates to `parse_type_expr_with_span`.
+/// - `WatAST::Symbol` — pre-normalize `wat.type/X` atom; delegates to `parse_type_node`.
+/// - `WatAST::List` — parametric-type FORM `(wat.type/Vector wat.type/i64)`; delegates to
+///   `parse_type_node` → `parse_type_form`.
+///
+/// Any other form returns `TypeNotKeyword`.
 fn parse_keyword_type(
     ast: &WatAST,
     head: &str,
 ) -> Result<TypeExpr, ArgSpecError> {
     match ast {
-        WatAST::Keyword(kw, kw_span) => {
-            parse_type_expr_with_span(kw, kw_span).map_err(|inner| {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+            parse_type_node(ast).map_err(|inner| {
                 ArgSpecError {
-                    span: kw_span.clone(),
+                    span: ast.span().clone(),
                     head: head.to_string(),
                     kind: ArgSpecErrorKind::MalformedTypeKeyword { inner: Box::new(inner.kind) },
                 }

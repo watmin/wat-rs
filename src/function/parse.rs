@@ -37,7 +37,7 @@ use crate::function::FN_HEAD;
 use crate::runtime::{RuntimeError, RuntimeErrorKind};
 use crate::scope::Identifier;
 use crate::span::Span;
-use crate::types::{parse_type_expr_with_span, TypeErrorKind, TypeExpr};
+use crate::types::{parse_type_node, TypeErrorKind, TypeExpr};
 
 /// Parsed fn-form signature — named struct eliminating the 4-tuple type complexity.
 ///
@@ -165,9 +165,11 @@ pub(in crate::function) fn parse_fn_signature_prefix(
             },
         });
     }
+    // Arc 251.3a — accept Keyword (existing), Symbol (wat.type/X pre-normalize), or
+    // List ((wat.type/Vector wat.type/i64) parametric form) in the return-type slot.
     let ret_type: TypeExpr = match &sig[2] {
-        WatAST::Keyword(k, span) => {
-            parse_type_expr_with_span(k, span).map_err(|te| ParseStep {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+            parse_type_node(&sig[2]).map_err(|te| ParseStep {
                 span: te.span,
                 kind: ParseStepKind::BadRetType(Box::new(te.kind)),
             })?

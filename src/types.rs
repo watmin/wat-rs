@@ -1830,15 +1830,18 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     let name_kw = iter.next().unwrap();
     let inner_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name("newtype", &name_kw, &decl_span)?;
-    let inner = match inner_kw {
-        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
+    // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
+    let inner = match &inner_kw {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+            parse_type_node(&inner_kw)?
+        }
         other => {
             return Err(TypeError {
                 span: decl_span,
                 kind: TypeErrorKind::MalformedDecl {
                     head: "newtype".into(),
                     reason: format!(
-                        "inner type must be a keyword; got {}",
+                        "inner type must be a keyword or type form; got {}",
                         other.variant_name()
                     ),
                 },
@@ -1869,15 +1872,18 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     let name_kw = iter.next().unwrap();
     let expr_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name("typealias", &name_kw, &decl_span)?;
-    let expr = match expr_kw {
-        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
+    // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
+    let expr = match &expr_kw {
+        WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+            parse_type_node(&expr_kw)?
+        }
         other => {
             return Err(TypeError {
                 span: decl_span,
                 kind: TypeErrorKind::MalformedDecl {
                     head: "typealias".into(),
                     reason: format!(
-                        "alias expression must be a keyword; got {}",
+                        "alias expression must be a keyword or type form; got {}",
                         other.variant_name()
                     ),
                 },
@@ -1935,9 +1941,10 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     let mut members = Vec::with_capacity(member_items.len());
     for item in member_items {
         let item_span = item.span().clone();
-        match item {
-            WatAST::Keyword(k, span) => {
-                members.push(parse_type_expr_with_span(&k, &span)?);
+        // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
+        match &item {
+            WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) => {
+                members.push(parse_type_node(&item)?);
             }
             other => {
                 return Err(TypeError {
@@ -1945,7 +1952,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
                     kind: TypeErrorKind::MalformedDecl {
                         head: "typeunion".into(),
                         reason: format!(
-                            "member must be a type keyword; got {}",
+                            "member must be a type keyword or type form; got {}",
                             other.variant_name()
                         ),
                     },
@@ -2193,6 +2200,139 @@ pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, Type
     let expr = parse_type_inner(stripped, kw, true, span)?;
     reject_any(&expr, kw, span)?;
     Ok(expr)
+}
+
+/// Arc 251.3a — dispatch a `WatAST` node in a type-annotation slot.
+///
+/// Accepts the three node shapes that can appear in a type slot after the
+/// dual-read transition begins at 251.3:
+///
+/// - `WatAST::Keyword(kw, span)` — the existing surface: delegates to
+///   `parse_type_expr_with_span`. Covers `:wat::core::i64`,
+///   `:wat::core::Vector<wat::core::i64>`, etc.
+/// - `WatAST::Symbol(ident, span)` — a namespaced symbol `wat.type/X`
+///   arriving **pre-normalization** (before `normalize_symbol_refs` has run).
+///   Converted to the keyword FQDN (`:wat::type::X`) then parsed; the
+///   `wat::type::` → `wat::core::` alias in `parse_type_inner` applies on
+///   the canonicalize path, so `wat.type/i64` → `Path(":wat::core::i64")`.
+/// - `WatAST::List(_, _)` — a parametric-type FORM `(CTOR arg…)` such as
+///   `(wat.type/Vector wat.type/i64)`. Delegates to `parse_type_form`.
+///
+/// Any other node variant → `TypeError::MalformedTypeExpr` with a
+/// descriptive reason.
+pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
+    match node {
+        WatAST::Keyword(kw, span) => parse_type_expr_with_span(kw, span),
+        WatAST::Symbol(ident, span) => {
+            // Pre-normalization (register_types, step 5, runs before normalize): a
+            // `wat.type/X` symbol. Map to its keyword FQDN via the ONE canonical
+            // mapping — `ns_to_wat_path`, the same path `normalize_symbol_refs` uses —
+            // then parse. (Single source: do NOT reinvent the `a.b/c`→`:a::b::c` rule.)
+            let s = ident.as_str();
+            let kw = match s.rfind('/') {
+                Some(slash) => crate::edn_shim::ns_to_wat_path(&s[..slash], &s[slash + 1..]),
+                // Bare symbol without namespace — treat as a keyword by prepending `:`.
+                None => format!(":{}", s),
+            };
+            parse_type_expr_with_span(&kw, span)
+        }
+        WatAST::List(_, _) => parse_type_form(node),
+        other => Err(TypeError {
+            span: other.span().clone(),
+            kind: TypeErrorKind::MalformedTypeExpr {
+                raw: format!("{:?}", other),
+                reason: format!(
+                    "type annotation must be a keyword, namespaced symbol, or parametric form `(Ctor arg…)`; got {}",
+                    other.variant_name()
+                ),
+            },
+        }),
+    }
+}
+
+/// Arc 251.3a — parse a parametric-type FORM `(CTOR arg…)` → `TypeExpr::Parametric`.
+///
+/// Produces the SAME `Parametric { head, args }` storage the `<>` keyword surface
+/// produces, so the type-checker unification is unchanged. The CTOR head may be:
+///
+/// - `WatAST::Symbol("wat.type/Vector")` — pre-normalize; converted to `"wat::core::Vector"`.
+/// - `WatAST::Keyword(":wat::type::Vector")` — post-normalize; same result.
+/// - `WatAST::Keyword(":wat::core::Vector")` — already canonical.
+///
+/// Each arg is parsed recursively via [`parse_type_node`] (atom → `Path`; nested form → recurse).
+///
+/// HEAD storage convention (mirrors `parse_type_inner`'s `<>` arm, line ~2340):
+/// `raw_head` is the path WITHOUT a leading colon, e.g. `"wat::core::Vector"`.
+/// The `wat::type::` → `wat::core::` alias is applied on the canonicalize path
+/// to maintain the dual-read invariant through the 251.5 hard-cut.
+pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
+    let (items, span) = match node {
+        WatAST::List(items, span) => (items, span),
+        other => {
+            return Err(TypeError {
+                span: other.span().clone(),
+                kind: TypeErrorKind::MalformedTypeExpr {
+                    raw: format!("{:?}", other),
+                    reason: "parse_type_form expects a List node".into(),
+                },
+            })
+        }
+    };
+    if items.is_empty() {
+        return Err(TypeError {
+            span: span.clone(),
+            kind: TypeErrorKind::MalformedTypeExpr {
+                raw: "()".into(),
+                reason: "parametric type form must not be empty; expected `(Ctor arg…)`".into(),
+            },
+        });
+    }
+    // Extract the constructor head as a bare path string (no leading colon).
+    // Mirrors the <> arm in parse_type_inner which stores `raw_head = s[..lt_index]`
+    // (the FQDN before `<`, no colon). We must produce the SAME string for unification.
+    let raw_head: String = match &items[0] {
+        WatAST::Symbol(ident, _) => {
+            // Pre-normalize symbol `wat.type/Vector` → keyword FQDN via the ONE
+            // canonical mapping (`ns_to_wat_path`), then strip the leading `:` for the
+            // bare head-storage convention. (Single source — no reinvented `.`/`/` rule.)
+            let s = ident.as_str();
+            match s.rfind('/') {
+                Some(slash) => {
+                    let kw = crate::edn_shim::ns_to_wat_path(&s[..slash], &s[slash + 1..]);
+                    kw.strip_prefix(':').unwrap_or(&kw).to_string()
+                }
+                None => s.to_string(),
+            }
+        }
+        WatAST::Keyword(kw, _) => {
+            // Post-normalize keyword (`:wat::type::Vector`) or already canonical (`:wat::core::Vector`).
+            // Strip the leading `:`.
+            kw.strip_prefix(':').unwrap_or(kw).to_string()
+        }
+        other => {
+            return Err(TypeError {
+                span: other.span().clone(),
+                kind: TypeErrorKind::MalformedTypeExpr {
+                    raw: format!("{:?}", other),
+                    reason: "parametric type form head must be a symbol or keyword".into(),
+                },
+            })
+        }
+    };
+    // Arc 251.2 alias: `wat::type::` → `wat::core::` (dual-read, mirrors parse_type_inner ~line 2374).
+    let raw_head = match raw_head.strip_prefix("wat::type::") {
+        Some(tail) => format!("wat::core::{}", tail),
+        None => raw_head,
+    };
+    // Parse args recursively.
+    let args: Result<Vec<TypeExpr>, TypeError> = items[1..].iter()
+        .map(parse_type_node)
+        .collect();
+    let args = args?;
+    let result = TypeExpr::Parametric { head: raw_head, args };
+    // Re-use reject_any to enforce the :Any ban in parametric form heads/args.
+    reject_any(&result, &format!("({}…)", items[0].variant_name()), span)?;
+    Ok(result)
 }
 
 /// Arc 109 slice 1c — parse a type expression keyword WITHOUT

@@ -52,6 +52,32 @@ fn contract_01_parametric_form_type_checks() {
     );
 }
 
+// ─── C03: the pre-normalize Symbol-head path (register_types, step 5) ───────────
+
+#[test]
+fn contract_03_parametric_form_in_type_declaration() {
+    // A `typealias` declared with a parametric FORM exercises the type-DECLARATION
+    // reader (types.rs parse_typealias), which runs at register_types (freeze step 5)
+    // — BEFORE normalize (step 7). So the form arrives SYMBOL-headed
+    // (`wat.type/Vector`, not `:wat::type::Vector`): this is the path that makes the
+    // Symbol arms of parse_type_form / parse_type_node live, not dead. Load-bearing:
+    // the alias is passed to a `<>`-keyword Vector<i64> sink, so the form-declared
+    // alias must resolve to the SAME Parametric.
+    let ok = checks(
+        "(:wat::core::typealias :user::IntVec (wat.type/Vector wat.type/i64))\n\
+         (:wat::core::defn :user::sink [v <- :wat::core::Vector<wat::core::i64>] \
+           -> :wat::core::i64 0)\n\
+         (:wat::core::defn :user::pass [xs <- :user::IntVec] -> :wat::core::i64 \
+           (:user::sink xs))",
+    )
+    .is_ok();
+    assert!(
+        ok,
+        "a typealias declared with (wat.type/Vector wat.type/i64) must resolve to Vector<i64> \
+         (exercises the pre-normalize Symbol-head parse path)"
+    );
+}
+
 // ─── C02: PRESERVATION — the `<>` keyword spelling still checks ──────────────────
 
 #[test]
