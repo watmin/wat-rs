@@ -51,6 +51,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::scope::Identifier;
 use crate::span::{span_prefix, Span};
 use std::sync::Arc;
 use wat_edn::{Keyword, OwnedValue, Tag};
@@ -433,6 +434,115 @@ pub fn eval_with_children(
     };
     Ok(crate::value::TrackedValue::new(
         Value::wat__WatAST(std::sync::Arc::new(rebuilt)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
+/// `(:wat::core::ast-kind <node>)` — arc 251 Stone 251.5a-v. Total kind discriminant.
+pub fn eval_ast_kind(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast-kind";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let kind = match ast {
+        WatAST::IntLit(..) => "int",
+        WatAST::FloatLit(..) => "float",
+        WatAST::BoolLit(..) => "bool",
+        WatAST::StringLit(..) => "string",
+        WatAST::NilLit(..) => "nil",
+        WatAST::Keyword(..) => "keyword",
+        WatAST::Symbol(..) => "symbol",
+        WatAST::List(..) => "list",
+        WatAST::Vector(..) => "vector",
+        WatAST::Set(..) => "set",
+        WatAST::Map(..) => "map",
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::String(std::sync::Arc::new(kind.to_string())),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
+/// `(:wat::core::ast-name <node>)` — arc 251 Stone 251.5a-v. Verbatim token text of a Symbol/Keyword.
+pub fn eval_ast_name(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast-name";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let name: String = match ast {
+        WatAST::Symbol(ident, _) => ident.as_str().to_string(),
+        WatAST::Keyword(s, _) => s.clone(),
+        _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "ast-name requires a Symbol or Keyword node (no other node has a name)".to_string(),
+        } }),
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::String(std::sync::Arc::new(name)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
+/// `(:wat::core::symbol-node <string>)` — arc 251 Stone 251.5a-v. Construct a bare Symbol node.
+pub fn eval_symbol_node(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::symbol-node";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let node = WatAST::Symbol(Identifier::bare(s), crate::span::Span::unknown());
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
+/// `(:wat::core::keyword-node <string>)` — arc 251 Stone 251.5a-v. Construct a Keyword node (arg must start with ':').
+pub fn eval_keyword_node(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::keyword-node";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    if !s.starts_with(':') {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("keyword-node requires a ':'-prefixed string; got {s:?}"),
+        } });
+    }
+    let node = WatAST::Keyword(s, crate::span::Span::unknown());
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
         crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
     ))
 }

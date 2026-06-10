@@ -16565,6 +16565,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 251.5a-v — node recognition + construction.
+    env.register(":wat::core::ast-kind".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+    env.register(":wat::core::ast-name".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+    env.register(":wat::core::symbol-node".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+    env.register(":wat::core::keyword-node".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
+        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
