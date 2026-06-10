@@ -3310,6 +3310,9 @@ fn dispatch_keyword_head(
         // into a Vector<:wat::WatAST> the first/rest/map vocab walks (so a recursive
         // role-inversion transform can be written IN WAT).
         ":wat::core::ast->children" => return crate::edn_shim::eval_ast_children(args, list_span, env, sym).map_err(Into::into),
+        // Arc 251.5a-iv — the kind-preserving REBUILD: same kind as template, new children.
+        // The inverse of ast->children given the decomposed node.
+        ":wat::core::with-children" => return crate::edn_shim::eval_with_children(args, list_span, env, sym).map_err(Into::into),
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
         ":wat::core::let" => return eval_let(args, list_span, env, sym),

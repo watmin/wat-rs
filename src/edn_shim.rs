@@ -352,6 +352,91 @@ pub fn eval_ast_children(
     ))
 }
 
+/// `(:wat::core::with-children <template> <children>)` — arc 251 Stone 251.5a-iv.
+///
+/// The kind-preserving REBUILD: a NEW AST node of the SAME KIND as `template`,
+/// carrying `children` (a `Vector<:wat::WatAST>`, as `ast->children` yields) as its
+/// children. The inverse of `ast->children` GIVEN the decomposed node — the template
+/// restores the kind `ast->children` collapses. Faithful round-trip:
+/// `(with-children n (ast->children n)) = n` for every node kind. This lets a
+/// recursive `fix-source` rebuild a walked tree without corrupting a Vector binder
+/// into a List call.
+pub fn eval_with_children(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::with-children";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(), expected: 2, got: args.len(),
+        } });
+    }
+    let template_v = eval(&args[0], env, sym)?.value_owned();
+    let children_v = eval(&args[1], env, sym)?.value_owned();
+    // template must be a forms-value
+    let template: &WatAST = match &template_v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    };
+    // children must be a Vec of forms-values; unwrap each to WatAST
+    let child_vals: &Vec<Value> = match &children_v {
+        Value::Vec(v) => v.as_ref(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::Vector<:wat::WatAST>",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    };
+    let mut kids: Vec<WatAST> = Vec::with_capacity(child_vals.len());
+    for cv in child_vals.iter() {
+        match cv {
+            Value::wat__WatAST(a) => kids.push(a.as_ref().clone()),
+            other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(), expected: ":wat::WatAST (child)",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } }),
+        }
+    }
+    // rebuild the SAME KIND as the template, preserving its span
+    let rebuilt: WatAST = match template {
+        WatAST::List(_, span) => WatAST::List(kids, span.clone()),
+        WatAST::Vector(_, span) => WatAST::Vector(kids, span.clone()),
+        WatAST::Set(_, span) => WatAST::Set(kids, span.clone()),
+        WatAST::Map(_, span) => {
+            if kids.len() % 2 != 0 {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("Map rebuild needs an even child count (k/v interleaved); got {}", kids.len()),
+                } });
+            }
+            let mut pairs = Vec::with_capacity(kids.len() / 2);
+            let mut it = kids.into_iter();
+            while let (Some(k), Some(v)) = (it.next(), it.next()) {
+                pairs.push((k, v));
+            }
+            WatAST::Map(pairs, span.clone())
+        }
+        // a leaf has no children — rebuilding it with children is a contract violation
+        leaf => {
+            if !kids.is_empty() {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("leaf node has no children; cannot rebuild with {} child(ren)", kids.len()),
+                } });
+            }
+            leaf.clone()
+        }
+    };
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(rebuilt)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in

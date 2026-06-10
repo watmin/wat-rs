@@ -16547,6 +16547,24 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 251.5a-iv — `(:wat::core::with-children template children)` → `:wat::WatAST`.
+    // The kind-preserving REBUILD: a node of the same kind as `template`, carrying
+    // `children`. The inverse of `ast->children` (which is lossy on kind).
+    env.register(
+        ":wat::core::with-children".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::WatAST".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
