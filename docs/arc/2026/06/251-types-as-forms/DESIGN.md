@@ -225,11 +225,15 @@ disconfirming probe:
   the stamp). **STRIKE-READY** (2026-06-10): sub-design `DESIGN-STONE-251.2.md`; probe
   `tests/probe_arc251_stone2_type_namespace.rs` (C01 RED at HEAD — `wat.type/i64` not yet
   recognized as i64; C02 dual-read GREEN).
-- **251.3** parametrics-as-FORMS `(wat.type/Vector wat.type/i64)`; **DELETE** the
-  `lex_keyword` bracket machinery (lexer.rs:605-730); rewrite `keyword/of` to a
-  quasiquote template (no string-concat); rewrite the run-threads type-destructure to
-  form ops. This is where types become genuine forms (the macro engine computes over
-  them); `src/types/` extended + re-stamped.
+- **251.3** parametrics-as-FORMS `(wat.type/Vector wat.type/i64)` — types become genuine
+  forms (the macro engine computes over them); rewrite `keyword/of` to a quasiquote template
+  (no string-concat); rewrite the run-threads type-destructure to form ops. The `<>`
+  `lex_keyword` `angle_depth` machinery (lexer.rs:637-730) DELETION + corpus migration DEFER
+  to the unified 251.5 sweep (churn-once — can't delete `<>` lexing while the corpus uses it).
+  **STRIKE-READY** (2026-06-10): sub-design `DESIGN-STONE-251.3.md`; probe
+  `tests/probe_arc251_stone3_parametric_form.rs` (C01 RED — a parametric FORM in a binder slot
+  is rejected by the keyword-only type-slot readers; C02 `<>` dual-read GREEN). Build 251.3a =
+  `parse_type_form` (List→Parametric) + wire the 5 type-slot readers.
 - **251.4** `:-` annotation arrow + `ann-form` expression-ascription — folded into the
   signature-rewrite cascade (the corpus-wide `<-`→`:-` + keyword-head→symbol-head sweep).
 - **251.5** HARD-CUT the keyword-as-type/operator surface (one-canonical-path) — the
