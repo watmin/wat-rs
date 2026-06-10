@@ -218,10 +218,13 @@ disconfirming probe:
     that 251.2 subsumes — once types are `wat.type/i64` symbols, the bare-`:i64`-keyword
     lint has nothing to lint. **251.1 closes at a+b**; the home is warded after 251.1b.
   - (Lexer untouched throughout — it already reads the token.)
-- **251.2** the `wat.type/` namespace: type atoms move out of `:wat::core::` into the
+- **251.2** the `wat.type/` namespace: scalar type ATOMS move out of `:wat::core::` into the
   type namespace; the lexeme-carries-the-role property replaces position-polymorphism
-  (DISSOLVES the `WatAST::Keyword` type/value split). Work lands in `src/types/`
-  (re-earn the stamp).
+  (DISSOLVES the `WatAST::Keyword` type/value split for atoms). Parametrics stay keyword
+  (→ 251.3 forms); dual-read bridges. Work lands in `src/types.rs` + `src/types/` (re-earn
+  the stamp). **STRIKE-READY** (2026-06-10): sub-design `DESIGN-STONE-251.2.md`; probe
+  `tests/probe_arc251_stone2_type_namespace.rs` (C01 RED at HEAD — `wat.type/i64` not yet
+  recognized as i64; C02 dual-read GREEN).
 - **251.3** parametrics-as-FORMS `(wat.type/Vector wat.type/i64)`; **DELETE** the
   `lex_keyword` bracket machinery (lexer.rs:605-730); rewrite `keyword/of` to a
   quasiquote template (no string-concat); rewrite the run-threads type-destructure to
