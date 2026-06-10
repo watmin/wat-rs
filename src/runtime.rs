@@ -3323,6 +3323,30 @@ fn dispatch_keyword_head(
         ":wat::core::ast-name" => return crate::edn_shim::eval_ast_name(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::symbol-node" => return crate::edn_shim::eval_symbol_node(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword-node" => return crate::edn_shim::eval_keyword_node(args, list_span, env, sym).map_err(Into::into),
+        // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
+        // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
+        // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
+        ":wat::core::macro-error" => {
+            let v = match crate::edn_shim::require_one_arg(":wat::core::macro-error", args, env, sym, list_span) {
+                Ok(v) => v,
+                Err(e) => return Err(EvalBreak::Diagnostic(e)),
+            };
+            let message = match &v {
+                Value::String(s) => (**s).clone(),
+                other => return Err(EvalBreak::Diagnostic(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::TypeMismatch {
+                        op: ":wat::core::macro-error".into(),
+                        expected: ":wat::core::String",
+                        got: Box::new(ValueSnapshot::of(other)),
+                    },
+                })),
+            };
+            return Err(EvalBreak::Diagnostic(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MacroAbort { message },
+            }));
+        }
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
         ":wat::core::let" => return eval_let(args, list_span, env, sym),

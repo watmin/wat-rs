@@ -259,6 +259,13 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 (kw("ensure-span"), span_val(ensure_span)),
             ]))
         }
+        // Arc 258 Stone 258.2b — macro-abort: just the message + call site span.
+        RuntimeErrorKind::MacroAbort { message } => {
+            tagged("MacroAbort", map2(
+                kw("message"), str_val(message),
+                kw("span"), span_val(span),
+            ))
+        }
     }
 }
 
@@ -348,6 +355,7 @@ fn variant_name(err: &RuntimeError) -> &'static str {
         RuntimeErrorKind::UnknownField { .. } => "UnknownField",
         RuntimeErrorKind::NoMatchingClause { .. } => "NoMatchingClause",
         RuntimeErrorKind::PostconditionFailed { .. } => "PostconditionFailed",
+        RuntimeErrorKind::MacroAbort { .. } => "MacroAbort",
     }
 }
 

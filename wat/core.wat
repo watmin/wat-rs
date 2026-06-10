@@ -255,14 +255,12 @@
   [& clauses <- :AST<wat::holon::Holons>]
   -> :AST<wat::holon::HolonAST>
   (:wat::core::if (:wat::core::empty? clauses)
-    ;; empty clause list — non-exhaustive / no terminal :else. Emit a sentinel keyword whose
-    ;; name carries the diagnostic; the checker rejects it as the typed else-body and surfaces
-    ;; ":else" in a clean, CATCHABLE error. (An Option/expect on `(first [])` would reject too,
-    ;; but as a macro-expansion *panic* — not catchable by run_err and worse UX.) KNOWN
-    ;; LIMITATION → 258.2b: a non-exhaustive cond whose every arm body is itself a keyword could
-    ;; unify with this sentinel and slip; the clean close is a real macro-error primitive. The
-    ;; case is near-theoretical; the rejection is correct for every non-keyword-bodied cond.
-    (:wat::core::keyword/from-string ":else cond: non-exhaustive — needs a terminal :else arm")
+    ;; empty clause list — non-exhaustive / no terminal :else. Arc 258 Stone 258.2b: use the
+    ;; first-class macro-error primitive to abort with a clean diagnostic. This replaces the
+    ;; old keyword-sentinel hack (keyword/from-string with a diagnostic name) which carried a
+    ;; near-theoretical slip if every arm body was itself a keyword. macro-error returns Err
+    ;; directly — the macro engine wraps it into a catchable MacroError without panic or noise.
+    (:wat::core::macro-error "cond: non-exhaustive — needs a terminal :else arm")
     (:wat::core::if (:wat::core::List? (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first clauses) "cond: non-exhaustive — needs a terminal :else"))
       ;; First clause is a List — bare form: (cond (test body) … (:else body))
       (:wat::core::let [arm  (:wat::core::Option/expect -> :wat::holon::HolonAST

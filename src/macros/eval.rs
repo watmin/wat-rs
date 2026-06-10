@@ -110,11 +110,15 @@ pub(super) fn macro_eval_pre_validated(
         } else {
             e.span.clone()
         };
+        // Arc 258 Stone 258.2b: MacroAbort surfaces clean — user message only,
+        // no "macro_eval: runtime::eval failed:" prefix noise.
+        let reason = match &e.kind {
+            crate::runtime::RuntimeErrorKind::MacroAbort { message } => message.clone(),
+            _ => format!("macro_eval: runtime::eval failed: {}", e),
+        };
         MacroError {
             span,
-            kind: MacroErrorKind::MalformedTemplate {
-                reason: format!("macro_eval: runtime::eval failed: {}", e),
-            },
+            kind: MacroErrorKind::MalformedTemplate { reason },
         }
     })
 }
@@ -399,6 +403,12 @@ fn is_pure_total(head: &str) -> bool {
         // ── Keyword / symbol ops (pure) ────────────────────────────────
         | ":wat::core::keyword/to-string"
         | ":wat::core::keyword/from-string"  // pure constructor (routed via dispatch_keyword_head)
+
+        // ── Macro diagnostics (pure: deterministic abort, no IO) ────────
+        // Arc 258 Stone 258.2b — first-class macro-abort. Aborts expansion
+        // with a user diagnostic. Pure: no IO, deterministic (same message
+        // → same MacroError); the deliberate abort is safe at expand time.
+        | ":wat::core::macro-error"
 
         // ── String ops (pure) ─────────────────────────────────────────
         | ":wat::core::string::concat"

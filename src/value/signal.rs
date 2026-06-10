@@ -346,6 +346,12 @@ pub enum RuntimeErrorKind {
         /// Span of the `:ensure :fn` declaration.
         ensure_span: Span,
     },
+    /// Arc 258 Stone 258.2b — a `(:wat::core::macro-error "msg")` call aborting
+    /// macro expansion with a user diagnostic. Returned as `Err` (not panic) so
+    /// the macro engine (`macro_eval_pre_validated`) can wrap it into a clean
+    /// `MacroError` — surfaced without "runtime::eval failed:" prefix noise.
+    /// Macro-body-only: evaluated at expand time (step 4), never post-expansion.
+    MacroAbort { message: String },
 }
 
 /// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
@@ -565,6 +571,7 @@ impl RuntimeErrorKind {
                     body_span_str,
                 )
             }
+            RuntimeErrorKind::MacroAbort { message } => write!(f, "{}{}", prefix, message),
         }
     }
 }
