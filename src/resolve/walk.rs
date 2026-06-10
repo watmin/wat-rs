@@ -250,7 +250,10 @@ pub(super) fn check_form(
 }
 
 /// True if `head` resolves as a call target.
-fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
+///
+/// `pub(super)` — used by [`super::normalize`] to validate candidate FQDN keywords
+/// before rewriting a namespaced symbol ref (arc 251 stone 251.1b).
+pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
     // Kernel, algebra, std, config, and core prefixes are reserved for
     // the language; accept them as-is. A wrong name under those
     // prefixes (e.g. :wat::holon::Bogus) fails DOWNSTREAM at

@@ -58,7 +58,7 @@ use crate::macros::{
 };
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
-use crate::resolve::{resolve_references, ResolveError};
+use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EvalBreak, Environment,
     FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
@@ -890,7 +890,7 @@ fn startup_from_forms_post_config(
             }
         })
         .collect();
-    let residue = register_defines(post_types, &mut symbols)?;
+    let mut residue = register_defines(post_types, &mut symbols)?;
 
     // 6a. Struct auto-methods. For every `(:wat::core::defstruct ...)`
     //     declaration (built-in + user), synthesize its `/new`
@@ -966,6 +966,10 @@ fn startup_from_forms_post_config(
     }
 
     // 7. Name resolution.
+    // Stone 251.1b — normalize namespaced symbol refs (`wat.core/+` →
+    // `WatAST::Keyword(":wat::core::+", span)`) BEFORE resolve_references so
+    // the rewritten AST flows through check + eval with keyword heads.
+    residue = normalize_symbol_refs(residue, &symbols, &macros)?;
     resolve_references(&residue, &symbols, &macros)?;
 
     // 7.5. Arc 157 slice 1a-ii — propagate redef config flags to the

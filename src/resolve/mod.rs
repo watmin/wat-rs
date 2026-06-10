@@ -55,6 +55,7 @@
 //! <!-- rune:vigilatum(...) PLACEHOLDER — ward earned in orchestrator's follow-up vigilia pass; do NOT self-stamp -->
 
 mod error;
+mod normalize;
 mod quote;
 mod reserved;
 mod rust_use;
@@ -64,6 +65,7 @@ mod walk;
 // (freeze.rs, lib.rs, macros/registry.rs, closure_extract.rs) keeps working
 // without any changes.
 pub use error::{ResolveError, UnresolvedReference};
+pub use normalize::normalize_symbol_refs;
 pub use reserved::{is_reserved_prefix, reserved_prefix_list, RESERVED_PREFIXES};
 pub use walk::resolve_references;
 
@@ -85,6 +87,25 @@ mod tests {
         let mut sym = SymbolTable::new();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
         resolve_references(&rest, &sym, &macros)
+    }
+
+    /// Arc 251 stone 251.1b — normalize-then-resolve pipeline helper.
+    ///
+    /// Runs the full pipeline INCLUDING the normalize pass so symbol-ref tests
+    /// exercise the same path as `freeze.rs` step 7.
+    fn normalize_resolve(src: &str) -> Result<(), ResolveError> {
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut macros = MacroRegistry::new();
+        let rest = register_defmacros(forms, &mut macros).expect("register macros");
+        let env = Environment::default();
+        let sym = SymbolTable::default();
+        let expanded =
+            crate::macros::expand_all(rest, &mut macros, &env, &sym).expect("expand");
+        let mut sym = SymbolTable::new();
+        let rest = register_defines(expanded, &mut sym).expect("register defines");
+        // normalize first (arc 251.1b), then validate references.
+        let normalized = normalize_symbol_refs(rest, &sym, &macros)?;
+        resolve_references(&normalized, &sym, &macros)
     }
 
     // ─── Happy paths ────────────────────────────────────────────────────
@@ -264,4 +285,67 @@ mod tests {
     // crates/wat-lru/tests/ where the shim is present.
     // Failure-path tests above still exercise the resolver's own logic
     // without depending on any specific shim.
+
+    // ─── Arc 251 stone 251.1b — normalize pass ──────────────────────────
+
+    #[test]
+    fn namespaced_symbol_head_normalizes_to_keyword() {
+        // `wat.core/i64::+` is a reserved prefix → normalize rewrites it to
+        // `:wat::core::i64::+`; resolve then accepts it as a known builtin.
+        // Uses the normalize_resolve() helper which runs the 251.1b normalize
+        // pass before the standard resolve_references check.
+        assert!(
+            normalize_resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
+            "namespaced symbol head wat.core/i64::+ should normalize to :wat::core::i64::+"
+        );
+    }
+
+    #[test]
+    fn unknown_namespaced_symbol_gives_located_error() {
+        // A well-formed but unknown namespaced ref (`foo.bar/baz`) must surface
+        // as a LOCATED error (ResolveError::UnresolvedReferences with a path),
+        // NOT as a bare `UnboundSymbol` at runtime. Arc 251.0 contract.
+        let err = normalize_resolve(r#"(foo.bar/baz 1)"#).unwrap_err();
+        match err {
+            ResolveError::UnresolvedReferences(refs) => {
+                assert_eq!(refs.len(), 1, "expected exactly one unresolved ref");
+                // The path should be the primary FQDN candidate (`:foo::bar::baz`),
+                // not the raw symbol name.
+                assert!(
+                    refs[0].path.starts_with(':'),
+                    "located error path must be a keyword FQDN; got {:?}",
+                    refs[0].path
+                );
+                assert!(
+                    refs[0].path.contains("foo") && refs[0].path.contains("bar") && refs[0].path.contains("baz"),
+                    "located error path must contain the namespace segments; got {:?}",
+                    refs[0].path
+                );
+                assert!(
+                    refs[0].context.contains("arc 251"),
+                    "error context should name arc 251; got {:?}",
+                    refs[0].context
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bare_local_symbol_untouched_by_normalize() {
+        // Bare symbols (no `/`) are local binders — `x`, `acc`, `xs`.
+        // The normalize pass must NOT rewrite them. A let-binding that uses a
+        // bare symbol as both binder and reference still resolves cleanly.
+        assert!(
+            normalize_resolve(
+                r#"
+                (:wat::core::def :my::app::square
+                  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
+                    (:wat::core::i64::* x x)))
+                (:my::app::square 5)
+                "#
+            )
+            .is_ok(),
+            "bare local symbols (x) must pass through the normalize pass untouched"
+        );
+    }
 }

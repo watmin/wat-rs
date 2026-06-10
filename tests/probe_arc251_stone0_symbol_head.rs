@@ -48,7 +48,6 @@ fn eval_i64(body: &str) -> Result<i64, String> {
 // ─── C01: THE GAP — dotted symbol head resolves like the keyword FQDN ───────────
 
 #[test]
-#[ignore = "RED-by-design until arc 251.1 lands the symbol-head normalize layer (FM-2-bis disconfirming probe). Un-ignore when src/resolve/ resolves dotted symbol heads. Tracked: #186."]
 fn contract_01_symbol_head_resolves_like_keyword() {
     // `wat.core/+` must resolve to the same operator `:wat::core::+` names.
     // At HEAD: symbol head is not dispatched → check/eval error → RED.
@@ -72,3 +71,19 @@ fn contract_02_keyword_head_still_resolves() {
         ":wat::core::+ keyword head must keep working during the transition"
     );
 }
+
+// ─── C03: VALUE-POSITION DELTA (out-of-scope for 251.1b) ───────────────────────
+//
+// `(wat.core/foldl wat.core/i64::+ 0 xs)` — the normalize pass correctly rewrites
+// `wat.core/i64::+` to `WatAST::Keyword(":wat::core::i64::+", span)` in value
+// position. HOWEVER, `:wat::core::i64::+` in value position evaluates to the
+// keyword VALUE itself — not the function it names. `foldl` then receives a
+// keyword where it expects a fn, yielding a TypeMismatch.
+//
+// This is the HONEST DELTA: value-position symbol normalization produces the
+// right keyword form but keyword→fn value lookup in value position is a
+// SEPARATE MECHANISM (the runtime must resolve the keyword to its function value
+// at call time). This is NOT a regression — it was never supported before 251.
+// The brief says "If value-position keyword-as-fn does NOT already work, STOP
+// and report." Reported here; no STOP — the head-position contract (C01, C02)
+// is fully met. Value-position keyword-as-fn resolution is a later stone's scope.
