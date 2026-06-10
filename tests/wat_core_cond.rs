@@ -168,8 +168,8 @@ fn cond_refuses_mismatched_body_type() {
     "#;
     let err = run_err(src);
     assert!(
-        err.contains("TypeMismatch") && err.contains("arm #1"),
-        "expected arm-body type mismatch; got: {}",
+        err.contains("TypeMismatch") && err.contains("else-branch"),
+        "expected arm-body type mismatch (else-branch after macro expansion to if); got: {}",
         err
     );
 }

@@ -230,6 +230,69 @@
     acc
     steps))
 
+;; Arc 258 Stone 258.2a — cond reborn as a wat macro over bare if.
+;; (cond (test body) … (:else bodyN)) expands to nested bare (:wat::core::if …).
+;; The legacy annotated form (cond -> :T arm…) is also accepted: the first
+;; clause is the symbol `->` (not a List), so we strip -> and :T and
+;; re-expand the remainder as a bare cond.
+;;
+;; cond is TOTAL: a terminal (:else body) arm is required.
+;;
+;; EMPTY clause list → expansion-time MacroError via keyword/from-string:
+;;   (:wat::core::keyword/from-string ":else ...") rejects ':'-prefixed input with a
+;;   RuntimeError (via EvalBreak::Diagnostic), which propagates as StartupError::Macro
+;;   rather than panic_any, so run_err can capture it. The error message contains ":else".
+;; :else arm → emit its body unconditionally (terminal).
+;; test arm → (if test body (cond rest…)) and re-expand to fixpoint.
+;;
+;; Detecting :else: compare head structurally with (first `(:else)) — both are
+;; Value::wat__WatAST, so (= head (first `(:else))) is safe for any non-List head
+;; (returns false for integers/symbols, true only for the :else keyword form).
+;;
+;; empty? is checked FIRST (before any Option/expect) so the empty-clause case
+;; goes through the RuntimeError channel, not panic_any.
+(:wat::core::defmacro :wat::core::cond
+  [& clauses <- :AST<wat::holon::Holons>]
+  -> :AST<wat::holon::HolonAST>
+  (:wat::core::if (:wat::core::empty? clauses)
+    ;; empty clause list — non-exhaustive / no terminal :else. Emit a sentinel keyword whose
+    ;; name carries the diagnostic; the checker rejects it as the typed else-body and surfaces
+    ;; ":else" in a clean, CATCHABLE error. (An Option/expect on `(first [])` would reject too,
+    ;; but as a macro-expansion *panic* — not catchable by run_err and worse UX.) KNOWN
+    ;; LIMITATION → 258.2b: a non-exhaustive cond whose every arm body is itself a keyword could
+    ;; unify with this sentinel and slip; the clean close is a real macro-error primitive. The
+    ;; case is near-theoretical; the rejection is correct for every non-keyword-bodied cond.
+    (:wat::core::keyword/from-string ":else cond: non-exhaustive — needs a terminal :else arm")
+    (:wat::core::if (:wat::core::List? (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first clauses) "cond: non-exhaustive — needs a terminal :else"))
+      ;; First clause is a List — bare form: (cond (test body) … (:else body))
+      (:wat::core::let [arm  (:wat::core::Option/expect -> :wat::holon::HolonAST
+                                (:wat::core::first clauses) "cond: empty clause list")
+                        head (:wat::core::Option/expect -> :wat::holon::HolonAST
+                                (:wat::core::first arm) "cond: arm has no head")]
+        (:wat::core::if (:wat::core::List? head)
+          ;; test arm — head is a sub-list like (= 1 2): (if head body (cond rest…))
+          `(:wat::core::if
+              ~head
+              ~(:wat::core::Option/expect -> :wat::holon::HolonAST
+                  (:wat::core::second arm) "cond: arm has no body")
+              (:wat::core::cond ~@(:wat::core::rest clauses)))
+          ;; non-List head — detect :else by structural comparison with the :else keyword form.
+          ;; (first `(:else)) returns Option<WatAST>; Option/expect unwraps to WatAST::Keyword(":else").
+          ;; = on two Value::wat__WatAST nodes uses structural PartialEq (safe for any variant pair).
+          (:wat::core::if (:wat::core::= head (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first `(:else)) "cond: internal: :else form is empty"))
+            ;; :else terminal arm — emit body unconditionally
+            (:wat::core::Option/expect -> :wat::holon::HolonAST
+              (:wat::core::second arm) "cond: :else arm has no body")
+            ;; other non-List head — treat as test arm (v1 fallback for malformed input)
+            `(:wat::core::if
+                ~head
+                ~(:wat::core::Option/expect -> :wat::holon::HolonAST
+                    (:wat::core::second arm) "cond: arm has no body")
+                (:wat::core::cond ~@(:wat::core::rest clauses))))))
+      ;; First clause is NOT a List (it is the -> symbol) — annotated form.
+      ;; Strip -> and :T (first two elements) and re-expand as bare cond.
+      `(:wat::core::cond ~@(:wat::core::rest (:wat::core::rest clauses))))))
+
 ;; ─── keyword/of — parametric keyword construction ─────────────────
 ;;
 ;; keyword/of — build the parametric keyword `:Head<arg1,arg2>` from keyword args

@@ -487,7 +487,7 @@
   (:wat::core::let
       [new-buf (:wat::core::conj buffer item)
        new-len (:wat::core::length new-buf)]
-      (:wat::core::cond -> :wat::stream::ChunkStep<T>
+      (:wat::core::cond
         ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
         ((:wat::core::> new-len size)
           (:wat::core::let
@@ -505,7 +505,7 @@
     ;; as a full window. That's exactly the case len(buf) < size AND
     ;; len(buf) > 0. The len == size case means a full window was
     ;; already emitted on the sliding path — nothing to flush.
-    (:wat::core::cond -> :wat::core::Vector<wat::core::Vector<T>>
+    (:wat::core::cond
       ((:wat::core::empty? buffer) (:wat::core::Vector :wat::core::Vector<T>))
       ((:wat::core::< (:wat::core::length buffer) size)
         (:wat::core::Vector :wat::core::Vector<T> buffer))

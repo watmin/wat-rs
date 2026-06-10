@@ -133,11 +133,14 @@ fn typed_match_on_none_returns_none_arm() {
 
 #[test]
 fn untyped_if_gives_migration_hint() {
+    // Arc 258.1: bare `(if cond then else)` is now VALID — the mandatory `-> :T`
+    // annotation is gone; the form's type is inferred from branch unification.
+    // This test was previously checking a migration-hint rejection; it now asserts
+    // the new behavior: bare if type-checks and evals correctly.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true 1 2))
     "#;
-    let errs = check_errors(src);
-    assert_malformed_mentioning(&errs, ":wat::core::if", "now requires `-> :T`");
+    assert!(matches!(run(src), Value::i64(1)));
 }
 
 #[test]
@@ -181,12 +184,14 @@ fn match_without_type_keyword_after_arrow_rejected() {
 
 #[test]
 fn if_wrong_arity_rejected_with_shape_guidance() {
-    // Six args — one too many.
+    // Six args — one too many for both the bare 3-arg and annotated 5-arg forms.
+    // Arc 258.1 updated the error to name both valid shapes; the needle matches
+    // the annotated-shape portion of the message.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 1 2 99))
     "#;
     let errs = check_errors(src);
-    assert_malformed_mentioning(&errs, ":wat::core::if", "expected (:wat::core::if cond -> :T then else)");
+    assert_malformed_mentioning(&errs, ":wat::core::if", "(:wat::core::if cond -> :T then else)");
 }
 
 #[test]

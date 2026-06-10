@@ -657,7 +657,7 @@ fn t12_body_uses_expanded_substrate_primitive_macro() {
     // and re-freezes cleanly.
     let src = r#"
         (:wat::core::defn :my::classify [n <- :wat::core::i64] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
+          (:wat::core::cond
                       ((:wat::core::< n 0) "negative")
                       ((:wat::core::= n 0) "zero")
                       (:else "positive")))
