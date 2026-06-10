@@ -63,9 +63,8 @@ mod reserved;
 mod rust_use;
 mod walk;
 
-// Public surface — preserved exactly as before the lift so every importer
-// (freeze.rs, lib.rs, macros/registry.rs, closure_extract.rs) keeps working
-// without any changes.
+// Public API — re-exported for the external importers (freeze.rs, lib.rs,
+// macros/registry.rs, closure_extract.rs).
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
 pub use reserved::{is_reserved_prefix, reserved_prefix_list};

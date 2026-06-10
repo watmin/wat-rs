@@ -121,8 +121,8 @@ fn normalize_form(
             WatAST::Set(new_items, span)
         }
 
-        // All other leaf nodes (IntLit, FloatLit, BoolLit, StringLit, NilLit,
-        // Keyword, bare Symbol without `/`) — pass through untouched.
+        // Leaf nodes (and a bare Symbol without `/`) carry no namespaced symbol
+        // ref to rewrite — pass through unchanged.
         other => other,
     }
 }
@@ -156,18 +156,18 @@ fn normalize_list(
 
         // Quasiquote: template is data except inside unquote/unquote-splicing.
         if head == ":wat::core::quasiquote" {
-            let mut out = Vec::with_capacity(items.len());
+            let mut normalized_items = Vec::with_capacity(items.len());
             let mut iter = items.into_iter();
             // Keep the head keyword as-is.
-            out.extend(iter.next());
+            normalized_items.extend(iter.next());
             // items[1] = template (if present) — descend quasiquote-aware.
             if let Some(template) = iter.next() {
-                out.push(normalize_quasiquote_template(template, sym, macros, errors));
+                normalized_items.push(normalize_quasiquote_template(template, sym, macros, errors));
             }
-            // Any remaining items passed through unchanged (shouldn't appear
-            // in well-formed quasiquote, but be conservative).
-            out.extend(iter);
-            return out;
+            // Any remaining items pass through unchanged (shouldn't appear in
+            // well-formed quasiquote, but be conservative).
+            normalized_items.extend(iter);
+            return normalized_items;
         }
     }
 

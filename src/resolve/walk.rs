@@ -49,6 +49,11 @@ pub fn resolve_references(
     }
 }
 
+// rune:intueri(length) — a multi-way call-head-boundary dispatch (the quote-family
+// boundaries + match/cond pattern-arm boundaries + generic children() recursion). Each
+// arm is short and carries its own arc-attribution comment; the length is an
+// orchestration sequence over the language's special-form boundaries, not braided
+// concerns. The match-arm boundary is the natural extraction candidate if it grows.
 pub(super) fn check_form(
     form: &WatAST,
     sym: &SymbolTable,
