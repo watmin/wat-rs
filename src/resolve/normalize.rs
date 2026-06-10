@@ -38,7 +38,7 @@ use crate::ast::WatAST;
 use crate::edn_shim::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
-use super::boundary::{quote_boundary, Boundary};
+use super::boundary::{is_unquote_escape, quote_boundary, Boundary};
 use super::error::{ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
 
@@ -110,7 +110,7 @@ fn normalize_form(
                 // `(wat.core/+ ...)` must keep its symbol, not be rewritten.
                 Boundary::AllData => items,
                 // quasiquote: template data except unquote/unquote-splicing escapes.
-                Boundary::Quasiquote => normalize_quasiquote_list(items, sym, macros, errors),
+                Boundary::Quasiquote => normalize_quasiquote_form(items, sym, macros, errors),
                 // matches?: only the subject (items[1]) is code; pattern is data.
                 Boundary::MatchesSubject => normalize_matches(items, sym, macros, errors),
                 // cond: arms are code except a leading `:else` marker.
@@ -161,7 +161,7 @@ fn normalize_form(
 
 /// Normalize a `:wat::core::quasiquote` list. The template (items[1]) is data
 /// EXCEPT inside `unquote` / `unquote-splicing` escapes (live code).
-fn normalize_quasiquote_list(
+fn normalize_quasiquote_form(
     items: Vec<WatAST>,
     sym: &SymbolTable,
     macros: &MacroRegistry,
@@ -245,8 +245,8 @@ fn normalize_match(
     if let Some(scrutinee) = iter.next() {
         out.push(normalize_form(scrutinee, sym, macros, errors)); // scrutinee: code
     }
-    out.extend(iter.next()); // `->` symbol, as-is (data)
-    out.extend(iter.next()); // return-type keyword, as-is (data)
+    out.extend(iter.next()); // `->` arrow: a syntax token, pass through
+    out.extend(iter.next()); // return-type keyword: a type annotation, pass through
     for arm in iter {
         match arm {
             WatAST::List(arm_items, arm_span) => {
@@ -269,6 +269,11 @@ fn normalize_match(
 /// Walk a quasiquote template, normalizing only inside unquote/unquote-splicing
 /// escapes (live code). The rest of the template is data — recurse structurally
 /// only to find nested escape forms, but do NOT rewrite symbols in data positions.
+///
+/// Parallel to [`super::quote::check_quasiquote_template`]: same template walk,
+/// opposite ownership — this consumes the node and rebuilds it (rewriting escape
+/// symbols); that borrows the node and pushes errors (resolving escape heads).
+/// Both gate the escape boundary on [`is_unquote_escape`], so they cannot drift.
 fn normalize_quasiquote_template(
     node: WatAST,
     sym: &SymbolTable,
@@ -277,7 +282,7 @@ fn normalize_quasiquote_template(
 ) -> WatAST {
     if let WatAST::List(items, span) = node {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing" {
+            if is_unquote_escape(head) {
                 // Escape: argument is live code — full normalization.
                 let new_items = items
                     .into_iter()
@@ -360,9 +365,11 @@ fn resolve_namespaced_symbol(
     // LATENT GAP, named not buried: a type-member SYMBOL head (`wat.core.HashMap/length`)
     // normalizes to `:wat::core::HashMap::length`, which passes resolve but is NOT the
     // runtime op (`:wat::core::HashMap/length`), so it would not dispatch. No current
-    // program uses symbol-head type-members (the corpus is keyword-spelled); correct
-    // `Type/member` symbol normalization is deferred to the 251.5 corpus cut, where
-    // symbol-head type-members first appear.
+    // program uses symbol-head type-members — the corpus is keyword-spelled.
+    // rune:exigere(attested-arc) — correct `Type/member` symbol normalization lands when
+    // symbol-head type-members first appear, at arc 251 stone 251.5 (HARD-CUT the
+    // keyword-as-type/operator surface); DESIGN at
+    // docs/arc/2026/06/251-types-as-forms/DESIGN.md.
 
     // Primary did not resolve → located error naming the unknown entity.
     Err(UnresolvedReference {

@@ -65,3 +65,14 @@ pub(super) fn quote_boundary(head: &str) -> Boundary {
         _ => Boundary::Ordinary,
     }
 }
+
+/// True if `head` is a quasiquote escape — the one place inside a
+/// [`Boundary::Quasiquote`] template where data gives way to live code.
+///
+/// The escape-head set is a language fact, encoded here exactly once so the two
+/// quasiquote-template descents (`super::quote::check_quasiquote_template` —
+/// borrow + resolve; `super::normalize::normalize_quasiquote_template` — consume
+/// + rewrite) cannot drift on which heads open an escape.
+pub(super) fn is_unquote_escape(head: &str) -> bool {
+    head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing"
+}

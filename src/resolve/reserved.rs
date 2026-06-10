@@ -27,6 +27,10 @@ pub const RESERVED_PREFIXES: &[&str] = &[
     ":rust::",
 ];
 
+/// True if `keyword` falls UNDER a reserved prefix — i.e. it is, or is nested
+/// beneath, a language-owned namespace (`:wat::core::+` and `:rust::lru::*` both
+/// return true). Not: "is `keyword` itself one of the prefix entries." Callers use
+/// it as the "this path is language-owned, don't treat it as user-definable" gate.
 pub fn is_reserved_prefix(keyword: &str) -> bool {
     let stripped = keyword.strip_prefix(':').unwrap_or(keyword);
     RESERVED_PREFIXES

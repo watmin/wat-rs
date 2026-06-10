@@ -7,6 +7,7 @@
 use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
+use super::boundary::is_unquote_escape;
 use super::error::UnresolvedReference;
 use super::walk::check_form;
 
@@ -27,7 +28,7 @@ pub(super) fn check_quasiquote_template(
     // head keyword for those special forms first.
     if let WatAST::List(items, _) = node {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if head == ":wat::core::unquote" || head == ":wat::core::unquote-splicing" {
+            if is_unquote_escape(head) {
                 // Escape: the argument is live code. Use normal check_form.
                 for arg in items.iter().skip(1) {
                     check_form(arg, sym, macros, use_decls, unresolved);

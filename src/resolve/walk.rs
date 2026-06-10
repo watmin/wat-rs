@@ -23,8 +23,8 @@ use super::quote::check_quasiquote_template;
 /// Pass 1's `use!` scan is program-global precisely because it reads the
 /// top-level forms; a nested slice would silently lose `use!` declarations
 /// hoisted above it. The sole caller (`freeze.rs` step 7) always passes the
-/// top-level residue. (The `&[WatAST]` type cannot express "top-level only";
-/// a `TopLevelForms` newtype would make it structural — tracked, not urgent.)
+/// top-level residue. (The `&[WatAST]` type cannot itself express the
+/// "top-level only" precondition; the single caller is its enforcement point.)
 pub fn resolve_references(
     forms: &[WatAST],
     sym: &SymbolTable,
@@ -92,9 +92,15 @@ pub(super) fn check_form(
             // the method path — `:rust::lru::LruCache::new` is covered
             // by a use! of `:rust::lru::LruCache`.
             if head.starts_with(":rust::") {
-                let covered = use_decls
-                    .list()
-                    .any(|decl| head == decl || head.starts_with(&format!("{}::", decl)));
+                // `:rust::Type::method` is covered by a `use!` of `:rust::Type`
+                // iff `head` equals `decl` or starts with `decl` followed by `::`.
+                // Checked allocation-free (path segments are ASCII, so `decl.len()`
+                // is always a char boundary) rather than building `format!("{decl}::")`
+                // per declaration per call head.
+                let covered = use_decls.list().any(|decl| {
+                    head == decl
+                        || (head.starts_with(decl) && head[decl.len()..].starts_with("::"))
+                });
                 if !covered {
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),

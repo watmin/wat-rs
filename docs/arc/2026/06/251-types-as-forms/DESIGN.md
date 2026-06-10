@@ -117,6 +117,19 @@ forms the reader reads.
 5. **`ann-form`** — `(ann-form expr type)` — the local-ascription site. Three
    annotation sites — binder (`x :- T`), return (`-> T`), expression
    (`(ann-form e T)`) — all taking the SAME type-form grammar.
+6. **Rust interop joins the inversion** — `:rust::whatever::SomeThing` →
+   `rust.whatever/SomeThing` (builder, 2026-06-09). The `:rust::` keyword interop
+   surface is the SAME keyword-as-head abuse as `:wat::core::`; under the role
+   inversion it becomes a namespaced symbol in the `rust.` namespace, exactly
+   parallel to `wat.core/` and `wat.type/`. **This falls out of the existing
+   machinery for free:** the 251.1b normalize transform's `ns_to_wat_path` is
+   generic over the namespace, so `rust.lru/LruCache` already normalizes to
+   `:rust::lru::LruCache` with no special-casing — `:rust::` is already a reserved
+   prefix (`src/resolve/reserved.rs`), and the `use!` coverage gate operates on the
+   post-normalize `:rust::` keyword, unaffected. The work is purely the **251.5
+   corpus cut** (rewrite `:rust::a::b::C` source spellings to `rust.a.b/C`) plus the
+   `use!` declaration surface (`(wat.core/use! rust.lru/LruCache)`). One inversion,
+   three namespaces (`wat.core`, `wat.type`, `rust`); keywords return to data.
 
 ---
 
@@ -218,6 +231,8 @@ disconfirming probe:
   signature-rewrite cascade (the corpus-wide `<-`→`:-` + keyword-head→symbol-head sweep).
 - **251.5** HARD-CUT the keyword-as-type/operator surface (one-canonical-path) — the
   dotted symbol form becomes the ONLY surface form; resolution rejects keyword spellings.
+  Includes the **`:rust::` interop corpus cut** (move 6): `:rust::a::b::C` source
+  spellings → `rust.a.b/C` symbols, and `use!` declarations → `(wat.core/use! rust.a.b/C)`.
 - **251.6 — NATIVE SYMBOL DISPATCH (ANNIHILATE the normalize-layer).** Flip `eval_list` /
   `dispatch_keyword_head` + every `if let Some(WatAST::Keyword(head, _)) = items.first()`
   head-reading site across check.rs/runtime.rs to read `WatAST::Symbol` heads NATIVELY —

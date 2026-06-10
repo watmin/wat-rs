@@ -3,9 +3,12 @@
 //! After macro expansion, every keyword-path reference used in call
 //! position must resolve to one of:
 //!
-//! - A known `:wat::core::*` language form (define, fn, let, if,
+//! - A known `:wat::core::*` language form (defn, fn, let, if,
 //!   the builtin arithmetic / comparison / boolean ops, the list
 //!   constructor, the quasiquote forms, the type-declaration heads).
+//!   (`define` was retired at Stone 241.11 — `defn` is the successor; the
+//!   resolver still boundary-guards `:wat::core::define` so it does not walk a
+//!   retired form's body before the checker rejects it.)
 //! - A root-level substrate form: `:wat::load-file!` / `:wat::load-string!` /
 //!   `:wat::digest-load!` / `:wat::digest-load-string!` / `:wat::signed-load!` /
 //!   `:wat::signed-load-string!` / `:wat::eval-ast!` / `:wat::eval-edn!` /
