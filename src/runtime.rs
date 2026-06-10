@@ -3300,6 +3300,9 @@ fn dispatch_keyword_head(
         ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => return crate::edn_shim::eval_edn_read(args, list_span, env, sym).map_err(Into::into),
+        // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
+        // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
+        ":wat::core::read-string" => return crate::edn_shim::eval_read_string(args, list_span, env, sym).map_err(Into::into),
         // Arc 233 Stone 233.2.k: let must return TrackedValue directly so provenance
         // from the last body expression flows through (not stripped by dispatch_keyword_head_value).
         ":wat::core::let" => return eval_let(args, list_span, env, sym),

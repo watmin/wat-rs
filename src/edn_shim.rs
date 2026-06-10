@@ -218,6 +218,54 @@ pub fn eval_edn_read(
     ))
 }
 
+/// `(:wat::core::read-string <source>)` — arc 251 Stone 251.5a-i.
+///
+/// The homoiconic `read`: parse wat SOURCE text into forms-as-DATA, WITHOUT
+/// evaluating. Returns the program's top-level forms wrapped in a single
+/// `Value::wat__WatAST(WatAST::List([form0 form1 …]))` — the same AST-as-value
+/// shape `quote` produces, so the macro engine + `List?`/`first`/`rest` walk it.
+///
+/// This is what `:wat::edn::read` is NOT: `edn::read` runs the EDN parser
+/// (`wat_edn::parse_owned`), which rejects the pre-251.5 surface (`::`, `<>`,
+/// `Fn(…)->`). `read-string` runs wat's OWN source parser, so it reads the corpus
+/// as it stands today — the foundation the wat-to-wat fixer needs to read what it
+/// is about to rewrite. (Once the migration lands, source IS clean EDN and the two
+/// converge; until then, only the source parser can read the dirty corpus.)
+pub fn eval_read_string(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::read-string";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let forms = crate::parser::parse_all_with_file(&s, "<read-string>").map_err(|e| {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("parse error: {e}"),
+        } }
+    })?;
+    let ast = WatAST::List(forms, crate::span::Span::unknown());
+    let value = Value::wat__WatAST(std::sync::Arc::new(ast));
+    Ok(crate::value::TrackedValue::new(
+        value,
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in

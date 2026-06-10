@@ -16508,6 +16508,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 251.5a-i — `(:wat::core::read-string s)` → `:wat::WatAST`. The homoiconic
+    // `read`: wat SOURCE text → forms-as-data (a WatAST::List of top-level forms),
+    // WITHOUT eval. Distinct from `edn::read` (EDN parser) — this runs wat's own
+    // source parser, the read side of the wat-to-wat fixer.
+    env.register(
+        ":wat::core::read-string".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: TypeExpr::Path(":wat::WatAST".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-
