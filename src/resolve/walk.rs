@@ -19,12 +19,13 @@ use super::quote::check_quasiquote_template;
 /// resolves somewhere. Returns Ok iff all references are known;
 /// otherwise reports every failure at once.
 ///
-/// `forms` is the program's **top-level** form sequence (the freeze residue).
-/// Pass 1's `use!` scan is program-global precisely because it reads the
-/// top-level forms; a nested slice would silently lose `use!` declarations
-/// hoisted above it. The sole caller (`freeze.rs` step 7) always passes the
-/// top-level residue. (The `&[WatAST]` type cannot itself express the
-/// "top-level only" precondition; the single caller is its enforcement point.)
+/// CALLER CONTRACT: `forms` must be the program's **top-level** form sequence
+/// (the freeze residue). Pass 1's `use!` scan is program-global precisely because
+/// it reads the top-level forms; passing a nested slice would silently lose
+/// `use!` declarations hoisted above it. The `&[WatAST]` type cannot itself
+/// express this precondition — it is a caller obligation. The in-crate caller
+/// (`freeze.rs` step 7) honours it; this fn is also `pub`-exported, so any
+/// external caller owes the same contract.
 pub fn resolve_references(
     forms: &[WatAST],
     sym: &SymbolTable,

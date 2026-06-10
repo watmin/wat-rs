@@ -1,67 +1,83 @@
-# SCORE — Stone 251.1 vigilatum ward (IN PROGRESS — stamp NOT yet earned)
+# SCORE — Stone 251.1 vigilatum ward (COMPLETE — stamp EARNED 2026-06-10T03:11:19Z)
 
-**Status: 4 of the full guard cast; findings banked; the home is NOT stamped.**
-The vigilatum is earned by combat against the WHOLE applicable book — this ward is
-incomplete (a context-depth handoff, 2026-06-09). A rested guard finishes it.
+**Status: full inward guard cast, every finding weighed against the disk, driven to
+0 L1 / 0 L2 with L3 accepted-with-reason. `src/resolve/` is stamped.**
 
-`src/resolve/` is correct, green→green, clippy-clean, bug-fixed. Only the stamp waits.
+The vigilatum was earned by COMBAT against the whole applicable book (skip only the
+genuinely inapplicable: `secare` — no parallelism; `mora` — no waits). The home is
+correct, green→green, clippy-clean, bug-fixed, and now test-covered on the surface
+the keystone touched.
 
-## Casts run (4 of ~13 applicable)
-- **intueri** ✓ — round-1; residual driven to **0 L1 / 0 L2** (commit `91c58342`).
-- **purgare** ✓ — round-1; caught the **dead-fallback bug** (FIXED, commit `4b0dd67a`)
-  — the `Type/member` fallback was structurally unreachable (reserved-prefix shortcut
-  makes primary always-pass for `:wat::`). Latent type-member-symbol gap NAMED.
-- **solvere** — VERDICT solid, **0 L1 / 1 L2**.
-- **struere** — **2 L1 / 3 L2** reported (re-graded on weighing below).
+## The keystone (the reason this ward mattered)
 
-## Findings + orchestrator weighing (the actionable set for the finish)
+solvere — round 1 AND re-cast — surfaced the **quote-family boundary braid**: the
+special-form argument-boundary table was encoded TWICE (`walk::check_form` carried 6
+boundary heads, `normalize` only 4) and had **drifted** — `normalize` silently lacked
+the `match`/`cond`/`matches?` boundaries, and its doc falsely claimed it "Mirrors
+check_form's boundary logic exactly."
 
-### KEYSTONE — the real one (solvere BRAID-1, struere F4 underlying)
-**The quote-family boundary table is encoded TWICE** — `normalize.rs`
-(`normalize_list`/`normalize_quasiquote_template`) and `walk.rs`/`quote.rs`
-(`check_form`/`check_quasiquote_template`). The normalize.rs doc says "Mirrors
-check_form's boundary logic exactly" — that names the braid. **They have already
-drifted**: `normalize` lacks the `:wat::core::match`/`cond`/`matches?` pattern
-boundaries that `walk` carries → a latent gap (namespaced symbols inside match-arm
-PATTERNS are not boundary-protected by normalize). **FIX (decomplect):** extract one
-`quote_boundary(head) -> Boundary` predicate (in `quote.rs` or a new `boundary.rs`)
-that BOTH passes call; reconcile the match/cond asymmetry. This is the genuine L2 and
-the highest-value finish item. struere's F4 (normalize "rewrites + validates" in one
-signature) is the same coupling seen from the type side — the unification likely
-dissolves both.
+**Decomplected** (`97c206a3`): one `boundary::quote_boundary(head) -> Boundary`
+classifier, the single source of the boundary-head set; both passes match it
+**exhaustively**, so a new boundary variant is a compile error in every pass until
+handled. Drift became unrepresentable. The per-pass traversal stays (walk borrows +
+pushes errors; normalize consumes + rebuilds) — only the classification is shared.
 
-### Genuine mild L2 (fix in the finish)
-- **struere F2** — `normalize_list` discards the span; the caller re-wraps
-  (`normalize.rs:89`). Fold `normalize_list` into the `WatAST::List` arm of
-  `normalize_form` (it's called once) so the boundary is structural.
+## Casts (the full inward guard + circumspicere last)
 
-### Re-graded to L3 / accept-with-reason (orchestrator weighing — grounded)
-- **struere F4 (was L1)** — `normalize_symbol_refs` rewrites AND validates. This is the
-  251.1b LOCATED-ERROR CONTRACT (the brief required "resolve to the entity it names;
-  located error if not"), so validation is BY DESIGN; `ResolveError` is the honest error
-  for an unresolvable ref. NOT a lie. (The deeper normalize/walk coupling is the KEYSTONE
-  above.)
-- **struere F6 (was L1)** — `resolve_references` two-pass top-level `use!`-scan scope
-  assumption invisible in `&[WatAST]`. **PRE-EXISTING** (verbatim-lifted from resolve.rs,
-  not introduced by 251.1); single caller (freeze.rs) always passes top-level residue.
-  Cheap honesty fix: a doc line stating "top-level forms only," or a `TopLevelForms`
-  newtype — future nicety, not a 251.1 defect.
-- **struere F1 (L2)** — `normalize_form` threads `&mut Vec<errors>` rather than returning
-  `Result`. DELIBERATE: multi-error accumulation (report ALL unresolved refs together),
-  mirroring `resolve_references`' own accumulator. `Result` would lose that. Accept; or
-  add a `rune:struere`.
-- **struere F5 (L2)** — `UnresolvedReference.context: &'static str` constrains to literals.
-  PRE-EXISTING; fine for the current fixed contexts; widen to `Cow<'static,str>` only if
-  dynamic context is ever needed. Doc the constraint or accept.
-- **struere F3** — `format!("{}::", decl)` per `:rust::*` head: a temperare concern (perf),
-  not struere; pre-existing; tiny.
+| ward | verdict | disposition |
+|------|---------|-------------|
+| intueri | 0 L1 / 5 L2 / 2 L3 | F4/F5/F6/F7 fixed (rename `_list`→`_form`, cross-ref doc, `->` comment, `is_reserved_prefix` doc); F2 (`is_resolvable_call_head` name) accepted |
+| purgare (round 1) | clean | dead-fallback bug fixed `4b0dd67a` |
+| struere (round 1) | 2 L1 / 3 L2 | F2 (span fold) fixed; F1/F4/F5/F6 re-graded L3/accept (multi-error accumulator by design; located-error contract; pre-existing) |
+| solvere | KEYSTONE + 2 | keystone fixed; F1 (unquote-escape braid) → `is_unquote_escape`; F2 (match positional grammar) accepted; F3 (`is_resolvable_call_head` home) accepted |
+| sequi | 0 L1 / 0 L2 | clean; the `ambient-context` registry rune holds |
+| conformare | 1 L2 / 2 L3 | F1 (span shape) accepted — substrate-wide `Span` convention |
+| exigere | 1 L1 / 1 L2 | both were the orchestrator's OWN prose: "tracked, not urgent" reworded; 251.5 NOTE formalized as `rune:exigere(attested-arc)` |
+| cernere | clean / 1 L3 | every form literal verified live or correctly-guarded-retired; `define` doc-drift fixed |
+| temperare | 1 L1 | `format!`-per-iteration alloc in the `:rust::` coverage check → allocation-free slice check |
+| circumspicere (last) | C1–C6 | C1/C3/C4/C6 fixed; C2 reworded; C5 accepted |
 
-## The finish (rested guard)
-1. recolligere → read this SCORE + the round-1 close commits (`4b0dd67a`, `91c58342`).
-2. **Fix the KEYSTONE** (extract `quote_boundary`, reconcile match/cond asymmetry) +
-   struere F2 (span); doc-fix F6; rune/accept F1/F5.
-3. **Cast the rest of the book** (within reason): sequi, conformare, exigere, perspicere,
-   cernere, temperare, the test-wards (vocare/complectens/probare), circumspicere LAST.
-   Skip the inapplicable (secare — no parallelism; mora — no waits).
-4. Weigh each against the disk → drive to 0 L1 / 0 L2 → L3 accepted-with-reason → earn the
-   vigilatum stamp in `mod.rs` (replace the placeholder).
+## circumspicere — the surround (cast last)
+
+- **C4 (negative space, primary):** the rewritten normalize boundary handling had
+  ZERO dedicated tests — the keystone's exact domain. Closed with 6 AST-inspecting
+  tests (`normalize_skips_quoted_form_symbols`, `_skips_match_pattern_but_rewrites_body`,
+  `_skips_quasiquote_template_but_rewrites_escapes`, `_rewrites_cond_arm_bodies_keeps_else_marker`,
+  `_rewrites_matches_subject_keeps_pattern`) — these would have CAUGHT the original drift.
+- **C3 (ordering contract):** `resolve_alone_cannot_see_symbol_heads_normalize_must_precede`
+  pins that the resolver validates only keyword heads, so normalize must precede it.
+- **C1:** freeze.rs step-7 pipeline doc now names `normalize_symbol_refs` + the order.
+- **C2:** walk.rs's over-claiming "sole caller is enforcement" (false — `pub`-exported)
+  reworded to an honest caller-contract.
+- **C6:** the `resolve()` test helper now documents it deliberately skips normalize.
+- **C5 (accepted):** the dangling `FOUNDATION.md` reference is pre-existing and
+  codebase-wide (7+ sites in freeze.rs alone), not resolve-specific — a separate
+  docs-hygiene concern, NOT silently dropped.
+
+## L3 / accepted-with-reason (grounded against the disk)
+
+- **`match` positional grammar duplicated** (solvere F2): the spec is single-sourced in
+  the `Boundary::Match` doc; the two traversals implement it under the irreducible
+  per-pass ownership split solvere itself flagged. Index-consts don't fit the owned
+  sequential rebuild. Accept.
+- **`is_resolvable_call_head` in walk.rs, used by normalize** (solvere F3 / intueri F2):
+  a documented `pub(super)` shared predicate, correctly homed with the call-head-
+  resolution pass (walk.rs's module doc declares it). Documented reuse, not a lie.
+- **`UnresolvedReference.span: Span`** (conformare F1): `Span` (with its `unknown()`
+  sentinel) is the substrate-wide span representation; all 6 construction sites pass
+  real AST spans; spanless-uncompilable is a substrate-wide conformare-arc concern.
+
+## Gates
+
+- `cargo build --release` — clean (0 warnings citing `src/resolve/`).
+- lib **950/0/1**; `resolve::tests` **23/23**; `probe_arc251_stone0_symbol_head` **2/2**.
+- `cargo clippy --release --lib` — **0** notes citing `src/resolve/`.
+- Full-workspace integration reds are NONDETERMINISTIC and PRE-EXISTING (49 at the
+  session-start base `26f8805f`, 25 now, set shifts per run) — collateral from the
+  live arc-213 fork-IPC deadlock; every suspicious name passes in isolation. **Zero
+  regressions from this ward** (verified by base-comparison + isolation).
+
+## Commits
+
+`97c206a3` (keystone) · `a645a27f` (inward guard fixes + DESIGN move-6) · this commit
+(circumspicere fixes + 6 boundary tests + the stamp).

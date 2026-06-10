@@ -1,3 +1,22 @@
+//! vigilatum: 2026-06-10T03:11:19Z — resolve/ ward (arc 251.1), L1+L2=0, clippy-clean in-home.
+//! Earned by COMBAT — the full inward guard cast (intueri · purgare · struere ·
+//! solvere · sequi · conformare · exigere · cernere · temperare · circumspicere
+//! last), every finding weighed against the disk in both directions. The guard
+//! earned its keep three times: solvere caught the KEYSTONE braid (the quote-family
+//! boundary table encoded twice and DRIFTED → decomplected to one
+//! [`boundary::quote_boundary`] classifier both passes match EXHAUSTIVELY, so drift
+//! is now a compile error) plus a second escape-head braid (→ [`boundary`]'s
+//! `is_unquote_escape`); exigere caught the orchestrator's OWN deferral-prose;
+//! circumspicere caught the untested negative space (the rewritten normalize
+//! boundary handling → 6 AST-inspecting boundary tests + an ordering-contract pin).
+//! L3 accepted-with-reason: the `match` positional grammar (spec single-sourced in
+//! `Boundary::Match`; the per-pass traversal is the irreducible ownership split),
+//! `is_resolvable_call_head`'s home (a documented `pub(super)` shared predicate), and
+//! `UnresolvedReference`'s span shape (the substrate-wide `Span` convention — a
+//! substrate conformare-arc concern, not this home's defect). Gates: lib 950/0/1,
+//! resolve 23/23, arc251 probe 2/2, clippy-in-home empty. Full record:
+//! docs/arc/2026/06/251-types-as-forms/SCORE-STONE-251.1-WARD.md.
+//!
 //! Name resolution pass.
 //!
 //! After macro expansion, every keyword-path reference used in call
@@ -58,9 +77,8 @@
 //! # Warded home
 //!
 //! Stone 251.1a — lifted from flat `src/resolve.rs` (709 lines) into this
-//! warded home. Pure structural move; zero behavior change.
-//!
-//! <!-- rune:vigilatum(...) PLACEHOLDER — ward earned in orchestrator's follow-up vigilia pass; do NOT self-stamp -->
+//! warded home. Pure structural move; zero behavior change. The vigilatum stamp
+//! (top of this file) was earned at 251.1's ward close — see the SCORE it cites.
 
 mod boundary;
 mod error;
@@ -84,6 +102,12 @@ mod tests {
     use crate::runtime::{register_defines, Environment, SymbolTable};
 
     /// Full pipeline helper: parse → register-defmacros → expand → register-defines → resolve.
+    ///
+    /// Deliberately SKIPS the 251.1b normalize pass — it exercises
+    /// `resolve_references` in isolation (keyword-spelled call heads). For tests
+    /// that involve namespaced SYMBOL heads (`wat.core/+`), use
+    /// [`normalize_resolve`] (full pipeline) or [`normalize_ast`] (inspect the
+    /// rewritten AST) instead — `resolve_references` alone cannot see a symbol head.
     fn resolve(src: &str) -> Result<(), ResolveError> {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = MacroRegistry::new();
@@ -354,6 +378,163 @@ mod tests {
             )
             .is_ok(),
             "bare local symbols (x) must pass through the normalize pass untouched"
+        );
+    }
+
+    // ─── Arc 251.1 ward (circumspicere C4) — normalize boundary discipline ──────
+    //
+    // The keystone was a DRIFT in the data-vs-code boundary table between the two
+    // passes. `resolve_references` cannot observe normalize's boundary behaviour —
+    // it skips the same data positions — so these tests inspect the REWRITTEN AST
+    // directly: a namespaced symbol in a CODE position must become a Keyword FQDN;
+    // one in a DATA position (quoted form, match/cond/matches? pattern, quasiquote
+    // template) must stay a Symbol.
+
+    use crate::ast::WatAST;
+
+    /// Parse → expand → register → normalize; return the rewritten top-level AST.
+    fn normalize_ast(src: &str) -> Vec<WatAST> {
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut macros = MacroRegistry::new();
+        let rest = register_defmacros(forms, &mut macros).expect("register macros");
+        let env = Environment::default();
+        let sym0 = SymbolTable::default();
+        let expanded =
+            crate::macros::expand_all(rest, &mut macros, &env, &sym0).expect("expand");
+        let mut sym = SymbolTable::new();
+        let rest = register_defines(expanded, &mut sym).expect("register defines");
+        normalize_symbol_refs(rest, &sym, &macros).expect("normalize ok")
+    }
+
+    /// True if any node in the tree is a `Symbol` whose text equals `text`.
+    fn contains_symbol(nodes: &[WatAST], text: &str) -> bool {
+        nodes.iter().any(|n| match n {
+            WatAST::Symbol(s, _) => s.as_str() == text,
+            WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+                contains_symbol(items, text)
+            }
+            WatAST::Map(pairs, _) => pairs
+                .iter()
+                .any(|(k, v)| contains_symbol(&[k.clone()], text) || contains_symbol(&[v.clone()], text)),
+            _ => false,
+        })
+    }
+
+    /// True if any node in the tree is a `Keyword` whose text equals `text`.
+    fn contains_keyword(nodes: &[WatAST], text: &str) -> bool {
+        nodes.iter().any(|n| match n {
+            WatAST::Keyword(k, _) => k.as_str() == text,
+            WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+                contains_keyword(items, text)
+            }
+            WatAST::Map(pairs, _) => pairs
+                .iter()
+                .any(|(k, v)| contains_keyword(&[k.clone()], text) || contains_keyword(&[v.clone()], text)),
+            _ => false,
+        })
+    }
+
+    #[test]
+    fn normalize_skips_quoted_form_symbols() {
+        // A namespaced symbol inside `quote` is DATA — never rewritten.
+        let ast = normalize_ast(r#"(:wat::core::quote (wat.core/i64::+ 1 2))"#);
+        assert!(
+            contains_symbol(&ast, "wat.core/i64::+"),
+            "symbol inside quote must stay a Symbol (data); got {ast:?}"
+        );
+        assert!(
+            !contains_keyword(&ast, ":wat::core::i64::+"),
+            "symbol inside quote must NOT be rewritten to a keyword"
+        );
+    }
+
+    #[test]
+    fn normalize_skips_match_pattern_but_rewrites_body() {
+        // Match arm = (pattern body). Pattern is DATA (Symbol preserved); body is
+        // CODE (rewritten). This is the exact boundary the keystone braid drifted on.
+        // If the pattern were wrongly walked, `scrut.ns/Variant` would normalize to
+        // an unresolvable `:scrut::ns::Variant` and `normalize_ast` would panic.
+        let ast = normalize_ast(
+            r#"(:wat::core::match x -> :wat::core::i64
+                  ((scrut.ns/Variant a) (wat.core/i64::+ a 1)))"#,
+        );
+        assert!(
+            contains_symbol(&ast, "scrut.ns/Variant"),
+            "match-arm PATTERN symbol must stay a Symbol (data)"
+        );
+        assert!(
+            contains_keyword(&ast, ":wat::core::i64::+"),
+            "match-arm BODY symbol must be rewritten to its keyword FQDN (code)"
+        );
+        assert!(
+            !contains_symbol(&ast, "wat.core/i64::+"),
+            "match-arm BODY symbol must not remain a Symbol"
+        );
+    }
+
+    #[test]
+    fn normalize_skips_quasiquote_template_but_rewrites_escapes() {
+        // Quasiquote template is DATA except inside unquote/unquote-splicing escapes.
+        let ast = normalize_ast(
+            r#"(:wat::core::quasiquote
+                  (wat.core/+ (:wat::core::unquote (wat.core/i64::* 2 3))))"#,
+        );
+        assert!(
+            contains_symbol(&ast, "wat.core/+"),
+            "quasiquote TEMPLATE symbol must stay a Symbol (data)"
+        );
+        assert!(
+            contains_keyword(&ast, ":wat::core::i64::*"),
+            "symbol inside an UNQUOTE escape must be rewritten (live code)"
+        );
+    }
+
+    #[test]
+    fn normalize_rewrites_cond_arm_bodies_keeps_else_marker() {
+        // cond arms are CODE; the leading `:else` marker is cond's DSL keyword.
+        let ast = normalize_ast(
+            r#"(:wat::core::cond -> :wat::core::bool
+                  ((wat.core/i64::> x 0) (wat.core/i64::+ x 1))
+                  (:else (wat.core/i64::- x 1)))"#,
+        );
+        assert!(contains_keyword(&ast, ":wat::core::i64::>"), "cond test is code");
+        assert!(contains_keyword(&ast, ":wat::core::i64::+"), "cond result is code");
+        assert!(contains_keyword(&ast, ":wat::core::i64::-"), ":else body is code");
+        assert!(
+            contains_keyword(&ast, ":else"),
+            "the :else marker must be preserved as cond's DSL keyword"
+        );
+    }
+
+    #[test]
+    fn normalize_rewrites_matches_subject_keeps_pattern() {
+        // `matches?` — subject (items[1]) is CODE; pattern (items[2..]) is DATA.
+        let ast = normalize_ast(r#"(:wat::form::matches? (wat.core/i64::+ y 1) (pat.ns/Shape a))"#);
+        assert!(
+            contains_keyword(&ast, ":wat::core::i64::+"),
+            "matches? SUBJECT is code → rewritten"
+        );
+        assert!(
+            contains_symbol(&ast, "pat.ns/Shape"),
+            "matches? PATTERN is data → Symbol preserved"
+        );
+    }
+
+    #[test]
+    fn resolve_alone_cannot_see_symbol_heads_normalize_must_precede() {
+        // ORDERING CONTRACT (circumspicere C3): `resolve_references` validates only
+        // KEYWORD call heads — a namespaced SYMBOL head is invisible to it. So
+        // `normalize_symbol_refs` MUST run first (freeze.rs step 7) to turn the
+        // symbol into a keyword the resolver can validate. This pins the order:
+        // resolve-alone passes silently (it cannot see the symbol head), while the
+        // full normalize→resolve pipeline rewrites then validates it.
+        assert!(
+            resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
+            "resolve alone is blind to a namespaced symbol head (it is not a Keyword)"
+        );
+        assert!(
+            normalize_resolve(r#"(wat.core/i64::+ 1 2)"#).is_ok(),
+            "normalize→resolve (correct order) rewrites the symbol head, then validates it"
         );
     }
 }

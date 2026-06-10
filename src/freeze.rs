@@ -692,7 +692,9 @@ impl From<StdlibError> for StartupError {
 ///    ([`register_defmacros`] → [`expand_all`]).
 /// 5. Register type declarations ([`register_types`]).
 /// 6. Register function definitions ([`register_defines`]).
-/// 7. Name resolution ([`resolve_references`]).
+/// 7. Name resolution — normalize namespaced symbol refs ([`normalize_symbol_refs`]),
+///    THEN validate all call-head references ([`resolve_references`]). Order matters:
+///    the resolver only validates keyword heads, so normalize must precede it.
 /// 8. Type check ([`check_program`]).
 /// 9. Freeze into a [`FrozenWorld`] and return.
 ///
