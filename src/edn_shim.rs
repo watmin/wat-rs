@@ -547,6 +547,46 @@ pub fn eval_keyword_node(
     ))
 }
 
+/// `(:wat::core::keyword/to-symbol <keyword-node>)` — arc 251 head role-inversion. Convert a
+/// wat rust-scheme call-head Keyword node into a faithful-Clojure Symbol node via
+/// [`wat_keyword_to_clojure_symbol`]. The kind CHANGE (Keyword → Symbol) is the inversion: a
+/// call head is a symbol in Clojure, never a keyword. Errors if the keyword is not a
+/// convertible head/reference (bare data keyword or namespace-prefix marker).
+pub fn eval_keyword_to_symbol(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::keyword/to-symbol";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let kw: String = match &v {
+        Value::wat__WatAST(a) => match a.as_ref() {
+            WatAST::Keyword(s, _) => s.clone(),
+            _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "keyword/to-symbol requires a Keyword node".to_string(),
+            } }),
+        },
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let symbol_name = wat_keyword_to_clojure_symbol(&kw).ok_or_else(|| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "not a convertible call-head/reference keyword (bare data keyword or namespace-prefix marker): {kw:?}"
+            ),
+        },
+    })?;
+    let node = WatAST::Symbol(Identifier::bare(symbol_name), crate::span::Span::unknown());
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
 /// document fails to coerce to a runtime [`Value`]. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in
@@ -1655,6 +1695,44 @@ fn tagged_to_value(
 
 pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
     format!(":{}::{}", ns.replace('.', "::"), name)
+}
+
+/// Inverse of [`ns_to_wat_path`]: a wat rust-scheme call-head/reference KEYWORD
+/// (`:wat::core::if`) → a faithful-Clojure SYMBOL string (`wat.core/if`). The `::`↔`.`/`/`
+/// path grammar lives here, beside its forward — never re-encoded in wat (that would be a
+/// duplicated-encoding braid; the 251.1 keystone pulled exactly that class out).
+///
+/// Returns `None` for keywords that are NOT call-heads/references — bare data keywords
+/// (no `::`, e.g. `:else`) and namespace-prefix markers (trailing `::`, e.g. `:counter::`
+/// used in `:restricted-to` whitelists) — so the caller decides whether to leave them.
+///
+/// The rule (derived + pressure-tested by an intueri cast, total over the corpus): strip the
+/// leading `:`; split on `::`; the last segment is the NAME unless it is `Type/method` (a `/`
+/// with a non-empty part before it), in which case `Type` folds into the namespace and
+/// `method` is the name; join the namespace with `.`; result `namespace/name`. Division
+/// (`:wat::core::/`) → `wat.core//` (the final segment IS `/`, so it is the name) — exactly
+/// Clojure's `clojure.core//`.
+pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
+    let body = kw.strip_prefix(':')?;
+    // Not a head/reference: a bare data keyword (`:else`) or a namespace-prefix marker
+    // (`:counter::`, trailing `::` — the final segment is empty).
+    if !body.contains("::") || body.ends_with("::") {
+        return None;
+    }
+    let segments: Vec<&str> = body.split("::").collect();
+    // `body` contains "::" and has no trailing "::", so there are ≥2 non-empty segments.
+    let (final_seg, ns_head) = segments.split_last()?;
+    let mut ns_parts: Vec<&str> = ns_head.to_vec();
+    let name: &str = match final_seg.find('/') {
+        // `Type/method` — fold `Type` into the namespace; the method is the name.
+        Some(idx) if idx > 0 => {
+            ns_parts.push(&final_seg[..idx]);
+            &final_seg[idx + 1..]
+        }
+        // A bare `/` (division → name `/`) or no slash: the final segment IS the name.
+        _ => final_seg,
+    };
+    Some(format!("{}/{}", ns_parts.join("."), name))
 }
 
 fn ns_to_enum_path(ns: &str) -> String {

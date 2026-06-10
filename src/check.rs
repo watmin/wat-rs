@@ -16414,6 +16414,11 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(":wat::core::keyword-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+    // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
+    // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
+    env.register(":wat::core::keyword/to-symbol".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.
     // Each looks up the calling thread's per-service channel handles
     // from a thread-local cell and runs the mini-TCP block-on-

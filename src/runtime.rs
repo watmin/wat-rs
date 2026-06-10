@@ -3322,6 +3322,7 @@ fn dispatch_keyword_head(
         ":wat::core::ast-name" => return crate::edn_shim::eval_ast_name(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::symbol-node" => return crate::edn_shim::eval_symbol_node(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword-node" => return crate::edn_shim::eval_keyword_node(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::keyword/to-symbol" => return crate::edn_shim::eval_keyword_to_symbol(args, list_span, env, sym).map_err(Into::into),
         // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
         // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
         // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
