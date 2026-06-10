@@ -46,13 +46,25 @@ needed — the macro is bare-only and the handful of sites are swept in-stone.
   against the corpus arm shape `(<test> <body>)` (a 2-element List). Adjust `first`/`second` nesting
   to match.
 
-### Totality
-The old cond required a terminal `:else` (exhaustive). The macro's base case takes the **last
-arm's body** unconditionally — preserving totality structurally (there is always a default).
-Whether to additionally *enforce* the last arm's head is literally `:else` (erroring otherwise) is a
-build sub-question: keep it IF a clean keyword-equality check is expressible in a macro body; else
-ship the structural-last-arm semantics and note enforcement as a follow-on (not a correctness
-regression for well-formed cond — `:else` stays a required, readable convention in the corpus).
+### Totality — REQUIRED, never optional (corrected 2026-06-10, the ADT reframe)
+
+`cond` is **total**: a terminal `:else` is **required** (see DESIGN.md "wat is an ADT language" and
+[[feedback_optional_is_a_smell]]). `:else` is cond's **wildcard** (ML/Rust `_`) and obeys the two
+wildcard laws: it must be **last** (an arm after it is unreachable → error) and **present** (no
+`:else` → non-exhaustive → error). This is `if`'s mandatory-else law surfacing at the bottom of the
+nest — `cond` is nested `if`, and the innermost `if`'s else-branch *is* the `:else` body.
+
+The macro enforces it by walking arms left-to-right:
+- arm head is a **test** (a List): if it's the last clause → **non-exhaustive error**; else →
+  ``(if <test> <body> (cond <rest…>))``.
+- arm head is the **`:else` keyword** (detect via `keyword/to-string` ⇒ `":else"`, engine-pure):
+  if it's the last clause → emit `<body>`; else → **`:else`-not-last (unreachable) error**.
+- the macro raises errors the way `->` does — an expansion-time `Option/expect` on a forced `None`
+  with the message.
+
+The first sonnet build took the last arm unconditionally (neither total nor nil-fallthrough — it
+*dropped* the last arm's test). That was a correctness regression caught by
+`tests/wat_core_cond.rs::cond_refuses_missing_else`; the rewrite above restores totality.
 
 ## The sweep (258.2a) — drop `-> :T` from the ~4 cond sites
 

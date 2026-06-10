@@ -63,3 +63,51 @@ The join is `unify` — which the checker already runs, just against a redundant
 
 Dual-read → verify → corpus sweep → hard-cut — the proven arc-251 cutover shape; the corpus stays
 green at every stone because both spellings work until the sweep lands.
+
+---
+
+## Foundational reframe (2026-06-10): wat is an ADT language
+
+Chasing cond's "what should fall-through do" question exposed wat's **type identity**, and it
+governs every conditional decision in this arc.
+
+**wat is an ADT (algebraic-data-type) language** — nominal *tagged sums* in the ML/Haskell/Rust
+lineage (`typeunion`, `Option`, `Result`, enums) — **not** a set-theoretic-union language
+(TypeScript / Typed Racket / core.typed):
+
+- **Set-theoretic unions** (`A | B`, anonymous, ad-hoc) require occurrence typing + union
+  normalization. core.typed needs them because it **retrofits** types onto pre-existing untyped
+  Clojure — the unions are forced by the retrofit constraint, and the approach proved so hard the
+  Clojure community largely abandoned it for `clojure.spec`.
+- **Nominal tagged sums** (ADTs) **name** the disjunction and **tag** the variants; `(if c 1 "s")`
+  is a type error *on purpose*, and a heterogeneous result must be a named sum.
+
+wat is typed **from birth** — no untyped legacy to retrofit — so it takes the cleaner ADT
+discipline. wat has **no working anonymous unions** (the inline `:Union<…>` is a vestigial
+permissive stub: 0 uses, 0 check semantics; only nominal `typeunion` is real), **and that absence is
+the identity, not a defect.** "Parity with typed clojure" means parity with the *surface* (`:-`,
+`ann-form`, symbol heads), not with core.typed's set-theoretic *type theory*.
+
+### Decisions (builder-ratified)
+
+1. **No anonymous-unions arc.** Heterogeneous / maybe-absent results use named sums — `Option<T>`,
+   explicit and tagged — never an implicit type-infecting `nil`.
+2. **`if` strict-unify is correct.** Both branches mandatory; both must *agree* (it's ML's `if`).
+   258.1 stands; its branch-mismatch error is right, not provisional. No one-armed `if` (it would
+   force a nilable union).
+3. **`cond` is total — `:else` required, never optional.** `:else` is cond's **wildcard** (ML/Rust
+   `_`): must be **last** (an arm after it is unreachable → error) and **present** (a test-arm last
+   → non-exhaustive → error). Not a bolted-on rule: `cond` is nested `if`; the innermost `if` needs
+   its else-branch, and *that else is `:else`'s body* — so `:else`-required is `if`'s mandatory-else
+   law surfacing at the bottom of the nest.
+4. **Optional is a smell** (the through-line): required (load-bearing) or absent (dropped); the
+   wobbly middle is an undecided design. The `-> :T` annotation was a redundant *narration* of
+   `if`'s already-forced agree-constraint — dropping the syntax didn't drop the hand; inference
+   carries the same constraint with less ceremony.
+
+### Gate correction (process)
+
+The real gate is **`cargo test --release --workspace --no-fail-fast`** (`scripts/cargo-test-summary.sh`).
+Plain `cargo test --release` **halts at the first failed binary** (`nursery`), so ~107 standalone
+test files never run — which is how `wat_core_cond` (cond totality) and `typed_if_match` (the if
+contract) hid. Every stone in this arc gates with `--no-fail-fast`.
