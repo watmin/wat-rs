@@ -132,6 +132,15 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // A future arc opens IFF a caller surfaces wanting eval-time def redef.
     insert(&mut m, ":wat::config::set-eval-redef!", &["<bool>"]);
 
+    // ─── Type ascription ───────────────────────────────────────────────
+    // Arc 251 Stone 251.4b — core.typed's `ann-form`: checked, type-erased
+    // identity. `(ann-form expr type)` asserts `expr`'s inferred type is
+    // assignable to `type` (check time); at runtime evaluates `expr` and
+    // returns its value unchanged (type is erased).
+    // Dispatch sites: `src/check.rs` (infer_list arm) + `src/runtime.rs`
+    // (dispatch_keyword_head_value arm + eval_ann_form).
+    insert(&mut m, ":wat::core::ann-form", &["<expr>", "<type>"]);
+
     // ─── Control / branching ────────────────────────────────────────────
     // Dispatch sites: `src/check.rs:2956-2959` + `src/runtime.rs:2402-2405`.
     insert(&mut m, ":wat::core::if", &["<cond>", "<then>", "<else>"]);

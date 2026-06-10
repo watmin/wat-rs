@@ -4206,6 +4206,54 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 251 Stone 251.4b — checked, type-erased identity.
+            // `(ann-form expr type)` at check time: arity 2; parse the
+            // type slot via `parse_type_node` (accepts Keyword, Symbol
+            // `wat.type/X`, and parametric List — the 251.3a surfaces);
+            // infer `expr` → S; require S assignable to T; result type = T.
+            // At runtime the type is ERASED (see eval_ann_form in runtime.rs).
+            ":wat::core::ann-form" => {
+                if args.len() != 2 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: ":wat::core::ann-form".into(),
+                        expected: 2,
+                        got: args.len()
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
+                // Parse the type slot — accepts Keyword, Symbol (wat.type/X), or
+                // parametric List ((wat.type/Vector i64) etc).
+                let ascribed_ty = match crate::types::parse_type_node(&args[1]) {
+                    Ok(t) => t,
+                    Err(te) => {
+                        local_errors.push(CheckError { span: te.span, kind: CheckErrorKind::MalformedForm {
+                            head: ":wat::core::ann-form".into(),
+                            reason: format!("type slot failed to parse: {}", te.kind),
+                            remedies: vec![],
+                        } });
+                        return CheckResult::errs(local_errors);
+                    }
+                };
+                // Infer the expression's type.
+                let expr_ty = infer(&args[0], env, locals, fresh, subst)
+                    .drain_errors_into(&mut local_errors);
+                // Require expr's type S assignable to the ascribed type T.
+                if let Some(s) = expr_ty {
+                    if !assignable(&s, &ascribed_ty, subst, env.types()) {
+                        local_errors.push(CheckError {
+                            span: args[0].span().clone(),
+                            kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::core::ann-form".into(),
+                                param: "expr".into(),
+                                expected: format_type(&apply_subst(&ascribed_ty, subst)),
+                                got: format_type(&apply_subst(&s, subst)),
+                            },
+                        });
+                    }
+                }
+                let ty = apply_subst(&ascribed_ty, subst);
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             // Arc 146 slice 3 — `:wat::core::get` retired here; it is
             // now a Dispatch (declared in `wat/core.wat`).
             ":wat::core::quote" => {

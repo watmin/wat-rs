@@ -3448,6 +3448,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::do" => eval_do(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
+        // Arc 251 Stone 251.4b — checked, type-erased identity.
+        // The type slot is ERASED at runtime; only the expr is evaluated.
+        ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
         ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, list_span, env, sym),
@@ -8328,6 +8331,29 @@ fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
         } }.into());
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+}
+
+/// `(:wat::core::ann-form <expr> <type>) -> T` — arc 251 Stone 251.4b.
+///
+/// Checked, type-erased identity. The type slot is ERASED at runtime;
+/// only `expr` is evaluated and its value returned. The arity guard here
+/// is belt-and-suspenders (the checker enforces arity 2 before runtime;
+/// a well-typed program always has exactly 2 args).
+fn eval_ann_form(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::ann-form".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    // Evaluate expr; erase the type slot (args[1] is ignored at runtime).
+    eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
 /// `(:wat::core::quasiquote <template>) -> :wat::WatAST`.
