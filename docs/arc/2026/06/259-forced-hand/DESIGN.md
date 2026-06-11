@@ -291,13 +291,19 @@ opts record built by an ergonomic constructor:
 (spawn-program (thread)                          prog)   ; trivial host
 (spawn-program (thread :init my-env-init)        prog)   ; + a user env-init
 (spawn-program (process)                         prog)
-(spawn-program (remote "https://…" signing-key)  prog)   ; url+key REQUIRED by the ctor — forced hand
+;; (spawn-program (remote …) prog) — ILLUSTRATIVE of the pattern ONLY. The remote
+;; door is PERPETUALLY AWAITING ITS KEY (the forcing function): RemoteOpts's struct
+;; shape is NOT agreed and is deliberately unbuilt (see spawn.wat). Whatever it
+;; becomes, its constructor's arity will be the lock.
 ```
 
-- The host's *type* is the tier (`ThreadOpts` / `ProcessOpts` / `RemoteOpts`) — not
-  a stringly keyword. The constructor enforces the tier's requirements: `(remote)`
-  is uncallable without url+key, so "remote without a url" is **unrepresentable at
-  the call site** — the forced hand, one level up from the env.
+- The host's *type* is the tier (`ThreadOpts` / `ProcessOpts` built; a future
+  `RemoteOpts` etc.) — not a stringly keyword. The constructor enforces each tier's
+  requirements via its **arity**: when a remote host eventually materializes, its
+  constructor will be uncallable without whatever it needs to reach its host, so
+  "a remote that can't reach its host" is **unrepresentable at the call site** —
+  the forced hand, one level up from the env. (`RemoteOpts`'s actual fields are NOT
+  yet agreed — the principle is the arity-lock, not any specific shape.)
 - **New hosting kinds = new clauses against new host types.** A future
   `(remote-over-quic …)`, `(gpu …)`, `(lambda …)` is one new opts type + one new
   clause; zero existing clauses change, zero callers rewrite. The clause mechanism
