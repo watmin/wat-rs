@@ -3,17 +3,18 @@
 //! Settles the FACT first (my breadcrumb "correction" claimed generic defns are
 //! only leniently-tolerated; the disk says they're really ∀-checked via the
 //! `<T,U>` name suffix → split_name_and_type_params → type_params → instantiate).
-//! Then establishes the RED for the build (the faithful BARE-VAR-NO-SUFFIX form).
+//! Then establishes the GREEN for the build (the faithful BARE-VAR-NO-SUFFIX form).
 //!
 //! F01 suffix-generic is REALLY checked : `(defn :pair-first<T> [a <- :T b <- :T] -> :T a)`
 //!                                        called `(pair-first 1 "two")` → REJECTED (T:=i64, then
 //!                                        b="two" ≠ i64). Proves suffix-generics are genuine today.
 //! F02 suffix-generic valid call PASSES : `(pair-first 1 2)` → checks (T:=i64).
-//! R03 BARE-VAR-NO-SUFFIX is the RED     : same body, name has NO `<T>`; `(pair-first2 1 2)` —
-//!                                        at HEAD `T` is an opaque rigid Path, instantiate
-//!                                        short-circuits → spurious TypeMismatch (unify i64 vs
-//!                                        Path :T). After 251.7 (auto-generalize free sig vars):
-//!                                        GREEN. This contract is the build's load-bearing row.
+//! bare_var_no_suffix_now_checks        : same body, name has NO `<T>`; auto-generalize from sig;
+//!                                        `(pair-first2 1 2)` must now CHECK (stone 251.7 GREEN).
+//! bare_var_no_suffix_rejects_illtyped  : bare-var form rejects `(pair-first3 1 "two")` — proves
+//!                                        auto-generalized vars are REALLY unified, not accepted.
+//! bare_var_two_instantiations          : bare-var generic called at i64 and bool independently,
+//!                                        proving distinct fresh vars per call site (no aliasing).
 //!
 //! Run: `cargo test --release --test probe_arc251_implicit_generics`
 
@@ -58,22 +59,67 @@ fn fact_02_suffix_generic_valid_call_passes() {
 }
 
 #[test]
-fn red_03_bare_var_no_suffix_is_the_target() {
-    // The faithful form: bare type-var `:T` in the signature, NO `<T>` name suffix.
-    // At HEAD: `type_params` is empty (nothing parses the bare sig var) → instantiate
-    // short-circuits → `:T` stays a rigid Path → `(pair-first2 1 2)` unifies i64 vs
-    // Path(":T") → spurious TypeMismatch. So this is RED at HEAD (the build makes it GREEN).
+fn bare_var_no_suffix_now_checks() {
+    // Stone 251.7: the faithful bare-var-no-suffix form must now auto-generalize
+    // from the signature (T appears in params + return → collected → type_params = ["T"]).
+    // (pair-first2 1 2) — both args i64, return i64 — must CHECK.
     let src = format!(
         "(:wat::core::defn :user::pair-first2 [a <- :T b <- :T] -> :T a)\n\
          (:wat::core::defn :user::probe [] -> :wat::core::i64 (:user::pair-first2 1 2))\n\
          {MAIN}"
     );
     let r = check(&src);
-    // Documenting the HEAD behavior — this asserts the RED so the build flips it.
     assert!(
-        r.is_err(),
-        "EXPECTED RED at HEAD: bare-var-no-suffix generic should currently FAIL \
-         (no auto-generalization). If this is Ok at HEAD, the bare form already works \
-         and 251.7's premise changes. Got Ok."
+        r.is_ok(),
+        "bare-var-no-suffix generic MUST check after 251.7 (auto-generalize free sig vars). \
+         Got Err: {:?}",
+        r
     );
 }
+
+#[test]
+fn bare_var_no_suffix_rejects_illtyped() {
+    // Proves the auto-generalized vars are REALLY unified (not opaquely accepted).
+    // T:=i64 from `a=1`; then `b="two"` (String) must unify with i64 → REJECT.
+    // Mirror of fact_01 but for the bare-var form.
+    let src = format!(
+        "(:wat::core::defn :user::pair-first3 [a <- :T b <- :T] -> :T a)\n\
+         (:wat::core::defn :user::probe [] -> :wat::core::i64 (:user::pair-first3 1 \"two\"))\n\
+         {MAIN}"
+    );
+    let r = check(&src);
+    assert!(
+        r.is_err(),
+        "bare-var generic MUST reject the ill-typed call (T:=i64 then b=String); \
+         auto-generalization must be real unification, not tolerance. Got Ok."
+    );
+}
+
+#[test]
+fn bare_var_two_instantiations() {
+    // Bare-var generic called at two distinct types — proves distinct fresh vars
+    // per call site (no aliasing between the two calls).
+    // probe_i64: (pair-two 1 2) returns i64 — checks.
+    // probe_bool: (pair-two true false) returns bool — checks.
+    // If call sites aliased their vars, one of these would spuriously fail.
+    let src = format!(
+        "(:wat::core::defn :user::pair-two [a <- :T b <- :T] -> :T a)\n\
+         (:wat::core::defn :user::probe-i64 [] -> :wat::core::i64 (:user::pair-two 1 2))\n\
+         (:wat::core::defn :user::probe-bool [] -> :wat::core::bool (:user::pair-two true false))\n\
+         {MAIN}"
+    );
+    let r = check(&src);
+    assert!(
+        r.is_ok(),
+        "bare-var generic must check at both i64 and bool call sites independently. \
+         Got Err: {:?}",
+        r
+    );
+}
+
+// NOTE: occurs_check_bare_var — skipped. Constructing a well-formed wat program that
+// forces T = (List T) via the existing type syntax is not naturally possible without
+// recursive type aliases or self-referential generic structs, neither of which wat
+// currently supports in user-writable type expressions. The occurs check IS present
+// in the HM pipeline (unify rejects infinite types); it is exercised transitively by
+// the suffix-generic path. Adding it here would require inventing unsupported syntax.

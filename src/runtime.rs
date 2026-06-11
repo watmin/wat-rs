@@ -2071,6 +2071,14 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
         fn_items[sig_start + 2].clone(),
     ];
     let (params, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
+    // Stone 251.7 — union raw_type_params (from `<T,U>` name suffix) with any
+    // free bare type-vars in the signature so bare-var forms auto-generalize.
+    let mut raw_type_params = raw_type_params;
+    for fv in collect_free_type_vars(&param_types, &ret_type) {
+        if !raw_type_params.contains(&fv) {
+            raw_type_params.push(fv);
+        }
+    }
     Some((
         name.clone(),
         Arc::new(Function {
@@ -2078,6 +2086,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
             params,
             // Arc 139 — preserve type_params from the name keyword (e.g. `<T>`)
             // so the type checker can instantiate generic functions correctly.
+            // Stone 251.7 — extended with free signature vars (bare-Uppercase Paths).
             type_params: raw_type_params,
             param_types,
             ret_type,
@@ -2172,6 +2181,13 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
     let fixed_params: Vec<String> = fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     let (rest_ident, rest_ty) = spec.rest_param?;
     let rest_name = crate::scope::env_key(&rest_ident).into_owned();
+    // Stone 251.7 — union raw_type_params with free bare type-vars in the signature.
+    let mut raw_type_params = raw_type_params;
+    for fv in collect_free_type_vars(&fixed_param_types, &ret_type) {
+        if !raw_type_params.contains(&fv) {
+            raw_type_params.push(fv);
+        }
+    }
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Some((
@@ -2314,6 +2330,13 @@ fn try_parse_user_variadic_def_fn_form(
     let fixed_params: Vec<String> =
         fixed_idents.iter().map(|id| crate::scope::env_key(id).into_owned()).collect();
     let rest_name = crate::scope::env_key(&rest_ident).into_owned();
+    // Stone 251.7 — union raw_type_params with free bare type-vars in the signature.
+    let mut raw_type_params = raw_type_params;
+    for fv in collect_free_type_vars(&fixed_param_types, &ret_type) {
+        if !raw_type_params.contains(&fv) {
+            raw_type_params.push(fv);
+        }
+    }
     // Synthesize body from trailing fn_items.
     let body = synthesize_fn_body(&fn_items[4..]);
     Ok(Some((
@@ -2652,6 +2675,72 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
         .filter(|s| !s.is_empty())
         .collect();
     Ok((head, params))
+}
+
+/// Stone 251.7 — collect free type-variable names from a function signature.
+///
+/// Walks each `TypeExpr` in `param_types` and `ret_type`, returning in
+/// first-occurrence order (deduped) every type-variable name WITHOUT the
+/// leading `:`.
+///
+/// **The var test (three-lexical-classes rule):** a `TypeExpr::Path(p)` is a
+/// type variable iff, after stripping a leading `:`:
+///   - the result contains neither `"::"` nor `'.'`   (bare, not FQDN), AND
+///   - the result's first alphabetic character is **Uppercase**.
+///
+/// This includes `K`, `V`, `T`, `W`, `A`, `B`, … and excludes lowercase
+/// legacy bare primitives (`:i64`, `:bool`, `:f64`, `:nil`) and FQDN
+/// named types (`:wat::core::i64`, `:user::Foo`).
+///
+/// Recursion mirrors `check::rename`: `Parametric.args`, `Fn.args`,
+/// `Fn.ret`, `Tuple` elements.  `Var(_)` is synthetic (never parsed) —
+/// ignored.  `Path` with no match also ignored.
+fn collect_free_type_vars(param_types: &[crate::types::TypeExpr], ret_type: &crate::types::TypeExpr) -> Vec<String> {
+    fn is_type_var(p: &str) -> bool {
+        let s = p.strip_prefix(':').unwrap_or(p);
+        if s.contains("::") || s.contains('.') {
+            return false;
+        }
+        s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
+    }
+
+    fn walk(ty: &crate::types::TypeExpr, seen: &mut Vec<String>) {
+        use crate::types::TypeExpr;
+        match ty {
+            TypeExpr::Path(p) => {
+                if is_type_var(p) {
+                    let name = p.strip_prefix(':').unwrap_or(p).to_string();
+                    if !seen.contains(&name) {
+                        seen.push(name);
+                    }
+                }
+            }
+            TypeExpr::Parametric { args, .. } => {
+                for a in args {
+                    walk(a, seen);
+                }
+            }
+            TypeExpr::Fn { args, ret } => {
+                for a in args {
+                    walk(a, seen);
+                }
+                walk(ret, seen);
+            }
+            TypeExpr::Tuple(elements) => {
+                for e in elements {
+                    walk(e, seen);
+                }
+            }
+            TypeExpr::Var(_) => {}
+        }
+    }
+
+    let mut seen = Vec::new();
+    for ty in param_types {
+        walk(ty, &mut seen);
+    }
+    walk(ret_type, &mut seen);
+    seen
 }
 
 /// Evaluate `ast` in **tail position** with respect to the innermost
