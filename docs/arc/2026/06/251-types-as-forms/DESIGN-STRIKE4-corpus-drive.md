@@ -34,10 +34,15 @@ with the hard-cut, so it leaves no perpetual drift. Folds in the **`<T,U>`→bar
 `(defn map [x :- (wat.type/Stream T)] …)`). Probe-gated per declaration kind. **Must precede the
 drive** — otherwise declarations migrate half-way and the hard-cut breaks them.
 
-## Slice 4.2 — drive the `.wat` corpus (27 dirty of 72)
-`list-dir`→`read-file`→`fix-source`(+ 4.1 migrator)→`write-file`. **Reversible** (dual-read still
-parses both spellings) → a safe green checkpoint. Gate: `cargo test --release --workspace
---no-fail-fast` (serial-aware re: the known arc-170 parallel flakiness).
+## Slice 4.2 — drive the `.wat` corpus (27 dirty of 72) — COMMENT-FAITHFUL (span-edit codemod)
+**DESIGN: `DESIGN-STONE-251.5-4.2-comment-faithful-drive.md` (STRIKE-READY).** The naive
+`read-string`→`fix-form`→`write-forms` drive DELETES all comments (pure-AST round-trip; trivia isn't
+AST) — disqualifying given 2,000+ stdlib doc-lines. Four-Q-decided (A, builder-ratified): a **span-edit
+codemod** (the `rewrite-clj` pattern) — a throwaway **Rust** harness (spans are `{line,col}`, Rust-side,
+no wat accessor) that reuses the wat `fix-form` for DECISIONS, diffs old/new (strip-if = a deletion
+pass; the rest is a leaf-walk), maps line/col→byte, and splices into the source text → minimal diff,
+comments + formatting preserved. **Reversible** checkpoint (dual-read). This harness is ALSO the 4.3
+engine. Gate: `--workspace --no-fail-fast` green + a sample file's `;;` lines survive byte-identical.
 
 ## Slice 4.3 — the Rust-test-string corpus (267 files — the hard part)
 
