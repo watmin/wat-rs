@@ -90,6 +90,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/program.wat",
         source: include_str!("../wat/program.wat"),
     },
+    // Arc 259 (The Forced Hand) — the host opts for spawn-program (the Keymaker):
+    // ThreadOpts / ProcessOpts / RemoteOpts + their constructors. Loaded AFTER
+    // Record.wat (uses :wat::Record::def).
+    WatSource {
+        path: "wat/spawn.wat",
+        source: include_str!("../wat/spawn.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
