@@ -1,10 +1,13 @@
 # DESIGN — Stone 251.5 / Slice 4.1: the grammar-bearing declaration migrator + `<T,U>`-drop
 
-**Status: STRIKE-READY (drawn 2026-06-10 — fix.wat lair read + empirical confirmation of both gaps).
-Probe RED at HEAD.** The first slice of Strike 4 (the corpus drive). Completes the transform so the
-`.wat` drive (4.2) can run without half-migrating declarations. Sequenced after 251.3b (the renderer
-is now sound). Home: a **throwaway, non-blessed** wat migrator (retires with the hard-cut — its
-grammar-bearing knowledge carries NO perpetual drift, per the four-Q keystone decision).
+**Status: SHIPPED 2026-06-10 (`c89f1760`). Sonnet-built, orchestrator-weighed + extended.**
+`wat-migrate/fix-decl.wat` (`:migrate::` ns, non-blessed, retires at the hard-cut). Probe
+`probe_arc251_decl_migrator` 8/8; fix-source 8/8 + renderer 9/9 (no regression). **The weigh caught
+the sonnet probe UNDER-COVERED** — it tested typealias/newtype/defn but missed **typeunion** (40
+`.wat` instances) whose child[2] is a VECTOR of non-arrow'd member types that `fix-seq` mis-routes to
+`wat.core/i64`. Closed it (`fix-types`/`fix-type-vector` + a typeunion branch). Empirically verified
+defenum (variant tags stay keywords; fields convert) + defstruct. The first slice of Strike 4. Home:
+the throwaway, non-blessed migrator (no perpetual grammar drift, per the four-Q keystone decision).
 
 ## The lair (grounded — fix.wat read + empirical)
 `fix.wat`'s `fix-seq` (grammar-FREE local rules) ALREADY handles most of a declaration:
