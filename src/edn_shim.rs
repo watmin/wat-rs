@@ -590,61 +590,106 @@ pub fn eval_keyword_to_symbol(
 /// Arc 251 type-position rendering — convert a closed [`crate::types::TypeExpr`] into a
 /// faithful WatAST node for the type FORM surface:
 ///
-/// - `Path` with `::` (named type): `Symbol("wat.type/Name")` — flat type namespace, simple name only.
-/// - `Path` without `::` (type-var): `Symbol("T")` — stays bare, NOT `wat.type/T`.
-/// - `Parametric{head,args}`: `List([Symbol("wat.type/Head"), …rendered-args])`.
+/// 4-way discriminator (Path; Parametric head mirrors it):
+/// 1. core FQDN (`wat::core::X`) — flat reserved `wat.type/X`.
+/// 2. bare legacy primitive (`:i64`, `:String`, ...) — `wat.type/X`.
+/// 3. user/library type (has `::`, not core) — namespace-preserving (`wat.holon/HolonAST`).
+/// 4. type-var (no `::`, not a primitive) — bare symbol (`T`, `K`, `V`).
+/// - `Parametric{head,args}`: same 4-way ladder on head; recurse on args.
 /// - `Fn{args,ret}`: `Vector([…args, Keyword(":->"), ret])`.
 /// - `Tuple(items)`: `List([Symbol("wat.type/Tuple"), …rendered-items])`. The empty `:()`
 ///   renders as `(wat.type/Tuple)` — a distinct zero-arity product, NOT unit (`nil` is wat's
 ///   unit, Rust's `()`; wat's `()` empty list is distinct from `nil`).
 /// - `Var`: synthetic — NEVER produced by parsing source (the `TypeExpr` doc guarantees it).
-pub(crate) fn type_expr_to_faithful_watast(t: &crate::types::TypeExpr) -> WatAST {
+///
+/// Fallible: the two unmodeled shapes (a malformed trailing-`::` path, and a bare/higher-kinded
+/// Parametric head like `(Stream …)`/`(T …)`) return a clean `Err` — NEVER a panic. This renderer
+/// backs the runtime verb `keyword/to-type-form` AND the corpus drive; both shapes are reachable
+/// (`parse_type_expr` accepts `:foo::` and `:Stream<i64>`), so a panic would crash wat / the drive.
+pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr) -> Result<WatAST, String> {
     use crate::types::TypeExpr;
     let unk = crate::span::Span::unknown();
-    match t {
+    Ok(match t {
         TypeExpr::Path(s) => {
-            // Named types have `::` in the body (after stripping the leading `:`).
-            // Type-vars (`:T`) do NOT.
+            // 4-way ladder: core FQDN > bare primitive > user type (::) > type-var.
             let body = s.strip_prefix(':').unwrap_or(s);
-            if body.contains("::") {
-                let name = body.rsplit("::").next().unwrap();
-                WatAST::Symbol(Identifier::bare(format!("wat.type/{name}")), unk)
+            if let Some(tail) = body.strip_prefix("wat::core::") {
+                // Case 1: core FQDN -> flat wat.type/ namespace.
+                WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk)
+            } else if crate::check::BARE_PRIMITIVES.iter().any(|(bare, _)| *bare == format!(":{body}").as_str()) {
+                // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body}.
+                WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk)
+            } else if body.contains("::") {
+                // Case 3: user/library type -> namespace-preserving. `None` only on a malformed
+                // trailing-`::` path (e.g. `:foo::`) -> clean error, never panic.
+                let sym = wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
+                    format!("cannot render type `:{body}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
+                })?;
+                WatAST::Symbol(Identifier::bare(sym), unk)
             } else {
-                // Type-var: stays as a bare symbol (T, K, V, …).
+                // Case 4: type-var -- stays as a bare symbol (T, K, V, ...).
                 WatAST::Symbol(Identifier::bare(body.to_string()), unk)
             }
         }
         TypeExpr::Parametric { head, args } => {
             // head is stored WITHOUT a leading colon (e.g. "wat::core::Vector").
-            let name = head.rsplit("::").next().unwrap();
-            let mut items = vec![WatAST::Symbol(Identifier::bare(format!("wat.type/{name}")), unk.clone())];
-            items.extend(args.iter().map(type_expr_to_faithful_watast));
+            // 4-way ladder mirrors Path.
+            let sym = if let Some(tail) = head.strip_prefix("wat::core::") {
+                // Case 1: core FQDN -> flat wat.type/ namespace.
+                format!("wat.type/{tail}")
+            } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head.as_str()) {
+                // Case 2: bare container head (Option, Vec, ...) -> use canonical FQDN's last segment.
+                // Note: Vec -> wat::core::Vector (rename), so we use the FQDN tail, not `head`.
+                let tail = fqdn.rsplit("::").next().unwrap();
+                format!("wat.type/{tail}")
+            } else if head.contains("::") {
+                // Case 3: user/library type -> namespace-preserving.
+                wat_keyword_to_clojure_symbol(&format!(":{head}")).ok_or_else(|| {
+                    format!("cannot render parametric head `:{head}` (malformed namespaced path)")
+                })?
+            } else {
+                // Case 4: bare/higher-kinded head (`(Stream …)`, `(T …)`) — not in the model.
+                // Clean error (the source should use the FQDN form), never panic.
+                return Err(format!(
+                    "cannot render parametric type with bare head `{head}` — not a core container and not FQDN; \
+                     use the fully-qualified type name (bare/higher-kinded heads are unsupported)"
+                ));
+            };
+            let mut items = vec![WatAST::Symbol(Identifier::bare(sym), unk.clone())];
+            for a in args {
+                items.push(type_expr_to_clojure_form(a)?);
+            }
             WatAST::List(items, unk)
         }
         TypeExpr::Fn { args, ret } => {
-            let mut items: Vec<WatAST> = args.iter().map(type_expr_to_faithful_watast).collect();
+            let mut items: Vec<WatAST> = Vec::with_capacity(args.len() + 2);
+            for a in args {
+                items.push(type_expr_to_clojure_form(a)?);
+            }
             items.push(WatAST::Keyword(":->".into(), unk.clone()));
-            items.push(type_expr_to_faithful_watast(ret));
+            items.push(type_expr_to_clojure_form(ret)?);
             WatAST::Vector(items, unk)
         }
         TypeExpr::Tuple(items) => {
             // Faithful form `(wat.type/Tuple …items)`. Empty `:()` → `(wat.type/Tuple)`, a
             // distinct zero-arity product (NOT unit — `nil` is wat's unit).
             let mut elems = vec![WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
-            elems.extend(items.iter().map(type_expr_to_faithful_watast));
+            for it in items {
+                elems.push(type_expr_to_clojure_form(it)?);
+            }
             WatAST::List(elems, unk)
         }
         // Var is synthetic — NEVER produced by parsing source (the TypeExpr doc guarantees it),
         // so this verb (which only ever sees parsed-from-source types) cannot reach it.
-        TypeExpr::Var(_) => unreachable!("type_expr_to_faithful_watast: Var is never produced by parsing source"),
-    }
+        TypeExpr::Var(_) => unreachable!("type_expr_to_clojure_form: Var is never produced by parsing source"),
+    })
 }
 
 /// `(:wat::core::keyword/to-type-form <keyword-node>)` — arc 251 type-position rendering.
 /// Convert an old rust-scheme TYPE keyword (`:wat::core::Vector<wat::core::i64>`) into the
 /// faithful-Clojure type FORM (`(wat.type/Vector wat.type/i64)`). Parses the keyword string
 /// via the EXISTING type parser ([`crate::types::parse_type_expr_with_span`] → `TypeExpr`),
-/// then renders the closed `TypeExpr` enum via [`type_expr_to_faithful_watast`].
+/// then renders the closed `TypeExpr` enum via [`type_expr_to_clojure_form`].
 pub fn eval_keyword_to_type_form(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -671,7 +716,10 @@ pub fn eval_keyword_to_type_form(
             reason: format!("type-keyword parse failed: {:?}", e.kind),
         },
     })?;
-    let node = type_expr_to_faithful_watast(&te);
+    let node = type_expr_to_clojure_form(&te).map_err(|reason| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
+    })?;
     Ok(crate::value::TrackedValue::new(
         Value::wat__WatAST(std::sync::Arc::new(node)),
         crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },

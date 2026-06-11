@@ -1647,7 +1647,7 @@ fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
 
 /// The five primitive names retired by arc 109 slice 1c, paired
 /// with the canonical FQDN form they replace.
-const BARE_PRIMITIVES: &[(&str, &str)] = &[
+pub(crate) const BARE_PRIMITIVES: &[(&str, &str)] = &[
     (":i64", ":wat::core::i64"),
     (":f64", ":wat::core::f64"),
     (":bool", ":wat::core::bool"),
@@ -1662,7 +1662,7 @@ const BARE_PRIMITIVES: &[(&str, &str)] = &[
 /// `Vec` → `wat::core::Vector` is BOTH a path move AND a name
 /// rename (the only entry where the FQDN tail differs from the
 /// bare form); the others are pure-FQDN-moves.
-const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
+pub(crate) const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Option", "wat::core::Option"),    // slice 1e
     ("Result", "wat::core::Result"),    // slice 1e
     ("HashMap", "wat::core::HashMap"),  // slice 1e

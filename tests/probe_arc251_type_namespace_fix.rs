@@ -96,3 +96,19 @@ fn c07_type_var_stays_bare() {
     assert_eq!(to_type(":T"), Ok("T".into()));
     assert_eq!(to_type(":K"), Ok("K".into()));
 }
+
+#[test]
+fn c08_bare_head_parametric_errors_cleanly() {
+    // A bare/higher-kinded Parametric head (`:Stream<i64>`, `:T<i64>`) is unmodeled. It is
+    // REACHABLE (parse_type_expr accepts it), and this renderer backs a runtime verb — so it must
+    // return a clean error, NEVER panic (a panic would crash wat / the corpus drive).
+    assert!(to_type(":Stream<wat::core::i64>").is_err(), "bare parametric head must error cleanly, not panic");
+    assert!(to_type(":T<wat::core::i64>").is_err(), "higher-kinded head must error cleanly, not panic");
+}
+
+#[test]
+fn c09_trailing_colons_path_errors_cleanly() {
+    // A malformed trailing-`::` path (`:foo::`) parses to Path(":foo::"); the renderer must
+    // surface a clean error, not panic.
+    assert!(to_type(":foo::").is_err(), "trailing-`::` path must error cleanly, not panic");
+}

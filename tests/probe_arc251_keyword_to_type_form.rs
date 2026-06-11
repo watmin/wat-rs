@@ -53,7 +53,7 @@ fn to_type(kw: &str) -> Result<String, String> {
 #[test]
 fn contract_01_scalar() {
     assert_eq!(to_type(":wat::core::i64"), Ok("wat.type/i64".into()));
-    assert_eq!(to_type(":wat::holon::HolonAST"), Ok("wat.type/HolonAST".into()));
+    assert_eq!(to_type(":wat::holon::HolonAST"), Ok("wat.holon/HolonAST".into()));
 }
 
 #[test]
