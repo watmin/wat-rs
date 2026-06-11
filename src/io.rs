@@ -1360,6 +1360,42 @@ pub fn eval_io_read_file(
     Ok(Value::String(Arc::new(loaded.source)))
 }
 
+/// `(:wat::io::list-dir path)` → `:wat::core::Vector<String>`.
+///
+/// Enumerate the directory at `path`; return each entry as a FULL path
+/// (the OS-level `entry.path()` already joins the input path with the
+/// entry name — `read_dir("wat")` yields `"wat/fix.wat"` etc.).
+/// Returns a clean RuntimeError (MalformedForm) if the path does not
+/// exist or is not a directory.
+pub fn eval_io_list_dir(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::list-dir";
+    arity(op, args, 1, list_span)?;
+    let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let read_dir_iter = std::fs::read_dir(path.as_str()).map_err(|e| {
+        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("read_dir({path:?}): {e}")
+        } }
+    })?;
+    let mut entries: Vec<Value> = Vec::new();
+    for entry_result in read_dir_iter {
+        let entry = entry_result.map_err(|e| {
+            RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("read_dir entry error: {e}")
+            } }
+        })?;
+        let full_path = entry.path().to_string_lossy().into_owned();
+        entries.push(Value::String(Arc::new(full_path)));
+    }
+    Ok(Value::Vec(Arc::new(entries)))
+}
+
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
 
 #[cfg(test)]

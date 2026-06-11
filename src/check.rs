@@ -13961,6 +13961,18 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    env.register(
+        ":wat::io::list-dir".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![string_ty()],
+            },
+            rest_param_type: None,
+        },
+    );
 
     // :wat::kernel::run-sandboxed (string entry) and
     // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
@@ -14449,6 +14461,15 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::string::subs".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), TypeExpr::Path(":wat::core::i64".into()), TypeExpr::Path(":wat::core::i64".into())],
             ret: string_ty(),
             rest_param_type: None,
         },

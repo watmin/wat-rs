@@ -85,6 +85,72 @@ pub fn eval_string_trim(
     Ok(Value::String(Arc::new(s.trim().to_string())))
 }
 
+/// `(:wat::core::string::subs s start end)` → `:String`.
+///
+/// Clojure's `subs`: start-inclusive, end-exclusive, CHAR-indexed.
+/// `(subs "hello world" 0 5)` → `"hello"`.
+/// `(subs "abc" 1 1)` → `""` (empty range).
+/// Returns a clean RuntimeError (MalformedForm) for out-of-range indices.
+pub fn eval_string_subs(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::string::subs";
+    if args.len() != 3 {
+        let span = args
+            .first()
+            .map(|a| a.span().clone())
+            .unwrap_or_else(|| list_span.clone());
+        return Err(RuntimeError { span, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len()
+        } });
+    }
+    let s = match eval(&args[0], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "String",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
+    };
+    let start = match eval(&args[1], env, sym)?.value_owned() {
+        Value::i64(n) => n,
+        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "i64",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
+    };
+    let end = match eval(&args[2], env, sym)?.value_owned() {
+        Value::i64(n) => n,
+        other => return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "i64",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
+    };
+    let char_len = s.chars().count() as i64;
+    if start < 0 || end < 0 || start > end || end > char_len {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "index out of range: start={start}, end={end}, char-length={char_len}; \
+                 require 0 <= start <= end <= char-length"
+            )
+        } });
+    }
+    let result: String = s
+        .chars()
+        .skip(start as usize)
+        .take((end - start) as usize)
+        .collect();
+    Ok(Value::String(Arc::new(result)))
+}
+
 /// `(:wat::core::string::split haystack sep)` → `:wat::core::Vector<String>`.
 ///
 /// Splits every occurrence of `sep`. An empty `sep` — the edge case

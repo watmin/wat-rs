@@ -3619,6 +3619,7 @@ fn dispatch_keyword_head_value(
         }
         ":wat::core::string::length" => crate::string_ops::eval_string_length(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::string::subs" => crate::string_ops::eval_string_subs(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::split" => crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, list_span, env, sym).map_err(Into::into),
@@ -3912,6 +3913,7 @@ fn dispatch_keyword_head_value(
         ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::read-file" => crate::io::eval_io_read_file(args, list_span, env, sym).map_err(Into::into),
+        ":wat::io::list-dir" => crate::io::eval_io_list_dir(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym, list_span).map_err(Into::into),
