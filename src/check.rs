@@ -14746,6 +14746,20 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 259 — The Forced Hand: ambient program environment.
+    // `(:wat::program::env) → :wat::program::Env` — returns the current
+    // thread's installed program env (a :wat::program::Env record or subtype).
+    // The return type is the PATH :wat::program::Env (the base record class).
+    // Runtime: reads PROGRAM_ENV thread-local via current_program_env().
+    env.register(
+        ":wat::program::env".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::program::Env".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
     // `(:wat::runtime::argv) → :wat::core::Vector<wat::core::String>`
     // — process-wide argv handed in by wat-cli (or any embedder)

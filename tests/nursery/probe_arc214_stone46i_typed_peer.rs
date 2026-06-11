@@ -73,7 +73,7 @@ fn probe_1_thread_peer_type_parses() {
 fn probe_2_spawn_program_prime_thread_types_to_peer() {
     let src = r#"
         (:wat::core::defn :user::mk-echo-peer [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
             (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
     "#;
     startup_ok(src);
@@ -85,7 +85,7 @@ fn probe_2_spawn_program_prime_thread_types_to_peer() {
 fn probe_3_spawn_program_prime_process_types_to_peer() {
     let src = r#"
         (:wat::core::defn :user::mk-echo-proc [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :process (:wat::program::Env (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' :process (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
             (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
     "#;
     startup_ok(src);
@@ -101,7 +101,7 @@ fn probe_3_spawn_program_prime_process_types_to_peer() {
 fn probe_4_wrong_scalar_return_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-wrong [] -> :wat::core::i64
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
             (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
     "#;
     let _err = startup_err(src);
@@ -115,7 +115,7 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
 fn probe_5_cross_tier_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-cross [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
             (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
     "#;
     let _err = startup_err(src);

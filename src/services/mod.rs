@@ -92,6 +92,8 @@ pub use client::{
     register_thread_with_services, deregister_thread_from_services,
     AmbientStdio, install_ambient_stdio, take_ambient_stdio,
     WriteAckRx, ReadReplyRx,
+    // Arc 259 — The Forced Hand: ambient program environment.
+    EnvGuard, install_program_env, current_program_env,
 };
 pub use verbs::{eval_kernel_println, eval_kernel_eprintln, eval_kernel_readln};
 

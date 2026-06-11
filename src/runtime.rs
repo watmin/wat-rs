@@ -3798,6 +3798,10 @@ fn dispatch_keyword_head_value(
         ":wat::holon::extract-classifier" => eval_extract_classifier(args, list_span, env, sym),
         ":wat::holon::Bind/left" => eval_bind_left(args, list_span, env, sym),
         ":wat::holon::Bind/right" => eval_bind_right(args, list_span, env, sym),
+        // Arc 259 — The Forced Hand: ambient program environment.
+        // Reads the calling thread's PROGRAM_ENV slot (installed via
+        // install_program_env at the post-bootstrap / pre-:user::main seam).
+        ":wat::program::env" => eval_program_env(args, list_span),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
@@ -17436,6 +17440,34 @@ fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalB
         } }.into());
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+/// `(:wat::program::env)` — nullary; returns the calling thread's ambient
+/// `:wat::program::Env` record (or subtype).
+///
+/// Arc 259 — The Forced Hand. The env is installed into the `PROGRAM_ENV`
+/// thread-local by `install_program_env` at the post-bootstrap /
+/// pre-`:user::main` seam. Returns a clone of the current value, or a
+/// clean `MalformedForm` error if no env has been installed (e.g. a test
+/// that calls `eval_in_frozen` without calling `install_program_env`).
+fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::program::env";
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+        } }.into());
+    }
+    crate::services::current_program_env()
+        .ok_or_else(|| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "no program env installed on this thread — call install_program_env \
+                         before invoking (:wat::program::env)".into(),
+            },
+        }.into())
 }
 
 /// `(:wat::runtime::argv)` — nullary; returns the process-wide argv

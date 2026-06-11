@@ -347,3 +347,60 @@ pub fn install_ambient_stdio(stdio: AmbientStdio) {
 pub fn take_ambient_stdio() -> Option<AmbientStdio> {
     AMBIENT_STDIO.with(|cell| cell.borrow_mut().take())
 }
+
+// ─── Arc 259 — The Forced Hand: ambient program environment ──────────────────
+//
+// Homed alongside AMBIENT_STDIO (same pattern, same module) because both are
+// per-thread runtime context carriers — the env is the program's identity for
+// the duration of a peer's execution, exactly as ambient-stdio is its I/O
+// identity. A `src/program/` home would scatter the context idiom; keeping
+// both context threads here makes the pattern self-documenting.
+//
+// Unlike AMBIENT_STDIO (consumed once via `take`), the env is READ-MANY by any
+// depth — `current_program_env` clones rather than takes. The RAII guard
+// (save/restore) makes nested install and test isolation clean by construction.
+
+thread_local! {
+    // rune:perspicere(intentional-structure) — RefCell<Option<Value>> is the
+    // canonical thread_local interior-mutability idiom (same as AMBIENT_STDIO).
+    // The env lives here for the duration of a peer's execution and is read by
+    // `(:wat::program::env)` from any call depth on this thread.
+    static PROGRAM_ENV: RefCell<Option<crate::runtime::Value>> = const { RefCell::new(None) };
+}
+
+/// RAII guard returned by [`install_program_env`]. On drop, restores the
+/// previous env (or `None` if there was none). Supports nested installs
+/// and test isolation without any explicit teardown call.
+pub struct EnvGuard {
+    prior: Option<crate::runtime::Value>,
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        PROGRAM_ENV.with(|cell| {
+            *cell.borrow_mut() = self.prior.take();
+        });
+    }
+}
+
+/// Install `env` as the calling thread's ambient program environment and
+/// return a RAII guard. On guard drop the prior value is restored.
+///
+/// The env is a `:wat::program::Env` record `Value` (or a subtype — any
+/// `Value::wat__Record` whose class descends from `wat::program::Env`).
+/// Called by the post-bootstrap / pre-`:user::main` seam
+/// (`invoke_user_main_orchestrated`) and directly by tests.
+pub fn install_program_env(env: crate::runtime::Value) -> EnvGuard {
+    PROGRAM_ENV.with(|cell| {
+        let prior = cell.borrow_mut().replace(env);
+        EnvGuard { prior }
+    })
+}
+
+/// Clone and return the calling thread's ambient program environment,
+/// or `None` if none has been installed. Read-many — does NOT consume
+/// the installed value (unlike `take_ambient_stdio`). Called by the
+/// `(:wat::program::env)` dispatch arm.
+pub fn current_program_env() -> Option<crate::runtime::Value> {
+    PROGRAM_ENV.with(|cell| cell.borrow().clone())
+}

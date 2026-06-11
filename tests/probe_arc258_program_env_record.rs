@@ -42,7 +42,7 @@ fn c01_base_record_started_at() {
         "",
         "(:wat::time::epoch-millis \
            (:wat::program::Env/wat.started-at \
-             (:wat::program::Env (:wat::time::at-millis 5000))))",
+             (:wat::program::Env (:wat::time::at-millis 5000) (:wat::time::at-millis 0))))",
     );
     assert_eq!(got, Ok(5000),
         "program::Env is a record with a wat.started-at : Instant field, constructed + read");
@@ -55,7 +55,7 @@ fn c02_user_extends_program_env() {
     let got = eval_i64(
         "(:wat::core::recordtype :user::MyEnv :wat::program::Env [port <- :wat::core::i64])",
         "(:user::MyEnv/port \
-           (:user::MyEnv (:wat::time::at-millis 1) 8080))",
+           (:user::MyEnv (:wat::time::at-millis 1) (:wat::time::at-millis 0) 8080))",
     );
     assert_eq!(got, Ok(8080),
         "a user recordtype can extend :wat::program::Env (it is a record base, not a HashMap typealias)");
