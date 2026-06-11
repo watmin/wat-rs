@@ -12,7 +12,7 @@
 //! Run: `cargo test --release --test probe_arc211_program_env_ambient`
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::freeze::{eval_in_frozen, invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 use wat::services::install_program_env;
@@ -102,5 +102,28 @@ fn c03_installed_env_flows_to_the_verb() {
         Ok(5000),
         "(:wat::program::env) must return the installed :wat::program::Env; \
          started-at epoch-millis must equal 5000"
+    );
+}
+
+#[test]
+fn c04_invoke_installs_env_for_main() {
+    // Stone 259.0c — the PRODUCTION path. `invoke_user_main` must construct +
+    // install a :wat::program::Env at the post-bootstrap / pre-main seam, so
+    // `:user::main` can read `(:wat::program::env)`. If invoke did NOT install,
+    // the verb returns "no env installed" → main errors → invoke returns Err.
+    // (No explicit assert in wat: the READ itself is the test — it executes for
+    // effect in the `do` and fails if no env is installed.)
+    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
+                 (:wat::core::do \
+                   (:wat::program::Env/wat.started-at (:wat::program::env)) \
+                   nil))";
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let result = invoke_user_main(&world, vec![]);
+    assert!(
+        result.is_ok(),
+        "invoke_user_main must install the program env before :user::main; \
+         main's (:wat::program::env) read failed: {:?}",
+        result.err()
     );
 }
