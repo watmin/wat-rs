@@ -38,11 +38,16 @@ drive** — otherwise declarations migrate half-way and the hard-cut breaks them
 **DESIGN: `DESIGN-STONE-251.5-4.2-comment-faithful-drive.md` (STRIKE-READY).** The naive
 `read-string`→`fix-form`→`write-forms` drive DELETES all comments (pure-AST round-trip; trivia isn't
 AST) — disqualifying given 2,000+ stdlib doc-lines. Four-Q-decided (A, builder-ratified): a **span-edit
-codemod** (the `rewrite-clj` pattern) — a throwaway **Rust** harness (spans are `{line,col}`, Rust-side,
-no wat accessor) that reuses the wat `fix-form` for DECISIONS, diffs old/new (strip-if = a deletion
-pass; the rest is a leaf-walk), maps line/col→byte, and splices into the source text → minimal diff,
-comments + formatting preserved. **Reversible** checkpoint (dual-read). This harness is ALSO the 4.3
-engine. Gate: `--workspace --no-fail-fast` green + a sample file's `;;` lines survive byte-identical.
+codemod** (the `rewrite-clj` pattern). REDRAWN after a reach-stumble correction (the first draft's Rust
+harness was working around an absent wat capability — extirpare/reach-stumble forbid that): the codemod
+is **driven in wat** by closing the gap — one new substrate verb **`ast-span`** (intueri-named: node →
+`{:line :col :file}` plain map; the only missing piece, line/col already in the AST). The wat codemod
+then reuses everything — `read-file`+`read-string`+`fix-form` (decisions)+`ast-span` (locations)+
+`subs`/`split`/`concat` (splice into the ORIGINAL text, right-to-left) → minimal diff, comments
+preserved. This is **wat's `rewrite-clj`** — durable foundational tooling, the engine for 4.3 too, and
+the "wat writes wat" proving point made whole. `ast-span` is PERMANENT (not throwaway); the codemod
+driver retires at the hard-cut. Gate: FM-2-bis probe (comments survive byte-identical + idempotent) →
+`--workspace --no-fail-fast` green.
 
 ## Slice 4.3 — the Rust-test-string corpus (267 files — the hard part)
 
