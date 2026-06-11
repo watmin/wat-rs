@@ -2695,7 +2695,7 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
 /// Recursion mirrors `check::rename`: `Parametric.args`, `Fn.args`,
 /// `Fn.ret`, `Tuple` elements.  `Var(_)` is synthetic (never parsed) —
 /// ignored.  `Path` with no match also ignored.
-fn collect_free_type_vars(param_types: &[crate::types::TypeExpr], ret_type: &crate::types::TypeExpr) -> Vec<String> {
+pub(crate) fn collect_free_type_vars(param_types: &[crate::types::TypeExpr], ret_type: &crate::types::TypeExpr) -> Vec<String> {
     fn is_type_var(p: &str) -> bool {
         let s = p.strip_prefix(':').unwrap_or(p);
         if s.contains("::") || s.contains('.') {

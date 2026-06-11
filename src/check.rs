@@ -5370,9 +5370,24 @@ fn infer_list(
                 if !arity_ok {
                     continue;
                 }
+                // Arc 256 — instantiate clause type-vars to fresh unification vars
+                // before the per-position assignable loop. Mirrors the normal-scheme
+                // path (`instantiate` at ~13553) and 251.7's fn-generics recipe.
+                // When var_names is empty (non-generic clause), mapping is empty →
+                // rename is identity → inst == original → behavior unchanged.
+                let var_names = crate::runtime::collect_free_type_vars(clause_arg_types, clause_ret);
+                let mapping: HashMap<String, TypeExpr> = var_names
+                    .iter()
+                    .map(|n| (n.clone(), fresh.fresh()))
+                    .collect();
+                let inst_arg_types: Vec<TypeExpr> = clause_arg_types
+                    .iter()
+                    .map(|t| rename(t, &mapping))
+                    .collect();
+                let inst_ret = rename(clause_ret, &mapping);
                 let mut clause_subst = subst.clone();
                 let mut all_match = true;
-                for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(clause_arg_types.iter()) {
+                for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(inst_arg_types.iter()) {
                     if let Some(arg_ty) = arg_ty_opt {
                         if !assignable(arg_ty, expected_ty, &mut clause_subst, env.types()) {
                             all_match = false;
@@ -5383,7 +5398,7 @@ fn infer_list(
                 }
                 if all_match {
                     *subst = clause_subst;
-                    matched_ret = Some(apply_subst(clause_ret, subst));
+                    matched_ret = Some(apply_subst(&inst_ret, subst));
                     break;
                 }
             }

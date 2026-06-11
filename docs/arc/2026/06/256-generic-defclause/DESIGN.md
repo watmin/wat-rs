@@ -1,8 +1,10 @@
 # DESIGN — Arc 256: generic defclause (parametric clause dispatch)
 
-**Status: STRIKE-READY (drawn 2026-06-10 on a grounded crawl + Explore-tier lair-map). Probe RED
-at HEAD before build.** Home: `src/check.rs` (the defclause call-site dispatch loop). Sequenced
-AFTER 251.7 (implicit generics for fns, SHIPPED `0c95ae2c`) — this PORTS that recipe to the
+**Status: SHIPPED 2026-06-10. Sonnet-built (13-line check-side instantiation hook + 1 visibility
+keyword), orchestrator-weighed against the disk.** Probe `tests/probe_arc256_generic_defclause.rs`
+5/5; 251.7 probe 5/5 (no regression); lib 949/0; `types` 83/0 serial-deterministic (the suite flakes
+ONLY under parallel test-threads via the known arc-170 spawn-deadlock — green with `--test-threads=1`).
+Home: `src/check.rs` (the defclause call-site dispatch loop). Ports 251.7 (SHIPPED `0c95ae2c`) to the
 `defclause`/`ClauseSet` entity. Banked as task #198.
 
 ## The move
@@ -84,12 +86,29 @@ Sketch:
 
 ## Out of scope (named — affirmative cuts)
 
-- **Re-clause-ifying the kernel intrinsics** (`+`/`-`/`*`/`/`, `<`/`>`/`<=`/`>=`) — these were HARD
-  CUT from wat defclauses to Rust check-side intrinsics (`infer_ordering`/arith, Stone 237.8b/245.8)
-  precisely because a finite clause list couldn't express `∀T` ordering. Arc 256 makes generic
-  clauses POSSIBLE; whether to migrate those intrinsics back to generic defclauses is a SEPARATE
-  follow-on (the original task #198 phrasing "clause-ify the kernel intrinsics") — its own arc,
-  decided after the capability lands. 256 ships the capability, not the migration.
+- **Re-clause-ifying the kernel intrinsics** (`+`/`-`/`*`/`/`, `<`/`>`/`<=`/`>=`, `=`/`not=`) —
+  out of scope, and here is the precise reason (the two-pillar analysis, 2026-06-10). The intrinsic
+  boundary (`infer_ordering`/`infer_equality`/arith as Rust check-side arms) stood on TWO pillars:
+  1. **Type-expressibility over parametric types** — *"a finite clause list cannot express
+     `Vec<T> < Vec<T>`, `Option<T>`"* (the Stone 245.8 retirement rationale). **Arc 256 KILLS this
+     pillar** — a generic clause now expresses `∀T. (Vector T) → (Vector T) → bool` in one clause
+     (probe C05 proves parametric-container dispatch).
+  2. **The bounded constraint `∀T : Orderable`** — `infer_ordering` gates on `is_type_orderable`
+     (`check.rs:11514`): i64/f64/String/… + recursively `Vector<orderable>`, but NOT
+     HashMap/HashSet/functions/user structs. A 256 generic clause is **unbounded** `∀T` — it would
+     wrongly accept `(< some-hashmap other)`. wat has NO type-class / bounded-polymorphism
+     mechanism (only subtyping via `register_subtype`). **256 does NOT touch this pillar.**
+  So the boundary SURVIVES, now resting on a single remaining pillar — the absence of **bounded
+  polymorphism (`∀T : Orderable`)**. To truly retire the intrinsics you need bounded `∀`, a
+  DISTINCT, meatier arc. Two notes for whoever picks it up: (a) the hard pieces already exist — the
+  `Orderable` predicate IS `is_type_orderable`, and the impl needs NO dictionaries (`eval_compare`,
+  `runtime.rs:7203`, is already a universal structural comparator); the unknown is constraint
+  PROPAGATION through generic-over-generic chains (HM qualified-types on wat's rank-1 unifier —
+  probe it before committing). (b) FULL user-declarable typeclasses + method dispatch is a big arc
+  with NO clean faithful-Clojure precedent (core.typed has no typeclass story; protocols are runtime
+  dispatch) — an ADT-compass red flag; resist. (c) It is OFF the 251 critical path and is optional
+  *uniformity*, not capability — kernel-primitive arithmetic is normal; program-over-the-wire does
+  not need `+`/`<` to be user-defined. Decide deliberately, not by momentum.
 - **`<T,U>` name-suffix on defclause names** — defclause type-vars are read from the signature only
   (same as 251.7's faithful form); no suffix needed.
 
