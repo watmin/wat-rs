@@ -171,6 +171,13 @@ there because a dotted head = Java-class lookup; wat has no JVM, so the constrai
   right one). Lesson: a cast is only as right as the *requirement* it's given — correct the spec before trusting
   the verdict.
 
+**First system field LOCKED: `wat.started-at` (`:wat::time::Instant`).** Runtime stamps it at spawn (`time/now`);
+a program reads `(:Env/wat.started-at env)` → its start instant (uptime = `(time/now) - that`). intueri named it:
+builder's `boot-time` was Level 2 (machine-boot overclaim + "-time" floats point/span); `started-at` keeps the
+promise — `started` = the *program* coming up, `-at` = the EDN point-in-time idiom (`:created-at`/`:updated-at`).
+It VINDICATES `wat.` over `kernel.` (a start timestamp is system-y, not kernel-y). So the **A2 base is NOT empty**:
+`(recordtype :wat::program::Env :wat::Record [wat.started-at <- :wat::time::Instant])`.
+
 ## Sequencing (attack-and-reassess; map now complete enough — builder: *"the annihilation is obvious"*)
 
 1. **Synthesis cluster** (one mechanism — infer from sub-expr, mirror γ-1): `match` (FIRST, agreed) →
