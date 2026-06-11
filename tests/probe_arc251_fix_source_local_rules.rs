@@ -90,3 +90,16 @@ fn contract_05_full_fn_literal() {
         "head inverts, binder + return arrows -> :-, both types -> wat.type/, in one pass"
     );
 }
+
+#[test]
+fn contract_06_less_than_operator_is_not_a_type() {
+    // `:wat::core::<` contains `<` but is the comparison OPERATOR, not a parametric type.
+    // It must invert as a HEAD (keyword/to-symbol), never route to keyword/to-type-form.
+    assert_eq!(fix("(:wat::core::< a b)"), Ok("(wat.core/< a b)".into()));
+    assert_eq!(fix("(:wat::core::<= a b)"), Ok("(wat.core/<= a b)".into()));
+}
+
+#[test]
+fn contract_07_greater_than_operator() {
+    assert_eq!(fix("(:wat::core::> a b)"), Ok("(wat.core/> a b)".into()));
+}
