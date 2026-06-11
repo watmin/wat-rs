@@ -1,10 +1,11 @@
 # DESIGN — Stone 251.7: implicit generics (Hindley-Milner, bare type-vars)
 
-**Status: STRIKE-READY (drawn 2026-06-10 on a grounded crawl + Explore lair-map; probe written +
-run — `tests/probe_arc251_implicit_generics.rs`, R03 RED at HEAD). BUILD pending (sequenced ahead
-of Arc 256 + Strike 4).** The build is a small, bounded change at `runtime.rs` fn-registration
-(the merge site) — NOT a new checker feature; the HM pipeline already exists and is correct (probe
-F01/F02). Home: `src/runtime.rs` (the `type_params` merge) + a free-var collector helper.
+**Status: SHIPPED 2026-06-10 (`0c95ae2c`). Sonnet-built, orchestrator-weighed against the disk.**
+`collect_free_type_vars` (runtime.rs) + union into `raw_type_params` at the 3 fn-registration sites;
+the HM pipeline (instantiate/rename/unify) was already correct, unchanged. Probe
+`tests/probe_arc251_implicit_generics.rs` 5/5; lib 949/0, types 83/0 isolated (deterministic). The
+faithful bare-var-no-suffix generic form now type-checks. NEXT consumers: Arc 256 (generic defclause
+— ports this recipe to `ClauseSet`) then 251.5 drops the `<T,U>` suffix corpus-wide.
 
 > This DESIGN is the durable home for the generics MODEL resolved in session 2 (2026-06-10). It
 > was living only in the recovery breadcrumb (`project_typed_clojure_parity_pivot.md`), which is
@@ -152,12 +153,18 @@ The contract decision, pinned to ONE shape and the real site:
 
 Sketch (rooms named, grounded by the lair-study):
 
-1. **A free-var collector** over `TypeExpr` — walk a `TypeExpr`, emit each bare `Path` (no `::`/`.`
-   → a type-var per the FQDN-always law; an FQDN `Path` is a named type, skipped) and recurse into
-   `Parametric.args`, `Fn.{args,ret}`, `Tuple.elems`. First-occurrence order, deduped. (Mirrors the
-   discriminator `keyword/to-type-form` already encodes: `Path` with `::` → named, without → var —
-   `edn_shim`, shipped `18c6c3c0`. Note `Path`s carry the `:`-prefixed spelling `":T"` here; strip
-   it as `rename` does at `check.rs:13580`.)
+1. **A free-var collector** over `TypeExpr` — walk a `TypeExpr`, emit each `Path` that is a type
+   VARIABLE, recursing into `Parametric.args`, `Fn.{args,ret}`, `Tuple.elems`. First-occurrence
+   order, deduped. **The var test (the three-lexical-classes rule, made precise):** strip the
+   leading `:`; the `Path` is a type var iff it is **bare** (contains neither `::` nor `.` → not
+   FQDN) **AND its first alphabetic char is UPPERCASE** (the `Uppercase-bare = type-var` class —
+   `K`, `V`, `T`). This is load-bearing: it EXCLUDES lowercase legacy bare primitives (`:i64`,
+   `:bool`, `:f64`, `:nil`) — named types pending FQDN migration — which must NOT be generalized.
+   FQDN `Path`s (with `::`/`.`) are named types, skipped. (`Path`s carry the `:`-prefixed spelling
+   `":T"` here; strip it as `rename` does at `check.rs:13580`.) **Risk + STOP:** if any defn uses a
+   bare *Uppercase* `Path` that is actually a NAMED type (not FQDN — e.g. a legacy bare `:Vector`),
+   the collector would wrongly generalize it and the workspace gate would surface a new type error.
+   That is the FQDN-always law being violated upstream — STOP and surface it; do NOT special-case it.
 2. **Merge into `raw_type_params` at the real site:** `try_parse_fn_shape_def`
    (`runtime.rs:1998`–`2081`) computes `raw_type_params` from `split_name_and_type_params` and
    assigns `type_params: raw_type_params` at `runtime.rs:2081`. The build inserts, just before that
