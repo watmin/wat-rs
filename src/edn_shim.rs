@@ -499,6 +499,39 @@ pub fn eval_ast_name(
     ))
 }
 
+/// `(:wat::core::ast-span <node>)` — Stone 251.5 / Slice 4.2a. Source START location of any node.
+/// Returns `{:line N :col N}` as a `HashMap<keyword, i64>`. `:file` is intentionally excluded
+/// (a mixed-value map is un-typeable in wat's ADT model; the codemod knows its file).
+pub fn eval_ast_span(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast-span";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let span = ast.span();
+    #[allow(clippy::mutable_key_type)]
+    let mut map: std::collections::HashMap<Value, Value> = std::collections::HashMap::new();
+    map.insert(
+        Value::wat__core__keyword(std::sync::Arc::new(":line".to_string())),
+        Value::i64(span.line),
+    );
+    map.insert(
+        Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
+        Value::i64(span.col),
+    );
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__std__HashMap(std::sync::Arc::new(map)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// `(:wat::core::symbol-node <string>)` — arc 251 Stone 251.5a-v. Construct a bare Symbol node.
 pub fn eval_symbol_node(
     args: &[WatAST],

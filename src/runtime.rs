@@ -3409,6 +3409,7 @@ fn dispatch_keyword_head(
         // Arc 251.5a-v — node recognition + construction.
         ":wat::core::ast-kind" => return crate::edn_shim::eval_ast_kind(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::ast-name" => return crate::edn_shim::eval_ast_name(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::ast-span" => return crate::edn_shim::eval_ast_span(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::symbol-node" => return crate::edn_shim::eval_symbol_node(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword-node" => return crate::edn_shim::eval_keyword_node(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword/to-symbol" => return crate::edn_shim::eval_keyword_to_symbol(args, list_span, env, sym).map_err(Into::into),

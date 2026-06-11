@@ -39,14 +39,21 @@ fn eval_i64(body: &str) -> Result<i64, String> {
     }
 }
 
-/// `head = (first (ast->children (read-string "(:wat::core::map x)")))`; read `key` off its span.
+/// `read-string` WRAPS top-level forms in a list, so `first(ast->children(read-string src))` is the
+/// first FORM (the inner `(:wat::core::map x)` list), and a SECOND `ast->children` + `first` reaches
+/// the head keyword. (Idiom confirmed by the fix-source/decl-migrator probes' `topform`.)
+const FORM: &str =
+    "(:wat::core::first (:wat::core::ast->children (:wat::core::read-string \"(:wat::core::map x)\")))";
+
+/// head = `(first (ast->children FORM))` — the head keyword `:wat::core::map` (col 2).
 fn head_span_field(key: &str) -> Result<i64, String> {
     eval_i64(&format!(
         "(:wat::core::Option/expect -> :wat::core::i64 \
            (:wat::core::HashMap/get \
              (:wat::core::ast-span \
                (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::ast->children (:wat::core::read-string \"(:wat::core::map x)\"))) \"head\")) \
+                 (:wat::core::first (:wat::core::ast->children \
+                   (:wat::core::Option/expect -> :wat::WatAST {FORM} \"form\"))) \"head\")) \
              {key}) \
            \"field\")"
     ))
@@ -64,15 +71,16 @@ fn c02_ast_span_head_col() {
 
 #[test]
 fn c03_ast_span_symbol_col() {
-    // The second child (symbol `x`) starts at col 18.
-    let got = eval_i64(
+    // The form's second child (symbol `x`) starts at col 18.
+    let got = eval_i64(&format!(
         "(:wat::core::Option/expect -> :wat::core::i64 \
            (:wat::core::HashMap/get \
              (:wat::core::ast-span \
                (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::rest (:wat::core::ast->children (:wat::core::read-string \"(:wat::core::map x)\")))) \"x\")) \
+                 (:wat::core::first (:wat::core::rest (:wat::core::ast->children \
+                   (:wat::core::Option/expect -> :wat::WatAST {FORM} \"form\")))) \"x\")) \
              :col) \
-           \"field\")",
-    );
+           \"field\")"
+    ));
     assert_eq!(got, Ok(18), "symbol x col should be 18");
 }

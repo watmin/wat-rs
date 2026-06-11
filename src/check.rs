@@ -16444,6 +16444,18 @@ fn register_builtins(env: &mut CheckEnv) {
     env.register(":wat::core::ast-name".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::core::String".into()), rest_param_type: None });
+    // Stone 251.5 / Slice 4.2a — source start location: {:line i64 :col i64}.
+    env.register(":wat::core::ast-span".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Parametric {
+            head: "wat::core::HashMap".into(),
+            args: vec![
+                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::core::i64".into()),
+            ],
+        },
+        rest_param_type: None,
+    });
     env.register(":wat::core::symbol-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
