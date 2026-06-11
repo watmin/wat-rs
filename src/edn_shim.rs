@@ -500,8 +500,13 @@ pub fn eval_ast_name(
 }
 
 /// `(:wat::core::ast-span <node>)` — Stone 251.5 / Slice 4.2a. Source START location of any node.
-/// Returns `{:line N :col N}` as a `HashMap<keyword, i64>`. `:file` is intentionally excluded
-/// (a mixed-value map is un-typeable in wat's ADT model; the codemod knows its file).
+/// Returns `{:line N :col N}` as a `HashMap<keyword, i64>`. `:file` is intentionally excluded because
+/// the single-file codemod consumer holds its own path and threads it directly — NOT because file is
+/// unknowable. (It IS threadable: `parse_all_with_file` accepts a real label and `read-file` holds the
+/// path; today `read-string` discards it at the seam, stamping every node `"<read-string>"`.) A
+/// multi-file consumer would want a `Span` record (product type, file/line/col typed) plus a path-aware
+/// read — see `DESIGN-STONE-251.5-4.2-comment-faithful-drive.md` "CORRECTION (2026-06-11)".
+/// (The earlier "mixed-value map un-typeable" rationale here was wrong; corrected per builder catch.)
 pub fn eval_ast_span(
     args: &[WatAST],
     list_span: &crate::span::Span,

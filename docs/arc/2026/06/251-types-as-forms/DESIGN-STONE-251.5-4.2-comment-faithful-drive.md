@@ -31,6 +31,41 @@ in wat.
   text it already has (`ast-name`). No range type needed; the codemod edits leaves (+ strip-if
   deletes leaf tokens), all of which have a known text length.
 
+## ⚠️ CORRECTION (2026-06-11) — `:file` omitted, and the first reason for it was WRONG
+
+> Append-only record: we wrote the rationale one way, built it another, and the build's *stated reason*
+> was itself wrong. Keeping all three visible so the knowledge isn't lost (don't hide the fault — learn).
+
+**As designed (the bullet above, unedited):** `ast-span → {:line :col :file "…"}` — file *included*.
+**As shipped (4.2a, `2a7dacff`):** `ast-span → {:line :col}` — file *omitted*, and the code comment
+(`edn_shim.rs`) justified the omission as *"a mixed-value map is un-typeable in wat's ADT model."*
+
+**The builder caught that justification, and it is wrong.** The file is not unknowable, and the typing
+wall is not the real reason. Traced to the disk:
+- `parser::parse_all_with_file(src, file)` (`src/parser.rs:164`) **already accepts a real file label** —
+  the slot exists.
+- `(:wat::io::read-file path)` (`src/io.rs:1337`) **HAS the path**; it returns content-only, discarding it.
+- `(:wat::core::read-string str)` has **no file param** (faithful to Clojure's reader, which has none),
+  so it passes the constant `"<read-string>"`.
+- The path therefore dies at the **read-file → read-string seam** — *discarded*, not *unknowable*.
+
+**The honest reason to omit `:file` (the one that actually holds):** this codemod drives exactly ONE file
+at a time; the driver holds `path` in scope and threads it itself, so `ast-span` reporting file would hand
+back what the consumer already has. **Omitted because the single-file consumer owns its path — NOT because
+it can't be typed.** (If it were always-one-file *and* the reason were honest, the omission would be
+unremarkable; the fault was the false reason, not the omission.)
+
+**Banked capability — absent + named, NOT can't-know:** a file-aware read (read-file → forms carrying the
+real path through the existing `parse_all_with_file` slot) + `ast-span` returning a **`Span` RECORD** (a
+product type — file/line/col each typed: the ADT-correct shape, not a homogeneous `HashMap<keyword,i64>`).
+The *map* shape is what forced the false "un-typeable" framing in the first place; a record dissolves it.
+Build it when a **multi-file** refactor / error-report tool needs cross-file provenance — see the 4.2
+out-of-scope bank below.
+
+**The lesson:** a *"we can't know X"* claim deserves the same disconfirming scrutiny as a *"X exists"*
+claim. Here a discarded parameter got rationalized as a law of nature. Trace the param to its source
+before declaring a value unknowable. (Sibling of `feedback_absence_claim_needs_all_forms`.)
+
 ## The codemod, in wat (reuses everything that exists)
 Per dirty `.wat` file:
 1. `read-file` → the source **text**; `read-string` → the **tree** (nodes carry spans).
@@ -75,3 +110,9 @@ comments and all, in wat.
 - 4.3 (rust-strings — reuses this engine), 4.4 (hard-cuts). `ast-span` is a permanent verb (NOT
   throwaway — it's foundational tooling); the codemod *driver* retires with the hard-cut, the
   *capability* stays.
+- **File-aware source provenance (`Span` record + path-carrying read)** — see the CORRECTION above.
+  `ast-span` reports `{:line :col}` only because read-string nodes carry the placeholder
+  `"<read-string>"`, and the single-file codemod owns its path. A multi-file refactor / error-report
+  tool would need: (a) a path-aware read that threads the real path through `parse_all_with_file`, and
+  (b) `ast-span` returning a `Span` RECORD (product type, file/line/col typed). Threadable today (the
+  parser slot exists); built when a cross-file consumer surfaces. Affirmative cut, not a deferral.
