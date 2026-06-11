@@ -257,3 +257,156 @@ exposed + fixed the collapsed record type system, `5f6178aa`). Pairs with #196
 (brackets), the `:remote` forcing function, and the testing doctrine
 (`feedback_embed_doctrine_rigs_are_universes`). Returns to arc 251 (clojure
 cutover) on close.
+
+---
+
+# The spawn primitive — `(spawn-program <host> <prog>)` (LOCKED 2026-06-11)
+
+The deepest decision of the arc, because a core primitive's *signature* is the one
+thing you cannot cheaply change later. Locked through a long design duet; the
+governing constraint: **set future selves up for extension without sig churn or
+mass rewrites.** (This obsoletes the original stone 259.1's "thread the env-value
+into the peer" framing — the env-value-as-arg is the broken thing this replaces.)
+
+## Two discrete concerns, forever
+
+```clojure
+(spawn-program <host> <prog>)
+;;              host = WHERE to run it — as complex as the tier demands
+;;              prog = WHAT to run     — always a 0-ary fn (a self-contained program entry)
+```
+
+The asymmetry is the whole insight: **the host carries all the complexity; the
+prog never changes shape.** "Where do I host this fn" is the only question, and its
+answer's complexity lives entirely in the host. The signature is two args, forever
+— every future option grows *inside the host*, never in the arg list. That is the
+"no mass rewrite" guarantee made structural: the arity never moves.
+
+## The host — typed opts, clause-dispatched, growable
+
+`spawn-program` is a **clause-set matching on the host type.** Each host is a typed
+opts record built by an ergonomic constructor:
+
+```clojure
+(spawn-program (thread)                          prog)   ; trivial host
+(spawn-program (thread :init my-env-init)        prog)   ; + a user env-init
+(spawn-program (process)                         prog)
+(spawn-program (remote "https://…" signing-key)  prog)   ; url+key REQUIRED by the ctor — forced hand
+```
+
+- The host's *type* is the tier (`ThreadOpts` / `ProcessOpts` / `RemoteOpts`) — not
+  a stringly keyword. The constructor enforces the tier's requirements: `(remote)`
+  is uncallable without url+key, so "remote without a url" is **unrepresentable at
+  the call site** — the forced hand, one level up from the env.
+- **New hosting kinds = new clauses against new host types.** A future
+  `(remote-over-quic …)`, `(gpu …)`, `(lambda …)` is one new opts type + one new
+  clause; zero existing clauses change, zero callers rewrite. The clause mechanism
+  IS the extension door — open-closed by construction. (And there will be *many*
+  remotes; the door is propped open on purpose.)
+- Each clause does its own localized spawn + `wat.*` stamping at the peer's start.
+  The measurement is the env's *birth* inside the clause, not a separate guard.
+
+## The prog — always a 0-ary thunk
+
+Every spawned program is a **0-ary fn** — a complete little universe entry, exactly
+like `:user::main`. It reads its env via `(:wat::program::env)` and does its own I/O
+via the peer verbs (`recv'` / `send'` / `select'`, arc 214). This **unifies the
+tiers**: today's `:thread` 1-ary apply-loop and `:process` forms both collapse to
+the uniform 0-ary prog — which *is* the program-over-the-wire vision (every peer is
+a `:user::main`; `:remote` = `:user::main` over a pipe). The apply-loop becomes a
+*pattern a prog can implement*, not a platform primitive.
+
+## The two typed structures (never conflate them)
+
+- **host** (opts) — configures the *spawn*; consumed by `spawn-program`, never seen
+  by the prog. Typed (constructor-enforced requirements).
+- **env** (`:wat::program::Env`) — what the *prog reads*; the ambient record
+  `{wat.started-at, wat.peer-started-at, user.<slot>}`. Built by the host's clause
+  at peer start (stamp `wat.*` + run the host's `init-fn` → the user slot). Typed
+  record (the forced-hand contract).
+
+No dynamic bag anywhere — opts is typed, env is typed, prog is a thunk.
+
+# The corrected timing model (supersedes 259.0c's placeholder + 259.2)
+
+`259.0c` shipped `started-at = peer-started-at = now` as a *placeholder* — which
+collapses the measurement and is wrong. Corrected:
+
+- **`wat.started-at` = process-level, captured at the *earliest* point** — wat-cli's
+  Rust `main`, measuring `now` before anything else. A **fork-safe, pid-aware
+  process-global**: re-captured when the pid changes across a fork, so a `:process`
+  peer (its own universe) measures *its own* boot, never the parent's stale value.
+  **This is the v5-deadlock lesson applied** — a set-once `OnceLock` would inherit
+  the parent's value across fork and lie, exactly `SHUTDOWN_RX`'s shape; pid-identity
+  makes the wrong state unrepresentable. Shared *within* a process (`:thread` peers
+  inherit it); re-captured *at* a process boundary.
+- **`wat.peer-started-at` = per-env, captured just before that env's entry runs** —
+  before `:user::main` for the main thread; before the peer's 0-ary prog for a peer.
+  The two stamps are **never equal**; their gap is the boot→entry latency.
+- **nanosecond fidelity** — `Instant` is nanosecond-monotonic; a nanos duration op
+  exposes it (the sub-millisecond startup metric needs it; `epoch-millis` is too
+  coarse).
+- **multi-phase** — boot (`started-at`) → [init-call] → entry (`peer-started-at`);
+  each boundary a free in-band probe. With the host's `init-fn`, boot→init and
+  init→entry become separately measurable: *how slow is the user's own init*,
+  distinct from platform boot.
+- **test-injectable** — a test passes `(fn [] <known-record>)` as the host's
+  `init-fn`, or directly installs a known env; all logic over the env's stamped
+  fields is deterministic against numbers you declared.
+
+# Prior art — who else stood here
+
+The design re-derived a timeless answer from the forced-hand discipline; naming
+where the masters already stood (the "we found a great" path-signal — reach for the
+tool, land on a named great, you're on the ridgeline):
+
+- **Java's `Executor` (Doug Lea, `java.util.concurrent`)** — `executor.execute(runnable)`
+  / `submit(callable)`: separate the *where* (the executor — a thread pool, a remote,
+  a ForkJoinPool — *many kinds*) from the *what* (a **0-ary** `Runnable.run()` /
+  `Callable.call()`). The closest match for "many kinds of remotes": the Executor is
+  the polymorphic host; the task is the uniform 0-ary thunk. Our clause-per-host is
+  the typed, multimethod-dispatched Executor.
+- **Erlang's `spawn_opt(Node, Fun, Opts)` (Joe Armstrong; Hewitt's actors realized)**
+  — a **0-ary fun** + a node (location) + an options list. `spawn(Node, Fun)` puts
+  the *where* as a param; the actor is a thunk; location transparency. "Many remotes"
+  = Erlang distribution (nodes).
+- **Cloud Haskell / `distributed-process` (Epstein, Black, Peyton-Jones)** —
+  `spawn :: NodeId -> Closure (Process ()) -> Process ProcessId`: a NodeId (where) +
+  a **serializable 0-ary closure** (what). This *is* program-over-the-wire — the
+  closure travels to the node — our `:remote` = `:user::main`-over-a-pipe, named in
+  Haskell years ago.
+- **Rust's `thread::Builder::spawn(closure)`** — the Builder is the host config (name,
+  stack size — *as complex as needed*); the closure is a **0-ary `FnOnce`**.
+  `thread::spawn(closure)` is the trivial-host shorthand. Host-builder + 0-ary thunk,
+  exactly our shape.
+- **Kubernetes (the Pod spec)** — the infra-scale version: declarative *placement*
+  (node affinity, tolerations, resources — the host, as complex as it must be) + a
+  *container* (the what). The scheduler matches placement, runs the container.
+- **Multimethods (CLOS generic functions; Clojure `defmulti`; wat's own `defclause`)**
+  — the clause-on-host-type dispatch itself; behavior keyed on the host's type, open
+  for new methods.
+
+The convergence is the one the RAII-IPC realization (2026-06-07) named: **discipline
+applied honestly re-grows the timeless architecture from the inside.** We were not
+imitating Doug Lea or Joe Armstrong — we reached for "how do I host a thunk somewhere
+arbitrary, safely, extensibly," let the forced hand cut the shape, and landed on the
+*Executor / actor-spawn / program-over-the-wire* pattern they each found. The masters
+did not hand us the toolkit; we re-derived it, and recognize it as theirs now that we
+hold it.
+
+## Revised stone decomposition (the spawn-redesign floor)
+
+The floor grew — correctly, because the sig is the foundational decision:
+- **259.0 ✅ SHIPPED** (`a50d19b6` + `42189663`) — the env record + thread-local +
+  verb + the in-process/fork-child install seam. (259.0c's `started-at` is the
+  placeholder the timing-correction below fixes.)
+- **259.1 — the spawn redesign (THE sig lock):** `spawn-program` → clause-set on the
+  host type; `(thread)` / `(process)` host constructors + typed opts; the 0-ary prog
+  model (collapse the `:thread` apply-loop + `:process` forms); `wat.*` stamping
+  per-clause at the peer's start; migrate the peer-verb callers. `:remote` stays an
+  **unbuilt clause** (the forcing function).
+- **259.2 — the corrected timing:** pid-aware process-global `started-at` (wat-cli
+  Rust-main capture; freeze-time for in-process) ≠ `peer-started-at`; the nanos
+  duration op; tighten c04 to assert the two stamps differ.
+- **259.3 / 259.4** — brackets (`bracket` host clause + `wat.worker-id`) and
+  user-extension (`init-fn` → user slot) ride the locked sig with zero churn.
