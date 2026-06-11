@@ -1,0 +1,29 @@
+;; wat/io.wat — wat-level IO conveniences over the Rust IOWriter primitives.
+;;
+;; THE `with-` NAMING LAW (declared 2026-06-10): `with-` means MANAGED SCOPE — the framework
+;; owns creation + destruction, the caller owns only usage (Clojure's with-open sense). A form
+;; where the caller manages the lifecycle itself does NOT get `with-`.
+;;
+;; The opt-in ladder for file writing:
+;;   write-file        — one-shot: hand over path + content, we do everything, no handle surfaced.
+;;   with-open-file    — managed scope: we hand you the writer, you use it, we close it (RAII on error).
+;;   IOWriter/open-file + close — explicit: you own the handle and the close (already live, Rust).
+
+;; write-file — Ruby's File.write. Opens, writes the whole content, closes. Surfaces NO handle,
+;; so there is nothing for the caller to leak; on a mid-write error the writer's Arc drops and
+;; RAII (Drop) closes the fd. NOT a `with-` form: there is no scope handed to the caller.
+(:wat::core::defn :wat::io::write-file [path <- :wat::core::String content <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::let [w (:wat::io::IOWriter/open-file path)]
+    (:wat::core::do
+      (:wat::io::IOWriter/write-string w content)
+      (:wat::io::IOWriter/close w))))
+
+;; with-open-file — Ruby's `File.open(path) do |w| … end`. Opens a writer, hands it to body-fn,
+;; closes it after (explicitly on success; via RAII Drop if body-fn errors and the scope unwinds).
+;; Returns body-fn's result. The `with-` earns its meaning: managed scope, caller owns only usage.
+(:wat::core::defn :wat::io::with-open-file<T> [path <- :wat::core::String body-fn <- :wat::core::Fn(wat::io::IOWriter)->T] -> :T
+  (:wat::core::let [w      (:wat::io::IOWriter/open-file path)
+                    result (body-fn w)]
+    (:wat::core::do
+      (:wat::io::IOWriter/close w)
+      result)))

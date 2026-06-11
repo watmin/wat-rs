@@ -233,6 +233,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/fix.wat",
         source: include_str!("../wat/fix.wat"),
     },
+    // wat-level IO conveniences over the Rust IOWriter primitives — write-file (one-shot) +
+    // with-open-file (managed scope). The `with-` naming law: `with-` = managed lifecycle.
+    WatSource {
+        path: "wat/io.wat",
+        source: include_str!("../wat/io.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
