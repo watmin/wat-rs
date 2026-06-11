@@ -1,9 +1,10 @@
 # DESIGN — Stone 251.7: implicit generics (Hindley-Milner, bare type-vars)
 
-**Status: DESIGN-CAPTURED, BUILD-DEFERRED (drawn 2026-06-10 on a grounded crawl; no probe yet —
-this stone is design-only by direction "we haven't built it; get the model on disk").** The
-build is a real checker feature (a modest, bounded one — see The strike); it lands when 251 reaches
-it. Home: `src/check.rs` (+ a small parser touch for bare type-vars).
+**Status: STRIKE-READY (drawn 2026-06-10 on a grounded crawl + Explore lair-map; probe written +
+run — `tests/probe_arc251_implicit_generics.rs`, R03 RED at HEAD). BUILD pending (sequenced ahead
+of Arc 256 + Strike 4).** The build is a small, bounded change at `runtime.rs` fn-registration
+(the merge site) — NOT a new checker feature; the HM pipeline already exists and is correct (probe
+F01/F02). Home: `src/runtime.rs` (the `type_params` merge) + a free-var collector helper.
 
 > This DESIGN is the durable home for the generics MODEL resolved in session 2 (2026-06-10). It
 > was living only in the recovery breadcrumb (`project_typed_clojure_parity_pivot.md`), which is
@@ -101,82 +102,98 @@ surface the thing the checker was always doing. Reaching for generics over a par
 checker show its Prolog face — a **GREEN reach-tell** (instinct landed on a named great =
 on the ridgeline; see `feedback_reach_lands_on_great_is_green.md`).
 
-## The disk (grounded, 2026-06-10) — and a premise correction
+## The disk (grounded + empirically probed, 2026-06-10)
 
-The HM machinery is **all present**:
+The HM pipeline is **present AND already works end-to-end** — generic user defns are genuinely
+`∀`-checked TODAY, sourced from the `<T,U>` name suffix:
 
-- `TypeScheme { type_params: Vec<String>, params, ret, rest_param_type }` (`check.rs:79`).
-  `type_params` is documented as the `∀`-bound variable names (`check.rs:64`).
-- `derive_scheme_from_function` (`check.rs:13678`) builds a fn's scheme via
-  `type_params: func.type_params.clone()` (`check.rs:13689`).
-- `instantiate(scheme, fresh)` (`check.rs:13553`) — at each call site, one fresh var per
-  `type_params` entry (the HM *instantiate* step).
-- `unify` (`check.rs:13149`), `unify_types` (`check.rs:13417`), `fresh_var` (`check.rs:13409`);
-  rigid type-vars unify only with the same name (`unify_rigid_vars_require_same_name`,
-  `check.rs:18477`); unresolved TypeVars are leniently accepted/deferred (`check.rs:11493`).
+- **Source (parse):** `split_name_and_type_params` (`runtime.rs:2634`) parses `:map<T,U>` →
+  `("…map", ["T","U"])`. `try_parse_fn_shape_def` sets `type_params: raw_type_params`
+  (`runtime.rs:2081`, comment *"Arc 139 — preserve type_params from the name keyword"*). The
+  canonical name (no suffix) is the `sym.functions` key; `canonical_callable_name` (`runtime.rs:2622`)
+  strips the suffix at call sites too (symmetric register/lookup).
+- **Scheme:** `CheckEnv::from_symbols` (`check/env.rs:125`) runs `derive_scheme_from_function`
+  (`check.rs:13678`), which clones `type_params: func.type_params.clone()` (`check.rs:13689`) into
+  the `TypeScheme` (`check.rs:79`).
+- **Instantiate/unify:** at each call site `instantiate` (`check.rs:13553`) makes a fresh var per
+  `type_params` entry and `rename`s `Path(":T")` → that fresh var (`check.rs:13577`); `unify`
+  (`check.rs:13149`) / `fresh_var` (`check.rs:13409`) solve them.
 
-**The correction the crawl forced** (the breadcrumb over-stated this — weighed against disk):
-`Function.type_params` (`value/environment.rs:44`) is **never populated non-empty**. Every
-constructor sets `vec![]` / `Vec::new()` (`environment.rs:224/245`, `function/eval.rs:64`); there
-are **zero** `.type_params =` mutations anywhere in `src/`; and `parse_declared_name` (the `<T>`
-stripper) is called **only for type declarations** (typeunion/newtype/typealias `types.rs:1669/1832/
-1874/1925`, struct `types/defstruct.rs:335`), **never for a fn name**.
+**Empirically locked** (`tests/probe_arc251_implicit_generics.rs`, all green at HEAD):
+- `F01` — `(defn :pair-first<T> [a <- :T b <- :T] -> :T a)` called `(pair-first 1 "two")` is
+  **REJECTED** (`T:=i64` then `b=String` fails to unify). Proves suffix-generics are *really*
+  checked, not tolerated.
+- `F02` — `(pair-first 1 2)` checks.
+- `R03` — the faithful **bare-var-no-suffix** form `(defn :pair-first2 [a <- :T b <- :T] -> :T a)`
+  **FAILS** at HEAD: with no suffix, `type_params` is empty, `instantiate` short-circuits, `:T`
+  stays a rigid `Path`, and `(pair-first2 1 2)` unifies `i64` vs `Path(":T")` → spurious
+  `TypeMismatch`. **This is the RED 251.7 flips.**
 
-→ Therefore a user generic fn (`stream/map`'s `<T,U>`) does **not** carry real `∀`-checked params
-today. It passes only because **free type-vars are leniently accepted** (`check.rs:11493`) — not
-because the checker truly generalizes-and-instantiates them. **This stone is the first REAL
-population of `Function.type_params` for user defns** — it turns leniently-tolerated generics into
-genuinely-`∀`-checked ones. (This is a *stronger* motivation than "redirect an existing population":
-there is no existing population.)
+**So the premise (corrected from an earlier wrong note):** generics are NOT broken or leniently
+tolerated today — they *work*, but only when the genericity is declared via the non-EDN `<T,U>`
+name suffix. The faithful bare-var form (no suffix) currently produces a *spurious type error*.
+251.7 does NOT build the HM pipeline (it exists and is correct) and does NOT "first-populate"
+anything — it **adds a second SOURCE for `type_params`**: auto-generalize the free bare type-vars
+out of the signature, so the bare-var form checks identically to the suffix form. That makes the
+`<T,U>` suffix redundant → 251.5 drops it.
 
 ## The strike (the build, when reached)
 
-The contract decision, pinned to ONE site and ONE shape:
+The contract decision, pinned to ONE shape and the real site:
 
-> **At fn registration, AUTO-GENERALIZE: populate `Function.type_params` (today always `[]`) by
-> collecting the free, un-namespaced (bare-`Path`, no `::`/`.`) type-variable symbols that appear
-> in the signature's param `TypeExpr`s and return `TypeExpr`, in first-occurrence order. Everything
-> downstream — `derive_scheme_from_function`, `instantiate`, `unify` — is UNCHANGED; it already
-> consumes `type_params` correctly. The build changes only WHERE `type_params` comes from: the
-> signature's free vars, not a `<T>` name suffix.**
+> **At fn registration, add signature free-var generalization as a SECOND source for
+> `type_params`: UNION the `raw_type_params` already parsed from the `<T,U>` name suffix with the
+> free, un-namespaced (bare-`Path`, no `::`/`.`) type-variable symbols collected from the
+> signature's param `TypeExpr`s + return `TypeExpr` (first-occurrence order, deduped). Everything
+> downstream — `derive_scheme_from_function`, `instantiate`, `rename`, `unify` — is UNCHANGED; it
+> already consumes `type_params` correctly (proven: probe F01/F02 green). The build changes only
+> the SET of `type_params`: name-suffix vars ∪ free-signature vars, so the bare-var form checks
+> identically to the suffix form.**
 
-Sketch (rooms named; the build's lair-study pins exact line ranges):
+Sketch (rooms named, grounded by the lair-study):
 
 1. **A free-var collector** over `TypeExpr` — walk a `TypeExpr`, emit each bare `Path` (no `::`/`.`
    → a type-var per the FQDN-always law; an FQDN `Path` is a named type, skipped) and recurse into
    `Parametric.args`, `Fn.{args,ret}`, `Tuple.elems`. First-occurrence order, deduped. (Mirrors the
    discriminator `keyword/to-type-form` already encodes: `Path` with `::` → named, without → var —
-   `edn_shim`, shipped `18c6c3c0`.)
-2. **Populate `Function.type_params`** at the fn-construction site that today hard-codes `vec![]`
-   (the build's first task: confirm which of `function/eval.rs:64` / `value/environment.rs:224/245`
-   is the live user-defn path; the others are built-in/closure paths that legitimately stay empty).
-   The generalization is: `func.type_params = free_vars(params ∪ ret)`.
-3. **No downstream change.** `derive_scheme_from_function` clones it; `instantiate` freshens it;
-   `unify` solves it. The rigid-var-by-name unify (`check.rs:18477`) already gives the in-body
-   discipline (a `K` in the body unifies only with `K`).
-4. **The `<T,U>` name suffix becomes droppable** — once generalization reads the signature, the
-   angle-bracket decl carries no information. The 251.5 corpus sweep / hard-cut then strips `<T,U>`
-   from every generic defn name (`stream/map`, `with-open-file`, …). Until then, dual-read: a name
-   with `<T,U>` and a bare-var signature both produce the same `type_params`.
+   `edn_shim`, shipped `18c6c3c0`. Note `Path`s carry the `:`-prefixed spelling `":T"` here; strip
+   it as `rename` does at `check.rs:13580`.)
+2. **Merge into `raw_type_params` at the real site:** `try_parse_fn_shape_def`
+   (`runtime.rs:1998`–`2081`) computes `raw_type_params` from `split_name_and_type_params` and
+   assigns `type_params: raw_type_params` at `runtime.rs:2081`. The build inserts, just before that
+   assignment (both `param_types` + `ret_type` are already parsed by `runtime.rs:2073`):
+   `raw_type_params ∪= free_vars(param_types ∪ ret_type)`. **Mirror at the two variadic sites:**
+   `try_parse_variadic_def_fn_form` (`runtime.rs:~2118`/`2182`) and
+   `try_parse_user_variadic_def_fn_form` (`runtime.rs:~2324`). (NOT `eval_fn`/`function/eval.rs:64`
+   — that's the anonymous-`fn`-value path; named defns route through `try_parse_fn_shape_def`.)
+3. **No downstream change.** `derive_scheme_from_function` (`check.rs:13689`) clones it; `instantiate`
+   (`check.rs:13553`) freshens it; `rename` (`check.rs:13577`) + `unify` solve it. Already correct.
+4. **The `<T,U>` name suffix becomes redundant** — once generalization also reads the signature, the
+   angle-bracket decl adds nothing (the union makes them equal). 251.5 then strips `<T,U>` from
+   every generic defn name (`stream/map`, `with-open-file`, …). Until then, dual-read holds: suffix
+   form and bare-var form produce the same `type_params` set.
 
-## The probe (RED at HEAD — to be written at build time)
+## The probe (`tests/probe_arc251_implicit_generics.rs` — written + run at HEAD)
 
-`tests/probe_arc251_implicit_generics.rs`, the load-bearing disconfirmer:
+Three contracts. F01/F02 lock the FACT (suffix-generics are really checked); R03 is the RED the
+build flips:
 
-- **C01 (RED→GREEN):** a `user/put`-shaped generic defn written with **bare-var signature and NO
-  `<T,U>` name suffix**; call it at two distinct instantiations (`String/i64` and `bool/String`),
-  each load-bearing — both must check. RED at HEAD because `Function.type_params` stays `[]`, so
-  `instantiate` has nothing to freshen and the bare `K`/`V` either leak as rigid mismatches or pass
-  only by the lenient-accept path (the probe must distinguish *truly checked* from *leniently
-  tolerated* — e.g. a deliberately ill-typed call `(user/put some-map "name" 42)` against a
-  `HashMap<i64,i64>` map must be **rejected**, which lenient-accept would wrongly pass).
-- **C02 (occurs-check):** a signature that would force `T = (List T)` is rejected cleanly (proves
-  the unifier's occurs-guard is on the generalized path).
-- **C03 (dual-read):** the `<T,U>`-name spelling still checks identically (PRESERVATION — the name
-  suffix retires at 251.5, not here).
+- **F01 (fact):** `(defn :pair-first<T> [a <- :T b <- :T] -> :T a)` called `(pair-first 1 "two")`
+  is **REJECTED** at HEAD → suffix-generics genuinely unify (not tolerated). Stays green forever.
+- **F02 (fact):** `(pair-first 1 2)` checks at HEAD. Stays green.
+- **R03 (RED→GREEN, load-bearing):** the faithful **bare-var-no-suffix** `(defn :pair-first2
+  [a <- :T b <- :T] -> :T a)` with `(pair-first2 1 2)` — **FAILS at HEAD** (spurious mismatch;
+  empty `type_params`). The probe asserts `is_err()` at HEAD. **At build time, flip R03's assertion
+  to `is_ok()`** (the bare form must now check), AND add R03b: the ill-typed `(pair-first2 1 "two")`
+  must still be **REJECTED** (proves the auto-generalized vars are *really* unified, not opaquely
+  accepted — the same checked-vs-tolerated discriminator F01 applies to the suffix form).
 
-Per examinare: if the probe cannot isolate *checked-vs-tolerated*, the foundation is not ready —
-build the distinguishing harness first.
+Build-time additions: **occurs-check** (a signature forcing `T = (List T)` rejected cleanly — the
+guard is on the generalized path) and a **two-instantiation** case (call the bare-var defn at
+`i64` and at `bool` — distinct fresh vars per call site, no aliasing).
+
+Per examinare: the probe already isolates *checked-vs-tolerated* (F01 is the template); the
+foundation is ready.
 
 ## Out of scope (named, affirmative cuts — not deferrals)
 
