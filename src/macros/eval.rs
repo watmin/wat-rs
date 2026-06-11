@@ -486,7 +486,7 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::take"
         | ":wat::core::drop"
         | ":wat::core::reverse"
-        | ":wat::core::sort-by"
+        | ":wat::core::sort'"
         | ":wat::core::find-last-index"
 
         // ── Option / Result (pure unwrappers, no effects) ────────────

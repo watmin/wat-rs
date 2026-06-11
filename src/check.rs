@@ -17295,12 +17295,12 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 056 — sort-by with user-supplied less-than predicate.
-    // Arc 247: fn-first — `(sort-by less? xs) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
-    // The user owns asc vs desc via the predicate; key-extraction is
-    // the predicate composing inner accessors. Common Lisp tradition.
+    // Arc 056 — comparator-sort primitive (renamed sort' in Arc 251 Stone).
+    // Arc 247: fn-first — `(sort' less? xs) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
+    // Arc 251: wat-level `sort` and `sort-by` defclauses in core.wat wrap this primitive.
+    // The user owns asc vs desc via the predicate. Common Lisp tradition.
     env.register(
-        ":wat::core::sort-by".into(),
+        ":wat::core::sort'".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![

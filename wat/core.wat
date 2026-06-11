@@ -317,3 +317,43 @@
 ;; in `dispatch_keyword_head_value` (src/runtime.rs) route directly to `eval_compare`.
 ;; The per-Type leaves (`:wat::core::i64::<`, `:wat::core::f64::<`, etc.) remain
 ;; as the type-locked tier in Rust.
+
+;; ─── Instinct-faithful ordering surface (Arc 251 Stone) ──────────────────────
+;;
+;; `sort'` is the Rust primitive (comparator-sort engine; fn-first `(sort' cmp xs)`).
+;; `sort` and `sort-by` are Clojure-exact multi-arity defclauses over `sort'` + `<`.
+;; Dispatch is purely by arity (sort: 1 vs 2; sort-by: 2 vs 3).
+;; All clauses auto-generalize over bare type-vars T and K (Arc 256 / Stone 251.7).
+
+(:wat::core::defclause :wat::core::sort
+  ;; 1-ary: natural ascending — default comparator is <
+  ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
+  ([coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    (:wat::core::sort'
+      (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
+        (:wat::core::< a b))
+      coll))
+  ;; 2-ary: user-supplied boolean less-than comparator (fn-first, Clojure idiom).
+  ;; Cmp is a bare type-var that unifies with the caller's Fn(T,T)->bool.
+  ([cmp  <- :Cmp
+    coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    (:wat::core::sort' cmp coll)))
+
+(:wat::core::defclause :wat::core::sort-by
+  ;; 2-ary: key function only — default comparator is < on the keys.
+  ;; Keyfn is a bare type-var that unifies with the caller's Fn(T)->K.
+  ([keyfn <- :Keyfn
+    coll  <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    (:wat::core::sort'
+      (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
+        (:wat::core::< (keyfn a) (keyfn b)))
+      coll))
+  ;; 3-ary: key function + comparator on keys.
+  ;; Keyfn and Cmp are bare type-vars.
+  ([keyfn <- :Keyfn
+    cmp   <- :Cmp
+    coll  <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    (:wat::core::sort'
+      (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
+        (cmp (keyfn a) (keyfn b)))
+      coll)))

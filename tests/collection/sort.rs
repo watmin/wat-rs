@@ -1,8 +1,8 @@
-//! Arc 056 — `:wat::core::sort-by`.
+//! Arc 251 Stone — `:wat::core::sort` (migrated from `sort_by.rs`).
 //!
-//! User-supplied less-than predicate drives the ordering. Asc vs desc
-//! is encoded by which way the predicate compares; key-extraction is
-//! the predicate composing inner accessors. Common Lisp tradition.
+//! The comparator-sort (`sort-by` in Arc 056/247) is now the 2-ary `sort` clause:
+//! `(sort cmp xs)` where `cmp : (T,T)->bool`. Identical arg shape — only the
+//! function name changed (the old `sort-by` was Clojure's `sort` mis-named).
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
@@ -55,13 +55,13 @@ fn run(src: &str) -> Vec<String> {
 }
 
 #[test]
-fn sort_by_ascending_i64() {
+fn sort_ascending_i64() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [xs (:wat::core::Vector :wat::core::i64 3 1 4 1 5 9 2 6)
                        sorted
-                        (:wat::core::sort-by
+                        (:wat::core::sort
                           (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
                             (:wat::core::< a b))
                           xs)]
@@ -76,13 +76,13 @@ fn sort_by_ascending_i64() {
 }
 
 #[test]
-fn sort_by_descending_f64() {
+fn sort_descending_f64() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [xs (:wat::core::Vector :wat::core::f64 1.5 0.5 2.5 1.0)
                        sorted
-                        (:wat::core::sort-by
+                        (:wat::core::sort
                           (:wat::core::fn [a <- :wat::core::f64 b <- :wat::core::f64] -> :wat::core::bool
                             (:wat::core::> a b))
                           xs)]
@@ -97,13 +97,13 @@ fn sort_by_descending_f64() {
 }
 
 #[test]
-fn sort_by_string() {
+fn sort_string() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [xs (:wat::core::Vector :wat::core::String "banana" "apple" "cherry")
                        sorted
-                        (:wat::core::sort-by
+                        (:wat::core::sort
                           (:wat::core::fn [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::bool
                             (:wat::core::< a b))
                           xs)]
@@ -113,13 +113,13 @@ fn sort_by_string() {
 }
 
 #[test]
-fn sort_by_empty_vec() {
+fn sort_empty_vec() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [xs (:wat::core::Vector :wat::core::i64)
                        sorted
-                        (:wat::core::sort-by
+                        (:wat::core::sort
                           (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
                             (:wat::core::< a b))
                           xs)
@@ -130,7 +130,7 @@ fn sort_by_empty_vec() {
 }
 
 #[test]
-fn sort_by_tuple_first_field_key() {
+fn sort_tuple_first_field_key() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
@@ -140,7 +140,7 @@ fn sort_by_tuple_first_field_key() {
                           (:wat::core::Tuple 25 "carol")
                           (:wat::core::Tuple 28 "bob"))
                        sorted
-                        (:wat::core::sort-by
+                        (:wat::core::sort
                           (:wat::core::fn [a <- :(wat::core::i64,wat::core::String) b <- :(wat::core::i64,wat::core::String)] -> :wat::core::bool
                             (:wat::core::< (:wat::core::first a) (:wat::core::first b)))
                           xs)]

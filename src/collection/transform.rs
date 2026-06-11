@@ -1,9 +1,10 @@
 //! Vector/List-specific utility ops for the collection dispatch home.
 //!
 //! Contains the ~15 seq-HOF and helper functions (map, filter, foldl, foldr,
-//! sort-by, reverse, range, take, drop, last, find-last-index, zip, window,
-//! remove-at, map-with-index). These are NOT container-polymorphic dispatch —
-//! they are Vector-specific utilities (all enforce `Value::Vec` via `require_vec`).
+//! sort' (primitive comparator-sort), reverse, range, take, drop, last,
+//! find-last-index, zip, window, remove-at, map-with-index). These are NOT
+//! container-polymorphic dispatch — they are Vector-specific utilities (all
+//! enforce `Value::Vec` via `require_vec`).
 //! The four ops in the `:wat::std::list::` namespace (zip, window, remove-at,
 //! map-with-index) are named `eval_vec_*` here to mirror the ENFORCED value type.
 //! `rest` was moved to `eval.rs` (container-polymorphic; Vec/List/WatAST-form arms).
@@ -110,16 +111,17 @@ pub(crate) fn eval_vec_drop(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// `(:wat::core::sort-by xs less?)` → `Vec<T>`.
+/// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
 ///
-/// Returns a new Vec sorted by the user-supplied less-than predicate.
+/// Arc 251 Stone: renamed from `sort-by` to `sort'` (primitive convention, like
+/// `spawn-program'`). The wat-level `sort` and `sort-by` defclauses in `core.wat`
+/// build on this primitive.
+///
 /// `less?` is a callable `:fn(T, T) -> :bool`; it returns true iff
 /// the first arg is "less than" the second under the desired order.
-/// The user picks ascending vs descending by which way they compare:
 ///
-///   asc:  `(fn (a b) -> :bool (:wat::core::< a b))`
-///   desc: `(fn (a b) -> :bool (:wat::core::> a b))`
-///   key:  `(fn (a b) -> :bool (:wat::core::< (:Foo/age a) (:Foo/age b)))`
+///   asc:  `(fn [a b] -> :bool (:wat::core::< a b))`
+///   desc: `(fn [a b] -> :bool (:wat::core::> a b))`
 ///
 /// Stable. Wraps Rust's `Vec::sort_by`. Common Lisp / Clojure
 /// tradition — predicate-driven ordering with the user owning the
@@ -138,7 +140,7 @@ pub(crate) fn eval_vec_sort_by(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::sort-by";
+    const OP: &str = ":wat::core::sort'";
     if args.len() != 2 {
         return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -146,7 +148,7 @@ pub(crate) fn eval_vec_sort_by(
             got: args.len()
         } }.into());
     }
-    // Arc 247: fn-first — (sort-by keyfn xs)
+    // Arc 247: fn-first — (sort' cmp xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
     let xs = require_vec(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
     let func = match &f {

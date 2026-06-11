@@ -3954,7 +3954,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::range" => crate::collection::transform::eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => crate::collection::transform::eval_vec_take(args, list_span, env, sym),
         ":wat::core::drop" => crate::collection::transform::eval_vec_drop(args, list_span, env, sym),
-        ":wat::core::sort-by" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),
+        ":wat::core::sort'" => crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym),
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
@@ -5417,6 +5417,17 @@ fn eval_call_to_defclause_with_vals(
 fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool {
     match ty {
         crate::types::TypeExpr::Path(p) => {
+            // Arc 251 Stone — bare uppercase paths are type-vars (same rule as
+            // `collect_free_type_vars::is_type_var`): no `::` or `.` and first
+            // alpha char is uppercase. Type-vars are wildcards at runtime
+            // dispatch (the checker already validated the type; runtime is
+            // defensive). Mirrors the `_ => true` arm below.
+            let s = p.strip_prefix(':').unwrap_or(p);
+            let is_type_var = !s.contains("::") && !s.contains('.')
+                && s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase());
+            if is_type_var {
+                return true;
+            }
             // Map the value's runtime type to its canonical type-keyword path.
             let val_type = val_type_path(val);
             p.as_str() == val_type
