@@ -1176,6 +1176,182 @@ pub fn register_newtype_methods(
     Ok(())
 }
 
+/// Arc 258 A2 — auto-mint constructor + per-field accessors for every `TypeDef::Record`
+/// that carries typed-field information (`field_types = Some(...)`).
+///
+/// Records declared via the `Record::def` macro already have their constructor and
+/// accessors registered from the macro-emitted `defn` forms; those appear in
+/// `TypeDef::Record` with `field_types = None` (string-literal form). Only records
+/// declared with the typed-declaration form `[name <- :type ...]` (direct `recordtype`
+/// syntax) have `field_types = Some(...)` and need auto-generation here.
+///
+/// Synthesizes:
+/// - Constructor `:<Name>` — takes ALL fields (inherited first, then own),
+///   calls `(:wat::Record::of (:wat::core::keyword/from-string ":Name") [fields...])`.
+///   Class is passed via `keyword/from-string` to prevent the checker from treating
+///   the bare keyword as a function reference.
+/// - Per-field accessor `:<Name>/<field>` for each OWN field only, calling
+///   `:wat::Record/field-at` with the correct absolute index (after inherited fields).
+///
+/// Inherited fields are collected from the parent constructor (already registered
+/// at step 6 by the stdlib `Record::def` macro) so that arity and param types
+/// include the full field set in struct_form order.
+///
+/// Mirrored on `register_struct_methods` / `register_newtype_methods`.
+pub fn register_record_methods(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::scope::Identifier;
+    use crate::types::{TypeDef, TypeExpr};
+
+    // Collect all records with typed fields first (avoids borrow conflict while
+    // looking up sym). We need a snapshot because sym is mutably borrowed below.
+    struct RecordEntry {
+        name: String,
+        own_field_names: Vec<String>,
+        own_field_types: Vec<TypeExpr>,
+        /// Total field count from the parent's registered constructor (inherited fields).
+        /// Parent constructor was registered at step 6 by Record::def macro.
+        inherited_field_names: Vec<String>,
+        inherited_field_types: Vec<TypeExpr>,
+    }
+
+    let entries: Vec<RecordEntry> = {
+        let mut out = Vec::new();
+        for (_key, def) in types.iter() {
+            let rec_def = match def {
+                TypeDef::Record(r) => r,
+                _ => continue,
+            };
+            // Only typed-declaration form records need auto-generation.
+            let own_types = match &rec_def.field_types {
+                Some(ft) => ft.clone(),
+                None => continue,
+            };
+
+            // Collect inherited fields by walking up the parent chain via sym.
+            // The parent's constructor function (registered at step 6) carries
+            // the inherited param names + types in declaration order.
+            let mut inherited_names: Vec<String> = Vec::new();
+            let mut inherited_types: Vec<TypeExpr> = Vec::new();
+            {
+                let parent = &rec_def.parent; // e.g. ":wat::program::Env"
+                // Walk the parent chain: stop when we hit ":wat::Record" or
+                // ":wat::holon::Record" (the root types, no user constructor).
+                if parent != ":wat::Record" && parent != ":wat::holon::Record" {
+                    if let Some(parent_fn) = sym.functions.get(parent) {
+                        // The parent constructor's params are the inherited fields
+                        // in declaration order. Collect them (but skip the very first
+                        // if it's the grandparent's inherited fields — actually the
+                        // parent constructor already has ALL its fields flattened).
+                        for (pname, ptype) in parent_fn.params.iter().zip(parent_fn.param_types.iter()) {
+                            inherited_names.push(pname.clone());
+                            inherited_types.push(ptype.clone());
+                        }
+                    }
+                }
+            }
+
+            out.push(RecordEntry {
+                name: rec_def.name.clone(),
+                own_field_names: rec_def.field_names.clone(),
+                own_field_types: own_types,
+                inherited_field_names: inherited_names,
+                inherited_field_types: inherited_types,
+            });
+        }
+        out
+    };
+
+    for entry in entries {
+        let record_ty = TypeExpr::Path(":wat::Record".into());
+
+        // All params = inherited fields + own fields (struct_form order).
+        let all_param_names: Vec<String> = entry.inherited_field_names.iter()
+            .chain(entry.own_field_names.iter())
+            .cloned()
+            .collect();
+        let all_param_types: Vec<TypeExpr> = entry.inherited_field_types.iter()
+            .chain(entry.own_field_types.iter())
+            .cloned()
+            .collect();
+
+        // Constructor body:
+        //   (:wat::Record::of (:wat::core::keyword/from-string "name_str") [f0 f1 ...])
+        // Using keyword/from-string instead of a bare keyword so the checker
+        // does not treat the class as a function reference (arc 009 inference rule).
+        // keyword/from-string takes the text WITHOUT the leading ':' sigil.
+        // e.g. entry.name = ":user::MyEnv" → name_str = "user::MyEnv"
+        let name_str = entry.name.trim_start_matches(':').to_string();
+        let kw_from_str_call = WatAST::List(vec![
+            WatAST::Keyword(":wat::core::keyword/from-string".into(), Span::unknown()),
+            WatAST::StringLit(name_str.clone(), Span::unknown()),
+        ], Span::unknown());
+        let struct_form_elems: Vec<WatAST> = all_param_names.iter()
+            .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
+            .collect();
+        let ctor_body = WatAST::List(vec![
+            WatAST::Keyword(":wat::Record::of".into(), Span::unknown()),
+            kw_from_str_call,
+            WatAST::Vector(struct_form_elems, Span::unknown()),
+        ], Span::unknown());
+
+        let constructor_path = entry.name.clone();
+        let ctor_func = Function {
+            name: Some(constructor_path.clone()),
+            params: all_param_names.clone(),
+            type_params: vec![],
+            param_types: all_param_types,
+            // A record constructor returns its OWN type, not the root :wat::Record —
+            // else the value is only assignable to :wat::Record and fails everywhere the
+            // SPECIFIC record is required (e.g. spawn-program' arg[1] = :wat::program::Env).
+            ret_type: crate::types::TypeExpr::Path(entry.name.clone()),
+            rest_param: None,
+            rest_param_type: None,
+            body: FunctionBody::Wat(Arc::new(ctor_body)),
+            closed_env: None,
+        };
+        if sym.functions.contains_key(&constructor_path) {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+        }
+        sym.functions.insert(constructor_path, Arc::new(ctor_func));
+
+        // Per-field accessors for OWN fields only (inherited fields' accessors
+        // are already registered by the parent's Record::def or register_record_methods).
+        // Index = number of inherited fields + own field index.
+        let base_idx = entry.inherited_field_names.len();
+        for (own_idx, (field_name, field_type)) in entry.own_field_names.iter()
+            .zip(entry.own_field_types.iter())
+            .enumerate()
+        {
+            let abs_idx = base_idx + own_idx;
+            let accessor_path = format!("{}/{}", entry.name, field_name);
+            let accessor_body = WatAST::List(vec![
+                WatAST::Keyword(":wat::Record/field-at".into(), Span::unknown()),
+                WatAST::Symbol(Identifier::bare("v"), Span::unknown()),
+                WatAST::IntLit(abs_idx as i64, Span::unknown()),
+            ], Span::unknown());
+            let accessor_func = Function {
+                name: Some(accessor_path.clone()),
+                params: vec!["v".into()],
+                type_params: vec![],
+                param_types: vec![record_ty.clone()],
+                ret_type: field_type.clone(),
+                rest_param: None,
+                rest_param_type: None,
+                body: FunctionBody::Wat(Arc::new(accessor_body)),
+                closed_env: None,
+            };
+            if sym.functions.contains_key(&accessor_path) {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
+            }
+            sym.functions.insert(accessor_path, Arc::new(accessor_func));
+        }
+    }
+    Ok(())
+}
+
 /// Arc 237 Stone 237.6 — auto-mint `is-<Name>?` membership predicates for every
 /// non-Alias TypeDef registered in the TypeEnv (Struct / Enum / Newtype / Union).
 ///

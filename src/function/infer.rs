@@ -18,7 +18,7 @@
 
 use crate::ast::WatAST;
 use crate::check::{
-    apply_subst, format_type, infer, unify, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
+    apply_subst, assignable, format_type, infer, unify, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
 };
 use crate::function::metadata::peel_metadata_preamble;
 use crate::argspec::ParseOptions;
@@ -142,7 +142,10 @@ pub(crate) fn infer_fn(
     fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
         let body_span = body_ast.span();
-        if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
+        // Arc 258 cascade — use `assignable` instead of bare `unify` so that a
+        // specifically-typed record (e.g. :myapp::Voltage) satisfies a declared
+        // return of :wat::Record via the is_subtype hierarchy.
+        if !assignable(&body_ty, &ret_type, subst, env.types()) {
             // WHY: location rendered once via span_prefix in Display; human label carries no span
             errors.push(CheckError {
                 span: body_span.clone(),

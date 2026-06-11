@@ -913,6 +913,14 @@ fn startup_from_forms_post_config(
     //      `Value::Struct` of arity 1, reusing the existing struct-new
     //      and struct-field primitives.
     crate::runtime::register_newtype_methods(&types, &mut symbols)?;
+    // 6.8a. Arc 258 A2 — auto-mint constructor + per-field accessors for
+    //       `TypeDef::Record` entries that were declared with the typed-field
+    //       syntax `[name <- :type ...]` (field_types = Some(...)). Records
+    //       from :wat::Record::def macro already have their constructor/accessor
+    //       registered from the macro-emitted defn forms (field_types = None);
+    //       those are skipped. Positioned after register_newtype_methods so
+    //       the TypeEnv is fully populated before record-method synthesis begins.
+    crate::runtime::register_record_methods(&types, &mut symbols)?;
     // 6.9. Arc 237 Stone 237.6 — auto-mint `:ns::is-<Name>?` membership predicates.
     //      One pass over the TypeEnv; for every non-Alias TypeDef (Struct / Enum /
     //      Newtype / Union) synthesize a Function whose body is

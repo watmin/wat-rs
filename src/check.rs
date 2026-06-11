@@ -3182,8 +3182,11 @@ fn check_function_body(
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch with ranked remedies when the body
     // looks like a typo'd variant constructor (keyword literal vs enum type).
+    // Arc 258 cascade — use `assignable` instead of bare `unify` so that a
+    // specifically-typed record (e.g. :myapp::Voltage) satisfies a declared
+    // return of :wat::Record via the is_subtype hierarchy.
     if let Some(body_ty) = body_ty {
-        if unify(&body_ty, &scheme.ret, &mut subst, env.types()).is_err() {
+        if !assignable(&body_ty, &scheme.ret, &mut subst, env.types()) {
             let resolved_ret = apply_subst(&scheme.ret, &subst);
             let resolved_body = apply_subst(&body_ty, &subst);
             let remedies = variant_typo_remedies(body_ast, &resolved_ret, env.types());
@@ -4410,7 +4413,13 @@ fn infer_list(
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let resolved = apply_subst(&arg_ty, subst);
-                    if !is_atomizable(&resolved) {
+                    // Arc 258 cascade — a specifically-typed record (subtype of :wat::Record
+                    // or :wat::holon::Record) is atomizable via its holon_form; is_atomizable
+                    // only knows the exact root names, so check subtype first.
+                    let is_record_subtype = matches!(&resolved, TypeExpr::Path(p)
+                        if crate::types::is_subtype(p, ":wat::Record", env.types())
+                            || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
+                    if !is_record_subtype && !is_atomizable(&resolved) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
@@ -4525,8 +4534,14 @@ fn infer_list(
                 if args.len() >= 1 {
                     if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                         let resolved = apply_subst(&arg_ty, subst);
-                        if matches!(&resolved, TypeExpr::Path(p) if p == ":wat::Record" || p == ":wat::holon::Record") {
-                            // Record arg (base or holonic) → return type is String (classifier always present).
+                        // Arc 258 cascade — accept any subtype of :wat::Record or
+                        // :wat::holon::Record (specifically-typed records always have a
+                        // class_fqdn, so the return type is String, not Option<String>).
+                        let is_record = matches!(&resolved, TypeExpr::Path(p)
+                            if crate::types::is_subtype(p, ":wat::Record", env.types())
+                                || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
+                        if is_record {
+                            // Record arg (base or holonic, any subtype) → return type is String (classifier always present).
                             let ty = TypeExpr::Path(":wat::core::String".into());
                             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                         }
@@ -5405,10 +5420,24 @@ fn infer_list(
                     let acceptable = match &resolved {
                         None => true,
                         Some(TypeExpr::Var(_)) => true,
-                        Some(TypeExpr::Path(p)) if p == ":wat::Record" => true,
+                        // Arc 258 cascade — accept any subtype of :wat::Record (includes
+                        // specifically-typed records like :myapp::Pt in addition to the
+                        // root :wat::Record). is_subtype is reflexive so :wat::Record itself
+                        // still matches.
+                        Some(TypeExpr::Path(p))
+                            if crate::types::is_subtype(p, ":wat::Record", env.types())
+                                || crate::types::is_subtype(
+                                    p,
+                                    ":wat::holon::Record",
+                                    env.types(),
+                                ) =>
+                        {
+                            true
+                        }
                         Some(TypeExpr::Path(p)) => matches!(
                             env.types().get(p.as_str()),
                             Some(crate::types::TypeDef::Struct(_))
+                                | Some(crate::types::TypeDef::Record(_))
                         ),
                         Some(TypeExpr::Parametric { head, .. })
                             if head == "wat::core::HashMap" =>
@@ -9795,7 +9824,7 @@ fn infer_spawn_program_prime(
         }
     };
     let program_env_ty = TypeExpr::Path(":wat::program::Env".into());
-    if unify(&env_ty, &program_env_ty, subst, env.types()).is_err() {
+    if !assignable(&env_ty, &program_env_ty, subst, env.types()) {
         local_errors.push(CheckError {
             span: args[1].span().clone(),
             kind: CheckErrorKind::TypeMismatch {
@@ -10666,12 +10695,18 @@ fn infer_equality(
         // via the `typesub` hierarchy may be compared — the result may be false
         // but the comparison is well-formed (Stone S-C.3: base-vs-holonic record
         // cross-flavor comparison is meaningful, result always false).
-        // Check: unify OR one is a subtype of the other.
+        // Arc 258 cascade — two specifically-typed records (e.g. :my::Pt and
+        // :my::HPt) both share :wat::Record as a common ancestor; comparing them
+        // is type-compatible (always evaluates to false at runtime, which is correct
+        // and meaningful). Check: unify OR one is a subtype of the other OR both
+        // are record subtypes (share the :wat::Record common ancestor).
         let types_compatible = if unify(&a_resolved, &b_resolved, subst, env.types()).is_ok() {
             true
         } else if let (TypeExpr::Path(ap), TypeExpr::Path(bp)) = (&a_resolved, &b_resolved) {
             crate::types::is_subtype(ap, bp, env.types())
                 || crate::types::is_subtype(bp, ap, env.types())
+                || (crate::types::is_subtype(ap, ":wat::Record", env.types())
+                    && crate::types::is_subtype(bp, ":wat::Record", env.types()))
         } else {
             false
         };
@@ -10904,8 +10939,33 @@ fn infer_record_of(
         }
     }
 
-    let ty = TypeExpr::Path(":wat::Record".into());
+    // The construction's type is the SPECIFIC record its class names — NOT the generic
+    // :wat::Record. Arc 258: records were collapsed to :wat::Record because this returned the
+    // root, which made the whole subtype hierarchy (register_subtype/is_subtype) unreachable —
+    // no value could ever be typed as a specific record. The Record::def macro +
+    // register_record_methods build arg[0] as `(:wat::core::keyword/from-string "user::MyEnv")`,
+    // so the class FQDN is the static StringLit prefixed with ':'. If it names a recordtype,
+    // the construction IS that record. (Falls back to :wat::Record for a non-static/non-record class.)
+    let ty = record_of_specific_type(&args[0], env)
+        .unwrap_or_else(|| TypeExpr::Path(":wat::Record".into()));
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Recover the SPECIFIC record type a `Record::of` constructs, from its statically-known class
+/// argument `(:wat::core::keyword/from-string "<fqdn-without-leading-colon>")`. Returns `None`
+/// when the class is not a static, registered recordtype (caller falls back to `:wat::Record`).
+fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExpr> {
+    let WatAST::List(items, _) = class_arg else { return None };
+    if items.len() != 2 { return None; }
+    let from_string = matches!(
+        items.first(),
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::keyword/from-string"
+    );
+    if !from_string { return None; }
+    let WatAST::StringLit(s, _) = items.get(1)? else { return None };
+    let class_name = format!(":{}", s);
+    matches!(env.types().get(&class_name), Some(crate::types::TypeDef::Record(_)))
+        .then(|| TypeExpr::Path(class_name))
 }
 
 /// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.
@@ -11000,7 +11060,10 @@ fn infer_holon_record_of(
         }
     }
 
-    let ty = TypeExpr::Path(":wat::holon::Record".into());
+    // Specific holon-record type from the static class (arc 258) — falls back to the
+    // generic :wat::holon::Record when the class isn't a statically-known recordtype.
+    let ty = record_of_specific_type(&args[0], env)
+        .unwrap_or_else(|| TypeExpr::Path(":wat::holon::Record".into()));
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -11378,20 +11441,25 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
 /// Arc 052 — predicate. Recognizes `:wat::holon::HolonAST` and
 /// `:wat::holon::Vector` — the two algebra-tier value types accepted
 /// by polymorphic cosine / dot / simhash.
-fn is_holon_or_vector(t: &TypeExpr) -> bool {
+fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
     // Arc 234 Stone 234.5 — extended to accept :wat::Record.
     // Arc 237 Stone S-C.3 — extended to accept :wat::holon::Record (holonic variant).
+    // Arc 258 cascade — extended to accept any subtype of :wat::Record or
+    // :wat::holon::Record (specifically-typed records, e.g. :myapp::Pt).
     // Records carry a pre-built holon_form; the runtime auto-dispatches via
     // pair_values_to_vectors (coerce_to_holon_ast pattern). Cosine and dot
     // accept records natively; the hologram property makes them VSA operands.
-    matches!(
-        t,
+    match t {
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
                 || p == ":wat::holon::Vector"
-                || p == ":wat::Record"
-                || p == ":wat::holon::Record"
-    )
+                || crate::types::is_subtype(p, ":wat::Record", types)
+                || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Arc 052 — polymorphic two-arg holon-algebra inference.
@@ -11427,7 +11495,7 @@ fn infer_polymorphic_holon_pair_to_f64(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -11438,7 +11506,7 @@ fn infer_polymorphic_holon_pair_to_f64(
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -11488,7 +11556,7 @@ fn infer_holon_bind(
     for (idx, arg) in args.iter().enumerate() {
         if let Some(t) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             let resolved = apply_subst(&t, subst);
-            if !is_holon_or_record(&resolved) {
+            if !is_holon_or_record(&resolved, env.types()) {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::holon::Bind".into(),
                     param: format!("#{}", idx + 1),
@@ -11507,14 +11575,19 @@ fn infer_holon_bind(
 /// `:wat::holon::Vector` for the cosine/dot algebra verbs).
 /// Arc 237 Stone S-C.3 — extended to also accept `:wat::holon::Record`
 /// (holonic variant; subtype of `:wat::Record`).
-fn is_holon_or_record(t: &TypeExpr) -> bool {
-    matches!(
-        t,
+/// Arc 258 cascade — extended to accept any subtype of :wat::Record or
+/// :wat::holon::Record (specifically-typed records, e.g. :myapp::Voltage).
+fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
+    match t {
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
-                || p == ":wat::Record"
-                || p == ":wat::holon::Record"
-    )
+                || crate::types::is_subtype(p, ":wat::Record", types)
+                || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Arc 254 Stone 254.1 — type-level portability predicate for channel payloads.
@@ -11676,7 +11749,7 @@ fn infer_holon_bundle(
             for elem in elems {
                 if let Some(t) = infer(elem, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let resolved = apply_subst(&t, subst);
-                    if !is_holon_or_record(&resolved) {
+                    if !is_holon_or_record(&resolved, env.types()) {
                         local_errors.push(CheckError { span: elem.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::holon::Bundle".into(),
                             param: "list element".into(),
@@ -11699,7 +11772,7 @@ fn infer_holon_bundle(
                 let resolved = reduce(&t, subst, env.types());
                 let ok = match &resolved {
                     TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
-                        ta.len() == 1 && is_holon_or_record(&ta[0])
+                        ta.len() == 1 && is_holon_or_record(&ta[0], env.types())
                     }
                     _ => false,
                 };
@@ -11749,7 +11822,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -11760,7 +11833,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -11806,7 +11879,7 @@ fn infer_polymorphic_holon_pair_to_path(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -11817,7 +11890,7 @@ fn infer_polymorphic_holon_pair_to_path(
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -11857,7 +11930,7 @@ fn infer_polymorphic_holon_to_i64(
     let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved) {
+        if !is_holon_or_vector(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -12524,7 +12597,7 @@ fn unify_union_union(
 /// registered edge), then falls through to ordinary unification (behaviour
 /// unchanged for every other pair). Peels each side exactly as `unify` does at
 /// its head (line ~14633): `reduce(&walk(x, subst), subst, types)`.
-fn assignable(
+pub(crate) fn assignable(
     actual: &TypeExpr,
     expected: &TypeExpr,
     subst: &mut Subst,

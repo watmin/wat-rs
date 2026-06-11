@@ -82,6 +82,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/Record.wat",
         source: include_str!("../wat/Record.wat"),
     },
+    // Arc 258 A2 — :wat::program::Env as a typed extensible recordtype base.
+    // Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a
+    // proper record: one field `wat.started-at : :wat::time::Instant`. Loaded
+    // AFTER Record.wat (uses :wat::Record::def) and :wat::time::Instant (builtin).
+    WatSource {
+        path: "wat/program.wat",
+        source: include_str!("../wat/program.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),

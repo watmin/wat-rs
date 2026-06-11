@@ -374,11 +374,16 @@ pub(crate) fn infer_assoc(
                     CheckResult::partial_with(ret_ty, local_errors)
                 };
             }
-            TypeExpr::Path(p) if p == ":wat::Record" || p == ":wat::holon::Record" => {
-                // Record umbrella (base :wat::Record or holonic :wat::holon::Record):
+            TypeExpr::Path(p)
+                if crate::types::is_subtype(p, ":wat::Record", env.types())
+                    || crate::types::is_subtype(p, ":wat::holon::Record", env.types()) =>
+            {
+                // Record (base :wat::Record, holonic :wat::holon::Record, or any
+                // specifically-typed subtype like :myapp::Voltage):
                 // arg1 must be :keyword; arg2 is free ∀T — DO NOT unify.
-                // Both paths reduce to their respective umbrella Path; both flavors satisfy
-                // the Liskov umbrella — flavor is preserved at runtime by eval_record_assoc.
+                // Arc 258 cascade — accept all record subtypes here so assoc on
+                // specifically-typed records type-checks without a TypeMismatch.
+                // Flavor is preserved at runtime by eval_record_assoc.
                 let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
                 if let Some(arg1) = arg1_ty {
                     if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
@@ -392,8 +397,8 @@ pub(crate) fn infer_assoc(
                 }
                 // arg2 is free ∀T — no unification. Flavor preserved at runtime via eval_record_assoc.
                 // (arg2_ty was inferred above to surface any parse errors; no unification follows.)
-                // Return the umbrella :wat::Record (covers both flavors per Liskov).
-                let ret_ty = TypeExpr::Path(":wat::Record".into());
+                // Return the concrete record type (type-preserving for specifically-typed records).
+                let ret_ty = reduced.clone();
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {

@@ -111,7 +111,7 @@
                               (:wat::holon::to-wat (:wat::holon::to-holon name-s))))
                           (:wat::core::range 0 nf))]
              name-strs)])
-     (:wat::core::defn ~fqdn [~@fields] -> :wat::Record
+     (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
        (:wat::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
          [~@(:wat::core::let
@@ -208,7 +208,7 @@
                               (:wat::holon::to-wat (:wat::holon::to-holon name-s))))
                           (:wat::core::range 0 nf))]
              name-strs)])
-     (:wat::core::defn ~fqdn [~@fields] -> :wat::holon::Record
+     (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
        (:wat::holon::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
          [~@(:wat::core::let

@@ -201,6 +201,11 @@ pub struct RecordDef {
     /// Name-based access (keyword-accessor, assoc, record->map) looks up
     /// the index here, then reads/writes `struct_form[index]`.
     pub field_names: Vec<String>,
+    /// Field types in declaration order, parallel to `field_names`.
+    /// Populated when the `recordtype` form uses the typed-field syntax
+    /// `[name <- :type ...]`; `None` when the string-literal syntax
+    /// `["name" ...]` is used (type information not available at that layer).
+    pub field_types: Option<Vec<TypeExpr>>,
 }
 
 /// One of the six declaration variants.
@@ -591,30 +596,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
         expr: TypeExpr::Parametric {
             head: "wat::core::Vector".into(),
             args: vec![TypeExpr::Path(":wat::core::u8".into())],
-        },
-    }));
-
-    // :wat::program::Env — arc 214 Slice 4 forward-correction Q4.
-    // The wat-level program environment: a map from keyword to HolonAST,
-    // passed as the second positional arg to `spawn-program'`. Distinct
-    // from `:wat::process::Env` (OS env vars; `HashMap<String,String>`),
-    // which is a separate namespace and out of scope for Slice 4.
-    //
-    // Per `feedback_no_new_types`: typealias, not wrapper struct. The
-    // underlying type IS `HashMap<keyword, HolonAST>`; the alias gives
-    // that shape a registered name for use in function signatures and
-    // the unified spawn-program' surface.
-    //
-    //   typealias :wat::program::Env = :HashMap<:wat::core::keyword, :wat::holon::HolonAST>
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::program::Env".into(),
-        type_params: vec![],
-        expr: TypeExpr::Parametric {
-            head: "wat::core::HashMap".into(),
-            args: vec![
-                TypeExpr::Path(":wat::core::keyword".into()),
-                TypeExpr::Path(":wat::holon::HolonAST".into()),
-            ],
         },
     }));
 
@@ -2050,28 +2031,109 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             })
         }
     };
-    // Field names: a vector literal of string literals, declaration order.
-    let field_names = match fields_arg {
+    // Field names: a vector literal in one of two forms:
+    //   1. String-literal form (emitted by :wat::Record::def macro):
+    //      ["field1" "field2"]
+    //      field_types = None (type info not provided at this layer).
+    //   2. Typed-declaration form (direct user code, mirrors Record::def input syntax):
+    //      [name <- :type  name2 <- :type2]
+    //      Groups of 3 elements: (Symbol|Keyword name, Symbol "<-", Keyword type).
+    //      field_types = Some(vec![...]) populated for register_record_methods.
+    let (field_names, field_types) = match fields_arg {
         WatAST::Vector(elems, _) => {
-            let mut names = Vec::with_capacity(elems.len());
-            for elem in elems.iter() {
-                match elem {
-                    WatAST::StringLit(s, _) => names.push(s.clone()),
-                    other => {
-                        return Err(TypeError {
-                            span: decl_span,
-                            kind: TypeErrorKind::MalformedDecl {
-                                head: "recordtype".into(),
-                                reason: format!(
-                                    "field-names vector must contain string literals; got {}",
-                                    other.variant_name()
-                                ),
-                            },
-                        });
+            if elems.is_empty() {
+                (Vec::new(), None)
+            } else if matches!(&elems[0], WatAST::StringLit(_, _)) {
+                // String-literal form: every element must be a StringLit.
+                let mut names = Vec::with_capacity(elems.len());
+                for elem in elems.iter() {
+                    match elem {
+                        WatAST::StringLit(s, _) => names.push(s.clone()),
+                        other => {
+                            return Err(TypeError {
+                                span: decl_span,
+                                kind: TypeErrorKind::MalformedDecl {
+                                    head: "recordtype".into(),
+                                    reason: format!(
+                                        "field-names vector must contain string literals; got {}",
+                                        other.variant_name()
+                                    ),
+                                },
+                            });
+                        }
                     }
                 }
+                (names, None)
+            } else {
+                // Typed-declaration form: groups of 3 — (name, <-, type).
+                if elems.len() % 3 != 0 {
+                    return Err(TypeError {
+                        span: decl_span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "recordtype".into(),
+                            reason: format!(
+                                "typed field vector must have a multiple of 3 elements (name <- :type); got {}",
+                                elems.len()
+                            ),
+                        },
+                    });
+                }
+                let nf = elems.len() / 3;
+                let mut names = Vec::with_capacity(nf);
+                let mut types_out = Vec::with_capacity(nf);
+                for i in 0..nf {
+                    let name_elem = &elems[i * 3];
+                    let arrow_elem = &elems[i * 3 + 1];
+                    let type_elem = &elems[i * 3 + 2];
+                    // Arrow must be a Symbol named "<-".
+                    match arrow_elem {
+                        WatAST::Symbol(ident, _) if ident.as_str() == "<-" => {}
+                        other => {
+                            return Err(TypeError {
+                                span: decl_span,
+                                kind: TypeErrorKind::MalformedDecl {
+                                    head: "recordtype".into(),
+                                    reason: format!(
+                                        "typed field [{}]: expected '<-' arrow; got {}",
+                                        i, other.variant_name()
+                                    ),
+                                },
+                            });
+                        }
+                    }
+                    // Field name: Symbol or Keyword.
+                    let field_name = match name_elem {
+                        WatAST::Symbol(ident, _) => ident.as_str().to_string(),
+                        WatAST::Keyword(k, _) => {
+                            // Strip leading ':' for the stored name.
+                            k.trim_start_matches(':').to_string()
+                        }
+                        other => {
+                            return Err(TypeError {
+                                span: decl_span,
+                                kind: TypeErrorKind::MalformedDecl {
+                                    head: "recordtype".into(),
+                                    reason: format!(
+                                        "typed field [{}]: name must be a symbol or keyword; got {}",
+                                        i, other.variant_name()
+                                    ),
+                                },
+                            });
+                        }
+                    };
+                    // Field type: parse the type node (Keyword, Symbol, or List).
+                    let field_type = parse_type_node(type_elem).map_err(|e| TypeError {
+                        span: decl_span.clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "recordtype".into(),
+                            reason: format!("typed field [{}]: bad type expr: {:?}", i, e.kind),
+                        },
+                    })?;
+                    names.push(field_name);
+                    types_out.push(field_type);
+                }
+                (names, Some(types_out))
             }
-            names
         }
         other => {
             return Err(TypeError {
@@ -2086,7 +2148,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             });
         }
     };
-    Ok(TypeDef::Record(RecordDef { name, parent, field_names }))
+    Ok(TypeDef::Record(RecordDef { name, parent, field_names, field_types }))
 }
 
 // Stone 241.9 — `parse_field` DELETED. Its only caller was `parse_enum_variant`,
