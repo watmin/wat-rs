@@ -1,9 +1,12 @@
 # DESIGN — Stone 251.3b: the faithful type-NAMESPACE fix (intueri-named)
 
-**Status: STRIKE-READY (drawn 2026-06-10 — Explore lair-map + intueri cast + empirical probe).
-Probe RED at HEAD.** A correctness fix to the type renderer shipped in 251.3a; the **prerequisite
-to Strike 4 / 4.1** (the declaration migrator calls `keyword/to-type-form`, so the renderer must be
-sound first). Home: `src/edn_shim.rs`.
+**Status: SHIPPED 2026-06-10 (`f11d2bd6`). Sonnet-built (4-way ladder + DRY delegation + rename),
+orchestrator-weighed + hardened.** The weigh caught the sonnet build's two STOP guards implemented
+as `panic!` on shapes that are REACHABLE (`parse_type_expr` accepts `:foo::` and `:Stream<i64>`) on
+a runtime-verb path → hardened `type_expr_to_clojure_form` to return `Result`, the two unmodeled
+shapes return a clean `MalformedForm` (probe C08/C09). Probe `probe_arc251_type_namespace_fix` 9/9;
+`keyword/to-type-form` 9/9 (incl. flipped `:56`); types 83/0 + lib 949/0 serial. Prereq to Strike 4
+cleared. Home: `src/edn_shim.rs`.
 
 ## The bug (confirmed)
 `type_expr_to_faithful_watast` (`edn_shim.rs:601`) renders EVERY named type as
