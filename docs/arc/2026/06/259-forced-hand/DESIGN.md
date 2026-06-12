@@ -126,9 +126,11 @@ arg").
 ### 3. The base fields — kernel-stamped, the floor
 
 ```
-:wat::program::Env = { wat.started-at, wat.peer-started-at   ; : :wat::time::Instant  (timing)
-                       wat.process-id, wat.os-thread-id }    ; : :wat::core::i64       (identity — SHIPPED)
-;; next: wat.peer-kind : :wat::program::PeerKind (:thread | :process) — the typed-enum stone
+:wat::program::Env = { wat.started-at, wat.peer-started-at   ; : :wat::time::Instant            (timing)
+                       wat.process-id, wat.os-thread-id      ; : :wat::core::i64                 (identity)
+                       wat.peer-kind }                       ; : :wat::program::PeerKind         (identity)
+;; PeerKind = (:thread | :process)  — :thread shares its address space, :process owns it
+;; (root :user::main + forked peers = :process). All five SHIPPED.
 ```
 
 **Timing fields** differ in **propagation** — this is the load-bearing distinction:

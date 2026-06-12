@@ -45,21 +45,20 @@ fn env_record_carries_peer_kind() {
 
 /// The SEAM stamps `:process` for the root `:user::main` (it owns its address
 /// space). RED at HEAD because the field does not exist → the accessor fails →
-/// main errors → invoke returns Err. The `conforms?` of the stamped value to the
-/// `:process` variant proves the value, not just the field's presence.
+/// main errors → invoke returns Err. The `assert-eq<PeerKind>` proves the stamped
+/// value is EXACTLY `:process`, not just any PeerKind member.
 #[test]
 fn seam_stamps_process_for_root_main() {
-    let pid_kind_eq = "(:wat::core::conforms? \
-                         (:wat::program::Env/wat.peer-kind (:wat::program::env)) \
-                         :wat::program::PeerKind)";
-    let src = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil \
-           (:wat::core::do {pid_kind_eq} nil))"
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
+                 (:wat::core::do \
+                   (:wat::test::assert-eq<:wat::program::PeerKind> \
+                     (:wat::program::Env/wat.peer-kind (:wat::program::env)) \
+                     :wat::program::PeerKind::process) \
+                   nil))";
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
     assert!(
         invoke_user_main(&world, vec![]).is_ok(),
-        "the seam must stamp wat.peer-kind before :user::main; main's read failed"
+        "the seam must stamp wat.peer-kind = :process before :user::main; assert-eq failed"
     );
 }

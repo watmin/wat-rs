@@ -1075,12 +1075,14 @@ fn invoke_user_main_orchestrated(
     // `wat.started-at` = `wat.peer-started-at` = now (the pre-fork CLI-boot
     // capture that makes started-at the real app epoch is stone 259.2).
     // `wat.process-id` = OS pid; `wat.os-thread-id` = OS thread id (gettid).
+    // `wat.peer-kind` = :process — root main OWNS its address space (builder-locked).
+    //   Thread peers stamp :thread; forked process peers stamp :process.
     // The RAII guard is held across main's run on this thread and uninstalls on
     // scope exit.
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::now) (:wat::time::now) {pid} {tid})"
+        "(:wat::program::Env (:wat::time::now) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");
