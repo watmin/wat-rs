@@ -78,6 +78,29 @@
         (:wat::core::Some (:wat::core::show actual))
         (:wat::core::Some (:wat::core::show expected)))))
 
+;; ─── assert-true / assert-false ───────────────────────────────────────
+;;
+;; The basic boolean assertions — the first tools a test reaches for.
+;; assert-true fires unless its argument is true; assert-false unless false.
+;; Each carries its own honest message (not delegated to assert-eq, which would
+;; mis-report "assert-eq failed"); the actual slot shows the bool, the expected
+;; slot the word it should have been.
+(:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
+  (:wat::core::if actual -> :wat::core::nil
+      nil
+      (:wat::kernel::assertion-failed!
+        "assert-true failed"
+        (:wat::core::Some (:wat::core::show actual))
+        (:wat::core::Some "true"))))
+
+(:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
+  (:wat::core::if actual -> :wat::core::nil
+      (:wat::kernel::assertion-failed!
+        "assert-false failed"
+        (:wat::core::Some (:wat::core::show actual))
+        (:wat::core::Some "false"))
+      nil))
+
 ;; ─── assert-contains ──────────────────────────────────────────────────
 ;;
 ;; String substring check. Unlike assert-eq, both sides are :wat::core::String so
