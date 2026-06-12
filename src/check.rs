@@ -16519,13 +16519,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // Duration readout family — symmetric OUT half of the constructors.
     // Each takes :wat::time::Duration and returns :i64, truncating.
     for name in [
-        "as-nanoseconds",
-        "as-microseconds",
-        "as-milliseconds",
-        "as-seconds",
-        "as-minutes",
-        "as-hours",
-        "as-days",
+        "nanoseconds",
+        "microseconds",
+        "milliseconds",
+        "seconds",
+        "minutes",
+        "hours",
+        "days",
     ] {
         env.register(
             format!(":wat::time::{}", name),

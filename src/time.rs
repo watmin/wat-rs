@@ -29,13 +29,13 @@
 //! :wat::time::epoch-seconds    (Instant)   -> :i64
 //! :wat::time::epoch-millis     (Instant)   -> :i64
 //! :wat::time::epoch-nanos      (Instant)   -> :i64
-//! :wat::time::as-nanoseconds   (Duration)  -> :i64
-//! :wat::time::as-microseconds  (Duration)  -> :i64
-//! :wat::time::as-milliseconds  (Duration)  -> :i64
-//! :wat::time::as-seconds       (Duration)  -> :i64
-//! :wat::time::as-minutes       (Duration)  -> :i64
-//! :wat::time::as-hours         (Duration)  -> :i64
-//! :wat::time::as-days          (Duration)  -> :i64
+//! :wat::time::nanoseconds      (Duration)  -> :i64
+//! :wat::time::microseconds     (Duration)  -> :i64
+//! :wat::time::milliseconds     (Duration)  -> :i64
+//! :wat::time::seconds          (Duration)  -> :i64
+//! :wat::time::minutes          (Duration)  -> :i64
+//! :wat::time::hours            (Duration)  -> :i64
+//! :wat::time::days             (Duration)  -> :i64
 //! ```
 //!
 //! ## Namespace placement (Q10 — `:wat::time::*`, not `:wat::std::*`)
@@ -416,7 +416,11 @@ pub(crate) fn eval_time_unit_day(
 
 // ─── Duration readout family — symmetric OUT half of the constructors ──
 //
-// Seven `:wat::time::as-<unit>` verbs mirror the seven constructors.
+// Seven `:wat::time::<unit>` verbs (bare unit-plural) mirror the seven
+// constructors: capitalized `Second` constructs a Duration, lowercase-plural
+// `seconds` reads one out. The unit word IS the accessor — `(seconds d)` says
+// exactly what it does, cohering with the `seconds-ago` / `seconds-from-now`
+// families (same unit words, same spelling level).
 // Each takes a `:wat::time::Duration` and returns `:i64` by dividing
 // the stored nanosecond count by the unit's nanos-per-unit constant,
 // truncating toward zero (same behaviour as `epoch-millis`).
@@ -443,74 +447,74 @@ fn unit_readout(
     Ok(Value::i64(ns / unit_nanos))
 }
 
-/// `(:wat::time::as-nanoseconds d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_nanosecond(
+/// `(:wat::time::nanoseconds d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_nanoseconds(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-nanoseconds", 1, args, list_span, env, sym)
+    unit_readout(":wat::time::nanoseconds", 1, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-microseconds d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_microsecond(
+/// `(:wat::time::microseconds d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_microseconds(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-microseconds", NANOS_PER_MICRO, args, list_span, env, sym)
+    unit_readout(":wat::time::microseconds", NANOS_PER_MICRO, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-milliseconds d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_millisecond(
+/// `(:wat::time::milliseconds d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_milliseconds(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-milliseconds", NANOS_PER_MILLI, args, list_span, env, sym)
+    unit_readout(":wat::time::milliseconds", NANOS_PER_MILLI, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-seconds d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_second(
+/// `(:wat::time::seconds d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_seconds(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-seconds", NANOS_PER_SECOND, args, list_span, env, sym)
+    unit_readout(":wat::time::seconds", NANOS_PER_SECOND, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-minutes d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_minute(
+/// `(:wat::time::minutes d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_minutes(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-minutes", NANOS_PER_MINUTE, args, list_span, env, sym)
+    unit_readout(":wat::time::minutes", NANOS_PER_MINUTE, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-hours d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_hour(
+/// `(:wat::time::hours d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_hours(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-hours", NANOS_PER_HOUR, args, list_span, env, sym)
+    unit_readout(":wat::time::hours", NANOS_PER_HOUR, args, list_span, env, sym)
 }
 
-/// `(:wat::time::as-days d:Duration) -> :i64`. Truncating.
-pub(crate) fn eval_time_as_day(
+/// `(:wat::time::days d:Duration) -> :i64`. Truncating.
+pub(crate) fn eval_time_days(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    unit_readout(":wat::time::as-days", NANOS_PER_DAY, args, list_span, env, sym)
+    unit_readout(":wat::time::days", NANOS_PER_DAY, args, list_span, env, sym)
 }
 
 // ─── Arc 097 — Polymorphic Instant ± Duration arithmetic ────────────

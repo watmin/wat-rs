@@ -13,10 +13,10 @@
 //! because the verbs do not exist (undefined function; either at check via the
 //! reserved-prefix path or at eval).
 //!
-//! Proposed family (intueri to ratify the spelling; the FAMILY is locked by
-//! symmetry — 7 constructors deserve 7 readouts, truncating like `epoch-millis`):
-//!   as-nanoseconds · as-microseconds · as-milliseconds · as-seconds ·
-//!   as-minutes · as-hours · as-days        ;; each :wat::time::Duration -> :i64
+//! The family (intueri-named, 2026-06-11 — bare unit-plural, the accessor IS the
+//! unit word; capitalized `Second` constructs, lowercase `seconds` reads out):
+//!   nanoseconds · microseconds · milliseconds · seconds ·
+//!   minutes · hours · days        ;; each :wat::time::Duration -> :i64
 //!
 //! Run: `cargo test --release -p wat --test nursery probe_time_duration_readout`
 
@@ -48,7 +48,7 @@ fn eval_i64(body: &str) -> i64 {
 #[test]
 fn duration_reads_back_in_same_unit() {
     assert_eq!(
-        eval_i64("(:wat::time::as-milliseconds (:wat::time::Millisecond 1500))"),
+        eval_i64("(:wat::time::milliseconds (:wat::time::Millisecond 1500))"),
         1500,
         "a Duration built as 1500ms reads back as 1500ms",
     );
@@ -58,7 +58,7 @@ fn duration_reads_back_in_same_unit() {
 #[test]
 fn duration_reads_across_units() {
     assert_eq!(
-        eval_i64("(:wat::time::as-nanoseconds (:wat::time::Millisecond 1))"),
+        eval_i64("(:wat::time::nanoseconds (:wat::time::Millisecond 1))"),
         1_000_000,
         "1ms read as nanoseconds is 1_000_000",
     );
@@ -69,7 +69,7 @@ fn duration_reads_across_units() {
 #[test]
 fn duration_readout_truncates_like_epoch() {
     assert_eq!(
-        eval_i64("(:wat::time::as-seconds (:wat::time::Millisecond 1500))"),
+        eval_i64("(:wat::time::seconds (:wat::time::Millisecond 1500))"),
         1,
         "1500ms read as whole seconds truncates to 1",
     );
@@ -82,7 +82,7 @@ fn duration_readout_truncates_like_epoch() {
 fn instant_delta_reads_as_a_number() {
     // (now - 5s-ago) is ~5s; read as whole seconds it is >= 4 (truncation slack).
     let got = eval_i64(
-        "(:wat::time::as-seconds \
+        "(:wat::time::seconds \
            (:wat::time::- (:wat::time::now) (:wat::time::seconds-ago 5)))",
     );
     assert!(got >= 4, "a ~5s Instant delta reads as >= 4 whole seconds; got {got}");

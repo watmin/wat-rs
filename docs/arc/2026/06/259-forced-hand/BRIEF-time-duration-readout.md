@@ -1,5 +1,11 @@
 # Strike — the `Duration` readout family (time-ops enrichment)
 
+> **SHIPPED + RENAMED.** This brief proposed the `as-<unit>` spelling; an intueri
+> cast (2026-06-11) ratified the family but renamed it to **bare unit-plural**
+> (`nanoseconds` … `days`) — capitalized `Second` constructs, lowercase `seconds`
+> reads. The `as-<unit>` names below are the original proposal, kept as the
+> strike's record; the shipped surface is the bare names.
+
 > Born of a reach-stumble while drawing arc 259 S2c-iii: the timing correction
 > reached for "read this `Duration` out as a number" and the tool was absent.
 > `feedback_reach_stumble_is_the_signal` — the reach IS the spec; pivot and make

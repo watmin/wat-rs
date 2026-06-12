@@ -4623,13 +4623,13 @@ fn dispatch_keyword_head_value(
 
         // Duration readout family — symmetric OUT half of the constructors.
         // Each takes :wat::time::Duration and returns :i64, truncating.
-        ":wat::time::as-nanoseconds" => crate::time::eval_time_as_nanosecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-microseconds" => crate::time::eval_time_as_microsecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-milliseconds" => crate::time::eval_time_as_millisecond(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-seconds" => crate::time::eval_time_as_second(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-minutes" => crate::time::eval_time_as_minute(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-hours" => crate::time::eval_time_as_hour(args, list_span, env, sym).map_err(Into::into),
-        ":wat::time::as-days" => crate::time::eval_time_as_day(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::nanoseconds" => crate::time::eval_time_nanoseconds(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::microseconds" => crate::time::eval_time_microseconds(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::milliseconds" => crate::time::eval_time_milliseconds(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::seconds" => crate::time::eval_time_seconds(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::minutes" => crate::time::eval_time_minutes(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::hours" => crate::time::eval_time_hours(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::days" => crate::time::eval_time_days(args, list_span, env, sym).map_err(Into::into),
 
         // Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
         // `:wat::time::-` dispatches on RHS variant: Instant - Duration
