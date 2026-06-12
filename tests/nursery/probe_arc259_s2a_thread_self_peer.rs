@@ -1,30 +1,34 @@
-//! Arc 259 (The Forced Hand) Stone S2a — the ThreadProg self-peer model
-//! (FM-2-bis disconfirming probe).
+//! Arc 259 (The Forced Hand) Stone S2a — the ThreadProg self-peer model, on the
+//! UNIFIED pipes-only `Peer` (FM-2-bis disconfirming probe).
 //!
 //! S2a reshapes the `:thread` tier of `spawn-program'` from the platform
 //! APPLY-LOOP (recv Value → apply a 1-ary fn → send the result) to the
-//! SELF-PEER HANDOFF: the prog is `[self] -> nil`, handed its OWN child-side
-//! peer ONCE, and drives it with `recv'`/`send'` directly. This is the
-//! capability grant the DESIGN locks — a thread shares the parent's ambient
-//! stdio, so it CANNOT use stdio for its data channel; it must be handed an
-//! explicit `(rx, tx)` self-peer (the principled exception to "every peer is a
-//! stdio `:user::main`"; the process tier keeps the stdio model).
+//! SELF-PEER HANDOFF: the prog is `[self] -> nil`, handed its OWN pipes-only
+//! peer ONCE, and drives it with `recv'`/`send'` directly. A thread shares the
+//! parent's ambient stdio, so it CANNOT use stdio for its data channel; it must
+//! be handed an explicit `(rx, tx)` self-peer (the capability grant; the
+//! principled exception to "every peer is a stdio `:user::main`" — the process
+//! tier keeps the stdio model).
+//!
+//! ## The unified peer (no bespoke `ThreadSelf'`, no mirror projection)
+//!
+//! The worker's self-peer is the SAME pipes-only `Peer<S,R>` type as everything
+//! else: `send'`→S, `recv'`→R, UNIFORM (`<send-type, recv-type>` for every peer).
+//! The worker is `Peer'<O,I>` — the param-swap of the parent's `Thread'<I,O>`
+//! (parent sends I / recvs O; worker recvs I / sends O). For the echo here
+//! I=O=i64, so the worker is `Peer'<i64,i64>`.
 //!
 //! ## Why this is RED at HEAD
 //!
 //! At HEAD the `:thread` arm runs the apply-loop: it calls the prog with the
-//! MESSAGE value (42), not a self-peer. So the prog's `(recv' self)` runs with
-//! `self = 42` (an i64, not a peer) → the round-trip cannot complete → the
-//! parent's `(recv' peer)` sees the thread gone → eval errors. Post-S2a the
-//! prog is handed a `:wat::kernel::ThreadSelf'` peer, echoes through it, and the
-//! parent reads 42.
+//! MESSAGE value (42), not a self-peer — AND `send'`/`recv'` reject the `Peer'`
+//! head (they know only `Thread'`/`Process'`), so the prog fails at check. Either
+//! way: RED. Post-S2a the prog is handed a `:wat::kernel::Peer'` and echoes
+//! through it; the parent reads 42.
 //!
-//! `self` is annotated `:wat::kernel::ThreadSelf'<i64,i64>` — the honest
-//! forced-hand shape (the prog's view of its own channel; the dual of the
-//! parent's `:wat::kernel::Thread'<i64,i64>` handle: the parent sends I / recvs
-//! O, the child recvs I / sends O). S2a is the runtime MODEL; the strict
-//! forced-hand TYPING (wrong-payload rejected at check) lands with the
-//! host-type defclause in S2c.
+//! S2a is the runtime MODEL + the verb head; the strict forced-hand TYPING
+//! (wrong-payload rejected) + the parent-side unification + RAII-`close` land in
+//! S2b/S2c.
 //!
 //! Run: `cargo test --release -p wat --test nursery probe_arc259_s2a`
 
@@ -51,19 +55,19 @@ fn run_compute_i64(src: &str) -> i64 {
     }
 }
 
-/// LOAD-BEARING (RUNTIME): the thread prog drives its OWN self-peer.
+/// LOAD-BEARING (RUNTIME): the thread prog drives its OWN pipes-only self-peer.
 ///
 /// The prog `(fn [self] (send' self (recv' self)))` echoes via its self-peer:
 /// recv the parent's 42, send it straight back, return nil. The parent (holding
 /// the `Thread'` handle) sends 42, recvs the echo, closes. Sequencing on the
-/// depth-1 channels: parent send(42) → child recv(42) → child send(42) →
-/// parent recv(42) → child returns → parent close'.
+/// depth-1 channels: parent send(42) → worker recv(42) → worker send(42) →
+/// parent recv(42) → worker returns → parent close'.
 #[test]
 fn s2a_thread_prog_drives_self_peer() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-                                   (:wat::core::fn [self <- :wat::kernel::ThreadSelf'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+                                   (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer 42)
                             got (:wat::kernel::recv' peer)
@@ -73,6 +77,6 @@ fn s2a_thread_prog_drives_self_peer() {
     assert_eq!(
         run_compute_i64(src),
         42,
-        "thread prog echoes 42 through its ThreadSelf' self-peer"
+        "thread prog echoes 42 through its pipes-only Peer' self-peer"
     );
 }
