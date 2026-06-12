@@ -537,10 +537,49 @@ correction, the program init-fn (S2c), and the bracket init-fn (S3) — is **bui
 two consumers prove the nesting design is general, where banking one would bake in single-layer
 assumptions. Building both is the forced hand.
 
-**Open sub-decision for S2c (optional-is-a-smell):** is the `init-fn` REQUIRED on every host
-(a trivial `(fn [] nil)` → empty `user.program` when no custom slot) or is there a no-init
-host *and* an init host? Per `feedback_optional_is_a_smell`, lean REQUIRED (every host carries
-one); resolve at S2c design.
+## The user env: defaulted, never optional — and the host-constructor space (SETTLED 2026-06-11)
+
+The user env is **always a record, never nil/absent** — that is what dodges
+`optional-is-a-smell`. The slot type never flips to `Record | nil`:
+
+```
+user.program : :wat::Record   ← ALWAYS
+  custom:   the init-fn's record (recoverable by its runtime type)
+  default:  :wat::program::EmptyEnv  (a 0-field NOMINAL record — not anonymous {}, not nil)
+```
+
+Empty-record-**not-nil** is what makes "didn't provide one" honest: there is no nil
+branch, no two-grammar type rule.
+
+**The surface dodges the optional token via two complete constructors per tier** (not an
+optional `:init` keyword):
+
+```clojure
+(spawn-program (thread)         prog)   ; default — user.program = EmptyEnv   (common case)
+(spawn-program (thread/init f)  prog)   ; custom  — f : [] -> SomeRecord       (f REQUIRED here)
+```
+
+`(thread)` is not `(thread/init)` with an omitted arg — it is a complete, distinct
+constructor whose user-env *is* the empty record. `thread/init` requires `f`. No optional
+token anywhere; the user picks intent by *verb* (the `Vec::new()` vs `Vec::with_capacity(n)`
+shape). (Names intueri-finalizable.)
+
+### The thesis incarnate — rigidity unlocks unbounded evolution
+
+This is "paradoxical strict rigidity reveals unlimited expression" made literal. The
+**rigidity** — each host constructor *complete* (no optional token, returns the fully-typed
+opts), the sig *frozen* at `(host prog)`, the host carrying *all* complexity — is exactly
+what makes the **host-constructor space open-closed and unboundedly growable**:
+`(thread)` · `(thread/init f)` · `(thread/pinned cpu)` · `(gpu dev)` · `(remote url key)` …
+each a new complete verb that **never touches an existing one, never adds a flag, never
+churns the sig.** Zero interaction surface → infinite headroom.
+
+The inversion is the whole point: the path that *felt* flexible — optional keyword flags on
+`(thread …)` — is the one that **caps** evolution (flags accrete into a kitchen sink, interact
+combinatorially, fuzz the type, become unmaintainable). Optionality is the cap dressed as
+flexibility. The rigid form — complete named constructors — felt strict and is the one with
+unlimited room. The Keymaker cuts endless keys precisely *because* each cut is complete, not
+because the lock has adjustable teeth. (Realization-grade; candidate for the realizations doc.)
 
 **Supersession note:** `DESIGN-STONE-259.S2a.md` + the STRIKE-READY commit
 (`2529cce5`, probe annotating `ThreadSelf'`) predate this convergence; S2a is
