@@ -377,6 +377,12 @@ pub fn spawn_thread_peer(
     let (input_tx, input_rx) = crate::comms::thread::pair::<Value>();
     let (output_tx, output_rx) = crate::comms::thread::pair::<Value>();
 
+    // Arc 259 S3.5a-0 — crash channel: the crossbeam analog of the process Err channel.
+    // crash_tx moves into the worker closure; crash_rx stays for the parent Thread.
+    // On a genuine panic (catch_unwind Err), the worker sends the reason before
+    // crash_tx drops. On a clean exit crash_tx drops without sending → Disconnected.
+    let (crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
+
     let thread_sym = sym.clone();
     let span = list_span.clone();
     let fn_name = program_fn
@@ -452,10 +458,21 @@ pub fn spawn_thread_peer(
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
             // The prog owns its own recv'/send' loop if it wants one.
-            // Result (nil) is ignored; errors / panics exit the thread cleanly.
-            let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            // Arc 259 S3.5a-0: on a genuine panic (Err payload) send the reason over
+            // crash_tx — the crossbeam analog of the process Err channel. A clean exit
+            // (Ok — including Ok(Err(eval_break)), which is RAII drain, NOT a crash)
+            // does NOT send; crash_tx just drops → parent sees Disconnected, not Crashed.
+            // STOP-1 guard: ONLY Err(payload) sends — never Ok(Err(..)).
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
                 apply_function(program_fn.clone(), vec![self_peer], &thread_sym, span.clone())
             }));
+            // output_tx (inside self_peer via the Peer) is dropped here → output channel EOFs.
+            if let Err(payload) = outcome {
+                // Genuine panic — extract and send the reason before crash_tx drops.
+                let (message, _assertion) = crate::runtime::extract_panic_payload(payload);
+                let _ = crash_tx.send(message);
+            }
+            // crash_tx dropped here → crash channel EOFs (reason buffered if it was sent).
         })
         .map_err(|e| RuntimeError {
             span: list_span.clone(),
@@ -465,12 +482,13 @@ pub fn spawn_thread_peer(
             },
         })?;
 
-    // Build the parent-side Thread peer (input_tx + output_rx + JoinHandle).
+    // Build the parent-side Thread peer (input_tx + output_rx + crash_rx + JoinHandle).
     // input and join are Option so RAII Drop can drain_and_join idempotently
-    // (arc 259 S2b).
+    // (arc 259 S2b). crash_rx is the death-time channel (arc 259 S3.5a-0).
     let peer = Thread {
         input: Some(input_tx),
         output: output_rx,
+        crash: crash_rx,
         join: Some(join_handle),
     };
 

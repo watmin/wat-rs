@@ -22379,12 +22379,24 @@ fn eval_peer_recv_prime(
                             },
                         }
                         .into()),
-                        Some(peer) => peer.recv().map_err(|_| {
+                        Some(peer) => peer.recv().map_err(|e| {
+                            use crate::kernel::spawn::PeerRecvError;
+                            let reason = match e {
+                                PeerRecvError::Crashed(crash_reason) => {
+                                    // Arc 259 S3.5a-0: Err arm fired — surface the crash reason
+                                    // so the substrate raises on the user's behalf. Mirrors the
+                                    // process peer's Crashed arm (runtime.rs:22419-22441).
+                                    crash_reason
+                                }
+                                PeerRecvError::Disconnected => {
+                                    "recv failed: peer closed / thread exited".into()
+                                }
+                            };
                             RuntimeError {
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
-                                    reason: "recv failed: peer closed / thread exited".into(),
+                                    reason,
                                 },
                             }
                             .into()

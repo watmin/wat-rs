@@ -44,8 +44,8 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 
 // ─── Thread<I, O> ─────────────────────────────────────────────────────────────
 
-/// Thread-tier program peer. Holds the two comms::thread channel endpoints
-/// and the join handle for the spawned thread.
+/// Thread-tier program peer. Holds the two comms::thread channel endpoints,
+/// the crash channel, and the join handle for the spawned thread.
 ///
 /// `I` is the type the parent sends INTO the spawned thread (the thread
 /// reads `I` from its own `Receiver<I>`). `O` is the type the spawned
@@ -53,9 +53,9 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 /// `output: Receiver<O>`).
 ///
 /// Construct via the kernel's spawn dispatcher (Stone 4.5) or the
-/// lib-test harness in peer.rs (`Thread { input: Some(..), output, join: Some(..) }`
+/// lib-test harness in peer.rs (`Thread { input: Some(..), output, crash, join: Some(..) }`
 /// in-crate). Do not construct by naming fields externally — field visibility
-/// is `pub(crate)` to enforce the input+output+join invariant.
+/// is `pub(crate)` to enforce the input+output+crash+join invariant.
 ///
 /// ## RAII lifecycle (arc 259 S2b)
 ///
@@ -63,12 +63,27 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 /// when the peer leaves scope, without any explicit `close'` call. The
 /// `close'` verb routes through the same idempotent `drain_and_join`, so
 /// `close'`-then-`Drop` is safe (the second call is a no-op via `Option::take`).
+///
+/// ## Crash channel (arc 259 S3.5a-0)
+///
+/// Mirrors the `ProcessPeerBundle::err` channel: on a genuine panic (`catch_unwind`
+/// returns `Err(payload)`), the worker extracts the reason and sends it over
+/// `crash_tx` before that sender drops. `recv` reads the output channel first;
+/// on EOF it reads the crash channel — `Ok(reason)` → `Crashed(reason)`;
+/// `Err(_)` (crash_tx dropped without sending) → `Disconnected` (clean exit).
 pub struct Thread<I: Send + 'static, O: Send + 'static> {
     /// Parent → spawned thread. `Option` so `Drop`/`drain_and_join` can
     /// `take`+drop it BEFORE joining (drain-before-join invariant).
     pub(crate) input: Option<crate::comms::thread::Sender<I>>,
     /// Spawned thread → parent.
     pub(crate) output: crate::comms::thread::Receiver<O>,
+    /// Crash channel receiver — the death-time half of the `Result<T,E>` response
+    /// (arc 259 S3.5a-0). Mirrors `ProcessPeerBundle::err`. The worker sends
+    /// the panic reason here ONLY on a genuine `catch_unwind` `Err(payload)`;
+    /// a clean drain (RAII `drain_and_join`) does NOT send — `crash_tx` just
+    /// drops. `recv()` reads this on output-EOF: buffered reason → `Crashed`;
+    /// EOF only → `Disconnected`.
+    pub(crate) crash: crate::comms::thread::Receiver<String>,
     /// Handle for the spawned OS thread. `Option` so `drain_and_join` is
     /// idempotent via `take` — a second call returns `None` (no-op).
     pub(crate) join: Option<std::thread::JoinHandle<()>>,
@@ -89,12 +104,25 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
 
     /// Blocking recv from the spawned thread.
     ///
-    /// Cascade-aware (inherited from `comms::thread::Receiver`): wakes on
-    /// substrate shutdown and returns `Err(RecvError)` rather than hanging.
-    /// Also returns `Err(RecvError)` when the thread exits and its sender
-    /// end is dropped.
-    pub fn recv(&self) -> Result<O, RecvError> {
-        self.output.recv()
+    /// Mirrors `ProcessPeerBundle::recv` (arc 259 S3.5a-0). Reads the output
+    /// channel first. On EOF (the thread's `output_tx` dropped) reads the crash
+    /// channel:
+    /// - `Ok(reason)` → `Err(PeerRecvError::Crashed(reason))` — genuine panic,
+    ///   reason sent before `crash_tx` dropped.
+    /// - `Err(_)` → `Err(PeerRecvError::Disconnected)` — clean exit or RAII
+    ///   drain (crash_tx dropped without sending).
+    ///
+    /// `drain_and_join` does NOT call `recv` — it drops input + joins — so
+    /// the RAII path is unaffected.
+    pub fn recv(&self) -> Result<O, crate::kernel::spawn::PeerRecvError> {
+        use crate::kernel::spawn::PeerRecvError;
+        match self.output.recv() {
+            Ok(v) => Ok(v),
+            Err(_) => match self.crash.recv() {
+                Ok(reason) => Err(PeerRecvError::Crashed(reason)),
+                Err(_) => Err(PeerRecvError::Disconnected),
+            },
+        }
     }
 
     /// Drain THEN join — idempotent. The ONE internal reap.
@@ -133,6 +161,7 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
         f.debug_struct("Thread")
             .field("input", &self.input)
             .field("output", &self.output)
+            .field("crash", &self.crash)
             .field("join", &self.join.as_ref().map(|_| "JoinHandle"))
             .finish()
     }
@@ -324,10 +353,15 @@ mod tests {
                 .expect("thread: send reply to parent");
         });
 
+        // Crash channel — not exercised in this round-trip test (no panic),
+        // but required by the struct layout (arc 259 S3.5a-0).
+        let (_crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
+
         // Build the Thread peer using parent-side endpoints.
         let mut peer = Thread {
             input: Some(input_tx),
             output: output_rx,
+            crash: crash_rx,
             join: Some(join),
         };
 
