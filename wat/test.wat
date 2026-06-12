@@ -773,6 +773,45 @@
          -> :wat::core::nil
          ~body))))
 
+;; ── run-thread' / deftest' — the test layer on the NEW substrate (the pipe model) ──
+;;
+;; Arc 259 S3.5a. A test is a ONE-SHOT computation with an OUTCOME — not a streaming
+;; self-peer. With the thread-peer crash-reason IPC fix (S3.5a-0) in place, `recv'`
+;; surfaces a crashed peer's reason over the pipe, so the harness is PURE user surface:
+;; `spawn-program'` + `recv'`. The body runs in a self-peer and `send'`s a completion
+;; signal (0) on success; a failing assertion crashes the peer; `recv'` delivers the
+;; reason. NO outcome-capture side-channel, NO internal forms, NO test privilege — the
+;; harness dogfoods exactly what users use.
+;;
+;; CONTRACT (pass-or-raise; test_runner.rs:297-330): a passing test RETURNS a clean
+;; RunResult (failure=None) → the runner's Ok(Ok) arm reports pass; a failing test
+;; RAISES, the assertion message carried in the raise → the Ok(Err) arm reports it.
+;; Siblings of the legacy `run-thread`/`deftest` (which ride spawn-thread +
+;; Thread/join-result); these ride spawn-program' + recv'. The legacy retires in
+;; S3.5's back-half.
+
+(:wat::core::defmacro :wat::test::run-thread'
+  [body <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
+  `(:wat::core::let
+     [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+          (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+            (:wat::core::do ~body (:wat::kernel::send' self 0))))
+      _ (:wat::kernel::recv' p)]
+     (:wat::core::struct-new :wat::kernel::RunResult
+       (:wat::core::Vector :wat::core::String)
+       (:wat::core::Vector :wat::core::String)
+       :wat::core::None)))
+
+(:wat::core::defmacro :wat::test::deftest'
+  [name    <- :AST<wat::core::nil>
+   prelude <- :AST<wat::core::nil>
+   body    <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
+  `(:wat::core::do
+     ~@prelude
+     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body))))
+
 ;; ─── Layer 2 — run-hermetic-with-io ────────────────────────────────────
 ;;
 ;; Arc 170 slice 3 phase D: the 9% case macro. Builds on Phase C's
