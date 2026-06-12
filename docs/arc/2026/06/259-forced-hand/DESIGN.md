@@ -439,3 +439,101 @@ The floor grew — correctly, because the sig is the foundational decision:
   duration op; tighten c04 to assert the two stamps differ.
 - **259.3 / 259.4** — brackets (`bracket` host clause + `wat.worker-id`) and
   user-extension (`init-fn` → user slot) ride the locked sig with zero churn.
+
+---
+
+# THE CONVERGED MODEL — one entry point (LOCKED 2026-06-11)
+
+> Supersedes the `ThreadSelf'` framing (DESIGN-STONE-259.S2a.md) and the
+> user-facing-`close'` assumption wherever they conflict. Reached through a long
+> design duet + recovery of the arc-170 / arc-214 prior work — we were reinventing
+> already-built machinery (`ThreadPeer`, `run-threads`, platform-owned join, the
+> "deadlocks illegal" doctrine, arc 214 DESIGN:300). The four-questions hold on the
+> unification: Obvious / Simple / Honest / Good-UX all YES — it is the smallest
+> concurrency surface the substrate can have.
+
+## The shape
+
+ONE mechanism, TWO interfaces, ZERO user-held lifecycle:
+
+```
+USER SURFACE (idealized — no primes):
+  spawn-program   — THE primitive. One long-lived worker.   (spawn-program <host> <prog>)
+  brackets        — built FROM spawn-program. Fan-out interface. N workers.
+  → the ONLY two entry points to concurrency, period.
+
+PLATFORM-INTERNAL (never user-callable):
+  spawn-thread / spawn-process — per-tier kernel primitives; ONLY spawn-program invokes them.
+  close / drain / join         — internal lifecycle; the platform owns it.
+
+USER HOLDS: a pipes-only Peer<S,R> — send / recv, nothing else.
+GUARANTEE: zero deadlocks, STRUCTURAL — the user never holds the rope.
+```
+
+## The unified Peer (kills `ThreadSelf'`)
+
+The worker's self-peer and the parent's handle are the SAME pipes-only type:
+`Peer<S,R>` = `{ tx: Sender<S>, rx: Receiver<R> }`; `send'`→S, `recv'`→R, **uniform**
+(no mirror projection). This kills the bespoke `ThreadSelf'` — a duplicate of the
+already-built `ThreadPeer` concept (the arc-170 C1 test already mints the param-swap
+mirror `ThreadPeer<i64,String>` ↔ `ThreadPeer<String,i64>`). The two ends are
+param-swaps: parent `Peer<I,O>`, worker `Peer<O,I>`. The join/lifecycle handle is
+**not in the Peer** — it is platform-internal.
+
+## `close` is internal — RAII Drop + orchestration-explicit
+
+`close` leaves the user's hands entirely:
+- The Peer's **RAII `Drop`** IS the internal close — drain (drop the platform's
+  senders) → join, in the cascade-correct order the drain-then-join walker already
+  enforces. **Hang-free by construction:** `recv'`/`send'` auto-wire `SHUTDOWN_RX`
+  and **raise** on disconnect/shutdown (`comms/thread.rs:10-14`; `eval_peer_recv_prime`
+  returns an `EvalBreak`, not a value) — so Drop dropping the platform's sender → the
+  worker's next `recv'` raises → the worker unwinds → `join()` completes. A worker
+  cannot hang on a cascade-aware `recv'`.
+- The **orchestration layer** (brackets, spawn-program teardown) may call the SAME
+  internal `close` explicitly for deterministic mid-scope teardown. Idempotent (the
+  `Option::take` single-close pattern, already on disk).
+- The **user** calls neither. User-facing `close'` retires.
+
+**Honest boundary:** this guarantees termination for a worker blocked on
+`recv'`/`send'`. A non-terminating pure-compute loop that never touches its channel is
+not a deadlock — no structured-concurrency model can structurally forbid it. Don't
+oversell "zero deadlocks" into "zero infinite loops."
+
+## `brackets` is built FROM `spawn-program`
+
+`brackets` is a wat layer over `spawn-program`: it calls `spawn-program` N times within
+a scope that owns all N reaps (drop-all → cascade → join-all). The existing arc-170
+`run-threads` (built on the legacy `ThreadPeer`-struct path) is the prototype; it is
+**rebuilt over `spawn-program`**, and the struct path retires. `spawn-program` =
+long-lived; `brackets` = fan-out; one engine, two interfaces.
+
+## The asymmetry lives inside `spawn-program`'s dispatch (unchanged)
+
+`:thread` worker = explicit self-`Peer` (shares ambient stdio → must take a channel).
+`:process` worker = stdio `:user::main` (fresh fds → ambient `readln`/`println`; KEEP).
+The host-type clause carries the asymmetry; neither end pretends.
+
+## Stone decomposition — re-derived (2026-06-11)
+
+From the current mid-migration disk (prime path: `spawn-program'` intrinsic +
+`Thread'`/`Process'` opaque + user `close'`; arc-170 path: `ThreadPeer` struct +
+`run-threads`) → the idealized end state. Stepping-stone ordered; each an independently
+provable strike.
+
+| Stone | What | Provable by | Depends on |
+|---|---|---|---|
+| **S2a** | **Unified pipes-only `Peer` + thread self-peer handoff.** Kill `ThreadSelf'`; worker self-peer = `Peer<O,I>` (uniform `send'`/`recv'`). Rewrite the `:thread` arm: apply-loop → construct the child `Peer` **in-thread** (owner-thread invariant) → call prog ONCE. Keeps the 3-arg call shape + user `close'` for now. | wat probe: thread prog drives its self-peer (revise the committed probe off `ThreadSelf'`) | — (the hard new machinery) |
+| **S2b** | **Internalize `close`: RAII Drop + orchestration-explicit.** Custom `Drop` on the Peer = drain→join (cascade-safe). The parent handle becomes a pipes-only `Peer` whose Drop reaps. `close` becomes an internal op (additive; user `close'` still works until S2d). | lib-test: dropped peer reaps without hanging; explicit internal close idempotent | S2a |
+| **S2c** | **`spawn-program'` → host-type defclause (choice A).** 2-arg `(host prog)`; wat defclause on `ThreadOpts`/`ProcessOpts`; calls internal `spawn-thread'`/`spawn-process'` (made non-user-callable); env-arg gone; retire `infer_spawn_program_prime` keyword inference. | wat probe: `(spawn-program' (thread) prog)` dispatches; wrong host = type error | S2a |
+| **S2d** | **Migrate callers + the cut.** All callers → `(spawn-program (thread\|process) prog)`; drop user `close'` calls (rely on RAII); REMOVE `close'` / `spawn-thread'` / `spawn-process'` from the user surface. | full non-ignored gate green | S2b, S2c |
+| **S3** | **`brackets` rebuilt over `spawn-program`.** wat fan-out layer; retire arc-170 `run-threads`(struct) + `ThreadPeer`/`ProcessPeer` struct + peer `readln`/`println`. Folds in #196 / 214 Slice 7 / 259.3 (`wat.worker-id`, `bracket::Env`). | wat probe: `brackets` fan-out + structured join-all | S2d |
+| **S4** | **The prime-drop sweep.** Drop the `'` from `spawn-program'` / `send'` / `recv'` / `Peer'` / `select'` → the idealized no-prime names. The migration-end cosmetic cut. | corpus + gate green | S3 |
+
+**Banked / enabled-not-built (ride the locked sig, zero churn):** the timing correction
+(pid-aware `wat.started-at` + nanos duration op); user-extension (`user.program` /
+`user.bracket` slots + `init-fn`); `:remote` (perpetually-awaiting — the forcing function).
+
+**Supersession note:** `DESIGN-STONE-259.S2a.md` + the STRIKE-READY commit
+(`2529cce5`, probe annotating `ThreadSelf'`) predate this convergence; S2a is
+re-authored onto the unified `Peer` when struck.
