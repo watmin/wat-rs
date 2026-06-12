@@ -42,24 +42,27 @@ fn env_record_carries_process_and_thread_id() {
     );
 }
 
-/// The SEAM stamps a readable process-id: `invoke_user_main` installs an env whose
-/// `wat.process-id` the running `:user::main` can read. RED at HEAD because the
-/// field does not exist → the accessor fails → main errors → invoke returns Err.
-/// (The read executes for effect inside the `do`; its success IS the proof.)
+/// The SEAM stamps the REAL process-id: `invoke_user_main` installs an env whose
+/// `wat.process-id` the running `:user::main` can read and assert equals the
+/// Rust-side `std::process::id()`. RED at HEAD because the field does not exist.
 #[test]
 fn seam_installs_env_with_process_id() {
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::program::Env/wat.process-id (:wat::program::env)) \
-                   (:wat::program::Env/wat.os-thread-id (:wat::program::env)) \
-                   nil))";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let expected_pid = std::process::id() as i64;
+    let src = format!(
+        "(:wat::core::defn :user::main [] -> :wat::core::nil \
+           (:wat::core::do \
+             (:wat::test::assert-eq<:wat::core::i64> \
+               (:wat::program::Env/wat.process-id (:wat::program::env)) \
+               {expected_pid}) \
+             (:wat::program::Env/wat.os-thread-id (:wat::program::env)) \
+             nil))"
+    );
+    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup");
     let result = invoke_user_main(&world, vec![]);
     assert!(
         result.is_ok(),
-        "the seam must stamp wat.process-id + wat.os-thread-id before :user::main; \
-         main's reads failed: {:?}",
+        "seam must stamp the real process-id ({expected_pid}); assert-eq failed: {:?}",
         result.err()
     );
 }

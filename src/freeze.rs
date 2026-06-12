@@ -1073,12 +1073,17 @@ fn invoke_user_main_orchestrated(
     // Arc 259 (The Forced Hand) — install the ambient program env BEFORE
     // `:user::main`. The live VM constructs the base env itself (self-hosted):
     // `wat.started-at` = `wat.peer-started-at` = now (the pre-fork CLI-boot
-    // capture that makes started-at the real app epoch is stone 259.2). The RAII
-    // guard is held across main's run on this thread and uninstalls on scope exit.
-    let env_ast = crate::parse_one!(
-        "(:wat::program::Env (:wat::time::now) (:wat::time::now))"
-    )
-    .expect("arc 259: the static program-env constructor form parses");
+    // capture that makes started-at the real app epoch is stone 259.2).
+    // `wat.process-id` = OS pid; `wat.os-thread-id` = OS thread id (gettid).
+    // The RAII guard is held across main's run on this thread and uninstalls on
+    // scope exit.
+    let pid = std::process::id() as i64;
+    let tid = unsafe { libc::gettid() } as i64;
+    let env_src = format!(
+        "(:wat::program::Env (:wat::time::now) (:wat::time::now) {pid} {tid})"
+    );
+    let env_ast = crate::parse_one!(&env_src)
+        .expect("arc 259: the program-env constructor form parses");
     let program_env = eval_in_frozen(&env_ast, frozen, &crate::runtime::Environment::new())
         .map(|tv| tv.value_owned())?;
     let _program_env_guard = crate::services::install_program_env(program_env);

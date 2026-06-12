@@ -43,6 +43,36 @@ types-as-forms, EDN); this is the *runtime context*. They share a bloodline
 into a real record) and an ethos (make wat honest), but the cutover stays the
 foreground we circle back to.
 
+## The identity — wat's escape hatch for system interrogation
+
+The deepest framing of what this record *is* (builder, 2026-06-11): the
+program-env is wat's **single structured escape hatch for system interrogation** —
+the one curated, typed, unforgeable window through which a pure wat program asks
+the host *"what am I running as?"* (pid, thread, tier, timing, eventually host /
+resource limits / cgroup) **without ever reaching for a raw syscall or FFI.**
+
+This is the **anti-FFI**. Every other language's answer to "how do I get my pid"
+is `libc::getpid()` scattered at call sites — ad-hoc, side-channel, unforgeable
+only by discipline. wat's answer: the kernel stamps it into a `wat.*` field at the
+seam, and the program reads it as ordinary EDN data through a record accessor.
+Same capability, inverted soul — the same move as the whole substrate.
+
+That framing is the **boundary** that keeps "grow it over time" a discipline, not
+a kitchen sink:
+
+- **Belongs in the env** = *system interrogation*: what only the kernel knows
+  about *this execution* — identity, timing, tier, host, resource context. One
+  channel, one reserved prefix (`wat.*`), read-only, typed, can't collide, can't
+  be forged. The env can absorb every system-interrogation need wat will ever
+  have, and each addition is one more `wat.*` field.
+- **Does NOT belong** = *config* (the program's own choices) and *user data*
+  (the `user.*` slots). Those have their own homes.
+
+So the field set grows unboundedly *because* it is bounded: every addition is a
+kernel-stamped fact a program would otherwise have reached for a syscall to learn.
+(Realization-grade — the *structured escape hatch*: the typed window that replaces
+scattered FFI. Candidate for the realizations chronicle.)
+
 ## The converged architecture
 
 ### 1. Storage — thread-local, RAII install (mirror `AMBIENT_STDIO`)
@@ -96,10 +126,12 @@ arg").
 ### 3. The base fields — kernel-stamped, the floor
 
 ```
-:wat::program::Env = { wat.started-at, wat.peer-started-at }   ; both : :wat::time::Instant
+:wat::program::Env = { wat.started-at, wat.peer-started-at   ; : :wat::time::Instant  (timing)
+                       wat.process-id, wat.os-thread-id }    ; : :wat::core::i64       (identity — SHIPPED)
+;; next: wat.peer-kind : :wat::program::PeerKind (:thread | :process) — the typed-enum stone
 ```
 
-The two fields differ in **propagation** — this is the load-bearing distinction:
+**Timing fields** differ in **propagation** — this is the load-bearing distinction:
 
 - **`wat.started-at` — inherited.** The app's epoch. Stamped once at CLI boot,
   propagated *unchanged* down the entire spawn tree. One monotonic anchor for
