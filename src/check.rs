@@ -9881,15 +9881,15 @@ fn infer_spawn_program_prime(
 }
 
 /// Shared `:thread` projection — infers `fn_arg` as a fn and projects it to
-/// `Thread'<I,O>` (self-peer model) or `Thread'<I,O>` (legacy apply-loop).
+/// `Thread'<R,S>` (self-peer model, the ONLY valid form post arc 259 S2c-ii-a purge).
 ///
 /// Called by both `infer_spawn_program_prime` (for its `:thread` branch, passing
 /// `args[2]`) and `infer_spawn_thread_prime` (1-arg verb, passing `args[0]`).
 /// No duplication: one path, two callers.
 ///
-/// Arc 259 S2a — self-peer detection applies here:
+/// Arc 259 S2c-ii-a — apply-loop purge:
 /// - If the fn arg type is `Peer'<S,R>`, returns `Thread'<R,S>` (param-swap).
-/// - Otherwise (legacy apply-loop), returns `Thread'<I,O>`.
+/// - Otherwise, REJECTS with a clear error ("expected a self-peer prog").
 fn infer_thread_prog_type(
     fn_arg: &WatAST,
     op: &str,
@@ -9914,7 +9914,7 @@ fn infer_thread_prog_type(
     };
     let fn_surface = apply_subst(&fn_inferred, subst);
     let fn_ty = reduce(&fn_surface, subst, env.types());
-    let (i_ty, o_ty) = match fn_ty {
+    let (i_ty, _o_ty) = match fn_ty {
         TypeExpr::Fn { args: fn_args, ret } if fn_args.len() == 1 => {
             (fn_args.into_iter().next().unwrap(), *ret)
         }
@@ -9955,7 +9955,7 @@ fn infer_thread_prog_type(
         }
     };
 
-    // Arc 259 S2a — self-peer detection.
+    // Arc 259 S2c-ii-a — PURGE. Only the self-peer model is valid.
     //
     // If the fn arg type is `Peer'<S,R>` the prog is a ThreadProg (self-peer
     // handoff model): the spawned thread's `tx` sends S to the parent, and
@@ -9963,33 +9963,38 @@ fn infer_thread_prog_type(
     // has `I = R` (parent sends R → worker receives R) and `O = S` (parent
     // receives S ← worker sends S).  So return `Thread'<R, S>` = `Thread'<args[1], args[0]>`.
     //
-    // If the fn arg type is NOT `Peer'<S,R>` — the legacy apply-loop model
-    // (fn([I]) -> O) — use `Thread'<I, O>` as before.
+    // Any other prog — the legacy apply-loop `fn([I]) -> O` — is REJECTED with a
+    // clear error. The heresy burns; the true forms remain.
     let param_reduced = reduce(&apply_subst(&i_ty, subst), subst, env.types());
-    let ty = match &param_reduced {
+    match &param_reduced {
         TypeExpr::Parametric { head, args: peer_args }
             if head == "wat::kernel::Peer'" && peer_args.len() == 2 =>
         {
             // Self-peer model: Thread'<R, S> (param-swap of Peer'<S, R>).
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
-            TypeExpr::Parametric {
+            let ty = TypeExpr::Parametric {
                 head: PEER_HEAD.into(),
                 args: vec![r_ty, s_ty],
-            }
+            };
+            if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
         }
-        _ => {
-            // Legacy apply-loop model: Thread'<I, O>.
-            // rune:exigere(scope-affirmative) — TRANSITIONAL: the legacy Thread'<I,O>
-            // projection is the non-self-peer path; it dies with the apply-loop branch
-            // in arc 259 S2d (mirrors the dual-mode rune in kernel/spawn.rs).
-            TypeExpr::Parametric {
-                head: PEER_HEAD.into(),
-                args: vec![i_ty, o_ty],
-            }
+        other => {
+            // Apply-loop prog REJECTED (arc 259 S2c-ii-a purge).
+            local_errors.push(CheckError {
+                span: fn_arg.span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "spawn-program' :thread expects a self-peer prog [Peer'<S,R>] -> nil; got {}",
+                        format_type(other)
+                    ),
+                    remedies: vec![],
+                },
+            });
+            CheckResult::errs(local_errors)
         }
-    };
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+    }
 }
 
 /// Shared `:process` projection — infers `forms_arg` (accepts any type; the
@@ -10031,8 +10036,8 @@ fn infer_process_prog_type(
 /// Type-check `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
 ///
 /// One positional arg:
-/// - `args[0]`: program fn; inferred; must be `fn([I]) -> O` or
-///   `fn([Peer'<S,R>]) -> nil` (self-peer model); projects to `Thread'<I,O>` or
+/// - `args[0]`: program fn; inferred; must be `fn([Peer'<S,R>]) -> nil` (self-peer
+///   model — the ONLY valid form post arc 259 S2c-ii-a purge); projects to
 ///   `Thread'<R,S>`. Uses the SAME projection as `infer_spawn_program_prime`'s
 ///   `:thread` branch — `infer_thread_prog_type` (no duplication).
 ///

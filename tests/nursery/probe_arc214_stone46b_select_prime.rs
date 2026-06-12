@@ -11,6 +11,14 @@
 //! annotation must fail once the projective inference exists — fresh vars
 //! pass it today → RED).
 //!
+//! ## Arc 259 S2c-ii-a — apply-loop PURGE
+//!
+//! Both probes' spawn progs are SWAPPED to self-peer form
+//! `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))`.
+//! The `Thread'<i64,i64>` peer type is preserved — `Peer'<O,I>=Peer'<i64,i64>`
+//! → `Thread'<R,S>=Thread'<I,O>=Thread'<i64,i64>`. The `select'` multiplex
+//! is unchanged; only the spawned progs swap.
+//!
 //! Run: `cargo test --release --test nursery probe_arc214_stone46b_select_prime`
 
 use std::sync::Arc;
@@ -39,12 +47,17 @@ fn startup_err(src: &str) -> String {
 /// ever have data); select' [a b] must return the tuple (1, 7): index 1
 /// (peer B's position) and the echoed value. Both peers closed after.
 /// At HEAD: no eval dispatch for select' → eval errors → RED.
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; select' multiplex unchanged.
 #[test]
 fn probe_1_select_returns_ready_index_and_value() {
     let src = r#"
         (:wat::core::defn :user::mk [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
+            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self)))))
         (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
           (:wat::core::let [a (:user::mk)
                             b (:user::mk)
@@ -77,12 +90,17 @@ fn probe_1_select_returns_ready_index_and_value() {
 /// Declaring the select' result as `:wat::core::String` over i64-peers MUST
 /// fail at check — the projective return is `:(i64,i64)`.
 /// RED at HEAD (fresh var unifies with String).
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; select' return-type rejection unchanged.
 #[test]
 fn probe_2_select_wrong_return_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad [] -> :wat::core::String
           (:wat::core::let [p (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-                                (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))]
+                                (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+                                  (:wat::kernel::send' self (:wat::kernel::recv' self))))]
             (:wat::kernel::select' [p])))
     "#;
     let _err = startup_err(src);

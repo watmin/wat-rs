@@ -4,7 +4,7 @@
 //!   - `:wat::kernel::Thread'<I,O>` / `:wat::kernel::Process'<I,O>` registered as
 //!     parametric type heads (mirror `Sender<T>`/`Receiver<T>`).
 //!   - `(:wat::kernel::spawn-program' :tier env prog)` INFERS to the peer type at
-//!     CHECK time — reading the program fn's `[I] -> O` signature
+//!     CHECK time — reading the program fn's `[Peer'<S,R>] -> nil` signature
 //!     (mirror `infer_make_channel`, check.rs:10423).
 //!
 //! ## Why the NEGATIVE probes are the disconfirming core (measured 2026-06-07)
@@ -20,6 +20,13 @@
 //! (The fresh-var leniency for unknown kernel heads is the same class that let
 //! `+'2` escape check — arc 255's registry annihilates the class; this stone
 //! closes it for this one verb.)
+//!
+//! ## Arc 259 S2c-ii-a — apply-loop PURGE
+//!
+//! All `:thread` spawn progs are now self-peer `[self <- Peer'<S,R>] -> nil`
+//! (the only valid form post-purge). Probe_2 / probe_4 / probe_5 are SWAPPED.
+//! The `Thread'<i64,i64>` peer type is preserved — `Peer'<O,I>=Peer'<i64,i64>`
+//! → `Thread'<R,S>=Thread'<I,O>=Thread'<i64,i64>`. All type assertions unchanged.
 //!
 //! Run: `cargo test --release --test nursery probe_arc214_stone46i_typed_peer`
 
@@ -69,18 +76,23 @@ fn probe_1_thread_peer_type_parses() {
 /// NOTE: green at HEAD by fresh-var vacuity (see module doc); load-bearing
 /// only POST-foundation (it pins the positive path stays green once the
 /// real inference exists). The discriminators are probes 4/5.
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; annotation assertion unchanged.
 #[test]
 fn probe_2_spawn_program_prime_thread_types_to_peer() {
     let src = r#"
         (:wat::core::defn :user::mk-echo-peer [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
+            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;
     startup_ok(src);
 }
 
 /// `:process` tier against the Process' annotation type-checks (same vacuity
-/// note as probe 2).
+/// note as probe 2). Process tier is unaffected by the thread apply-loop purge.
 #[test]
 fn probe_3_spawn_program_prime_process_types_to_peer() {
     let src = r#"
@@ -97,12 +109,17 @@ fn probe_3_spawn_program_prime_process_types_to_peer() {
 /// CHECK ERROR — the spawn's real type is `Thread'<i64,i64>`, not i64.
 /// RED at HEAD: the unknown head's fresh var unifies with i64 and startup
 /// wrongly succeeds.
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; wrong-annotation rejection unchanged.
 #[test]
 fn probe_4_wrong_scalar_return_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-wrong [] -> :wat::core::i64
           (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
+            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;
     let _err = startup_err(src);
 }
@@ -111,12 +128,17 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
 
 /// A `:thread` spawn declared as `Process'<...>` must be a CHECK ERROR — the
 /// tier keyword picks the peer head. RED at HEAD (fresh-var vacuity).
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; cross-tier rejection unchanged.
 #[test]
 fn probe_5_cross_tier_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-cross [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
           (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
+            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;
     let _err = startup_err(src);
 }

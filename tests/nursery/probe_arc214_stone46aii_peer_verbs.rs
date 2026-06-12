@@ -8,36 +8,27 @@
 //!
 //! Unknown verb heads infer fresh vars, so check-side POSITIVES are vacuous.
 //! The discriminators here are:
-//!   - Probe 1: a RUNTIME round-trip — `(:user::compute)` is EVALUATED; at HEAD
-//!     the verbs have no eval dispatch, so eval fails → RED. Post-stone → 42.
 //!   - Probes 2/3: check-side NEGATIVES — recv' used as the wrong type and
 //!     send' fed the wrong payload MUST fail at check once the projective
 //!     inference exists. At HEAD the fresh vars let them pass → RED.
 //!
+//! ## Arc 259 S2c-ii-a — apply-loop PURGE
+//!
+//! p1 (probe_1_thread_round_trip_via_verbs) was a DUPLICATE of
+//! probe_arc259_s2a's self-peer round-trip and is RETIRED. All spawn progs
+//! are now self-peer `[self <- Peer'<S,R>] -> nil` (the only valid form).
+//!
 //! Run: `cargo test --release --test nursery probe_arc214_stone46aii_peer_verbs`
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
-use wat::runtime::{Environment, Value};
 
 fn with_nil_main(src: &str) -> String {
     format!(
         "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
         src
     )
-}
-
-fn run_i64(src: &str) -> i64 {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
-        Value::i64(n) => n,
-        other => panic!("expected i64; got {:?}", other),
-    }
 }
 
 fn startup_err(src: &str) -> String {
@@ -48,37 +39,22 @@ fn startup_err(src: &str) -> String {
     }
 }
 
-// ─── Probe 1 (LOAD-BEARING, RUNTIME): thread-tier full lifecycle ─────────────
-
-/// spawn :thread echo → send' 42 → recv' → close' → return the echoed value.
-/// At HEAD: check passes (fresh vars), but the verbs have NO eval dispatch —
-/// eval of (:user::compute) errors → RED. Post-stone: 42, and the spawned
-/// thread is joined by close' (no leak, no hang).
-#[test]
-fn probe_1_thread_round_trip_via_verbs() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-                                   (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))
-                            _ (:wat::kernel::send' peer 42)
-                            got (:wat::kernel::recv' peer)
-                            _ (:wat::kernel::close' peer)]
-            got))
-    "#;
-    assert_eq!(run_i64(src), 42, "thread peer echo round-trip via the prime verbs");
-}
-
 // ─── Probe 2 (CHECK NEGATIVE): recv' return type projects O ──────────────────
 
 /// A defn declaring `-> :wat::core::String` whose body recv's from an
 /// i64-peer MUST fail at check — recv' : peer<I,O> -> O projects i64.
 /// RED at HEAD (fresh var unifies with String).
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; recv'/send' type assertions unchanged.
 #[test]
 fn probe_2_recv_projects_o_wrong_use_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad-recv [] -> :wat::core::String
           (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-                                   (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))]
+                                   (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+                                     (:wat::kernel::send' self (:wat::kernel::recv' self))))]
             (:wat::kernel::recv' peer)))
     "#;
     let _err = startup_err(src);
@@ -88,12 +64,17 @@ fn probe_2_recv_projects_o_wrong_use_rejected() {
 
 /// Sending a String into an i64-peer MUST fail at check — send' : peer<I,O>, I.
 /// RED at HEAD (fresh var accepts anything).
+///
+/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
+/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
+/// same `Thread'<i64,i64>` peer type; recv'/send' type assertions unchanged.
 #[test]
 fn probe_3_send_checks_i_wrong_payload_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad-send [] -> :wat::core::nil
           (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-                                   (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))
+                                   (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+                                     (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer "not-an-i64")]
             nil))
     "#;
