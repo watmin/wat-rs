@@ -28,7 +28,7 @@ use wat::load::InMemoryLoader;
 fn s2cii_a_apply_loop_prog_rejected() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input))]
             nil))
     "#;

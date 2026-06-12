@@ -50,7 +50,7 @@ fn beta_forms_server_round_trip_via_send_recv_prime() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let
-            [peer (:wat::kernel::spawn-program' :process {}
+            [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
                     (:wat::core::forms
                       (:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let

@@ -84,40 +84,41 @@ fn probe_1_thread_peer_type_parses() {
 fn probe_2_spawn_program_prime_thread_types_to_peer() {
     let src = r#"
         (:wat::core::defn :user::mk-echo-peer [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;
     startup_ok(src);
 }
 
-/// `:process` tier against the Process' annotation type-checks (same vacuity
-/// note as probe 2). Process tier is unaffected by the thread apply-loop purge.
+/// `:process` tier against the Process' annotation type-checks.
+/// Arc 259 S2c-ii-b: migrated to 2-arg form with (:wat::spawn::process) host +
+/// forms prog (the process defclause clause accepts Vector<wat::WatAST>).
 #[test]
 fn probe_3_spawn_program_prime_process_types_to_peer() {
     let src = r#"
         (:wat::core::defn :user::mk-echo-proc [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :process (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
-            (:wat::core::fn [input <- :wat::core::i64] -> :wat::core::i64 input)))
+          (:wat::kernel::spawn-program' (:wat::spawn::process)
+            (:wat::core::forms
+              (:wat::core::defn :user::main [] -> :wat::core::nil
+                (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+                                  _ (:wat::kernel::println n)]
+                  nil)))))
     "#;
     startup_ok(src);
 }
 
 // ─── Probe 4 (LOAD-BEARING NEGATIVE): a wrong return annotation must FAIL ────
 
-/// `spawn-program' :thread` declared as returning `:wat::core::i64` must be a
-/// CHECK ERROR — the spawn's real type is `Thread'<i64,i64>`, not i64.
-/// RED at HEAD: the unknown head's fresh var unifies with i64 and startup
-/// wrongly succeeds.
+/// `spawn-program' (:wat::spawn::thread)` declared as returning `:wat::core::i64`
+/// must be a CHECK ERROR — the spawn's real type is `Thread'<i64,i64>`, not i64.
 ///
-/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
-/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
-/// same `Thread'<i64,i64>` peer type; wrong-annotation rejection unchanged.
+/// Arc 259 S2c-ii-b: migrated to 2-arg `(:wat::spawn::thread)` host form.
 #[test]
 fn probe_4_wrong_scalar_return_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-wrong [] -> :wat::core::i64
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;
@@ -126,17 +127,15 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
 
 // ─── Probe 5 (LOAD-BEARING NEGATIVE): cross-tier annotation must FAIL ────────
 
-/// A `:thread` spawn declared as `Process'<...>` must be a CHECK ERROR — the
-/// tier keyword picks the peer head. RED at HEAD (fresh-var vacuity).
+/// A `(:wat::spawn::thread)` spawn declared as `Process'<...>` must be a CHECK
+/// ERROR — the host type selects the peer head (ThreadOpts → Thread').
 ///
-/// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
-/// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
-/// same `Thread'<i64,i64>` peer type; cross-tier rejection unchanged.
+/// Arc 259 S2c-ii-b: migrated to 2-arg `(:wat::spawn::thread)` host form.
 #[test]
 fn probe_5_cross_tier_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::mk-cross [] -> :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
     "#;

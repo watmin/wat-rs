@@ -4502,18 +4502,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-process" => {
             crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
         }
-        // Arc 214 Slice 4 Stone 4.5 — unified spawn dispatcher.
-        // Dispatches on :tier keyword to produce a typed kernel peer
-        // (Thread' or Process') as Value::RustOpaque.  Stone 4.6 will
-        // add polymorphic send'/recv'/close' verbs over these peers.
-        ":wat::kernel::spawn-program'" => {
-            crate::kernel::spawn::eval_kernel_spawn_program_prime(args, list_span, env, sym)
-        }
+        // Arc 259 S2c-ii-b — spawn-program' is now a wat defclause in wat/spawn.wat.
+        // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
+        // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').
         // Arc 259 S2c-i — per-tier 1-arg primitives (no tier keyword, no env arg).
-        // spawn-thread' : (fn([Peer'<S,R>]) -> nil | fn([I]) -> O) -> Thread'<R,S> | Thread'<I,O>
+        // spawn-thread' : fn([Peer'<S,R>]) -> nil -> Thread'<R,S>
         // spawn-process' : forms -> Process'<I,O>
-        // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers
-        // already used by spawn-program' — no logic duplication.
+        // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
         ":wat::kernel::spawn-thread'" => {
             crate::kernel::spawn::eval_kernel_spawn_thread_prime(args, list_span, env, sym)
         }

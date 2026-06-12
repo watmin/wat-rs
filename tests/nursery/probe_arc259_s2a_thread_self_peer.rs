@@ -47,7 +47,7 @@ fn run_compute_i64(src: &str) -> i64 {
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env)
-        .expect("compute eval (RED at HEAD: the :thread arm still runs the apply-loop)")
+        .expect("compute eval")
         .value_owned()
     {
         Value::i64(n) => n,
@@ -66,7 +66,7 @@ fn run_compute_i64(src: &str) -> i64 {
 fn s2a_thread_prog_drives_self_peer() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer 42)

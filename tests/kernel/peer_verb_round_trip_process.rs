@@ -25,7 +25,7 @@ use wat::runtime::{Environment, Value};
 
 /// Process-tier send'/recv'/close' round-trip via the WAT surface.
 ///
-/// Arc 214 β: spawn-program' :process now takes a forms-server program.
+/// Arc 259 S2c-ii-b: spawn-program' migrated to 2-arg `(:wat::spawn::process)` host form.
 /// The server reads one i64 and writes n+1 (the proven arc112 echo+1 shape).
 /// Parent sends 41, server returns 42.
 ///
@@ -35,7 +35,7 @@ use wat::runtime::{Environment, Value};
 fn process_peer_verb_round_trip() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :process {}
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
                                    (:wat::core::forms
                                      (:wat::core::defn :user::main [] -> :wat::core::nil
                                        (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)

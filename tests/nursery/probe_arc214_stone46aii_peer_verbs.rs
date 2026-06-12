@@ -52,7 +52,7 @@ fn startup_err(src: &str) -> String {
 fn probe_2_recv_projects_o_wrong_use_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad-recv [] -> :wat::core::String
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))]
             (:wat::kernel::recv' peer)))
@@ -72,7 +72,7 @@ fn probe_2_recv_projects_o_wrong_use_rejected() {
 fn probe_3_send_checks_i_wrong_payload_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad-send [] -> :wat::core::nil
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer "not-an-i64")]

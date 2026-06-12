@@ -36,3 +36,29 @@
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts))
+
+;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
+;;
+;; Arc 259 S2c-ii-b — `spawn-program'` as a host-type defclause.
+;;
+;; 2-arg `(host prog)` — the key's TYPE (ThreadOpts | ProcessOpts) selects
+;; the matching hosting door and delegates to the S2c-i tier primitives.
+;; The env arg of the 3-arg intrinsic is gone (it was discarded at runtime;
+;; the defclause makes the absence structural).
+;;
+;; Thread clause: prog MUST be the self-peer model `[Peer'<S,R>] -> nil`
+;; (apply-loop purged by S2c-ii-a; the true form remains).
+;; Process clause: prog is a `(:wat::core::forms ...)` block — a forms-server
+;; program (`Vector<wat::WatAST>`) for the forked child universe.
+;;
+;; A new host type (e.g. RemoteOpts when its door is finally specified)
+;; arrives as one new key + one new clause here; the 2-arg sig is unmoved.
+(:wat::core::defclause :wat::kernel::spawn-program'
+  ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
+  ([host <- :wat::spawn::ThreadOpts
+    prog <- [:wat::kernel::Peer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
+    (:wat::kernel::spawn-thread' prog))
+  ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
+  ([host <- :wat::spawn::ProcessOpts
+    prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
+    (:wat::kernel::spawn-process' prog)))

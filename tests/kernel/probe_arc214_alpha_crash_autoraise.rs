@@ -55,7 +55,7 @@ fn alpha_recv_prime_autoraises_child_crash_reason() {
     // parent's err_rx → recv' raises the crash reason (which names DivisionByZero).
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' :process {}
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
                                    (:wat::core::forms
                                      (:wat::core::defn :user::main [] -> :wat::core::nil
                                        (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)

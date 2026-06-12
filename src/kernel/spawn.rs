@@ -1,15 +1,20 @@
-//! # Kernel spawn dispatcher — Stone 4.5 (arc 214 Slice 4)
+//! # Kernel spawn primitives — arc 259 S2c-i / S2c-ii-b
 //!
-//! `eval_kernel_spawn_program_prime` handles `:wat::kernel::spawn-program'`.
-//! Dispatches on `:tier` to produce a typed peer value:
+//! Arc 259 S2c-ii-b: `spawn-program'` is a wat defclause (wat/spawn.wat)
+//! dispatching on the host type (ThreadOpts → `spawn-thread'`; ProcessOpts →
+//! `spawn-process'`). The 3-arg Rust monolith is RETIRED.
 //!
-//! - `:thread` → creates a `comms::thread` channel pair, spawns a
-//!   `std::thread` that hands the prog its self-peer ONCE (arc 259 S2c-ii-a),
-//!   wraps in `kernel::peer::Thread<Value, Value>`, returns as `Value::RustOpaque`.
-//! - `:process` → validates fn captures for portability (sandbox walker),
-//!   creates a `comms::process` channel pair, forks via `spawn_lifelined_any`
-//!   (the `!UnwindSafe`-compatible variant; `src/process/clone.rs`),
-//!   child runs the forms-server, wraps result as `Value::RustOpaque`.
+//! The per-tier primitives here are the defclause's targets:
+//!
+//! - `spawn-thread'` / `spawn_thread_peer` → creates a `comms::thread` channel
+//!   pair, spawns a `std::thread` that hands the prog its self-peer ONCE
+//!   (arc 259 S2c-ii-a), wraps in `kernel::peer::Thread<Value, Value>`,
+//!   returns as `Value::RustOpaque`.
+//! - `spawn-process'` / `spawn_process_peer` → validates fn captures for
+//!   portability (sandbox walker), creates a `comms::process` channel pair,
+//!   forks via `spawn_lifelined_any` (the `!UnwindSafe`-compatible variant;
+//!   `src/process/clone.rs`), child runs the forms-server, wraps result as
+//!   `Value::RustOpaque`.
 //!
 //! ## Peer-as-Value representation
 //!
@@ -226,113 +231,12 @@ impl ProcessPeerBundle {
     }
 }
 
-// ─── Dispatcher ───────────────────────────────────────────────────────────────
-
-/// `(:wat::kernel::spawn-program' :tier env program)` — arc 214 Stone 4.5.
-///
-/// Three positional args:
-/// - `args[0]` — tier keyword (`:thread` | `:process`).
-/// - `args[1]` — program-env (`wat::program::Env` — Stone 4.1–4.3): evaluated
-///   for side-effects; the check-time validation that args[1] unifies with
-///   `:wat::program::Env` was shipped by Stone 4.6a-i (check.rs:10709-10723).
-///   The 3-arg arity is fixed by that shipped check. Runtime threading of env
-///   into the peer's fn invocation context is tracked in task #211
-///   ("Thread :wat::program::Env into the spawned peer's eval context").
-/// - `args[2]` — program fn value: `fn [I] -> O`; applied to each message.
-///
-/// Returns:
-/// - `:thread` → `Value::RustOpaque` type-path `":wat::kernel::Thread'"`,
-///   payload `ThreadPeerCell` (`Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>`).
-/// - `:process` → `Value::RustOpaque` type-path `":wat::kernel::Process'"`,
-///   payload `ProcessPeerCell` (`Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>`).
-pub fn eval_kernel_spawn_program_prime(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::spawn-program'";
-    if args.len() != 3 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        }
-        .into());
-    }
-
-    // arg 0: tier keyword.
-    let tier = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::wat__core__keyword(k) => (*k).clone(),
-        other => {
-            return Err(RuntimeError {
-                span: args[0].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "keyword (:thread | :process)",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            }
-            .into());
-        }
-    };
-
-    // arg 1: program-env — eval for side-effects. Stone 4.6a-i SHIPPED the
-    // check-time validation (check.rs:10709-10723 verifies args[1] unifies with
-    // :wat::program::Env); the 3-arg arity is fixed by that check. Runtime env
-    // threading into the peer's fn invocation context is tracked in task #211
-    // ("Thread :wat::program::Env into the spawned peer's eval context").
-    // rune:exigere(attested-arc) — runtime env threading tracked in task #211.
-    let _program_env = eval_inner(&args[1], env, sym)?.value_owned();
-
-    match tier.as_str() {
-        ":thread" => {
-            // arg 2: program fn (thread tier: self-peer model, post arc 259 S2c-ii-a purge).
-            let program_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
-                Value::wat__core__fn(f) => f,
-                other => {
-                    return Err(RuntimeError {
-                        span: args[2].span().clone(),
-                        kind: RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "fn value (program body) for :thread tier",
-                            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                        },
-                    }
-                    .into());
-                }
-            };
-            spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into)
-        }
-        ":process" => {
-            // Arc 214 β — arg 2: program forms (process tier: readln/println server).
-            // Evaluate args[2] as forms (Vec<WatAST>); mirrors eval_kernel_spawn_process
-            // (verbs.rs:908). The forms run as a :user::main server in the child.
-            let forms = crate::process::expect_vec_ast_pub(
-                OP,
-                eval_inner(&args[2], env, sym)?,
-                args[2].span().clone(),
-            ).map_err(EvalBreak::from)?;
-            spawn_process_peer(forms, sym, list_span).map_err(Into::into)
-        }
-        other => Err(RuntimeError {
-            span: args[0].span().clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!(
-                    "unknown tier `{}`; supported tiers: :thread, :process",
-                    other
-                ),
-            },
-        }
-        .into()),
-    }
-}
-
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
+//
+// Arc 259 S2c-ii-b — the 3-arg `spawn-program'` MONOLITH (`eval_kernel_spawn_program_prime`)
+// is RETIRED. `spawn-program'` is now a wat defclause in `wat/spawn.wat` that dispatches
+// on the host type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process'). The
+// per-tier primitives below remain as the defclause's implementation targets.
 
 /// `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
 ///
@@ -377,7 +281,7 @@ pub fn eval_kernel_spawn_thread_prime(
         }
     };
 
-    // Delegate to the shared thread-tier spawn logic (same path as spawn-program' :thread).
+    // Delegate to the shared thread-tier spawn logic.
     spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into)
 }
 
@@ -415,14 +319,15 @@ pub fn eval_kernel_spawn_process_prime(
         args[0].span().clone(),
     ).map_err(EvalBreak::from)?;
 
-    // Delegate to the shared process-tier spawn logic (same path as spawn-program' :process).
+    // Delegate to the shared process-tier spawn logic.
     spawn_process_peer(forms, sym, list_span).map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
 
-/// Spawn a thread-tier program peer. Called by the `spawn-program' :thread` dispatcher
-/// (Stone 4.5) and exposed as `pub` for integration tests and Stone 4.6 wiring.
+/// Spawn a thread-tier program peer. The backing impl for `spawn-thread'`
+/// (the S2c-i primitive) and the thread clause of the `spawn-program'` defclause
+/// (S2c-ii-b). Exposed as `pub` for integration tests.
 ///
 /// Arc 259 S2c-ii-a — PURGE. The apply-loop model is annihilated; only the
 /// self-peer model remains. The prog MUST be `fn([self <- Peer'<S,R>]) -> nil`.
@@ -433,7 +338,7 @@ pub fn spawn_thread_peer(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::spawn-program':thread";
+    const OP: &str = ":wat::kernel::spawn-thread'";
 
     // Two bounded channel pairs (comms::thread::pair, depth-1, cascade-aware).
     //   input:  parent→thread  (input_tx stays with parent; input_rx goes to thread)
@@ -498,9 +403,9 @@ pub fn spawn_thread_peer(
 
 // ─── Process tier ─────────────────────────────────────────────────────────────
 
-/// Spawn a process-tier program peer (arc 214 β). Called by the `spawn-program' :process`
-/// dispatcher (Stone 4.5) and exposed as `pub` for integration tests and
-/// Stone 4.6a-ii wiring.
+/// Spawn a process-tier program peer (arc 214 β). The backing impl for `spawn-process'`
+/// (the S2c-i primitive) and the process clause of the `spawn-program'` defclause
+/// (S2c-ii-b). Exposed as `pub` for integration tests.
 ///
 /// Takes a WAT PROGRAM (forms — a `Vec<WatAST>`) and runs it as a
 /// `readln`/`println` server child. The parent drives it with `send'`/`recv'`
@@ -520,7 +425,7 @@ pub fn spawn_process_peer(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::spawn-program':process";
+    const OP: &str = ":wat::kernel::spawn-process'";
 
     // ── Create comms::process channel pairs (String wire type) ────────────────
     // input:  parent → child  (input_tx stays; input_rx goes to child)

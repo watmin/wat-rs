@@ -55,7 +55,7 @@ fn startup_err(src: &str) -> String {
 fn probe_1_select_returns_ready_index_and_value() {
     let src = r#"
         (:wat::core::defn :user::mk [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
         (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
@@ -98,7 +98,7 @@ fn probe_1_select_returns_ready_index_and_value() {
 fn probe_2_select_wrong_return_annotation_rejected() {
     let src = r#"
         (:wat::core::defn :user::bad [] -> :wat::core::String
-          (:wat::core::let [p (:wat::kernel::spawn-program' :thread (:wat::program::Env (:wat::time::at-millis 0) (:wat::time::at-millis 0))
+          (:wat::core::let [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                 (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                   (:wat::kernel::send' self (:wat::kernel::recv' self))))]
             (:wat::kernel::select' [p])))

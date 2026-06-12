@@ -39,13 +39,13 @@ fn process_select_prime_picks_ready_peer() {
     // and returns (1, 99) — 98+1=99 from the echo+1 server.
     let src = r#"
         (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
-          (:wat::core::let [a (:wat::kernel::spawn-program' :process {}
+          (:wat::core::let [a (:wat::kernel::spawn-program' (:wat::spawn::process)
                                 (:wat::core::forms
                                   (:wat::core::defn :user::main [] -> :wat::core::nil
                                     (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
                                                       _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                                       nil))))
-                            b (:wat::kernel::spawn-program' :process {}
+                            b (:wat::kernel::spawn-program' (:wat::spawn::process)
                                 (:wat::core::forms
                                   (:wat::core::defn :user::main [] -> :wat::core::nil
                                     (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
