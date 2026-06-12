@@ -340,12 +340,19 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     }
                     i = skip_form(bytes, i);
                 }
-                ":wat::test::deftest" | ":wat::test::deftest-hermetic" => {
+                ":wat::test::deftest" | ":wat::test::deftest-hermetic"
+                | ":wat::test::deftest'" | ":wat::test::deftest-hermetic'" => {
                     // Arc 121 + arc 124 — direct deftest forms.
                     // The wat-side `deftest-hermetic` macro expands
                     // to a `define` that calls
                     // `run-sandboxed-hermetic-ast`; the runner
                     // doesn't distinguish.
+                    // Arc 259 S3.5a — the PRIMED forms (`deftest'` /
+                    // `deftest-hermetic'`, the pipe-model test layer on the
+                    // new substrate) expand to the same `[name] -> TestResult`
+                    // shape; discovery is expansion-agnostic (it reads the
+                    // name + emits one `#[test] fn`), so they are recognized
+                    // here verbatim.
                     let name_start =
                         skip_ws_and_comments(bytes, head_start + head_str.len());
                     if let Some(name_bytes) = read_keyword(bytes, name_start) {
@@ -450,7 +457,11 @@ fn read_keyword(bytes: &[u8], pos: usize) -> Option<&[u8]> {
 }
 
 fn is_keyword_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b':'
+    // Arc 259 S3.5a — `'` is a keyword byte: wat keywords end in a PRIME
+    // (`spawn-program'`, `recv'`, `deftest'`). Without it, `read_keyword` on
+    // `:wat::test::deftest'` stopped at the prime, returned the unprimed head,
+    // and the discovery silently skipped every primed deftest.
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b':' || b == b'\''
 }
 
 fn skip_ws_and_comments(bytes: &[u8], mut pos: usize) -> usize {
