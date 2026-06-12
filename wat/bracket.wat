@@ -24,3 +24,81 @@
   (:wat::core::let [item (:wat::kernel::recv' self)
                     _    (:wat::kernel::send' self (work-fn item))]
     (:wat::bracket::runner-loop self work-fn)))
+
+;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
+;;
+;; State: peers (the live Thread' vector), items (the full input vector),
+;; pairs-acc (accumulator of (idx,result) pairs so far), cursor (next item
+;; to dispatch), collected (how many results have arrived), m (total item count).
+;;
+;; Invariant: cursor ≤ m; collected ≤ m.  When collected == m every result
+;; has arrived; return pairs-acc (unsorted — the caller sorts).
+;;
+;; Dynamic balance: after select' returns the (peer-pos, (idx,result)) pair
+;; for whichever runner finished first, that runner's channel is empty again
+;; and we immediately feed it the next pending item (if cursor < m).  Runners
+;; that had no item sent to them (when M < N) are simply never select'ed —
+;; the channel-drain RAII at scope exit joins them cleanly.
+
+(:wat::core::defn :wat::bracket::collect-loop<I,O>
+  [peers     <- :wat::core::Vector<wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>>
+   items     <- :wat::core::Vector<I>
+   pairs-acc <- :wat::core::Vector<(wat::core::i64,O)>
+   cursor    <- :wat::core::i64
+   collected <- :wat::core::i64
+   m         <- :wat::core::i64]
+  -> :wat::core::Vector<(wat::core::i64,O)>
+  (:wat::core::if (:wat::core::= collected m)
+    pairs-acc
+    (:wat::core::let
+      [picked   (:wat::kernel::select' peers)
+       peer-pos (:wat::core::first picked)
+       pair     (:wat::core::second picked)
+       cursor'  (:wat::core::if (:wat::core::< cursor m)
+                  (:wat::core::let [_ (:wat::kernel::send'
+                                        (:wat::core::nth peers peer-pos)
+                                        (:wat::core::Tuple cursor (:wat::core::nth items cursor)))]
+                    (:wat::core::+ cursor 1))
+                  cursor)]
+      (:wat::bracket::collect-loop peers items
+        (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))))
+
+;; ── map — the pool entry-point (Ruby's Parallel.map) ─────────────────────────
+;;
+;; Spawns N = min(cpu-count, M) runners, feeds each its first item, then drives
+;; the collect-loop to gather all M (idx,result) pairs.  sort-by idx restores
+;; input order regardless of completion order.  Dropping `peers` at scope exit
+;; triggers RAII drain+join on every Thread'.
+
+(:wat::core::defn :wat::bracket::map<I,O>
+  [host    <- :wat::spawn::ThreadOpts
+   items   <- :wat::core::Vector<I>
+   work-fn <- :wat::core::Fn(I)->O]
+  -> :wat::core::Vector<O>
+  (:wat::core::let
+    [m  (:wat::core::length items)
+     cc (:wat::program::cpu-count)
+     n  (:wat::core::if (:wat::core::< cc m) cc m)
+     wf (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
+          (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
+     peers (:wat::core::map
+             (:wat::core::fn [i <- :wat::core::i64]
+                 -> :wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>
+               (:wat::core::let
+                 [p (:wat::kernel::spawn-program' host
+                      (:wat::core::fn [self <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>]
+                          -> :wat::core::nil
+                        (:wat::bracket::runner-loop self wf)))
+                  _ (:wat::kernel::send' p (:wat::core::Tuple i (:wat::core::nth items i)))]
+                 p))
+             (:wat::core::range 0 n))
+     pairs  (:wat::bracket::collect-loop peers items
+              (:wat::core::Vector :(wat::core::i64,O)) n 0 m)
+     sorted (:wat::core::sort-by
+              (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :wat::core::i64
+                (:wat::core::first pr))
+              pairs)]
+    (:wat::core::map
+      (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
+        (:wat::core::second pr))
+      sorted)))
