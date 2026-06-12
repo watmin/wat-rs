@@ -27,7 +27,7 @@ use wat::runtime::{Environment, Value};
 fn env_record_carries_process_and_thread_id() {
     let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
                  (:wat::program::Env/wat.process-id \
-                   (:wat::program::Env (:wat::time::now) (:wat::time::now) 12345 67890 :wat::program::PeerKind::process (:wat::program::EmptyEnv)))) \
+                   (:wat::program::Env (:wat::time::now) (:wat::time::now) 12345 67890 :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv)))) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .expect("startup/check should succeed");

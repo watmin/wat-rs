@@ -29,7 +29,7 @@ fn env_record_carries_user_program_slot() {
                  (:wat::core::conforms? \
                    (:wat::program::Env/user.program \
                      (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0 \
-                       :wat::program::PeerKind::process (:wat::program::EmptyEnv))) \
+                       :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv))) \
                    :wat::Record)) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

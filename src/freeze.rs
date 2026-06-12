@@ -1081,13 +1081,18 @@ fn invoke_user_main_orchestrated(
     // `wat.process-id` = OS pid; `wat.os-thread-id` = OS thread id (gettid).
     // `wat.peer-kind` = :process — root main OWNS its address space (builder-locked).
     //   Thread peers stamp :thread; forked process peers stamp :process.
+    // `wat.cpu-count` = available_parallelism(), a host constant inherited down the
+    //   spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
     // The RAII guard is held across main's run on this thread and uninstalls on
     // scope exit.
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
     let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
+    // cpu_count = available_parallelism(), a host constant inherited down the spawn tree
+    // (like wat.started-at). Fallback 1 if the OS refuses to report.
+    let cpu_count = std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1);
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process (:wat::program::EmptyEnv))"
+        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} (:wat::program::EmptyEnv))"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");

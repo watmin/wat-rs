@@ -20,7 +20,7 @@
 ;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::Record (the root).
 (:wat::Record::def :wat::program::EmptyEnv [])
 
-;; Six kernel-stamped fields (arc 259 — The Forced Hand):
+;; Seven kernel-stamped fields (arc 259 — The Forced Hand):
 ;;   wat.started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
 ;;   wat.peer-started-at — THIS peer's start, RE-STAMPED at each spawn (`peer-`, not `thread-`:
 ;;                         a peer may be :thread or :process; `thread-` would lie to a process peer).
@@ -28,6 +28,9 @@
 ;;   wat.os-thread-id    — OS thread id (Linux `gettid()`), stamped at the seam as i64.
 ;;   wat.peer-kind       — which KIND of peer (PeerKind enum); root main stamps :process (owns its
 ;;                         address space); thread peers stamp :thread.
+;;   wat.cpu-count       — host available parallelism (`std::thread::available_parallelism()`,
+;;                         fallback 1); a host constant, INHERITED unchanged down the spawn tree
+;;                         (like `wat.started-at`). The escape-hatch home for "how many CPUs".
 ;;   user.program        — the user-extension slot, typed :wat::Record (the root — any record fits
 ;;                         as a subtype); default :wat::program::EmptyEnv. NOT `wat.*` — user data,
 ;;                         distinct from platform-owned fields.
@@ -39,4 +42,5 @@
    wat.process-id <- :wat::core::i64
    wat.os-thread-id <- :wat::core::i64
    wat.peer-kind <- :wat::program::PeerKind
+   wat.cpu-count <- :wat::core::i64
    user.program <- :wat::Record])
