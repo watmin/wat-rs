@@ -63,32 +63,35 @@
       (:wat::bracket::collect-loop peers items
         (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))))
 
-;; ── map — the pool entry-point (Ruby's Parallel.map) ─────────────────────────
+;; ── map-worker — general pool engine (per-runner state via worker-init) ───────
 ;;
-;; Spawns N = min(cpu-count, M) runners, feeds each its first item, then drives
-;; the collect-loop to gather all M (idx,result) pairs.  sort-by idx restores
-;; input order regardless of completion order.  Dropping `peers` at scope exit
-;; triggers RAII drain+join on every Thread'.
+;; Each runner i is built from `(worker-init i)`: the OUTER call is per-runner
+;; setup (once, when the runner is built — the place to allocate a resource
+;; reused across that runner's items); the INNER result is the per-item work-fn.
+;; `worker-id` is the runner index passed to `worker-init`.  The coordinator
+;; (spawn+prime+collect+sort) lives here ONCE; `map` and `each` are thin wrappers.
 
-(:wat::core::defn :wat::bracket::map<I,O>
-  [host    <- :wat::spawn::ThreadOpts
-   items   <- :wat::core::Vector<I>
-   work-fn <- :wat::core::Fn(I)->O]
+(:wat::core::defn :wat::bracket::map-worker<I,O>
+  [host        <- :wat::spawn::ThreadOpts
+   items       <- :wat::core::Vector<I>
+   worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
   -> :wat::core::Vector<O>
   (:wat::core::let
     [m  (:wat::core::length items)
      cc (:wat::program::cpu-count)
      n  (:wat::core::if (:wat::core::< cc m) cc m)
-     wf (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
-          (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
      peers (:wat::core::map
              (:wat::core::fn [i <- :wat::core::i64]
                  -> :wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>
                (:wat::core::let
-                 [p (:wat::kernel::spawn-program' host
-                      (:wat::core::fn [self <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>]
-                          -> :wat::core::nil
-                        (:wat::bracket::runner-loop self wf)))
+                 [work-fn (worker-init i)                          ;; per-runner setup, once
+                  wf (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
+                       (:wat::core::Tuple (:wat::core::first pair)
+                         (work-fn (:wat::core::second pair))))
+                  p (:wat::kernel::spawn-program' host
+                       (:wat::core::fn [self <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>]
+                           -> :wat::core::nil
+                         (:wat::bracket::runner-loop self wf)))
                   _ (:wat::kernel::send' p (:wat::core::Tuple i (:wat::core::nth items i)))]
                  p))
              (:wat::core::range 0 n))
@@ -103,20 +106,41 @@
         (:wat::core::second pr))
       sorted)))
 
-;; ── each — the side-effect pool (Ruby's Parallel.each) ───────────────────────
+;; ── map — thin wrapper over map-worker (Ruby's Parallel.map) ─────────────────
 ;;
-;; `map` that DISCARDS: run work-fn over every item through the same bounded,
-;; dynamically-balanced pool, then return nil.  A thin wrapper over `map` —
-;; `map` already blocks until all M results arrive (its collect-loop returns
-;; only at collected == m), so when `map` returns, every work-fn has run.  We
-;; drop the Vector and return nil.  The work-fn's result type O is free: each
-;; accepts any work-fn and discards its output (the name says side-effects).
+;; Passes a constant `worker-init` that ignores the runner id and returns the
+;; shared work-fn.  The coordinator (spawn+prime+collect+sort) lives in map-worker.
+
+(:wat::core::defn :wat::bracket::map<I,O>
+  [host    <- :wat::spawn::ThreadOpts
+   items   <- :wat::core::Vector<I>
+   work-fn <- :wat::core::Fn(I)->O]
+  -> :wat::core::Vector<O>
+  (:wat::bracket::map-worker host items
+    (:wat::core::fn [_worker-id <- :wat::core::i64] -> :wat::core::Fn(I)->O
+      work-fn)))
+
+;; ── each-worker — general side-effect pool (per-runner state via worker-init) ─
+;;
+;; `map-worker` that DISCARDS: run worker-init-derived per-item fns over every
+;; item through the pool, then return nil.
+
+(:wat::core::defn :wat::bracket::each-worker<I,O>
+  [host        <- :wat::spawn::ThreadOpts
+   items       <- :wat::core::Vector<I>
+   worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::do (:wat::bracket::map-worker host items worker-init) nil))
+
+;; ── each — thin wrapper over each-worker (Ruby's Parallel.each) ──────────────
+;;
+;; Passes a constant `worker-init` that ignores the runner id.
 
 (:wat::core::defn :wat::bracket::each<I,O>
   [host    <- :wat::spawn::ThreadOpts
    items   <- :wat::core::Vector<I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
-  (:wat::core::do
-    (:wat::bracket::map host items work-fn)
-    nil))
+  (:wat::bracket::each-worker host items
+    (:wat::core::fn [_worker-id <- :wat::core::i64] -> :wat::core::Fn(I)->O
+      work-fn)))
