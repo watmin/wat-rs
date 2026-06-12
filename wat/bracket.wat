@@ -102,3 +102,21 @@
       (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
         (:wat::core::second pr))
       sorted)))
+
+;; ── each — the side-effect pool (Ruby's Parallel.each) ───────────────────────
+;;
+;; `map` that DISCARDS: run work-fn over every item through the same bounded,
+;; dynamically-balanced pool, then return nil.  A thin wrapper over `map` —
+;; `map` already blocks until all M results arrive (its collect-loop returns
+;; only at collected == m), so when `map` returns, every work-fn has run.  We
+;; drop the Vector and return nil.  The work-fn's result type O is free: each
+;; accepts any work-fn and discards its output (the name says side-effects).
+
+(:wat::core::defn :wat::bracket::each<I,O>
+  [host    <- :wat::spawn::ThreadOpts
+   items   <- :wat::core::Vector<I>
+   work-fn <- :wat::core::Fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::do
+    (:wat::bracket::map host items work-fn)
+    nil))
