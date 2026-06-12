@@ -450,10 +450,12 @@ pub fn spawn_thread_peer(
         })?;
 
     // Build the parent-side Thread peer (input_tx + output_rx + JoinHandle).
+    // input and join are Option so RAII Drop can drain_and_join idempotently
+    // (arc 259 S2b).
     let peer = Thread {
-        input: input_tx,
+        input: Some(input_tx),
         output: output_rx,
-        join: join_handle,
+        join: Some(join_handle),
     };
 
     // Wrapped in Option so close' can `.take()` the peer (consuming it for
@@ -701,13 +703,13 @@ mod tests {
         );
 
         // Close the peer and join the spawned thread — eliminates the sleep.
-        // Take the Thread out of the Option (closes input_tx → thread sees disconnect)
-        // then call .join() on the JoinHandle.
-        let peer = cell
+        // Take the Thread out of the Option (drain_and_join → drain input_tx so
+        // the worker sees disconnect, then join the JoinHandle).
+        let mut peer = cell
             .with_mut("test:close", Span::unknown(), |opt_peer| opt_peer.take())
             .expect("with_mut must not cross thread boundary")
             .expect("peer must not already be closed");
-        peer.join().expect("thread join must succeed");
+        peer.drain_and_join().expect("drain_and_join must return Some").expect("thread join must succeed");
         drop(peer_val);
     }
 

@@ -53,25 +53,38 @@ use crate::comms::{HolonRepresentable, RecvError, SendError};
 /// `output: Receiver<O>`).
 ///
 /// Construct via the kernel's spawn dispatcher (Stone 4.5) or the
-/// lib-test harness in peer.rs (`Thread { input, output, join }` in-crate).
-/// Do not construct by naming fields externally — field visibility is
-/// `pub(crate)` to enforce the input+output+join invariant.
+/// lib-test harness in peer.rs (`Thread { input: Some(..), output, join: Some(..) }`
+/// in-crate). Do not construct by naming fields externally — field visibility
+/// is `pub(crate)` to enforce the input+output+join invariant.
+///
+/// ## RAII lifecycle (arc 259 S2b)
+///
+/// `Drop` calls `drain_and_join` automatically — the worker is always reaped
+/// when the peer leaves scope, without any explicit `close'` call. The
+/// `close'` verb routes through the same idempotent `drain_and_join`, so
+/// `close'`-then-`Drop` is safe (the second call is a no-op via `Option::take`).
 pub struct Thread<I: Send + 'static, O: Send + 'static> {
-    /// Parent → spawned thread.
-    pub(crate) input: crate::comms::thread::Sender<I>,
+    /// Parent → spawned thread. `Option` so `Drop`/`drain_and_join` can
+    /// `take`+drop it BEFORE joining (drain-before-join invariant).
+    pub(crate) input: Option<crate::comms::thread::Sender<I>>,
     /// Spawned thread → parent.
     pub(crate) output: crate::comms::thread::Receiver<O>,
-    /// Handle for the spawned OS thread.
-    pub(crate) join: std::thread::JoinHandle<()>,
+    /// Handle for the spawned OS thread. `Option` so `drain_and_join` is
+    /// idempotent via `take` — a second call returns `None` (no-op).
+    pub(crate) join: Option<std::thread::JoinHandle<()>>,
 }
 
 impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
     /// Send a value to the spawned thread.
     ///
     /// Returns `Err(SendError(value))` if the thread has exited and its
-    /// receiver end has been dropped (channel disconnected).
+    /// receiver end has been dropped (channel disconnected), or if the
+    /// input has already been drained (peer closed).
     pub fn send(&self, value: I) -> Result<(), SendError<I>> {
-        self.input.send(value)
+        match self.input.as_ref() {
+            Some(tx) => tx.send(value),
+            None => Ok(()), // already drained — worker exited, silently drop
+        }
     }
 
     /// Blocking recv from the spawned thread.
@@ -84,28 +97,32 @@ impl<I: Send + 'static, O: Send + 'static> Thread<I, O> {
         self.output.recv()
     }
 
-    /// Close both channel endpoints and return the JoinHandle.
+    /// Drain THEN join — idempotent. The ONE internal reap.
     ///
-    /// Dropping the input Sender disconnects the thread's channel (the
-    /// thread's Receiver sees `RecvError` on its next recv). Dropping the
-    /// output Receiver is RAII. The returned JoinHandle lets the caller
-    /// block on thread exit without introducing a new blocking layer here.
+    /// Drops the input `Sender` first (the worker's `recv'` raises →
+    /// the worker exits), then joins the thread (synchronous wait). Both
+    /// steps use `Option::take` so repeated calls are no-ops (returns `None`
+    /// after the first reap).
     ///
-    /// Prefer `join(self)` for the common "close + wait" pattern.
-    pub fn close(self) -> std::thread::JoinHandle<()> {
-        // Drop input: the thread's receiver side sees disconnected.
-        // Drop output: RAII cleanup of our receive side.
-        drop(self.input);
-        drop(self.output);
-        self.join
+    /// ## Load-bearing order: drain BEFORE join
+    ///
+    /// Joining first would deadlock: `join` waits for the worker; the worker
+    /// is blocked on `recv'` (input not yet dropped). The drain-first order
+    /// is the cascade-safety that makes the join hang-free.
+    pub(crate) fn drain_and_join(&mut self) -> Option<std::thread::Result<()>> {
+        drop(self.input.take()); // drain FIRST: worker's recv' raises → worker exits
+        self.join.take().map(|j| j.join()) // THEN join (synchronous); None if already reaped
     }
+}
 
-    /// Close both channel endpoints and block until the spawned thread exits.
+impl<I: Send + 'static, O: Send + 'static> Drop for Thread<I, O> {
+    /// RAII backstop — reaps the worker when the peer leaves scope.
     ///
-    /// Equivalent to `self.close().join()`. Returns the thread's join result.
-    pub fn join(self) -> std::thread::Result<()> {
-        let handle = self.close();
-        handle.join()
+    /// Calls `drain_and_join` (idempotent). `Drop` cannot propagate thread
+    /// panics; they are swallowed here. The `close'` verb surfaces panics
+    /// explicitly via `drain_and_join`'s return value.
+    fn drop(&mut self) {
+        let _ = self.drain_and_join();
     }
 }
 
@@ -116,7 +133,7 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
         f.debug_struct("Thread")
             .field("input", &self.input)
             .field("output", &self.output)
-            .field("join", &"JoinHandle")
+            .field("join", &self.join.as_ref().map(|_| "JoinHandle"))
             .finish()
     }
 }
@@ -308,10 +325,10 @@ mod tests {
         });
 
         // Build the Thread peer using parent-side endpoints.
-        let peer = Thread {
-            input: input_tx,
+        let mut peer = Thread {
+            input: Some(input_tx),
             output: output_rx,
-            join,
+            join: Some(join),
         };
 
         // Send 21 → expect 42 back (doubling transform).
@@ -319,7 +336,7 @@ mod tests {
         let got = peer.recv().expect("peer.recv must return the reply");
         assert_eq!(got, 42_i64, "thread doubled 21 → 42; got {}", got);
 
-        // Join cleanly — thread should have exited after one send.
-        peer.join().expect("thread join must succeed");
+        // Drain and join cleanly — thread should have exited after one send.
+        peer.drain_and_join().expect("drain_and_join must return Some").expect("thread join must succeed");
     }
 }

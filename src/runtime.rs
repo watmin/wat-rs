@@ -22488,7 +22488,7 @@ fn eval_peer_close_prime(
                 OP,
                 list_span.clone(),
             )?;
-            let peer = cell
+            let mut thread = cell
                 .with_mut(OP, list_span.clone(), |opt_peer| opt_peer.take())
                 .map_err(EvalBreak::from)?
                 .ok_or_else(|| EvalBreak::from(RuntimeError {
@@ -22498,15 +22498,18 @@ fn eval_peer_close_prime(
                         reason: "peer already closed".into(),
                     },
                 }))?;
-            peer.join().map_err(|_| {
-                EvalBreak::from(RuntimeError {
+            // drain_and_join: drop input Sender FIRST (worker's recv' raises → worker
+            // exits), then join. Idempotent via Option::take — the subsequent Drop on
+            // `thread` is a no-op (arc 259 S2b drain-before-join invariant).
+            if let Some(Err(_)) = thread.drain_and_join() {
+                return Err(EvalBreak::from(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: "Thread peer join failed (thread panicked)".into(),
                     },
-                })
-            })?;
+                }));
+            }
             Ok(Value::Unit)
         }
         Value::RustOpaque(inner)
