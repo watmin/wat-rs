@@ -4509,6 +4509,17 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-program'" => {
             crate::kernel::spawn::eval_kernel_spawn_program_prime(args, list_span, env, sym)
         }
+        // Arc 259 S2c-i — per-tier 1-arg primitives (no tier keyword, no env arg).
+        // spawn-thread' : (fn([Peer'<S,R>]) -> nil | fn([I]) -> O) -> Thread'<R,S> | Thread'<I,O>
+        // spawn-process' : forms -> Process'<I,O>
+        // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers
+        // already used by spawn-program' — no logic duplication.
+        ":wat::kernel::spawn-thread'" => {
+            crate::kernel::spawn::eval_kernel_spawn_thread_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::spawn-process'" => {
+            crate::kernel::spawn::eval_kernel_spawn_process_prime(args, list_span, env, sym)
+        }
         // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
         // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814):
         //   send'     — intrinsic (projective: I from peer<I,O>)

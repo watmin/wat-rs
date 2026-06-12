@@ -4802,6 +4802,25 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 259 S2c-i — per-tier 1-arg primitives.
+            // PARTITION — INTRINSIC: projective over the prog fn type (thread) /
+            // forms (process). Factor shared projection with spawn-program'.
+            ":wat::kernel::spawn-thread'" => {
+                let (val, mut errs) = infer_spawn_thread_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::spawn-process'" => {
+                let (val, mut errs) = infer_spawn_process_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 214 Stone 4.6a-ii — three peer verb intrinsics.
             // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
             //   send'     — projective: I flows from peer<I,O> into the payload arg.
@@ -9839,39 +9858,55 @@ fn infer_spawn_program_prime(
     // args[2]: tier-specific program argument.
     //
     // Arc 214 γ-1 — `:process` takes a PROGRAM (forms: `Vector<WatAST>`) and
-    // returns `Process'<T,T>` where T is a fresh inference variable (the wire is
-    // plain line-EDN; the program owns its protocol via `readln -> :T` / `println`).
-    // Fresh T lets `send'` accept any payload (T unifies with the payload type) and
-    // `recv'` return T or be overridden by the `-> :T` ascription. The fn-projection
-    // is inappropriate here because the program's I/O protocol is opaque at spawn time.
-    // `:thread` keeps the old fn-projection path.
+    // returns `Process'<I,O>` with independent fresh vars (the wire is plain
+    // line-EDN; the program owns its protocol via `readln -> :T` / `println`).
+    // `:thread` keeps the fn-projection path.
+    // Both branches delegate to shared helpers (arc 259 S2c-i — no duplication).
     if tier == ":process" {
-        // Infer args[2] for error coverage only (type errors in the forms body
-        // are caught at startup_from_forms time, not here). Accept any type —
-        // the runtime validates it's `Vector<WatAST>` (forms).
-        let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        // Return Process'<I,O> with INDEPENDENT fresh vars (arc 214 γ-1). The
-        // forms-server is a request→response program — `send'`ing an I and
-        // `recv'`ing a different O is the common case (e.g. a Request enum in,
-        // a Response enum out). A single shared `T` would force I = O and break
-        // every non-echo server. `send' peer v` drives I from v; `recv' peer -> :U`
-        // drives O from the ascription; the two never alias.
-        let i = fresh.fresh();
-        let o = fresh.fresh();
-        let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Process'".into(),
-            args: vec![i, o],
+        let (val, mut proc_errs) = infer_process_prog_type(&args[2], env, locals, fresh, subst).into_parts();
+        local_errors.append(&mut proc_errs);
+        return match val {
+            Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+            None => CheckResult::errs(local_errors),
         };
-        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
     }
 
-    // `:thread` — infer args[2] as a fn and project [I] -> O.
-    let fn_inferred = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+    // `:thread` — infer args[2] as a fn and project [I] -> O via shared helper.
+    let (val, mut thread_errs) = infer_thread_prog_type(&args[2], OP, env, locals, fresh, subst).into_parts();
+    local_errors.append(&mut thread_errs);
+    match val {
+        Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+        None => CheckResult::errs(local_errors),
+    }
+}
+
+/// Shared `:thread` projection — infers `fn_arg` as a fn and projects it to
+/// `Thread'<I,O>` (self-peer model) or `Thread'<I,O>` (legacy apply-loop).
+///
+/// Called by both `infer_spawn_program_prime` (for its `:thread` branch, passing
+/// `args[2]`) and `infer_spawn_thread_prime` (1-arg verb, passing `args[0]`).
+/// No duplication: one path, two callers.
+///
+/// Arc 259 S2a — self-peer detection applies here:
+/// - If the fn arg type is `Peer'<S,R>`, returns `Thread'<R,S>` (param-swap).
+/// - Otherwise (legacy apply-loop), returns `Thread'<I,O>`.
+fn infer_thread_prog_type(
+    fn_arg: &WatAST,
+    op: &str,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const PEER_HEAD: &str = "wat::kernel::Thread'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    let fn_inferred = match infer(fn_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
             let t = fresh.fresh();
             let ty = TypeExpr::Parametric {
-                head: peer_head.into(),
+                head: PEER_HEAD.into(),
                 args: vec![t.clone(), t],
             };
             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
@@ -9886,9 +9921,9 @@ fn infer_spawn_program_prime(
         TypeExpr::Fn { args: fn_args, .. } => {
             // STOP-1 variant: fn type but wrong arity — a program fn takes exactly one input.
             local_errors.push(CheckError {
-                span: args[2].span().clone(),
+                span: fn_arg.span().clone(),
                 kind: CheckErrorKind::MalformedForm {
-                    head: OP.into(),
+                    head: op.into(),
                     reason: format!(
                         "program fn must take exactly one input parameter (the message); \
                          got {} parameters (inferred type: {})",
@@ -9900,7 +9935,7 @@ fn infer_spawn_program_prime(
             });
             let t = fresh.fresh();
             let ty = TypeExpr::Parametric {
-                head: peer_head.into(),
+                head: PEER_HEAD.into(),
                 args: vec![t.clone(), t],
             };
             return CheckResult::partial_with(ty, local_errors);
@@ -9908,9 +9943,9 @@ fn infer_spawn_program_prime(
         other => {
             // STOP-1: not a fn type at all — report exact TypeExpr and stop.
             local_errors.push(CheckError {
-                span: args[2].span().clone(),
+                span: fn_arg.span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
-                    callee: OP.into(),
+                    callee: op.into(),
                     param: "program".into(),
                     expected: "fn([I]) -> O  (a single-parameter function value)".into(),
                     got: format_type(&other),
@@ -9939,7 +9974,7 @@ fn infer_spawn_program_prime(
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
             TypeExpr::Parametric {
-                head: peer_head.into(),
+                head: PEER_HEAD.into(),
                 args: vec![r_ty, s_ty],
             }
         }
@@ -9949,12 +9984,145 @@ fn infer_spawn_program_prime(
             // projection is the non-self-peer path; it dies with the apply-loop branch
             // in arc 259 S2d (mirrors the dual-mode rune in kernel/spawn.rs).
             TypeExpr::Parametric {
-                head: peer_head.into(),
+                head: PEER_HEAD.into(),
                 args: vec![i_ty, o_ty],
             }
         }
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Shared `:process` projection — infers `forms_arg` (accepts any type; the
+/// runtime validates it is `Vector<WatAST>`) and returns `Process'<I,O>` with
+/// independent fresh vars (arc 214 γ-1).
+///
+/// Called by both `infer_spawn_program_prime` (for its `:process` branch, passing
+/// `args[2]`) and `infer_spawn_process_prime` (1-arg verb, passing `args[0]`).
+/// No duplication: one path, two callers.
+fn infer_process_prog_type(
+    forms_arg: &WatAST,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Infer for error coverage only (type errors in the forms body are caught at
+    // startup_from_forms time, not here). Accept any type — the runtime validates
+    // it's `Vector<WatAST>` (forms).
+    let _ = infer(forms_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // Return Process'<I,O> with INDEPENDENT fresh vars (arc 214 γ-1). The
+    // forms-server is a request→response program — `send'`ing an I and
+    // `recv'`ing a different O is the common case (e.g. a Request enum in,
+    // a Response enum out). A single shared `T` would force I = O and break
+    // every non-echo server. `send' peer v` drives I from v; `recv' peer -> :U`
+    // drives O from the ascription; the two never alias.
+    let i = fresh.fresh();
+    let o = fresh.fresh();
+    let ty = TypeExpr::Parametric {
+        head: "wat::kernel::Process'".into(),
+        args: vec![i, o],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+// ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
+
+/// Type-check `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
+///
+/// One positional arg:
+/// - `args[0]`: program fn; inferred; must be `fn([I]) -> O` or
+///   `fn([Peer'<S,R>]) -> nil` (self-peer model); projects to `Thread'<I,O>` or
+///   `Thread'<R,S>`. Uses the SAME projection as `infer_spawn_program_prime`'s
+///   `:thread` branch — `infer_thread_prog_type` (no duplication).
+///
+/// No tier keyword, no env arg.
+fn infer_spawn_thread_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::spawn-thread'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        let ty = TypeExpr::Parametric {
+            head: "wat::kernel::Thread'".into(),
+            args: vec![t.clone(), t],
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+
+    // Delegate to the shared thread-projection helper (same logic as spawn-program' :thread).
+    let (val, mut proj_errs) = infer_thread_prog_type(&args[0], OP, env, locals, fresh, subst).into_parts();
+    local_errors.append(&mut proj_errs);
+    match val {
+        Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+        None => CheckResult::errs(local_errors),
+    }
+}
+
+/// Type-check `(:wat::kernel::spawn-process' forms)` — arc 259 Stone S2c-i.
+///
+/// One positional arg:
+/// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
+///   returns `Process'<I,O>` with independent fresh vars. Uses the SAME projection
+///   as `infer_spawn_program_prime`'s `:process` branch — `infer_process_prog_type`
+///   (no duplication).
+///
+/// No tier keyword, no env arg.
+fn infer_spawn_process_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::spawn-process'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let i = fresh.fresh();
+        let o = fresh.fresh();
+        let ty = TypeExpr::Parametric {
+            head: "wat::kernel::Process'".into(),
+            args: vec![i, o],
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+
+    // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
+    let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();
+    local_errors.append(&mut proj_errs);
+    match val {
+        Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+        None => CheckResult::errs(local_errors),
+    }
 }
 
 // ─── Arc 214 Stone 4.6a-ii — three peer verb intrinsics ─────────────────────

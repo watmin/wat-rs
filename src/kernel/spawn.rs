@@ -332,6 +332,93 @@ pub fn eval_kernel_spawn_program_prime(
     }
 }
 
+// ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
+
+/// `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
+///
+/// One positional arg:
+/// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model)
+///   or `fn [I] -> O` (legacy apply-loop). Returns `Thread'<R,S>` / `Thread'<I,O>`.
+///
+/// Delegates to the SAME `spawn_thread_peer` called by the monolith's `:thread`
+/// branch — no duplication.
+pub fn eval_kernel_spawn_thread_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::spawn-thread'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        }
+        .into());
+    }
+
+    // arg 0: program fn value.
+    let program_fn = match eval_inner(&args[0], env, sym)?.value_owned() {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "fn value (program body) for thread tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
+    // Delegate to the shared thread-tier spawn logic (same path as spawn-program' :thread).
+    spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into)
+}
+
+/// `(:wat::kernel::spawn-process' forms)` — arc 259 Stone S2c-i.
+///
+/// One positional arg:
+/// - `args[0]` — program forms (a vec of WatAST): the forms-server program.
+///   Returns `Process'<I,O>`.
+///
+/// Delegates to the SAME `spawn_process_peer` called by the monolith's `:process`
+/// branch — no duplication.
+pub fn eval_kernel_spawn_process_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::spawn-process'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        }
+        .into());
+    }
+
+    // arg 0: program forms — eval and unwrap as Vec<WatAST>.
+    let forms = crate::process::expect_vec_ast_pub(
+        OP,
+        eval_inner(&args[0], env, sym)?,
+        args[0].span().clone(),
+    ).map_err(EvalBreak::from)?;
+
+    // Delegate to the shared process-tier spawn logic (same path as spawn-program' :process).
+    spawn_process_peer(forms, sym, list_span).map_err(Into::into)
+}
+
 // ─── Thread tier ──────────────────────────────────────────────────────────────
 
 /// Spawn a thread-tier program peer. Called by the `spawn-program' :thread` dispatcher
