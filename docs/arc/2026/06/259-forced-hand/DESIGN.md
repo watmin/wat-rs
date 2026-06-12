@@ -625,3 +625,75 @@ because the lock has adjustable teeth. (Realization-grade; candidate for the rea
 **Supersession note:** `DESIGN-STONE-259.S2a.md` + the STRIKE-READY commit
 (`2529cce5`, probe annotating `ThreadSelf'`) predate this convergence; S2a is
 re-authored onto the unified `Peer` when struck.
+
+---
+
+# S3 BRACKETS — COMPLETE (2026-06-12) + the test-layer direction (S3.5)
+
+## brackets shipped — the full Ruby `Parallel` surface
+
+Built over `spawn-program'` + the `runner-loop`; the coordinator touches runners only
+through the transport-blind `Peer` (the remote axis, bought in advance):
+
+- **`runner-loop<I,O>`** (S3.2a, `004521a3`) — the multi-message server; named tail
+  recursion, real general TCO (constant stack at 300+ items — a capability the JVM lacks,
+  which is why Clojure needs `recur`; wat self-recurses with neither `loop` nor `recur`).
+- **`(:wat::program::cpu-count)`** (S3.2b-i, `f7ece4f8`) — the live host-parallelism verb.
+  Reach-stumble: the stamped env field `wat.cpu-count` is unreachable without a seam
+  install, so the live verb mirrors `time/now` vs `started-at`. DRY'd two seam sites into
+  `host_cpu_count()`.
+- **`map` + the coordinator** (S3.2b-ii, `6fceaade`) — bounded, dynamically-balanced,
+  INPUT-ORDER pool (index round-trip; collect-then-sort) — the consented-MapReduce engine.
+- **`each`** (S3.3, `83812ad8`) — `(do (map …) nil)`, the side-effect pool.
+- **`map-worker` / `each-worker`** (S3.4, `5e7a5ae4`) — per-runner state via CLOSURES:
+  `worker-init : i64 -> (I->O)`. `map`/`each` are thin wrappers; the coordinator lives once.
+
+### S3.4 — closures, not the ambient `bracket::Env`
+
+The original plan (`bracket::Env <: program::Env` + `wat.worker-id` read ambiently) hit two
+disk facts: wat record dispatch is nominal-EXACT (no parent-walk, Stone S-B.1), so the
+subtype isn't accepted where the base is; and there is no wat-level env-install verb. The
+four questions disqualified the ambient path on Simple (six braided new pieces) and passed
+the closure path clean. Per-runner state lives in a closure (`(worker-init i)` once per
+runner; the inner fn per item — the nesting of the forms IS the nesting of the lifetimes);
+`worker-id` is bracket-domain data passed to `worker-init`, not a kernel-stamped env field.
+Full grounding + four-Q verdict: `DESIGN-STONE-259.S3.4.md`.
+
+## S3.5 — the test layer onto the new substrate (`deftest'` / `deftest-hermetic'`)
+
+`deftest` / `deftest-hermetic` still ride the legacy `run-thread` (old unprimed `Thread` +
+`Thread/join-result`) / old `Process` paths — the spawn overhaul never reached them. Stage
+primed `deftest'` / `deftest-hermetic'` on the new substrate beside the legacy, then retire
+(the front-half; the back-half retires legacy `run-threads` + `ThreadPeer`/`ProcessPeer`).
+
+### The keystone — grounded, already built
+
+How does `deftest'` get a body's pass / structured-failure as a *value*, when the new
+`recv'` raises on death and `try-recv'` was deleted (`select'` is the only multiplex kept)?
+The disk answered:
+
+- A `spawn-program'` **self-peer** catches its body's panic and **discards** it
+  (`spawn.rs:455-458`, `let _ =`); death is signaled only by the channel dropping
+  (`recv'`/`select'` raises). A *server streams* — it has no outcome.
+- But the **one-shot outcome-capture** already exists on the arc-214 `comms::thread::pair`
+  substrate: `catch_unwind → SpawnOutcome::Panic{message, assertion}` (via
+  `extract_panic_payload`) → `Result<(), Vec<ThreadDiedError>>` (`runtime.rs:18551 /
+  18889 / 18955`).
+
+**Reframe:** a test is a *one-shot computation with an outcome*, not a streaming self-peer.
+The substrate already has both shapes — `deftest'` rides the outcome-capture one, bundling
+it internally exactly as the old `run-thread` bundled `Thread/join-result`. No new user verb
+(honors the deleted `try-recv'` and the annihilated user-held join), no sandbox-in-peer, no
+recv-variant. The four questions cleared it; each rejected candidate (a `join-result'` verb /
+a sandbox-in-peer / a death-as-value recv) fought a decision the system had already made.
+
+Native wat coverage of `bracket.wat` then rides `deftest'` (first native-wat test of the
+spawn surface; the Rust probes stay — belt-and-suspenders + the bare-`eval_in_frozen`
+substrate-boundary env that surfaced the cpu-count gap).
+
+**The maturity tell:** the design process, run honestly, converged on a shape the substrate
+had already grown — we nearly rebuilt what arc 214 already built, in exactly the shape the
+four questions independently derived. Build steps: `DESIGN-STONE-S3.5a` + a two-path probe
+(catch a PASS and a structured ASSERT-FAIL on the new substrate) + ground which fn spawns the
+outcome-capturing one-shot peer (re-point `run-thread`'s guts onto the `comms`/`SpawnOutcome`
+path).
