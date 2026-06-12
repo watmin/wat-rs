@@ -525,14 +525,22 @@ provable strike.
 |---|---|---|---|
 | **S2a** | **Unified pipes-only `Peer` + thread self-peer handoff.** Kill `ThreadSelf'`; worker self-peer = `Peer<O,I>` (uniform `send'`/`recv'`). Rewrite the `:thread` arm: apply-loop → construct the child `Peer` **in-thread** (owner-thread invariant) → call prog ONCE. Keeps the 3-arg call shape + user `close'` for now. | wat probe: thread prog drives its self-peer (revise the committed probe off `ThreadSelf'`) | — (the hard new machinery) |
 | **S2b** | **Internalize `close`: RAII Drop + orchestration-explicit.** Custom `Drop` on the Peer = drain→join (cascade-safe). The parent handle becomes a pipes-only `Peer` whose Drop reaps. `close` becomes an internal op (additive; user `close'` still works until S2d). | lib-test: dropped peer reaps without hanging; explicit internal close idempotent | S2a |
-| **S2c** | **`spawn-program'` → host-type defclause (choice A).** 2-arg `(host prog)`; wat defclause on `ThreadOpts`/`ProcessOpts`; calls internal `spawn-thread'`/`spawn-process'` (made non-user-callable); env-arg gone; retire `infer_spawn_program_prime` keyword inference. | wat probe: `(spawn-program' (thread) prog)` dispatches; wrong host = type error | S2a |
+| **S2c** | **`spawn-program'` → host-type defclause (choice A) + the real env stamping.** 2-arg `(host prog)`; wat defclause on `ThreadOpts`/`ProcessOpts`; calls internal `spawn-thread'`/`spawn-process'` (non-user-callable); retire `infer_spawn_program_prime` keyword inference. **The host opts carry the program `init-fn`** (`(thread :init f)` — still 2-arg). The clause does the real peer-start env build: **pid-aware `wat.started-at` + `wat.peer-started-at` + nanos duration op + run `init-fn` → `user.program` slot** — kills the `259.0c` placeholder lie. | wat probe: dispatch on host type; wrong host = type error; env timing fields distinct; `user.program` carries the init result | S2a |
 | **S2d** | **Migrate callers + the cut.** All callers → `(spawn-program (thread\|process) prog)`; drop user `close'` calls (rely on RAII); REMOVE `close'` / `spawn-thread'` / `spawn-process'` from the user surface. | full non-ignored gate green | S2b, S2c |
-| **S3** | **`brackets` rebuilt over `spawn-program`.** wat fan-out layer; retire arc-170 `run-threads`(struct) + `ThreadPeer`/`ProcessPeer` struct + peer `readln`/`println`. Folds in #196 / 214 Slice 7 / 259.3 (`wat.worker-id`, `bracket::Env`). | wat probe: `brackets` fan-out + structured join-all | S2d |
+| **S3** | **`brackets` rebuilt over `spawn-program` + the bracket env (the dual init-fn).** wat fan-out layer; retire arc-170 `run-threads`(struct) + `ThreadPeer`/`ProcessPeer` struct + peer `readln`/`println`. **`bracket::Env <: program::Env` + `wat.worker-id` + `user.bracket` + the bracket `init-fn`** — the SECOND init-fn consumer that forces the extension/nesting design to be general. Folds in #196 / 214 Slice 7 / 259.3/259.4. | wat probe: `brackets` fan-out + structured join-all; per-worker `wat.worker-id` distinct; `user.bracket` carries the init result | S2d |
 | **S4** | **The prime-drop sweep.** Drop the `'` from `spawn-program'` / `send'` / `recv'` / `Peer'` / `select'` → the idealized no-prime names. The migration-end cosmetic cut. | corpus + gate green | S3 |
 
-**Banked / enabled-not-built (ride the locked sig, zero churn):** the timing correction
-(pid-aware `wat.started-at` + nanos duration op); user-extension (`user.program` /
-`user.bracket` slots + `init-fn`); `:remote` (perpetually-awaiting — the forcing function).
+**The only thing NOT built: `:remote`** (perpetually-awaiting — the forcing function on the
+*location* axis; its opts shape is deliberately unagreed). Everything else — the timing
+correction, the program init-fn (S2c), and the bracket init-fn (S3) — is **built now**: the
+**dual init-fn (program + bracket) is itself the forcing function on the *extension* axis** —
+two consumers prove the nesting design is general, where banking one would bake in single-layer
+assumptions. Building both is the forced hand.
+
+**Open sub-decision for S2c (optional-is-a-smell):** is the `init-fn` REQUIRED on every host
+(a trivial `(fn [] nil)` → empty `user.program` when no custom slot) or is there a no-init
+host *and* an init host? Per `feedback_optional_is_a_smell`, lean REQUIRED (every host carries
+one); resolve at S2c design.
 
 **Supersession note:** `DESIGN-STONE-259.S2a.md` + the STRIKE-READY commit
 (`2529cce5`, probe annotating `ThreadSelf'`) predate this convergence; S2a is
