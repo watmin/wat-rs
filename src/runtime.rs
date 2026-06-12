@@ -4540,6 +4540,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::select'" => {
             eval_peer_select_prime(args, list_span, env, sym)
         }
+        // Arc 209 Stone C0 — peer-pair': mint two connected, crossed bare Peer'
+        // ends WITHOUT spawning (the connection primitive defservice provisions —
+        // "programs ≠ channels"). Returns (Peer'<S,R>, Peer'<R,S>).
+        ":wat::kernel::peer-pair'" => {
+            eval_peer_pair_prime(args, list_span)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The orphaned eval body in src/fork.rs
@@ -17774,6 +17780,51 @@ fn eval_make_channel(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBre
     ])))
 }
 
+/// `(:wat::kernel::peer-pair' :S :R)` — mint two connected, crossed bare `Peer'`
+/// ends WITHOUT spawning. Arc 209 Stone C0 — the connection primitive: a service
+/// provisions a client by handing it one end while keeping the other in its
+/// `select'` set ("programs ≠ channels"). End A is `Peer'<S,R>` (sends S, recvs R);
+/// end B is `Peer'<R,S>` (sends R, recvs S); A's send reaches B's recv and vice-versa.
+///
+/// Mirrors `spawn_thread_peer`'s crossbeam crossover wiring MINUS the spawn — no
+/// thread, no join handle, no crash channel (a bare connected pair has no worker
+/// behind it). Both ends carry `Value` at runtime; the two type-keyword args type
+/// the crossed ends for the checker (`infer_peer_pair_prime`). Thread tier only;
+/// process (pipe) / remote (socket) provisioning is a distinct separate-memory
+/// mechanism (the `:remote`-class future), not this verb extended.
+fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::peer-pair'";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(), expected: 2, got: args.len()
+        } }.into());
+    }
+    for (i, a) in args.iter().enumerate() {
+        if !matches!(a, WatAST::Keyword(_, _)) {
+            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+            } }.into());
+        }
+    }
+    use crate::kernel::peer::Peer;
+    use crate::kernel::spawn::PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+    // pair A: end_a → end_b ; pair B: end_b → end_a (the crossover).
+    let (a_tx, a_rx) = crate::comms::thread::pair::<Value>();
+    let (b_tx, b_rx) = crate::comms::thread::pair::<Value>();
+    let end_a = make_rust_opaque(
+        PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: a_tx, rx: b_rx }))),
+    );
+    let end_b = make_rust_opaque(
+        PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: b_tx, rx: a_rx }))),
+    );
+    Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
+}
+
 /// `(:wat::kernel::send sender value)` — blocks until the value is
 /// accepted by the channel OR every receiver has been dropped.
 /// Returns `:Option<()>`: `(Some ())` on a successful send,
@@ -22946,12 +22997,107 @@ fn eval_peer_select_prime(
             }
             .into()),
         }
+    } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
+        // ── Bare Peer' (a provisioned connection — no spawned worker behind it) ──
+        // Arc 209 Stone C0 — a service select's over the server ends of the
+        // peer-pair' connections it has provisioned. Mirrors the Thread' branch,
+        // reading each peer's `rx` receiver (vs. the Thread's `output`).
+        type PeerCell = std::sync::Arc<
+            crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Peer<Value, Value>>,
+            >,
+        >;
+        let mut arcs: Vec<&PeerCell> = Vec::with_capacity(peers_vec.len());
+        for (i, peer) in peers_vec.iter().enumerate() {
+            match peer {
+                Value::RustOpaque(inner)
+                    if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+                {
+                    let cell: &PeerCell = crate::rust_deps::marshal::downcast_ref_opaque(
+                        inner,
+                        crate::kernel::spawn::PEER_TYPE_PATH,
+                        OP,
+                        list_span.clone(),
+                    )?;
+                    arcs.push(cell);
+                }
+                other => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "peers[{}] has wrong tier (expected Peer'): {:?}",
+                                i,
+                                ValueSnapshot::of(other)
+                            ),
+                        },
+                    }
+                    .into())
+                }
+            }
+        }
+
+        let mut guards: Vec<crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::peer::Peer<Value, Value>>>> =
+            Vec::with_capacity(arcs.len());
+        for arc in &arcs {
+            guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
+        }
+
+        let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
+            Vec::with_capacity(guards.len());
+        for (i, guard) in guards.iter().enumerate() {
+            match &**guard {
+                None => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("peer already closed (index {})", i),
+                        },
+                    }
+                    .into())
+                }
+                Some(peer) => receivers.push(&peer.rx),
+            }
+        }
+
+        let mut sel = crate::comms::thread::Select::new();
+        for rx in &receivers {
+            sel.recv(*rx);
+        }
+
+        match sel.select() {
+            crate::comms::SelectOutcome::Recv { index, result } => {
+                let value = result.map_err(|_| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select' recv failed: peer closed".into(),
+                        },
+                    })
+                })?;
+                Ok(Value::Tuple(std::sync::Arc::new(vec![
+                    Value::i64(index.0 as i64),
+                    value,
+                ])))
+            }
+            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select' interrupted by shutdown".into(),
+                },
+            }
+            .into()),
+        }
     } else {
         Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<I,O>)",
                 got: Box::new(ValueSnapshot::unavailable(first_type_path)),
             },
         }

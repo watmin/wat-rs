@@ -4856,6 +4856,16 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 209 Stone C0 — peer-pair': (:S :R) -> (Tuple Peer'<S,R> Peer'<R,S>).
+            // Type-keyword args → crossed parametric tuple (mirror of make-channel).
+            ":wat::kernel::peer-pair'" => {
+                let (val, mut errs) = infer_peer_pair_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -9706,6 +9716,75 @@ fn infer_make_channel(
         },
     ]);
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 209 Stone C0 — `(:wat::kernel::peer-pair' :S :R)` →
+/// `(Tuple Peer'<S,R> Peer'<R,S>)`. The two type-keyword args type the crossed
+/// bare-`Peer'` ends (mirror of `infer_make_channel`'s type-keyword → parametric
+/// tuple). Runtime mints both ends without spawning (`eval_peer_pair_prime`).
+fn infer_peer_pair_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    _env: &CheckEnv,
+    _locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    _subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::peer-pair'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        } });
+        let s = fresh.fresh();
+        let r = fresh.fresh();
+        return CheckResult::partial_with(peer_pair_tuple(s, r), local_errors);
+    }
+
+    let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
+    let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+    let ty = peer_pair_tuple(s_ty, r_ty);
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Parse one `peer-pair'` type-keyword arg; on a non-keyword or unparseable
+/// keyword, record a diagnostic and return a fresh var so checking continues.
+fn parse_peer_pair_type_arg(
+    arg: &WatAST,
+    op: &str,
+    errs: &mut Vec<CheckError>,
+    fresh: &mut InferCtx,
+) -> TypeExpr {
+    match arg {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => {
+                errs.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: op.into(),
+                    reason: format!("argument {} is not a valid type keyword", k),
+                    remedies: vec![],
+                } });
+                fresh.fresh()
+            }
+        },
+        other => {
+            errs.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: op.into(),
+                reason: "arguments must be type keywords (e.g. :wat::core::i64)".into(),
+                remedies: vec![],
+            } });
+            fresh.fresh()
+        }
+    }
+}
+
+/// `(Tuple Peer'<S,R> Peer'<R,S>)` — the crossed result type of `peer-pair'`.
+fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s.clone(), r.clone()] },
+        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] },
+    ])
 }
 
 // Arc 259 S2c-ii-b — `infer_spawn_program_prime` is RETIRED.
