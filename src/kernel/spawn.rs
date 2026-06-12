@@ -356,6 +356,26 @@ pub fn spawn_thread_peer(
     let join_handle = std::thread::Builder::new()
         .name(format!("wat-thread-peer::{}", fn_name))
         .spawn(move || {
+            // Arc 259 — install THIS peer's own program-env (the escape hatch for the peer).
+            // started-at + process-id INHERITED (same process); os-thread-id RE-STAMPED to
+            // THIS thread's tid; peer-kind = :thread (shares the address space);
+            // peer-started-at = now (the thread's start). Held across apply_function via the
+            // RAII guard, uninstalled when the closure ends.
+            let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
+            let pid = std::process::id() as i64;
+            let tid = unsafe { libc::gettid() } as i64;
+            let peer_env_src = format!(
+                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread)"
+            );
+            let peer_env_ast = crate::parse_one!(&peer_env_src)
+                .expect("arc 259: peer env constructor form parses");
+            let peer_env_val = crate::runtime::eval(
+                &peer_env_ast, &Environment::new(), &thread_sym,
+            )
+            .expect("arc 259: peer env constructor evals")
+            .value_owned();
+            let _peer_env_guard = crate::services::install_program_env(peer_env_val);
+
             // Arc 259 S2c-ii-a — self-peer handoff model (only model).
             //
             // OWNER-THREAD INVARIANT: build the Peer opaque INSIDE this closure so
