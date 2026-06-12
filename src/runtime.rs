@@ -3802,6 +3802,9 @@ fn dispatch_keyword_head_value(
         // Reads the calling thread's PROGRAM_ENV slot (installed via
         // install_program_env at the post-bootstrap / pre-:user::main seam).
         ":wat::program::env" => eval_program_env(args, list_span),
+        // Arc 259 S3.2b-i — live host parallelism verb.
+        // Answers std::thread::available_parallelism() directly, no program env needed.
+        ":wat::program::cpu-count" => eval_program_cpu_count(args, list_span),
         // Arc 170 slice 1e — ambient runtime values per REALIZATIONS
         // pass 7 (drop stdio params from `:user::main`; argv +
         // current-thread move to ambient).
@@ -17483,6 +17486,17 @@ fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalB
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
 }
 
+/// Returns the host parallelism as `i64` — `std::thread::available_parallelism()`,
+/// falling back to 1 if the OS refuses to report.
+///
+/// Single source of truth used by:
+/// - `(:wat::program::cpu-count)` — the live nullary verb (Arc 259 S3.2b-i)
+/// - `src/freeze.rs` — the program-env seam constructor
+/// - `src/kernel/spawn.rs` — the thread-peer env constructor
+pub(crate) fn host_cpu_count() -> i64 {
+    std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1)
+}
+
 /// `(:wat::program::env)` — nullary; returns the calling thread's ambient
 /// `:wat::program::Env` record (or subtype).
 ///
@@ -17509,6 +17523,26 @@ fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBrea
                          before invoking (:wat::program::env)".into(),
             },
         }.into())
+}
+
+/// `(:wat::program::cpu-count)` — nullary; returns the host parallelism as
+/// `:wat::core::i64` via [`host_cpu_count`].
+///
+/// Arc 259 S3.2b-i. Unlike the stamped `wat.cpu-count` env field (reachable only
+/// via `(:wat::program::env)` when a program env is installed), this verb answers
+/// `std::thread::available_parallelism()` directly — no installed program env
+/// required. Mirrors `(:wat::time::now)`: a live host fact available in ANY eval
+/// context. Used by the brackets pool to size its default runner count.
+fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::program::cpu-count";
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len(),
+        } }.into());
+    }
+    Ok(Value::i64(host_cpu_count()))
 }
 
 /// `(:wat::runtime::argv)` — nullary; returns the process-wide argv

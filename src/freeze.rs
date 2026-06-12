@@ -1088,9 +1088,9 @@ fn invoke_user_main_orchestrated(
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
     let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
-    // cpu_count = available_parallelism(), a host constant inherited down the spawn tree
-    // (like wat.started-at). Fallback 1 if the OS refuses to report.
-    let cpu_count = std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1);
+    // cpu_count = available_parallelism() via host_cpu_count(), a host constant inherited
+    // down the spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
+    let cpu_count = crate::runtime::host_cpu_count();
     let env_src = format!(
         "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} (:wat::program::EmptyEnv))"
     );

@@ -395,9 +395,9 @@ pub fn spawn_thread_peer(
             let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
             let pid = std::process::id() as i64;
             let tid = unsafe { libc::gettid() } as i64;
-            // cpu_count = available_parallelism(), same host → same value as the parent.
-            // Inherited host constant (like wat.started-at). Fallback 1.
-            let cpu_count = std::thread::available_parallelism().map(|n| n.get() as i64).unwrap_or(1);
+            // cpu_count = available_parallelism() via host_cpu_count(), same host → same value as
+            // the parent. Inherited host constant (like wat.started-at). Fallback 1.
+            let cpu_count = crate::runtime::host_cpu_count();
 
             // Run the init-fn at peer-start to get the user.program value (it
             // builds the user's record — `(thread)`'s default returns EmptyEnv).

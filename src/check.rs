@@ -14800,6 +14800,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 259 S3.2b-i — live host-parallelism verb.
+    // `(:wat::program::cpu-count) → :wat::core::i64`
+    // Answers std::thread::available_parallelism() directly; no installed
+    // program env required. Used by the brackets pool for default sizing.
+    env.register(
+        ":wat::program::cpu-count".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
     // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
     // `(:wat::runtime::argv) → :wat::core::Vector<wat::core::String>`
     // — process-wide argv handed in by wat-cli (or any embedder)
