@@ -365,7 +365,7 @@ pub fn spawn_thread_peer(
             let pid = std::process::id() as i64;
             let tid = unsafe { libc::gettid() } as i64;
             let peer_env_src = format!(
-                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread)"
+                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread (:wat::program::EmptyEnv))"
             );
             let peer_env_ast = crate::parse_one!(&peer_env_src)
                 .expect("arc 259: peer env constructor form parses");

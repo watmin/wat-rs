@@ -1087,7 +1087,7 @@ fn invoke_user_main_orchestrated(
     let tid = unsafe { libc::gettid() } as i64;
     let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process)"
+        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process (:wat::program::EmptyEnv))"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");

@@ -11685,11 +11685,22 @@ fn conforms_check(
                     Ok(false)
                 }
                 // Struct / Enum / Newtype / Record → nominal identity check.
+                // Special case: :wat::Record is the root record supertype (opaque umbrella
+                // struct). Every value from `(:wat::Record::def ...)` is a subtype; conforms?
+                // against :wat::Record returns true for any record value — NOT just exact match.
+                // Same for :wat::holon::Record (the holonic-record umbrella). Arc 259.
                 Some(TypeDef::Struct(_))
                 | Some(TypeDef::Enum(_))
                 | Some(TypeDef::Newtype(_))
                 // Stone S-B.1 — record class: nominal exact (mirror Struct; no parent-walk).
                 | Some(TypeDef::Record(_)) => {
+                    let stripped_name = name.strip_prefix(':').unwrap_or(name.as_str());
+                    if stripped_name == "wat::Record" || stripped_name == "wat::holon::Record" {
+                        return Ok(matches!(
+                            value,
+                            Value::wat__holon__Record { .. } | Value::wat__Record { .. }
+                        ));
+                    }
                     Ok(concrete_type_name_matches(value, name))
                 }
                 // Not in the TypeEnv — check built-in primitive paths.

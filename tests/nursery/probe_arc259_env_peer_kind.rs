@@ -27,7 +27,7 @@ fn env_record_carries_peer_kind() {
                  (:wat::core::conforms? \
                    (:wat::program::Env/wat.peer-kind \
                      (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0 \
-                       :wat::program::PeerKind::thread)) \
+                       :wat::program::PeerKind::thread (:wat::program::EmptyEnv))) \
                    :wat::program::PeerKind)) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

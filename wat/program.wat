@@ -15,7 +15,12 @@
   :thread
   :process)
 
-;; Five kernel-stamped fields (arc 259 — The Forced Hand):
+;; EmptyEnv — the 0-field nominal default for `user.program`.
+;; A real record, never nil: "didn't provide one" is honest because there is no nil branch.
+;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::Record (the root).
+(:wat::Record::def :wat::program::EmptyEnv [])
+
+;; Six kernel-stamped fields (arc 259 — The Forced Hand):
 ;;   wat.started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
 ;;   wat.peer-started-at — THIS peer's start, RE-STAMPED at each spawn (`peer-`, not `thread-`:
 ;;                         a peer may be :thread or :process; `thread-` would lie to a process peer).
@@ -23,11 +28,15 @@
 ;;   wat.os-thread-id    — OS thread id (Linux `gettid()`), stamped at the seam as i64.
 ;;   wat.peer-kind       — which KIND of peer (PeerKind enum); root main stamps :process (owns its
 ;;                         address space); thread peers stamp :thread.
-;; All `wat.*` (reserved/platform-owned). Subtypes (bracket::Env adds wat.worker-id; user slots
-;; user.program / user.bracket) extend this base — see docs/arc/2026/06/259-forced-hand/DESIGN.md.
+;;   user.program        — the user-extension slot, typed :wat::Record (the root — any record fits
+;;                         as a subtype); default :wat::program::EmptyEnv. NOT `wat.*` — user data,
+;;                         distinct from platform-owned fields.
+;; All `wat.*` fields are reserved/platform-owned. Subtypes extend this base — see
+;; docs/arc/2026/06/259-forced-hand/DESIGN.md.
 (:wat::Record::def :wat::program::Env
   [wat.started-at <- :wat::time::Instant
    wat.peer-started-at <- :wat::time::Instant
    wat.process-id <- :wat::core::i64
    wat.os-thread-id <- :wat::core::i64
-   wat.peer-kind <- :wat::program::PeerKind])
+   wat.peer-kind <- :wat::program::PeerKind
+   user.program <- :wat::Record])

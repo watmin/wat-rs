@@ -45,7 +45,7 @@ fn build_program_env(started_at_millis: i64, peer_started_at_millis: i64) -> Val
            (:wat::program::Env \
              (:wat::time::at-millis {started_at_millis}) \
              (:wat::time::at-millis {peer_started_at_millis}) \
-             0 0 :wat::program::PeerKind::process)) \
+             0 0 :wat::program::PeerKind::process (:wat::program::EmptyEnv))) \
          (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
     );
     let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
@@ -65,7 +65,7 @@ fn c02_program_env_carries_peer_started_at() {
         "",
         "(:wat::time::epoch-millis \
            (:wat::program::Env/wat.peer-started-at \
-             (:wat::program::Env (:wat::time::at-millis 5000) (:wat::time::at-millis 6000) 0 0 :wat::program::PeerKind::process)))",
+             (:wat::program::Env (:wat::time::at-millis 5000) (:wat::time::at-millis 6000) 0 0 :wat::program::PeerKind::process (:wat::program::EmptyEnv))))",
     );
     assert_eq!(
         got,
