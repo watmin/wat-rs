@@ -710,4 +710,48 @@ mod tests {
         peer.join().expect("thread join must succeed");
         drop(peer_val);
     }
+
+    /// Arc 259 S2b (FM-2-bis, synchronization-class) — RAII Drop reaps a blocked
+    /// worker WITHOUT an explicit `close'`.
+    ///
+    /// A self-peer worker blocks on its `recv'` (the parent sends nothing). Dropping
+    /// the peer value must, via the peer's RAII `Drop`, **drain** (drop the input
+    /// Sender → the worker's `recv'` raises → the worker exits) then **join**. Because
+    /// `join` is synchronous, by the time `drop` returns the worker has fully exited,
+    /// dropping its captured `program_fn` clone — so `Arc::strong_count` is back to its
+    /// pre-spawn baseline. This is a DETERMINISTIC protocol verification of the fix (the
+    /// structural join), not a flaky disconfirm-at-HEAD: at HEAD the peer's `JoinHandle`
+    /// detaches and the worker is reaped asynchronously (the detach race S2b eliminates).
+    #[test]
+    fn s2b_drop_reaps_blocked_worker() {
+        let world = crate::freeze::startup_from_source(
+            "(:wat::core::defn :my::blocker [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+               (:wat::core::do (:wat::kernel::recv' self) nil))",
+            None,
+            Arc::new(crate::load::InMemoryLoader::new()),
+        )
+        .expect("startup for blocker fn must succeed");
+
+        let prog: Arc<Function> = world
+            .symbols
+            .get(":my::blocker")
+            .expect(":my::blocker must be in the symbol table")
+            .clone();
+
+        let baseline = Arc::strong_count(&prog);
+        let peer_val = spawn_thread_peer(prog.clone(), &world.symbols, &Span::unknown())
+            .expect("spawn_thread_peer must succeed");
+
+        // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.
+        drop(peer_val);
+
+        assert_eq!(
+            Arc::strong_count(&prog),
+            baseline,
+            "RAII Drop must drain->join the blocked worker, releasing its program_fn clone \
+             (no detach, no leak); got strong_count {} vs baseline {}",
+            Arc::strong_count(&prog),
+            baseline
+        );
+    }
 }
