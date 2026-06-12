@@ -1072,8 +1072,12 @@ fn invoke_user_main_orchestrated(
 
     // Arc 259 (The Forced Hand) — install the ambient program env BEFORE
     // `:user::main`. The live VM constructs the base env itself (self-hosted):
-    // `wat.started-at` = `wat.peer-started-at` = now (the pre-fork CLI-boot
-    // capture that makes started-at the real app epoch is stone 259.2).
+    // `wat.started-at`      = boot clock (real epoch — primed by wat-cli at its
+    //                         earliest point; re-captured across a fork so a
+    //                         :process peer measures its own boot). The gap
+    //                         started-at → peer-started-at is the real
+    //                         boot→entry latency.
+    // `wat.peer-started-at` = now at the seam (this frame's entry).
     // `wat.process-id` = OS pid; `wat.os-thread-id` = OS thread id (gettid).
     // `wat.peer-kind` = :process — root main OWNS its address space (builder-locked).
     //   Thread peers stamp :thread; forked process peers stamp :process.
@@ -1081,8 +1085,9 @@ fn invoke_user_main_orchestrated(
     // scope exit.
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
+    let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::now) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process)"
+        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");

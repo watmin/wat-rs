@@ -390,7 +390,14 @@ carries the asymmetry; neither end pretends.
 
 No dynamic bag anywhere — opts is typed, env is typed, prog is a thunk.
 
-# The corrected timing model (supersedes 259.0c's placeholder + 259.2)
+# The corrected timing model (supersedes 259.0c's placeholder + 259.2) — ✅ SHIPPED
+
+> SHIPPED 2026-06-12: a pid-keyed, fork-safe boot clock (`crate::time::process_boot_instant`
+> / `set_process_boot_instant`) primed at wat-cli's earliest point; the seam stamps
+> `started-at` from it (via `at-nanos`), `peer-started-at` stays the seam's `now`. The
+> two stamps are now distinct; the gap reads out as the real boot→entry latency. A
+> program measures it with the Duration readout family: `(seconds (- peer-started-at
+> started-at))`. Test-injectable via `set_process_boot_instant`.
 
 `259.0c` shipped `started-at = peer-started-at = now` as a *placeholder* — which
 collapses the measurement and is wrong. Corrected:

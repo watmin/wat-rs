@@ -245,6 +245,12 @@ pub type Battery = (
 /// }
 /// ```
 pub fn run(batteries: &[Battery]) -> ExitCode {
+    // Arc 259 — prime the boot clock at the earliest wat-controlled point,
+    // before install_batteries and argv parsing. The lazy-capture is
+    // triggered here so that wat.started-at reflects real boot→entry latency
+    // rather than the seam's frame time.
+    let _ = wat::time::process_boot_instant();
+
     // Silence the default panic handler for assertion-failed! payloads.
     // Those panics are expected — the outer sandbox catches them and
     // surfaces structured Failures. Without this hook, every
