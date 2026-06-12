@@ -5611,9 +5611,23 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
             if is_type_var {
                 return true;
             }
-            // Map the value's runtime type to its canonical type-keyword path.
-            let val_type = val_type_path(val);
-            p.as_str() == val_type
+            // Arc 259 S2c-ii.0 — a Record::def value's val_type_path() returns
+            // the generic static ":wat::Record"; its SPECIFIC class lives in
+            // class_fqdn. Dispatch on the specific class so a defclause keyed on
+            // e.g. `:user::Tag` matches the corresponding record value.
+            // All non-record values keep the existing val_type_path() comparison.
+            match val {
+                Value::wat__Record { class_fqdn, .. }
+                | Value::wat__holon__Record { class_fqdn, .. } => {
+                    // p may carry a leading colon; strip it to compare bare FQDN.
+                    s == class_fqdn.as_str()
+                }
+                _ => {
+                    // Map the value's runtime type to its canonical type-keyword path.
+                    let val_type = val_type_path(val);
+                    p.as_str() == val_type
+                }
+            }
         }
         // For parametric / fn / tuple / var types: accept (permissive fallback,
         // type-checker already validated; runtime is defensive).
