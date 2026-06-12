@@ -34,6 +34,38 @@ fn run_compute_i64(body: &str) -> i64 {
     }
 }
 
+/// 300-item large-stream test: proves TCO in practice.
+///
+/// A named recursive driver `:user::drive [peer n acc] -> i64` sends n, recvs the
+/// doubled result, accumulates, and recurses on n-1 until n=0 (tail-call in the
+/// branch → TCO'd).  300 recursive frames would overflow any non-TCO stack for
+/// this shape; green here means the named-defn TCO fires for both the driver AND
+/// the runner-loop.
+///
+/// work-fn = x*2; driver sends 1..=300; receives 2..=600; sum = 2*(1+…+300) = 90300.
+#[test]
+fn runner_handles_a_large_stream() {
+    let v = run_compute_i64(
+        "(:wat::core::defn :user::drive \
+            [peer <- :wat::kernel::Thread'<wat::core::i64,wat::core::i64> \
+             n    <- :wat::core::i64 \
+             acc  <- :wat::core::i64] -> :wat::core::i64 \
+           (:wat::core::if (:wat::core::= n 0) \
+             acc \
+             (:wat::core::let [_   (:wat::kernel::send' peer n) \
+                               res (:wat::kernel::recv' peer)] \
+               (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res))))) \
+         (:wat::core::defn :user::compute [] -> :wat::core::i64 \
+           (:wat::core::let \
+             [peer (:wat::kernel::spawn-program' (:wat::spawn::thread) \
+                     (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+                       (:wat::bracket::runner-loop self \
+                         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))] \
+             (:user::drive peer 300 0)))",
+    );
+    assert_eq!(v, 90300, "300 items doubled and summed: 2*(1+2+...+300) = 90300; no stack overflow = TCO confirmed");
+}
+
 /// One runner with a doubling work-fn, served a STREAM of 3 items: 1→2, 2→4, 3→6.
 /// The parent sums the three results (12) — proving the peer served MULTIPLE
 /// messages (a single-shot peer could not). The peer drops at scope-exit → RAII

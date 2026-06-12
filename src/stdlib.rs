@@ -97,6 +97,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/spawn.wat",
         source: include_str!("../wat/spawn.wat"),
     },
+    // Arc 259 S3.2a — the brackets layer runner server-loop.  Loaded AFTER
+    // spawn.wat which provides :wat::kernel::Peer', recv', send'.
+    WatSource {
+        path: "wat/bracket.wat",
+        source: include_str!("../wat/bracket.wat"),
+    },
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
