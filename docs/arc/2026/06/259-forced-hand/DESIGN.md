@@ -312,15 +312,38 @@ opts record built by an ergonomic constructor:
 - Each clause does its own localized spawn + `wat.*` stamping at the peer's start.
   The measurement is the env's *birth* inside the clause, not a separate guard.
 
-## The prog — always a 0-ary thunk
+## The prog — per-tier contract, NOT one uniform shape (corrected 2026-06-11)
 
-Every spawned program is a **0-ary fn** — a complete little universe entry, exactly
-like `:user::main`. It reads its env via `(:wat::program::env)` and does its own I/O
-via the peer verbs (`recv'` / `send'` / `select'`, arc 214). This **unifies the
-tiers**: today's `:thread` 1-ary apply-loop and `:process` forms both collapse to
-the uniform 0-ary prog — which *is* the program-over-the-wire vision (every peer is
-a `:user::main`; `:remote` = `:user::main` over a pipe). The apply-loop becomes a
-*pattern a prog can implement*, not a platform primitive.
+**The real invariant is "each host pairs with its prog contract," NOT "the prog is
+always 0-ary."** The earlier 0-ary claim was wrong — falsified by the capability
+discipline (a comm channel is a handle, not data: it can't ride in the EDN env, and
+ambient-abuse hides the grant) and then dissolved entirely by the clause dispatch.
+`spawn-program` is a `defclause` that dispatches on the **host type**, and each
+clause carries its tier's **own prog contract**; the forced hand makes the pairing
+unforgeable (a `ThreadOpts` demands a `ThreadProg`; handing it a `ProcessProg` is a
+type error). **The asymmetry is load-bearing, not a smell** — it falls straight out
+of address spaces:
+
+- **`ProcessProg` — a stdio `:user::main`.** A process is a *fresh* address space →
+  *fresh* fd 0/1/2 → the child can just *be* a stdio program. The process clause
+  binds the child's 0/1/2 to the comms pipe; the parent reads/writes the bound
+  handles. The child **doesn't know it's a peer** — it does ambient `readln`/`println`
+  like any wat program. **Keep the existing `:process` model.** (`:remote` will be
+  the same shape — a socket-backed stdio program — when its door is specified.)
+- **`ThreadProg = [self: ThreadPeer] -> nil`.** A thread shares the process's
+  address space → shares its *ambient stdio* → it **cannot** use stdio for data
+  (collision). So the thread prog **must be handed its `(rx, tx)` self-peer
+  explicitly** and `recv'`/`send'` on it. Transport-*aware* by necessity. This
+  REPLACES the platform apply-loop. (`ThreadPeer` carries raw Values — crossbeam, no
+  EDN; `ProcessPeer` carries EDN over the pipe; the comms layer already abstracts
+  this.)
+- **`RemoteProg` — perpetually awaiting** (its own args: a socket, signing, …; the
+  door's key uncut until specified).
+
+So "every peer is a `:user::main`" is *true for process + remote* (fresh-fds stdio
+programs) and the **thread is the principled exception** — shared stdio forces an
+explicit channel. The exception has a cause, so it is not a wart. The clause dispatch
+carries the asymmetry; neither end pretends.
 
 ## The two typed structures (never conflate them)
 
