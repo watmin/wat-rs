@@ -44,8 +44,7 @@ fn s2cii_b_two_arg_host_dispatch() {
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer 42)
-                            got (:wat::kernel::recv' peer)
-                            _ (:wat::kernel::close' peer)]
+                            got (:wat::kernel::recv' peer)]
             got))
     "#;
     assert_eq!(run_compute_i64(src), 42, "(spawn-program' (thread) prog) host-dispatches + echoes 42");

@@ -61,7 +61,7 @@ fn run_compute_i64(src: &str) -> i64 {
 /// recv the parent's 42, send it straight back, return nil. The parent (holding
 /// the `Thread'` handle) sends 42, recvs the echo, closes. Sequencing on the
 /// depth-1 channels: parent send(42) → worker recv(42) → worker send(42) →
-/// parent recv(42) → worker returns → parent close'.
+/// parent recv(42) → worker returns → peer reaped by RAII Drop.
 #[test]
 fn s2a_thread_prog_drives_self_peer() {
     let src = r#"
@@ -70,8 +70,7 @@ fn s2a_thread_prog_drives_self_peer() {
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                                      (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer 42)
-                            got (:wat::kernel::recv' peer)
-                            _ (:wat::kernel::close' peer)]
+                            got (:wat::kernel::recv' peer)]
             got))
     "#;
     assert_eq!(

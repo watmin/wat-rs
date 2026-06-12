@@ -36,8 +36,7 @@ fn thread_init_populates_user_program() {
                              (:wat::kernel::send' self \
                                (:user::MyEnv/port \
                                  (:wat::program::Env/user.program (:wat::program::env)))))) \
-                    got (:wat::kernel::recv' peer) \
-                    _ (:wat::kernel::close' peer)] \
+                    got (:wat::kernel::recv' peer)] \
                    got)) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
@@ -71,8 +70,7 @@ fn erroring_init_fn_kills_the_peer() {
                                (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv)))) \
                            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
                              (:wat::kernel::send' self 7))) \
-                    got (:wat::kernel::recv' peer) \
-                    _ (:wat::kernel::close' peer)] \
+                    got (:wat::kernel::recv' peer)] \
                    got)) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
@@ -97,8 +95,7 @@ fn thread_default_user_program_is_empty_env() {
                                    (:wat::program::Env/user.program (:wat::program::env)) \
                                    :wat::program::EmptyEnv) -> :wat::core::i64 \
                                  1 0)))) \
-                    got (:wat::kernel::recv' peer) \
-                    _ (:wat::kernel::close' peer)] \
+                    got (:wat::kernel::recv' peer)] \
                    got)) \
                (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))

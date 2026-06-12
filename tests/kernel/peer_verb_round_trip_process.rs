@@ -23,7 +23,7 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-/// Process-tier send'/recv'/close' round-trip via the WAT surface.
+/// Process-tier send'/recv' round-trip via the WAT surface; peer reaped by RAII Drop.
 ///
 /// Arc 259 S2c-ii-b: spawn-program' migrated to 2-arg `(:wat::spawn::process)` host form.
 /// The server reads one i64 and writes n+1 (the proven arc112 echo+1 shape).
@@ -42,8 +42,7 @@ fn process_peer_verb_round_trip() {
                                                          _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                                          nil))))
                             _   (:wat::kernel::send' peer 41)
-                            got (:wat::kernel::recv' peer -> :wat::core::i64)
-                            exit-code (:wat::kernel::close' peer)]
+                            got (:wat::kernel::recv' peer -> :wat::core::i64)]
             got))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

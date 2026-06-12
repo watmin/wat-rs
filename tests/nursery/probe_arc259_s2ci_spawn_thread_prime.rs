@@ -34,7 +34,7 @@ fn run_compute_i64(src: &str) -> i64 {
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env)
-        .expect("compute eval (RED at HEAD: spawn-thread' is not a registered verb)")
+        .expect("compute eval")
         .value_owned()
     {
         Value::i64(n) => n,
@@ -42,25 +42,23 @@ fn run_compute_i64(src: &str) -> i64 {
     }
 }
 
-/// LOAD-BEARING (RUNTIME): a thread peer spawned via the 2-arg `spawn-thread'`
-/// primitive (prog + init-fn; no tier keyword, no env). The self-peer prog echoes;
-/// the parent drives it via the returned `Thread'` handle.
+/// LOAD-BEARING (RUNTIME): a thread peer spawned via `spawn-program'` with the
+/// `(thread)` host key. Post S2d, the user path goes through `spawn-program'`;
+/// `spawn-thread'` is internal-only. The self-peer prog echoes; RAII reaps.
 #[test]
 fn s2ci_spawn_thread_prime_round_trip() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-thread'
+          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                                     (:wat::kernel::send' self (:wat::kernel::recv' self)))
-                                   (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv)))
+                                     (:wat::kernel::send' self (:wat::kernel::recv' self))))
                             _ (:wat::kernel::send' peer 42)
-                            got (:wat::kernel::recv' peer)
-                            _ (:wat::kernel::close' peer)]
+                            got (:wat::kernel::recv' peer)]
             got))
     "#;
     assert_eq!(
         run_compute_i64(src),
         42,
-        "spawn-thread' spawns a thread peer; the self-peer prog echoes 42"
+        "spawn-program' (thread) spawns a thread peer; the self-peer prog echoes 42"
     );
 }

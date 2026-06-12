@@ -33,8 +33,7 @@ fn peer_sends_i64(body: &str) -> i64 {
            (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread) \
                                     (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
                                       (:wat::kernel::send' self {body}))) \
-                             got (:wat::kernel::recv' peer) \
-                             _ (:wat::kernel::close' peer)] \
+                             got (:wat::kernel::recv' peer)] \
              got)) \
          (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
     );

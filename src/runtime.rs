@@ -22501,6 +22501,9 @@ fn eval_peer_recv_prime(
 /// Thread': `peer.close()+join` → nil. Join Err → RuntimeError.
 /// Process': `peer.close()+wait` → i64 exit code. Signaled → RuntimeError.
 /// Second close' / use-after-close → RuntimeError "peer already closed".
+// Arc 259 S2d — restricted to `:wat::kernel::` callers. Teardown is RAII Drop;
+// a :user:: fn calling close' is a check error. The user never holds the rope.
+#[restricted_to(":wat::kernel::close'", ":wat::kernel::")]
 fn eval_peer_close_prime(
     args: &[WatAST],
     list_span: &Span,

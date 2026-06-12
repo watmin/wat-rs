@@ -76,6 +76,8 @@ use std::os::fd::OwnedFd;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
+use wat_macros::restricted_to;
+
 use crate::ast::WatAST;
 use crate::kernel::peer::{Peer, Process, Thread};
 use crate::rust_deps::custodia::ThreadOwnedCell;
@@ -248,6 +250,9 @@ impl ProcessPeerBundle {
 ///
 /// Delegates to the SAME `spawn_thread_peer` called by the monolith's `:thread`
 /// branch — no duplication.
+// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
+// in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
+#[restricted_to(":wat::kernel::spawn-thread'", ":wat::kernel::")]
 pub fn eval_kernel_spawn_thread_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -311,6 +316,9 @@ pub fn eval_kernel_spawn_thread_prime(
 ///
 /// Delegates to the SAME `spawn_process_peer` called by the monolith's `:process`
 /// branch — no duplication.
+// Arc 259 S2d — restricted to `:wat::kernel::` callers (the spawn-program' defclause
+// in wat/spawn.wat). A :user:: caller is a check error; enforce at check, not runtime.
+#[restricted_to(":wat::kernel::spawn-process'", ":wat::kernel::")]
 pub fn eval_kernel_spawn_process_prime(
     args: &[WatAST],
     list_span: &Span,

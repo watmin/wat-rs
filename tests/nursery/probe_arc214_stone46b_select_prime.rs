@@ -62,9 +62,7 @@ fn probe_1_select_returns_ready_index_and_value() {
           (:wat::core::let [a (:user::mk)
                             b (:user::mk)
                             _ (:wat::kernel::send' b 7)
-                            picked (:wat::kernel::select' [a b])
-                            _ (:wat::kernel::close' a)
-                            _ (:wat::kernel::close' b)]
+                            picked (:wat::kernel::select' [a b])]
             picked))
     "#;
     let src = with_nil_main(src);

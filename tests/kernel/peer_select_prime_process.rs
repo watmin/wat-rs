@@ -52,9 +52,7 @@ fn process_select_prime_picks_ready_peer() {
                                                       _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                                       nil))))
                             _ (:wat::kernel::send' b 98)
-                            picked (:wat::kernel::select' [a b])
-                            _ (:wat::kernel::close' a)
-                            _ (:wat::kernel::close' b)]
+                            picked (:wat::kernel::select' [a b])]
             picked))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;
