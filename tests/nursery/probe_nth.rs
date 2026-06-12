@@ -44,7 +44,8 @@ fn nth_returns_the_positional_element() {
 
 /// `nth` out-of-range RAISES (unlike `get`, which returns None) — the total contract.
 #[test]
-#[should_panic(expected = "nth: index out of range")]
+#[should_panic] // the raise is a structured AssertionFailure payload (not a String),
+                // so match any panic — same as the assert-true probe.
 fn nth_raises_on_out_of_range() {
     let _ = run_compute_i64("(:wat::core::nth (:wat::core::Vector :wat::core::i64 10 20 30) 9)");
 }
