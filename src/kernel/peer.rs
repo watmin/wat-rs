@@ -121,6 +121,55 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
     }
 }
 
+// ─── Peer<S, R> ───────────────────────────────────────────────────────────────
+
+/// Pipes-only bidirectional worker self-peer — arc 259 Stone S2a.
+///
+/// `S` is the type the worker sends OUT (toward the parent). `R` is the type
+/// the worker receives IN (from the parent). `send'`→S, `recv'`→R — uniform
+/// projection (no mirror). The duality lives in the type's argument order:
+/// `Thread'<I,O>` (parent handle) ↔ `Peer'<O,I>` (worker self-peer).
+///
+/// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'`
+/// today; RAII in S2b). Constructed INSIDE the spawned thread's closure to
+/// satisfy the `ThreadOwnedCell` owner-thread invariant.
+pub struct Peer<S: Send + 'static, R: Send + 'static> {
+    /// Worker → parent channel (the worker sends via this).
+    pub(crate) tx: crate::comms::thread::Sender<S>,
+    /// Parent → worker channel (the worker receives via this).
+    pub(crate) rx: crate::comms::thread::Receiver<R>,
+}
+
+impl<S: Send + 'static, R: Send + 'static> Peer<S, R> {
+    /// Send a value from the worker to the parent.
+    ///
+    /// Returns `Err(SendError(value))` if the parent has dropped its receiver
+    /// (channel disconnected — parent closed the `Thread'` peer).
+    pub fn send(&self, value: S) -> Result<(), SendError<S>> {
+        self.tx.send(value)
+    }
+
+    /// Blocking recv from the parent (into the worker).
+    ///
+    /// Cascade-aware (inherited from `comms::thread::Receiver`): wakes on
+    /// substrate shutdown and returns `Err(RecvError)` rather than hanging.
+    /// Also returns `Err(RecvError)` when the parent closes the channel.
+    pub fn recv(&self) -> Result<R, RecvError> {
+        self.rx.recv()
+    }
+}
+
+impl<S: Send + 'static + std::fmt::Debug, R: Send + 'static + std::fmt::Debug> std::fmt::Debug
+    for Peer<S, R>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Peer")
+            .field("tx", &self.tx)
+            .field("rx", &self.rx)
+            .finish()
+    }
+}
+
 // ─── Process<I, O> ────────────────────────────────────────────────────────────
 
 /// Process-tier program peer. Holds the two comms::process channel endpoints

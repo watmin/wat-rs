@@ -22162,11 +22162,47 @@ fn eval_peer_send_prime(
             .map_err(Into::<EvalBreak>::into)??;
             Ok(Value::Unit)
         }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Peer<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            cell.with_ref(OP, |opt_peer| -> Result<(), EvalBreak> {
+                match opt_peer {
+                    None => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "peer already closed".into(),
+                        },
+                    }
+                    .into()),
+                    Some(peer) => peer.send(payload_val).map_err(|_| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "send failed: channel disconnected".into(),
+                            },
+                        }
+                        .into()
+                    }),
+                }
+            })
+            .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::Unit)
+        }
         other => Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -22369,11 +22405,48 @@ fn eval_peer_recv_prime(
                 }),
             }
         }
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::peer::Peer<Value, Value>>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let result = cell
+                .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(peer) => peer.recv().map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "recv failed: peer closed / thread exited".into(),
+                                },
+                            }
+                            .into()
+                        }),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(result)
+        }
         other => Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O>)",
+                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }

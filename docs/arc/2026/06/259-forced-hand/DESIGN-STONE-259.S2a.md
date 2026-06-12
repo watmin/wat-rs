@@ -116,3 +116,31 @@ CHECK-RED at HEAD (`send'`/`recv'` reject the `Peer'` head:
 `Peer'` is the pipes-only bidirectional peer — the unified peer of the converged
 model, primed per the live `Thread'`/`Process'` migration convention (the `'` drops
 at the migration's end). Intueri-confirmable at ward time; not blocking.
+
+## Shipped — weighed (2026-06-11)
+
+Built by a shadowdancer, weighed against the disk by the orchestrator. Two honest
+deltas from the prediction above:
+
+1. **The apply-loop is NOT deleted — it becomes a TRANSITIONAL dual-mode** (correct,
+   and better than this doc's original "delete the loop"). `spawn_thread_peer` now
+   dispatches on the prog's first param type: `Peer'<S,R>` → self-peer handoff;
+   anything else → the legacy apply-loop. Deleting the loop in S2a would break the
+   arc-214 apply-loop callers — forcing S2d's migration into S2a. Keeping both is the
+   honest stepping-stone (S2a *adds* the model, **S2d** migrates the callers + deletes
+   the loop). Both transitional branches carry `rune:exigere(scope-affirmative)` naming
+   S2d as their death (`kernel/spawn.rs` dispatch + `check.rs::infer_spawn_program_prime`
+   legacy projection).
+2. **A 5th touch the brief under-specified — `infer_spawn_program_prime`.** A self-peer
+   prog `[Peer'<S,R>] -> nil` must infer the parent peer as **`Thread'<R,S>`** (the
+   param-swap: parent sends R → worker recvs R; parent recvs S ← worker sends S), NOT
+   `Thread'<Peer'<S,R>, nil>`. Without it the parent's `send' 42` mis-types. The
+   shadowdancer caught this; the WEIGH confirmed the param-swap correct.
+
+**Gates (orchestrator's own re-run):** the S2a probe → 42 ✓; arc-214 peer verbs 3/3 ✓;
+lib `kernel::spawn` 1/1 ✓; `cargo build --release` clean (warnings only, all
+pre-existing — `value_matches_type_pattern` is dead at clean HEAD, not this strike);
+**full nursery SERIAL `--test-threads=1` = 840 passed / 4 failed**, the 4 being EXACTLY
+the known pre-existing reds (arc-255 reflection ×2 + undefined-builtin ×2). The parallel
+run flaked the thread/channel/spawn probes (the arc-170 spawn-race contention) — all
+green serial. **NET REGRESSION = ZERO.** No STOP triggers hit.

@@ -9920,9 +9920,39 @@ fn infer_spawn_program_prime(
         }
     };
 
-    let ty = TypeExpr::Parametric {
-        head: peer_head.into(),
-        args: vec![i_ty, o_ty],
+    // Arc 259 S2a — self-peer detection.
+    //
+    // If the fn arg type is `Peer'<S,R>` the prog is a ThreadProg (self-peer
+    // handoff model): the spawned thread's `tx` sends S to the parent, and
+    // its `rx` receives R from the parent.  The parent-side `Thread'<I,O>`
+    // has `I = R` (parent sends R → worker receives R) and `O = S` (parent
+    // receives S ← worker sends S).  So return `Thread'<R, S>` = `Thread'<args[1], args[0]>`.
+    //
+    // If the fn arg type is NOT `Peer'<S,R>` — the legacy apply-loop model
+    // (fn([I]) -> O) — use `Thread'<I, O>` as before.
+    let param_reduced = reduce(&apply_subst(&i_ty, subst), subst, env.types());
+    let ty = match &param_reduced {
+        TypeExpr::Parametric { head, args: peer_args }
+            if head == "wat::kernel::Peer'" && peer_args.len() == 2 =>
+        {
+            // Self-peer model: Thread'<R, S> (param-swap of Peer'<S, R>).
+            let s_ty = peer_args[0].clone();
+            let r_ty = peer_args[1].clone();
+            TypeExpr::Parametric {
+                head: peer_head.into(),
+                args: vec![r_ty, s_ty],
+            }
+        }
+        _ => {
+            // Legacy apply-loop model: Thread'<I, O>.
+            // rune:exigere(scope-affirmative) — TRANSITIONAL: the legacy Thread'<I,O>
+            // projection is the non-self-peer path; it dies with the apply-loop branch
+            // in arc 259 S2d (mirrors the dual-mode rune in kernel/spawn.rs).
+            TypeExpr::Parametric {
+                head: peer_head.into(),
+                args: vec![i_ty, o_ty],
+            }
+        }
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -9960,7 +9990,9 @@ fn project_peer_io(
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
         TypeExpr::Parametric { ref head, ref args }
-            if (head == "wat::kernel::Thread'" || head == "wat::kernel::Process'")
+            if (head == "wat::kernel::Thread'"
+                || head == "wat::kernel::Process'"
+                || head == "wat::kernel::Peer'")
                 && args.len() == 2 =>
         {
             Ok((args[0].clone(), args[1].clone()))
@@ -9971,7 +10003,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O>)".into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)".into(),
                     got: format_type(&other),
                 },
             });

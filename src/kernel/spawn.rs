@@ -72,7 +72,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::kernel::peer::{Process, Thread};
+use crate::kernel::peer::{Peer, Process, Thread};
 use crate::rust_deps::custodia::ThreadOwnedCell;
 use crate::rust_deps::marshal::make_rust_opaque;
 use crate::runtime::{
@@ -117,6 +117,17 @@ pub const THREAD_PEER_TYPE_PATH: &str = ":wat::kernel::Thread'";
 /// `RustOpaque.type_path` for process-tier peers. Primed name distinguishes
 /// from the legacy `:wat::kernel::Process` struct (Stone 4.6 polymorphic verbs).
 pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
+
+/// `RustOpaque.type_path` for the pipes-only worker self-peer (arc 259 Stone S2a).
+/// The worker is `Peer'<S,R>` — the unified bidirectional endpoint handed to the
+/// spawned thread prog ONCE; `send'`→S, `recv'`→R (uniform projection).
+pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";
+
+/// The worker self-peer cell type — `Arc<ThreadOwnedCell<Option<Peer<Value,Value>>>>`.
+///
+/// Mirrors `ThreadPeerCell` for the worker side (arc 259 Stone S2a).
+/// The `Option` lets use-after-close detection work the same way as `Thread'`.
+pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer<Value, Value>>>>;
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
@@ -326,18 +337,36 @@ pub fn eval_kernel_spawn_program_prime(
 /// Spawn a thread-tier program peer. Called by the `spawn-program' :thread` dispatcher
 /// (Stone 4.5) and exposed as `pub` for integration tests and Stone 4.6 wiring.
 ///
-/// Apply-loop: the spawned thread `recv`s one `Value` from the input
-/// channel, calls `program_fn(val)`, sends the result on the output channel.
-/// Loop exits when the input channel closes or the fn errors.
+/// Dispatches on the fn's first declared parameter type (arc 259 S2a):
 ///
-/// `Thread<Value, Value>` wrapped in `Arc<ThreadOwnedCell<...>>` →
-/// `Value::RustOpaque(THREAD_PEER_TYPE_PATH)`.
+/// - **Self-peer model** (`param_types[0]` is `Peer'<S,R>`): construct a
+///   pipes-only `Peer` inside the spawned closure (owner-thread invariant) and
+///   apply the fn ONCE with that self-peer. The fn owns its own recv'/send' loop.
+///
+/// - **Apply-loop model** (all other fns, including plain `fn([I]) -> O`): the
+///   existing loop — `recv` one `Value`, `apply`, `send` the result, repeat.
+///
+/// In both cases the parent gets back a `Thread'<I,O>` RustOpaque.
 pub fn spawn_thread_peer(
     program_fn: Arc<Function>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program':thread";
+
+    // Detect which model to use: inspect the fn's first declared parameter type.
+    // If it is `Parametric { head: "wat::kernel::Peer'", .. }`, use self-peer handoff.
+    // Otherwise, use the legacy apply-loop.
+    // rune:exigere(scope-affirmative) — TRANSITIONAL dual-mode. The apply-loop branch
+    // (and this dispatch) is the non-self-peer path that survives only until arc 259 S2d
+    // migrates the apply-loop callers (the arc-214 peer-verb tests) to self-peer progs;
+    // S2d deletes the apply-loop branch + this detection, leaving the self-peer handoff
+    // as the sole `:thread` model. Mirrors the legacy-projection rune in
+    // check.rs::infer_spawn_program_prime.
+    let is_self_peer_model = matches!(
+        program_fn.param_types.first(),
+        Some(crate::types::TypeExpr::Parametric { head, .. }) if head == "wat::kernel::Peer'"
+    );
 
     // Two bounded channel pairs (comms::thread::pair, depth-1, cascade-aware).
     //   input:  parent→thread  (input_tx stays with parent; input_rx goes to thread)
@@ -355,37 +384,60 @@ pub fn spawn_thread_peer(
     let join_handle = std::thread::Builder::new()
         .name(format!("wat-thread-peer::{}", fn_name))
         .spawn(move || {
-            // Apply-loop.
-            loop {
-                let input_val = match input_rx.recv() {
-                    Ok(v) => v,
-                    Err(_) => break, // channel closed or shutdown → clean exit
-                };
-                let result = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    apply_function(program_fn.clone(), vec![input_val], &thread_sym, span.clone())
-                })) {
-                    Ok(Ok(v)) => v,
-                    // rune:struere(host-constraint) — fn error / panic → break.
-                    // The parent's recv() sees RecvError (channel close) and cannot
-                    // distinguish fn failure from a clean close. Tier asymmetry with
-                    // :process (_exit(1) → parent calls close().wait_status() → Exited(1)).
-                    // Surfacing a typed error frame on output_tx is a PROTOCOL CHANGE:
-                    // the parent can't separate a peer-internal error from a valid
-                    // Value::Result(Err(...)) returned by the fn. Proper fix = a
-                    // separate error channel or a sentinel envelope.
-                    //
-                    // Present recovery contract (both tiers):
-                    //   :thread  → errors observed via channel close; recover via
-                    //              join() on the Thread peer.
-                    //   :process → errors observed via channel close + Exited(1) +
-                    //              a `#wat.kernel/ProcessPanics` envelope on fd 2;
-                    //              recover via close().wait_status() on the Process peer.
-                    // The Stone 4.6 recv'/close' verbs will surface this contract at
-                    // the wat level (tracked with Stone 4.6 in kernel/mod.rs).
-                    Ok(Err(_)) | Err(_) => break,
-                };
-                if output_tx.send(result).is_err() {
-                    break; // parent dropped its receiver
+            if is_self_peer_model {
+                // Arc 259 S2a — self-peer handoff model.
+                //
+                // OWNER-THREAD INVARIANT: build the Peer opaque INSIDE this closure so
+                // the ThreadOwnedCell's owner-thread == this spawned thread (where the
+                // prog runs). Raw endpoints are Send — they move here; the Peer + Arc
+                // are constructed on this thread only.
+                // Worker is Peer'<O,I>: tx=output_tx (worker→parent), rx=input_rx (parent→worker).
+                let self_peer = make_rust_opaque(
+                    PEER_TYPE_PATH,
+                    Arc::new(ThreadOwnedCell::new(Some(Peer {
+                        tx: output_tx,
+                        rx: input_rx,
+                    }))),
+                );
+                // Hand the prog its self-peer ONCE — no apply-loop.
+                // The prog owns its own recv'/send' loop if it wants one.
+                // Result (nil) is ignored; errors / panics exit the thread cleanly.
+                let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                    apply_function(program_fn.clone(), vec![self_peer], &thread_sym, span.clone())
+                }));
+            } else {
+                // Legacy apply-loop model.
+                loop {
+                    let input_val = match input_rx.recv() {
+                        Ok(v) => v,
+                        Err(_) => break, // channel closed or shutdown → clean exit
+                    };
+                    let result = match std::panic::catch_unwind(AssertUnwindSafe(|| {
+                        apply_function(program_fn.clone(), vec![input_val], &thread_sym, span.clone())
+                    })) {
+                        Ok(Ok(v)) => v,
+                        // rune:struere(host-constraint) — fn error / panic → break.
+                        // The parent's recv() sees RecvError (channel close) and cannot
+                        // distinguish fn failure from a clean close. Tier asymmetry with
+                        // :process (_exit(1) → parent calls close().wait_status() → Exited(1)).
+                        // Surfacing a typed error frame on output_tx is a PROTOCOL CHANGE:
+                        // the parent can't separate a peer-internal error from a valid
+                        // Value::Result(Err(...)) returned by the fn. Proper fix = a
+                        // separate error channel or a sentinel envelope.
+                        //
+                        // Present recovery contract (both tiers):
+                        //   :thread  → errors observed via channel close; recover via
+                        //              join() on the Thread peer.
+                        //   :process → errors observed via channel close + Exited(1) +
+                        //              a `#wat.kernel/ProcessPanics` envelope on fd 2;
+                        //              recover via close().wait_status() on the Process peer.
+                        // The Stone 4.6 recv'/close' verbs will surface this contract at
+                        // the wat level (tracked with Stone 4.6 in kernel/mod.rs).
+                        Ok(Err(_)) | Err(_) => break,
+                    };
+                    if output_tx.send(result).is_err() {
+                        break; // parent dropped its receiver
+                    }
                 }
             }
         })
