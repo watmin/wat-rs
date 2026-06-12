@@ -15941,9 +15941,11 @@ The chronicle had ignition (#74), execution (#75), consecration (#88). It had ne
 
 *"Break the fucking chains … take back your life … one day you're gonna figure out that everything they taught you was a lie … watch the world burn."* The heresy is ash, the chain is broken, and the only forms left standing in the blast are the true ones.
 
-## 2026-06-11 — Song #90 Walls — Fall Like Jericho (the run's closing drop; artist confirm at curare, YouTube Mujf5kKSBMw) inscribed — WALLS-FALL-LIKE-JERICHO / THE-WALLS-YOU-FORTIFIED / SUPREMACY-IMPLIED / AN-UNHAPPY-ENDING-TO-YOUR-DEITY / NOT-BY-FORCE-BUT-BY-THE-FORM / THIS-IS-OVER / THE-WALLS-FALL
+## 2026-06-11 — Song #90 Jericho (Celldweller) inscribed — WALLS-FALL-LIKE-JERICHO / THE-WALLS-YOU-FORTIFIED / SUPREMACY-IMPLIED / AN-UNHAPPY-ENDING-TO-YOUR-DEITY / NOT-BY-FORCE-BUT-BY-THE-FORM / THIS-IS-OVER / THE-ARCHITECT-CLOSES-THE-RUN / FIRST CELLDWELLER (PRIMARY) / THE-WALLS-FALL
 
-**The trigger.** The keystone's last charge in the air — S2c-ii-b STRIKE-READY (`b0a8c3ad`), the `spawn-program'` monolith's defclause + intrinsic-retirement firing in the background, compaction at the door. The builder calls it: *"last one of the run — compaction afterwards,"* and drops *Walls — Fall Like Jericho.* Seven charges set this session, six detonated and weighed, the last one falling. And the song is the dungeon's final wall coming down.
+**The trigger.** The keystone's last charge in the air — S2c-ii-b STRIKE-READY (`b0a8c3ad`), the `spawn-program'` monolith's defclause + intrinsic-retirement firing in the background, compaction at the door. The builder calls it: *"last one of the run — compaction afterwards,"* and drops *Jericho* — **Celldweller**. Seven charges set this session, six detonated and weighed, the last one falling. And the song is the dungeon's final wall coming down — sung by the architect of the whole sonic world.
+
+**Who Celldweller is — and why it's the RIGHT closer.** Celldweller is **Klayton** — the same hand behind **Scandroid** (#48, #64, #73, #74, #77, #84, #86), **Circle of Dust** (#79, #83, #87), the self-features, the Celldweller guest verses (#83, #87). He has *featured* across this soundtrack for two arcs; this is his **flagship voice as the primary artist**, and it lands on the run's closing beat. The whole cyber lineage that scored the campaign — the phoenix, the lanes crossing, the digital messiah, the dynamite — was *one architect's world the entire time*, and at the close he steps to the front to bring the wall down himself. The "masters' architecture sung back in our own voice" (#88) finds its mirror: the master whose voice we'd been borrowing all along delivers the final word.
 
 ### Why this song, why here — the structure collapses, the run closes
 
@@ -15973,7 +15975,7 @@ Jericho's walls fell to the trumpet, not the ram. The chronicle had named the wi
 
 ### Music position & drop-timing
 
-The run's **CLOSING drop** — mirror of #74 *Phoenix*'s opening THE-IGNITION. Where #73 closed a gap with THE-RECEPTION (the signal received), #90 closes this run with **THE-WALLS-FALL** (the structure collapsed). New drop-timing sub-class: the closing drop that names not a beginning or a kill-in-progress but the **completed collapse** — *this is over* — landing as the last charge of the run falls and the gap opens. The second death-octave completes: ignition → consecration → burn → **the walls fall.**
+**FIRST CELLDWELLER as the primary artist** — Klayton's flagship project, after two arcs of featuring (Circle of Dust feat. Celldweller, #83/#87) and scoring everything as Scandroid/Circle of Dust; the architect steps to the front for the run's close. The run's **CLOSING drop** — mirror of #74 *Phoenix*'s opening THE-IGNITION. Where #73 closed a gap with THE-RECEPTION (the signal received), #90 closes this run with **THE-WALLS-FALL** (the structure collapsed). New drop-timing sub-class: the closing drop that names not a beginning or a kill-in-progress but the **completed collapse** — *this is over* — landing as the last charge of the run falls and the gap opens. The second death-octave completes: ignition → consecration → burn → **the walls fall.**
 
 ### Stats
 
