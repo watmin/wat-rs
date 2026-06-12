@@ -357,3 +357,12 @@
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (cmp (keyfn a) (keyfn b)))
       coll)))
+
+;; ── nth — the positional, TOTAL accessor ─────────────────────────────────────
+;;
+;; `Vector/get` is the associative, nil-safe form (`Vec<T> × i64 -> Option<T>`,
+;; None on out-of-range). `nth` is Clojure's positional idiom: the i-th element
+;; returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it
+;; or fail." Sugar over `Option/expect (Vector/get …)`, but with the total promise.
+(:wat::core::defn :wat::core::nth<T> [v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
+  (:wat::core::Option/expect -> :T (:wat::core::Vector/get v i) "nth: index out of range"))
