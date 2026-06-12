@@ -1,5 +1,32 @@
 # Arc 209 — `:wat::service::defservice` meta-form (protocols arc)
 
+> ## ⏳ TIME-CAPSULE MARKER — read this first (added 2026-06-12)
+>
+> **This document is the defservice design as modeled in May 2026, under the *old*
+> concurrency tooling** — `make-channel` + `Sender`/`Receiver`, the `ThreadPeer`/
+> `ProcessPeer` structs, per-tier transport adapters, user-held `close`/join. It is
+> **preserved as the model-of-record at design time.** Do not read it as the current
+> build target; read it as *what we knew then* — and the map of where the side quests led.
+>
+> **What we knew then vs. where the side quests led.** Stones **A** & **B** of this plan
+> (a unified `spawn-program` entry; restricting raw `spawn-*` to substrate-internal) were
+> modeled here as work-to-do. They have since **shipped — in idealized, deadlock-free
+> form** — as a consequence of the side quests this very design helped kick off:
+> - arc **214** — the unified, transport-blind `Peer'` + `spawn-program'` + `select'`;
+>   the annihilation of the deadlock class these proofs were `:ignore`d for.
+> - arc **259** — the spawn redesign: `spawn-program'` as a host-type defclause (**= Stone A,
+>   generalized**); the `restricted_to :wat::kernel::` surface cut (**= Stone B**); plus
+>   brackets and the `deftest'` family.
+> - the macro/type substrate: **249** (total-pure macro engine), **251/256** (generics),
+>   **257** (EDN-native collections), **258** (conditionals).
+>
+> **The behavior modeled here is correct and tool-agnostic** — state-as-self mutex, the
+> select-loop over a dynamic handle-set, provision/deprovision, the agnostic interface.
+> What changed is the *tooling beneath it*, which became better than this design dared assume.
+>
+> **➡ For the current build target, read the adjacent re-grounding:**
+> [`DESIGN-REGROUNDED-2026-06-12.md`](./DESIGN-REGROUNDED-2026-06-12.md).
+
 **Status:** OPEN 2026-05-17.
 
 **Priority:** **BLOCKING.** Per arc 203 DESIGN § "What arc 203 demands from upstream" demand 1: protocols arc / defservice meta-form. Arc 203 closure depends on this; arc 170 closure depends on arc 203 closure; lab reconstruction depends on arc 170 closure.
