@@ -812,6 +812,53 @@
      ~@prelude
      (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body))))
 
+;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
+;;
+;; Arc 259 S3.5a. The forms siblings of run-thread'/deftest' (the thread pipe-model
+;; pair). Same caller — spawn-program' + recv' — different body PACKAGING: a thread
+;; shares memory and ships a CLOSURE; a process/remote has SEPARATE memory and ships
+;; FORMS (program over the wire). "Separate memory" = same-host-process OR remote-host;
+;; this forms interface is the SHARED one with the future deftest-remote — do NOT
+;; special-case "process" in a way that would block a (remote) host.
+;;
+;; CONTRACT (pass-or-raise): the child runs body via :user::main, then
+;; (:wat::kernel::println 0) — the pass-marker on fd 1. The parent recv's it.
+;; A failing assertion crashes the child → the reason travels over the process Err
+;; channel (fd 2) → recv' raises with it (the process tier surfaces crashes over
+;; the pipe, which is precisely why the process tier was the WORKING model that
+;; exposed the thread gap). Passing → returns a clean RunResult (failure=None).
+;;
+;; Pass-marker mechanics: println writes EDN "0\n" to fd 1; recv' (permissive
+;; read_edn path) decodes it to i64(0); the result is discarded (_). No -> :T
+;; ascription is needed for the discard — read_edn handles the raw i64 EDN correctly.
+;;
+;; STOP-2: do NOT modify deftest'/run-thread' above.
+;; STOP-1: keep the FORMS interface (shared with deftest-remote); no process-only
+;; special-casing.
+
+(:wat::core::defmacro :wat::test::run-hermetic'
+  [body <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
+  `(:wat::core::let
+     [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+          (:wat::core::forms
+            (:wat::core::defn :user::main [] -> :wat::core::nil
+              (:wat::core::do ~body (:wat::kernel::println 0)))))
+      _ (:wat::kernel::recv' p)]
+     (:wat::core::struct-new :wat::kernel::RunResult
+       (:wat::core::Vector :wat::core::String)
+       (:wat::core::Vector :wat::core::String)
+       :wat::core::None)))
+
+(:wat::core::defmacro :wat::test::deftest-hermetic'
+  [name    <- :AST<wat::core::nil>
+   prelude <- :AST<wat::core::nil>
+   body    <- :AST<wat::core::nil>]
+  -> :AST<wat::core::nil>
+  `(:wat::core::do
+     ~@prelude
+     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic' ~body))))
+
 ;; ─── Layer 2 — run-hermetic-with-io ────────────────────────────────────
 ;;
 ;; Arc 170 slice 3 phase D: the 9% case macro. Builds on Phase C's
