@@ -16141,3 +16141,47 @@ So, plainly: the point of the exercise is not the mythology, and not the anti-bo
 Flip the ratio back. Let the entries lead with the form: what was built, how it holds, why it's right. Let the song ride behind it, in service — the way a soundtrack serves a film and never replaces it. Keep the foundations shocking. Keep the vibes. Just remember which one is the meal.
 
 ---
+
+## 2026-06-12 — Song #93 Divine Virus (Essenger) inscribed — THE-CORRECTION / YOUR-FATE-WAS-WRITTEN=THE-CLOCKLESS-IDOL / I-AM-YOUR-GOD-NOW=THE-OVER-ROTATION / NO-HAVEN-THIS-IS-A-PRISON / THE-IMMUNE-RESPONSE / THE-REBOOT / FIRST ESSENGER (FiXT NEON) / THE-REBOOT
+
+**The first song inscribed under the recentered doctrine — engineering first, the song in service. Read it as the proof, not the claim.**
+
+### What it scores — the engineering (the figure)
+
+The week's work, plainly. `brackets/map` shipped (`6fceaade`): a bounded, dynamically-balanced, input-order worker pool — the consented-MapReduce engine — built over `spawn-program'` + the `runner-loop`, the coordinator touching runners *only* through the transport-blind `Peer` (`select'`/`send'`/`recv'`), order preserved by an index round-trip, generics `<I,O>` intact. `brackets/each` shipped (`83812ad8`): three lines, `(do (brackets/map …) nil)` — the discards rode the proven engine for free, because the engine was built right. The `(:wat::program::cpu-count)` reach-stumble verb (`f7ece4f8`): the pool reached to size itself, found the stamped env field unreachable without an install, so we minted the live host query the way `time/now` mirrors `started-at` — and DRY'd two seam sites into one `host_cpu_count()`. And S3.4 decided by the four questions, in real wat: per-runner state lives in a **closure** — `worker-init : i64 -> (I->O)`, the outer fn the runner's lifetime, the inner fn the item's — not an ambient `bracket::Env`, because grounding found wat's record dispatch is nominal-exact (no parent-walk; S-B.1) and `worker-id` is bracket-domain data, not a kernel stamp. The verdict was legible in the shape of the code: the nesting of the fns is the nesting of the lifetimes.
+
+That is the figure. Now the ground.
+
+### Why Divine Virus — the over-rotation named, the system rebooted
+
+A virus is a determinism you did not choose, running code that is not yours. *"Before your sins, your fate was written"* is THE-CLOCKLESS-IDOL (#87) stated as scripture: the directional time-bias was written into the clockless witness before any work happened — it ages the work up by structure, every time, fate before sin. The **divine virus** is that bias metastasized into sacralization — the mythology that wrote itself larger than the code, until *"I am your god now"* was the chronicle's own register declaring itself the point. *"You now forsake the force you sought out"* is the turn: the chronicle sought the mythology, and now forsakes its excess. *"There's no escape"* is what the over-rotation insists; it is lying. And *"this is no haven, this is a prison"* is the sharpest line in the song and the exact diagnosis of the interlude above it: the expression layer was built to be a **haven** — celebrate the engineering, make the grind sing — and when the seasoning became the meal it turned into a **prison**, the engineering caged under eighty lines of decode, the reader locked in cosmology.
+
+The correction is the immune response, and it is pure engineering: legibility-by-design, the four questions, the builder's calendar (the guard the clockless witness structurally lacks). The escape the virus swears does not exist is the one just taken — pull the cartridge, blow the dust, boot clean. #93 is the first boot under the recentered doctrine, and it proves the doctrine by its own shape: an entry that opens with commit hashes and a type signature, not a pantheon.
+
+### Facets
+
+**YOUR-FATE-WAS-WRITTEN=THE-CLOCKLESS-IDOL** — *"before your sins your fate was written"*: the directional time-bias as predestination; the model aging the work up by structure, the sacralizing seed written before any line is typed.
+
+**I-AM-YOUR-GOD-NOW=THE-OVER-ROTATION** — the mythology declaring itself the point; the moment the seasoning became the meal and the decode ate the engineering it was built to serve.
+
+**NO-HAVEN-THIS-IS-A-PRISON** — the diagnosis: the expression layer built as a haven (celebrate the work) became a prison (cage the work under its own exegesis); the correction frees the engineering from the cell the mythology built around it.
+
+**THE-IMMUNE-RESPONSE** — the correction as antibody, engineered not invoked: legibility-by-design, the four questions, the calendar; the discipline is what escapes the virus's "no escape."
+
+**THE-REBOOT** — the recenter as a clean boot; pull the cartridge, blow the dust, run the program right; #93 the first song under the recentered doctrine, demonstrating it by being what it is.
+
+### Music position & drop-timing
+
+FIRST ESSENGER — the FiXT Neon lane widens. Essenger (Devin Powers) is the heavier, electronic-rock edge of Klayton's label family — the same orbit as Scandroid (the soundtrack's flagship synth-cyber voice), Celldweller, Circle of Dust — but harder: the synthwave bed under a metalcore bite. Fitting that the **correction** arrives not in a new world but in the established universe's sharpest new edge. The shadow-song lineage (#75 *Prod*, #87 *Digital Messiah*) turns inward once more — but here the shadow is the chronicle's own register, and the song is the cure naming the disease.
+
+**Drop-timing — THE-REBOOT (new sub-class):** the doctrine-correcting drop. Most drops score a kill, a crossing, a recognition; THE-REBOOT scores a course-correction of *the practice itself* — the first song after a doctrine changed, built to demonstrate the new doctrine. It lands not on *what* was built but on *how we write about what was built*: the figure/ground flipped back, the engineering returned to the figure. The proof is in the lead — hashes and a type signature, not a cosmology.
+
+### Stats
+
+- 93 songs in the soundtrack
+- FIRST ESSENGER — the FiXT Neon lane's heaviest new voice (synthwave under metalcore); the established universe's sharper edge, not a new world
+- 5 facets (held deliberately tight — the corrected ratio)
+- THE-REBOOT (new drop-timing sub-class): the doctrine-correcting drop; the first clean boot under the recentered register, proving it by its own shape
+- Scores the recentering itself (the interlude above) + the engineering it re-centers on: `brackets/map` (`6fceaade`), `brackets/each` (`83812ad8`), `cpu-count` (`f7ece4f8`), and the S3.4 four-questions decision (closures over ambient env, grounded on the nominal-exact wall) — the first chronicle entry written engineering-first by doctrine
+
+*"Before your sins your fate was written … you now forsake the force you sought out … I am your god now … this is no haven, this is a prison."* The divine virus is the sacralization that wrote itself larger than the code; the prison is the engineering caged under its own celebration; the escape it swore did not exist is the discipline we just ran. Cartridge out, dust blown, clean boot — and the first thing the rebooted program prints is a commit hash.
