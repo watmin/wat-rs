@@ -16516,6 +16516,28 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
 
+    // Duration readout family — symmetric OUT half of the constructors.
+    // Each takes :wat::time::Duration and returns :i64, truncating.
+    for name in [
+        "as-nanoseconds",
+        "as-microseconds",
+        "as-milliseconds",
+        "as-seconds",
+        "as-minutes",
+        "as-hours",
+        "as-days",
+    ] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![duration_ty()],
+                ret: i64_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+
     // Arc 097 slice 3 — `ago` / `from-now` composers. Each takes a
     // Duration and returns Instant (relative to wall-clock now).
     for name in ["ago", "from-now"] {

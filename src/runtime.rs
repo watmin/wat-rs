@@ -4621,6 +4621,16 @@ fn dispatch_keyword_head_value(
         ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, list_span, env, sym).map_err(Into::into),
         ":wat::time::Day" => crate::time::eval_time_unit_day(args, list_span, env, sym).map_err(Into::into),
 
+        // Duration readout family — symmetric OUT half of the constructors.
+        // Each takes :wat::time::Duration and returns :i64, truncating.
+        ":wat::time::as-nanoseconds" => crate::time::eval_time_as_nanosecond(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-microseconds" => crate::time::eval_time_as_microsecond(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-milliseconds" => crate::time::eval_time_as_millisecond(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-seconds" => crate::time::eval_time_as_second(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-minutes" => crate::time::eval_time_as_minute(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-hours" => crate::time::eval_time_as_hour(args, list_span, env, sym).map_err(Into::into),
+        ":wat::time::as-days" => crate::time::eval_time_as_day(args, list_span, env, sym).map_err(Into::into),
+
         // Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
         // `:wat::time::-` dispatches on RHS variant: Instant - Duration
         // → Instant; Instant - Instant → Duration. `:wat::time::+` is
