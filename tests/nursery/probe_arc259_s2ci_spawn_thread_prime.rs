@@ -42,16 +42,17 @@ fn run_compute_i64(src: &str) -> i64 {
     }
 }
 
-/// LOAD-BEARING (RUNTIME): a thread peer spawned via the 1-arg `spawn-thread'`
-/// primitive (no tier keyword, no env). The self-peer prog echoes; the parent
-/// drives it via the returned `Thread'` handle.
+/// LOAD-BEARING (RUNTIME): a thread peer spawned via the 2-arg `spawn-thread'`
+/// primitive (prog + init-fn; no tier keyword, no env). The self-peer prog echoes;
+/// the parent drives it via the returned `Thread'` handle.
 #[test]
 fn s2ci_spawn_thread_prime_round_trip() {
     let src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::core::let [peer (:wat::kernel::spawn-thread'
                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                                     (:wat::kernel::send' self (:wat::kernel::recv' self))))
+                                     (:wat::kernel::send' self (:wat::kernel::recv' self)))
+                                   (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv)))
                             _ (:wat::kernel::send' peer 42)
                             got (:wat::kernel::recv' peer)
                             _ (:wat::kernel::close' peer)]

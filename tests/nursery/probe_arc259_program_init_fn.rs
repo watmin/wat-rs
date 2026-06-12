@@ -56,6 +56,33 @@ fn thread_init_populates_user_program() {
     );
 }
 
+/// An init-fn that ERRORS kills the peer honestly — the env is never built with a
+/// non-record fallback in `user.program`; the parent's cascade-aware `recv'` raises.
+#[test]
+#[should_panic(expected = "compute eval")]
+fn erroring_init_fn_kills_the_peer() {
+    // init-fn divides by zero → errors at peer-start → the thread exits before
+    // sending → recv' raises → compute eval panics here (NOT a Unit smuggled in).
+    let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
+                 (:wat::core::let \
+                   [peer (:wat::kernel::spawn-program' \
+                           (:wat::spawn::thread/init \
+                             (:wat::core::fn [] -> :wat::Record \
+                               (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv)))) \
+                           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+                             (:wat::kernel::send' self 7))) \
+                    got (:wat::kernel::recv' peer) \
+                    _ (:wat::kernel::close' peer)] \
+                   got)) \
+               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let _ = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute eval")
+        .value_owned();
+}
+
 /// A plain `(thread)` peer's `user.program` stays the EmptyEnv default — the default
 /// constructor's init-fn is the EmptyEnv thunk. The peer reports conformance (1/0).
 #[test]

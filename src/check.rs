@@ -9864,12 +9864,15 @@ fn infer_process_prog_type(
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
 
-/// Type-check `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-thread' prog init-fn)` — arc 259 Stone S2c-i.
 ///
-/// One positional arg:
+/// Two positional args:
 /// - `args[0]`: program fn; inferred; must be `fn([Peer'<S,R>]) -> nil` (self-peer
 ///   model — the ONLY valid form post arc 259 S2c-ii-a purge); projects to
 ///   `Thread'<R,S>`. Uses `infer_thread_prog_type` (the shared projection helper).
+/// - `args[1]`: init-fn; a 0-arg fn returning `:wat::Record`; inferred but not
+///   further projected (the checker accepts any fn value here — runtime validates
+///   the return type is a :wat::Record subtype at peer start).
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_thread_prime(
@@ -9882,12 +9885,12 @@ fn infer_spawn_thread_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-thread'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 1 {
+    if args.len() != 2 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 1,
+                expected: 2,
                 got: args.len(),
             },
         });
@@ -9901,6 +9904,9 @@ fn infer_spawn_thread_prime(
         };
         return CheckResult::partial_with(ty, local_errors);
     }
+
+    // arg 1: init-fn — infer it (accept; the checker does not project deeper).
+    let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Delegate to the shared thread-projection helper (same logic as spawn-program' :thread).
     let (val, mut proj_errs) = infer_thread_prog_type(&args[0], OP, env, locals, fresh, subst).into_parts();

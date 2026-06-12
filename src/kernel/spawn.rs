@@ -238,11 +238,13 @@ impl ProcessPeerBundle {
 // on the host type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process'). The
 // per-tier primitives below remain as the defclause's implementation targets.
 
-/// `(:wat::kernel::spawn-thread' prog)` — arc 259 Stone S2c-i.
+/// `(:wat::kernel::spawn-thread' prog init-fn)` — arc 259 Stone S2c-i.
 ///
-/// One positional arg:
+/// Two positional args:
 /// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
 ///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `Thread'<R,S>`.
+/// - `args[1]` — init-fn: `fn [] -> :wat::Record` — runs at the peer's start,
+///   its return value becomes `user.program` in the peer's env.
 ///
 /// Delegates to the SAME `spawn_thread_peer` called by the monolith's `:thread`
 /// branch — no duplication.
@@ -253,12 +255,12 @@ pub fn eval_kernel_spawn_thread_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-thread'";
-    if args.len() != 1 {
+    if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 1,
+                expected: 2,
                 got: args.len(),
             },
         }
@@ -281,8 +283,24 @@ pub fn eval_kernel_spawn_thread_prime(
         }
     };
 
+    // arg 1: init-fn value (0-arg fn returning :wat::Record).
+    let init_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "fn value (0-arg init-fn returning :wat::Record) for thread tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared thread-tier spawn logic.
-    spawn_thread_peer(program_fn, sym, list_span).map_err(Into::into)
+    spawn_thread_peer(program_fn, init_fn, sym, list_span).map_err(Into::into)
 }
 
 /// `(:wat::kernel::spawn-process' forms)` — arc 259 Stone S2c-i.
@@ -333,8 +351,13 @@ pub fn eval_kernel_spawn_process_prime(
 /// self-peer model remains. The prog MUST be `fn([self <- Peer'<S,R>]) -> nil`.
 /// The spawned closure constructs a `Peer` opaque inside the thread (owner-thread
 /// invariant) and calls the prog ONCE. The prog owns its own recv'/send' loop.
+///
+/// The `init_fn` is a 0-arg fn returning `:wat::Record`. It runs at the peer's
+/// start (inside the closure, at peer-start timing); its return value becomes
+/// `user.program` in the peer's env (replacing the hardcoded EmptyEnv literal).
 pub fn spawn_thread_peer(
     program_fn: Arc<Function>,
+    init_fn: Arc<Function>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -364,13 +387,39 @@ pub fn spawn_thread_peer(
             let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
             let pid = std::process::id() as i64;
             let tid = unsafe { libc::gettid() } as i64;
+
+            // Run the init-fn at peer-start to get the user.program value (it
+            // builds the user's record — `(thread)`'s default returns EmptyEnv).
+            let user_program = match apply_function(
+                init_fn.clone(),
+                vec![],
+                &thread_sym,
+                span.clone(),
+            ) {
+                Ok(record) => record,
+                // The init-fn is USER code; if it errors the peer cannot build an
+                // honest env. Exit the thread — `output_tx` (moved here) drops, the
+                // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
+                // a non-record fallback into the `:wat::Record` user.program slot.
+                Err(_) => return,
+            };
+
+            // Build the env with the user_program bound as a local that the
+            // constructor references by name.
+            let ctor_env = Environment::new()
+                .child()
+                .bind_unknown_span(
+                    "user-program",
+                    crate::value::TrackedValue::from(user_program),
+                )
+                .build();
             let peer_env_src = format!(
-                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread (:wat::program::EmptyEnv))"
+                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread user-program)"
             );
             let peer_env_ast = crate::parse_one!(&peer_env_src)
                 .expect("arc 259: peer env constructor form parses");
             let peer_env_val = crate::runtime::eval(
-                &peer_env_ast, &Environment::new(), &thread_sym,
+                &peer_env_ast, &ctor_env, &thread_sym,
             )
             .expect("arc 259: peer env constructor evals")
             .value_owned();
@@ -618,9 +667,22 @@ mod tests {
             .expect(":my::echo must be in the symbol table after define")
             .clone();
 
+        // Build a default init-fn: 0-arg, returns EmptyEnv (the default thunk).
+        let init_world = crate::freeze::startup_from_source(
+            "(:wat::core::defn :my::default-init [] -> :wat::Record (:wat::program::EmptyEnv))",
+            None,
+            Arc::new(crate::load::InMemoryLoader::new()),
+        )
+        .expect("startup for default init fn must succeed");
+        let default_init_fn: Arc<Function> = init_world
+            .symbols
+            .get(":my::default-init")
+            .expect(":my::default-init must be in the symbol table")
+            .clone();
+
         // Spawn a thread peer.
         let dummy_span = Span::unknown();
-        let peer_val = spawn_thread_peer(echo_arc, &world.symbols, &dummy_span)
+        let peer_val = spawn_thread_peer(echo_arc, default_init_fn, &world.symbols, &dummy_span)
             .expect("spawn_thread_peer must succeed");
 
         // Must be RustOpaque with the thread-peer type-path.
@@ -702,8 +764,21 @@ mod tests {
             .expect(":my::blocker must be in the symbol table")
             .clone();
 
+        // Build a default init-fn for the blocker test.
+        let init_world = crate::freeze::startup_from_source(
+            "(:wat::core::defn :my::default-init [] -> :wat::Record (:wat::program::EmptyEnv))",
+            None,
+            Arc::new(crate::load::InMemoryLoader::new()),
+        )
+        .expect("startup for default init fn must succeed");
+        let default_init_fn: Arc<Function> = init_world
+            .symbols
+            .get(":my::default-init")
+            .expect(":my::default-init must be in the symbol table")
+            .clone();
+
         let baseline = Arc::strong_count(&prog);
-        let peer_val = spawn_thread_peer(prog.clone(), &world.symbols, &Span::unknown())
+        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, &world.symbols, &Span::unknown())
             .expect("spawn_thread_peer must succeed");
 
         // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.

@@ -26,13 +26,21 @@
 ;; Loads AFTER wat/Record.wat (uses :wat::Record::def).
 
 ;; ── The keys (host opts records) ─────────────────────────────────────────────
-;; ThreadOpts / ProcessOpts carry no config — their TYPE is the whole message.
-(:wat::Record::def :wat::spawn::ThreadOpts [])
+;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::Record.
+;; The init-fn runs at the peer's start and populates user.program.
+;; ProcessOpts carries no config — its TYPE is the whole message.
+(:wat::Record::def :wat::spawn::ThreadOpts
+  [init-fn <- :wat::core::Fn()->wat::Record])
 (:wat::Record::def :wat::spawn::ProcessOpts [])
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
+;; (thread)        — default init-fn is the EmptyEnv thunk.
+;; (thread/init f) — init-fn is f, a 0-arg fn returning a :wat::Record.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
-  (:wat::spawn::ThreadOpts))
+  (:wat::spawn::ThreadOpts (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))))
+
+(:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::Record] -> :wat::spawn::ThreadOpts
+  (:wat::spawn::ThreadOpts f))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts))
@@ -55,9 +63,10 @@
 ;; arrives as one new key + one new clause here; the 2-arg sig is unmoved.
 (:wat::core::defclause :wat::kernel::spawn-program'
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
+  ;; The host's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
   ([host <- :wat::spawn::ThreadOpts
     prog <- [:wat::kernel::Peer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
-    (:wat::kernel::spawn-thread' prog))
+    (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn host)))
   ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
   ([host <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
