@@ -21,6 +21,34 @@ listener into that `select'` was settled by the four questions:
   kinds from one select = a named sum); what the builder rejected was a new `serve'` **verb**,
   not the two-event shape. The loop stays plain wat.
 
+## ⚙ FINAL SHAPE (2026-06-12 — after the isolation-boundary + tier-union analysis)
+
+The variant set was settled by four-questions + the cross-tier union analysis (supersedes any
+`:Crashed` mention below):
+
+```
+(:wat::core::defenum :wat::kernel::SelectEvent<O>
+  :Connection                                          ;; the listener fired — a client is dialing
+  :Message [idx <- :wat::core::i64  msg   <- :O]        ;; clients[idx] sent an op
+  :Closed  [idx <- :wat::core::i64]                     ;; clients[idx] left cleanly — graceful, no diagnostic
+  :Lost    [idx <- :wat::core::i64  cause <- :wat::kernel::Failure]) ;; transport broke — `cause` = first-class diagnostic
+```
+
+- **No `:Crashed`.** A foreign connection-client's *crash reason* is opaque across the isolation
+  boundary at every tier (it flows to *that client's own supervisor*, not your connection). A
+  reason-bearing crash is a **supervised-peer** event (`recv'`/supervised `select'` →
+  `Crashed(Failure)`), already shipped by structured-peer-death — not a connection event.
+- **`:Lost` carries a `Failure`** (the substrate's first-class diagnostic): `:message` = the log
+  line (ECONNRESET / ETIMEDOUT / EHOSTUNREACH), the wrapped `*DiedError` = the metric kind. A
+  handler logs + metrics from one structured value flowing through the match. `:Lost` is the
+  **remote-tier** producer (TCP reset/partition/timeout); thread (crossbeam can't reset) and
+  local-UDS process emit only `:Connection`/`:Message`/`:Closed`. The variant + the loop arm are
+  built now (the union, designed for remote); thread `select'` emits the 3 it can, `:Lost`
+  *emission* lights up at the remote tier. The variant is real (remote), not dead.
+- **Resource model:** the loop grows the client set per `:Connection` (unbounded) — deadlock-free
+  is structural + guaranteed; memory/fd-boundedness is service policy (the `:Connection` arm may
+  refuse to admit beyond a cap). The substrate hands you the hook; bounding is your call.
+
 ## What this delivers — the 2-arg `select'` + `SelectEvent`
 
 ```

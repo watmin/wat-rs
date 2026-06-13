@@ -47,11 +47,13 @@ const PROGRAM: &str = r#"
                                  (:wat::core::* n 2))]
             (:user::serve l clients)))
         (:user::Op::Stop nil)))
-    ;; SHRINK — clients[idx] left gracefully.
+    ;; SHRINK — clients[idx] left gracefully (clean disconnect, no diagnostic).
     ((:wat::kernel::SelectEvent::Closed idx)
       (:user::serve l (:wat::std::list::remove-at clients idx)))
-    ;; SHRINK — clients[idx] died; reason available (diagnostics).
-    ((:wat::kernel::SelectEvent::Crashed idx _reason)
+    ;; SHRINK — clients[idx]'s transport broke abnormally; `cause` is the first-class
+    ;; diagnostic (a Failure: ECONNRESET / ETIMEDOUT / ...). Emitted by the remote
+    ;; tier; the thread tier never raises this, but the arm is built for the union.
+    ((:wat::kernel::SelectEvent::Lost idx _cause)
       (:user::serve l (:wat::std::list::remove-at clients idx)))))
 
 ;; Spawn the service, connect two clients dynamically, round-trip a scalar through each,
