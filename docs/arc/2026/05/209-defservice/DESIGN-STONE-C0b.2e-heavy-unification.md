@@ -10,17 +10,35 @@
 
 ## The end-state (what "unified" means)
 
-ONE transport enum is the source of truth for "how does this peer move bytes":
-```rust
-enum PeerTransport {
-    Crossbeam { tx: comms::thread::Sender<Value>,   rx: comms::thread::Receiver<Value>  }, // Value-direct (shared mem)
-    Socket    { tx: comms::process::Sender<String>, rx: comms::process::Receiver<String> }, // EDN-String (separate mem)
-    // Remote { … }  ← the forcing function: declared shape, added when :remote ships
-}
-```
-- **`Peer<I,O>`** (one struct, one `PEER_TYPE_PATH` opaque) wraps a `PeerTransport`. `send'`/`recv'`
-  match the transport (`Crossbeam` → `Value` direct; `Socket` → EDN-encode/decode). **`SocketPeer` /
-  `SOCKET_PEER_TYPE_PATH` are RETIRED** — there is one connection peer.
+> ⚠️ REVISED 2026-06-13 (builder): "remote" is a CLASS (N kinds — verifications, resumption,
+> protocols), not one thing, and growing it must be ORGANIC. So the seam is NOT a closed
+> `enum PeerTransport {Crossbeam, Socket, Remote}` (which would force central surgery + per-site arms
+> per remote). The seam is the comms TRAIT you already built — **operations closed, transports open.**
+
+The source of truth is the existing comms abstraction (`comms/mod.rs:620,641`):
+`trait CommSender<T> { fn send }` + `trait CommReceiver<T> { fn recv }`, already impl'd by
+`comms::thread` (crossbeam, Value-direct) AND `comms::process` (socket, EDN). "Value over crossbeam
+LOOKS LIKE value over EDN-over-socket" — true at the trait.
+
+- **`Peer<I,O>`** (one struct, one `PEER_TYPE_PATH` opaque) holds the **boxed comms trait**:
+  `tx: Box<dyn CommSender<Value>>`, `rx: Box<dyn CommReceiver<Value>>`. `send'`/`recv'` call the
+  trait — **NO per-transport arms.** Encoding moves INTO the comms impl (crossbeam sends `Value`
+  direct; socket EDN-encodes internally) so `Peer::send(Value)`/`recv()→Value` is uniform. **A new
+  transport (each remote) = a new `CommSender`/`CommReceiver` impl + a connector — `send'`/`recv'`/
+  `select'` never change.** That is the organic growth: add impls, not arms. **`SocketPeer` /
+  `SOCKET_PEER_TYPE_PATH` are RETIRED** — there is one connection peer over the open trait.
+
+## The real axis: in-memory (capture) vs socket (no-capture)
+
+The genuinely-distinct split is NOT thread/process/remote — it is **in-memory vs socket**:
+- **In-memory** — `thread` (crossbeam). The ONE env that ALLOWS CAPTURE (closures); that is why it is
+  separately named and gets different SPAWN treatment (closure prog, fn-arg self-peer). At the
+  CONNECTION layer it is just the crossbeam-backed `Peer`.
+- **Socket / out-of-memory, no-capture** — `process` (same-machine UDS) + the **remote CLASS**
+  (off-machine; N kinds, growing). Process-IPC-is-already-sockets PAVES THE ROAD: every remote is "an
+  out-of-memory socket endpoint not on this machine," sharing the socket transport + the forms-over-
+  wire (no-capture) model. The remote class grows in the **connector** layer (how the endpoint is
+  established + its verification/resumption), each a plug-in, never central surgery.
 - **`Listener<I,O>`** (one `LISTENER_TYPE_PATH` opaque) wraps a `ListenerTransport`
   (`Rendezvous`(crossbeam Receiver) | `Uds`(UnixListener) | `Inet` later). `accept'` + the
   `select'`-3arg listener-arm match the transport. **`SocketListener'` + the naked thread
@@ -49,13 +67,16 @@ unified for the **connected peer's use**.
 
 - **Obvious — YES.** One `Peer`, one `Listener`, a `ServiceAddress` sum. The wat surface is identical
   across tiers; the transport is data.
-- **Simple — YES (end-state).** `send'`/`recv'`/`select'` go from a 4-way `type_path` match to
-  `{Thread', Process', Peer}` + an inner transport match — the transport localized to one enum.
-- **Honest — YES.** The transport enum names the real transports; the "can't cross a boundary" guard
-  lives at `ServiceAddress` construction (a `:Thread` address is same-process-only). Compiler
-  exhaustiveness makes transport-completeness STRUCTURAL, not hand-discipline (extirpare top rung).
-- **Good UX — YES.** Adding remote = one variant + compiler-forced arms; callers tier-blind once
-  connected; `defservice` generates the per-tier glue.
+- **Simple — YES (end-state).** `send'`/`recv'` collapse from a 4-way `type_path` match to
+  `{Thread', Process', Peer}`, and the `Peer` arm is a single trait call (`tx.send`/`rx.recv`) — no
+  per-transport sub-arms. The transport is behind the comms trait, not enumerated at the call site.
+- **Honest — YES.** The trait names the operation contract; each transport impl names its real wire;
+  the "can't cross a boundary" guard lives at `ServiceAddress` construction (a `:Thread` address is
+  same-process-only). Transport-completeness is structural by POLYMORPHISM (the sites call the trait;
+  there is no arm to forget) — the open-set version of the extirpare top rung.
+- **Good UX — YES.** Adding a remote = a new `CommSender`/`CommReceiver` impl + a connector, with
+  `send'`/`recv'`/`select'` untouched (organic); callers tier-blind once connected; `defservice`
+  generates the per-tier glue.
 
 Cost (priced + accepted): a one-time wide refactor (~50 sites; bulk in `runtime.rs` + `check.rs`)
 revising shipped C0b.2b/2c/2d runtime. Cheapest NOW — before remote and before C0b.3a-ii / Stone C
@@ -64,11 +85,15 @@ build on the representation.
 ## Decomposition (ordered; each its own RED/regression-gated strike)
 
 - **C0b.2e-i — unify the connection `Peer`.** Merge `Peer`+`SocketPeer` structs → one `Peer<I,O>`
-  with `PeerTransport {Crossbeam, Socket}`; one `PEER_TYPE_PATH` (retire `SOCKET_PEER_TYPE_PATH`).
-  Collapse the `send'`/`recv'`/`select'`(×3)/`connect'`/`accept'`/`peer-pair'`/`socket-pair'`/
-  `self-peer` connection-peer arms to the unified peer + inner transport match. Checker: one
+  holding the boxed comms trait (`tx: Box<dyn CommSender<Value>>`, `rx: Box<dyn CommReceiver<Value>>`);
+  one `PEER_TYPE_PATH` (retire `SOCKET_PEER_TYPE_PATH`). Move EDN encoding INTO the socket comms impl
+  (use a `CommSender<Value>`/`CommReceiver<Value>` over the socket that encodes internally) so the
+  arm stops encoding. Collapse the `send'`/`recv'`/`select'`(×3)/`connect'`/`accept'`/`peer-pair'`/
+  `socket-pair'`/`self-peer` connection-peer arms to ONE `Peer` arm = a trait call. Checker: one
   `Peer<I,O>` head; `project_peer_io` → `{Thread',Process',Peer}`; `infer_connect'/accept'/
   socket-pair'/peer-pair'/self-peer` → `Peer<I,O>`; `SelectEvent.:Connection` → `Peer<I,O>`.
+  ⚠️ Verify whether `comms::process::Sender<Value>` encodes internally or the arm must (read
+  `comms::process::Sender::send`, `process.rs:245`) — settle encoding placement at draw time.
   **Gate (refactor — structural disconfirm):** `SOCKET_PEER_TYPE_PATH` grep-empty; every arc-209 peer
   probe (c0b1b/c0b2b/c0b2c/c0b2d/c0b3a0) green via the unified `Peer`; full surface compiles.
 - **C0b.2e-ii — unify the `Listener`.** Merge the thread rendezvous Receiver + `SocketListener'` →
@@ -95,8 +120,10 @@ iii IS a feature (the `ServiceAddress` sum) → a normal RED probe (a caller con
 
 - **Merging the spawn handles `Thread'`/`Process'` into `Peer`** — REJECTED: ownership/lifecycle
   (`close'`/pidfd) is a different abstraction from a connection. A separate question, not this.
-- **Building the `:Remote` transport** — declared (the enum variant + the error arm), built when
-  `:remote` ships. The whole point: the shape exists before the implementation.
+- **Building any `:Remote` member** — the remote CLASS is open; each member (a verification /
+  resumption / protocol flavor) is a future `CommSender`/`CommReceiver` impl + connector, added
+  organically. C0b.2e builds the SEAM (the trait-held `Peer` + the connector layer) so that adding a
+  remote is additive; it builds zero remote members. The road exists before the cars.
 - **`SO_PEERCRED`** — C0b.3b.
 
 ## The deadlock contract carries
