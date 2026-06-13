@@ -113,6 +113,15 @@ fn render_assertion_failure(payload: &AssertionPayload) {
     let _ = std::io::stderr().write_all(&out);
 }
 
+/// The `#wat.kernel/AssertionFailure {…}` envelope as a String (no trailing newline).
+///
+/// Used by the crash-send site in `kernel/spawn.rs` to forward the structured
+/// envelope over the thread peer's crash channel instead of the bare message.
+/// Single renderer — `write_assertion_failure` delegates here.
+pub(crate) fn assertion_failure_envelope(payload: &AssertionPayload) -> String {
+    format!("#wat.kernel/AssertionFailure {}", wat_edn::write(&payload_to_edn(payload)))
+}
+
 /// Build the EDN failure output. Separated from rendering so tests can
 /// inspect the exact bytes produced.
 ///
@@ -124,8 +133,7 @@ fn render_assertion_failure(payload: &AssertionPayload) {
 /// Arc 211b — replaced text format with `#wat.kernel/AssertionFailure{...}`
 /// EDN envelope mirroring `#wat.kernel/ProcessPanics{...}`.
 fn write_assertion_failure<W: Write>(out: &mut W, payload: &AssertionPayload) {
-    let edn_value = payload_to_edn(payload);
-    let line = format!("#wat.kernel/AssertionFailure {}\n", wat_edn::write(&edn_value));
+    let line = format!("{}\n", assertion_failure_envelope(payload));
     let _ = out.write_all(line.as_bytes());
 }
 
