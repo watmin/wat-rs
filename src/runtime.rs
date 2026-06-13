@@ -17958,6 +17958,136 @@ fn eval_connect_prime(
     Ok(client_peer)
 }
 
+/// Unpack a connect-request `Value` and wrap the server `Peer'` end on the
+/// current thread.
+///
+/// Called by both `eval_accept_prime` (after a blocking `typed_recv` on the
+/// listener) and by the 2-arg `eval_peer_select_prime` (after the listener
+/// arm of `sel.select()` fires).  ONE helper, TWO callers — the wrap logic
+/// is not duplicated.
+///
+/// The connect-request is a `Value::Tuple` `(req_rx: Receiver, resp_tx: Sender)`
+/// minted by `connect'` and uniquely owned at the point of receipt:
+/// `Arc::try_unwrap` succeeds.  Returns the server `Peer'<R,S>` opaque.
+fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::accept'"; // same context for error messages
+    // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
+    let mut items: Vec<Value> = match cr {
+        Value::Tuple(arc) => match Arc::try_unwrap(arc) {
+            Ok(vec) => vec,
+            Err(arc) => (*arc).clone(),
+        },
+        other => {
+            return Err(RuntimeError {
+                span: span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "connect-request must be a Tuple; got {:?}",
+                        other.type_name()
+                    ),
+                },
+            }.into());
+        }
+    };
+    if items.len() != 2 {
+        return Err(RuntimeError {
+            span: span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "connect-request tuple must have 2 elements; got {}",
+                    items.len()
+                ),
+            },
+        }.into());
+    }
+    // Move items out in reverse order so indices stay valid.
+    let resp_tx_val = items.remove(1);
+    let req_rx_val  = items.remove(0);
+    // Extract req_rx (Receiver<Value>) — moved out, unique owner.
+    let req_rx = match req_rx_val {
+        Value::wat__kernel__Receiver(arc) => {
+            match Arc::try_unwrap(arc) {
+                Ok(crate::channel::ReceiverInner::Comms(rx)) => rx,
+                Ok(_) => {
+                    return Err(RuntimeError {
+                        span: span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "connect-request rx is not a comms (thread-tier) receiver".into(),
+                        },
+                    }.into());
+                }
+                Err(_) => {
+                    return Err(RuntimeError {
+                        span: span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "connect-request rx has unexpected additional references".into(),
+                        },
+                    }.into());
+                }
+            }
+        }
+        other => {
+            return Err(RuntimeError {
+                span: span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Receiver (connect-request req_rx)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Extract resp_tx (Sender<Value>) — moved out, unique owner.
+    let resp_tx = match resp_tx_val {
+        Value::wat__kernel__Sender(arc) => {
+            match Arc::try_unwrap(arc) {
+                Ok(crate::channel::SenderInner::Comms { sender, .. }) => sender,
+                Ok(_) => {
+                    return Err(RuntimeError {
+                        span: span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "connect-request tx is not a comms (thread-tier) sender".into(),
+                        },
+                    }.into());
+                }
+                Err(_) => {
+                    return Err(RuntimeError {
+                        span: span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "connect-request tx has unexpected additional references".into(),
+                        },
+                    }.into());
+                }
+            }
+        }
+        other => {
+            return Err(RuntimeError {
+                span: span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Sender (connect-request resp_tx)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
+    use crate::kernel::peer::Peer;
+    use crate::kernel::spawn::PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+    Ok(make_rust_opaque(
+        PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: resp_tx, rx: req_rx }))),
+    ))
+}
+
 /// `(:wat::kernel::accept' listener)` — Arc 209 Stone C0b.1.
 ///
 /// Service-side connection: block on the rendezvous `Listener'` (a raw
@@ -18021,124 +18151,8 @@ fn eval_accept_prime(
             }.into());
         }
     };
-    // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
-    // Consume cr_value into an owned Vec so we can move items out without bumping Arc refcounts.
-    let mut items: Vec<Value> = match cr_value {
-        Value::Tuple(arc) => match Arc::try_unwrap(arc) {
-            Ok(vec) => vec,
-            Err(arc) => (*arc).clone(),  // shouldn't happen — cr_value is freshly received
-        },
-        other => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!(
-                        "accept': connect-request must be a Tuple; got {:?}",
-                        other.type_name()
-                    ),
-                },
-            }.into());
-        }
-    };
-    if items.len() != 2 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!(
-                    "accept': connect-request tuple must have 2 elements; got {}",
-                    items.len()
-                ),
-            },
-        }.into());
-    }
-    // Move items out in reverse order so indices stay valid.
-    let resp_tx_val = items.remove(1);
-    let req_rx_val  = items.remove(0);
-    // Extract req_rx (the Receiver<Value>) — moved out of the vec, unique owner.
-    let req_rx = match req_rx_val {
-        Value::wat__kernel__Receiver(arc) => {
-            match Arc::try_unwrap(arc) {
-                Ok(crate::channel::ReceiverInner::Comms(rx)) => rx,
-                Ok(_) => {
-                    return Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': connect-request rx is not a comms (thread-tier) receiver".into(),
-                        },
-                    }.into());
-                }
-                Err(_) => {
-                    return Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': connect-request rx has unexpected additional references".into(),
-                        },
-                    }.into());
-                }
-            }
-        }
-        other => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Receiver (connect-request req_rx)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }.into());
-        }
-    };
-    // Extract resp_tx (the Sender<Value>) — moved out of the vec, unique owner.
-    let resp_tx = match resp_tx_val {
-        Value::wat__kernel__Sender(arc) => {
-            match Arc::try_unwrap(arc) {
-                Ok(crate::channel::SenderInner::Comms { sender, .. }) => sender,
-                Ok(_) => {
-                    return Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': connect-request tx is not a comms (thread-tier) sender".into(),
-                        },
-                    }.into());
-                }
-                Err(_) => {
-                    return Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': connect-request tx has unexpected additional references".into(),
-                        },
-                    }.into());
-                }
-            }
-        }
-        other => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Sender (connect-request resp_tx)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }.into());
-        }
-    };
-    // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
-    // Server recvs S (via req_rx), sends R (via resp_tx).
-    use crate::kernel::peer::Peer;
-    use crate::kernel::spawn::PEER_TYPE_PATH;
-    use crate::rust_deps::custodia::ThreadOwnedCell;
-    use crate::rust_deps::marshal::make_rust_opaque;
-    let server_peer = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: resp_tx, rx: req_rx }))),
-    );
-    Ok(server_peer)
+    // Unpack + wrap via the shared helper (one helper, two callers).
+    wrap_connect_request(cr_value, list_span)
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
@@ -23053,6 +23067,10 @@ fn eval_peer_select_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::select'";
+    // 3-arg form: (select' self-peer listener peers) → SelectEvent<I,O>  [Arc 209 C0b.1b]
+    if args.len() == 3 {
+        return eval_peer_select_prime_3arg(args, list_span, env, sym);
+    }
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -23419,6 +23437,275 @@ fn eval_peer_select_prime(
         }
         .into())
     }
+}
+
+/// `(:wat::kernel::select' self-peer listener peers)` — Arc 209 Stone C0b.1b.
+///
+/// 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
+/// (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
+/// and the **connected client `Peer'`s** (requests) — returning a `SelectEvent<I,O>`.
+///
+/// Registration order (= Select index):
+///   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
+///   1 = listener receiver (new connections)
+///   2..=N+1 = client peers[0..N-1] `.rx`
+///
+/// Select outcome mapping:
+///   `Recv { index: 0, .. }`       → `SelectEvent::Shutdown`  (owner dropped; RAII drain fired)
+///   `Recv { index: 1, result }`   → unpack + wrap → `SelectEvent::Connection { peer }`
+///   `Recv { index: k, result }`, k≥2:
+///     `Ok(msg)`  → `SelectEvent::Message { idx: k-2, msg }`
+///     `Err(_)`   → `SelectEvent::Closed  { idx: k-2 }`
+///
+/// Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
+/// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
+fn eval_peer_select_prime_3arg(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::select'";
+    const SELECT_EVENT_TYPE: &str = ":wat::kernel::SelectEvent";
+
+    // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
+    // The self-peer is the spawned worker's own Peer'<O,I> (tx=output_tx, rx=input_rx).
+    // We only need its .rx (= input_rx); watching it makes the RAII drain the wake.
+    let self_peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    type PeerCell = std::sync::Arc<
+        crate::rust_deps::custodia::ThreadOwnedCell<
+            Option<crate::kernel::peer::Peer<Value, Value>>,
+        >,
+    >;
+    let self_peer_cell: PeerCell = match &self_peer_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+        {
+            crate::rust_deps::marshal::downcast_ref_opaque::<PeerCell>(
+                inner,
+                crate::kernel::spawn::PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?
+            .clone()
+        }
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Peer'<_,_> (self-peer, the owner/supervisor link)",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            }
+            .into());
+        }
+    };
+    let self_guard = self_peer_cell
+        .ref_guard(OP, list_span.clone())
+        .map_err(EvalBreak::from)?;
+    let self_rx: &crate::comms::thread::Receiver<Value> = match &*self_guard {
+        None => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select'(3): self-peer already closed".into(),
+                },
+            }
+            .into());
+        }
+        Some(peer) => &peer.rx,
+    };
+
+    // ── arg 1: listener → Value::wat__kernel__Receiver ────────────────────────
+    let listener_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let listener_inner = match listener_val {
+        Value::wat__kernel__Receiver(ref inner) => inner.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Listener' (Receiver — rendezvous listener from listener')",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+    let listener_rx: &crate::comms::thread::Receiver<Value> = match listener_inner.as_ref() {
+        crate::channel::ReceiverInner::Comms(rx) => rx,
+        _ => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select'(3): listener is not a comms (thread-tier) receiver".into(),
+                },
+            }
+            .into());
+        }
+    };
+
+    // ── arg 2: peers → Vec of PEER_TYPE_PATH opaques ──────────────────────────
+    let peers_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let peers_vec = match peers_val {
+        Value::Vec(ref v) => v.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[2].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vector<Peer'<I,O>> (connected client peers)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
+    // Downcast all peer elements to PeerCell.
+    let mut peer_arcs: Vec<PeerCell> = Vec::with_capacity(peers_vec.len());
+    for (i, peer) in peers_vec.iter().enumerate() {
+        match peer {
+            Value::RustOpaque(inner)
+                if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
+            {
+                let cell: &PeerCell = crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+                peer_arcs.push(cell.clone());
+            }
+            other => {
+                return Err(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "select'(3): peers[{}] must be a Peer' (connected client); got {:?}",
+                            i,
+                            ValueSnapshot::of(other)
+                        ),
+                    },
+                }
+                .into());
+            }
+        }
+    }
+
+    // Acquire RefGuard for each peer cell.
+    let mut peer_guards: Vec<
+        crate::rust_deps::custodia::RefGuard<
+            '_,
+            Option<crate::kernel::peer::Peer<Value, Value>>,
+        >,
+    > = Vec::with_capacity(peer_arcs.len());
+    for arc in &peer_arcs {
+        peer_guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
+    }
+
+    // Collect &Receiver<Value> for each client peer's rx.
+    let mut peer_rxs: Vec<&crate::comms::thread::Receiver<Value>> =
+        Vec::with_capacity(peer_guards.len());
+    for (i, guard) in peer_guards.iter().enumerate() {
+        match &**guard {
+            None => {
+                return Err(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("select'(3): client peer already closed (index {})", i),
+                    },
+                }
+                .into());
+            }
+            Some(peer) => peer_rxs.push(&peer.rx),
+        }
+    }
+
+    // ── Build Select: self-peer at index 0, listener at 1, clients at 2..=N+1 ──
+    let mut sel = crate::comms::thread::Select::new();
+    sel.recv(self_rx);    // index 0 = self-peer (owner link — RAII drain wakes this)
+    sel.recv(listener_rx); // index 1 = listener
+    for rx in &peer_rxs {
+        sel.recv(*rx);    // indices 2..=N+1 = peers[0..N-1]
+    }
+
+    // ── Block until one fires ──────────────────────────────────────────────────
+    let event_value = match sel.select() {
+        crate::comms::SelectOutcome::Shutdown => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "select' interrupted by shutdown".into(),
+                },
+            }
+            .into());
+        }
+        crate::comms::SelectOutcome::Recv { index, result } => {
+            if index.0 == 0 {
+                // ── Self-peer arm: owner dropped the handle (RAII drain fired) ──
+                // Do NOT inspect `result` — the self-peer is the supervisor link.
+                // The RAII drain drops input_tx → input_rx disconnects → select
+                // fires here (result = Err(Disconnected)).  Returning :Shutdown is
+                // the deadlock-free termination signal — no cooperative Stop needed.
+                // index 0 → SelectEvent::Shutdown (no fields)
+                Value::Enum(Arc::new(EnumValue {
+                    type_path: SELECT_EVENT_TYPE.into(),
+                    variant_name: "Shutdown".into(),
+                    fields: vec![],
+                }))
+            } else if index.0 == 1 {
+                // ── Listener arm: a client is dialing ─────────────────────────
+                let cr = result.map_err(|_| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select'(3): listener recv failed — address was dropped".into(),
+                        },
+                    })
+                })?;
+                let peer_value = wrap_connect_request(cr, list_span)?;
+                // SelectEvent::Connection [peer <- Peer'<I,O>]
+                Value::Enum(Arc::new(EnumValue {
+                    type_path: SELECT_EVENT_TYPE.into(),
+                    variant_name: "Connection".into(),
+                    fields: vec![peer_value],
+                }))
+            } else {
+                // ── Client peer arm: peers[k-2] fired ─────────────────────────
+                // index 0 = self-peer, index 1 = listener → subtract 2 for peer idx.
+                let peer_idx = (index.0 - 2) as i64;
+                match result {
+                    Ok(msg) => {
+                        // SelectEvent::Message [idx <- i64  msg <- O]
+                        Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE.into(),
+                            variant_name: "Message".into(),
+                            fields: vec![Value::i64(peer_idx), msg],
+                        }))
+                    }
+                    Err(_) => {
+                        // Output EOF — client peer left gracefully (thread tier: bare Peer',
+                        // no crash channel; :Lost is remote-tier only).
+                        // SelectEvent::Closed [idx <- i64]
+                        Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE.into(),
+                            variant_name: "Closed".into(),
+                            fields: vec![Value::i64(peer_idx)],
+                        }))
+                    }
+                }
+            }
+        }
+    };
+    Ok(event_value)
 }
 
 #[cfg(test)]

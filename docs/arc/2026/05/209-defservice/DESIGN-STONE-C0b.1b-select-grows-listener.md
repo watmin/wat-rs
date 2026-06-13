@@ -76,7 +76,13 @@ a one-shot verb); the loop no longer calls it (`select'` folds it). The service 
   is structural + guaranteed; memory/fd-boundedness is service policy (the `:Connection` arm may
   refuse to admit beyond a cap). The substrate hands you the hook; bounding is your call.
 
-## What this delivers — the 2-arg `select'` + `SelectEvent`
+## ⏳ SUPERSEDED (kept for the reasoning trail) — the original 2-arg / `:Crashed` sketch
+
+> This section is the FIRST sketch (2-arg `(select' listener peers)`, a `:Crashed` variant, `SelectEvent<O>`).
+> It is SUPERSEDED by the "⚙ FINAL SHAPE" block above (3-input `(select' self-peer listener peers)`,
+> `:Shutdown` not `:Crashed`, `SelectEvent<I,O>`). The 2-arg form was found to **deadlock** (no
+> termination path — gdb-proven) and was excised. Read FINAL SHAPE for what shipped; this remains as
+> the trail of how the shape was found.
 
 ```
 ;; NEW — declared in the kernel stdlib alongside the peer types

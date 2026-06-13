@@ -6442,8 +6442,8 @@ fn pattern_coverage(
                     || variant_path == ":wat::core::Ok"
                     || variant_path == ":wat::core::Err";
                 if !is_builtin_fqdn {
-                let enum_path = match shape {
-                    MatchShape::Enum(p, _) => p,
+                let (enum_path, enum_shape_args) = match shape {
+                    MatchShape::Enum(p, a) => (p, a),
                     _ => {
                         errors.push(CheckError { span: pattern.span().clone(), kind: CheckErrorKind::MalformedForm {
                             head: ":wat::core::match".into(),
@@ -6493,6 +6493,17 @@ fn pattern_coverage(
                         return None;
                     }
                 };
+                // Arc 209 C0b.1b — build a type-param → concrete-type mapping so
+                // field types like `Peer'<I,O>` are instantiated to the scrutinee's
+                // concrete args (e.g. `Peer'<i64,Op>`). For non-parametric enums the
+                // mapping is empty and `rename` is identity. This is the same
+                // substitution that `instantiate` applies to TypeSchemes at call sites.
+                let type_param_mapping: HashMap<String, TypeExpr> = enum_def
+                    .type_params
+                    .iter()
+                    .zip(enum_shape_args.iter())
+                    .map(|(name, arg_ty)| (name.clone(), arg_ty.clone()))
+                    .collect();
                 let fields = enum_def.variants.iter().find_map(|v| {
                     if let crate::types::EnumVariant::Tagged { name, fields } = v {
                         if name == variant_name {
@@ -6529,9 +6540,16 @@ fn pattern_coverage(
                     return None;
                 }
                 // Arc 055 — recurse into each field's sub-pattern.
+                // Instantiate field types with the concrete enum args so parametric
+                // enums (`SelectEvent<I,O>`) bind correctly typed variables.
                 let mut all_full = true;
                 for (binder_ast, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
-                    match check_subpattern(binder_ast, field_type, env, bindings, errors) {
+                    let instantiated_field_type = if type_param_mapping.is_empty() {
+                        field_type.clone()
+                    } else {
+                        rename(field_type, &type_param_mapping)
+                    };
+                    match check_subpattern(binder_ast, &instantiated_field_type, env, bindings, errors) {
                         Some(full) => all_full &= full,
                         None => return None,
                     }
@@ -10562,6 +10580,11 @@ fn infer_select_prime(
     const OP: &str = ":wat::kernel::select'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
+    // 3-arg form: (select' self-peer listener peers) → SelectEvent<I,O>  [Arc 209 C0b.1b]
+    if args.len() == 3 {
+        return infer_select_prime_3arg(args, head_span, env, locals, fresh, subst);
+    }
+
     if args.len() != 1 {
         local_errors.push(CheckError {
             span: head_span.clone(),
@@ -10642,6 +10665,116 @@ fn infer_select_prime(
         TypeExpr::Path(":wat::core::i64".into()),
         o_resolved,
     ]);
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+/// Arc 209 Stone C0b.1b — `(:wat::kernel::select' self-peer listener peers)` → `SelectEvent<I,O>`.
+///
+/// 3-arg service-multiplexer form:
+///   args[0] = self-peer (`Peer'<_,_>` — the owner link; its params don't constrain the result).
+///   args[1] = listener (`Listener'<S,R>` — inferred permissively, not further constrained).
+///   args[2] = peers (`Vector<Peer'<I,O>>` — the connected client peers).
+///
+/// Returns `Parametric { "wat::kernel::SelectEvent", [I, O] }` extracted from the peers.
+/// The self-peer parameter is accepted as any `Peer'` (the supervisor link); its type params
+/// are the program's self-channel which are independent of the client peer I/O types.
+fn infer_select_prime_3arg(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::select'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    // args[0]: self-peer — infer for error coverage; type not further constrained.
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // args[1]: listener — infer for error coverage; type not further constrained here.
+    let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // args[2]: peers — must be Vector<Peer'<I,O>>.
+    let vec_ty = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let fb = TypeExpr::Parametric {
+                head: "wat::kernel::SelectEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
+            return if local_errors.is_empty() {
+                CheckResult::ok(fb)
+            } else {
+                CheckResult::partial_with(fb, local_errors)
+            };
+        }
+    };
+    let vec_surface = apply_subst(&vec_ty, subst);
+    let vec_reduced = reduce(&vec_surface, subst, env.types());
+
+    // Match Vector<elem>.
+    let elem_ty = match &vec_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if head == "wat::core::Vector" && targs.len() == 1 =>
+        {
+            targs[0].clone()
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: args[2].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peers".into(),
+                    expected: "Vector<Peer'<I,O>> (connected client peers)".into(),
+                    got: format_type(other),
+                },
+            });
+            let fb = TypeExpr::Parametric {
+                head: "wat::kernel::SelectEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+
+    // Reduce the element type — accept Peer'<I,O>.
+    let elem_surface = apply_subst(&elem_ty, subst);
+    let elem_reduced = reduce(&elem_surface, subst, env.types());
+    let (i_ty, o_ty) = match &elem_reduced {
+        TypeExpr::Parametric { head, args: targs }
+            if head == "wat::kernel::Peer'" && targs.len() == 2 =>
+        {
+            (targs[0].clone(), targs[1].clone())
+        }
+        other => {
+            local_errors.push(CheckError {
+                span: args[2].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peers element".into(),
+                    expected: "Peer'<I,O>".into(),
+                    got: format_type(other),
+                },
+            });
+            let fb = TypeExpr::Parametric {
+                head: "wat::kernel::SelectEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
+            return CheckResult::partial_with(fb, local_errors);
+        }
+    };
+
+    let i_resolved = apply_subst(&i_ty, subst);
+    let o_resolved = apply_subst(&o_ty, subst);
+    let ret = TypeExpr::Parametric {
+        head: "wat::kernel::SelectEvent".into(),
+        args: vec![i_resolved, o_resolved],
+    };
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {
