@@ -16,7 +16,7 @@ use crate::runtime::{
 };
 use crate::span::Span;
 
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::sync::Arc;
 
 use super::child::{child_post_fork_init};
@@ -363,6 +363,35 @@ pub(crate) fn run_forms_as_server_child(
     forms: Vec<WatAST>,
     inherit_config: Option<Config>,
 ) -> ! {
+    // Arc 209 C0b.3a-0 — hand the forms-child its owner-link as a self-peer
+    // (rx=fd0, tx=fd1). dup BEFORE the PipeReader/PipeWriter take ownership of
+    // fd 0/1 — the dup'd OwnedFds are independent (EOF on the dup'd read_fd
+    // still fires when the owner drops its write end of the input pipe, because
+    // both ends of the same pipe share the same kernel file-description; dup
+    // creates a new fd-descriptor pointing at the same file-description).
+    // SAFETY: fd 0 and fd 1 are live at this point (dup2'd by spawn_process_peer
+    // before calling this function). BorrowedFd::borrow_raw is safe for
+    // immediately-called try_clone_to_owned (dup(2)) — we do not hold the
+    // BorrowedFd across any async boundary.
+    let self_peer_read_fd: OwnedFd = unsafe { BorrowedFd::borrow_raw(0) }
+        .try_clone_to_owned()
+        .expect("dup fd0 for self-peer");
+    let self_peer_write_fd: OwnedFd = unsafe { BorrowedFd::borrow_raw(1) }
+        .try_clone_to_owned()
+        .expect("dup fd1 for self-peer");
+    let (self_peer_tx, self_peer_rx) =
+        crate::comms::process::sender_receiver_from_split_fds::<String>(
+            self_peer_read_fd, self_peer_write_fd,
+        )
+        .expect("build self-peer Sender/Receiver from fd0/fd1");
+    let self_peer_value = crate::rust_deps::marshal::make_rust_opaque(
+        crate::kernel::spawn::SOCKET_PEER_TYPE_PATH,
+        std::sync::Arc::new(crate::rust_deps::custodia::ThreadOwnedCell::new(Some(
+            crate::kernel::peer::SocketPeer { tx: self_peer_tx, rx: self_peer_rx },
+        ))),
+    );
+    let _self_peer_guard = crate::services::install_self_peer(self_peer_value);
+
     // Build wat-level stdio over the already-dup2'd fd 0/1/2.
     // SAFETY: The child branch in spawn_process_peer has already dup2'd
     // the comms pipe ends onto fd 0/1/2 and called child_post_fork_init

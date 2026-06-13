@@ -4876,6 +4876,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 209 C0b.3a-0 — self-peer: (:S :R) -> SocketPeer'<S,R>.
+            // Returns the spawned process child's owner-link (rx=fd0, tx=fd1).
+            // In root (no owner-link) the runtime gives a clean MalformedForm error.
+            ":wat::program::self-peer" => {
+                let (val, mut errs) = infer_program_self_peer(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 209 Stone C0b.1 — thread-tier connection verbs.
             // listener' : (host :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
             // connect'  : Address'<S,R>  -> Peer'<S,R>
@@ -9881,6 +9892,43 @@ fn socket_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
         TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s.clone(), r.clone()] },
         TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![r, s] },
     ])
+}
+
+/// Arc 209 C0b.3a-0 — `(:wat::program::self-peer :S :R)` →
+/// `SocketPeer'<S,R>`.
+///
+/// Mirror of `infer_socket_pair_prime`: two type-keyword args via
+/// `parse_peer_pair_type_arg`, single (not crossed) `SocketPeer'<S,R>` result.
+/// The self-peer is a one-sided peer (the child's owner-link); there is no
+/// crossed twin. Runtime type is `SOCKET_PEER_TYPE_PATH`; checker head is
+/// `"wat::kernel::SocketPeer'"`.
+fn infer_program_self_peer(
+    args: &[WatAST],
+    head_span: &Span,
+    _env: &CheckEnv,
+    _locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    _subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::program::self-peer";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        } });
+        let s = fresh.fresh();
+        let r = fresh.fresh();
+        return CheckResult::partial_with(
+            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s, r] },
+            local_errors,
+        );
+    }
+
+    let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
+    let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+    let ty = TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s_ty, r_ty] };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Arc 209 Stone C0b.1 — `(:wat::kernel::listener' host :S :R)` →

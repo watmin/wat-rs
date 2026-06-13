@@ -94,6 +94,8 @@ pub use client::{
     WriteAckRx, ReadReplyRx,
     // Arc 259 — The Forced Hand: ambient program environment.
     EnvGuard, install_program_env, current_program_env,
+    // Arc 209 C0b.3a-0 — process child self-peer (owner-link).
+    SelfPeerGuard, install_self_peer, current_self_peer,
 };
 pub use verbs::{eval_kernel_println, eval_kernel_eprintln, eval_kernel_readln};
 

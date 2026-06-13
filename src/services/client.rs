@@ -404,3 +404,50 @@ pub fn install_program_env(env: crate::runtime::Value) -> EnvGuard {
 pub fn current_program_env() -> Option<crate::runtime::Value> {
     PROGRAM_ENV.with(|cell| cell.borrow().clone())
 }
+
+// ─── SELF_PEER thread-local (Arc 209 C0b.3a-0) ───────────────────────────────
+//
+// The process child's owner-link as a `SocketPeer'` value. Installed at the
+// child-only seam `run_forms_as_server_child` (process/verbs.rs); never
+// installed in root's `invoke_user_main_orchestrated`. Root callers get a
+// clean error from `(:wat::program::self-peer …)`. Mirrors PROGRAM_ENV exactly:
+// RefCell<Option<Value>>, RAII guard, read-many clone.
+
+thread_local! {
+    // rune:perspicere(intentional-structure) — mirrors PROGRAM_ENV above.
+    // Lives for the duration of the spawned process child's `:user::main` run.
+    // Read by `(:wat::program::self-peer :S :R)` from any call depth on this thread.
+    static SELF_PEER: RefCell<Option<crate::runtime::Value>> = const { RefCell::new(None) };
+}
+
+/// RAII guard returned by [`install_self_peer`]. On drop, clears the
+/// SELF_PEER slot. Mirrors [`EnvGuard`] (single-install, no prior to restore
+/// since only the child-only seam installs this — there is no nesting).
+pub struct SelfPeerGuard {
+    _private: (),
+}
+
+impl Drop for SelfPeerGuard {
+    fn drop(&mut self) {
+        SELF_PEER.with(|cell| *cell.borrow_mut() = None);
+    }
+}
+
+/// Install `peer` as the calling thread's self-peer (owner-link) and return
+/// a RAII guard. On guard drop the slot is cleared.
+///
+/// Called only at the child-only seam `run_forms_as_server_child`
+/// (`process/verbs.rs`), before `:user::main` runs. The guard is held for
+/// the child's entire lifetime so the slot is set for any call depth.
+pub fn install_self_peer(peer: crate::runtime::Value) -> SelfPeerGuard {
+    SELF_PEER.with(|cell| *cell.borrow_mut() = Some(peer));
+    SelfPeerGuard { _private: () }
+}
+
+/// Clone and return the calling thread's self-peer, or `None` if none has
+/// been installed (i.e. this is the root process, not a spawned child).
+/// Read-many — does NOT consume the installed value. Called by the
+/// `(:wat::program::self-peer)` dispatch arm.
+pub fn current_self_peer() -> Option<crate::runtime::Value> {
+    SELF_PEER.with(|cell| cell.borrow().clone())
+}

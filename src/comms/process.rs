@@ -1058,6 +1058,29 @@ pub fn sender_receiver_from_fd<T: HolonRepresentable>(
     Ok((Sender { write_fd: fd, _phantom: PhantomData }, receiver))
 }
 
+/// Arc 209 C0b.3a-0 — wrap a SEPARATE read fd + write fd as a
+/// `(Sender<T>, Receiver<T>)` pair.
+///
+/// Used for a peer over a pipe PAIR (e.g. a process child's fd0 read /
+/// fd1 write owner-link), not a single bidirectional socket fd. Unlike
+/// `sender_receiver_from_fd`, there is no `try_clone`: the two fds are
+/// already distinct `OwnedFd`s. Per-Receiver `IoUring::new(4)` (same
+/// reactor as `sender_receiver_from_fd`).
+pub fn sender_receiver_from_split_fds<T: HolonRepresentable>(
+    read_fd: OwnedFd,
+    write_fd: OwnedFd,
+) -> std::io::Result<(Sender<T>, Receiver<T>)> {
+    let receiver = Receiver {
+        read_fd,
+        accumulator: RefCell::new(Vec::new()),
+        ring: RefCell::new(IoUring::new(4).map_err(|e| std::io::Error::other(
+            format!("IoUring::new(4) failed at sender_receiver_from_split_fds: {}", e)))?,
+        ),
+        _phantom: PhantomData,
+    };
+    Ok((Sender { write_fd, _phantom: PhantomData }, receiver))
+}
+
 /// Create a connected socket-pair (arc 209 C0b.2b — socket-peer tier).
 ///
 /// Allocates a `socketpair(AF_UNIX, SOCK_STREAM, 0)` giving two fully-duplex

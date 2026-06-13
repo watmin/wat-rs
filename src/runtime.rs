@@ -3802,6 +3802,12 @@ fn dispatch_keyword_head_value(
         // Reads the calling thread's PROGRAM_ENV slot (installed via
         // install_program_env at the post-bootstrap / pre-:user::main seam).
         ":wat::program::env" => eval_program_env(args, list_span),
+        // Arc 209 C0b.3a-0 — process child owner-link.
+        // Reads the calling thread's SELF_PEER slot (installed at the
+        // child-only seam run_forms_as_server_child, before :user::main).
+        // Root → clean MalformedForm error (no owner-link). Two checker-only
+        // type-keyword args (:S :R) validated but not evaluated.
+        ":wat::program::self-peer" => eval_program_self_peer(args, list_span),
         // Arc 259 S3.2b-i — live host parallelism verb.
         // Answers std::thread::available_parallelism() directly, no program env needed.
         ":wat::program::cpu-count" => eval_program_cpu_count(args, list_span),
@@ -17550,6 +17556,43 @@ fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBrea
                          before invoking (:wat::program::env)".into(),
             },
         }.into())
+}
+
+/// `(:wat::program::self-peer :S :R)` — returns the calling thread's self-peer
+/// (the spawned process child's owner-link as a `SocketPeer'<S,R>`).
+///
+/// Arc 209 C0b.3a-0. The self-peer is installed into the `SELF_PEER`
+/// thread-local by `install_self_peer` at the child-only seam
+/// `run_forms_as_server_child` (process/verbs.rs), before `:user::main` runs.
+/// Root never calls that seam → root gets a clean MalformedForm error.
+///
+/// The two type-keyword args (:S :R) are checker-only (the runtime wire is
+/// always `String`/EDN); they are validated to be keywords but not evaluated.
+fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::program::self-peer";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        } }.into());
+    }
+    for (i, a) in args.iter().enumerate() {
+        if !matches!(a, WatAST::Keyword(_, _)) {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+            } }.into());
+        }
+    }
+    crate::services::current_self_peer().ok_or_else(|| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "no self-peer — (:wat::program::self-peer) is only valid inside a spawned \
+                     process service; root has no owner-link".into(),
+        },
+    }.into())
 }
 
 /// `(:wat::program::cpu-count)` — nullary; returns the host parallelism as
