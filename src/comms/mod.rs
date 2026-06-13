@@ -786,6 +786,9 @@ pub enum SelectOutcome<T> {
     },
     /// Substrate shutdown fired before any data receiver. Caller should unwind.
     Shutdown,
+    /// Arc 209 C0b.3a-i — the registered listener arm fired (a connection is pending).
+    /// The caller accepts (non-blocking) and wraps the new connection.
+    Listener,
 }
 
 #[cfg(test)]

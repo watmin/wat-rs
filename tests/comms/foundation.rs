@@ -74,6 +74,7 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Ok(42));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
+        SelectOutcome::Listener => panic!("expected Recv"),
     }
 
     // Disconnected recv (the fired receiver's senders all dropped — the data arm).
@@ -87,6 +88,7 @@ fn probe_slice1_select_outcome_constructs() {
             assert_eq!(result, Err(RecvError::Disconnected));
         }
         SelectOutcome::Shutdown => panic!("expected Recv"),
+        SelectOutcome::Listener => panic!("expected Recv"),
     }
 
     // Substrate-shutdown cascade fired before any data receiver.

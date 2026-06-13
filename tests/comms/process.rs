@@ -269,6 +269,7 @@ fn probe_slice3d2_select_picks_fired_receiver() {
             assert_eq!(result, Ok("hello-a".to_string()), "result must carry the sent value");
         }
         Ok(SelectOutcome::Shutdown) => panic!("unexpected Shutdown"),
+        Ok(SelectOutcome::Listener) => panic!("unexpected Listener — no listener arm registered"),
         Err(e) => panic!("unexpected io_uring substrate error: {e}"),
     }
 }
@@ -287,4 +288,34 @@ fn probe_slice3d2_select_indices_match_registration_order() {
     assert_eq!(idx_a, ReceiverIndex(0), "first registered receiver must be index 0");
     assert_eq!(idx_b, ReceiverIndex(1), "second registered receiver must be index 1");
     assert_eq!(idx_c, ReceiverIndex(2), "third registered receiver must be index 2");
+}
+
+/// Arc 209 C0b.3a-i reactor unit test — listener arm fires on pending connection.
+///
+/// Binds a non-blocking abstract-namespace UDS `UnixListener`, registers it
+/// with `Select::listener(fd)`, then spawns a thread to connect. Verifies
+/// that `select()` returns `SelectOutcome::Listener` (not `Shutdown` or `Recv`)
+/// and that a subsequent non-blocking `accept()` succeeds.
+#[test]
+fn select_listener_arm_fires_on_pending_connection() {
+    use std::os::fd::AsRawFd;
+    use std::os::linux::net::SocketAddrExt;
+    use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
+    let addr = SocketAddr::from_abstract_name(b"wat.arc209.c0b3ai.test").unwrap();
+    let listener = UnixListener::bind_addr(&addr).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let t = std::thread::spawn(move || {
+        let _c = UnixStream::connect_addr(&addr).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    });
+    let mut sel: Select<String> = Select::new();
+    sel.listener(listener.as_raw_fd());
+    match sel.select().expect("select") {
+        SelectOutcome::Listener => {
+            let _ = listener.accept().expect("accept the pending conn");
+        }
+        SelectOutcome::Shutdown => panic!("expected Listener; got Shutdown"),
+        SelectOutcome::Recv { .. } => panic!("expected Listener; got Recv"),
+    }
+    t.join().unwrap();
 }

@@ -734,6 +734,10 @@ pub struct Select<'a, T: HolonRepresentable> {
     /// the broadcast slot when active. See DESIGN.md § "Stone E forward-
     /// correction (2026-05-19) — TCO discipline + reflexive rebuild".
     ring: RefCell<RingSlot>,
+    /// Arc 209 C0b.3a-i — optional listen fd for the reactor listener arm.
+    /// When `Some(fd)`, `select()` pushes a `PollAdd POLLIN` with
+    /// `LISTENER_TOKEN` so the caller can accept without blocking.
+    listener_fd: Option<std::os::fd::RawFd>,
     /// Type marker for the payload type T. PhantomData<T> makes
     /// `Select<'a, T>` invariant in T — consistent with `Sender<T>`
     /// and `Receiver<T>`.
@@ -762,6 +766,7 @@ impl<'a, T: HolonRepresentable> std::fmt::Debug for Select<'a, T> {
         f.debug_struct("Select")
             .field("receivers", &self.receivers)
             .field("ring", &ring_display)
+            .field("listener_fd", &self.listener_fd)
             .field("_phantom", &self._phantom)
             .finish()
     }
@@ -779,8 +784,18 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
         Self {
             receivers: Vec::new(),
             ring: RefCell::new(None),
+            listener_fd: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Arc 209 C0b.3a-i — register a listen fd as the reactor listener arm.
+    /// On `select()`, a `PollAdd POLLIN` SQE is pushed for this fd with
+    /// `LISTENER_TOKEN`. When the CQE fires, `select()` returns
+    /// `Ok(SelectOutcome::Listener)`. The caller then accepts non-blocking.
+    /// One listener per `Select` (re-registering replaces the previous fd).
+    pub fn listener(&mut self, fd: std::os::fd::RawFd) {
+        self.listener_fd = Some(fd);
     }
 
     /// Register a receiver. Returns the `ReceiverIndex` the caller
@@ -811,11 +826,11 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
     /// fired, Read from that arm via `rx.read_into_acc()`; if a complete
     /// frame is decoded, return; if partial, loop.
     pub fn select(&mut self) -> Result<SelectOutcome<T>, std::io::Error> {
-        // Guard: empty Select (no receivers + no broadcast) would hang forever
-        // in submit_and_wait(1) — caller misuse, not a representable-good state.
-        if self.receivers.is_empty() && current_broadcast_fd().is_none() {
+        // Guard: empty Select (no receivers + no broadcast + no listener) would hang
+        // forever in submit_and_wait(1) — caller misuse, not a representable-good state.
+        if self.receivers.is_empty() && current_broadcast_fd().is_none() && self.listener_fd.is_none() {
             return Err(std::io::Error::other(
-                "process::Select::select() called with zero registered receivers and no broadcast fd — would block forever"
+                "process::Select::select() called with zero registered receivers, no broadcast fd, and no listener fd — would block forever"
             ));
         }
 
@@ -835,9 +850,11 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
         let broadcast_opt = current_broadcast_fd();
 
         loop {
-            // Compute the structural need: N data arms + 1 broadcast arm (if init).
-            // io-uring crate requires power-of-2-or-greater capacity.
-            let arm_count = self.receivers.len() + if broadcast_opt.is_some() { 1 } else { 0 };
+            // Compute the structural need: N data arms + 1 broadcast arm (if init) +
+            // 1 listener arm (if registered). io-uring crate requires power-of-2-or-greater capacity.
+            let arm_count = self.receivers.len()
+                + if broadcast_opt.is_some() { 1 } else { 0 }
+                + if self.listener_fd.is_some() { 1 } else { 0 };
             let needed_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
 
             // Reflexive rebuild discipline (Stone E-2) — at every loop entry,
@@ -905,12 +922,36 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                     }
                 }
 
+                // Arc 209 C0b.3a-i — listener arm: PollAdd POLLIN on the listen fd.
+                // LISTENER_TOKEN is outside the broadcast(0)/data(1..=N) range so it
+                // never collides. The listen fd MUST be non-blocking (set at listener'
+                // bind time) so a spurious POLLIN → EWOULDBLOCK is safe to re-poll.
+                const LISTENER_TOKEN: u64 = u64::MAX;
+                if let Some(lfd) = self.listener_fd {
+                    let poll_listener = opcode::PollAdd::new(
+                        types::Fd(lfd),
+                        libc::POLLIN as u32,
+                    )
+                    .build()
+                    .user_data(LISTENER_TOKEN);
+                    // SAFETY: lfd is the listen fd registered by the caller; remains
+                    // valid for the lifetime of submit_and_wait (caller keeps it alive).
+                    unsafe {
+                        if ring.submission().push(&poll_listener).is_err() {
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (listener POLL_ADD) failed: submission queue full",
+                            ));
+                        }
+                    }
+                }
+
                 ring.submit_and_wait(1)?;
 
-                // Drain ALL ready CQEs — both broadcast and data arms may
-                // fire simultaneously. Broadcast wins ties.
+                // Drain ALL ready CQEs — broadcast, data, and listener arms may
+                // fire simultaneously. Priority: broadcast > data > listener.
                 let mut fired_broadcast = false;
                 let mut first_data_arm: Option<usize> = None;
+                let mut fired_listener = false;
                 while let Some(cqe) = ring.completion().next() {
                     if cqe.result() < 0 {
                         return Err(std::io::Error::from_raw_os_error(-cqe.result()));
@@ -918,6 +959,8 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                     let token = cqe.user_data();
                     if token == BROADCAST_TOKEN {
                         fired_broadcast = true;
+                    } else if token == LISTENER_TOKEN {
+                        fired_listener = true;
                     } else {
                         let arm = (token - 1) as usize;
                         if first_data_arm.is_none() {
@@ -929,6 +972,10 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
                 // Broadcast wins ties — substrate going down.
                 if fired_broadcast {
                     return Ok(SelectOutcome::Shutdown);
+                }
+                // Data arm wins over listener — serve existing clients before accepting new.
+                if first_data_arm.is_none() && fired_listener {
+                    return Ok(SelectOutcome::Listener);
                 }
                 first_data_arm
             };

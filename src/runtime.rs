@@ -18045,6 +18045,16 @@ fn eval_listener_prime(
                     reason: format!("bind abstract UDS: {}", e),
                 },
             })?;
+        // Arc 209 C0b.3a-i — the listen fd MUST be non-blocking so that a
+        // spurious PollAdd POLLIN wakeup (connection RST'd between poll and accept)
+        // yields EWOULDBLOCK → re-poll, never a blocking accept().
+        listener.set_nonblocking(true).map_err(|e| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("set_nonblocking: {}", e),
+            },
+        })?;
         use crate::kernel::spawn::{SOCKET_ADDRESS_TYPE_PATH, SOCKET_LISTENER_TYPE_PATH};
         use crate::rust_deps::marshal::make_rust_opaque;
         Ok(Value::Tuple(Arc::new(vec![
@@ -18330,6 +18340,7 @@ fn eval_accept_prime(
     if let Value::RustOpaque(ref inner) = listener_val {
         if inner.type_path == crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH {
             use crate::rust_deps::marshal::downcast_ref_opaque;
+            use std::os::fd::AsRawFd;
             use std::os::unix::net::UnixListener;
             let listener: &UnixListener = downcast_ref_opaque(
                 inner.as_ref(),
@@ -18337,15 +18348,46 @@ fn eval_accept_prime(
                 OP,
                 args[0].span().clone(),
             )?;
-            let (stream, _addr) = listener.accept()
-                .map_err(|e| RuntimeError {
+            // Arc 209 C0b.3a-i — poll-driven non-blocking accept.
+            // Build a Select with just the listener arm (one fd). Loop:
+            //   Listener → non-blocking accept → Ok(stream) → wrap | WouldBlock → re-poll
+            //   Shutdown → clean error; Recv impossible (no receivers registered).
+            // The listen fd is non-blocking (set at listener' bind time) so a spurious
+            // POLLIN wakeup → EWOULDBLOCK → re-poll, never blocks. Ring is reused across
+            // iterations (same sel, not rebuilt per loop).
+            let raw = listener.as_raw_fd();
+            let mut sel = crate::comms::process::Select::<String>::new();
+            sel.listener(raw);
+            loop {
+                match sel.select().map_err(|e| RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: format!("accept on abstract UDS listener failed: {}", e),
+                        reason: format!("accept' select: {}", e),
                     },
-                })?;
-            return wrap_stream_as_socket_peer(stream, list_span, OP);
+                })? {
+                    crate::comms::SelectOutcome::Listener => match listener.accept() {
+                        Ok((stream, _)) => return wrap_stream_as_socket_peer(stream, list_span, OP),
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => continue, // spurious; re-poll
+                        Err(e) => return Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("accept on abstract UDS listener failed: {}", e),
+                            },
+                        }.into()),
+                    },
+                    crate::comms::SelectOutcome::Shutdown => return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "accept': interrupted by shutdown".into(),
+                        },
+                    }.into()),
+                    crate::comms::SelectOutcome::Recv { .. } =>
+                        unreachable!("accept' Select has no receivers"),
+                }
+            }
         }
     }
     // Thread tier: Listener' is a raw Receiver (C0b.1).
@@ -19032,6 +19074,7 @@ fn eval_kernel_select(
             // All recv callers treat this as "channel done".
             (0_usize, Err(crate::comms::RecvError::Shutdown))
         }
+        SelectOutcome::Listener => unreachable!("thread-tier Select has no listener arm"),
     };
     // Arc 111 slice 1 — second tuple element is
     // Result<Option<T>, ThreadDiedError>. Slice 2 wires the panic case.
@@ -23564,6 +23607,8 @@ fn eval_peer_select_prime(
                 },
             }
             .into()),
+            crate::comms::SelectOutcome::Listener =>
+                unreachable!("thread-tier Select has no listener arm"),
         }
     } else if first_type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH {
         // ── Process tier ───────────────────────────────────────────────────────
@@ -23677,6 +23722,8 @@ fn eval_peer_select_prime(
                 },
             }
             .into()),
+            crate::comms::SelectOutcome::Listener =>
+                unreachable!("process-tier 1-arg select' has no listener arm"),
         }
     } else if first_type_path == crate::kernel::spawn::PEER_TYPE_PATH {
         // ── Bare Peer' (a provisioned connection — no spawned worker behind it) ──
@@ -23772,6 +23819,8 @@ fn eval_peer_select_prime(
                 },
             }
             .into()),
+            crate::comms::SelectOutcome::Listener =>
+                unreachable!("thread-tier Peer' Select has no listener arm"),
         }
     } else {
         Err(RuntimeError {
@@ -24051,6 +24100,8 @@ fn eval_peer_select_prime_3arg(
                 }
             }
         }
+        crate::comms::SelectOutcome::Listener =>
+            unreachable!("thread-tier brackets Select has no listener arm"),
     };
     Ok(event_value)
 }
