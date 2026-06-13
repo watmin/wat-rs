@@ -6,7 +6,7 @@ When a thread peer's body panics, the death site renders the full structured rea
 `#wat.kernel/AssertionFailure {…}` EDN envelope — but only the bare message String is sent over
 the peer's crash channel; the structure is discarded. Fix the **crash-send site** to send the
 **envelope** (which carries `:actual`/`:expected`/`:frames`/…), exactly as the process tier
-already sends its `#wat.kernel/ProcessPanics` envelope. `recv'`/`try-recv'` are UNCHANGED — they
+already sends its `#wat.kernel/ProcessPanics` envelope. `recv'` are UNCHANGED — they
 already surface whatever the crash channel carries; making the channel carry the envelope makes
 them honest. The committed RED probe `tests/nursery/probe_arc209_structured_peer_death.rs` is the
 gate: a thread peer dies via `assertion-failed!` with `actual=ACTUAL-42173`/`expected=EXPECTED-99731`;
@@ -60,18 +60,18 @@ if let Err(payload) = outcome {
 (Confirm `panic_hook`'s visibility path from `spawn.rs`; if `assertion_failure_envelope` needs to
 be reachable, `pub(crate)` is sufficient — both are in the `wat` crate.)
 
-That is the whole change. The crash channel stays `Receiver<String>`; `recv'`/`try-recv'` are not
+That is the whole change. The crash channel stays `Receiver<String>`; `recv'` are not
 touched — they surface the (now-rich) String.
 
 ## Blast radius
 
 `src/panic_hook.rs` (one new `pub(crate)` helper + route `write_assertion_failure` through it) and
-`src/kernel/spawn.rs` (the one crash-send site). **Do NOT** touch `recv'`/`try-recv'`/`select'`, the
+`src/kernel/spawn.rs` (the one crash-send site). **Do NOT** touch `recv'`/`select'`, the
 `PeerRecvError` enum, the crash channel type, or the process tier — they are out of this strike.
 
 ## STOP triggers (surface the gap; do not improvise past them)
 
-1. If making the probe green appears to require editing `recv'`/`try-recv'` (not just the crash-send
+1. If making the probe green appears to require editing `recv'` (not just the crash-send
    site) — STOP and surface it. The design says the crash channel carries the envelope and recv' is
    unchanged; if that's false, it's a finding for the Inquisitor, not a fix to apply.
 2. If `payload_to_edn` / `wat_edn::write` is not reachable as `pub(crate)` from a `String`-returning

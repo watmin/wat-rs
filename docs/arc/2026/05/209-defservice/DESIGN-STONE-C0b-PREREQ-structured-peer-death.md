@@ -42,7 +42,8 @@ The prime crash path carries the **structured death**, and the consumers surface
 - **`select'`** delivers the `Failure` as a **first-class value** — this is the load-bearing
   win (C0b.1b's `:Crashed [idx <- :i64  reason <- :wat::kernel::Failure]`; the loop inspects it
   as data).
-- **`recv'` / `try-recv'`** raise/return with the structured reason. Per `raise!`'s own doctrine
+- **`recv'`** raises with the structured reason (`try-recv'` was retired — the peer surface is
+  `send'`/`recv'`/`select'`). Per `raise!`'s own doctrine
   (*"the message field IS the data field… the EDN-rendered form of whatever the panic carried"*,
   `runtime.rs:10566`), the raise reason is the **EDN-rendered `Failure`** — recoverable by a
   receiver via `(:wat::edn::read …)`. The "raises on crash" contract is unchanged; the reason
@@ -62,13 +63,13 @@ existing builders. A clean (non-crash) disconnect stays `Disconnected` → grace
 - **Sub-stone A — thread tier (the C0b.1b prerequisite).** `peer.rs` `crash` channel carries
   `(String, Option<AssertionPayload>)` (or a small `CrashInfo` newtype) instead of `String`;
   `spawn.rs:472` sends the full `extract_panic_payload` result (stop discarding `_assertion`);
-  `PeerRecvError::Crashed` holds it; `Thread::recv` returns it; `recv'`/`try-recv'` build the
+  `PeerRecvError::Crashed` holds it; `Thread::recv` returns it; `recv'` build the
   `Failure` value (reuse `thread_died_error_panic` + `single_died_chain` + `to-failure`) and
   raise EDN-rendered; the **1-arg `select'`** reads `.crash` on a closed peer and raises with the
   structured reason (it ignores it entirely today).
 - **Sub-stone B — process tier (class alignment).** The process bundle already carries a richer
   `#wat.kernel/ProcessPanics [...]` **EDN envelope** over its Err channel (`spawn.rs:150` doc) —
-  more structured than the thread String. Align process `recv'`/`try-recv'` to parse that
+  more structured than the thread String. Align process `recv'` to parse that
   envelope into the same `Failure` value (`edn::read` → reconstruct), so both tiers surface one
   shape. No new wire format — the envelope already exists.
 
@@ -90,7 +91,7 @@ So the refined fix (smaller, and it unifies both tiers on "carry the EDN envelop
 - **`spawn.rs:472`**: when an `AssertionPayload` is present, send
   `format!("#wat.kernel/AssertionFailure {}", wat_edn::write(&payload_to_edn(&assertion)))`
   (factor a `String`-returning helper out of `write_assertion_failure`); else send the message.
-- **`recv'`/`try-recv'` are UNCHANGED** — they already surface the crash String; it is now the
+- **`recv'` are UNCHANGED** — they already surface the crash String; it is now the
   rich envelope. The probe goes green from the `spawn.rs:472` change alone.
 - **1-arg `select'`** reads `.crash` on a closed peer and surfaces the envelope (today it maps to
   a generic `"peer closed"`, losing the reason — the one `select'`-side change).
@@ -113,10 +114,10 @@ reasoning trail.
 3. `spawn.rs:150` — `PeerRecvError::Crashed(String)` → `Crashed(CrashInfo)`.
 4. `peer.rs:121` (`Thread::recv`) — on output-EOF, `self.crash.recv()` →
    `Ok(info) => Crashed(info)` / `Err(_) => Disconnected` (unchanged logic, richer payload).
-5. `recv'` / `try-recv'` (`runtime.rs:22752`) — on `Crashed(info)`, build the `Failure` value
+5. `recv'` (`runtime.rs:22752`) — on `Crashed(info)`, build the `Failure` value
    (`thread_died_error_panic(info.message, info.assertion)` → `single_died_chain` → the
    `to-failure` Rust helper backing `ThreadDiedError/to-failure`), EDN-render it into the raise
-   reason. (`try-recv'`: surface in its Err arm — confirm its current shape at probe time.)
+   reason.
 6. 1-arg `select'` (`runtime.rs:23180`) — on a peer's output-EOF (`Err`), read that peer's
    `.crash` (the guards Vec is in hand) and raise with the structured reason, exactly as `recv'`.
 
@@ -134,7 +135,7 @@ them. The thread tier is the C0b.1b dependency; do A first, B second.
 |---|---|
 | `src/kernel/peer.rs` | `crash` channel + `PeerRecvError::Crashed` carry `CrashInfo`; `Thread::recv` payload |
 | `src/kernel/spawn.rs` | `spawn.rs:472` send the full payload (stop the `_assertion` discard); `crash_tx`/`crash_rx` type |
-| `src/runtime.rs` | `recv'`/`try-recv'`/1-arg `select'` build + surface `Failure` (thread A + process B arms) |
+| `src/runtime.rs` | `recv'`/1-arg `select'` build + surface `Failure` (thread A + process B arms) |
 | `tests/nursery/probe_arc209_structured_peer_death.rs` | RED probe (Inquisitor writes it STRIKE-READY) |
 
 Blast radius: the prime peer-death path only. The old channel `recv`/`join-result`/`Failure`
