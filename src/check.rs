@@ -4886,9 +4886,9 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.3a-0 — self-peer: (:S :R) -> SocketPeer'<S,R>.
-            // Returns the spawned process child's owner-link (rx=fd0, tx=fd1).
-            // In root (no owner-link) the runtime gives a clean MalformedForm error.
+            // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> Peer'<S,R>.
+            // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
+            // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
             ":wat::program::self-peer" => {
                 let (val, mut errs) = infer_program_self_peer(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -9864,12 +9864,12 @@ fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
     ])
 }
 
-/// Arc 209 C0b.2b — `(:wat::kernel::socket-pair' :S :R)` →
-/// `(Tuple SocketPeer'<S,R> SocketPeer'<R,S>)`.
+/// Arc 209 C0b.2b / C0b.2e-i-b — `(:wat::kernel::socket-pair' :S :R)` →
+/// `(Tuple Peer'<S,R> Peer'<R,S>)`.
 ///
 /// Same shape as `infer_peer_pair_prime`: two type-keyword args, crossed
-/// parametric tuple result. The runtime type is `SOCKET_PEER_TYPE_PATH`; the
-/// checker type head is `wat::kernel::SocketPeer'`.
+/// parametric tuple result. The runtime type is `PEER_TYPE_PATH`; the
+/// checker type head is `wat::kernel::Peer'` (unified; SocketPeer' retired).
 fn infer_socket_pair_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -9956,22 +9956,23 @@ fn infer_socket_address_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(Tuple SocketPeer'<S,R> SocketPeer'<R,S>)` — the crossed result type of `socket-pair'`.
+/// `(Tuple Peer'<S,R> Peer'<R,S>)` — the crossed result type of `socket-pair'`
+/// (arc 209 C0b.2e-i-b: socket peers now have the same checker type as thread peers).
 fn socket_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
     TypeExpr::Tuple(vec![
-        TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s.clone(), r.clone()] },
-        TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![r, s] },
+        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s.clone(), r.clone()] },
+        TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] },
     ])
 }
 
-/// Arc 209 C0b.3a-0 — `(:wat::program::self-peer :S :R)` →
-/// `SocketPeer'<S,R>`.
+/// Arc 209 C0b.3a-0 / C0b.2e-i-b — `(:wat::program::self-peer :S :R)` →
+/// `Peer'<S,R>`.
 ///
 /// Mirror of `infer_socket_pair_prime`: two type-keyword args via
-/// `parse_peer_pair_type_arg`, single (not crossed) `SocketPeer'<S,R>` result.
+/// `parse_peer_pair_type_arg`, single (not crossed) `Peer'<S,R>` result.
 /// The self-peer is a one-sided peer (the child's owner-link); there is no
-/// crossed twin. Runtime type is `SOCKET_PEER_TYPE_PATH`; checker head is
-/// `"wat::kernel::SocketPeer'"`.
+/// crossed twin. Runtime type is `PEER_TYPE_PATH`; checker head is
+/// `"wat::kernel::Peer'"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
 fn infer_program_self_peer(
     args: &[WatAST],
     head_span: &Span,
@@ -9990,14 +9991,14 @@ fn infer_program_self_peer(
         let s = fresh.fresh();
         let r = fresh.fresh();
         return CheckResult::partial_with(
-            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s, r] },
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] },
             local_errors,
         );
     }
 
     let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
-    let ty = TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![s_ty, r_ty] };
+    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s_ty, r_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -10166,8 +10167,8 @@ fn infer_connect_prime(
             TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
         }
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketAddress'" && args.len() == 2 => {
-            // Process tier: SocketAddress'<S,R> → SocketPeer'<S,R> (C0b.2c).
-            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![args[0].clone(), args[1].clone()] }
+            // Process tier: SocketAddress'<S,R> → Peer'<S,R> (C0b.2c / C0b.2e-i-b: unified).
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -10225,8 +10226,8 @@ fn infer_accept_prime(
             TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
         }
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketListener'" && args.len() == 2 => {
-            // Process tier: SocketListener'<S,R> → SocketPeer'<R,S> (C0b.2c — flipped, same as thread).
-            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![args[1].clone(), args[0].clone()] }
+            // Process tier: SocketListener'<S,R> → Peer'<R,S> (C0b.2c / C0b.2e-i-b: unified).
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -10533,11 +10534,11 @@ fn project_peer_io(
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
+        // Arc 209 C0b.2e-i-b: SocketPeer' is retired — all connection peers are Peer'.
         TypeExpr::Parametric { ref head, ref args }
             if (head == "wat::kernel::Thread'"
                 || head == "wat::kernel::Process'"
-                || head == "wat::kernel::Peer'"
-                || head == "wat::kernel::SocketPeer'")
+                || head == "wat::kernel::Peer'")
                 && args.len() == 2 =>
         {
             Ok((args[0].clone(), args[1].clone()))
@@ -10548,7 +10549,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R> | SocketPeer'<S,R>)".into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)".into(),
                     got: format_type(&other),
                 },
             });

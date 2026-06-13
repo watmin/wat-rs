@@ -167,52 +167,76 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
     }
 }
 
-// ─── Peer<S, R> ───────────────────────────────────────────────────────────────
+// ─── Peer ─────────────────────────────────────────────────────────────────────
 
-/// Pipes-only bidirectional worker self-peer — arc 259 Stone S2a.
+/// Unified, transport-blind bidirectional connection/self peer — arc 209 Stone C0b.2e-i-b.
 ///
-/// `S` is the type the worker sends OUT (toward the parent). `R` is the type
-/// the worker receives IN (from the parent). `send'`→S, `recv'`→R — uniform
-/// projection (no mirror). The duality lives in the type's argument order:
-/// `Thread'<I,O>` (parent handle) ↔ `Peer'<O,I>` (worker self-peer).
+/// `Peer` is the single non-generic endpoint used for BOTH the worker self-peer
+/// (handed to a spawned thread via `send'`/`recv'`) AND a connection handle
+/// (produced by `peer-pair'`, `connect'`, `accept'`, `socket-pair'`).  The
+/// self-vs-connection role is positional at the call site (e.g. arg 0 of
+/// `select'`), not a type distinction.
 ///
-/// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'`
-/// today; RAII in S2b). Constructed INSIDE the spawned thread's closure to
-/// satisfy the `ThreadOwnedCell` owner-thread invariant.
-pub struct Peer<S: Send + 'static, R: Send + 'static> {
-    /// Worker → parent channel (the worker sends via this).
-    pub(crate) tx: crate::comms::thread::Sender<S>,
-    /// Parent → worker channel (the worker receives via this).
-    pub(crate) rx: crate::comms::thread::Receiver<R>,
+/// The transport is erased behind `Box<dyn CommSender<Value>>` /
+/// `Box<dyn CommReceiver<Value>>`: crossbeam thread-tier peers carry a
+/// `comms::thread::Sender/Receiver<Value>`; socket-tier peers carry a
+/// `comms::process::Sender/Receiver<Value>` (encoding is internal — the comms
+/// impl serialises to/from EDN; the runtime arm never sees raw EDN strings).
+///
+/// Construct via `Peer::from_thread` (thread tier) or `Peer::from_socket`
+/// (socket tier).  Do not construct by naming fields directly.
+///
+/// Carries no `JoinHandle` — lifecycle belongs to the parent (`Thread'` today;
+/// RAII in S2b).  For the thread-tier self-peer the instance is created INSIDE
+/// the spawned thread's closure to satisfy the `ThreadOwnedCell` owner-thread
+/// invariant.
+pub struct Peer {
+    /// Send endpoint (transport-erased; `Send` required for `ThreadOwnedCell<Option<Peer>>`).
+    pub(crate) tx: Box<dyn crate::comms::CommSender<crate::value::Value> + Send>,
+    /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select'` downcast).
+    pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
 }
 
-impl<S: Send + 'static, R: Send + 'static> Peer<S, R> {
-    /// Send a value from the worker to the parent.
+impl Peer {
+    /// Construct a crossbeam (thread-tier) peer from a concrete Sender/Receiver pair.
+    pub fn from_thread(
+        tx: crate::comms::thread::Sender<crate::value::Value>,
+        rx: crate::comms::thread::Receiver<crate::value::Value>,
+    ) -> Self {
+        // Both thread::Sender<Value> and thread::Receiver<Value> are Send.
+        Self { tx: Box::new(tx), rx: Box::new(rx) }
+    }
+
+    /// Construct a socket (process-tier) peer from a concrete Sender/Receiver pair.
+    pub fn from_socket(
+        tx: crate::comms::process::Sender<crate::value::Value>,
+        rx: crate::comms::process::Receiver<crate::value::Value>,
+    ) -> Self {
+        // Both process::Sender<Value> and process::Receiver<Value> are Send.
+        Self { tx: Box::new(tx), rx: Box::new(rx) }
+    }
+
+    /// Send a value.  Encoding is handled internally by the boxed transport impl.
     ///
-    /// Returns `Err(SendError(value))` if the parent has dropped its receiver
-    /// (channel disconnected — parent closed the `Thread'` peer).
-    pub fn send(&self, value: S) -> Result<(), SendError<S>> {
+    /// Returns `Err(SendError(value))` if the peer's receiver endpoint has been
+    /// dropped (channel disconnected or process exited).
+    pub fn send(&self, value: crate::value::Value) -> Result<(), SendError<crate::value::Value>> {
         self.tx.send(value)
     }
 
-    /// Blocking recv from the parent (into the worker).
+    /// Blocking recv.  Decoding is handled internally by the boxed transport impl.
     ///
-    /// Cascade-aware (inherited from `comms::thread::Receiver`): wakes on
+    /// Cascade-aware (inherited from the underlying comms tier): wakes on
     /// substrate shutdown and returns `Err(RecvError)` rather than hanging.
-    /// Also returns `Err(RecvError)` when the parent closes the channel.
-    pub fn recv(&self) -> Result<R, RecvError> {
+    /// Also returns `Err(RecvError)` when the peer's sender endpoint is dropped.
+    pub fn recv(&self) -> Result<crate::value::Value, RecvError> {
         self.rx.recv()
     }
 }
 
-impl<S: Send + 'static + std::fmt::Debug, R: Send + 'static + std::fmt::Debug> std::fmt::Debug
-    for Peer<S, R>
-{
+impl std::fmt::Debug for Peer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Peer")
-            .field("tx", &self.tx)
-            .field("rx", &self.rx)
-            .finish()
+        f.debug_struct("Peer").finish_non_exhaustive()
     }
 }
 
@@ -316,49 +340,6 @@ impl<I: EdnRepresentable + std::fmt::Debug, O: EdnRepresentable + std::fmt::Debu
             .field("input", &self.input)
             .field("output", &self.output)
             .field("pidfd", &self.pidfd)
-            .finish()
-    }
-}
-
-// ─── SocketPeer<I, O> ─────────────────────────────────────────────────────────
-
-/// Socket-backed peer (arc 209 C0b.2b). Wraps one end of a `socketpair(2)` as
-/// a `comms::process` Sender/Receiver pair over the socket fd, using the same
-/// io_uring reactor as the process tier.
-///
-/// `I` is the type sent INTO this peer (via `send'`); `O` is the type read OUT
-/// (via `recv'`). Both must implement `EdnRepresentable` for the EDN wire.
-///
-/// No pidfd, no lifeline — lifecycle is RAII (Drop closes the fds and ring).
-/// Wrapped in `Arc<ThreadOwnedCell<Option<SocketPeer<I,O>>>>` at the runtime
-/// layer (same pattern as `Peer<S,R>` and `Process<I,O>`).
-pub struct SocketPeer<I: crate::comms::EdnRepresentable, O: crate::comms::EdnRepresentable> {
-    /// This end's write fd (socket fd dup'd for the Sender).
-    pub(crate) tx: crate::comms::process::Sender<I>,
-    /// This end's read fd (socket fd dup'd for the Receiver + its own ring).
-    pub(crate) rx: crate::comms::process::Receiver<O>,
-}
-
-impl<I: crate::comms::EdnRepresentable, O: crate::comms::EdnRepresentable> SocketPeer<I, O> {
-    /// Send a value over the socket.
-    pub fn send(&self, value: I) -> Result<(), crate::comms::SendError<I>> {
-        self.tx.send(value)
-    }
-
-    /// Receive a value from the socket (io_uring-driven; cascade-aware).
-    pub fn recv(&self) -> Result<O, crate::comms::RecvError> {
-        self.rx.recv()
-    }
-}
-
-impl<I: crate::comms::EdnRepresentable + std::fmt::Debug,
-     O: crate::comms::EdnRepresentable + std::fmt::Debug>
-    std::fmt::Debug for SocketPeer<I, O>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SocketPeer")
-            .field("tx", &self.tx)
-            .field("rx", &self.rx)
             .finish()
     }
 }

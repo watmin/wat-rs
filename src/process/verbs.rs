@@ -379,15 +379,18 @@ pub(crate) fn run_forms_as_server_child(
     let self_peer_write_fd: OwnedFd = unsafe { BorrowedFd::borrow_raw(1) }
         .try_clone_to_owned()
         .expect("dup fd1 for self-peer");
+    // Arc 209 C0b.2e-i-b: switched from String to Value — encoding is internal to
+    // comms::process (EdnRepresentable for Value, shipped in i-0).  Self-peer is now
+    // a unified `Peer` (from_socket) under PEER_TYPE_PATH.
     let (self_peer_tx, self_peer_rx) =
-        crate::comms::process::sender_receiver_from_split_fds::<String>(
+        crate::comms::process::sender_receiver_from_split_fds::<crate::runtime::Value>(
             self_peer_read_fd, self_peer_write_fd,
         )
         .expect("build self-peer Sender/Receiver from fd0/fd1");
     let self_peer_value = crate::rust_deps::marshal::make_rust_opaque(
-        crate::kernel::spawn::SOCKET_PEER_TYPE_PATH,
+        crate::kernel::spawn::PEER_TYPE_PATH,
         std::sync::Arc::new(crate::rust_deps::custodia::ThreadOwnedCell::new(Some(
-            crate::kernel::peer::SocketPeer { tx: self_peer_tx, rx: self_peer_rx },
+            crate::kernel::peer::Peer::from_socket(self_peer_tx, self_peer_rx),
         ))),
     );
     let _self_peer_guard = crate::services::install_self_peer(self_peer_value);

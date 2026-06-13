@@ -125,21 +125,21 @@ pub const THREAD_PEER_TYPE_PATH: &str = ":wat::kernel::Thread'";
 /// from the legacy `:wat::kernel::Process` struct (Stone 4.6 polymorphic verbs).
 pub const PROCESS_PEER_TYPE_PATH: &str = ":wat::kernel::Process'";
 
-/// `RustOpaque.type_path` for the pipes-only worker self-peer (arc 259 Stone S2a).
-/// The worker is `Peer'<S,R>` — the unified bidirectional endpoint handed to the
-/// spawned thread prog ONCE; `send'`→S, `recv'`→R (uniform projection).
+/// `RustOpaque.type_path` for the unified connection/self peer (arc 209 C0b.2e-i-b).
+///
+/// `Peer'` is the single transport-blind opaque for both worker self-peers
+/// (handed to spawned threads/processes) and connection handles (from
+/// `peer-pair'`, `connect'`, `accept'`, `socket-pair'`).  Thread-tier peers
+/// carry a crossbeam channel pair boxed as `Box<dyn CommSender/Receiver<Value>>`;
+/// socket-tier peers carry a `comms::process` io_uring pair through the same box.
 pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";
 
-/// The worker self-peer cell type — `Arc<ThreadOwnedCell<Option<Peer<Value,Value>>>>`.
+/// The unified peer cell type — `Arc<ThreadOwnedCell<Option<Peer>>>`.
 ///
-/// Mirrors `ThreadPeerCell` for the worker side (arc 259 Stone S2a).
-/// The `Option` lets use-after-close detection work the same way as `Thread'`.
-pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer<Value, Value>>>>;
-
-/// `RustOpaque.type_path` for socket-tier peers (arc 209 C0b.2b).
-/// Socket peers use the comms::process Sender/Receiver over a socketpair(2) fd,
-/// driven by the same io_uring reactor — no pidfd, no lifeline.
-pub const SOCKET_PEER_TYPE_PATH: &str = ":wat::kernel::SocketPeer'";
+/// Replaces both the old crossbeam self-peer cell and the retired socket connection
+/// peer cell.  The `Option` lets `close'`/use-after-close detection work the same
+/// way across all peer kinds.
+pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 
 /// `RustOpaque.type_path` for process-tier listeners (arc 209 C0b.2c).
 /// Wraps a `std::os::unix::net::UnixListener` bound to an abstract-namespace UDS.
@@ -148,13 +148,6 @@ pub const SOCKET_LISTENER_TYPE_PATH: &str = ":wat::kernel::SocketListener'";
 /// `RustOpaque.type_path` for process-tier addresses (arc 209 C0b.2c).
 /// Wraps a `String` — the abstract-namespace UDS name that clients dial.
 pub const SOCKET_ADDRESS_TYPE_PATH: &str = ":wat::kernel::SocketAddress'";
-
-/// The socket-peer cell type — `Arc<ThreadOwnedCell<Option<SocketPeer<String,String>>>>`.
-///
-/// Wire type is `String` (EDN-encoded Value), identical to the process tier
-/// (`ProcessPeerBundle`). The `Option` lets use-after-close detection work
-/// the same way as the other peer kinds.
-pub type SocketPeerCell = Arc<ThreadOwnedCell<Option<crate::kernel::peer::SocketPeer<String, String>>>>;
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
@@ -471,10 +464,7 @@ pub fn spawn_thread_peer(
             // Worker is Peer'<O,I>: tx=output_tx (worker→parent), rx=input_rx (parent→worker).
             let self_peer = make_rust_opaque(
                 PEER_TYPE_PATH,
-                Arc::new(ThreadOwnedCell::new(Some(Peer {
-                    tx: output_tx,
-                    rx: input_rx,
-                }))),
+                Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(output_tx, input_rx)))),
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
             // The prog owns its own recv'/send' loop if it wants one.
