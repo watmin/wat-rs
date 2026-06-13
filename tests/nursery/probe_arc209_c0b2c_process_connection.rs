@@ -5,11 +5,16 @@
 //! C0b.2a made the `listener'` host load-bearing — `(listener' (process) …)` is a clean
 //! CHECK ERROR today (the process tier is unbuilt). C0b.2b built the socket-backed
 //! `SocketPeer'` + `socket-pair'` and proved io_uring drives an AF_UNIX socket like a pipe.
-//! C0b.2c fills the `(process)` arm of all three verbs.
+//! C0b.2c filled the `(process)` arm of all three verbs.
 //!
-//! THE MECHANISM (mirrors `probe_arc209_c0b_uds_abstract_spike`, but through the wat verbs):
-//!   - `(listener' (process) :S :R)` → `Tuple[SocketListener'<S,R>, SocketAddress'<S,R>]`
-//!     (bind an abstract name + listen; return the listener + the dial-able name).
+//! C0b.2d SUPERSEDED the mint-and-return form (`listener' (process) :S :R` → Tuple) with
+//! `socket-address'` + bind-addr: `(listener' (process) addr)` takes a `SocketAddress'` opaque
+//! (from `(socket-address' name :S :R)`) and returns JUST `SocketListener'<S,R>`. This probe
+//! is updated in-strike to the named form.
+//!
+//! THE MECHANISM (same-process named connection via `socket-address'`):
+//!   - `(socket-address' name :S :R)` → `SocketAddress'<S,R>` (typed address from a String name).
+//!   - `(listener' (process) addr)` → `SocketListener'<S,R>` (bind the given address, listen).
 //!   - `(connect' addr)` over a `SocketAddress'` → `SocketPeer'<S,R>` (connect_addr; the
 //!     connection queues in the backlog before accept runs).
 //!   - `(accept' listener)` over a `SocketListener'` → `SocketPeer'<R,S>` (accept the queued conn).
@@ -19,9 +24,6 @@
 //! protected scalar (10); the "client" sends 5; the service replies 15. Deadlock-free: connect
 //! queues before accept dequeues; the small messages fit the socket buffer; no thread join.
 //!
-//! RED at HEAD: `(listener' (process) …)` is a C0b.2a check error → `startup_from_source` fails.
-//! GREEN once C0b.2c ships the `(process)` arms + the `SocketListener'`/`SocketAddress'` types.
-//!
 //! Run SERIALLY: cargo test --release -p wat --test nursery probe_arc209_c0b2c_process_connection -- --test-threads=1
 
 use std::sync::Arc;
@@ -30,14 +32,13 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROGRAM: &str = r#"
-;; Process-tier connection: listen on an abstract UDS, connect, accept a per-connection
-;; SocketPeer', round-trip a protected scalar over the socket. Proves listener'/connect'/accept'
-;; on the (process) host + send'/recv' over the accepted/connected socket peers.
+;; Process-tier connection (named form — C0b.2d): socket-address' constructs a typed address
+;; from a String name; listener' binds it; connect'/accept' rendezvous by the same address.
+;; Round-trips a protected scalar (10) → client sends 5 → service replies 15.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [pair     (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
-     listener (:wat::core::first pair)
-     addr     (:wat::core::second pair)
+    [addr     (:wat::kernel::socket-address' "wat.arc209.c0b2c.svc" :wat::core::i64 :wat::core::i64)
+     listener (:wat::kernel::listener' (:wat::spawn::process) addr)
      client   (:wat::kernel::connect' addr)
      server   (:wat::kernel::accept' listener)
      _        (:wat::kernel::send' client 5)

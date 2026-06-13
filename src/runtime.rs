@@ -4558,6 +4558,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::socket-pair'" => {
             eval_socket_pair_prime(args, list_span)
         }
+        // Arc 209 C0b.2d — socket-address': construct a typed SocketAddress' opaque from
+        // a shared String name.  (:wat::kernel::socket-address' name :S :R) → SocketAddress'<S,R>.
+        // The name is an abstract UDS name; two processes naming the same string rendezvous.
+        ":wat::kernel::socket-address'" => {
+            eval_socket_address_prime(args, list_span, env, sym)
+        }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
@@ -17946,6 +17952,53 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
+/// Arc 209 C0b.2d — `(:wat::kernel::socket-address' name :S :R)` → `SocketAddress'<S,R>`.
+///
+/// Constructs a typed `SocketAddress'` opaque from a shared `String` name.  Two processes
+/// that name the same string rendezvous on the same abstract-namespace UDS.  `:S` and `:R`
+/// are type keywords consumed by the checker only; they are not evaluated.
+fn eval_socket_address_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::socket-address'";
+    // 3 args: name (a String value), :S, :R (type keywords — checker-only).
+    if args.len() != 3 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+        }.into());
+    }
+    // args[1] and args[2] must be type keywords (not evaluated — checker-only).
+    for i in [1usize, 2usize] {
+        if !matches!(args[i], WatAST::Keyword(_, _)) {
+            return Err(RuntimeError {
+                span: args[i].span().clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+                },
+            }.into());
+        }
+    }
+    // Evaluate args[0] to get the name String.
+    let name = match eval_inner(&args[0], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => return Err(RuntimeError {
+            span: args[0].span().clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }.into()),
+    };
+    use crate::rust_deps::marshal::make_rust_opaque;
+    Ok(make_rust_opaque(crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH, name))
+}
+
 /// Arc 209 C0b.2c — wrap a connected `UnixStream` as a `SocketPeer'` opaque.
 ///
 /// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to
@@ -17977,17 +18030,19 @@ fn wrap_stream_as_socket_peer(
     ))
 }
 
-/// `(:wat::kernel::listener' host :S :R)` — Arc 209 Stone C0b.1 / C0b.2c.
+/// `(:wat::kernel::listener' host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
-/// Thread tier (C0b.1): mints a crossbeam rendezvous channel and returns
-/// `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
+/// Thread tier (C0b.1): `(listener' (thread) :S :R)` — mints a crossbeam rendezvous
+/// channel and returns `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
+/// 3 args: host, :S, :R.
 ///
-/// Process tier (C0b.2c): binds an abstract-namespace AF_UNIX socket and returns
-/// `Tuple[SocketListener'<S,R>, SocketAddress'<S,R>]` (UnixListener / name String
-/// opaques).  Both are freely `Send + Sync` — no `ThreadOwnedCell`.
+/// Process tier (C0b.2d): `(listener' (process) addr)` — binds the abstract-namespace UDS
+/// named by `addr` (a `SocketAddress'` opaque from `socket-address'`) and returns JUST
+/// `SocketListener'<S,R>` (a single opaque, no tuple). set_nonblocking(true) is kept
+/// (C0b.3a-i invariant).  2 args: host, addr.
 ///
-/// The host value (args[0]) is evaluated at runtime to dispatch between tiers.
-/// args[1] and args[2] are type keywords — type-checker-only, not evaluated.
+/// The host value (args[0]) is evaluated at runtime to dispatch between tiers; arity is
+/// validated AFTER host dispatch (thread=3, process=2).
 fn eval_listener_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -17995,40 +18050,62 @@ fn eval_listener_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::listener'";
-    // 3 args: host expression (e.g. (:wat::spawn::thread) or (:wat::spawn::process)), :S, :R.
-    if args.len() != 3 {
+    // Need at least the host arg to dispatch.
+    if args.is_empty() {
         return Err(RuntimeError {
             span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: 0 },
         }.into());
     }
-    // Validate args[1] and args[2] are type keywords (args[0] is the host expression).
-    for i in [1usize, 2usize] {
-        if !matches!(args[i], WatAST::Keyword(_, _)) {
-            return Err(RuntimeError {
-                span: args[i].span().clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
-                },
-            }.into());
-        }
-    }
-    // Evaluate the host to dispatch between thread and process tiers (C0b.2c).
+    // Evaluate the host to dispatch between thread and process tiers.
     let host_val = eval_inner(&args[0], env, sym)?.value_owned();
     let is_process = matches!(&host_val,
         Value::wat__Record { class_fqdn, .. } | Value::wat__holon__Record { class_fqdn, .. }
             if class_fqdn.as_str() == "wat::spawn::ProcessOpts");
 
     if is_process {
-        // Process tier (C0b.2c): bind an abstract-namespace UDS and return the
-        // (SocketListener', SocketAddress') pair as opaques.
+        // Process tier (C0b.2d): 2 args — host + addr (SocketAddress' opaque).
+        if args.len() != 2 {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+            }.into());
+        }
+        // Evaluate args[1] → SocketAddress' opaque → downcast to &String name.
+        let addr_val = eval_inner(&args[1], env, sym)?.value_owned();
+        let name: String = if let Value::RustOpaque(ref inner) = addr_val {
+            if inner.type_path == crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH {
+                use crate::rust_deps::marshal::downcast_ref_opaque;
+                let s: &String = downcast_ref_opaque(
+                    inner.as_ref(),
+                    crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH,
+                    OP,
+                    args[1].span().clone(),
+                )?;
+                s.clone()
+            } else {
+                return Err(RuntimeError {
+                    span: args[1].span().clone(),
+                    kind: RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: "SocketAddress'<S,R>",
+                        got: Box::new(ValueSnapshot::of(&addr_val)),
+                    },
+                }.into());
+            }
+        } else {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "SocketAddress'<S,R>",
+                    got: Box::new(ValueSnapshot::of(&addr_val)),
+                },
+            }.into());
+        };
+        // Bind the abstract-namespace UDS by the given name and return JUST the listener.
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixListener};
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static LISTENER_SEQ: AtomicU64 = AtomicU64::new(0);
-        let n = LISTENER_SEQ.fetch_add(1, Ordering::Relaxed);
-        let name = format!("wat.arc209.{}.{}", std::process::id(), n);
         let sa = SocketAddr::from_abstract_name(name.as_bytes())
             .map_err(|e| RuntimeError {
                 span: list_span.clone(),
@@ -18055,14 +18132,30 @@ fn eval_listener_prime(
                 reason: format!("set_nonblocking: {}", e),
             },
         })?;
-        use crate::kernel::spawn::{SOCKET_ADDRESS_TYPE_PATH, SOCKET_LISTENER_TYPE_PATH};
+        use crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH;
         use crate::rust_deps::marshal::make_rust_opaque;
-        Ok(Value::Tuple(Arc::new(vec![
-            make_rust_opaque(SOCKET_LISTENER_TYPE_PATH, listener),
-            make_rust_opaque(SOCKET_ADDRESS_TYPE_PATH, name),
-        ])))
+        Ok(make_rust_opaque(SOCKET_LISTENER_TYPE_PATH, listener))
     } else {
-        // Thread tier (C0b.1): mint the crossbeam rendezvous channel.
+        // Thread tier (C0b.1): 3 args — host, :S, :R.
+        if args.len() != 3 {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+            }.into());
+        }
+        // Validate args[1] and args[2] are type keywords (args[0] is the host expression).
+        for i in [1usize, 2usize] {
+            if !matches!(args[i], WatAST::Keyword(_, _)) {
+                return Err(RuntimeError {
+                    span: args[i].span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+                    },
+                }.into());
+            }
+        }
+        // Mint the crossbeam rendezvous channel.
         // Listener' = rx (the service accept-side); Address' = tx (the client dial-side).
         let (tx, rx) = crate::comms::thread::pair::<Value>();
         Ok(Value::Tuple(Arc::new(vec![
