@@ -4546,6 +4546,21 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::peer-pair'" => {
             eval_peer_pair_prime(args, list_span)
         }
+        // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
+        // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
+        // connect' mints the connection pairs, wraps the client Peer' end locally,
+        // ships the server's raw halves over the rendezvous.
+        // accept' receives the server's raw halves from the rendezvous, wraps the
+        // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
+        ":wat::kernel::listener'" => {
+            eval_listener_prime(args, list_span)
+        }
+        ":wat::kernel::connect'" => {
+            eval_connect_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::accept'" => {
+            eval_accept_prime(args, list_span, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The orphaned eval body in src/fork.rs
@@ -17823,6 +17838,307 @@ fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Eval
         Arc::new(ThreadOwnedCell::new(Some(Peer { tx: b_tx, rx: a_rx }))),
     );
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
+}
+
+/// `(:wat::kernel::listener' host :S :R)` — Arc 209 Stone C0b.1.
+///
+/// Mints a crossbeam rendezvous channel for thread-tier connections.
+/// Returns a `Tuple[Listener'<S,R>, Address'<S,R>]` where:
+/// - `Listener'` = the raw `Receiver` end (service calls `accept'` on it)
+/// - `Address'`  = the raw `Sender`  end (clients call `connect'` with it)
+///
+/// Both ends are freely `Send` (no `ThreadOwnedCell`); only `Peer'` cells
+/// carry custody.  The host keyword arg (`:wat::spawn::thread`) is
+/// type-checker-only — not evaluated at runtime.
+fn eval_listener_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::listener'";
+    // 3 args: host expression (e.g. (:wat::spawn::thread)), :S, :R.
+    // args[0] = host — any expression; type-checker validates it, runtime ignores it.
+    // args[1] = :S type keyword — type-checker-only.
+    // args[2] = :R type keyword — type-checker-only.
+    if args.len() != 3 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+        }.into());
+    }
+    // Validate args[1] and args[2] are type keywords (args[0] is the host expression).
+    for i in [1usize, 2usize] {
+        if !matches!(args[i], WatAST::Keyword(_, _)) {
+            return Err(RuntimeError {
+                span: args[i].span().clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+                },
+            }.into());
+        }
+    }
+    // Mint the rendezvous channel — carries connect-request Values.
+    let (tx, rx) = crate::comms::thread::pair::<Value>();
+    // Listener' = rx (the service accept-side); Address' = tx (the client dial-side).
+    Ok(Value::Tuple(Arc::new(vec![
+        crate::channel::receiver_from_comms(rx),
+        crate::channel::sender_from_comms(tx),
+    ])))
+}
+
+/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1.
+///
+/// Client-side connection: mint two crossbeam pairs (req: client→server,
+/// resp: server→client), wrap the client `Peer'<S,R>` end on THIS thread,
+/// ship the server's raw halves `(req_rx, resp_tx)` over `addr` (the
+/// rendezvous `Address'` = a raw `Sender`).  Returns the client `Peer'`.
+///
+/// The one-way handshake: `connect'` mints and ships; no return leg.
+fn eval_connect_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::connect'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }.into());
+    }
+    let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let addr_inner = match addr_val {
+        Value::wat__kernel__Sender(ref inner) => inner.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Address' (Sender — rendezvous address from listener')",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Mint the two connection pairs.
+    // req: client sends (S) → server receives
+    // resp: server sends (R) → client receives
+    let (req_tx, req_rx) = crate::comms::thread::pair::<Value>();
+    let (resp_tx, resp_rx) = crate::comms::thread::pair::<Value>();
+    // Wrap the client Peer' end on THIS thread (custody holds).
+    use crate::kernel::peer::Peer;
+    use crate::kernel::spawn::PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+    let client_peer = make_rust_opaque(
+        PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: req_tx, rx: resp_rx }))),
+    );
+    // Build the connect-request: the server's raw halves packed as a Value::Tuple.
+    let connect_req = Value::Tuple(Arc::new(vec![
+        crate::channel::receiver_from_comms(req_rx),
+        crate::channel::sender_from_comms(resp_tx),
+    ]));
+    // Ship the connect-request one-way over the rendezvous (no return leg).
+    match crate::channel::typed_send(
+        addr_inner.as_ref(),
+        connect_req,
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::channel::SendOutcome::Ok => {}
+        crate::channel::SendOutcome::Disconnected => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "connect': rendezvous send failed — listener was dropped".into(),
+                },
+            }.into());
+        }
+    }
+    Ok(client_peer)
+}
+
+/// `(:wat::kernel::accept' listener)` — Arc 209 Stone C0b.1.
+///
+/// Service-side connection: block on the rendezvous `Listener'` (a raw
+/// `Receiver`) until a connect-request arrives; unpack the server's raw
+/// halves `(req_rx, resp_tx)`; wrap the server `Peer'<R,S>` end on THIS
+/// thread (custody holds).  Returns the server `Peer'`.
+///
+/// The raw `Receiver<Value>` and `Sender<Value>` in the connect-request
+/// are freshly minted by `connect'` and uniquely owned at the point of
+/// receipt — `Arc::try_unwrap` succeeds.
+fn eval_accept_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::accept'";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }.into());
+    }
+    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let listener_inner = match listener_val {
+        Value::wat__kernel__Receiver(ref inner) => inner.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Listener' (Receiver — rendezvous listener from listener')",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Block on the rendezvous until a connect-request arrives.
+    let cr_value = match crate::channel::typed_recv(
+        listener_inner.as_ref(),
+        sym.types().map(|a| a.as_ref()),
+        list_span.clone(),
+    ) {
+        crate::channel::RecvOutcome::Value(v) => v,
+        crate::channel::RecvOutcome::Disconnected | crate::channel::RecvOutcome::Shutdown => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "accept': rendezvous recv failed — address was dropped or shutdown".into(),
+                },
+            }.into());
+        }
+        crate::channel::RecvOutcome::DecodeError(msg) => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("accept': rendezvous recv decode error: {}", msg),
+                },
+            }.into());
+        }
+    };
+    // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
+    // Consume cr_value into an owned Vec so we can move items out without bumping Arc refcounts.
+    let mut items: Vec<Value> = match cr_value {
+        Value::Tuple(arc) => match Arc::try_unwrap(arc) {
+            Ok(vec) => vec,
+            Err(arc) => (*arc).clone(),  // shouldn't happen — cr_value is freshly received
+        },
+        other => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "accept': connect-request must be a Tuple; got {:?}",
+                        other.type_name()
+                    ),
+                },
+            }.into());
+        }
+    };
+    if items.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "accept': connect-request tuple must have 2 elements; got {}",
+                    items.len()
+                ),
+            },
+        }.into());
+    }
+    // Move items out in reverse order so indices stay valid.
+    let resp_tx_val = items.remove(1);
+    let req_rx_val  = items.remove(0);
+    // Extract req_rx (the Receiver<Value>) — moved out of the vec, unique owner.
+    let req_rx = match req_rx_val {
+        Value::wat__kernel__Receiver(arc) => {
+            match Arc::try_unwrap(arc) {
+                Ok(crate::channel::ReceiverInner::Comms(rx)) => rx,
+                Ok(_) => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "accept': connect-request rx is not a comms (thread-tier) receiver".into(),
+                        },
+                    }.into());
+                }
+                Err(_) => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "accept': connect-request rx has unexpected additional references".into(),
+                        },
+                    }.into());
+                }
+            }
+        }
+        other => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Receiver (connect-request req_rx)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Extract resp_tx (the Sender<Value>) — moved out of the vec, unique owner.
+    let resp_tx = match resp_tx_val {
+        Value::wat__kernel__Sender(arc) => {
+            match Arc::try_unwrap(arc) {
+                Ok(crate::channel::SenderInner::Comms { sender, .. }) => sender,
+                Ok(_) => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "accept': connect-request tx is not a comms (thread-tier) sender".into(),
+                        },
+                    }.into());
+                }
+                Err(_) => {
+                    return Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "accept': connect-request tx has unexpected additional references".into(),
+                        },
+                    }.into());
+                }
+            }
+        }
+        other => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Sender (connect-request resp_tx)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }.into());
+        }
+    };
+    // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
+    // Server recvs S (via req_rx), sends R (via resp_tx).
+    use crate::kernel::peer::Peer;
+    use crate::kernel::spawn::PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+    let server_peer = make_rust_opaque(
+        PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(Peer { tx: resp_tx, rx: req_rx }))),
+    );
+    Ok(server_peer)
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is

@@ -4866,6 +4866,34 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 209 Stone C0b.1 — thread-tier connection verbs.
+            // listener' : (host :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
+            // connect'  : Address'<S,R>  -> Peer'<S,R>
+            // accept'   : Listener'<S,R> -> Peer'<R,S>
+            ":wat::kernel::listener'" => {
+                let (val, mut errs) = infer_listener_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::connect'" => {
+                let (val, mut errs) = infer_connect_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::accept'" => {
+                let (val, mut errs) = infer_accept_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -9785,6 +9813,162 @@ fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
         TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s.clone(), r.clone()] },
         TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] },
     ])
+}
+
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::listener' host :S :R)` →
+/// `(Tuple Listener'<S,R> Address'<S,R>)`.
+///
+/// 3 args: host expression (e.g. `(:wat::spawn::thread)`), :S, :R.
+/// The host expression is inferred for error coverage but its type is not
+/// constrained here (thread-tier only; a future tier gate is a follow-up).
+/// Returns a tuple whose first element is `Listener'<S,R>` (the service's
+/// recv end) and second is `Address'<S,R>` (the client's send end).
+/// At runtime both are raw `Sender`/`Receiver` values; `Listener'`/`Address'`
+/// are checker-only parametric names that keep `accept'`/`connect'` typed.
+fn infer_listener_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::listener'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 3 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 3, got: args.len()
+        } });
+        let s = fresh.fresh();
+        let r = fresh.fresh();
+        return CheckResult::partial_with(listener_tuple(s, r), local_errors);
+    }
+    // args[0] = host expression — infer for error coverage; type not constrained.
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+    let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+    let ty = listener_tuple(s_ty, r_ty);
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// `(Tuple Listener'<S,R> Address'<S,R>)` — result type of `listener'`.
+fn listener_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s.clone(), r.clone()] },
+        TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
+    ])
+}
+
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::connect' addr)` → `Peer'<S,R>`.
+///
+/// 1 arg: `addr` of type `Address'<S,R>`. Returns `Peer'<S,R>` (the client end).
+/// Extracts S and R from the `Address'<S,R>` parametric type of the argument.
+fn infer_connect_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::connect'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 1, got: args.len()
+        } });
+        let s = fresh.fresh();
+        let r = fresh.fresh();
+        let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+    let addr_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let s = fresh.fresh();
+            let r = fresh.fresh();
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+    let addr_surface = apply_subst(&addr_ty, subst);
+    let addr_reduced = reduce(&addr_surface, subst, env.types());
+    let (s_ty, r_ty) = match addr_reduced {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Address'" && args.len() == 2 => {
+            (args[0].clone(), args[1].clone())
+        }
+        other => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "addr".into(),
+                expected: "Address'<S,R>".into(),
+                got: format_type(&other),
+            } });
+            let s = fresh.fresh();
+            let r = fresh.fresh();
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+    // connect' returns Peer'<S,R> — the client sends S, recvs R.
+    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s_ty, r_ty] };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept' listener)` → `Peer'<R,S>`.
+///
+/// 1 arg: `listener` of type `Listener'<S,R>`. Returns `Peer'<R,S>` (the server end:
+/// server recvs S, sends R — the flipped pair).
+fn infer_accept_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::accept'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 1 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 1, got: args.len()
+        } });
+        let s = fresh.fresh();
+        let r = fresh.fresh();
+        let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+    let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            let s = fresh.fresh();
+            let r = fresh.fresh();
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+    let listener_surface = apply_subst(&listener_ty, subst);
+    let listener_reduced = reduce(&listener_surface, subst, env.types());
+    let (s_ty, r_ty) = match listener_reduced {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+            (args[0].clone(), args[1].clone())
+        }
+        other => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "listener".into(),
+                expected: "Listener'<S,R>".into(),
+                got: format_type(&other),
+            } });
+            let s = fresh.fresh();
+            let r = fresh.fresh();
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+            return CheckResult::partial_with(ty, local_errors);
+        }
+    };
+    // accept' returns Peer'<R,S> — the server recvs S (via req_rx), sends R (via resp_tx).
+    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r_ty, s_ty] };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 // Arc 259 S2c-ii-b — `infer_spawn_program_prime` is RETIRED.
