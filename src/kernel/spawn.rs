@@ -136,6 +136,18 @@ pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";
 /// The `Option` lets use-after-close detection work the same way as `Thread'`.
 pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer<Value, Value>>>>;
 
+/// `RustOpaque.type_path` for socket-tier peers (arc 209 C0b.2b).
+/// Socket peers use the comms::process Sender/Receiver over a socketpair(2) fd,
+/// driven by the same io_uring reactor — no pidfd, no lifeline.
+pub const SOCKET_PEER_TYPE_PATH: &str = ":wat::kernel::SocketPeer'";
+
+/// The socket-peer cell type — `Arc<ThreadOwnedCell<Option<SocketPeer<String,String>>>>`.
+///
+/// Wire type is `String` (EDN-encoded Value), identical to the process tier
+/// (`ProcessPeerBundle`). The `Option` lets use-after-close detection work
+/// the same way as the other peer kinds.
+pub type SocketPeerCell = Arc<ThreadOwnedCell<Option<crate::kernel::peer::SocketPeer<String, String>>>>;
+
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
 /// Outcome of `ProcessPeerBundle::recv`: a value from the Ok arm or an error

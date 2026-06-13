@@ -4546,6 +4546,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::peer-pair'" => {
             eval_peer_pair_prime(args, list_span)
         }
+        // Arc 209 C0b.2b — socket-pair': mint two connected socket peers via
+        // socketpair(AF_UNIX, SOCK_STREAM). Uses the comms::process io_uring reactor
+        // (EDN + newline-framing). Returns (SocketPeer'<S,R>, SocketPeer'<R,S>).
+        ":wat::kernel::socket-pair'" => {
+            eval_socket_pair_prime(args, list_span)
+        }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
@@ -17840,6 +17846,63 @@ fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Eval
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
+/// `(:wat::kernel::socket-pair' :S :R)` — Arc 209 C0b.2b.
+///
+/// Mints a connected socket peer pair via `socketpair(AF_UNIX, SOCK_STREAM)`.
+/// Each end is a `SocketPeer'<S,R>` / `SocketPeer'<R,S>` opaque backed by the
+/// comms::process io_uring reactor (IDENTICAL wire: EDN, newline-framed, cascade-aware).
+/// Returns `(Tuple SocketPeer'<S,R> SocketPeer'<R,S>)`.
+///
+/// The socket fd is full-duplex; each end sends on its own fd and reads on a
+/// dup of the SAME fd — the dup gives Sender and Receiver independent OwnedFd
+/// lifetimes so closing one side doesn't close the other's read-end early.
+fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::socket-pair'";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(), expected: 2, got: args.len()
+        } }.into());
+    }
+    for (i, a) in args.iter().enumerate() {
+        if !matches!(a, WatAST::Keyword(_, _)) {
+            return Err(RuntimeError { span: a.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+            } }.into());
+        }
+    }
+    use crate::kernel::peer::SocketPeer;
+    use crate::kernel::spawn::SOCKET_PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+
+    // Mint the socketpair; each side gets (Sender<String>, Receiver<String>).
+    let ((tx_a, rx_a), (tx_b, rx_b)) = crate::comms::process::socket_pair::<String>()
+        .map_err(|e| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("socketpair(2) failed: {}", e),
+            },
+        })?;
+
+    // socketpair(AF_UNIX) semantics:
+    //   writes to sv[0] → readable from sv[1]
+    //   writes to sv[1] → readable from sv[0]
+    // tx_a writes sv[0], rx_a reads sv[0] (receives what tx_b wrote to sv[1]).
+    // tx_b writes sv[1], rx_b reads sv[1] (receives what tx_a wrote to sv[0]).
+    // So end_a = (tx_a, rx_a) and end_b = (tx_b, rx_b) — no cross needed.
+    let end_a = make_rust_opaque(
+        SOCKET_PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(SocketPeer { tx: tx_a, rx: rx_a }))),
+    );
+    let end_b = make_rust_opaque(
+        SOCKET_PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(SocketPeer { tx: tx_b, rx: rx_b }))),
+    );
+    Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
+}
+
 /// `(:wat::kernel::listener' host :S :R)` — Arc 209 Stone C0b.1.
 ///
 /// Mints a crossbeam rendezvous channel for thread-tier connections.
@@ -22655,11 +22718,49 @@ fn eval_peer_send_prime(
             .map_err(Into::<EvalBreak>::into)??;
             Ok(Value::Unit)
         }
+        // Arc 209 C0b.2b — socket peer send: EDN-encode Value → String → Sender<String>.
+        // Mirrors the PROCESS_PEER arm exactly (same codec: value_to_edn + wat_edn::write).
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::SOCKET_PEER_TYPE_PATH =>
+        {
+            let cell: &crate::kernel::spawn::SocketPeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::SOCKET_PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn(&payload_val));
+            cell.with_ref(OP, |opt_peer| -> Result<(), EvalBreak> {
+                match opt_peer {
+                    None => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "peer already closed".into(),
+                        },
+                    }
+                    .into()),
+                    Some(peer) => peer.send(edn_str.clone()).map_err(|_| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "send failed: socket peer disconnected".into(),
+                            },
+                        }
+                        .into()
+                    }),
+                }
+            })
+            .map_err(Into::<EvalBreak>::into)??;
+            Ok(Value::Unit)
+        }
         other => Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
+                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R> | SocketPeer'<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
@@ -22911,11 +23012,83 @@ fn eval_peer_recv_prime(
                 .map_err(Into::<EvalBreak>::into)??;
             Ok(result)
         }
+        // Arc 209 C0b.2b — socket peer recv: Receiver<String>.recv() → EDN String → Value.
+        // Mirrors the PROCESS_PEER arm's codec (read_edn / typed decode via target_ty).
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::SOCKET_PEER_TYPE_PATH =>
+        {
+            let cell: &crate::kernel::spawn::SocketPeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::SOCKET_PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            let edn_str = cell
+                .with_ref(OP, |opt_peer| -> Result<String, EvalBreak> {
+                    match opt_peer {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(peer) => peer.recv().map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "recv failed: socket peer disconnected".into(),
+                                },
+                            }
+                            .into()
+                        }),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            match &target_ty {
+                Some(ty) => {
+                    let edn = wat_edn::parse_owned(&edn_str).map_err(|e| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("recv' EDN parse failed: {}", e),
+                            },
+                        }
+                    })?;
+                    crate::edn_shim::edn_to_typed_value(ty, &edn, sym).map_err(|e| {
+                        RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::EdnCoerceMismatch {
+                                op: OP.into(),
+                                expected: e.expected,
+                                got: e.got,
+                                path: e.path,
+                            },
+                        }
+                        .into()
+                    })
+                }
+                None => crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                    RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("recv' EDN decode failed: {}", e),
+                        },
+                    }
+                    .into()
+                }),
+            }
+        }
         other => Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
+                expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R> | SocketPeer'<S,R>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }

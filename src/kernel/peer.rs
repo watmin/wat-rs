@@ -320,6 +320,49 @@ impl<I: HolonRepresentable + std::fmt::Debug, O: HolonRepresentable + std::fmt::
     }
 }
 
+// ─── SocketPeer<I, O> ─────────────────────────────────────────────────────────
+
+/// Socket-backed peer (arc 209 C0b.2b). Wraps one end of a `socketpair(2)` as
+/// a `comms::process` Sender/Receiver pair over the socket fd, using the same
+/// io_uring reactor as the process tier.
+///
+/// `I` is the type sent INTO this peer (via `send'`); `O` is the type read OUT
+/// (via `recv'`). Both must implement `HolonRepresentable` for the EDN wire.
+///
+/// No pidfd, no lifeline — lifecycle is RAII (Drop closes the fds and ring).
+/// Wrapped in `Arc<ThreadOwnedCell<Option<SocketPeer<I,O>>>>` at the runtime
+/// layer (same pattern as `Peer<S,R>` and `Process<I,O>`).
+pub struct SocketPeer<I: crate::comms::HolonRepresentable, O: crate::comms::HolonRepresentable> {
+    /// This end's write fd (socket fd dup'd for the Sender).
+    pub(crate) tx: crate::comms::process::Sender<I>,
+    /// This end's read fd (socket fd dup'd for the Receiver + its own ring).
+    pub(crate) rx: crate::comms::process::Receiver<O>,
+}
+
+impl<I: crate::comms::HolonRepresentable, O: crate::comms::HolonRepresentable> SocketPeer<I, O> {
+    /// Send a value over the socket.
+    pub fn send(&self, value: I) -> Result<(), crate::comms::SendError<I>> {
+        self.tx.send(value)
+    }
+
+    /// Receive a value from the socket (io_uring-driven; cascade-aware).
+    pub fn recv(&self) -> Result<O, crate::comms::RecvError> {
+        self.rx.recv()
+    }
+}
+
+impl<I: crate::comms::HolonRepresentable + std::fmt::Debug,
+     O: crate::comms::HolonRepresentable + std::fmt::Debug>
+    std::fmt::Debug for SocketPeer<I, O>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SocketPeer")
+            .field("tx", &self.tx)
+            .field("rx", &self.rx)
+            .finish()
+    }
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
