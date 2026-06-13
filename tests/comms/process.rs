@@ -319,3 +319,44 @@ fn select_listener_arm_fires_on_pending_connection() {
     }
     t.join().unwrap();
 }
+
+// ─── Stone C0b.2e-i-0 — Value round-trip over comms::process ────────────────
+
+/// Arc 209 Stone C0b.2e-i-0 gate test — `Value` round-trips over a
+/// `comms::process` `Sender<Value>` / `Receiver<Value>` pair via the
+/// plain-EDN wire (`EdnRepresentable`).
+///
+/// At HEAD before this stone, `Value` was not `EdnRepresentable` so
+/// `pair::<Value>()` would not compile. This test is the new-capability
+/// gate: it must be GREEN after the trait split, and it proves `Value`
+/// is now a legal wire `T` at the comms layer.
+#[test]
+fn probe_arc209_c0b2ei0_value_round_trip_over_process_pair() {
+    use wat::value::Value;
+
+    let (tx, rx) = pair::<Value>().expect("pair::<Value>() must succeed");
+
+    // i64 scalar
+    let v_i64 = Value::i64(42);
+    tx.send(v_i64.clone()).expect("send i64");
+    let got_i64 = rx.recv().expect("recv i64");
+    assert_eq!(got_i64, v_i64, "i64 Value must round-trip");
+
+    // bool
+    let v_bool = Value::bool(true);
+    tx.send(v_bool.clone()).expect("send bool");
+    let got_bool = rx.recv().expect("recv bool");
+    assert_eq!(got_bool, v_bool, "bool Value must round-trip");
+
+    // String
+    let v_str = Value::String(std::sync::Arc::new("hello-wire".to_string()));
+    tx.send(v_str.clone()).expect("send String");
+    let got_str = rx.recv().expect("recv String");
+    assert_eq!(got_str, v_str, "String Value must round-trip");
+
+    // Unit (nil)
+    let v_unit = Value::Unit;
+    tx.send(v_unit.clone()).expect("send Unit");
+    let got_unit = rx.recv().expect("recv Unit");
+    assert_eq!(got_unit, v_unit, "Unit Value must round-trip");
+}

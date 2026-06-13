@@ -40,7 +40,7 @@
 //! grep token, not line number, so the cross-ref cannot drift.
 //! This stone is Rust structs + methods only.
 
-use crate::comms::{HolonRepresentable, RecvError, SendError};
+use crate::comms::{EdnRepresentable, RecvError, SendError};
 
 // ─── Thread<I, O> ─────────────────────────────────────────────────────────────
 
@@ -225,7 +225,7 @@ impl<S: Send + 'static + std::fmt::Debug, R: Send + 'static + std::fmt::Debug> s
 /// `I` from its own `Receiver<I>`). `O` is the type the child process produces
 /// back to the parent (the parent reads `O` from `output: Receiver<O>`).
 ///
-/// Both `I` and `O` must implement `HolonRepresentable` because the
+/// Both `I` and `O` must implement `EdnRepresentable` because the
 /// comms::process tier serializes values through `HolonAST` ↔ EDN bytes
 /// over the anonymous pipe.
 ///
@@ -233,7 +233,7 @@ impl<S: Send + 'static + std::fmt::Debug, R: Send + 'static + std::fmt::Debug> s
 /// `Process::new_for_test` in integration tests. Do not construct by
 /// naming fields directly — field visibility is `pub(crate)` to enforce
 /// the invariant that input, output, and child are always co-created.
-pub struct Process<I: HolonRepresentable, O: HolonRepresentable> {
+pub struct Process<I: EdnRepresentable, O: EdnRepresentable> {
     /// Parent → child process.
     pub(crate) input: crate::comms::process::Sender<I>,
     /// Child process → parent.
@@ -245,7 +245,7 @@ pub struct Process<I: HolonRepresentable, O: HolonRepresentable> {
     pub(crate) pidfd: crate::process::Pidfd,
 }
 
-impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
+impl<I: EdnRepresentable, O: EdnRepresentable> Process<I, O> {
     /// Construct a `Process` peer from its three components.
     ///
     /// Intended for integration tests that create the underlying channel
@@ -308,7 +308,7 @@ impl<I: HolonRepresentable, O: HolonRepresentable> Process<I, O> {
     }
 }
 
-impl<I: HolonRepresentable + std::fmt::Debug, O: HolonRepresentable + std::fmt::Debug>
+impl<I: EdnRepresentable + std::fmt::Debug, O: EdnRepresentable + std::fmt::Debug>
     std::fmt::Debug for Process<I, O>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -327,19 +327,19 @@ impl<I: HolonRepresentable + std::fmt::Debug, O: HolonRepresentable + std::fmt::
 /// io_uring reactor as the process tier.
 ///
 /// `I` is the type sent INTO this peer (via `send'`); `O` is the type read OUT
-/// (via `recv'`). Both must implement `HolonRepresentable` for the EDN wire.
+/// (via `recv'`). Both must implement `EdnRepresentable` for the EDN wire.
 ///
 /// No pidfd, no lifeline — lifecycle is RAII (Drop closes the fds and ring).
 /// Wrapped in `Arc<ThreadOwnedCell<Option<SocketPeer<I,O>>>>` at the runtime
 /// layer (same pattern as `Peer<S,R>` and `Process<I,O>`).
-pub struct SocketPeer<I: crate::comms::HolonRepresentable, O: crate::comms::HolonRepresentable> {
+pub struct SocketPeer<I: crate::comms::EdnRepresentable, O: crate::comms::EdnRepresentable> {
     /// This end's write fd (socket fd dup'd for the Sender).
     pub(crate) tx: crate::comms::process::Sender<I>,
     /// This end's read fd (socket fd dup'd for the Receiver + its own ring).
     pub(crate) rx: crate::comms::process::Receiver<O>,
 }
 
-impl<I: crate::comms::HolonRepresentable, O: crate::comms::HolonRepresentable> SocketPeer<I, O> {
+impl<I: crate::comms::EdnRepresentable, O: crate::comms::EdnRepresentable> SocketPeer<I, O> {
     /// Send a value over the socket.
     pub fn send(&self, value: I) -> Result<(), crate::comms::SendError<I>> {
         self.tx.send(value)
@@ -351,8 +351,8 @@ impl<I: crate::comms::HolonRepresentable, O: crate::comms::HolonRepresentable> S
     }
 }
 
-impl<I: crate::comms::HolonRepresentable + std::fmt::Debug,
-     O: crate::comms::HolonRepresentable + std::fmt::Debug>
+impl<I: crate::comms::EdnRepresentable + std::fmt::Debug,
+     O: crate::comms::EdnRepresentable + std::fmt::Debug>
     std::fmt::Debug for SocketPeer<I, O>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

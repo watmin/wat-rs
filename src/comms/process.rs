@@ -17,7 +17,7 @@
 //! ## Current scope (through Stone E-2)
 //!
 //! Full API surface matching the thread tier (`crate::comms::thread`).
-//! Generic `Sender<T: HolonRepresentable>` / `Receiver<T: HolonRepresentable>`
+//! Generic `Sender<T: EdnRepresentable>` / `Receiver<T: EdnRepresentable>`
 //! with HolonAST ↔ EDN bytes via wat-edn (Stone C). Cascade-aware multi-arm
 //! POLL_ADD (Stone B). io_uring bytes foundation with newline framing
 //! (Stone A). Stone D1: len + close + Clone + CommSender/
@@ -82,7 +82,7 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use io_uring::{opcode, types, IoUring};
 
 use crate::comms::{
-    CommReceiver, CommSender, HolonRepresentable, ReceiverIndex, RecvError, SelectOutcome,
+    CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
     SendError,
 };
 
@@ -128,8 +128,7 @@ type Frame = Vec<u8>;
 
 /// Process-tier send endpoint. Generic over the payload type T (Stone C).
 /// Owns the pipe's write-end fd. Encodes `T` via
-/// `HolonRepresentable::to_holon_ast` → `write_holon_ast_tagged` →
-/// newline-framed bytes.
+/// `EdnRepresentable::to_wire` → newline-framed bytes.
 ///
 /// Single-writer endpoint: this type deliberately does NOT implement
 /// `Clone`. POSIX only guarantees atomicity for writes ≤ `PIPE_BUF`
@@ -144,7 +143,7 @@ type Frame = Vec<u8>;
 /// `close(self)` consumes the endpoint and drops the fd via OwnedFd Drop;
 /// the peer sees EOF when the sole Sender closes.
 #[derive(Debug)]
-pub struct Sender<T: HolonRepresentable> {
+pub struct Sender<T: EdnRepresentable> {
     write_fd: OwnedFd,
     /// Type marker — `T` doesn't appear in any field but constrains
     /// what `send` accepts. `PhantomData<T>` makes `Sender<T>` invariant
@@ -152,7 +151,7 @@ pub struct Sender<T: HolonRepresentable> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: HolonRepresentable> Sender<T> {
+impl<T: EdnRepresentable> Sender<T> {
     /// Send `value` to the channel. Encodes via
     /// `T::to_holon_ast` → `edn_shim::write_holon_ast_tagged` →
     /// newline-framed bytes → `libc::write` retry loop.
@@ -211,7 +210,7 @@ impl<T: HolonRepresentable> Sender<T> {
     }
 }
 
-impl<T: HolonRepresentable> Sender<T> {
+impl<T: EdnRepresentable> Sender<T> {
     /// Return every raw file descriptor this `Sender` owns.
     ///
     /// Currently: `[write_fd]`. This is the complete fd set the kernel-side
@@ -242,7 +241,7 @@ impl<T: HolonRepresentable> Sender<T> {
     }
 }
 
-impl<T: HolonRepresentable> CommSender<T> for Sender<T> {
+impl<T: EdnRepresentable> CommSender<T> for Sender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>> {
         Sender::send(self, value)
     }
@@ -265,7 +264,7 @@ impl<T: HolonRepresentable> CommSender<T> for Sender<T> {
 /// `Debug` is implemented manually because `IoUring` does not
 /// implement `Debug`; the ring field is shown as an opaque
 /// `"IoUring"` placeholder.
-pub struct Receiver<T: HolonRepresentable> {
+pub struct Receiver<T: EdnRepresentable> {
     read_fd: OwnedFd,
     /// Bytes read from the pipe but not yet returned to a caller.
     /// `RefCell` (via the `Accumulator` alias) provides interior
@@ -292,7 +291,7 @@ pub struct Receiver<T: HolonRepresentable> {
 // required for downstream structs that derive Debug over (Sender<T>, Receiver<T>)
 // pairs; IoUring is !Debug so manual impl is load-bearing even though no current
 // codebase struct exercises it. Per purgare ward (Stone E-1 ward pass 2026-05-19).
-impl<T: HolonRepresentable> std::fmt::Debug for Receiver<T> {
+impl<T: EdnRepresentable> std::fmt::Debug for Receiver<T> {
     /// Manual Debug impl — `IoUring` does not implement `Debug`;
     /// the ring field is shown as an opaque placeholder. All other
     /// fields are shown via their own Debug impls.
@@ -306,7 +305,7 @@ impl<T: HolonRepresentable> std::fmt::Debug for Receiver<T> {
     }
 }
 
-impl<T: HolonRepresentable> Receiver<T> {
+impl<T: EdnRepresentable> Receiver<T> {
     /// Blocking recv. Returns the next complete `T` decoded from the
     /// pipe (newline-framed; EDN-encoded). Reads from the internal
     /// accumulator first; if no complete frame is buffered, drives
@@ -358,7 +357,7 @@ impl<T: HolonRepresentable> Receiver<T> {
     }
 }
 
-impl<T: HolonRepresentable> Receiver<T> {
+impl<T: EdnRepresentable> Receiver<T> {
     /// Issue one io_uring Read on `self.read_fd` into `self.accumulator`
     /// using `self.ring`. Returns `Ok(n)` where `n` is bytes appended
     /// (0 means EOF / peer closed write end), or `Err(())` on io_uring
@@ -448,7 +447,7 @@ impl<T: HolonRepresentable> Receiver<T> {
     }
 }
 
-impl<T: HolonRepresentable> Clone for Receiver<T> {
+impl<T: EdnRepresentable> Clone for Receiver<T> {
     /// Clone the receiver by duplicating its read-end fd via
     /// `OwnedFd::try_clone`. Both clones reference the same kernel
     /// pipe and COMPETE for frames — a frame consumed by one clone
@@ -482,7 +481,7 @@ impl<T: HolonRepresentable> Clone for Receiver<T> {
     }
 }
 
-impl<T: HolonRepresentable> CommReceiver<T> for Receiver<T> {
+impl<T: EdnRepresentable> CommReceiver<T> for Receiver<T> {
     fn recv(&self) -> Result<T, RecvError> {
         Receiver::recv(self)
     }
@@ -605,7 +604,7 @@ fn wait_for_data_or_cascade(
 /// because the caller cannot meaningfully distinguish them — wire
 /// failures all mean "the frame did not roundtrip cleanly; the channel
 /// is in an honest but unrecoverable state per this call".
-fn decode_frame<T: HolonRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
+fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
     let s = std::str::from_utf8(bytes).map_err(|_| RecvError::Disconnected)?;
     // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
     // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
@@ -719,7 +718,7 @@ fn uring_read_into_acc(
 /// `cap == next_power_of_two(arm_count).max(2)` at every `select()`
 /// entry, where `arm_count = receivers.len() + (broadcast ? 1 : 0)`
 /// — i.e., arm_count already includes the broadcast slot when active.
-pub struct Select<'a, T: HolonRepresentable> {
+pub struct Select<'a, T: EdnRepresentable> {
     /// User-registered receivers in registration order. The index
     /// into this Vec is the user-facing `ReceiverIndex`.
     receivers: Vec<&'a Receiver<T>>,
@@ -753,7 +752,7 @@ pub struct Select<'a, T: HolonRepresentable> {
 // field needs this impl. Per the user's red flag during E-2 ward pass
 // 2026-05-19 — known defect closed inline rather than deferred to a future
 // purgare pass.
-impl<'a, T: HolonRepresentable> std::fmt::Debug for Select<'a, T> {
+impl<'a, T: EdnRepresentable> std::fmt::Debug for Select<'a, T> {
     /// Manual Debug impl — `IoUring` does not implement `Debug`; the ring
     /// slot is rendered as `None` or `Some(IoUring, cap)` showing only the
     /// recorded capacity. All other fields are shown via their own Debug
@@ -772,7 +771,7 @@ impl<'a, T: HolonRepresentable> std::fmt::Debug for Select<'a, T> {
     }
 }
 
-impl<'a, T: HolonRepresentable> Select<'a, T> {
+impl<'a, T: EdnRepresentable> Select<'a, T> {
     /// Construct a new cascade-aware Select. Empty until receivers
     /// are registered via `recv`. The broadcast arm is NOT registered
     /// here — it's polled per-`select()` call based on the current
@@ -1042,7 +1041,7 @@ impl<'a, T: HolonRepresentable> Select<'a, T> {
 // forgotten at each call site; current depth is acceptable. If/when a SECOND
 // consumer surfaces or `thread.rs` mints the same alias for symmetry, revisit.
 // Per perspicere ward (Stone E-1 ward pass 2026-05-19).
-pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
+pub fn pair<T: EdnRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let mut fds = [0i32; 2];
     // SAFETY: `fds` is a valid `[i32; 2]` stack allocation whose
     // lifetime covers this call; `libc::pipe2` writes two file
@@ -1086,7 +1085,7 @@ pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)
 /// Sender and Receiver own independent `OwnedFd` lifetimes — Drop closes each
 /// independently without affecting the peer.  Per-Receiver `IoUring::new(4)` (same
 /// reactor as `pair()` / `socket_pair()`).
-pub fn sender_receiver_from_fd<T: HolonRepresentable>(
+pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
     // SAFETY: `fd.try_clone()` is a standard `dup(2)` call on a valid OwnedFd;
@@ -1113,7 +1112,7 @@ pub fn sender_receiver_from_fd<T: HolonRepresentable>(
 /// `sender_receiver_from_fd`, there is no `try_clone`: the two fds are
 /// already distinct `OwnedFd`s. Per-Receiver `IoUring::new(4)` (same
 /// reactor as `sender_receiver_from_fd`).
-pub fn sender_receiver_from_split_fds<T: HolonRepresentable>(
+pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
     read_fd: OwnedFd,
     write_fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
@@ -1147,7 +1146,7 @@ pub fn sender_receiver_from_split_fds<T: HolonRepresentable>(
 ///
 /// The wire framing and io_uring reactor are IDENTICAL to `pair()` — sockets
 /// respond to `POLLIN|POLLHUP` PollAdd and `opcode::Read` exactly as pipes do.
-pub fn socket_pair<T: HolonRepresentable>() -> std::io::Result<((Sender<T>, Receiver<T>), (Sender<T>, Receiver<T>))> {
+pub fn socket_pair<T: EdnRepresentable>() -> std::io::Result<((Sender<T>, Receiver<T>), (Sender<T>, Receiver<T>))> {
     let mut sv = [0i32; 2];
     // SAFETY: `sv` is a valid `[i32; 2]` stack allocation.
     // AF_UNIX SOCK_STREAM socketpair: both fds are connected, full-duplex.

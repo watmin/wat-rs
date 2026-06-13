@@ -82,19 +82,43 @@
 //! - **User code** does NOT touch this layer; uses peer-oriented `:wat::kernel::*`
 //!   verbs (Slice 4) that internally dispatch to the right tier.
 
-// ─── Wire form trait ────────────────────────────────────────────────────────
+// ─── Wire form traits ───────────────────────────────────────────────────────
 
-/// Universal wire form for cross-boundary types. Anything that crosses a
-/// process or remote tier boundary must roundtrip through HolonAST (substrate's
-/// universal "Any" form per arc 057+ project_holon_universal_ast).
+/// Plain-EDN wire contract — Stone C0b.2e-i-0 (arc 209).
 ///
-/// Thread-tier (in-process) channels can also use HolonRepresentable types,
-/// but pass T directly via crossbeam (no serialization roundtrip).
+/// Any type that can be transmitted across a process or remote tier boundary
+/// must implement this trait. The contract is **plain EDN**: `to_wire` produces
+/// a newline-free EDN string; `from_wire` decodes it back. No HolonAST IR is
+/// required — this is the honest minimum the comms wire needs.
+///
+/// `HolonRepresentable` is a strict supertrait (`HolonRepresentable:
+/// EdnRepresentable`) for types that additionally carry the holographic IR
+/// (`to_holon_ast` / `from_holon_ast`). Every `HolonRepresentable` is
+/// automatically `EdnRepresentable`; the converse is NOT true (e.g., `Value`
+/// implements `EdnRepresentable` but not `HolonRepresentable`).
+///
+/// Thread-tier (in-process) channels also accept `EdnRepresentable` types,
+/// but pass `T` directly via crossbeam (no serialization roundtrip).
+pub trait EdnRepresentable: Send + 'static {
+    /// Encode `self` as a newline-free EDN string for transmission.
+    fn to_wire(&self) -> String;
+    /// Decode an EDN string back to `Self`.
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized;
+}
+
+/// Holographic wire form — the `HolonAST` IR layer on top of `EdnRepresentable`.
+///
+/// Anything that crosses a process or remote tier boundary AND needs the full
+/// holographic encoding IR (`HolonAST`) implements this trait. It is a strict
+/// supertrait of `EdnRepresentable`; implementors must provide both the plain-EDN
+/// methods (via `EdnRepresentable`) and the holographic IR methods here.
 ///
 /// Per project_holon_universal_ast (the strange loop closing 2026-05-19): HolonAST
 /// was minted for VSA encoding (arc 057), became universal AST (arc 143 signature
 /// reflection, arc 201 type reflection), and is NOW also the universal comms wire
-/// form.
+/// form for holographic types.
 ///
 /// # Blanket impl decision
 ///
@@ -107,36 +131,30 @@
 /// explicitly, and no hidden clone tax exists at send boundaries. Future arc may
 /// revisit if a clean zero-cost blanket pattern surfaces (e.g., `for<'a>
 /// HolonAST: From<&'a T>` reference-style conversion without consume).
-pub trait HolonRepresentable: Send + 'static {
+pub trait HolonRepresentable: EdnRepresentable {
     fn to_holon_ast(&self) -> holon::HolonAST;
     fn from_holon_ast(ast: &holon::HolonAST) -> Result<Self, WireError>
     where
         Self: Sized;
+}
 
-    /// The EDN line transmitted across a universe (process) boundary — Stone 214
-    /// 1b-ii-β.0. **The wire is plain EDN.** Holon-tagging is NOT the transport —
-    /// it is one representation of EDN, meaningful INSIDE a holonic value, never
-    /// as the envelope. The `HolonRepresentable` bound is the CONTRACT (only
-    /// representable values cross a universe boundary); `to_wire`/`from_wire` is
-    /// the ENCODING (plain EDN). Conflating the two — forcing values into a
-    /// holon-tagged shape to "guarantee the contract" — is the abuse this split
-    /// removes (cf. the prior `defrecord` occurrence).
-    ///
-    /// Default: the holon-tagged EDN of `to_holon_ast` (kept only for wire types
-    /// whose natural EDN already IS the tagged form). `String` OVERRIDES with raw
-    /// passthrough — for the process peer the `String` already IS the finished EDN
-    /// line (the `send'`/`recv'` boundary codec ran `value_to_edn` upstream), so
-    /// the channel must transmit its bytes, not re-serialize it.
+/// `EdnRepresentable` for `String` — Stone C0b.2e-i-0.
+///
+/// Raw passthrough (Stone 214 1b-ii-β.0): the `String` IS the EDN line. No
+/// holon tag — a forms-server's `(println 42)` writes plain `42\n`, and the
+/// parent reads it back byte-for-byte. The boundary codec (`value_to_edn` /
+/// `edn_string_to_value` at the `send'`/`recv'` intrinsics) already turned the
+/// Value into this EDN line, so the channel must not re-encode it.
+impl EdnRepresentable for String {
     fn to_wire(&self) -> String {
-        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+        self.clone()
     }
+
     fn from_wire(s: &str) -> Result<Self, WireError>
     where
         Self: Sized,
     {
-        let ast = crate::edn_shim::read_holon_ast_tagged(s)
-            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
-        Self::from_holon_ast(&ast)
+        Ok(s.to_string())
     }
 }
 
@@ -168,21 +186,28 @@ impl HolonRepresentable for String {
             ))),
         }
     }
+}
 
-    /// Raw passthrough (Stone 214 1b-ii-β.0): the `String` IS the EDN line. No
-    /// holon tag — a forms-server's `(println 42)` writes plain `42\n`, and the
-    /// parent reads it back byte-for-byte. The boundary codec (`value_to_edn` /
-    /// `edn_string_to_value` at the `send'`/`recv'` intrinsics) already turned the
-    /// Value into this EDN line, so the channel must not re-encode it.
+/// Arc 216 Stone 1 — `EdnRepresentable` for `HashSet<T>` — Stone C0b.2e-i-0.
+///
+/// Wire via the holon-tagged EDN of `to_holon_ast` (same behavior as before
+/// the trait split; tagged stays tagged). Explicit to satisfy `EdnRepresentable`
+/// as a required supertrait of `HolonRepresentable`.
+impl<T> EdnRepresentable for std::collections::HashSet<T>
+where
+    T: HolonRepresentable + std::hash::Hash + Eq + Send + 'static,
+{
     fn to_wire(&self) -> String {
-        self.clone()
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
     }
 
     fn from_wire(s: &str) -> Result<Self, WireError>
     where
         Self: Sized,
     {
-        Ok(s.to_string())
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
     }
 }
 
@@ -234,6 +259,29 @@ where
                 other
             ))),
         }
+    }
+}
+
+/// Arc 216 Stone 2 — `EdnRepresentable` for `Vec<T>` — Stone C0b.2e-i-0.
+///
+/// Wire via the holon-tagged EDN of `to_holon_ast` (same behavior as before
+/// the trait split; tagged stays tagged). Explicit to satisfy `EdnRepresentable`
+/// as a required supertrait of `HolonRepresentable`.
+impl<T> EdnRepresentable for Vec<T>
+where
+    T: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
     }
 }
 
@@ -334,6 +382,30 @@ where
     }
 }
 
+/// Arc 216 Stone 3 — `EdnRepresentable` for `HashMap<K, V>` — Stone C0b.2e-i-0.
+///
+/// Wire via the holon-tagged EDN of `to_holon_ast` (same behavior as before
+/// the trait split; tagged stays tagged). Explicit to satisfy `EdnRepresentable`
+/// as a required supertrait of `HolonRepresentable`.
+impl<K, V> EdnRepresentable for std::collections::HashMap<K, V>
+where
+    K: HolonRepresentable + std::hash::Hash + Eq + Send + 'static,
+    V: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
+    }
+}
+
 /// Arc 216 Stone 3 — `HolonRepresentable` for `HashMap<K, V>`.
 ///
 /// Mirrors the `HashSet<T>` (Stone 1) and `Vec<T>` (Stone 2) patterns.
@@ -430,6 +502,25 @@ where
 //
 // Bounds per element: `Ti: HolonRepresentable + Send + 'static`.
 
+/// Arc 216 Stone 7 — `EdnRepresentable` for `(T1, T2)` (2-tuple) — Stone C0b.2e-i-0.
+impl<T1, T2> EdnRepresentable for (T1, T2)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
+    }
+}
+
 /// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2)` (2-tuple).
 impl<T1, T2> HolonRepresentable for (T1, T2)
 where
@@ -451,6 +542,26 @@ where
         let t0 = T1::from_holon_ast(items[0]).map_err(|e| WireError::new(format!("2-tuple element 0: {}", e.message())))?;
         let t1 = T2::from_holon_ast(items[1]).map_err(|e| WireError::new(format!("2-tuple element 1: {}", e.message())))?;
         Ok((t0, t1))
+    }
+}
+
+/// Arc 216 Stone 7 — `EdnRepresentable` for `(T1, T2, T3)` (3-tuple) — Stone C0b.2e-i-0.
+impl<T1, T2, T3> EdnRepresentable for (T1, T2, T3)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
     }
 }
 
@@ -481,6 +592,27 @@ where
     }
 }
 
+/// Arc 216 Stone 7 — `EdnRepresentable` for `(T1, T2, T3, T4)` (4-tuple) — Stone C0b.2e-i-0.
+impl<T1, T2, T3, T4> EdnRepresentable for (T1, T2, T3, T4)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+    T4: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
+    }
+}
+
 /// Arc 216 Stone 7 — `HolonRepresentable` for `(T1, T2, T3, T4)` (4-tuple).
 impl<T1, T2, T3, T4> HolonRepresentable for (T1, T2, T3, T4)
 where
@@ -508,6 +640,28 @@ where
         let t2 = T3::from_holon_ast(items[2]).map_err(|e| WireError::new(format!("4-tuple element 2: {}", e.message())))?;
         let t3 = T4::from_holon_ast(items[3]).map_err(|e| WireError::new(format!("4-tuple element 3: {}", e.message())))?;
         Ok((t0, t1, t2, t3))
+    }
+}
+
+/// Arc 216 Stone 7 — `EdnRepresentable` for `(T1, T2, T3, T4, T5)` (5-tuple) — Stone C0b.2e-i-0.
+impl<T1, T2, T3, T4, T5> EdnRepresentable for (T1, T2, T3, T4, T5)
+where
+    T1: HolonRepresentable + Send + 'static,
+    T2: HolonRepresentable + Send + 'static,
+    T3: HolonRepresentable + Send + 'static,
+    T4: HolonRepresentable + Send + 'static,
+    T5: HolonRepresentable + Send + 'static,
+{
+    fn to_wire(&self) -> String {
+        crate::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        let ast = crate::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
     }
 }
 
@@ -610,6 +764,38 @@ fn extract_positional_binds<'a>(
     }
     // Return value refs in key order.
     Ok(pairs.into_iter().map(|(_, v)| v).collect())
+}
+
+// ─── EdnRepresentable for Value ─────────────────────────────────────────────
+
+/// `EdnRepresentable` for `Value` — Stone C0b.2e-i-0 (arc 209).
+///
+/// Plain-EDN wire — no holon tags. `to_wire` uses `value_to_edn_string`
+/// (the same plain-EDN codec the `send'`/`recv'` arms use); `from_wire`
+/// uses `edn_string_to_value` with `None` for the type registry (primitive
+/// scaffold only — reconstructs i64/f64/bool/nil/String/keyword/Vec/HashMap;
+/// user-defined structs are not reconstructed without a TypeEnv, which is
+/// acceptable here because the process tier works on the primitive scaffold
+/// and the runtime applies type resolution separately).
+///
+/// `Value` does NOT impl `HolonRepresentable` — it is a plain wat value that
+/// serializes as plain EDN, not a holographic value with a HolonAST IR.
+///
+/// STOP-2 check passed: `edn_string_to_value` passes `None` for the type
+/// registry internally (`read_edn(s, None)`) — no SymbolTable / TypeEnv
+/// needed at the comms layer.
+impl EdnRepresentable for crate::value::Value {
+    fn to_wire(&self) -> String {
+        crate::edn_shim::value_to_edn_string(self)
+    }
+
+    fn from_wire(s: &str) -> Result<Self, WireError>
+    where
+        Self: Sized,
+    {
+        crate::edn_shim::edn_string_to_value(s)
+            .map_err(|e| WireError::new(format!("Value from_wire: {e}")))
+    }
 }
 
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
@@ -796,7 +982,7 @@ mod beta0_wire_tests {
     //! Stone 214 1b-ii-β.0 — the universe-boundary wire is plain EDN, never a
     //! holon-tagged envelope. Holon-tagging is one representation of EDN, content
     //! INSIDE a holonic value — not the transport.
-    use super::HolonRepresentable;
+    use super::EdnRepresentable;
 
     #[test]
     fn string_wire_is_raw_edn_not_holon_tagged() {

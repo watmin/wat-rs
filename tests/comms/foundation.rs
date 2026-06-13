@@ -1,11 +1,25 @@
 //! Arc 214 Slice 1 smoke probe — verify foundation primitives compile + a
 //! sample HolonRepresentable impl roundtrips + error types behave honestly.
 
-use wat::comms::{HolonRepresentable, WireError};
+use wat::comms::{EdnRepresentable, HolonRepresentable, WireError};
 
 // Sample impl — verifies the shape is usable. ToyType wraps an i64;
 // roundtrips via HolonAST::I64 (I64 is a leaf variant — no nested structure).
 struct ToyType(i64);
+
+// Stone C0b.2e-i-0: EdnRepresentable is now a required supertrait of
+// HolonRepresentable. ToyType's wire uses the tagged form (same as the
+// former HolonRepresentable default) so behavior is unchanged.
+impl EdnRepresentable for ToyType {
+    fn to_wire(&self) -> String {
+        wat::edn_shim::write_holon_ast_tagged(&self.to_holon_ast())
+    }
+    fn from_wire(s: &str) -> Result<Self, WireError> {
+        let ast = wat::edn_shim::read_holon_ast_tagged(s)
+            .map_err(|e| WireError::new(format!("ToyType from_wire: {e}")))?;
+        Self::from_holon_ast(&ast)
+    }
+}
 
 impl HolonRepresentable for ToyType {
     fn to_holon_ast(&self) -> holon::HolonAST {
