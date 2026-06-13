@@ -27,12 +27,23 @@ The variant set was settled by four-questions + the cross-tier union analysis (s
 `:Crashed` mention below):
 
 ```
-(:wat::core::defenum :wat::kernel::SelectEvent<O>
-  :Connection                                          ;; the listener fired — a client is dialing
-  :Message [idx <- :wat::core::i64  msg   <- :O]        ;; clients[idx] sent an op
-  :Closed  [idx <- :wat::core::i64]                     ;; clients[idx] left cleanly — graceful, no diagnostic
-  :Lost    [idx <- :wat::core::i64  cause <- :wat::kernel::Failure]) ;; transport broke — `cause` = first-class diagnostic
+(:wat::core::defenum :wat::kernel::SelectEvent<I,O>
+  :Connection [peer  <- :wat::kernel::Peer'<I,O>]        ;; select' accepted a dialing client — the new peer
+  :Message    [idx   <- :wat::core::i64  msg   <- :O]    ;; clients[idx] sent an op
+  :Closed     [idx   <- :wat::core::i64]                 ;; clients[idx] left cleanly — graceful, no diagnostic
+  :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]) ;; transport broke — `cause` = first-class diagnostic
 ```
+
+`SelectEvent<I,O>` mirrors `Peer'<I,O>`: the message is `O` (the recv'd op), the accepted peer is
+`Peer'<I,O>` (same type as the input vector elements, ready to conj).
+
+**The FOLD mechanic (settled — peek was aborted; it re-grew the channel surface with `ready`/
+`try_recv` and hung).** `select'` uses the existing **`select()`** (blocking, consuming, no spurious
+wakeup). On the won index: **listener (idx 0)** → `select()` consumed the connect-request →
+`select'` unpacks + wraps the server `Peer'` inline (on the service thread → custody holds; reuse
+`accept'`'s unpack) → `:Connection [peer]`. **peer (idx k>0)** → `Ok(v)` → `:Message {k-1, v}` /
+`Err(Disconnected)` → `:Closed {k-1}`. No new comms primitive; `accept'` stays as the unpack helper
+(and a one-shot verb), the loop no longer calls it (`select'` folds it).
 
 - **No `:Crashed`.** A foreign connection-client's *crash reason* is opaque across the isolation
   boundary at every tier (it flows to *that client's own supervisor*, not your connection). A

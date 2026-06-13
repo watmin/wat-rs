@@ -36,9 +36,9 @@ const PROGRAM: &str = r#"
    clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::select' l clients) -> :wat::core::nil
-    ;; GROW — a client is dialing; accept it onto the set.
-    (:wat::kernel::SelectEvent::Connection
-      (:user::serve l (:wat::core::conj clients (:wat::kernel::accept' l))))
+    ;; GROW — select' accepted the dialing client and hands the new peer back; add it.
+    ((:wat::kernel::SelectEvent::Connection peer)
+      (:user::serve l (:wat::core::conj clients peer)))
     ;; SERVE — an op arrived from clients[idx].
     ((:wat::kernel::SelectEvent::Message idx msg)
       (:wat::core::match msg -> :wat::core::nil
