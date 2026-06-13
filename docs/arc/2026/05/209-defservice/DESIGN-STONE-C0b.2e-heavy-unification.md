@@ -126,6 +126,38 @@ iii IS a feature (the `ServiceAddress` sum) → a normal RED probe (a caller con
   remote is additive; it builds zero remote members. The road exists before the cars.
 - **`SO_PEERCRED`** — C0b.3b.
 
+## Loopback-TCP unlock + remote-readiness invariants (the pressure test)
+
+The honest test of this seam: can two wat programs later talk over **loopback TCP** by *adding*, not
+*rebuilding*? Traced end-to-end — yes, because the machinery is fd-generic and trait-seamed:
+- **Peer transport is reused.** A TCP socket is `AF_INET SOCK_STREAM`; C0b.2c proved io_uring
+  (`PollAdd POLLIN|POLLHUP` + `Read`) is address-family-agnostic on stream sockets, and
+  `sender_receiver_from_fd(fd: OwnedFd)` takes any fd. `TcpStream → OwnedFd → Socket Peer` — same
+  comms impl, zero new transport code.
+- **Reactor is reused.** `select'`'s listener-arm + read-arms (C0b.3a-i) poll any fd; a TCP listen fd
+  signals POLLIN on an incoming connection like a UDS one.
+- **Address slot exists.** `ServiceAddress::Remote[host port]` (declared). Loopback TCP = fill its
+  `connect'`/`listener'` arm with `TcpStream::connect`/`TcpListener::bind`+accept.
+- **mTLS rides the SAME shape** — plain TCP reuses the raw-fd `Socket` comms; mTLS is a NEW
+  `CommSender`/`CommReceiver` impl (TLS-wrapped; can't ride raw io_uring `Read`), admitted by the
+  TRAIT seam as a new impl + connector. This is precisely why the seam is the trait, not a closed enum.
+
+So the only new code for a future loopback-TCP member is a **connector** (TCP connect + bind/accept)
+wired to the `:Remote` arm (+ for mTLS, a TLS comms impl). Everything downstream is reused.
+
+**Remote-readiness invariants — C0b.2e MUST honor these so the build does not weld the seam to UDS:**
+1. **`Peer` stays fd-source-agnostic** — it holds the boxed comms trait over an `OwnedFd`; it never
+   names UDS. (Already true via `sender_receiver_from_fd`.)
+2. **`Listener` (C0b.2e-ii) accepts through an ABSTRACTION, not a hardcoded `UnixListener`** — a
+   "thing that accepts → `OwnedFd`" so a `TcpListener` plugs in beside the UDS one. The current UDS
+   hardcode is fine *as the `:Process` member*; the seam must allow a `:Remote` member beside it.
+3. **`connect'`/`listener'` dispatch on the `ServiceAddress` variant** — `:Remote` routes to a (future)
+   TCP/TLS connector without touching the `:Thread`/`:Process` paths.
+
+**Named future gate:** when the first `:Remote` connector ships, the validation is a **loopback-TCP
+wat-to-wat round-trip** (two wat programs, one binds `:Remote 127.0.0.1:port`, the other dials it,
+EDN round-trips). NOT built now — the road is what C0b.2e guarantees; the car is a later stone.
+
 ## The deadlock contract carries
 
 The unified `Peer`/`Listener` preserve every transport's existing semantics (non-blocking UDS listen,
