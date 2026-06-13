@@ -9837,8 +9837,9 @@ fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
 ///
 /// 3 args: host expression (e.g. `(:wat::spawn::thread)`), :S, :R.
-/// The host expression is inferred for error coverage but its type is not
-/// constrained here (thread-tier only; a future tier gate is a follow-up).
+/// Arc 209 C0b.2a — the host is constrained to `(:wat::spawn::thread)` (ThreadOpts).
+/// The connection layer is thread-tier only today; a non-thread host is a check error
+/// naming the tier gap. When C0b.2c builds the process tier, the host widens to dispatch.
 /// Returns a tuple whose first element is `Listener'<S,R>` (the service's
 /// recv end) and second is `Address'<S,R>` (the client's send end).
 /// At runtime both are raw `Sender`/`Receiver` values; `Listener'`/`Address'`
@@ -9861,8 +9862,25 @@ fn infer_listener_prime(
         let r = fresh.fresh();
         return CheckResult::partial_with(listener_tuple(s, r), local_errors);
     }
-    // args[0] = host expression — infer for error coverage; type not constrained.
-    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // args[0] = host expression — infer it, then constrain to ThreadOpts (C0b.2a).
+    // The connection layer is thread-tier only; a non-thread host is a check error
+    // naming the gap (the process tier is C0b.2b/2c, unbuilt).
+    let host_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(host_ty) = host_ty {
+        let host_surface = apply_subst(&host_ty, subst);
+        let host_reduced = reduce(&host_surface, subst, env.types());
+        if host_reduced != TypeExpr::Path(":wat::spawn::ThreadOpts".into()) {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "host".into(),
+                    expected: "(:wat::spawn::thread) — the connection layer is thread-tier only; the process tier is C0b.2b/2c (unbuilt)".into(),
+                    got: format_type(&host_reduced),
+                },
+            });
+        }
+    }
     let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
     let ty = listener_tuple(s_ty, r_ty);

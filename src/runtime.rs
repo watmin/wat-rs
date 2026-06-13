@@ -17853,7 +17853,8 @@ fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Eval
 fn eval_listener_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::listener'";
     // 3 args: host expression (e.g. (:wat::spawn::thread)), :S, :R.
-    // args[0] = host — any expression; type-checker validates it, runtime ignores it.
+    // args[0] = host — the type-checker (C0b.2a) constrains it to (:wat::spawn::thread) / ThreadOpts;
+    // the runtime always builds a thread rendezvous (the only tier today) and ignores the value.
     // args[1] = :S type keyword — type-checker-only.
     // args[2] = :R type keyword — type-checker-only.
     if args.len() != 3 {
