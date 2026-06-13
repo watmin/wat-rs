@@ -103,6 +103,29 @@ the ground"*) — `:Closed` and `:Crashed [reason]` are distinct variants.
 **The crash read is a reuse of `Thread::recv`'s second half — not a new mechanism.** `select'`
 already holds the guarded cell; on EOF it does what `recv'` already does.
 
+## ⚙ DESIGN RESOLUTIONS (2026-06-12, from the structured-peer-death campaign + the probe)
+
+**`:Crashed`'s reason — reconstruct from the envelope, uniform across tiers.** structured-peer-death
+shipped the crash channel carrying an EDN envelope STRING (forced: the process tier is a pipe — it
+can only carry serialized strings; the unified `Peer'` keeps both tiers the same shape). So
+`select'`'s `:Crashed` arm reads `.crash` (the envelope string) and `edn::read`s it into a
+structured value — the SAME way the process tier already parses EDN off its pipe. No tier-specific
+struct handling. The reconstruction target type (a `Failure` value vs. the parsed envelope value)
+is pinned at build time by grounding what `edn::read` of `#wat.kernel/AssertionFailure {…}` yields;
+the contract is `:Crashed [idx <- :i64  reason <- <the reconstructed structured value>]`.
+
+**Service termination — an explicit `Stop` op, NOT owner-drop (for this stone's probe).** A service
+loop blocked in `select'` over `(listener, clients)` is NOT watching its `spawn-program'` self-peer,
+so the owner merely *dropping* the handle would leave the loop blocked → the RAII join would hang.
+Clean owner-initiated RAII shutdown is a Stone C/D lifecycle concern. For C0b.1b, the service
+exits the loop on an explicit `Stop` op (gen_server `:stop`) — the probe sends it to terminate so the
+join is clean. **The service IGNORES its self-peer** (legal — unused self-peer; the C0 precedent);
+it watches only the listener + the connected clients. (`Stop` being a privileged owner-only op is
+the per-op identity policy — Stone C.)
+
+**Client departure stays implicit.** A client dropping its `Peer'` → `:Closed [idx]` → `remove-at`
+(shrink). Only *service shutdown* is the explicit `Stop`; *client* leave is the implicit EOF.
+
 ## Files touched
 
 | File | Change |
