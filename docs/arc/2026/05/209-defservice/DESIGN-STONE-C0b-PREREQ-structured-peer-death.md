@@ -75,6 +75,33 @@ existing builders. A clean (non-crash) disconnect stays `Disconnected` → grace
 C0b.1b consumes Sub-stone A (thread tier). Sub-stone B closes the class so `recv'` is honest on
 both tiers. Both ship in this campaign.
 
+## ⚙ PROBE REFINEMENT (2026-06-12) — carry the EDN envelope, not a struct
+
+The RED probe (`probe_arc209_structured_peer_death`) revealed a cleaner fix than the channel
+re-typing below. At death, the full structure is **already rendered as an EDN envelope** —
+`#wat.kernel/AssertionFailure {:message … :actual … :expected … :frames …}` (printed by
+`panic_hook.rs:126` `write_assertion_failure`, via the `pub(crate)` `payload_to_edn`). The
+thread crash-send site just throws it away and sends the bare message. The **process tier
+already** sends its `#wat.kernel/ProcessPanics` envelope over the Err channel.
+
+So the refined fix (smaller, and it unifies both tiers on "carry the EDN envelope"):
+- **The crash channel STAYS `Receiver<String>`** — it carries the *envelope*, not the bare
+  message. No `PeerRecvError`/`CrashInfo` re-typing.
+- **`spawn.rs:472`**: when an `AssertionPayload` is present, send
+  `format!("#wat.kernel/AssertionFailure {}", wat_edn::write(&payload_to_edn(&assertion)))`
+  (factor a `String`-returning helper out of `write_assertion_failure`); else send the message.
+- **`recv'`/`try-recv'` are UNCHANGED** — they already surface the crash String; it is now the
+  rich envelope. The probe goes green from the `spawn.rs:472` change alone.
+- **1-arg `select'`** reads `.crash` on a closed peer and surfaces the envelope (today it maps to
+  a generic `"peer closed"`, losing the reason — the one `select'`-side change).
+- **`Failure` as a first-class VALUE** is C0b.1b's job: its `:Crashed` arm `edn::read`s the
+  envelope into a `Failure` value. This stone makes the envelope *travel*; C0b.1b *reconstructs*
+  the value. (Consistent with `raise!`'s doctrine: the reason String is EDN, recoverable via
+  `edn::read`.)
+
+The mechanics below (channel re-typing) are superseded by this envelope approach — kept for the
+reasoning trail.
+
 ## Mechanics (the strike path — fill it, don't invent the shape)
 
 **Sub-stone A:**
