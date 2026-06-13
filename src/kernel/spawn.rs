@@ -141,6 +141,14 @@ pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer<Value, Value>>>>;
 /// driven by the same io_uring reactor — no pidfd, no lifeline.
 pub const SOCKET_PEER_TYPE_PATH: &str = ":wat::kernel::SocketPeer'";
 
+/// `RustOpaque.type_path` for process-tier listeners (arc 209 C0b.2c).
+/// Wraps a `std::os::unix::net::UnixListener` bound to an abstract-namespace UDS.
+pub const SOCKET_LISTENER_TYPE_PATH: &str = ":wat::kernel::SocketListener'";
+
+/// `RustOpaque.type_path` for process-tier addresses (arc 209 C0b.2c).
+/// Wraps a `String` — the abstract-namespace UDS name that clients dial.
+pub const SOCKET_ADDRESS_TYPE_PATH: &str = ":wat::kernel::SocketAddress'";
+
 /// The socket-peer cell type — `Arc<ThreadOwnedCell<Option<SocketPeer<String,String>>>>`.
 ///
 /// Wire type is `String` (EDN-encoded Value), identical to the process tier

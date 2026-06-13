@@ -1029,6 +1029,35 @@ pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)
     ))
 }
 
+/// Wrap one connected socket fd as a `(Sender<T>, Receiver<T>)` pair.
+///
+/// Arc 209 C0b.2c — shared helper for `socket_pair` (which calls it twice, once per
+/// socketpair end) and for `connect'`/`accept'` (which call it once on a
+/// `UnixStream`'s fd).
+///
+/// `write_fd` = the fd for the Sender; `read_fd` = a `dup` of `write_fd`, so
+/// Sender and Receiver own independent `OwnedFd` lifetimes — Drop closes each
+/// independently without affecting the peer.  Per-Receiver `IoUring::new(4)` (same
+/// reactor as `pair()` / `socket_pair()`).
+pub fn sender_receiver_from_fd<T: HolonRepresentable>(
+    fd: OwnedFd,
+) -> std::io::Result<(Sender<T>, Receiver<T>)> {
+    // SAFETY: `fd.try_clone()` is a standard `dup(2)` call on a valid OwnedFd;
+    // the resulting OwnedFd is independent — closing either does not close the other.
+    let read_fd = fd.try_clone()
+        .map_err(|e| std::io::Error::other(format!("dup for sender_receiver_from_fd failed: {}", e)))?;
+    let receiver = Receiver {
+        read_fd,
+        accumulator: RefCell::new(Vec::new()),
+        ring: RefCell::new(
+            IoUring::new(4).map_err(|e| std::io::Error::other(
+                format!("IoUring::new(4) failed at sender_receiver_from_fd: {}", e)))?,
+        ),
+        _phantom: PhantomData,
+    };
+    Ok((Sender { write_fd: fd, _phantom: PhantomData }, receiver))
+}
+
 /// Create a connected socket-pair (arc 209 C0b.2b — socket-peer tier).
 ///
 /// Allocates a `socketpair(AF_UNIX, SOCK_STREAM, 0)` giving two fully-duplex
@@ -1038,9 +1067,9 @@ pub fn pair<T: HolonRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)
 ///   - `tx_b` / `rx_b` both wrap sv[1]: writing sv[1] sends to sv[0]; reading
 ///     sv[1] receives what sv[0] wrote.
 ///
-/// Each fd is dup'd once so the Sender and Receiver on the same end own
-/// independent `OwnedFd` lifetimes — Drop closes each independently without
-/// double-closing the same underlying kernel fd.
+/// Each fd is dup'd once (via `sender_receiver_from_fd`) so the Sender and
+/// Receiver on the same end own independent `OwnedFd` lifetimes — Drop closes
+/// each independently without double-closing the same underlying kernel fd.
 ///
 /// Returns `((tx_a, rx_a), (tx_b, rx_b))`. The caller should use the ends
 /// without crossing: end_a = (tx_a, rx_a) and end_b = (tx_b, rx_b) already
@@ -1065,36 +1094,11 @@ pub fn socket_pair<T: HolonRepresentable>() -> std::io::Result<((Sender<T>, Rece
     }
     // sv[0] and sv[1] are each a full-duplex fd. Sender wraps the write side,
     // Receiver wraps the read side. For a socket fd both sides are the same fd,
-    // so we dup each to give Sender and Receiver independent OwnedFd lifetimes
-    // (so each can close independently without affecting the other's half).
+    // so we dup each (via sender_receiver_from_fd) to give Sender and Receiver
+    // independent OwnedFd lifetimes.
     //
-    // SAFETY: socketpair returned two valid, owned fds. We dup each once; the
-    // original fd goes to the Sender (write side) and the dup goes to the
-    // Receiver (read side). Never alias an OwnedFd.
-    let write_fd_a = unsafe { OwnedFd::from_raw_fd(sv[0]) };
-    let read_fd_a = write_fd_a.try_clone()
-        .map_err(|e| std::io::Error::other(format!("dup for socket_pair read_fd_a failed: {}", e)))?;
-    let write_fd_b = unsafe { OwnedFd::from_raw_fd(sv[1]) };
-    let read_fd_b = write_fd_b.try_clone()
-        .map_err(|e| std::io::Error::other(format!("dup for socket_pair read_fd_b failed: {}", e)))?;
-
-    let make_receiver = |read_fd: OwnedFd| -> std::io::Result<Receiver<T>> {
-        Ok(Receiver {
-            read_fd,
-            accumulator: RefCell::new(Vec::new()),
-            ring: RefCell::new(
-                IoUring::new(4)
-                    .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at socket Receiver construction: {}", e)))?,
-            ),
-            _phantom: PhantomData,
-        })
-    };
-
-    let rx_a = make_receiver(read_fd_a)?;
-    let rx_b = make_receiver(read_fd_b)?;
-
-    Ok((
-        (Sender { write_fd: write_fd_a, _phantom: PhantomData }, rx_a),
-        (Sender { write_fd: write_fd_b, _phantom: PhantomData }, rx_b),
-    ))
+    // SAFETY: socketpair returned two valid, owned fds. Never alias an OwnedFd.
+    let end_a = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[0]) })?;
+    let end_b = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[1]) })?;
+    Ok((end_a, end_b))
 }

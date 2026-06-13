@@ -9887,13 +9887,11 @@ fn socket_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
 ///
 /// 3 args: host expression (e.g. `(:wat::spawn::thread)`), :S, :R.
-/// Arc 209 C0b.2a — the host is constrained to `(:wat::spawn::thread)` (ThreadOpts).
-/// The connection layer is thread-tier only today; a non-thread host is a check error
-/// naming the tier gap. When C0b.2c builds the process tier, the host widens to dispatch.
-/// Returns a tuple whose first element is `Listener'<S,R>` (the service's
-/// recv end) and second is `Address'<S,R>` (the client's send end).
-/// At runtime both are raw `Sender`/`Receiver` values; `Listener'`/`Address'`
-/// are checker-only parametric names that keep `accept'`/`connect'` typed.
+/// Arc 209 C0b.2a/C0b.2c — `listener'` host dispatch.
+///
+/// C0b.2a: thread host → `Tuple[Listener'<S,R>, Address'<S,R>]`.
+/// C0b.2c: process host → `Tuple[SocketListener'<S,R>, SocketAddress'<S,R>]`.
+/// Any other host is a `TypeMismatch` check error naming both valid hosts.
 fn infer_listener_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -9912,36 +9910,49 @@ fn infer_listener_prime(
         let r = fresh.fresh();
         return CheckResult::partial_with(listener_tuple(s, r), local_errors);
     }
-    // args[0] = host expression — infer it, then constrain to ThreadOpts (C0b.2a).
-    // The connection layer is thread-tier only; a non-thread host is a check error
-    // naming the gap (the process tier is C0b.2b/2c, unbuilt).
+    // args[0] = host expression — infer it, then dispatch on ThreadOpts vs ProcessOpts.
     let host_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(host_ty) = host_ty {
+    let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+    let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+    let ty = if let Some(host_ty) = host_ty {
         let host_surface = apply_subst(&host_ty, subst);
         let host_reduced = reduce(&host_surface, subst, env.types());
-        if host_reduced != TypeExpr::Path(":wat::spawn::ThreadOpts".into()) {
+        if host_reduced == TypeExpr::Path(":wat::spawn::ThreadOpts".into()) {
+            listener_tuple(s_ty, r_ty)
+        } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
+            socket_listener_tuple(s_ty, r_ty)
+        } else {
             local_errors.push(CheckError {
                 span: args[0].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "host".into(),
-                    expected: "(:wat::spawn::thread) — the connection layer is thread-tier only; the process tier is C0b.2b/2c (unbuilt)".into(),
+                    expected: "(:wat::spawn::thread) or (:wat::spawn::process)".into(),
                     got: format_type(&host_reduced),
                 },
             });
+            listener_tuple(s_ty, r_ty)
         }
-    }
-    let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
-    let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-    let ty = listener_tuple(s_ty, r_ty);
+    } else {
+        listener_tuple(s_ty, r_ty)
+    };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(Tuple Listener'<S,R> Address'<S,R>)` — result type of `listener'`.
+/// `(Tuple Listener'<S,R> Address'<S,R>)` — result type of `(listener' (thread) …)`.
 fn listener_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
     TypeExpr::Tuple(vec![
         TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s.clone(), r.clone()] },
         TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
+    ])
+}
+
+/// `(Tuple SocketListener'<S,R> SocketAddress'<S,R>)` — result type of `(listener' (process) …)`.
+/// Arc 209 C0b.2c.
+fn socket_listener_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        TypeExpr::Parametric { head: "wat::kernel::SocketListener'".into(), args: vec![s.clone(), r.clone()] },
+        TypeExpr::Parametric { head: "wat::kernel::SocketAddress'".into(), args: vec![s, r] },
     ])
 }
 
@@ -9979,15 +9990,20 @@ fn infer_connect_prime(
     };
     let addr_surface = apply_subst(&addr_ty, subst);
     let addr_reduced = reduce(&addr_surface, subst, env.types());
-    let (s_ty, r_ty) = match addr_reduced {
+    let ty = match addr_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Address'" && args.len() == 2 => {
-            (args[0].clone(), args[1].clone())
+            // Thread tier: Address'<S,R> → Peer'<S,R> (C0b.1).
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
+        }
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketAddress'" && args.len() == 2 => {
+            // Process tier: SocketAddress'<S,R> → SocketPeer'<S,R> (C0b.2c).
+            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![args[0].clone(), args[1].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
-                expected: "Address'<S,R>".into(),
+                expected: "Address'<S,R> or SocketAddress'<S,R>".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();
@@ -9996,8 +10012,6 @@ fn infer_connect_prime(
             return CheckResult::partial_with(ty, local_errors);
         }
     };
-    // connect' returns Peer'<S,R> — the client sends S, recvs R.
-    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s_ty, r_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -10035,15 +10049,20 @@ fn infer_accept_prime(
     };
     let listener_surface = apply_subst(&listener_ty, subst);
     let listener_reduced = reduce(&listener_surface, subst, env.types());
-    let (s_ty, r_ty) = match listener_reduced {
+    let ty = match listener_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
-            (args[0].clone(), args[1].clone())
+            // Thread tier: Listener'<S,R> → Peer'<R,S> (C0b.1 — server recvs S, sends R).
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
+        }
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketListener'" && args.len() == 2 => {
+            // Process tier: SocketListener'<S,R> → SocketPeer'<R,S> (C0b.2c — flipped, same as thread).
+            TypeExpr::Parametric { head: "wat::kernel::SocketPeer'".into(), args: vec![args[1].clone(), args[0].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener'<S,R>".into(),
+                expected: "Listener'<S,R> or SocketListener'<S,R>".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();
@@ -10052,8 +10071,6 @@ fn infer_accept_prime(
             return CheckResult::partial_with(ty, local_errors);
         }
     };
-    // accept' returns Peer'<R,S> — the server recvs S (via req_rx), sends R (via resp_tx).
-    let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r_ty, s_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 

@@ -4559,7 +4559,7 @@ fn dispatch_keyword_head_value(
         // accept' receives the server's raw halves from the rendezvous, wraps the
         // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
         ":wat::kernel::listener'" => {
-            eval_listener_prime(args, list_span)
+            eval_listener_prime(args, list_span, env, sym)
         }
         ":wat::kernel::connect'" => {
             eval_connect_prime(args, list_span, env, sym)
@@ -17903,23 +17903,56 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// `(:wat::kernel::listener' host :S :R)` — Arc 209 Stone C0b.1.
+/// Arc 209 C0b.2c — wrap a connected `UnixStream` as a `SocketPeer'` opaque.
 ///
-/// Mints a crossbeam rendezvous channel for thread-tier connections.
-/// Returns a `Tuple[Listener'<S,R>, Address'<S,R>]` where:
-/// - `Listener'` = the raw `Receiver` end (service calls `accept'` on it)
-/// - `Address'`  = the raw `Sender`  end (clients call `connect'` with it)
+/// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to
+/// produce `(Sender<String>, Receiver<String>)`, then wraps the pair in a
+/// `SocketPeer` inside a `ThreadOwnedCell` — the same custody model as
+/// `eval_socket_pair_prime`.  Called by both `eval_connect_prime` (client side)
+/// and `eval_accept_prime` (server side).
+fn wrap_stream_as_socket_peer(
+    stream: std::os::unix::net::UnixStream,
+    span: &Span,
+    op: &'static str,
+) -> Result<Value, EvalBreak> {
+    use std::os::fd::OwnedFd;
+    let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<String>(OwnedFd::from(stream))
+        .map_err(|e| RuntimeError {
+            span: span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("wrap socket stream failed: {}", e),
+            },
+        })?;
+    use crate::kernel::peer::SocketPeer;
+    use crate::kernel::spawn::SOCKET_PEER_TYPE_PATH;
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+    Ok(make_rust_opaque(
+        SOCKET_PEER_TYPE_PATH,
+        Arc::new(ThreadOwnedCell::new(Some(SocketPeer { tx, rx }))),
+    ))
+}
+
+/// `(:wat::kernel::listener' host :S :R)` — Arc 209 Stone C0b.1 / C0b.2c.
 ///
-/// Both ends are freely `Send` (no `ThreadOwnedCell`); only `Peer'` cells
-/// carry custody.  The host keyword arg (`:wat::spawn::thread`) is
-/// type-checker-only — not evaluated at runtime.
-fn eval_listener_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+/// Thread tier (C0b.1): mints a crossbeam rendezvous channel and returns
+/// `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
+///
+/// Process tier (C0b.2c): binds an abstract-namespace AF_UNIX socket and returns
+/// `Tuple[SocketListener'<S,R>, SocketAddress'<S,R>]` (UnixListener / name String
+/// opaques).  Both are freely `Send + Sync` — no `ThreadOwnedCell`.
+///
+/// The host value (args[0]) is evaluated at runtime to dispatch between tiers.
+/// args[1] and args[2] are type keywords — type-checker-only, not evaluated.
+fn eval_listener_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::listener'";
-    // 3 args: host expression (e.g. (:wat::spawn::thread)), :S, :R.
-    // args[0] = host — the type-checker (C0b.2a) constrains it to (:wat::spawn::thread) / ThreadOpts;
-    // the runtime always builds a thread rendezvous (the only tier today) and ignores the value.
-    // args[1] = :S type keyword — type-checker-only.
-    // args[2] = :R type keyword — type-checker-only.
+    // 3 args: host expression (e.g. (:wat::spawn::thread) or (:wat::spawn::process)), :S, :R.
     if args.len() != 3 {
         return Err(RuntimeError {
             span: list_span.clone(),
@@ -17938,23 +17971,64 @@ fn eval_listener_prime(args: &[WatAST], list_span: &Span) -> Result<Value, EvalB
             }.into());
         }
     }
-    // Mint the rendezvous channel — carries connect-request Values.
-    let (tx, rx) = crate::comms::thread::pair::<Value>();
-    // Listener' = rx (the service accept-side); Address' = tx (the client dial-side).
-    Ok(Value::Tuple(Arc::new(vec![
-        crate::channel::receiver_from_comms(rx),
-        crate::channel::sender_from_comms(tx),
-    ])))
+    // Evaluate the host to dispatch between thread and process tiers (C0b.2c).
+    let host_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let is_process = matches!(&host_val,
+        Value::wat__Record { class_fqdn, .. } | Value::wat__holon__Record { class_fqdn, .. }
+            if class_fqdn.as_str() == "wat::spawn::ProcessOpts");
+
+    if is_process {
+        // Process tier (C0b.2c): bind an abstract-namespace UDS and return the
+        // (SocketListener', SocketAddress') pair as opaques.
+        use std::os::linux::net::SocketAddrExt;
+        use std::os::unix::net::{SocketAddr, UnixListener};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static LISTENER_SEQ: AtomicU64 = AtomicU64::new(0);
+        let n = LISTENER_SEQ.fetch_add(1, Ordering::Relaxed);
+        let name = format!("wat.arc209.{}.{}", std::process::id(), n);
+        let sa = SocketAddr::from_abstract_name(name.as_bytes())
+            .map_err(|e| RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("abstract addr: {}", e),
+                },
+            })?;
+        let listener = UnixListener::bind_addr(&sa)
+            .map_err(|e| RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("bind abstract UDS: {}", e),
+                },
+            })?;
+        use crate::kernel::spawn::{SOCKET_ADDRESS_TYPE_PATH, SOCKET_LISTENER_TYPE_PATH};
+        use crate::rust_deps::marshal::make_rust_opaque;
+        Ok(Value::Tuple(Arc::new(vec![
+            make_rust_opaque(SOCKET_LISTENER_TYPE_PATH, listener),
+            make_rust_opaque(SOCKET_ADDRESS_TYPE_PATH, name),
+        ])))
+    } else {
+        // Thread tier (C0b.1): mint the crossbeam rendezvous channel.
+        // Listener' = rx (the service accept-side); Address' = tx (the client dial-side).
+        let (tx, rx) = crate::comms::thread::pair::<Value>();
+        Ok(Value::Tuple(Arc::new(vec![
+            crate::channel::receiver_from_comms(rx),
+            crate::channel::sender_from_comms(tx),
+        ])))
+    }
 }
 
-/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1.
+/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1 / C0b.2c.
 ///
-/// Client-side connection: mint two crossbeam pairs (req: client→server,
+/// Thread tier (C0b.1): mint two crossbeam pairs (req: client→server,
 /// resp: server→client), wrap the client `Peer'<S,R>` end on THIS thread,
 /// ship the server's raw halves `(req_rx, resp_tx)` over `addr` (the
 /// rendezvous `Address'` = a raw `Sender`).  Returns the client `Peer'`.
 ///
-/// The one-way handshake: `connect'` mints and ships; no return leg.
+/// Process tier (C0b.2c): downcast the `SocketAddress'` opaque to `&String`,
+/// connect to the abstract UDS, wrap the stream as a `SocketPeer'<S,R>`.
+/// Returns `SocketPeer'<S,R>`.
 fn eval_connect_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -17969,6 +18043,38 @@ fn eval_connect_prime(
         }.into());
     }
     let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
+    // Process tier: SocketAddress' opaque (C0b.2c) — dispatch BEFORE the thread Sender arm.
+    if let Value::RustOpaque(ref inner) = addr_val {
+        if inner.type_path == crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH {
+            use crate::rust_deps::marshal::downcast_ref_opaque;
+            use std::os::linux::net::SocketAddrExt;
+            use std::os::unix::net::{SocketAddr, UnixStream};
+            let name: &String = downcast_ref_opaque(
+                inner.as_ref(),
+                crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH,
+                OP,
+                args[0].span().clone(),
+            )?;
+            let sa = SocketAddr::from_abstract_name(name.as_bytes())
+                .map_err(|e| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("abstract addr for connect: {}", e),
+                    },
+                })?;
+            let stream = UnixStream::connect_addr(&sa)
+                .map_err(|e| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("connect abstract UDS: {}", e),
+                    },
+                })?;
+            return wrap_stream_as_socket_peer(stream, list_span, OP);
+        }
+    }
+    // Thread tier: Address' is a raw Sender (C0b.1).
     let addr_inner = match addr_val {
         Value::wat__kernel__Sender(ref inner) => inner.clone(),
         other => {
@@ -17976,7 +18082,7 @@ fn eval_connect_prime(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Address' (Sender — rendezvous address from listener')",
+                    expected: "Address'<S,R> (Sender) or SocketAddress'<S,R> (process opaque)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             }.into());
@@ -18152,16 +18258,17 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
     ))
 }
 
-/// `(:wat::kernel::accept' listener)` — Arc 209 Stone C0b.1.
+/// `(:wat::kernel::accept' listener)` — Arc 209 Stone C0b.1 / C0b.2c.
 ///
-/// Service-side connection: block on the rendezvous `Listener'` (a raw
+/// Thread tier (C0b.1): block on the rendezvous `Listener'` (a raw
 /// `Receiver`) until a connect-request arrives; unpack the server's raw
 /// halves `(req_rx, resp_tx)`; wrap the server `Peer'<R,S>` end on THIS
 /// thread (custody holds).  Returns the server `Peer'`.
 ///
-/// The raw `Receiver<Value>` and `Sender<Value>` in the connect-request
-/// are freshly minted by `connect'` and uniquely owned at the point of
-/// receipt — `Arc::try_unwrap` succeeds.
+/// Process tier (C0b.2c): downcast the `SocketListener'` opaque to
+/// `&UnixListener`, call `.accept()` (blocks until a connection — the
+/// honest wire-wait), wrap the accepted stream as a `SocketPeer'<R,S>`.
+/// Returns `SocketPeer'<R,S>`.
 fn eval_accept_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -18176,6 +18283,29 @@ fn eval_accept_prime(
         }.into());
     }
     let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    // Process tier: SocketListener' opaque (C0b.2c) — dispatch BEFORE the thread Receiver arm.
+    if let Value::RustOpaque(ref inner) = listener_val {
+        if inner.type_path == crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH {
+            use crate::rust_deps::marshal::downcast_ref_opaque;
+            use std::os::unix::net::UnixListener;
+            let listener: &UnixListener = downcast_ref_opaque(
+                inner.as_ref(),
+                crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH,
+                OP,
+                args[0].span().clone(),
+            )?;
+            let (stream, _addr) = listener.accept()
+                .map_err(|e| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("accept on abstract UDS listener failed: {}", e),
+                    },
+                })?;
+            return wrap_stream_as_socket_peer(stream, list_span, OP);
+        }
+    }
+    // Thread tier: Listener' is a raw Receiver (C0b.1).
     let listener_inner = match listener_val {
         Value::wat__kernel__Receiver(ref inner) => inner.clone(),
         other => {
@@ -18183,7 +18313,7 @@ fn eval_accept_prime(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Listener' (Receiver — rendezvous listener from listener')",
+                    expected: "Listener'<S,R> (Receiver) or SocketListener'<S,R> (process opaque)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             }.into());
