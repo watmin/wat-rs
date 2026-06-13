@@ -1,53 +1,48 @@
-# EXPECTATIONS — C0b.1b FOLD (written before the strike; goalposts fixed)
+# EXPECTATIONS — C0b.1b (3-input, deadlock-free; written before the strike)
 
-> Supersedes the aborted PEEK approach (`ready()`/`try_recv` re-grew the channel surface and hung).
-> FOLD reuses the existing comms `select()` — no `comms/thread.rs` change.
+> Supersedes PEEK (aborted: re-grew the channel surface + hung) and the 2-arg fold (no termination
+> path → gdb-proven deadlock). This is the 3-input form: `select'` watches the self-peer too, so
+> the owner's RAII drain is the shutdown wake. Reuses the existing comms `select()` — no
+> `comms/thread.rs` change.
 
 ## Mode prediction
 
-- **Mode A — clean ship (~70%).** Factor `wrap_connect_request` out of `eval_accept_prime`; the
-  2-arg eval arm registers listener+peers, `select()`s, branches on index (0→wrap→`:Connection`,
-  k>0→`:Message`/`:Closed`), builds the `SelectEvent` enum; infer mirrors `infer_accept_prime` +
-  returns `SelectEvent<I,O>`. Probe → 24. ~50–90 min (3 files; no comms change).
-- **Mode B — small gap (~25%).** Likely: (i) the `Value::Enum` construction needs the exact
-  `type_path`/registration; (ii) the 2-param `SelectEvent<I,O>` scheme fights inference (the
-  `:Connection` peer needs both I and O) and needs a careful shape; (iii) the `wrap_connect_request`
-  factor has a borrow/ownership wrinkle vs `eval_accept_prime`. Surfaces; I decide.
-- **Mode C — STOP fires (~5%).** `wrap_connect_request` can't be factored cleanly, OR the stdlib
-  defenum can't be constructed from eval — a real fork for the Inquisitor.
+- **Mode A — clean ship (~70%).** Factor `wrap_connect_request`; the 3-arg eval registers
+  self/listener/clients, `select()`s, maps index 0→`:Shutdown`, 1→`:Connection`, k≥2→`:Message`/
+  `:Closed`; infer returns `SelectEvent<I,O>`. Probe → 24 AND terminates. ~50–90 min (3 files).
+- **Mode B — small gap (~25%).** `Value::Enum` construction detail; the 2-param `SelectEvent<I,O>`
+  scheme vs inference; the `wrap_connect_request` borrow. Surfaces; I decide.
+- **Mode C — STOP fires (~5%).** Helper won't factor, or the defenum can't be constructed at eval.
 
 ## Scorecard (Inquisitor re-runs each independently)
 
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | grow/serve/shrink loop | `cargo test --release -p wat --test nursery probe_arc209_c0b1b_select_listener -- --test-threads=1` | `1 passed` (returns 24) |
-| 2 | C0b.1 connection + accept' factor intact | `cargo test --release -p wat --test nursery probe_arc209_c0b1_thread_connection -- --test-threads=1` | `1 passed` |
-| 3 | structured-peer-death intact | `cargo test --release -p wat --test nursery probe_arc209_structured_peer_death -- --test-threads=1` | `1 passed` |
-| 4 | no new nursery reds | `cargo test --release -p wat --test nursery -- --test-threads=1` | only the 4 baseline reds + the 2 structured-peer-death probes green; zero NEW |
-| 5 | wat-tests unbroken | `cargo test --release --test test 2>&1 \| tail -3` | 242/1 (test_run_string_entry_direct pre-existing) |
-| 6 | clean build + clippy | `cargo build --release` ; `cargo clippy` (touched files) | no errors; no new warnings on new code |
-
-Runtime: 50–90 min. If under 25, that's over-specification data.
+| 1 | grow/serve/shrink + **clean termination on drop** | `cargo test --release -p wat --test nursery probe_arc209_c0b1b_select_listener -- --test-threads=1` | `1 passed` (returns 24; **does not hang**) |
+| 2 | C0b.1 + accept' factor | `cargo test --release -p wat --test nursery probe_arc209_c0b1_thread_connection -- --test-threads=1` | `1 passed` |
+| 3 | structured-peer-death | `cargo test --release -p wat --test nursery probe_arc209_structured_peer_death -- --test-threads=1` | `1 passed` |
+| 4 | no new nursery reds (and no hang) | `cargo test --release -p wat --test nursery -- --test-threads=1` | 4 baseline reds + the 2 structured-peer-death probes green; zero NEW; **completes (no hang)** |
+| 5 | wat-tests | `cargo test --release --test test 2>&1 \| tail -3` | 242/1 |
+| 6 | build + clippy | `cargo build --release` ; `cargo clippy` | clean |
 
 ## Trap-doors (named so they can't surprise the SCORE)
 
-- **Listener index offset.** The listener is registration index 0; peers are 1..N. `:Message`/
-  `:Closed` `idx` must be `k-1` (the index into the *peers* vector), or the loop's `nth`/`remove-at`
-  hit the wrong slot. The round-trip (r1+r2=24) catches an off-by-one.
-- **`wrap_connect_request` reuse, not duplication.** `accept'` must end up = `recv` + the helper, and
-  `select'` calls the SAME helper. If the wrap logic gets copy-pasted into select', that's a
-  `solvere` duplication — the SCORE must show one helper, two callers. (Gate row 2 proves `accept'`
-  still works after the factor.)
-- **`:Lost` is not emitted at thread tier.** It exists in the enum for the remote tier; the thread
-  eval never builds it. Do not write thread code that synthesizes `:Lost`.
-- **The 1-arg path must not regress.** `eval_peer_select_prime` branches on arity; the 1-arg arm
-  (brackets) stays byte-identical. If any bracket probe goes red, the branch leaked.
-- **No `comms/thread.rs` change.** FOLD reuses `select()`; if the SCORE shows a comms edit, the
-  Shadowdancer drifted back toward peek — reject it.
+- **A HANG IS THE BUG.** If the probe (or nursery) hangs, the self-peer `:Shutdown` wiring is wrong
+  — the owner's drop didn't wake `select'`. That is the exact deadlock this stone annihilates; it's
+  a STOP/finding, never a "flaky, re-run." (Interrogate with gdb `thread apply all bt`, don't guess.)
+- **Index offsets.** self-peer = index 0 (`:Shutdown`), listener = index 1 (`:Connection`), clients
+  = index 2..N (`:Message`/`:Closed` carry `idx = k-2`). An off-by-N hits the wrong client slot →
+  the round-trip (24) catches it.
+- **Index 0 ignores the result.** The self-peer firing = owner-drop = `:Shutdown` regardless of
+  `Ok`/`Err` (the owner never sends ops on the supervisor link; the drain produces `Err(Disconnected)`).
+- **`wrap_connect_request` reuse, not duplication** — one helper, two callers (gate 2 proves `accept'`
+  still works after the factor).
+- **No `comms/thread.rs` change.** If the SCORE shows a comms edit (a `ready`/`try_recv`), the
+  Shadowdancer drifted back to the aborted PEEK — reject it.
+- **1-arg path byte-identical** (brackets). The 3-arg form is additive.
 
 ## What "done" means
 
-Probe → 24; C0b.1 + both structured-peer-death probes intact; nursery no-new-red; wat-tests 242/1;
-build+clippy clean; one `wrap_connect_request` helper with two callers; zero comms change. The SCORE
-names the `SelectEvent` construction path + any relaxed type-shape. No commit by the Shadowdancer —
-the Inquisitor weighs against its own re-run, then commits.
+Probe → 24 and **terminates on handle-drop** (no Stop op, no hang); C0b.1 + both structured-peer-death
+probes intact; nursery no-new-red and completes; wat-tests 242/1; build+clippy clean; one
+`wrap_connect_request` helper, two callers; zero comms change. No commit by the Shadowdancer.

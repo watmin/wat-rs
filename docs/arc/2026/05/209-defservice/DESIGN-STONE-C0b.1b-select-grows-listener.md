@@ -28,6 +28,7 @@ The variant set was settled by four-questions + the cross-tier union analysis (s
 
 ```
 (:wat::core::defenum :wat::kernel::SelectEvent<I,O>
+  :Shutdown                                             ;; owner dropped the handle (self-peer drained) — exit; DEADLOCK-FREE termination
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]        ;; select' accepted a dialing client — the new peer
   :Message    [idx   <- :wat::core::i64  msg   <- :O]    ;; clients[idx] sent an op
   :Closed     [idx   <- :wat::core::i64]                 ;; clients[idx] left cleanly — graceful, no diagnostic
@@ -37,13 +38,28 @@ The variant set was settled by four-questions + the cross-tier union analysis (s
 `SelectEvent<I,O>` mirrors `Peer'<I,O>`: the message is `O` (the recv'd op), the accepted peer is
 `Peer'<I,O>` (same type as the input vector elements, ready to conj).
 
-**The FOLD mechanic (settled — peek was aborted; it re-grew the channel surface with `ready`/
-`try_recv` and hung).** `select'` uses the existing **`select()`** (blocking, consuming, no spurious
-wakeup). On the won index: **listener (idx 0)** → `select()` consumed the connect-request →
-`select'` unpacks + wraps the server `Peer'` inline (on the service thread → custody holds; reuse
-`accept'`'s unpack) → `:Connection [peer]`. **peer (idx k>0)** → `Ok(v)` → `:Message {k-1, v}` /
-`Err(Disconnected)` → `:Closed {k-1}`. No new comms primitive; `accept'` stays as the unpack helper
-(and a one-shot verb), the loop no longer calls it (`select'` folds it).
+**THE 3-INPUT FORM — `select'` is the service multiplexer (the gdb-proven deadlock fix).**
+`(select' self-peer listener clients) -> SelectEvent<I,O>`. The PEEK approach was aborted (it
+re-grew the channel surface with `ready`/`try_recv` and *hung*). The deeper bug gdb then exposed: a
+service looping on `(listener, clients)` had **no termination path** — the owner's RAII drop did
+`drain` (drop the self-peer's `input_tx`) then `join`, but the loop wasn't watching the self-peer's
+`input_rx`, so the drain woke nothing and the join blocked forever (two independent diagnoses —
+gdb + the sonnet's trace — converged on it). **The fix: `select'` watches the self-peer too**, so
+the drain the substrate ALREADY performs becomes the wake → deadlock-free termination, structurally,
+no cooperative `Stop`. Vended primitives never deadlock; this is that contract.
+
+`select'` uses the existing comms **`select()`** (blocking, consuming — no new comms primitive).
+Register the self-peer's `rx` (index 0), the listener `rx` (index 1), each client `.rx` (index 2..N).
+On the won index:
+- **0 (self-peer)** → owner dropped → `input_rx` disconnected → `:Shutdown` (the supervisor link
+  fired by the RAII drain; no value recv'd).
+- **1 (listener)** → `select()` consumed the connect-request → unpack + wrap the server `Peer'`
+  inline (service thread → custody holds; reuse `accept'`'s unpack helper) → `:Connection [peer]`.
+- **k≥2 (client k-2)** → `Ok(v)` → `:Message {k-2, v}` / `Err(Disconnected)` → `:Closed {k-2}`.
+
+`:Lost` is not emitted at the thread tier (remote-only). `accept'` stays as the unpack helper (and
+a one-shot verb); the loop no longer calls it (`select'` folds it). The service prog passes its own
+`self` into the loop — it no longer ignores it.
 
 - **No `:Crashed`.** A foreign connection-client's *crash reason* is opaque across the isolation
   boundary at every tier (it flows to *that client's own supervisor*, not your connection). A
