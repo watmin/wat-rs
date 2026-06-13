@@ -6,6 +6,49 @@
 > re-grounds the *tooling* beneath it onto the deadlock-free primed substrate the side
 > quests (arcs 214 / 259 / 249 / 251 / 256 / 257 / 258) built since.
 
+## ⚠️ Surface update (2026-06-12 very-late) — the admin hierarchy COLLAPSED
+
+This doc was first written mid-session (15:40) and still describes the May surface with an
+`:admin`/`:user` capability split. **That split is retired.** Two realizations later in the
+same session rewrote it; they are now the authority over the surface sections below.
+
+**(1) The admin tier collapses — the substrate owns permissions.** `Admin` existed for one
+job: PERMISSIONS (provision users, validate a server-id witness, gate forgeries). The
+substrate now answers that directly, per tier — thread = *you hold the handle*; process =
+*your pid is in my `SO_PEERCRED` allow-set* (kernel-vouched, no `/proc`, no namespaces);
+remote = *your cert chains to my CA* (mTLS). A hand-rolled permission system on top of a real
+one is redundant ceremony. So **`Admin`/`User` caps, `Provision`/`Deprovision`, the server-id
+witness, and the `Wire Admin|User` multiplexing all collapse.** The full model is locked in
+[`DESIGN-STONE-C0b-SECURITY.md`](./DESIGN-STONE-C0b-SECURITY.md) (visible socket + refuse
+untrusted callers; we are NOT using namespaces).
+
+**The flattened surface defservice generates:**
+
+```
+(:wat::service::defservice :counter
+  :state :wat::core::i64
+  :ops   [Get       [s <- :State]                 -> (:Tuple :State :i64)
+          Increment [s <- :State n <- :i64]        -> (:Tuple :State :i64)])
+```
+
+`:state` + a **flat** `:ops` set + dynamically-connecting **substrate-verified** clients +
+(optional) **per-op identity policy** (a privileged op like `Stop` gated by `pid == owner`) +
+**ownership lifecycle** (the owner holds the `spawn-program'` handle, stops via RAII
+drain/join — not a tier, just a held handle). The handler contract (`[s <- :State ...args] ->
+(:Tuple :State ...rest)` = state-as-self) and the mutex framing below are UNCHANGED.
+
+**(2) The service loop is NOT a new verb — it is the existing homogeneous event-loop.** No
+`serve'`/`Connected|Message` verb. ONE message enum (the ops as variants); `select'` over a
+homogeneous set of client `Peer'`s (plus the `Listener'` at process tier); `match` the
+variant; dispatch; grow/shrink the peer vector between iterations; TCO-recur. The reference
+already on disk is `crates/wat-lru/wat/lru/CacheService.wat` `loop-step` (`select req-rxs →
+(idx, maybe) → match: Ok(Some req)→handle+recur · Ok(None)→remove-at idx+recur [the shrink] ·
+Err→done`). The grow-mechanism differs by tier: **thread = grow-by-message**, **process =
+grow-by-listener** (a ready `Listener'` → `accept'` → the new peer joins the set).
+
+Everything below that says `:admin`/`:user`/Provision/witness is the prior surface, kept for
+the reasoning trail; read it through this banner.
+
 ## Why a re-grounding exists
 
 defservice was designed in May 2026 against the old concurrency tooling and then shelved
@@ -33,10 +76,11 @@ From the FINAL locked surface (DESIGN.md § "Surface settled 2026-05-18"):
 3. **The agnostic-interface invariant.** `(:counter::get user!)` returns the same `Result`
    whether the service runs on a thread, a process, or (future) a remote host. The substrate
    hides the transport.
-4. **The collapsed surface.** `(:wat::service::defservice :counter :state :T :admin [Op
-   :handler …] :user [Op :handler …])` — signatures reflected from the handler defns; the
-   substrate generates the protocol enums, capability structs, dispatch loop, and client
-   wrappers.
+4. **The collapsed surface.** *(SUPERSEDED by the surface-update banner — `:admin`/`:user`
+   are gone; the flat form is `:state` + `:ops`.)* What survives: signatures reflected from
+   the handler defns; the substrate generates the protocol enum, the `select'` dispatch loop,
+   and the client wrappers. What's cut: capability structs, the server-id witness, the
+   `Admin|User` wire split (substrate identity replaces all three).
 
 ## What changed — the tooling beneath it
 
@@ -61,31 +105,38 @@ The hardest part of the old design — the **per-tier transport asymmetry** (thr
 `Peer'` + `select'`; the closure-vs-forms split (thread vs. process) is the same one
 `deftest'` / `deftest-hermetic'` already ship.
 
-## The connection primitive — "programs ≠ channels"
+## The connection primitive — "programs ≠ channels" *(SOLVED — C0b.1 shipped)*
 
-The one genuinely new piece. `spawn-program'` makes a peer by **spawning a new program**;
-provisioning needs a channel to the **already-running** service. So:
+The one genuinely new piece, and it is now built. `spawn-program'` makes a peer by **spawning
+a new program**; connecting a client needs a channel to the **already-running** service. The
+answer to the original open probe (below) came back: **not a bare `Peer'`-pair constructor —
+the listen/accept/connect model**, host-parametric.
 
-- **A spawned service starts with zero users.** Granting access (`Provision`) mints a
-  **net-new transport pair** — crossbeam (thread) / pipe (process) / socket (remote, when it
-  arrives) — **adjacent to the admin channel** (the admin channel controls lifecycle only).
-- The **far end joins the service's `select'` set** (the dynamic handle-set; provision
-  TCO-recurs with it added). The **near end is the grantee's service-client** handle, to use
-  as it needs.
-- **Deprovision revokes the client**: the far-side handle **leaves the TCO loop** (the
-  `select'` set shrinks).
+- **A spawned service starts with zero clients.** It calls
+  `(:wat::kernel::listener' (host) :S :R)` → `(Listener', Address')`. A client calls
+  `(:wat::kernel::connect' addr)` → its client-side `Peer'`; the service `(:wat::kernel::accept'
+  listener)` → the server-side `Peer'`, **each end wrapped on its own side** (custody by
+  construction). Shipped for the **thread tier** at C0b.1 (`f304fa2e`); process tier
+  (abstract-UDS + `SO_PEERCRED`) is C0b.2/C0b.3, not yet built.
+- The **accepted `Peer'` joins the service's `select'` set** (the dynamic handle-set; grow
+  TCO-recurs with it added). A client dropping → its peer **leaves the loop** (the `select'`
+  set shrinks — `Ok(None)`/`remove-at`, exactly CacheService's existing shrink arm).
+- There is **no separate provision/deprovision admin channel** — connection *is* provision
+  (the substrate verifies the caller), disconnection *is* deprovision. The channel *is* the
+  client identity; no tid-tagging.
 
-This is the handle-set model — **per-client bidirectional channels**, `select'`-multiplexed.
-The channel *is* the client identity; no tid-tagging needed.
+Full mechanism + the sockets-emergent reasoning + the security model:
+[`DESIGN-STONE-C0b-host-parametric-connection.md`](./DESIGN-STONE-C0b-host-parametric-connection.md)
++ [`DESIGN-STONE-C0b-SECURITY.md`](./DESIGN-STONE-C0b-SECURITY.md).
 
-### Open probe for Stone C (the disconfirming test to write first)
+### The original open probe — ANSWERED
 
-Is there a bare **`Peer'`-pair constructor** (a "connect to a running service without
-spawning" primitive), or does `Provision` wrap the existing transport-pair makers
-(`make-channel` for crossbeam — still live; a pipe pair for process; socket accept for
-remote)? Write the 10-line probe that establishes a fresh client↔service `Peer'` pair on the
-thread tier and proves the service can `select'` over a *grown* set. Build Stone C only after
-this is green.
+*Q: bare `Peer'`-pair constructor, or wrap the transport-pair makers?* Answer: neither was the
+shape. C0 shipped `peer-pair'` (the same-thread degenerate case, `137362fe`); C0b reframed it
+to **listen/accept/connect** because that is the only mechanism identical across thread /
+process / remote. The C0b.1 probe (`probe_arc209_c0b1_thread_connection`, green at `f304fa2e`)
+already proves a service `select'`ing over a *grown* set of accepted client peers. Stone C is
+unblocked.
 
 ## The stdio convergence — the proof beyond the counter
 
@@ -110,15 +161,23 @@ into the thread-local, and the hand-rolled `spawn_service_peer` retires into a g
 ## The re-grounded stone plan
 
 - **Stone C — mint `:wat::service::defservice` (pure wat, `wat/service.wat`).** Generates the
-  protocol enums + capability structs + the `select'` dispatch loop (over the admin handle +
-  the provisioned client handle-set, TCO-recurring on provision/deprovision) + the client
-  wrappers, over `spawn-program'` / `Peer'` / `select'`. Handler contract validated at expand
-  time via reflection. **Gated by the connection-primitive probe above.**
+  **op enum** (one variant per `:ops` entry) + the **`select'` dispatch loop** (homogeneous
+  over the accepted client `Peer'` set — plus the `Listener'` at process tier — `match`ing the
+  op variant, grow on accept, shrink on client-drop, TCO-recur; modeled on CacheService.wat
+  `loop-step`) + the **client wrappers** (one per op), over `spawn-program'` / `Peer'` /
+  `listener'` / `accept'` / `select'`. Handler contract validated at expand time via
+  reflection. **No `:admin`/`:user`, no Provision/Wire/witness codegen** — substrate identity
+  (handle / `SO_PEERCRED` / cert) replaces them. Optional per-op identity policy (e.g. `Stop`
+  gated by `pid == owner`) is the only authorization the macro emits. **Unblocked** —
+  C0b.1's thread connection is the foundation; the thread tier is provable today, the process
+  tier follows when C0b.2/C0b.3 land.
 - **Stone D — the proof.** Author a *new* counter service as a `defservice` (adjacent; the
-  legacy `counter-*` proofs stay inert). Prove the **entire loop**: spawn → admin grants a
-  user access → the user increments a **protected** scalar (server-id witness) → deprovision →
-  stop. The counter mechanism is trivial; the point is that the whole control+data-plane loop
-  is now trivially built. Ride `deftest'`.
+  legacy `counter-*` proofs stay inert). Prove the **entire loop on the thread tier**: spawn
+  the service → a client `connect'`s (the set grows) → the client `Increment`s a **protected**
+  scalar through its `Peer'` → the client drops (the set shrinks) → owner stops via RAII. The
+  counter mechanism is trivial; the point is that the whole control+data-plane loop is now
+  trivially built and deadlock-free. Ride `deftest'`. (Process-tier proof via
+  `deftest-hermetic'` rides on C0b.2/C0b.3.)
 - **Later — stdio on defservice.** Rebuild the universe-resident stdio services as `defservice`
   declarations; retire the hand-rolled `spawn_service_peer`.
 
