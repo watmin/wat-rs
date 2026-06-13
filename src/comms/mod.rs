@@ -800,6 +800,17 @@ impl EdnRepresentable for crate::value::Value {
 
 // ─── Tier-agnostic sender / receiver traits ─────────────────────────────────
 
+/// Which wait-primitive demuxes a receiver in `select'` — Stone C0b.2e-i-a.
+/// `InMemory` = parked-thread crossbeam-select (no fd). `Fd` = kernel fd-poll
+/// (io_uring). A closed enum on a fixed axis (two wait primitives; a third OS
+/// poller is still `Fd`); the growing remote-transport axis lives in the impls,
+/// every one fd-backed → `Fd`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReactorClass {
+    InMemory,
+    Fd,
+}
+
 /// Tier-agnostic send endpoint. Implemented by `comms::thread::Sender<T>` (Slice 2)
 /// and `comms::process::Sender<T>` (Slice 3). Enables tier-agnostic generic
 /// functions for brackets + services that work across both transport layers.
@@ -824,7 +835,7 @@ pub trait CommSender<T> {
 /// substrate shutdown (cascade contract documented in this module's top-level doc).
 // rune:excusare(perennial) — is_empty() structurally withheld: the process tier's len() is a kernel-invisible approximation (kernel-pipe bytes not-yet-drained are invisible); self.len()==0 returns true while unread frames sit in the pipe, so a naive is_empty() would mislead. The transport-oblivion model makes this asymmetry permanent; any change to the process pipe transport would trip the comms ward first. (Documented narrowed-len contract; 9-spell cast.)
 #[allow(clippy::len_without_is_empty)]
-pub trait CommReceiver<T> {
+pub trait CommReceiver<T>: std::any::Any {
     /// Cascade-aware blocking recv. Wakes on substrate shutdown (returns
     /// `Err(RecvError)` when all senders are dropped or the substrate signals
     /// shutdown). Tier implementations wire the shutdown signal automatically —
@@ -852,6 +863,10 @@ pub trait CommReceiver<T> {
     /// The type system enforces single-close via move semantics — calling
     /// `close` twice is a compile error, not a runtime error.
     fn close(self);
+    /// The wait-primitive class `select'` groups this receiver under.
+    fn reactor_class(&self) -> ReactorClass;
+    /// Recover the concrete receiver (the i-b `select'` reactor bridge).
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 

@@ -491,6 +491,12 @@ impl<T: EdnRepresentable> CommReceiver<T> for Receiver<T> {
     fn close(self) {
         Receiver::close(self)
     }
+    fn reactor_class(&self) -> crate::comms::ReactorClass {
+        crate::comms::ReactorClass::Fd
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Outcome of a cascade-aware multi-arm wait. Internal to the
