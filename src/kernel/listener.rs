@@ -23,9 +23,10 @@
 //!   would be an unbuilt forcing function.
 //! - Any remote `CommListener` impl — organic future addition.
 
+use std::collections::HashSet;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixListener;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::channel::inner::ReceiverInner;
 use crate::channel::SenderInner;
@@ -253,6 +254,27 @@ impl CommListener for CrossbeamListener {
 /// Verbatim body from the former socket arm of `eval_accept_prime`.
 pub struct SocketListener {
     pub(crate) listener: UnixListener,
+    /// Arc 209 C0b.3b-b — the allow-set: a pid is in it or it isn't. Birth-seeded with
+    /// the owner's pid (getppid() = the spawner, trusted by construction). A connector
+    /// whose SO_PEERCRED pid ∉ this set (or whose uid ≠ ours) is bounced at accept.
+    pub(crate) allowed_pids: Mutex<HashSet<i32>>,
+}
+
+impl SocketListener {
+    /// The gate decision (SO_PEERCRED is local mTLS): serve only our own euid AND a pid in
+    /// the allow-set. Pure + Rust-testable.
+    pub(crate) fn authorizes(&self, cred: &crate::comms::process::PeerCred) -> bool {
+        cred.uid == unsafe { libc::geteuid() }
+            && self.allowed_pids.lock().unwrap().contains(&cred.pid)
+    }
+    /// Owner provisions another pid (beyond the birth-seeded self).
+    pub(crate) fn allow(&self, pid: i32) {
+        self.allowed_pids.lock().unwrap().insert(pid);
+    }
+    /// Owner de-provisions a pid (future accepts of it bounce).
+    pub(crate) fn deny(&self, pid: i32) {
+        self.allowed_pids.lock().unwrap().remove(&pid);
+    }
 }
 
 impl CommListener for SocketListener {
@@ -362,8 +384,16 @@ impl Listener {
     }
 
     /// Construct a process-tier listener from the bound `UnixListener`.
+    ///
+    /// Arc 209 C0b.3b-b — BIRTH-SEED: `{getppid()}` = the owner. `getppid()` in the service
+    /// child IS the spawner — spawn is clone3-direct (no CLONE_PARENT; clone.rs:388) and
+    /// `run_forms_as_server_child` runs the body in that child (spawn.rs:632). Dissolves the
+    /// bootstrap circularity → the gate is LIVE from construction.
     pub fn from_socket(listener: UnixListener) -> Self {
-        Listener { inner: Box::new(SocketListener { listener }) }
+        let owner_pid = unsafe { libc::getppid() };
+        let mut seed = HashSet::new();
+        seed.insert(owner_pid);
+        Listener { inner: Box::new(SocketListener { listener, allowed_pids: Mutex::new(seed) }) }
     }
 
     /// Dispatch accept to the concrete impl; wrap the returned `Peer` as a
@@ -375,5 +405,34 @@ impl Listener {
             PEER_TYPE_PATH,
             Arc::new(ThreadOwnedCell::new(Some(peer))),
         ))
+    }
+}
+
+// ─── Unit tests ───────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::comms::process::PeerCred;
+
+    fn listener_with(pids: &[i32]) -> SocketListener {
+        // Bind a throwaway abstract UDS just to own a UnixListener; seed the set directly.
+        use std::os::linux::net::SocketAddrExt;
+        use std::os::unix::net::SocketAddr;
+        let sa = SocketAddr::from_abstract_name(b"wat.arc209.c0b3bb.unit").unwrap();
+        let listener = UnixListener::bind_addr(&sa).unwrap();
+        SocketListener { listener, allowed_pids: Mutex::new(pids.iter().copied().collect()) }
+    }
+
+    #[test]
+    fn authorizes_only_my_uid_and_an_allowed_pid() {
+        let me = unsafe { libc::geteuid() };
+        let mine = std::process::id() as i32;
+        let sl = listener_with(&[]);
+        assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // empty set → no
+        sl.allow(mine);
+        assert!(sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // allowed → yes
+        assert!(!sl.authorizes(&PeerCred { pid: mine + 999_999, uid: me, gid: 0 })); // wrong pid
+        assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me + 1, gid: 0 })); // wrong uid → no
     }
 }

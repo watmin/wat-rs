@@ -4584,6 +4584,15 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::accept'" => {
             eval_accept_prime(args, list_span, env, sym)
         }
+        // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
+        // allow' : (Listener'<S,R>, i64) -> nil  — insert pid; process-tier only.
+        // deny'  : (Listener'<S,R>, i64) -> nil  — remove pid; process-tier only.
+        ":wat::kernel::allow'" => {
+            eval_allow_prime(args, list_span, env, sym)
+        }
+        ":wat::kernel::deny'" => {
+            eval_deny_prime(args, list_span, env, sym)
+        }
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The orphaned eval body in src/fork.rs
@@ -18436,6 +18445,156 @@ fn eval_accept_prime(
     }
 }
 
+/// Arc 209 C0b.3b-b — `(:wat::kernel::allow' listener pid)` → `nil`.
+///
+/// Inserts `pid` into the `SocketListener`'s allow-set. Process-tier only: a
+/// `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
+fn eval_allow_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::allow'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match listener_val {
+        Value::RustOpaque(ref inner)
+            if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
+        {
+            use crate::kernel::listener::{Listener, SocketListener};
+            use crate::rust_deps::marshal::downcast_ref_opaque;
+            let listener: &Listener = downcast_ref_opaque(
+                inner.as_ref(),
+                crate::kernel::spawn::LISTENER_TYPE_PATH,
+                OP,
+                args[0].span().clone(),
+            )?;
+            match listener.inner.as_any_ref().downcast_ref::<SocketListener>() {
+                Some(sl) => {
+                    let pid_val = eval_inner(&args[1], env, sym)?.value_owned();
+                    let pid = match pid_val {
+                        Value::i64(n) => n as i32,
+                        other => {
+                            return Err(RuntimeError {
+                                span: args[1].span().clone(),
+                                kind: RuntimeErrorKind::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "i64 (pid)",
+                                    got: Box::new(ValueSnapshot::of(&other)),
+                                },
+                            }
+                            .into());
+                        }
+                    };
+                    sl.allow(pid);
+                    Ok(Value::Unit)
+                }
+                None => Err(RuntimeError {
+                    span: args[0].span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "allow' is a process-tier service gate; \
+                                 a thread listener's handle IS the grant"
+                            .into(),
+                    },
+                }
+                .into()),
+            }
+        }
+        other => Err(RuntimeError {
+            span: args[0].span().clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }
+        .into()),
+    }
+}
+
+/// Arc 209 C0b.3b-b — `(:wat::kernel::deny' listener pid)` → `nil`.
+///
+/// Removes `pid` from the `SocketListener`'s allow-set (future accepts by that pid bounce).
+/// Process-tier only: a `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
+fn eval_deny_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::deny'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match listener_val {
+        Value::RustOpaque(ref inner)
+            if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
+        {
+            use crate::kernel::listener::{Listener, SocketListener};
+            use crate::rust_deps::marshal::downcast_ref_opaque;
+            let listener: &Listener = downcast_ref_opaque(
+                inner.as_ref(),
+                crate::kernel::spawn::LISTENER_TYPE_PATH,
+                OP,
+                args[0].span().clone(),
+            )?;
+            match listener.inner.as_any_ref().downcast_ref::<SocketListener>() {
+                Some(sl) => {
+                    let pid_val = eval_inner(&args[1], env, sym)?.value_owned();
+                    let pid = match pid_val {
+                        Value::i64(n) => n as i32,
+                        other => {
+                            return Err(RuntimeError {
+                                span: args[1].span().clone(),
+                                kind: RuntimeErrorKind::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "i64 (pid)",
+                                    got: Box::new(ValueSnapshot::of(&other)),
+                                },
+                            }
+                            .into());
+                        }
+                    };
+                    sl.deny(pid);
+                    Ok(Value::Unit)
+                }
+                None => Err(RuntimeError {
+                    span: args[0].span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "deny' is a process-tier service gate; \
+                                 a thread listener's handle IS the grant"
+                            .into(),
+                    },
+                }
+                .into()),
+            }
+        }
+        other => Err(RuntimeError {
+            span: args[0].span().clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }
+        .into()),
+    }
+}
+
 /// `(:wat::kernel::send sender value)` — blocks until the value is
 /// accepted by the channel OR every receiver has been dropped.
 /// Returns `:Option<()>`: `(Some ())` on a successful send,
@@ -24207,6 +24366,26 @@ fn eval_poll_prime(
                     loop {
                         match socket_listener.listener.accept() {
                             Ok((stream, _addr)) => {
+                                // Arc 209 C0b.3b-b — THE GATE: the kernel vouches for the
+                                // connector's {pid,uid,gid}; serve only an authorized one,
+                                // else bounce the stranger (drop + re-accept).
+                                let cred = crate::comms::process::peer_cred(
+                                    stream.as_raw_fd(),
+                                )
+                                .map_err(|e| RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "poll' (process tier): peer_cred on accepted socket: {}",
+                                            e
+                                        ),
+                                    },
+                                })?;
+                                if !socket_listener.authorizes(&cred) {
+                                    drop(stream); // bounce the stranger — close the accepted fd
+                                    continue; // back to socket_listener.listener.accept()
+                                }
                                 let peer_value = {
                                     let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<
                                         Value,

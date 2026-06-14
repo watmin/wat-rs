@@ -4937,6 +4937,24 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 209 C0b.3b-b — allow'/deny': (Listener'<S,R>, i64) -> nil.
+            // Tier (thread vs process) is not known at check time; tier-rejection is runtime-only.
+            ":wat::kernel::allow'" => {
+                let (val, mut errs) = infer_allow_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::kernel::deny'" => {
+                let (val, mut errs) = infer_deny_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::drop" => {
                 let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -10254,6 +10272,134 @@ fn infer_accept_prime(
         }
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 209 C0b.3b-b — `(:wat::kernel::allow' listener pid)` → `nil`.
+///
+/// 2 args: `listener` of type `Listener'<S,R>`, `pid` of type `i64`.
+/// Returns `nil`. The tier (thread vs process) is NOT checked here; tier-rejection is runtime-only
+/// (both tiers have type `Listener'<S,R>` at check time).
+fn infer_allow_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::allow'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        } });
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+    }
+    let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        }
+    };
+    let listener_surface = apply_subst(&listener_ty, subst);
+    let listener_reduced = reduce(&listener_surface, subst, env.types());
+    match listener_reduced {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+            // Ok — the listener type is valid
+        }
+        other => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "listener".into(),
+                expected: "Listener'<S,R>".into(),
+                got: format_type(&other),
+            } });
+        }
+    }
+    let pid_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        }
+    };
+    let pid_surface = apply_subst(&pid_ty, subst);
+    let pid_reduced = reduce(&pid_surface, subst, env.types());
+    match unify(&pid_reduced, &TypeExpr::Path(":wat::core::i64".into()), subst, env.types()) {
+        Ok(()) => {}
+        Err(_) => {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "pid".into(),
+                expected: "i64".into(),
+                got: format_type(&pid_reduced),
+            } });
+        }
+    }
+    let ret = TypeExpr::Path(":wat::core::nil".into());
+    if local_errors.is_empty() { CheckResult::ok(ret) } else { CheckResult::partial_with(ret, local_errors) }
+}
+
+/// Arc 209 C0b.3b-b — `(:wat::kernel::deny' listener pid)` → `nil`.
+///
+/// Identical shape to `infer_allow_prime`.
+fn infer_deny_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::deny'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        } });
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+    }
+    let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        }
+    };
+    let listener_surface = apply_subst(&listener_ty, subst);
+    let listener_reduced = reduce(&listener_surface, subst, env.types());
+    match listener_reduced {
+        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
+            // Ok — the listener type is valid
+        }
+        other => {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "listener".into(),
+                expected: "Listener'<S,R>".into(),
+                got: format_type(&other),
+            } });
+        }
+    }
+    let pid_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        Some(t) => t,
+        None => {
+            return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        }
+    };
+    let pid_surface = apply_subst(&pid_ty, subst);
+    let pid_reduced = reduce(&pid_surface, subst, env.types());
+    match unify(&pid_reduced, &TypeExpr::Path(":wat::core::i64".into()), subst, env.types()) {
+        Ok(()) => {}
+        Err(_) => {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "pid".into(),
+                expected: "i64".into(),
+                got: format_type(&pid_reduced),
+            } });
+        }
+    }
+    let ret = TypeExpr::Path(":wat::core::nil".into());
+    if local_errors.is_empty() { CheckResult::ok(ret) } else { CheckResult::partial_with(ret, local_errors) }
 }
 
 // Arc 259 S2c-ii-b — `infer_spawn_program_prime` is RETIRED.
