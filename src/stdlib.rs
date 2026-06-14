@@ -254,6 +254,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/fix.wat",
         source: include_str!("../wat/fix.wat"),
     },
+    // Arc 209 Stone C.1 — :wat::service::defservice (pure-wat defmacro).
+    // C.1 emits the op enum from the defservice surface; C.2/C.3 extend.
+    // Order is not load-bearing (register_stdlib_defmacros pre-expansion walk).
+    WatSource {
+        path: "wat/service.wat",
+        source: include_str!("../wat/service.wat"),
+    },
     // wat-level IO conveniences over the Rust IOWriter primitives — write-file (one-shot) +
     // with-open-file (managed scope). The `with-` naming law: `with-` = managed lifecycle.
     WatSource {

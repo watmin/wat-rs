@@ -35,6 +35,17 @@ and flip to bare symbols for free at the arc-251 cutover. Option C (reflect sepa
 Simple (N+1 forms + re-grows `signature-of-fn`); B (flat juxtaposition, no per-op parens) fails
 Obvious/Simple once bodies are inline (no delimiter) → degenerates to C.
 
+## ✅ SHIPPED 2026-06-14 — delta: bare `defenum`, not a `do`-wrapper
+
+The DESIGN sketched the emission as `` `(:wat::core::do (defenum …))``. That FAILS for C.1: the
+freeze pipeline's `splice_type_decls` (types.rs:1502-1520) registers each type-decl child of a
+`do` and does NOT re-push it, so a `do` containing *only* a `defenum` collapses to
+`(:wat::core::do)` → fails "do form requires at least one form" (check.rs:7419). C.1 therefore
+emits a **bare `defenum`** (a valid top-level form). The `do`-wrapper returns at C.2/C.3 — once
+the loop + client wrappers are siblings, the `do` is non-empty (the `defenum` still splices to top
+level, the rest stay in the `do`). Grounded on disk during the weigh; the algorithm below shows
+the shipped form.
+
 ## C.1 deliverable — the op enum ONLY
 
 `(defservice <fqdn> :state <T> :ops [<op-clauses>])` expands (C.1) to a `do`-block whose only
@@ -107,8 +118,7 @@ Three premises, all proven by probe (NOT assumed — FM-2-bis):
                  (:wat::core::string::concat (:wat::core::keyword/to-string fqdn) "::Op"))
      clauses   (:wat::core::ast->children ops)            ;; list of op-List nodes
      variants  (:wat::core::foldl <op->tokens> (:wat::core::Vector :wat::WatAST) clauses)]
-    `(:wat::core::do
-       (:wat::core::defenum ~enum-name ~@variants))))
+    `(:wat::core::defenum ~enum-name ~@variants)))   ;; SHIPPED: bare defenum, NOT a do-wrapper
 ```
 
 `<op->tokens>` folds each op-clause into the flat variant-token vector (avoids a separate
