@@ -124,6 +124,53 @@ type RingSlot = Option<(IoUring, u32)>;
 /// framing produces, not a constraint on what decode accepts.
 type Frame = Vec<u8>;
 
+// ─── SO_PEERCRED primitive ───────────────────────────────────────────────────
+
+/// Kernel-vouched identity of the peer connected to a UDS socket fd.
+/// Captured by the kernel at connect time — unforgeable, no `/proc`, no handshake.
+/// This is the mechanism C0b.3b-b's accept enforcement checks against the allow-set.
+/// ("SO_PEERCRED is local mTLS.")
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PeerCred {
+    pub pid: i32,
+    pub uid: u32,
+    pub gid: u32,
+}
+
+/// Read `SO_PEERCRED` off a connected `AF_UNIX SOCK_STREAM` fd.
+///
+/// Returns the kernel-vouched `{pid, uid, gid}` of the peer — unforgeable,
+/// set by the kernel at `connect(2)` time. Errors if the fd is not a
+/// connected UDS socket (`ENOTCONN` / `EINVAL`).
+///
+/// Arc 209 C0b.3b-a — pure mechanism, no policy. C0b.3b-b's accept enforcement
+/// calls this immediately after `accept(2)` to obtain the connector's credential,
+/// then checks it against the allow-set before serving.
+pub fn peer_cred(fd: std::os::fd::RawFd) -> std::io::Result<PeerCred> {
+    let mut cred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: getsockopt writes into &mut cred (a valid libc::ucred on the stack)
+    // and &mut len (a valid socklen_t). `fd` is borrowed for the call duration;
+    // the caller retains ownership. No aliasing — cred and len are distinct locals.
+    let rc = unsafe {
+        libc::getsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            &mut cred as *mut _ as *mut libc::c_void,
+            &mut len,
+        )
+    };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(PeerCred {
+        pid: cred.pid,
+        uid: cred.uid,
+        gid: cred.gid,
+    })
+}
+
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
 /// Process-tier send endpoint. Generic over the payload type T (Stone C).
