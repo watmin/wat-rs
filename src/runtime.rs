@@ -18113,7 +18113,7 @@ fn eval_listener_prime(
                 },
             }.into());
         };
-        // Bind the abstract-namespace UDS by the given name and return JUST the listener.
+        // Bind the abstract-namespace UDS by the given name and return a Listener entity.
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixListener};
         let sa = SocketAddr::from_abstract_name(name.as_bytes())
@@ -18142,9 +18142,11 @@ fn eval_listener_prime(
                 reason: format!("set_nonblocking: {}", e),
             },
         })?;
-        use crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH;
+        // Arc 209 C0b.2e-ii — wrap as the unified Listener entity.
+        use crate::kernel::listener::Listener;
+        use crate::kernel::spawn::LISTENER_TYPE_PATH;
         use crate::rust_deps::marshal::make_rust_opaque;
-        Ok(make_rust_opaque(SOCKET_LISTENER_TYPE_PATH, listener))
+        Ok(make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(listener)))
     } else {
         // Thread tier (C0b.1): 3 args — host, :S, :R.
         if args.len() != 3 {
@@ -18166,10 +18168,15 @@ fn eval_listener_prime(
             }
         }
         // Mint the crossbeam rendezvous channel.
-        // Listener' = rx (the service accept-side); Address' = tx (the client dial-side).
+        // Listener' = rx (the service accept-side, wrapped as Listener entity);
+        // Address' = tx (the client dial-side, kept as raw Sender — iii).
         let (tx, rx) = crate::comms::thread::pair::<Value>();
+        // Arc 209 C0b.2e-ii — wrap rx as the unified Listener entity.
+        use crate::kernel::listener::Listener;
+        use crate::kernel::spawn::LISTENER_TYPE_PATH;
+        use crate::rust_deps::marshal::make_rust_opaque;
         Ok(Value::Tuple(Arc::new(vec![
-            crate::channel::receiver_from_comms(rx),
+            make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
             crate::channel::sender_from_comms(tx),
         ])))
     }
@@ -18439,102 +18446,31 @@ fn eval_accept_prime(
         }.into());
     }
     let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Process tier: SocketListener' opaque (C0b.2c) — dispatch BEFORE the thread Receiver arm.
-    if let Value::RustOpaque(ref inner) = listener_val {
-        if inner.type_path == crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH {
+    // Arc 209 C0b.2e-ii — ONE arm: downcast the unified Listener entity.
+    match listener_val {
+        Value::RustOpaque(ref inner)
+            if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
+        {
+            use crate::kernel::listener::Listener;
             use crate::rust_deps::marshal::downcast_ref_opaque;
-            use std::os::fd::AsRawFd;
-            use std::os::unix::net::UnixListener;
-            let listener: &UnixListener = downcast_ref_opaque(
+            let listener: &Listener = downcast_ref_opaque(
                 inner.as_ref(),
-                crate::kernel::spawn::SOCKET_LISTENER_TYPE_PATH,
+                crate::kernel::spawn::LISTENER_TYPE_PATH,
                 OP,
                 args[0].span().clone(),
             )?;
-            // Arc 209 C0b.3a-i — poll-driven non-blocking accept.
-            // Build a Select with just the listener arm (one fd). Loop:
-            //   Listener → non-blocking accept → Ok(stream) → wrap | WouldBlock → re-poll
-            //   Shutdown → clean error; Recv impossible (no receivers registered).
-            // The listen fd is non-blocking (set at listener' bind time) so a spurious
-            // POLLIN wakeup → EWOULDBLOCK → re-poll, never blocks. Ring is reused across
-            // iterations (same sel, not rebuilt per loop).
-            let raw = listener.as_raw_fd();
-            let mut sel = crate::comms::process::Select::<String>::new();
-            sel.listener(raw);
-            loop {
-                match sel.select().map_err(|e| RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("accept' select: {}", e),
-                    },
-                })? {
-                    crate::comms::SelectOutcome::Listener => match listener.accept() {
-                        Ok((stream, _)) => return wrap_stream_as_socket_peer(stream, list_span, OP),
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => continue, // spurious; re-poll
-                        Err(e) => return Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("accept on abstract UDS listener failed: {}", e),
-                            },
-                        }.into()),
-                    },
-                    crate::comms::SelectOutcome::Shutdown => return Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': interrupted by shutdown".into(),
-                        },
-                    }.into()),
-                    crate::comms::SelectOutcome::Recv { .. } =>
-                        unreachable!("accept' Select has no receivers"),
-                }
-            }
+            listener.accept_as_value(sym, list_span)
         }
+        other => Err(RuntimeError {
+            span: args[0].span().clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Listener'<S,R> (unified Listener entity from listener')",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }
+        .into()),
     }
-    // Thread tier: Listener' is a raw Receiver (C0b.1).
-    let listener_inner = match listener_val {
-        Value::wat__kernel__Receiver(ref inner) => inner.clone(),
-        other => {
-            return Err(RuntimeError {
-                span: args[0].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Listener'<S,R> (Receiver) or SocketListener'<S,R> (process opaque)",
-                    got: Box::new(ValueSnapshot::of(&other)),
-                },
-            }.into());
-        }
-    };
-    // Block on the rendezvous until a connect-request arrives.
-    let cr_value = match crate::channel::typed_recv(
-        listener_inner.as_ref(),
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::RecvOutcome::Value(v) => v,
-        crate::channel::RecvOutcome::Disconnected | crate::channel::RecvOutcome::Shutdown => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "accept': rendezvous recv failed — address was dropped or shutdown".into(),
-                },
-            }.into());
-        }
-        crate::channel::RecvOutcome::DecodeError(msg) => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("accept': rendezvous recv decode error: {}", msg),
-                },
-            }.into());
-        }
-    };
-    // Unpack + wrap via the shared helper (one helper, two callers).
-    wrap_connect_request(cr_value, list_span)
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
@@ -23941,30 +23877,46 @@ fn eval_poll_prime(
         }
     };
 
-    // ── arg 1: listener → Value::wat__kernel__Receiver ────────────────────────
+    // ── arg 1: listener → Listener' (unified Listener entity, arc 209 C0b.2e-ii) ─
     let listener_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let listener_inner = match listener_val {
-        Value::wat__kernel__Receiver(ref inner) => inner.clone(),
+    let listener_opaque: &crate::kernel::listener::Listener = match &listener_val {
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
+        {
+            crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::listener::Listener>(
+                inner,
+                crate::kernel::spawn::LISTENER_TYPE_PATH,
+                OP,
+                args[1].span().clone(),
+            )?
+        }
         other => {
             return Err(RuntimeError {
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Listener' (Receiver — rendezvous listener from listener')",
-                    got: Box::new(ValueSnapshot::of(&other)),
+                    expected: "Listener'<S,R> (unified Listener entity from listener')",
+                    got: Box::new(ValueSnapshot::of(other)),
                 },
             }
             .into());
         }
     };
-    let listener_rx: &crate::comms::thread::Receiver<Value> = match listener_inner.as_ref() {
-        crate::channel::ReceiverInner::Comms(rx) => rx,
-        _ => {
+    // poll' is thread-tier only; extract the crossbeam Receiver from the CrossbeamListener.
+    let listener_rx: &crate::comms::thread::Receiver<Value> = match listener_opaque
+        .inner
+        .as_any_ref()
+        .downcast_ref::<crate::kernel::listener::CrossbeamListener>()
+    {
+        Some(cl) => &cl.rx,
+        None => {
             return Err(RuntimeError {
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "poll': listener is not a comms (thread-tier) receiver".into(),
+                    reason: "poll': listener is not crossbeam-backed — \
+                             socket/remote poll' is C0b.3a-ii"
+                        .into(),
                 },
             }
             .into());

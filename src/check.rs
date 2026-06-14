@@ -10020,7 +10020,7 @@ fn infer_program_self_peer(
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
 ///
 /// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; host, addr where
-/// addr is `SocketAddress'<S,R>` → `SocketListener'<S,R>` (a single type, NOT a tuple).
+/// addr is `SocketAddress'<S,R>` → `Listener'<S,R>` (unified entity, arc 209 C0b.2e-ii).
 /// Retires the C0b.2c mint-and-return form.
 ///
 /// Any other host is a `TypeMismatch` check error naming both valid hosts.
@@ -10070,7 +10070,7 @@ fn infer_listener_prime(
                 let s = fresh.fresh();
                 let r = fresh.fresh();
                 return CheckResult::partial_with(
-                    TypeExpr::Parametric { head: "wat::kernel::SocketListener'".into(), args: vec![s, r] },
+                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] },
                     local_errors,
                 );
             }
@@ -10081,7 +10081,7 @@ fn infer_listener_prime(
                     let s = fresh.fresh();
                     let r = fresh.fresh();
                     return CheckResult::partial_with(
-                        TypeExpr::Parametric { head: "wat::kernel::SocketListener'".into(), args: vec![s, r] },
+                        TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] },
                         local_errors,
                     );
                 }
@@ -10090,7 +10090,8 @@ fn infer_listener_prime(
             let addr_reduced = reduce(&addr_surface, subst, env.types());
             match addr_reduced {
                 TypeExpr::Parametric { ref head, args: ref type_args } if head == "wat::kernel::SocketAddress'" && type_args.len() == 2 => {
-                    TypeExpr::Parametric { head: "wat::kernel::SocketListener'".into(), args: vec![type_args[0].clone(), type_args[1].clone()] }
+                    // Arc 209 C0b.2e-ii — unified Listener' (was SocketListener').
+                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![type_args[0].clone(), type_args[1].clone()] }
                 }
                 other => {
                     local_errors.push(CheckError {
@@ -10104,7 +10105,7 @@ fn infer_listener_prime(
                     });
                     let s = fresh.fresh();
                     let r = fresh.fresh();
-                    TypeExpr::Parametric { head: "wat::kernel::SocketListener'".into(), args: vec![s, r] }
+                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] }
                 }
             }
         } else {
@@ -10234,18 +10235,15 @@ fn infer_accept_prime(
     let listener_reduced = reduce(&listener_surface, subst, env.types());
     let ty = match listener_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
-            // Thread tier: Listener'<S,R> → Peer'<R,S> (C0b.1 — server recvs S, sends R).
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
-        }
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketListener'" && args.len() == 2 => {
-            // Process tier: SocketListener'<S,R> → Peer'<R,S> (C0b.2c / C0b.2e-i-b: unified).
+            // Arc 209 C0b.2e-ii — unified Listener'<S,R> (both thread + process tiers)
+            // → Peer'<R,S> (server recvs S, sends R — the flipped pair).
             TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener'<S,R> or SocketListener'<S,R>".into(),
+                expected: "Listener'<S,R>".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();

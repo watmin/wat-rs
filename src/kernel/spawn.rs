@@ -141,9 +141,10 @@ pub const PEER_TYPE_PATH: &str = ":wat::kernel::Peer'";
 /// way across all peer kinds.
 pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 
-/// `RustOpaque.type_path` for process-tier listeners (arc 209 C0b.2c).
-/// Wraps a `std::os::unix::net::UnixListener` bound to an abstract-namespace UDS.
-pub const SOCKET_LISTENER_TYPE_PATH: &str = ":wat::kernel::SocketListener'";
+/// `RustOpaque.type_path` for the unified transport-blind `Listener'` entity
+/// (arc 209 C0b.2e-ii). Retires the former process-tier-only socket listener path
+/// — thread and process tiers now share one `Listener` entity.
+pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener'";
 
 /// `RustOpaque.type_path` for process-tier addresses (arc 209 C0b.2c).
 /// Wraps a `String` — the abstract-namespace UDS name that clients dial.
