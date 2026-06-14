@@ -186,11 +186,31 @@ ours.
   exact bundle). wat deliberately drops the auto-vivify half (see the no-magic entry).
 
 - **defservice's client wrappers (C.3 — FORWARD-MAP) ≡ reflective facade + partial application.**
-  The builder's Ruby `install_closures`: a module that, on `extend`, reflects a client's public
-  methods and installs per-method curried closures —
-  `(client, defaults) → (kwargs) → client.call(method, defaults.merge(kwargs))` — so
-  `state.s3.get_object = My::S3.get_object(s3, bucket: 'foobar')` then
-  `state.s3.get_object.call(key: 'burbaz')`. That is exactly what **C.3** will generate: one
+  The builder's Ruby `install_closures` — a module that, on `extend`, reflects a client's public
+  methods and installs per-method curried closures:
+
+  ```ruby
+  module My::S3
+    extend MakeClosures
+    install_closures(Aws::S3::Client, kwargs: true)   # reflect public methods → install wrappers
+  end
+
+  # each method the reflection installs:
+  define_method(method_name) do |client, default_kwargs|
+    ->(kwargs) do
+      client.call(method_name, default_kwargs.merge(kwargs))
+    end
+  end
+
+  # bind the client + per-call defaults once, then call with the rest:
+  State.locked do |state|
+    s3 = My::S3.make_client
+    state.s3.get_object = My::S3.get_object(s3, bucket: 'foobar')
+  end
+  obj = state.s3.get_object.call(key: 'burbaz')
+  ```
+
+  That is exactly what **C.3** will generate: one
   wrapper per `:op`, closing over the connection (the peer/handle = his `client`), invoked with
   the op's args (`bucket:` = bound per-op defaults; `key:` = the call args). *Prior art:*
   **partial application** (bind client + defaults, return a fn of the rest — Clojure `partial`;
