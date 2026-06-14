@@ -4546,6 +4546,11 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::select'" => {
             eval_peer_select_prime(args, list_span, env, sym)
         }
+        // Arc 209 Stone C0b.2e-i-c — poll': 3-arg service multiplexer.
+        // poll' : (self-peer, listener, peers) -> ServiceEvent<I,O>
+        ":wat::kernel::poll'" => {
+            eval_poll_prime(args, list_span, env, sym)
+        }
         // Arc 209 Stone C0 — peer-pair': mint two connected, crossed bare Peer'
         // ends WITHOUT spawning (the connection primitive defservice provisions —
         // "programs ≠ channels"). Returns (Peer'<S,R>, Peer'<R,S>).
@@ -23449,14 +23454,19 @@ fn eval_peer_select_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::select'";
-    // 3-arg form: (select' self-peer listener peers) → SelectEvent<I,O>  [Arc 209 C0b.1b]
-    if args.len() == 3 {
-        return eval_peer_select_prime_3arg(args, list_span, env, sym);
-    }
+    // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only (fan-in over homogeneous peers).
+    // The 3-arg service multiplexer is poll' — use (poll' self listener clients) instead.
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "select' takes one peer vector (fan-in); got {} args. \
+                     The 3-arg service multiplexer is poll'.",
+                    args.len()
+                ),
+            },
         }
         .into());
     }
@@ -23843,11 +23853,11 @@ fn eval_peer_select_prime(
     }
 }
 
-/// `(:wat::kernel::select' self-peer listener peers)` — Arc 209 Stone C0b.1b.
+/// `(:wat::kernel::poll' self-peer listener peers)` — Arc 209 Stone C0b.1b / C0b.2e-i-c.
 ///
 /// 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
 /// (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
-/// and the **connected client `Peer'`s** (requests) — returning a `SelectEvent<I,O>`.
+/// and the **connected client `Peer'`s** (requests) — returning a `ServiceEvent<I,O>`.
 ///
 /// Registration order (= Select index):
 ///   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
@@ -23855,22 +23865,22 @@ fn eval_peer_select_prime(
 ///   2..=N+1 = client peers[0..N-1] `.rx`
 ///
 /// Select outcome mapping:
-///   `Recv { index: 0, .. }`       → `SelectEvent::Shutdown`  (owner dropped; RAII drain fired)
-///   `Recv { index: 1, result }`   → unpack + wrap → `SelectEvent::Connection { peer }`
+///   `Recv { index: 0, .. }`       → `ServiceEvent::Shutdown`  (owner dropped; RAII drain fired)
+///   `Recv { index: 1, result }`   → unpack + wrap → `ServiceEvent::Connection { peer }`
 ///   `Recv { index: k, result }`, k≥2:
-///     `Ok(msg)`  → `SelectEvent::Message { idx: k-2, msg }`
-///     `Err(_)`   → `SelectEvent::Closed  { idx: k-2 }`
+///     `Ok(msg)`  → `ServiceEvent::Message { idx: k-2, msg }`
+///     `Err(_)`   → `ServiceEvent::Closed  { idx: k-2 }`
 ///
 /// Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
 /// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
-fn eval_peer_select_prime_3arg(
+fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::select'";
-    const SELECT_EVENT_TYPE: &str = ":wat::kernel::SelectEvent";
+    const OP: &str = ":wat::kernel::poll'";
+    const SELECT_EVENT_TYPE: &str = ":wat::kernel::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
     // The self-peer is the spawned worker's own Peer'<O,I> (tx=output_tx, rx=input_rx).
@@ -23911,7 +23921,7 @@ fn eval_peer_select_prime_3arg(
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "select'(3): self-peer already closed".into(),
+                    reason: "poll': self-peer already closed".into(),
                 },
             }
             .into());
@@ -23923,8 +23933,8 @@ fn eval_peer_select_prime_3arg(
                     span: args[0].span().clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: "select'(3): self-peer is not crossbeam-backed — \
-                                 socket/remote self-peer select' is C0b.3a-ii".into(),
+                        reason: "poll': self-peer is not crossbeam-backed — \
+                                 socket/remote poll' is C0b.3a-ii".into(),
                     },
                 }.into()),
             }
@@ -23954,7 +23964,7 @@ fn eval_peer_select_prime_3arg(
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: "select'(3): listener is not a comms (thread-tier) receiver".into(),
+                    reason: "poll': listener is not a comms (thread-tier) receiver".into(),
                 },
             }
             .into());
@@ -24001,7 +24011,7 @@ fn eval_peer_select_prime_3arg(
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
-                            "select'(3): peers[{}] must be a Peer' (connected client); got {:?}",
+                            "poll': peers[{}] must be a Peer' (connected client); got {:?}",
                             i,
                             ValueSnapshot::of(other)
                         ),
@@ -24030,7 +24040,7 @@ fn eval_peer_select_prime_3arg(
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: format!("select'(3): client peer already closed (index {})", i),
+                        reason: format!("poll': client peer already closed (index {})", i),
                     },
                 }
                 .into());
@@ -24043,8 +24053,8 @@ fn eval_peer_select_prime_3arg(
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
                             reason: format!(
-                                "select'(3): peers[{}]: non-crossbeam connection peer in \
-                                 service select' — socket/remote select' is C0b.3a-ii",
+                                "poll': peers[{}]: non-crossbeam connection peer in \
+                                 service poll' — socket/remote poll' is C0b.3a-ii",
                                 i
                             ),
                         },
@@ -24081,7 +24091,7 @@ fn eval_peer_select_prime_3arg(
                 // The RAII drain drops input_tx → input_rx disconnects → select
                 // fires here (result = Err(Disconnected)).  Returning :Shutdown is
                 // the deadlock-free termination signal — no cooperative Stop needed.
-                // index 0 → SelectEvent::Shutdown (no fields)
+                // index 0 → ServiceEvent::Shutdown (no fields)
                 Value::Enum(Arc::new(EnumValue {
                     type_path: SELECT_EVENT_TYPE.into(),
                     variant_name: "Shutdown".into(),
@@ -24094,12 +24104,12 @@ fn eval_peer_select_prime_3arg(
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: "select'(3): listener recv failed — address was dropped".into(),
+                            reason: "poll': listener recv failed — address was dropped".into(),
                         },
                     })
                 })?;
                 let peer_value = wrap_connect_request(cr, list_span)?;
-                // SelectEvent::Connection [peer <- Peer'<I,O>]
+                // ServiceEvent::Connection [peer <- Peer'<I,O>]
                 Value::Enum(Arc::new(EnumValue {
                     type_path: SELECT_EVENT_TYPE.into(),
                     variant_name: "Connection".into(),
@@ -24111,7 +24121,7 @@ fn eval_peer_select_prime_3arg(
                 let peer_idx = (index.0 - 2) as i64;
                 match result {
                     Ok(msg) => {
-                        // SelectEvent::Message [idx <- i64  msg <- O]
+                        // ServiceEvent::Message [idx <- i64  msg <- O]
                         Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Message".into(),
@@ -24121,7 +24131,7 @@ fn eval_peer_select_prime_3arg(
                     Err(_) => {
                         // Output EOF — client peer left gracefully (thread tier: bare Peer',
                         // no crash channel; :Lost is remote-tier only).
-                        // SelectEvent::Closed [idx <- i64]
+                        // ServiceEvent::Closed [idx <- i64]
                         Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Closed".into(),

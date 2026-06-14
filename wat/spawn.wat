@@ -45,9 +45,9 @@
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts))
 
-;; ── SelectEvent<I,O> — the 3-arg select' return type ────────────────────────
+;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
-;; Arc 209 Stone C0b.1b.  A service `select'` over `(self-peer, listener, peers)`
+;; Arc 209 Stone C0b.1b / C0b.2e-i-c.  A service `poll'` over `(self-peer, listener, peers)`
 ;; — the service multiplexer — returns one of five events:
 ;;   :Shutdown    — the owner dropped the service handle; RAII drain disconnected
 ;;                  the self-peer → the loop exits. DEADLOCK-FREE termination,
@@ -57,14 +57,14 @@
 ;;   :Closed      — peers[idx] left gracefully (clean EOF, no diagnostic).
 ;;   :Lost        — transport broke abnormally; `cause` is the first-class
 ;;                  Failure diagnostic (ECONNRESET / ETIMEDOUT / …).
-;;                  Emitted by the remote tier; thread select' emits only
+;;                  Emitted by the remote tier; thread poll' emits only
 ;;                  Shutdown/Connection/Message/Closed — :Lost is built for the union.
 ;;
 ;; Type params: I = the type the server SENDS to peers (peer's recv type);
 ;;              O = the type the server RECEIVES from peers (peer's send type).
 ;; Mirror Peer'<I,O>: the accepted peer is Peer'<I,O>, message is O.
 ;;
-(:wat::core::defenum :wat::kernel::SelectEvent<I,O>
+(:wat::core::defenum :wat::kernel::ServiceEvent<I,O>
   :Shutdown                                                              ;; owner dropped the handle (self-peer drained) — exit; deadlock-free termination
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]
   :Message    [idx   <- :wat::core::i64  msg   <- :O]

@@ -4856,6 +4856,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 209 Stone C0b.2e-i-c — poll' intrinsic (3-arg service multiplexer).
+            // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
+            // I,O flow from Vector<Peer'<I,O>>'s element peer type into ServiceEvent<I,O>.
+            // See `infer_poll_prime` for the reasoning.
+            ":wat::kernel::poll'" => {
+                let (val, mut errs) = infer_poll_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 209 Stone C0 — peer-pair': (:S :R) -> (Tuple Peer'<S,R> Peer'<R,S>).
             // Type-keyword args → crossed parametric tuple (mirror of make-channel).
             ":wat::kernel::peer-pair'" => {
@@ -6572,7 +6584,7 @@ fn pattern_coverage(
                 }
                 // Arc 055 — recurse into each field's sub-pattern.
                 // Instantiate field types with the concrete enum args so parametric
-                // enums (`SelectEvent<I,O>`) bind correctly typed variables.
+                // enums (`ServiceEvent<I,O>`) bind correctly typed variables.
                 let mut all_full = true;
                 for (binder_ast, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
                     let instantiated_field_type = if type_param_mapping.is_empty() {
@@ -10837,18 +10849,19 @@ fn infer_select_prime(
     const OP: &str = ":wat::kernel::select'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // 3-arg form: (select' self-peer listener peers) → SelectEvent<I,O>  [Arc 209 C0b.1b]
-    if args.len() == 3 {
-        return infer_select_prime_3arg(args, head_span, env, locals, fresh, subst);
-    }
-
+    // Arc 209 Stone C0b.2e-i-c: select' is 1-arg-only.
+    // The 3-arg service multiplexer is poll' — use (poll' self listener clients).
     if args.len() != 1 {
         local_errors.push(CheckError {
             span: head_span.clone(),
-            kind: CheckErrorKind::ArityMismatch {
-                callee: OP.into(),
-                expected: 1,
-                got: args.len(),
+            kind: CheckErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "select' takes one peer vector (fan-in); got {} args. \
+                     The 3-arg service multiplexer is poll'.",
+                    args.len()
+                ),
+                remedies: vec![],
             },
         });
         for arg in args {
@@ -10929,17 +10942,17 @@ fn infer_select_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1b — `(:wat::kernel::select' self-peer listener peers)` → `SelectEvent<I,O>`.
+/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll' self-peer listener peers)` → `ServiceEvent<I,O>`.
 ///
 /// 3-arg service-multiplexer form:
 ///   args[0] = self-peer (`Peer'<_,_>` — the owner link; its params don't constrain the result).
 ///   args[1] = listener (`Listener'<S,R>` — inferred permissively, not further constrained).
 ///   args[2] = peers (`Vector<Peer'<I,O>>` — the connected client peers).
 ///
-/// Returns `Parametric { "wat::kernel::SelectEvent", [I, O] }` extracted from the peers.
+/// Returns `Parametric { "wat::kernel::ServiceEvent", [I, O] }` extracted from the peers.
 /// The self-peer parameter is accepted as any `Peer'` (the supervisor link); its type params
 /// are the program's self-channel which are independent of the client peer I/O types.
-fn infer_select_prime_3arg(
+fn infer_poll_prime(
     args: &[WatAST],
     head_span: &Span,
     env: &CheckEnv,
@@ -10947,7 +10960,7 @@ fn infer_select_prime_3arg(
     fresh: &mut InferCtx,
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::select'";
+    const OP: &str = ":wat::kernel::poll'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
     // args[0]: self-peer — infer for error coverage; type not further constrained.
@@ -10961,7 +10974,7 @@ fn infer_select_prime_3arg(
         Some(t) => t,
         None => {
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::SelectEvent".into(),
+                head: "wat::kernel::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return if local_errors.is_empty() {
@@ -10992,7 +11005,7 @@ fn infer_select_prime_3arg(
                 },
             });
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::SelectEvent".into(),
+                head: "wat::kernel::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
@@ -11019,7 +11032,7 @@ fn infer_select_prime_3arg(
                 },
             });
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::SelectEvent".into(),
+                head: "wat::kernel::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
@@ -11029,7 +11042,7 @@ fn infer_select_prime_3arg(
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
     let ret = TypeExpr::Parametric {
-        head: "wat::kernel::SelectEvent".into(),
+        head: "wat::kernel::ServiceEvent".into(),
         args: vec![i_resolved, o_resolved],
     };
     if local_errors.is_empty() {
