@@ -316,3 +316,167 @@
                     all-edits (:wat::fix::fix-text-seq-edits forms false lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
+
+;; ─── Stone 251.5 / Slice 4.2b — fix-macro-param-types: the first migration RULE ──────────
+;;
+;; fix-macro-param-types(src) → migrated-src
+;;
+;; A defmacro param/return is annotated with a type the macro engine discards;
+;; the only honest type is `:wat::WatAST` (a macro arg is always a form). This
+;; rule rewrites, COMMENT-FAITHFULLY (riding fix-text-apply's span-splice):
+;;   - each FIXED param's type   → :wat::WatAST
+;;   - the REST param's type     → :wat::core::Vector<wat::WatAST>
+;;   - the RETURN type           → :wat::WatAST
+;; and touches DEFMACRO forms ONLY — defn/fn type annotations are real and survive.
+;;
+;; Rides fix-text-apply + fix-text-offset-of; the EDIT-COLLECTION is the new work.
+
+;; right-arrow? — a bare `->` SYMBOL (return-type annotation arrow, not `<-`).
+(:wat::core::defn :wat::fix::right-arrow? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
+    (:wat::core::= (:wat::core::ast-name node) "->")
+    false))
+
+;; amp? — the bare `&` SYMBOL (rest-param marker in argvec).
+(:wat::core::defn :wat::fix::amp? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
+    (:wat::core::= (:wat::core::ast-name node) "&")
+    false))
+
+;; defmacro? — a List whose head keyword name is ":wat::core::defmacro".
+(:wat::core::defn :wat::fix::defmacro? [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::empty? ch)
+        false
+        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
+                                   (:wat::core::first ch)
+                                   "defmacro?: head")]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+            (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
+            false))))
+    false))
+
+;; argspec-type-edits-walk — position-aware left-to-right walk of an argvec's children.
+;; Tracks prev-arrow? (previous token was `<-`) and after-amp? (a `&` has been seen).
+;; When prev-arrow? AND kind=="keyword" → type slot: emit a replacement edit.
+;; The new-text depends on after-amp?: rest param → Vector<wat::WatAST>, fixed → WatAST.
+(:wat::core::defn :wat::fix::argspec-type-edits-walk
+  [items       <- :wat::core::Vector<wat::WatAST>
+   prev-arrow? <- :wat::core::bool
+   after-amp?  <- :wat::core::bool
+   lines       <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
+                             (:wat::core::first items)
+                             "argspec-type-edits-walk: head")
+                      tl (:wat::core::rest items)
+                      ;; is this token a type-slot?
+                      is-type-slot? (:wat::core::if prev-arrow?
+                                      (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                                      false)
+                      ;; emit one edit if it's a type-slot
+                      head-edits (:wat::core::if is-type-slot?
+                                   (:wat::core::let [span    (:wat::core::ast-span h)
+                                                     off     (:wat::fix::fix-text-offset-of span lines)
+                                                     old-len (:wat::core::string::length (:wat::core::ast-name h))
+                                                     new-text (:wat::core::if after-amp?
+                                                                 ":wat::core::Vector<wat::WatAST>"
+                                                                 ":wat::WatAST")]
+                                     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+                                       (:wat::core::Tuple off old-len new-text)))
+                                   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
+                      ;; update after-amp?: set when current token is `&`
+                      next-after-amp? (:wat::core::if (:wat::fix::amp? h) true after-amp?)
+                      ;; update prev-arrow?: set when current token is `<-`
+                      next-prev-arrow? (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "symbol")
+                                         (:wat::core::= (:wat::core::ast-name h) "<-")
+                                         false)]
+      (:wat::core::concat head-edits
+        (:wat::fix::argspec-type-edits-walk tl next-prev-arrow? next-after-amp? lines)))))
+
+;; rettype-edit-walk — walk top-level defmacro form children looking for the return-type
+;; keyword (the keyword immediately following the `->` symbol at this level, NOT inside
+;; the argvec). Emits at most one replacement edit → `:wat::WatAST`.
+(:wat::core::defn :wat::fix::rettype-edit-walk
+  [items            <- :wat::core::Vector<wat::WatAST>
+   prev-right-arrow? <- :wat::core::bool
+   lines            <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
+                             (:wat::core::first items)
+                             "rettype-edit-walk: head")
+                      tl (:wat::core::rest items)
+                      ;; is this the return-type keyword slot?
+                      is-rettype? (:wat::core::if prev-right-arrow?
+                                    (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                                    false)]
+      (:wat::core::if is-rettype?
+        ;; emit the single rettype replacement edit; stop (return type consumed)
+        (:wat::core::let [span    (:wat::core::ast-span h)
+                          off     (:wat::fix::fix-text-offset-of span lines)
+                          old-len (:wat::core::string::length (:wat::core::ast-name h))]
+          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Tuple off old-len ":wat::WatAST")))
+        ;; not yet — recurse tracking whether current token is `->`
+        (:wat::fix::rettype-edit-walk tl (:wat::fix::right-arrow? h) lines)))))
+
+;; defmacro-edits — collect all type-replacement edits for one defmacro form.
+;; Detects 6-item (no metadata) vs 7-item (with metadata map at index 2) shapes.
+;; argvec: ch[2] if kind=="vector", else ch[3] (metadata-map at ch[2]).
+;; return type: first keyword after `->` in the form's top-level children.
+(:wat::core::defn :wat::fix::defmacro-edits
+  [form  <- :wat::WatAST
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::let [ch     (:wat::core::ast->children form)
+                    ;; ch[2]: if it's a vector, argvec is here (6-item); else ch[3] (7-item)
+                    c2     (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::first (:wat::core::drop ch 2))
+                               "defmacro-edits: ch[2]")
+                    argvec (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "vector")
+                              c2
+                              (:wat::core::Option/expect -> :wat::WatAST
+                                (:wat::core::first (:wat::core::drop ch 3))
+                                "defmacro-edits: ch[3]"))
+                    argvec-children (:wat::core::ast->children argvec)
+                    ;; collect argvec type edits
+                    av-edits   (:wat::fix::argspec-type-edits-walk argvec-children false false lines)
+                    ;; collect rettype edit — walk form's top-level children
+                    ret-edits  (:wat::fix::rettype-edit-walk ch false lines)]
+    (:wat::core::concat av-edits ret-edits)))
+
+;; macro-param-edits — walk top-level forms; for each defmacro, collect edits; else [].
+(:wat::core::defn :wat::fix::macro-param-edits
+  [forms <- :wat::core::Vector<wat::WatAST>
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? forms)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [form (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::first forms)
+                               "macro-param-edits: form")
+                      rest-forms (:wat::core::rest forms)
+                      form-edits (:wat::core::if (:wat::fix::defmacro? form)
+                                   (:wat::fix::defmacro-edits form lines)
+                                   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+      (:wat::core::concat form-edits
+        (:wat::fix::macro-param-edits rest-forms lines)))))
+
+;; fix-macro-param-types — comment-faithful defmacro param/return type migrator.
+;; Parses src → collects type-replacement edits for defmacro forms only →
+;; reverses to right-to-left → splices the ORIGINAL text via fix-text-apply.
+;; Comments, formatting, and defn/fn real types survive byte-identical.
+(:wat::core::defn :wat::fix::fix-macro-param-types
+  [src <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+                    tree      (:wat::core::read-string src)
+                    forms     (:wat::core::ast->children tree)
+                    all-edits (:wat::fix::macro-param-edits forms lines)
+                    rev-edits (:wat::core::reverse all-edits)]
+    (:wat::fix::fix-text-apply src rev-edits)))
