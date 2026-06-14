@@ -10649,15 +10649,17 @@ fn infer_spawn_thread_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn env-fn)` — arc 259 Stone S2c-i.
 ///
-/// Two positional args:
+/// Three positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
 ///   returns `Process'<I,O>` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
 /// - `args[1]`: post-spawn-fn; `Fn(ProcessLaunch) -> nil`; inferred and unified
 ///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
 ///   accessor type-check at parse time (ProcessLaunch/bogus-field → check error).
+/// - `args[2]`: env-fn; a `:wat::core::String` source string the child evals to
+///   produce `user.program`; inferred (runtime validates the result is a :wat::Record).
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_process_prime(
@@ -10670,12 +10672,12 @@ fn infer_spawn_process_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-process'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 2 {
+    if args.len() != 3 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 2,
+                expected: 3,
                 got: args.len(),
             },
         });
@@ -10694,6 +10696,9 @@ fn infer_spawn_process_prime(
     // arg 1: post-spawn-fn — infer it; this causes the accessor type-check to fire.
     // When the fn body reads ProcessLaunch/bogus-field, the checker rejects it here.
     let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg 2: env-fn — a String source expression; infer only (runtime validates result type).
+    let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
     let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();

@@ -361,12 +361,12 @@ pub fn eval_kernel_spawn_process_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process'";
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 2,
+                expected: 3,
                 got: args.len(),
             },
         }
@@ -396,8 +396,24 @@ pub fn eval_kernel_spawn_process_prime(
         }
     };
 
+    // arg 2: env-fn — a wat source string the child evals to produce user.program.
+    let env_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[2].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "String value (env-fn source string) for process tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared process-tier spawn logic.
-    spawn_process_peer(forms, post_spawn_fn, sym, list_span).map_err(Into::into)
+    spawn_process_peer(forms, post_spawn_fn, env_fn, sym, list_span).map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
@@ -596,6 +612,7 @@ pub fn spawn_thread_peer(
 pub fn spawn_process_peer(
     forms: Vec<WatAST>,
     post_spawn_fn: Arc<Function>,
+    env_fn: String,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -687,7 +704,7 @@ pub fn spawn_process_peer(
         // The dup2'd fd 0/1/2 survive (they are stdio, always below the sweep start).
         // run_forms_as_server_child never returns (calls _exit via run_user_main_in_child).
         crate::process::child_post_fork_init(lifeline_r_raw);
-        crate::process::run_forms_as_server_child(forms, inherit_config);
+        crate::process::run_forms_as_server_child(forms, inherit_config, env_fn);
     })
     .map_err(|io_err| RuntimeError {
         span: list_span.clone(),

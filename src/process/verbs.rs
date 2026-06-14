@@ -5,7 +5,8 @@
 use crate::ast::WatAST;
 use crate::config::Config;
 use crate::freeze::{
-    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
+    invoke_user_main, invoke_user_main_with_program,
+    startup_from_forms, startup_from_forms_with_inherit,
     startup_from_source, validate_user_main_signature, FrozenWorld,
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
@@ -258,6 +259,7 @@ fn run_user_main_in_child(
     stdin_reader: Arc<dyn WatReader>,
     stdout_writer: Arc<dyn WatWriter>,
     stderr_writer: Arc<dyn WatWriter>,
+    env_fn: Option<String>,
 ) -> ! {
     // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive past
     // the catch_unwind closure (Arc 170 slice 1e dropped the main_args
@@ -270,8 +272,20 @@ fn run_user_main_in_child(
 
     // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
     // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is ambient.
+    //
+    // Arc 209 C0b.3b-e — env-fn dispatch: when env_fn is Some(src), the child evals
+    // the source string in its own frozen world (eval_in_frozen) to produce user.program.
+    // Dispatch: a 0-arg fn → apply it; a :wat::Record → use directly; else clean child death.
+    // None → invoke_user_main (the CLI/non-spawn callers; unchanged behavior).
+    // Errors in the Some arm are threaded into the catch_unwind Result → finish_forked_child.
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        invoke_user_main(world, Vec::new())
+        match env_fn {
+            None => invoke_user_main(world, Vec::new()),
+            Some(src) => {
+                let user_program = crate::freeze::resolve_env_program(world, &src)?;
+                invoke_user_main_with_program(world, Vec::new(), user_program)
+            }
+        }
     }));
     let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
     finish_forked_child(world, outcome)
@@ -346,7 +360,7 @@ fn run_forked_child(
     }
 
     // Shared epilogue: catch_unwind + finish_forked_child.
-    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer, None)
 }
 
 // ─── Post-dup2 server runtime for spawn-program' :process (arc 214 β) ───────
@@ -362,6 +376,7 @@ fn run_forked_child(
 pub(crate) fn run_forms_as_server_child(
     forms: Vec<WatAST>,
     inherit_config: Option<Config>,
+    env_fn: String,
 ) -> ! {
     // Arc 209 C0b.3a-0 — hand the forms-child its owner-link as a self-peer
     // (rx=fd0, tx=fd1). dup BEFORE the PipeReader/PipeWriter take ownership of
@@ -425,7 +440,7 @@ pub(crate) fn run_forms_as_server_child(
     };
 
     // run_user_main_in_child never returns.
-    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer, Some(env_fn))
 }
 
 // ─── fork_program_from_source (wat-cli entry point) ─────────────────────────
@@ -560,7 +575,7 @@ fn child_branch_from_source(
     // Arc 170 slice 1e (REALIZATIONS pass 7) — argv is ambient.
     crate::runtime::set_argv(argv);
 
-    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer)
+    run_user_main_in_child(&world, stdin_reader, stdout_writer, stderr_writer, None)
 }
 
 // ─── spawn-process (from spawn_process.rs) ───────────────────────────────────

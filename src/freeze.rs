@@ -1072,6 +1072,56 @@ pub fn invoke_user_main_with_program(
     invoke_user_main_orchestrated(frozen, args, Some(user_program))
 }
 
+/// Resolve a process/CLI env-fn SOURCE STRING into a `user.program` `:wat::Record`, evaluated
+/// in `world` (the universe that has the type loaded). Dispatches on the eval result:
+/// - a 0-arg fn (`Value::wat__core__fn`) → applied (0 args); the result must be a `:wat::Record`
+/// - a `:wat::Record` (any subtype, including holon variants) → used directly
+/// - anything else → `RuntimeError` (env-fn must produce a `:wat::Record`)
+///
+/// This is the shared core that `run_user_main_in_child` (process tier) and the CLI `--env`
+/// path (arc 213 / 3b-f) both call. Testable in-process against a world that defines the
+/// record type — exactly as it runs in the spawned universe.
+pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, RuntimeError> {
+    let ast = crate::parse_one!(src).map_err(|e| RuntimeError {
+        span: Span::unknown(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: "env-fn".into(),
+            reason: format!("arc 209 C0b.3b-e: env-fn parse error: {e:?}"),
+        },
+    })?;
+    let v = eval_in_frozen(&ast, world, &Environment::new())?.value_owned();
+    match v {
+        Value::wat__core__fn(f) => {
+            let r = apply_function(f, vec![], world.symbols(), Span::unknown())?;
+            match r {
+                r @ (Value::wat__Record { .. } | Value::wat__holon__Record { .. }) => Ok(r),
+                other => Err(RuntimeError {
+                    span: Span::unknown(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: "env-fn".into(),
+                        reason: format!(
+                            "arc 209 C0b.3b-e: env-fn fn returned a non-record; \
+                             env-fn must produce a :wat::Record (any subtype); got: {:?}",
+                            crate::runtime::ValueSnapshot::of(&other)
+                        ),
+                    },
+                }),
+            }
+        }
+        r @ (Value::wat__Record { .. } | Value::wat__holon__Record { .. }) => Ok(r),
+        other => Err(RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: "env-fn".into(),
+                reason: format!(
+                    "arc 209 C0b.3b-e: env-fn must produce a :wat::Record (any subtype); got: {:?}",
+                    crate::runtime::ValueSnapshot::of(&other)
+                ),
+            },
+        }),
+    }
+}
+
 /// The orchestrator body. Delegates to [`bootstrap_wat_vm_process`] for
 /// steps 1–4 (service spawn + ThreadIO install); then runs `:user::main`;
 /// cleanup runs automatically when `runtime` drops at end of scope.

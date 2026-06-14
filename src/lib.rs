@@ -134,7 +134,7 @@ pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigm
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     bootstrap_wat_vm_process, eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen,
-    invoke_user_main, invoke_user_main_with_program, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
+    invoke_user_main, invoke_user_main_with_program, resolve_env_program, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
     BootstrapArgs, FrozenWorld, ProcessRuntime, StartupError, USER_MAIN_PATH,
 };
 pub use harness::{Harness, HarnessError, Outcome};

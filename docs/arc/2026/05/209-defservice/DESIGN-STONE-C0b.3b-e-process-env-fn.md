@@ -58,6 +58,28 @@ the current behavior). The two NON-spawn `run_user_main_in_child` callers (verbs
 `env-fn` (the `ProcessOpts` field), `(process/env "<src>")` (the constructor). Both are the builder's
 own terms (`--env` / env-fn). `(process)` keeps its default.
 
+## The type-loading invariant (substrate doctrine — builder, hard requirement 2026-06-13)
+
+`user.program` is the **rich** config escape hatch — a `:wat::Record` (plain, holon, or any
+bespoke subtype like `app::Env`), NOT string→string. Three rules govern how it moves:
+
+1. **A rich value crosses the wire as EDN.** That is the universal, structural form.
+2. **Only a consumer that has the type's CODE loaded can interface with it.** To read a record's
+   fields / dispatch on it, the universe must have the `:wat::Record::def` (and its accessors)
+   loaded. No code → no use. An **intermediary** (a relay) just passes the opaque EDN; it needs
+   nothing.
+3. **Therefore `user.program` is produced AND consumed in the same universe.** The env-fn runs
+   IN the spawned universe (where the forms/types are loaded), post-load / pre-`user/main`; that
+   same universe's `user/main` reads it. Nothing crosses a type boundary in normal use.
+
+Consequences that bind this design (and future remote/cross-process work):
+- The gate accepting `user.program` is a **value-variant match** (`Value::wat__Record { .. }` /
+  `wat__holon__Record`), NEVER `class_fqdn == ":wat::Record"` — so every subtype passes. (Past
+  bug class: exact `== ":wat::Record"` silently rejecting subclasses.)
+- The honest TEST observes the env-fn **in-process**, against a world that HAS the type
+  (`resolve_env_program` unit test). Shipping a record to a type-less consumer rightly FAILS
+  (arc-085 "no registry") — that is the invariant working, not a gap to engineer around.
+
 ## Files touched
 
 `wat/spawn.wat` (ProcessOpts `env-fn` field + `(process)` default + `(process/env)` ctor + defclause

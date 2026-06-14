@@ -42,14 +42,16 @@
   [init-fn       <- :wat::core::Fn()->wat::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
 (:wat::Record::def :wat::spawn::ProcessOpts
-  [post-spawn-fn <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil])
+  [post-spawn-fn <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
+   env-fn        <- :wat::core::String])
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
 ;; (thread)             — default init-fn + no-op post-spawn-fn.
 ;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op.
 ;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g.
-;; (process)            — no-op post-spawn-fn (its TYPE is the whole message).
-;; (process/post-spawn f)— post-spawn-fn is f.
+;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor.
+;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor.
+;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
@@ -66,10 +68,16 @@
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)))
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    "(:wat::program::EmptyEnv)"))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts f))
+  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)"))
+
+(:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
+  (:wat::spawn::ProcessOpts
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    s))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
@@ -124,6 +132,8 @@
   ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
   ;; The host's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
   ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
+  ;; The host's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
+  ;; evals in its own frozen world to produce user.program.
   ([host <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
-    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn host))))
+    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn host) (:wat::spawn::ProcessOpts/env-fn host))))

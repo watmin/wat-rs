@@ -73,6 +73,21 @@ can today.
 - This is an env/spawn-config feature, broader than C0b.3b; tracked here because the
   discussion surfaced it.
 
+> **⚠️ DESIGN EVOLVED (2026-06-13) — env-fn is a SOURCE STRING, not a literal Record value.**
+> Decomposed into three stones: **3b-d** (foundation, SHIPPED `1ea575ce`) =
+> `invoke_user_main_with_program(frozen, args, user_program: Value)`; **3b-e** (process,
+> STRIKE) = `ProcessOpts` carries `env-fn <- :wat::core::String`, a wat source string the child
+> evals in its own frozen world → dispatch (0-arg fn → apply / `:wat::Record` → use) → user.program;
+> **3b-f** (wat-cli root flag) = GATED on arc-213 (CLI → `spawn-program'`; do NOT build on the
+> `fork_program_from_source` grave). A source string (not a literal Record) unifies named call /
+> bare anon fn / direct ctor expr, crosses the fork trivially, is CLI-friendly + testable.
+>
+> **wat-cli surface (3b-f, builder 2026-06-13):** the root env-fn source comes from EITHER
+> **`--env "(form)"`** (flag) OR **`WAT_ENV="(form)"`** (environment variable) — both supported,
+> identical semantics (a wat source string eval'd before `:user::main` → user.program). **If BOTH
+> are passed, wat-cli PANICS** (ambiguous source; refuse rather than silently pick one). Exactly
+> one source, or none (→ EmptyEnv default).
+
 ## Then → thread+process PARITY → Stone C (the defservice defmacro)
 
 With 3b-b (the gate) + the post-spawn block (the grant hook) + the address/listener/peer
