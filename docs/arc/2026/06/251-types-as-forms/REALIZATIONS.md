@@ -101,3 +101,60 @@ read ladder warded); `docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md` (the r
 stopgap it owns); `feedback_reach_stumble_is_the_signal` (the "why not the CLI?" stumble that built
 the read rung). ENFORCE (the macro-param-type validator) + its corpus cascade remain a separate
 deferred thread.
+
+---
+
+## 2026-06-14 — THE TOOL LEARNS TO RECURSE + ENFORCE LANDS: the self-migration arc, completed
+
+The follow-through on the companion above (which closed with "ENFORCE remains a separate deferred
+thread"). It's no longer deferred — and getting there taught the sharpest tooling lesson of the arc.
+
+**ENFORCE landed (`43eb5f1f`).** Macro param/return types are now a CHECKED truth: the validator sits
+on the SOLE `parse_argspec_triples` output in the defmacro path (`src/macros/parse.rs`) — a fixed
+param MUST be `:wat::WatAST`, a rest param `:wat::core::Vector<wat::WatAST>`, the return `:wat::WatAST`,
+else a `MalformedDefmacro` at macro-definition time (naming file, param, the lying type, the required
+one). The mandatory-then-DISCARDED annotation is now mandatory-then-CHECKED. The no-magic law, carried
+out in our own grammar — the lie is uncompilable, not merely discouraged.
+
+The hard-cut → broken → auto-fix → prove demonstration became permanent: applying ENFORCE rejected
+every lying defmacro across the test surface (a real cascade — lib 69 reds, nursery 24). The 33
+Rust-embedded fixtures were cleared by a weighed Shadowdancer sweep (defmacro types ONLY; `parse.rs`
+untouched by the agent; baselines back to 915/36 + 895/4); `probe_arc209_macro_param_type_enforced`
+un-ignored, RED→GREEN.
+
+**THE TOOLING LESSON — build it, don't hand-fix it.** The 2 stdlib generated-macros (`make-deftest` /
+`make-deftest-hermetic`, whose generated defmacro carries its param types in a *quasiquote template*)
+were lies the codemod couldn't reach — it only walked TOP-LEVEL defmacros. I hand-edited `test.wat`.
+The builder caught it cold: *"why did you hand fix those?... why didn't you use the tool?"* That is the
+crutch — the same class as the Rust-harness-instead-of-the-wat-rung, one layer up. The honest move:
+the tool's gap is a reach-stumble at the tool's own expense; it names the next capability. So the tool
+was **extended**, not the file hand-edited: `collect-defmacro-edits-deep` — a recursive walk finding
+defmacros at ANY depth, mutually recursive with `macro-param-edits`. It works because quasiquote /
+unquote desugar to plain Lists (no distinct `ast-kind`) and `ast->children` is TOTAL (atoms → []), so
+the walk descends through templates and bottoms out on leaves. Re-running the runner fixed the nested
+templates **as the tool's output** — `grep :AST< wat/` is now 0 everywhere, nested included. The rule
+stays in the ledger; the next defmacro-generating-defmacro is handled for free.
+(Lesson banked: `feedback_use_the_tool_not_hand_fix`.)
+
+**A precision worth recording (the TCO exchange).** The runner's `apply-each` (the loop over the file
+list) IS genuinely tail-recursive — the recur call is the last form in `do` → `let` body → `if` else →
+fn tail, and `eval_tail` dispatches `:wat::core::do` → `eval_do_tail` (runtime.rs:2968), so the tail
+self-call trampolines (`EvalSignal::TailCall` → `apply_function`'s loop). Constant stack, any number of
+files. But the codemod's INTERNAL tree-walks (`macro-param-edits` / `collect-defmacro-edits-deep` /
+the argspec/rettype walks) are `(concat <here> (recur ...))` — the recur is an ARGUMENT to `concat`,
+NOT the tail — so they're non-tail and grow the native stack. They recurse over the forms WITHIN one
+file; `test.wat` (~960 lines) overflowed 8MB. So the ceiling is about single-FILE size, not corpus
+size — the runner could migrate ten thousand files and never grow. The elegant tail-recursive loop and
+the non-tail tree-walk are both in play; only the second is the arc-261 debt (papered by the
+`setrlimit` rune; CEK is the structural cure).
+
+**What is now true (on the disk):** wat migrates its own corpus, in wat, through its own CLI — AND its
+migrator extends itself to cover the cases its first version missed, AND the substrate now ENFORCES the
+honesty the migrator produced. The loop is closed: express the codemod (#95) → run it on yourself
+(#96) → teach it the cases it missed → enforce the result so the lie can't return.
+
+**Cross-references:** `feedback_use_the_tool_not_hand_fix` (the hand-fix catch); `wat/fix.wat`
+(`collect-defmacro-edits-deep`); `src/macros/parse.rs` (the ENFORCE validator);
+`tests/probe_arc209_macro_param_type_enforced.rs` (RED→GREEN); `docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md`
+(the non-tail-walk ceiling + the `setrlimit` rune). Song slot OPEN — #96 *Again We Rise* already scores
+the arc; this completion may fold into a later song or stand as tech-record.
