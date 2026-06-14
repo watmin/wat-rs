@@ -4,9 +4,12 @@
 > generates the op enum + the `select'`/`poll'` dispatch loop + the client wrappers from a flat
 > `:state` + `:ops` surface. It's the boss; **C.1 is the first sub-stone: the macro skeleton +
 > the OP ENUM only.** C.2 adds the dispatch loop; C.3 the client wrappers + start fn; Stone D the
-> counter proof. Spec: `DESIGN-REGROUNDED-2026-06-12.md`. Models on disk: **`wat/Record.wat`**
-> (`Record::def` — the do-block-of-defns defmacro pattern) + **`crates/wat-lru/wat/lru/CacheService.wat`**
-> `loop-step` (the dispatch loop, for C.2).
+> counter proof. Spec: `DESIGN-REGROUNDED-2026-06-12.md`. Models on disk: **`wat/Record.wat`** for the do-block
+> STRUCTURE ONLY (a defmacro emitting `` `(:wat::core::do (def…)(def…))``) — but **NOT** its
+> AST walk (it uses the OLDER holon-reflection crutch; see feasibility note 2). For the AST walk,
+> the model is **`wat/fix.wat`** + **`cond`** (WatAST-native: `ast->children`/`ast-kind`/
+> `with-children`/`first`/`rest`/`map`). **`crates/wat-lru/wat/lru/CacheService.wat`** `loop-step`
+> is the dispatch-loop model (for C.2).
 
 ## Feasibility — GROUNDED 2026-06-13 (both premises verified on disk)
 
@@ -14,11 +17,18 @@
    `Record.wat:95,192` prove it (defrecord/defstruct emit a `do` of a recordtype + defns; a
    top-level `do` of defns registers them all). defservice emits
    `(do (defenum …) (defn loop …) (defn wrappers …) (defn start …))`.
-2. **Reflection exists** — `:wat::runtime::extract-arg-types` / `extract-arg-names` /
-   `signature-of-fn` (`src/macros/eval.rs:557`; used live in `wat/kernel/run_threads.wat:135`).
-   Plus the holon-AST reflection `Record.wat` uses at expand time: `:wat::holon::from-wat`,
-   `:wat::holon::Bundle/children`, `:wat::holon::statement-length`, `:wat::core::map`,
-   `:wat::core::Option/expect`, quasiquote `~`/`~@`, `:wat::core::macro-error`.
+2. **WatAST-native AST tooling exists** (arc-251.5a homoiconic bridge) — `:wat::core::ast-kind`,
+   `:wat::core::ast->children`, `:wat::core::with-children`, + `first`/`rest`/`second`/`List?`/
+   `empty?`/`map`/`take`/`drop`/`concat` + quasiquote `~`/`~@` + `:wat::core::macro-error`.
+   **THIS is how defservice walks `:ops` — NOT holon reflection.** ⚠️ DO NOT copy `Record.wat`'s
+   `from-wat → Bundle/children → Vector/get` pattern: that is the OLDER holon-reflection crutch
+   (predates 251.5a; converts WatAST→holon to index-walk). The holon IR is VSA/semantic
+   machinery — using it to walk a plain macro arg-vector is the holon-crutch abuse
+   ([[feedback_honest_abstraction_decomplect_crutch_open_seam]]). **The model is `cond` +
+   `wat/fix.wat`** (both walk WatAST natively). And because `:ops` carries the op signatures
+   INLINE, defservice reads the surface directly — it needs NO reflection at all (not
+   `from-wat`, not `signature-of-fn`/`extract-arg-types`; those reflect *separate* handler defns
+   we don't have). Fully WatAST-native.
 
 ## The C.1 deliverable
 
@@ -57,7 +67,7 @@ C.1 emits:
 - **`:State` placeholder:** `:State` in the handler args is the literal sugar for the declared
   `:state <T>` type. C.1 doesn't need to resolve it (it strips the first arg); C.2/the handlers do.
 
-## The algorithm (mirror `Record.wat:92-115`)
+## The algorithm (WatAST-native — model: `cond` + `wat/fix.wat`, NOT `Record.wat`)
 
 ```clojure
 (:wat::core::defmacro :wat::service::defservice
@@ -66,16 +76,19 @@ C.1 emits:
    _ops-kw   <- :AST<...>  ops      <- :AST<...>]     ;; the :ops [<clauses>] pair
   -> :AST<wat::core::nil>
   `(:wat::core::do
-     (:wat::core::defenum ~(<fqdn>::Op keyword, built via keyword/of or string-append)
-        ~@(<expand-time let>: from-wat ops → Bundle/children → for each op-clause:
-              extract OpName (first) + the args-vec (second) ; drop the leading `s <- :State`
-              triple ; emit the variant: `:OpName` then, if client args remain, `[...client-args]`))))
+     (:wat::core::defenum ~(<fqdn>::Op keyword — build via keyword/of or string-append on fqdn)
+        ~@(<expand-time>: for each op-clause in `ops` (walk via `ast->children`/`map`):
+              the clause is a List → `ast->children` = [OpName, arg-vec, ->, ret, body…];
+              OpName = (first children) ; arg-vec = (second children), itself a vector →
+              `ast->children` = the triples [s,<-,:State, name,<-,type, …] ; DROP the first
+              triple (the `s <- :State` self arg) ; emit the variant: `:OpName` then, if client
+              args remain, splice the remaining triples as `[…client-args]`))))
 ```
-Reflection details to copy from `Record.wat`: `(:wat::holon::from-wat (:wat::core::quote ops))`,
-`(:wat::holon::Bundle/children …)`, `(:wat::holon::statement-length …)`, `(:wat::core::map …)`,
-`(:wat::core::Option/expect -> :wat::holon::HolonAST …)`. The variant args are a field-triple
-vector exactly like `Record::def`'s `[name <- type …]` parsing — reuse that field-walk, just
-DROP the first triple (the `s <- :State` self arg) per op.
+WatAST-native tooling to use (the `cond`/`fix.wat` way): `(:wat::core::ast->children node)`,
+`(:wat::core::ast-kind node)`, `(:wat::core::first …)`/`(:wat::core::second …)`/`(:wat::core::rest …)`,
+`(:wat::core::map …)`, `(:wat::core::take …)`/`(:wat::core::drop …)` for chunking the triple
+sequence, quasiquote `~`/`~@`, `(:wat::core::macro-error …)` on malformed `:ops`. **NO `from-wat`,
+NO `Bundle/children`, NO `signature-of-fn`** — read the surface directly.
 
 ## Files touched
 
@@ -97,8 +110,11 @@ its variants carry the right client args. RED at HEAD (`defservice` unknown macr
 
 1. **STOP-1:** a new `wat/service.wat` can't be registered into the stdlib defmacro load pass —
    STOP, report where the load list lives (the macro won't be found otherwise).
-2. **STOP-2:** the expand-time field-walk (drop the self arg, emit variant fields) can't reuse the
-   `Record::def` reflection pattern — STOP, report the gap (it should — same holon-AST tooling).
+2. **STOP-2:** the WatAST-native walk (`ast->children`/`first`/`take`/`drop`/`map` over `:ops` +
+   the arg-vec triples, drop the self arg, splice variant fields) can't express the op-enum
+   emission — STOP, report the gap. (Do NOT fall back to `from-wat`/`Bundle/children` — that is
+   the holon crutch this design rejects. If the native tooling has a true gap, that gap is its
+   own stone, not a reason to reach for holon.)
 3. **STOP-3:** the `:ops`-as-List-of-Lists grammar conflicts with how the builder wants the
    surface — STOP (this is the flagged contract decision; confirm before building).
 
