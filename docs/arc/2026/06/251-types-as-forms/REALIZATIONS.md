@@ -10,6 +10,10 @@ Disciplines and milestones named while building the faithful surface + its migra
 whenever we want, accumulating every trick we've ever used — we always just make a new one to do
 exactly what we want. we've just crossed a maturity line in the sand."*
 
+> **Full telling — the duet, scored:** Song #95 *Omerta* (Lamb of God) —
+> `docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-REALIZATIONS.md`. This arc-local note is
+> the technical capture; the chronicle entry carries the back-and-forth that made it.
+
 **How we got here (the path matters — it wasn't planned, it was forced out):** a bug — macro param
 type annotations are mandatory-then-discarded (the no-magic-law violation). Fixing it raised "how do
 we sweep ~50 macros / ~100 annotations?" → which raised "should macros be typed?" (**no** — Clojure
