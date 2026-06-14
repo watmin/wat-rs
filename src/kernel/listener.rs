@@ -40,9 +40,6 @@ use crate::span::Span;
 /// Transport-blind kernel trait: block until a connection arrives and return
 /// the server-side `Peer`.
 ///
-/// `accept` is the ONLY method this stone ships (`reactor_class`/`listen_fd`
-/// are C0b.3a-ii — not built here; no consumer yet).
-///
 /// # Deadlock contract
 ///
 /// Each impl preserves its transport's exact accept semantics:
@@ -57,10 +54,18 @@ pub trait CommListener: Send + Sync {
 
     /// Return a `&dyn Any` reference for downcasting to the concrete impl.
     ///
-    /// Used by `poll'` (thread-tier only) to extract the raw
-    /// `crossbeam::Receiver` from a `CrossbeamListener` for inclusion in
-    /// a `comms::thread::Select`. Socket/remote `poll'` is C0b.3a-ii.
+    /// Used by `poll'` to extract the raw crossbeam `Receiver` (thread tier)
+    /// or the raw listen fd (process tier, C0b.3a-ii) from the concrete impl.
     fn as_any_ref(&self) -> &dyn std::any::Any;
+
+    /// Arc 209 C0b.3a-ii — which wait-primitive class this listener uses.
+    ///
+    /// `CrossbeamListener` → `ReactorClass::InMemory` (parked-thread crossbeam select).
+    /// `SocketListener`    → `ReactorClass::Fd`       (kernel fd-poll via io_uring).
+    ///
+    /// Mirrors `CommReceiver::reactor_class` — one named discriminant across the
+    /// whole connection surface (Receiver, Listener, any future remote).
+    fn reactor_class(&self) -> crate::comms::ReactorClass;
 }
 
 // ─── CrossbeamListener ────────────────────────────────────────────────────────
@@ -79,6 +84,10 @@ pub struct CrossbeamListener {
 impl CommListener for CrossbeamListener {
     fn as_any_ref(&self) -> &dyn std::any::Any {
         self
+    }
+
+    fn reactor_class(&self) -> crate::comms::ReactorClass {
+        crate::comms::ReactorClass::InMemory
     }
 
     fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
@@ -249,6 +258,10 @@ pub struct SocketListener {
 impl CommListener for SocketListener {
     fn as_any_ref(&self) -> &dyn std::any::Any {
         self
+    }
+
+    fn reactor_class(&self) -> crate::comms::ReactorClass {
+        crate::comms::ReactorClass::Fd
     }
 
     fn accept(&self, _sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
