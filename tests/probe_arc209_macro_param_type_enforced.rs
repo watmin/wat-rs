@@ -15,10 +15,8 @@ const LYING_PARAM: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
-// RED at HEAD (measured: macro-def silently ACCEPTS a lying `<- :i64`). This is the gate for the
-// QUEUED ENFORCE-macro-param-type stone — ignored so the suite stays green until the validator
-// lands; un-ignore it when drawing that stone (it flips RED→GREEN).
-#[ignore = "queued ENFORCE-macro-param-type stone: un-ignore when the validator lands"]
+// ENFORCE landed (arc 251.5 / 209): macro-def now REJECTS a lying `<- :i64` at definition
+// time. This gate flipped RED→GREEN when the validator landed in src/macros/parse.rs.
 #[test]
 fn lying_macro_param_type_is_rejected_at_macro_def() {
     let r = startup_from_source(LYING_PARAM, None, Arc::new(InMemoryLoader::new()));

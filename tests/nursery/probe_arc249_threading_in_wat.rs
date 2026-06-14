@@ -86,8 +86,8 @@ const GT2: &str =
 /// steps]` binds `acc` directly as a WatAST and sidesteps the Option — and tests
 /// whether the macro param parser supports fixed+variadic.
 const THREAD_LAST_MACRO: &str = "(:wat::core::defmacro :test::thread-last \
-     [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>] \
-     -> :AST<wat::holon::HolonAST> \
+     [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>] \
+     -> :wat::WatAST \
      (:wat::core::foldl \
         (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST] \
            -> :wat::holon::HolonAST `(~@step ~a)) \
@@ -134,8 +134,8 @@ fn diag_thread_last_pipeline() {
 // `(:test::is-list 5)` → IntLit, not List → `0`.
 // ═══════════════════════════════════════════════════════════════════════════
 const IS_LIST_MACRO: &str = "(:wat::core::defmacro :test::is-list \
-     [form <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
-     (:wat::core::if (:wat::core::List? form) -> :AST<wat::holon::HolonAST> `1 `0))";
+     [form <- :wat::WatAST] -> :wat::WatAST \
+     (:wat::core::if (:wat::core::List? form) -> :wat::WatAST `1 `0))";
 
 #[test]
 fn diag_is_list_over_form() {
@@ -158,7 +158,7 @@ fn diag_is_list_over_form() {
 // We only read the error/Value shape, not a clean assertion.
 // ═══════════════════════════════════════════════════════════════════════════
 const HEAD_MACRO: &str = "(:wat::core::defmacro :test::head \
-     [form <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+     [form <- :wat::WatAST] -> :wat::WatAST \
      `(~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first form) \"nonempty\")))";
 
 #[test]
@@ -230,12 +230,12 @@ fn diag_program_body_quasiquote_impure_unquote_fenced() {
 // addendum lands. FM-2-bis: confirm the composition before briefing 249.3b.
 // ═══════════════════════════════════════════════════════════════════════════
 const THREAD_FIRST_MACRO: &str = "(:wat::core::defmacro :test::thread-first \
-     [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>] \
-     -> :AST<wat::holon::HolonAST> \
+     [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>] \
+     -> :wat::WatAST \
      (:wat::core::foldl \
         (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST] \
            -> :wat::holon::HolonAST \
-           (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST> \
+           (:wat::core::if (:wat::core::List? step) -> :wat::WatAST \
               `(~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first step) \"head\") ~a ~@(:wat::core::rest step)) \
               `(~step ~a))) \
         acc \

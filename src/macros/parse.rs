@@ -166,6 +166,62 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
         crate::argspec::ParseOptions { allow_rest_binder: true },
     ).map_err(MacroError::from)?;
 
+    // ENFORCE (arc 251.5 / 209) — a macro param binds unevaluated SYNTAX, so its declared
+    // type is not free: a fixed param always binds a form (`:wat::WatAST`), a rest param a
+    // sequence of forms (`:wat::core::Vector<wat::WatAST>`). The annotation used to be
+    // mandatory-then-discarded — a lie like `[x <- :wat::core::i64]` was silently accepted.
+    // Validate the SOLE argspec output here so the lie is a `MalformedDefmacro` at definition
+    // time, not a confusing failure (or silent wrong behaviour) at first expansion.
+    use crate::types::TypeExpr;
+    fn is_watast(ty: &TypeExpr) -> bool {
+        matches!(ty, TypeExpr::Path(p) if p == ":wat::WatAST")
+    }
+    fn is_watast_vec(ty: &TypeExpr) -> bool {
+        matches!(ty, TypeExpr::Parametric { head, args }
+            if head == "wat::core::Vector" && args.len() == 1 && is_watast(&args[0]))
+    }
+    for (ident, ty) in &spec.fixed_params {
+        if !is_watast(ty) {
+            return Err(MacroError {
+                span: argvec_span.clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: format!(
+                        "macro param `{}` is declared `{ty:?}`, but a macro param always binds a \
+                         form — its type must be `:wat::WatAST`",
+                        ident.as_str()
+                    ),
+                },
+            });
+        }
+    }
+    if let Some((ident, ty)) = &spec.rest_param {
+        if !is_watast_vec(ty) {
+            return Err(MacroError {
+                span: argvec_span.clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: format!(
+                        "macro rest-param `{}` is declared `{ty:?}`, but a rest param binds a \
+                         sequence of forms — its type must be `:wat::core::Vector<wat::WatAST>`",
+                        ident.as_str()
+                    ),
+                },
+            });
+        }
+    }
+    if let WatAST::Keyword(ret_kw, ret_span) = &rettype_item {
+        if ret_kw != ":wat::WatAST" {
+            return Err(MacroError {
+                span: ret_span.clone(),
+                kind: MacroErrorKind::MalformedDefmacro {
+                    reason: format!(
+                        "macro return type is declared `{ret_kw}`, but a macro always expands to a \
+                         form — its return type must be `:wat::WatAST`"
+                    ),
+                },
+            });
+        }
+    }
+
     // Extract param names only — MacroDef carries names, not types.
     // Bare derivation: macro substitution keys are bare (expansion-time pattern match).
     let params: Vec<String> = spec.fixed_params.into_iter().map(|(ident, _ty)| ident.as_str().to_owned()).collect();

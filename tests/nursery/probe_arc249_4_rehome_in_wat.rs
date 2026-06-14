@@ -87,7 +87,7 @@ fn diag_first_over_vector_form() {
 // map (computed in the program) from the splice (in the quasiquote) — no nested
 // `~@(map …)`-in-bare-quasiquote level-threading.
 const CANONICAL_COMPREHENSION_MACRO: &str = "(:wat::core::defmacro :my::inc-vof \
-     [& items <- :AST<wat::holon::Holons>] -> :AST<wat::holon::HolonAST> \
+     [& items <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST \
      (:wat::core::let [mapped (:wat::core::map \
                                 (:wat::core::fn [x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST \
                                    `(:wat::core::i64::+ ~x 1)) \
@@ -173,7 +173,7 @@ fn diag_keyword_of_full() {
 // template-position regression the deleted test would have caught.
 // ═══════════════════════════════════════════════════════════════════════════
 const KW_OF_TEMPLATE_MACRO: &str = "(:wat::core::defmacro :my::mk \
-     [e <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+     [e <- :wat::WatAST] -> :wat::WatAST \
      `(:wat::core::keyword/of :foo ~e))";
 
 #[test]

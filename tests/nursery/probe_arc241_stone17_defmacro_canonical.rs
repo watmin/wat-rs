@@ -76,8 +76,8 @@ fn contract_01_defmacro_canonical_shape_works() {
     // Post-stone: parse_defmacro_form routes argspec through parse_argspec_triples.
     let src = r#"
         (:wat::core::defmacro :test::wrap
-          [x <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [x <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::Some ~x))
     "#;
     let result = try_startup(src);
@@ -118,8 +118,8 @@ fn contract_03_defmacro_canonical_rest_binder_works() {
     // uses rest-binder; this contract is load-bearing for that migration.
     let src = r#"
         (:wat::core::defmacro :test::variadic-wrap
-          [& items <- :AST<wat::core::Vector<wat::WatAST>>]
-          -> :AST<wat::core::nil>
+          [& items <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::Vector ~@items))
     "#;
     let result = try_startup(src);

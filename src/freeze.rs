@@ -1581,8 +1581,8 @@ mod tests {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::defmacro :my::vocab::Double
-              [x <- :AST<wat::holon::HolonAST>]
-              -> :AST<wat::holon::HolonAST>
+              [x <- :wat::WatAST]
+              -> :wat::WatAST
               `(:wat::holon::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
@@ -1819,7 +1819,7 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::defmacro :evil::M [x <- :AST<wat::holon::HolonAST>] -> :AST<wat::holon::HolonAST> x)"#,
+            r#"(:wat::core::defmacro :evil::M [x <- :wat::WatAST] -> :wat::WatAST x)"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -2165,7 +2165,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::defn :my::helper [] -> :wat::core::i64 42)
             (:wat::core::defmacro :my::uses-helper []
-              -> :AST
+              -> :wat::WatAST
               (:wat::core::i64::+ (:my::helper) 0))
             (:my::uses-helper)
         "#);

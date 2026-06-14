@@ -45,8 +45,8 @@ fn probe_let_define_two_vars_visible() {
 fn probe_let_define_via_macro_emission() {
     let src = r#"
         (:wat::core::defmacro :my::probe
-          [body <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [body <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::let []
              (:wat::core::defn :my::probe::helper [] -> :wat::core::i64 42)
              ~body))

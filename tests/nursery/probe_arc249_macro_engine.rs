@@ -63,7 +63,7 @@ fn startup_ok(src: &str) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn regression_pure_computed_unquote_preserved() {
-    let decls = "(:wat::core::defmacro :my::pure-cu [] -> :AST<wat::holon::HolonAST> \
+    let decls = "(:wat::core::defmacro :my::pure-cu [] -> :wat::WatAST \
                  `(:wat::core::i64::+ ~(:wat::core::i64::+ 1 2) 10))";
     let body = "(:wat::core::= (:my::pure-cu) 13)";
     assert_eq!(eval_bool_with(decls, body).unwrap(), Value::bool(true));
@@ -96,9 +96,9 @@ fn mint_impure_computed_unquote_rejected() {
 #[test]
 fn mint_program_body_if() {
     // body is `(if (= 1 1) `(...) `(...))` — a program, not a bare quasiquote.
-    let decls = "(:wat::core::defmacro :my::pick [x <- :wat::holon::HolonAST] \
-                 -> :AST<wat::holon::HolonAST> \
-                 (:wat::core::if (:wat::core::= 1 1) -> :AST<wat::holon::HolonAST> \
+    let decls = "(:wat::core::defmacro :my::pick [x <- :wat::WatAST] \
+                 -> :wat::WatAST \
+                 (:wat::core::if (:wat::core::= 1 1) -> :wat::WatAST \
                    `(:wat::core::i64::+ ~x 1) \
                    `(:wat::core::i64::+ ~x 2)))";
     let body = "(:wat::core::= (:my::pick 10) 11)";
@@ -113,8 +113,8 @@ fn mint_program_body_if() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn mint_program_body_fold() {
-    let decls = "(:wat::core::defmacro :my::sum [& nums <- :AST<wat::holon::Holons>] \
-                 -> :AST<wat::holon::HolonAST> \
+    let decls = "(:wat::core::defmacro :my::sum [& nums <- :wat::core::Vector<wat::WatAST>] \
+                 -> :wat::WatAST \
                  (:wat::core::foldl \
                    (:wat::core::fn [acc <- :wat::holon::HolonAST n <- :wat::holon::HolonAST] \
                       -> :wat::holon::HolonAST `(:wat::core::i64::+ ~acc ~n)) \
