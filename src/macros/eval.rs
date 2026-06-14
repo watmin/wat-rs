@@ -542,6 +542,27 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::forms"
         | ":wat::core::show"
 
+        // ── Homoiconic WatAST bridge (arc 251.5a; pure-total node walk/build) ──
+        // The read→walk→rebuild→write spine: parse, decompose, kind-preserving
+        // rebuild, serialize — all deterministic, errors-as-values, no IO. The fence
+        // is default-DENY; these pure-total ops were minted (arc 251.5a) AFTER the
+        // arc-249 whitelist was written, so they were simply never added — not because
+        // they are impure (they are not; same category as the holon AST ops above),
+        // but because no defmacro needed to walk a binder Vector node until now (arc
+        // 209 Stone C.1's defservice is the first). Admitting them unblocks every
+        // node-walking defmacro, the homoiconic point of having the tooling at all.
+        | ":wat::core::read-string"
+        | ":wat::core::write-forms"
+        | ":wat::core::ast->children"
+        | ":wat::core::with-children"
+        | ":wat::core::ast-kind"
+        | ":wat::core::ast-name"
+        | ":wat::core::ast-span"
+        | ":wat::core::symbol-node"
+        | ":wat::core::keyword-node"
+        | ":wat::core::keyword/to-symbol"
+        | ":wat::core::keyword/to-type-form"
+
         // ── Form-shape predicates (pure over WatAST form-values) ──────
         // core form-shape predicate over WatAST::List; distinct from
         // :wat::holon::is-List? (a classifier over HolonAST). The name
