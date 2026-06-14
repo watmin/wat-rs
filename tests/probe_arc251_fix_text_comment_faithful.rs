@@ -48,3 +48,37 @@ fn fix_text_preserves_comments_and_strips_redundant_annotation() {
         "the redundant if-return annotation `-> :wat::core::i64` must be stripped; got:\n{out}"
     );
 }
+
+// Richer fixture (3 comments + a blank line + an annotated-if) + idempotence: every comment and
+// the blank line survive byte-identical, and a second pass over the migrated source is a no-op
+// (faithful forms yield zero edits) — the design's full gate, probe-sized.
+const RICHER: &str = r##"
+(:wat::core::defn :user::once [] -> :wat::core::String
+  (:wat::fix::fix-text ";; alpha comment\n;; beta comment\n\n(:wat::core::if true -> :wat::core::i64 1 2)\n;; gamma trailing"))
+
+(:wat::core::defn :user::twice [] -> :wat::core::String
+  (:wat::fix::fix-text (:user::once)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"##;
+
+#[test]
+fn fix_text_is_comment_faithful_on_many_comments_and_idempotent() {
+    let world = startup_from_source(RICHER, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup (richer fixture + idempotence)");
+    let s = |expr: &str| -> String {
+        let ast = wat::parse_one!(expr).expect("parse");
+        match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+            Ok(Value::String(s)) => (*s).clone(),
+            other => panic!("expected a migrated String from {expr}; got {other:?}"),
+        }
+    };
+    let once = s("(:user::once)");
+    for c in ["alpha comment", "beta comment", "gamma trailing"] {
+        assert!(once.contains(&format!(";; {c}")), "comment `;; {c}` must survive byte-identical; got:\n{once}");
+    }
+    assert!(once.contains("\n\n"), "the blank line between forms must survive; got:\n{once}");
+    assert!(!once.contains("-> :wat::core::i64"), "the redundant annotation must be stripped; got:\n{once}");
+    let twice = s("(:user::twice)");
+    assert_eq!(twice, once, "fix-text must be IDEMPOTENT — a second pass yields zero edits (byte-identical)");
+}
