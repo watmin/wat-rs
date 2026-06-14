@@ -105,3 +105,53 @@ rust-analyzer diagnostics that contradict a clean `cargo build` — trust your o
 
 `git show 4bf7e6ea` (3b-c — the EXACT ProcessOpts-field + defclause + spawn-process'-arity pattern,
 one tier over) and `BRIEF-STONE-C0b.3b-c.md`.
+
+---
+
+## REVISION 1 — STOP-2 resolved: extract `resolve_env_program`, observe in-process
+
+The feature impl (the 4 files above) is BUILT + compiles + regressions green (on the working tree,
+uncommitted). STOP-2 fired on the PROBE's observable, not the feature: the old probe shipped the
+child's record back to a type-LESS parent — which correctly fails ("a rich record can only be USED
+by a universe that has its type loaded; intermediaries relay opaque EDN" — builder, 2026-06-13).
+That's the requirement working, not a gap.
+
+**The fix (this revision):**
+1. **Extract the env-fn dispatch into a public, testable fn in `src/freeze.rs`:**
+   ```rust
+   /// Resolve a process/CLI env-fn SOURCE STRING into a `user.program` :wat::Record, evaluated
+   /// in `world` (the universe that has the type loaded). The result is dispatched: a 0-arg fn →
+   /// applied; a :wat::Record (any subtype/holon) → used; else error.
+   pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, RuntimeError> {
+       let ast = crate::parse_one!(src).map_err(/* RuntimeError */)?;
+       let v = eval_in_frozen(&ast, world, &crate::runtime::Environment::new())?.value_owned();
+       match v {
+           Value::wat__core__fn(f) =>
+               crate::runtime::apply_function(f, vec![], world.symbols(), Span::unknown())
+                   .map(|tv| tv.value_owned()),
+           r @ (Value::wat__Record { .. } | Value::wat__holon__Record { .. }) => Ok(r),
+           other => Err(/* RuntimeError: env-fn must produce a :wat::Record (any subtype); got … */),
+       }
+   }
+   ```
+   Re-export it from `src/lib.rs` (beside `invoke_user_main_with_program`), so the probe's
+   `wat::freeze::resolve_env_program` resolves. It is the SHARED core 3b-f (CLI `--env`) will reuse.
+2. **`run_user_main_in_child` calls it** (replacing its inline dispatch): `Some(src) =>
+   invoke_user_main_with_program(world, Vec::new(), resolve_env_program(world, &src)?)`. The error
+   still flows into the catch_unwind outcome (clean child death), unchanged.
+3. The rewritten probe `tests/probe_arc209_c0b3be_process_env_fn.rs` (on disk) is an IN-PROCESS
+   unit test of `resolve_env_program` against a world that DEFINES `app::Env` (a `:wat::Record`
+   subtype) — exactly the universe that runs the env-fn. Make it GREEN (4 tests: named call →
+   subtype, bare fn → applied, EmptyEnv default, non-record → error).
+
+**Revised gate** (the old e2e fork gate row is replaced by the unit row):
+```
+cargo test --release -p wat --test probe_arc209_c0b3be_process_env_fn   # 4 passed
+cargo test --release -p wat --test probe_arc209_c0b3aii_process_service_loop -- --test-threads=1  # 1
+cargo test --release -p wat --test probe_arc209_c0b3bb_bounced -- --test-threads=1   # 2
+cargo test --release -p wat --test probe_arc209_c0b3bc_post_spawn -- --test-threads=1  # 3
+cargo test --release -p wat --lib -- --test-threads=1                  # 915 / 36 (zero new)
+cargo test --release --workspace --no-run                              # compiles
+```
+Blast radius adds `src/freeze.rs` (+ the `src/lib.rs` re-export); `src/process/verbs.rs` shrinks
+(inline dispatch → one call). No change to spawn.wat / spawn.rs / check.rs from the built impl.
