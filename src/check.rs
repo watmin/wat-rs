@@ -9908,11 +9908,11 @@ fn infer_socket_pair_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 209 C0b.2d — `(:wat::kernel::socket-address' name :S :R)` → `SocketAddress'<S,R>`.
+/// Arc 209 C0b.2d / C0b.2e-iii — `(:wat::kernel::socket-address' name :S :R)` → `Address'<S,R>`.
 ///
 /// 3 args: `name` (a `String` value), `:S`, `:R` (type keywords — checker-only).
 /// Infers `name` as `:wat::core::String`; parses `:S` and `:R` via `parse_peer_pair_type_arg`;
-/// returns `SocketAddress'<S,R>`.
+/// returns `Address'<S,R>` (was `SocketAddress'<S,R>` — arc 209 C0b.2e-iii unifies).
 fn infer_socket_address_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -9931,7 +9931,7 @@ fn infer_socket_address_prime(
         let s = fresh.fresh();
         let r = fresh.fresh();
         return CheckResult::partial_with(
-            TypeExpr::Parametric { head: "wat::kernel::SocketAddress'".into(), args: vec![s, r] },
+            TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
             local_errors,
         );
     }
@@ -9943,7 +9943,7 @@ fn infer_socket_address_prime(
             let s = fresh.fresh();
             let r = fresh.fresh();
             return CheckResult::partial_with(
-                TypeExpr::Parametric { head: "wat::kernel::SocketAddress'".into(), args: vec![s, r] },
+                TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
                 local_errors,
             );
         }
@@ -9962,9 +9962,10 @@ fn infer_socket_address_prime(
     }
 
     // args[1] and args[2] are type keywords for S and R.
+    // Arc 209 C0b.2e-iii: return Address'<S,R> (unified; was SocketAddress'<S,R>).
     let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-    let ty = TypeExpr::Parametric { head: "wat::kernel::SocketAddress'".into(), args: vec![s_ty, r_ty] };
+    let ty = TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s_ty, r_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -10074,7 +10075,7 @@ fn infer_listener_prime(
                     local_errors,
                 );
             }
-            // Infer args[1] — must be SocketAddress'<S,R>.
+            // Infer args[1] — must be Address'<S,R> (arc 209 C0b.2e-iii: was SocketAddress').
             let addr_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                 Some(t) => t,
                 None => {
@@ -10089,8 +10090,8 @@ fn infer_listener_prime(
             let addr_surface = apply_subst(&addr_ty, subst);
             let addr_reduced = reduce(&addr_surface, subst, env.types());
             match addr_reduced {
-                TypeExpr::Parametric { ref head, args: ref type_args } if head == "wat::kernel::SocketAddress'" && type_args.len() == 2 => {
-                    // Arc 209 C0b.2e-ii — unified Listener' (was SocketListener').
+                TypeExpr::Parametric { ref head, args: ref type_args } if head == "wat::kernel::Address'" && type_args.len() == 2 => {
+                    // Arc 209 C0b.2e-ii/iii — unified Listener' from unified Address'.
                     TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![type_args[0].clone(), type_args[1].clone()] }
                 }
                 other => {
@@ -10099,7 +10100,7 @@ fn infer_listener_prime(
                         kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "addr".into(),
-                            expected: "SocketAddress'<S,R>".into(),
+                            expected: "Address'<S,R>".into(),
                             got: format_type(&other),
                         },
                     });
@@ -10140,10 +10141,14 @@ fn listener_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 }
 
 
-/// Arc 209 Stone C0b.1 — `(:wat::kernel::connect' addr)` → `Peer'<S,R>`.
+/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect' addr)` → `Peer'<S,R>`.
 ///
-/// 1 arg: `addr` of type `Address'<S,R>`. Returns `Peer'<S,R>` (the client end).
+/// 1 arg: `addr` of type `Address'<S,R>` (unified — thread and process tiers).
+/// Returns `Peer'<S,R>` (the client end).
 /// Extracts S and R from the `Address'<S,R>` parametric type of the argument.
+///
+/// Arc 209 C0b.2e-iii: collapsed from two arms (`Address'` thread + `SocketAddress'`
+/// process) to one — both tiers now produce `Address'<S,R>`.
 fn infer_connect_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -10176,18 +10181,14 @@ fn infer_connect_prime(
     let addr_reduced = reduce(&addr_surface, subst, env.types());
     let ty = match addr_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Address'" && args.len() == 2 => {
-            // Thread tier: Address'<S,R> → Peer'<S,R> (C0b.1).
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
-        }
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::SocketAddress'" && args.len() == 2 => {
-            // Process tier: SocketAddress'<S,R> → Peer'<S,R> (C0b.2c / C0b.2e-i-b: unified).
+            // Arc 209 C0b.2e-iii — unified Address'<S,R> → Peer'<S,R> (both tiers).
             TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
-                expected: "Address'<S,R> or SocketAddress'<S,R>".into(),
+                expected: "Address'<S,R>".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();

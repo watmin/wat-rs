@@ -60,6 +60,7 @@
 //! See `docs/arc/2026/05/214-concurrency-toolkit/DESIGN.md` §
 //! "Slice 4 — Kernel layer" for the full rationale.
 
+pub mod address;
 pub mod listener;
 pub mod peer;
 pub mod spawn;

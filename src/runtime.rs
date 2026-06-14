@@ -17961,11 +17961,14 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// Arc 209 C0b.2d — `(:wat::kernel::socket-address' name :S :R)` → `SocketAddress'<S,R>`.
+/// Arc 209 C0b.2d / C0b.2e-iii — `(:wat::kernel::socket-address' name :S :R)` → `Address'<S,R>`.
 ///
-/// Constructs a typed `SocketAddress'` opaque from a shared `String` name.  Two processes
+/// Constructs a typed `Address'` opaque from a shared `String` name.  Two processes
 /// that name the same string rendezvous on the same abstract-namespace UDS.  `:S` and `:R`
 /// are type keywords consumed by the checker only; they are not evaluated.
+///
+/// Arc 209 C0b.2e-iii: produces `Address{inner: Box::new(SocketAddress{name})}` under
+/// `ADDRESS_TYPE_PATH` (was `SOCKET_ADDRESS_TYPE_PATH` with a bare `String` payload).
 fn eval_socket_address_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -18004,8 +18007,11 @@ fn eval_socket_address_prime(
             },
         }.into()),
     };
+    // Arc 209 C0b.2e-iii — produce the unified Address entity (SocketAddress impl).
+    use crate::kernel::address::Address;
+    use crate::kernel::spawn::ADDRESS_TYPE_PATH;
     use crate::rust_deps::marshal::make_rust_opaque;
-    Ok(make_rust_opaque(crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH, name))
+    Ok(make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name(name)))
 }
 
 /// Arc 209 C0b.2c / C0b.2e-i-b — wrap a connected `UnixStream` as a unified `Peer'` opaque.
@@ -18081,24 +18087,38 @@ fn eval_listener_prime(
                 kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
             }.into());
         }
-        // Evaluate args[1] → SocketAddress' opaque → downcast to &String name.
+        // Evaluate args[1] → Address' opaque → downcast to &Address → extract socket name.
+        // Arc 209 C0b.2e-iii: Address' is now the unified entity (was SocketAddress').
+        // The process tier of listener' needs the abstract-namespace UDS name to bind.
         let addr_val = eval_inner(&args[1], env, sym)?.value_owned();
         let name: String = if let Value::RustOpaque(ref inner) = addr_val {
-            if inner.type_path == crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH {
+            if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH {
+                use crate::kernel::address::{Address, SocketAddress};
                 use crate::rust_deps::marshal::downcast_ref_opaque;
-                let s: &String = downcast_ref_opaque(
+                let addr: &Address = downcast_ref_opaque(
                     inner.as_ref(),
-                    crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH,
+                    crate::kernel::spawn::ADDRESS_TYPE_PATH,
                     OP,
                     args[1].span().clone(),
                 )?;
-                s.clone()
+                // Extract the socket name via as_any_ref downcast to SocketAddress.
+                match addr.inner.as_any_ref().downcast_ref::<SocketAddress>() {
+                    Some(sa) => sa.name.clone(),
+                    None => return Err(RuntimeError {
+                        span: args[1].span().clone(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: "Address'<S,R> (socket-address' — process tier needs a socket address for bind)",
+                            got: Box::new(ValueSnapshot::of(&addr_val)),
+                        },
+                    }.into()),
+                }
             } else {
                 return Err(RuntimeError {
                     span: args[1].span().clone(),
                     kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "SocketAddress'<S,R>",
+                        expected: "Address'<S,R>",
                         got: Box::new(ValueSnapshot::of(&addr_val)),
                     },
                 }.into());
@@ -18108,7 +18128,7 @@ fn eval_listener_prime(
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "SocketAddress'<S,R>",
+                    expected: "Address'<S,R>",
                     got: Box::new(ValueSnapshot::of(&addr_val)),
                 },
             }.into());
@@ -18169,29 +18189,30 @@ fn eval_listener_prime(
         }
         // Mint the crossbeam rendezvous channel.
         // Listener' = rx (the service accept-side, wrapped as Listener entity);
-        // Address' = tx (the client dial-side, kept as raw Sender — iii).
+        // Address' = tx (the client dial-side, wrapped as Address entity — C0b.2e-iii).
         let (tx, rx) = crate::comms::thread::pair::<Value>();
         // Arc 209 C0b.2e-ii — wrap rx as the unified Listener entity.
+        // Arc 209 C0b.2e-iii — wrap tx as the unified Address entity (was raw Sender).
+        use crate::kernel::address::Address;
         use crate::kernel::listener::Listener;
-        use crate::kernel::spawn::LISTENER_TYPE_PATH;
+        use crate::kernel::spawn::{ADDRESS_TYPE_PATH, LISTENER_TYPE_PATH};
         use crate::rust_deps::marshal::make_rust_opaque;
         Ok(Value::Tuple(Arc::new(vec![
             make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
-            crate::channel::sender_from_comms(tx),
+            make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx)),
         ])))
     }
 }
 
-/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1 / C0b.2c.
+/// `(:wat::kernel::connect' addr)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2e-iii.
 ///
-/// Thread tier (C0b.1): mint two crossbeam pairs (req: client→server,
-/// resp: server→client), wrap the client `Peer'<S,R>` end on THIS thread,
-/// ship the server's raw halves `(req_rx, resp_tx)` over `addr` (the
-/// rendezvous `Address'` = a raw `Sender`).  Returns the client `Peer'`.
+/// Arc 209 C0b.2e-iii: `addr` is now a unified `Address'` opaque (both thread and
+/// process tiers). Downcasts the opaque to `Address`, calls `inner.connect(sym, span)`,
+/// wraps the returned `Peer` as a `PEER_TYPE_PATH` opaque.  One arm, two impls.
 ///
-/// Process tier (C0b.2c / C0b.2e-i-b): downcast the `SocketAddress'` opaque to `&String`,
-/// connect to the abstract UDS, wrap the stream as a unified `Peer'<S,R>`.
-/// Returns `Peer'<S,R>`.
+/// (Formerly two arms: thread tier dispatched on `Value::wat__kernel__Sender`;
+/// process tier dispatched on `SOCKET_ADDRESS_TYPE_PATH`. Both bodies moved verbatim
+/// into `ThreadAddress::connect` / `SocketAddress::connect` in `kernel/address.rs`.)
 fn eval_connect_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -18206,89 +18227,31 @@ fn eval_connect_prime(
         }.into());
     }
     let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Process tier: SocketAddress' opaque (C0b.2c) — dispatch BEFORE the thread Sender arm.
-    if let Value::RustOpaque(ref inner) = addr_val {
-        if inner.type_path == crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH {
+    // Arc 209 C0b.2e-iii — one arm: downcast the Address' opaque → inner.connect.
+    let addr: &crate::kernel::address::Address = match addr_val {
+        Value::RustOpaque(ref inner)
+            if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH =>
+        {
             use crate::rust_deps::marshal::downcast_ref_opaque;
-            use std::os::linux::net::SocketAddrExt;
-            use std::os::unix::net::{SocketAddr, UnixStream};
-            let name: &String = downcast_ref_opaque(
+            downcast_ref_opaque(
                 inner.as_ref(),
-                crate::kernel::spawn::SOCKET_ADDRESS_TYPE_PATH,
+                crate::kernel::spawn::ADDRESS_TYPE_PATH,
                 OP,
                 args[0].span().clone(),
-            )?;
-            let sa = SocketAddr::from_abstract_name(name.as_bytes())
-                .map_err(|e| RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("abstract addr for connect: {}", e),
-                    },
-                })?;
-            let stream = UnixStream::connect_addr(&sa)
-                .map_err(|e| RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("connect abstract UDS: {}", e),
-                    },
-                })?;
-            return wrap_stream_as_socket_peer(stream, list_span, OP);
+            )?
         }
-    }
-    // Thread tier: Address' is a raw Sender (C0b.1).
-    let addr_inner = match addr_val {
-        Value::wat__kernel__Sender(ref inner) => inner.clone(),
-        other => {
+        ref other => {
             return Err(RuntimeError {
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Address'<S,R> (Sender) or SocketAddress'<S,R> (process opaque)",
-                    got: Box::new(ValueSnapshot::of(&other)),
+                    expected: "Address'<S,R>",
+                    got: Box::new(ValueSnapshot::of(other)),
                 },
             }.into());
         }
     };
-    // Mint the two connection pairs.
-    // req: client sends (S) → server receives
-    // resp: server sends (R) → client receives
-    let (req_tx, req_rx) = crate::comms::thread::pair::<Value>();
-    let (resp_tx, resp_rx) = crate::comms::thread::pair::<Value>();
-    // Wrap the client Peer' end on THIS thread (custody holds).
-    use crate::kernel::peer::Peer;
-    use crate::kernel::spawn::PEER_TYPE_PATH;
-    use crate::rust_deps::custodia::ThreadOwnedCell;
-    use crate::rust_deps::marshal::make_rust_opaque;
-    let client_peer = make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(req_tx, resp_rx)))),
-    );
-    // Build the connect-request: the server's raw halves packed as a Value::Tuple.
-    let connect_req = Value::Tuple(Arc::new(vec![
-        crate::channel::receiver_from_comms(req_rx),
-        crate::channel::sender_from_comms(resp_tx),
-    ]));
-    // Ship the connect-request one-way over the rendezvous (no return leg).
-    match crate::channel::typed_send(
-        addr_inner.as_ref(),
-        connect_req,
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::SendOutcome::Ok => {}
-        crate::channel::SendOutcome::Disconnected => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "connect': rendezvous send failed — listener was dropped".into(),
-                },
-            }.into());
-        }
-    }
-    Ok(client_peer)
+    addr.connect_as_value(sym, list_span)
 }
 
 /// Unpack a connect-request `Value` and wrap the server `Peer'` end on the

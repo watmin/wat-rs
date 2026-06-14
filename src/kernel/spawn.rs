@@ -146,9 +146,10 @@ pub type PeerCell = Arc<ThreadOwnedCell<Option<Peer>>>;
 /// — thread and process tiers now share one `Listener` entity.
 pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener'";
 
-/// `RustOpaque.type_path` for process-tier addresses (arc 209 C0b.2c).
-/// Wraps a `String` — the abstract-namespace UDS name that clients dial.
-pub const SOCKET_ADDRESS_TYPE_PATH: &str = ":wat::kernel::SocketAddress'";
+/// `RustOpaque.type_path` for the unified transport-blind `Address'` entity
+/// (arc 209 C0b.2e-iii). Replaces the former `SOCKET_ADDRESS_TYPE_PATH` —
+/// both thread and process tiers now produce the same `Address` entity.
+pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address'";
 
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
