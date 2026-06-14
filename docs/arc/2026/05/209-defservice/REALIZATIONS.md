@@ -290,3 +290,48 @@ Gate: lib 915/36, nursery 895/4, zero-new.
 This is **not** typed macros (settled dead — we have parity in everything but syntax). It's pure
 diagnostic fidelity for the untyped-macro / typed-expansion model — making the model's one residual
 rough edge (macro errors pointing at "unknown") disappear.
+
+## 2026-06-14 — BOTH ENDS of gen_server: the handler result is the callback-return (Outcome ≡ {reply|noreply|stop})
+
+We already knew one end. The 2026-06-14 "defservice is the gen_server you've been hand-rolling"
+entry + the prior-art-collisions entry named the **loop**: state-as-self serialized through one
+process IS `gen_server`'s `handle_call` serialization (the mutex). This session, drawing C.2, we
+**stumbled onto the other end of the same great** — and it's worth recording because we were already
+standing next to it without seeing it.
+
+**The path (the duet).** C.2's handler returned `(:wat::core::Tuple new-state reply)`. Designing the
+tuple story (tuples = small *obvious* pairs; anything structured with distinct, order-dependent roles
+wants names — the ADT identity), the builder turned it on our own code: *"did we just prove the tuple
+we're using should be a record with named accessors?"* It had — `(new-state, reply)` is two slots
+whose meaning you only know by convention (`first`=state, `second`=reply), the exact "wants names"
+smell. Reaching for the honest shape, the prior art surfaced: OTP `gen_server`'s callback **return** is
+`{reply, Reply, NewState}` / `{noreply, NewState}` / `{stop, Reason, NewState}` — a *named, tagged*
+result, never a bare pair. The builder: *"your erlang comment flipped my opinion."* We adopted
+`:wat::service::Outcome<S,R>` — `:Reply [state reply]` now, growing to `:NoReply` / `:Stop` at C.4.
+That sum **is** gen_server's callback-return contract, re-derived from first principles by holding the
+ADT doctrine honestly.
+
+**Both ends, independently:**
+| gen_server | defservice |
+|---|---|
+| one process serializes calls (`handle_call`) | the `serve` `poll'`-loop owns `:state`, one op at a time |
+| state threaded through the callback (`State` → `NewState`) | state-as-self threaded through pure handlers |
+| callback return `{reply,R,S} \| {noreply,S} \| {stop,…}` | `Outcome<S,R>` `:Reply{state,reply}` (→ `:NoReply`/`:Stop`) |
+| request/response = the message + the reply | `<fqdn>::Op` (request sum) + `<fqdn>::Reply` (response sum) |
+
+**What's genuinely ours** (the prior-art-collision discipline — name the great, claim only the delta):
+the substrate **guarantees around** the textbook model. gen_server is a hand-written behaviour in a
+dynamically-typed language, its return-tuple shape enforced by convention + runtime crash. Ours is
+(1) a **typed** tagged sum — `Outcome` / `Op` / `Reply` are ADTs, parse-time-checked, a wrong-shape
+return is *uncompilable*; (2) **structurally pure** — state-as-self makes the mutex hold by
+construction, not discipline; (3) **generated** — the entire service (both enums + the loop) is minted
+by a pure-wat `defservice` macro from a flat `:state` + `:ops` declaration. The model is gen_server's;
+the typed, macro-generated, unrepresentable-wrong-state *substrate* is the contribution.
+
+**The pattern (why this keeps happening).** Holding a doctrine honestly condenses the great out of the
+design. "Don't build remote yet" forced sockets emergent (#94); "structured data is a record, not an
+order-convention tuple" forced gen_server's callback-return shape. Rigidity reveals expression — and
+we keep walking in for a small fix (how do I return two things from a handler?) and walking out holding
+what the greats already had. We weren't copying gen_server; we were re-deriving it, and the doctrine
+was the divining rod. Pairs `feedback_note_prior_art_collisions` (name it, don't claim it) + the
+sockets-emergent realization (#94, the forcing-function-is-a-generator).
