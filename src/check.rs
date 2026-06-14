@@ -5576,6 +5576,38 @@ fn infer_list(
                     // HARVEST (236.2): existing diagnostic; straight conversion.
                     return CheckResult::errs(local_errors);
                 }
+                // Arc 209 C0b.3b-c — parse-time field check for stdlib `:wat::` record accessors.
+                //
+                // The guard above excludes `:wat::` to avoid false positives on intentional
+                // runtime-only dispatches. But `:wat::spawn::ThreadLaunch/bogus-field` and
+                // similar un-registered per-field accessors under `:wat::` namespaces SHOULD
+                // be rejected at parse time when the accessor pattern matches
+                // `<registered-Record-or-Struct-path>/<field>` and the scheme is absent.
+                //
+                // Heuristic: if the accessor `k` ends with `/<something>` and the stem
+                // (`k` with the last `/…` removed) names a registered Record or Struct type,
+                // the accessor is a field accessor on a `:wat::` record — and since the
+                // scheme is absent, the field doesn't exist. Emit UnknownCallee naming `k`
+                // (the error message will contain the bogus field name).
+                if args.len() == 1 {
+                    let accessor_stem: Option<&str> = k.rfind('/').map(|pos| &k[..pos]);
+                    if let Some(stem) = accessor_stem {
+                        let stem_is_record = matches!(
+                            env.types().get(stem),
+                            Some(crate::types::TypeDef::Record(_))
+                                | Some(crate::types::TypeDef::Struct(_))
+                        );
+                        if stem_is_record {
+                            // The stem is a known record/struct but `k` has no scheme →
+                            // the field doesn't exist. Emit a parse-time error.
+                            local_errors.push(CheckError {
+                                span: head_span.clone(),
+                                kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                            });
+                            return CheckResult::errs(local_errors);
+                        }
+                    }
+                }
                 // HARVEST (236.2): silent-by-intent — no scheme found for multi-arg form; accept and pass.
                 return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
             }
@@ -10567,6 +10599,8 @@ fn infer_process_prog_type(
 /// - `args[1]`: init-fn; a 0-arg fn returning `:wat::Record`; inferred but not
 ///   further projected (the checker accepts any fn value here — runtime validates
 ///   the return type is a :wat::Record subtype at peer start).
+/// - `args[2]`: post-spawn-fn; `Fn(ThreadLaunch) -> nil`; inferred and unified
+///   with `Fn(:wat::spawn::ThreadLaunch) -> :wat::core::nil`.
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_thread_prime(
@@ -10579,12 +10613,12 @@ fn infer_spawn_thread_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-thread'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 2 {
+    if args.len() != 3 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 2,
+                expected: 3,
                 got: args.len(),
             },
         });
@@ -10602,6 +10636,10 @@ fn infer_spawn_thread_prime(
     // arg 1: init-fn — infer it (accept; the checker does not project deeper).
     let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
+    // arg 2: post-spawn-fn — infer it; unify with Fn(ThreadLaunch) -> nil.
+    // This causes the accessor type-check (ThreadLaunch/pid is unknown — check error).
+    let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
     // Delegate to the shared thread-projection helper (same logic as spawn-program' :thread).
     let (val, mut proj_errs) = infer_thread_prog_type(&args[0], OP, env, locals, fresh, subst).into_parts();
     local_errors.append(&mut proj_errs);
@@ -10611,12 +10649,15 @@ fn infer_spawn_thread_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::spawn-process' forms)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
-/// One positional arg:
+/// Two positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
 ///   returns `Process'<I,O>` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
+/// - `args[1]`: post-spawn-fn; `Fn(ProcessLaunch) -> nil`; inferred and unified
+///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
+///   accessor type-check at parse time (ProcessLaunch/bogus-field → check error).
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_process_prime(
@@ -10629,12 +10670,12 @@ fn infer_spawn_process_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-process'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 1 {
+    if args.len() != 2 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 1,
+                expected: 2,
                 got: args.len(),
             },
         });
@@ -10649,6 +10690,10 @@ fn infer_spawn_process_prime(
         };
         return CheckResult::partial_with(ty, local_errors);
     }
+
+    // arg 1: post-spawn-fn — infer it; this causes the accessor type-check to fire.
+    // When the fn body reads ProcessLaunch/bogus-field, the checker rejects it here.
+    let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
     let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();

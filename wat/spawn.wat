@@ -25,25 +25,51 @@
 ;; See docs/arc/2026/06/259-forced-hand/DESIGN.md § "The spawn primitive".
 ;; Loads AFTER wat/Record.wat (uses :wat::Record::def).
 
+;; ── Per-env launch records (what each env hands the post-spawn hook) ─────────
+;; ThreadLaunch is empty — no fields yet; grows if a need appears (don't build
+;; the forcing function). ProcessLaunch carries the child pid, owner-side.
+(:wat::Record::def :wat::spawn::ThreadLaunch [])
+(:wat::Record::def :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
+
 ;; ── The keys (host opts records) ─────────────────────────────────────────────
 ;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::Record.
 ;; The init-fn runs at the peer's start and populates user.program.
 ;; ProcessOpts carries no config — its TYPE is the whole message.
+;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
+;; the peer is spawned, before spawn-program' returns, for effects. Receives
+;; the per-env launch record. Required with a no-op default on the bare ctors.
 (:wat::Record::def :wat::spawn::ThreadOpts
-  [init-fn <- :wat::core::Fn()->wat::Record])
-(:wat::Record::def :wat::spawn::ProcessOpts [])
+  [init-fn       <- :wat::core::Fn()->wat::Record
+   post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
+(:wat::Record::def :wat::spawn::ProcessOpts
+  [post-spawn-fn <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil])
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
-;; (thread)        — default init-fn is the EmptyEnv thunk.
-;; (thread/init f) — init-fn is f, a 0-arg fn returning a :wat::Record.
+;; (thread)             — default init-fn + no-op post-spawn-fn.
+;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op.
+;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g.
+;; (process)            — no-op post-spawn-fn (its TYPE is the whole message).
+;; (process/post-spawn f)— post-spawn-fn is f.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
-  (:wat::spawn::ThreadOpts (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))))
+  (:wat::spawn::ThreadOpts
+    (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
+    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
 
 (:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::Record] -> :wat::spawn::ThreadOpts
-  (:wat::spawn::ThreadOpts f))
+  (:wat::spawn::ThreadOpts f
+    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
+
+(:wat::core::defn :wat::spawn::thread/post-spawn [g <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil] -> :wat::spawn::ThreadOpts
+  (:wat::spawn::ThreadOpts
+    (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
+    g))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts))
+  (:wat::spawn::ProcessOpts
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)))
+
+(:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
+  (:wat::spawn::ProcessOpts f))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
@@ -90,10 +116,14 @@
 (:wat::core::defclause :wat::kernel::spawn-program'
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
   ;; The host's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
+  ;; The host's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
+  ;; after the peer is spawned, before spawn-program' returns, for effects.
   ([host <- :wat::spawn::ThreadOpts
     prog <- [:wat::kernel::Peer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
-    (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn host)))
+    (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn host) (:wat::spawn::ThreadOpts/post-spawn-fn host)))
   ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
+  ;; The host's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
+  ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
   ([host <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
-    (:wat::kernel::spawn-process' prog)))
+    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn host))))

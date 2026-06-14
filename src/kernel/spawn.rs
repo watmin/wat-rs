@@ -255,13 +255,15 @@ impl ProcessPeerBundle {
 // on the host type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process'). The
 // per-tier primitives below remain as the defclause's implementation targets.
 
-/// `(:wat::kernel::spawn-thread' prog init-fn)` — arc 259 Stone S2c-i.
+/// `(:wat::kernel::spawn-thread' prog init-fn post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
-/// Two positional args:
+/// Three positional args:
 /// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
 ///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `Thread'<R,S>`.
 /// - `args[1]` — init-fn: `fn [] -> :wat::Record` — runs at the peer's start,
 ///   its return value becomes `user.program` in the peer's env.
+/// - `args[2]` — post-spawn-fn: `fn [l <- ThreadLaunch] -> nil` — runs OWNER-side
+///   after the thread is spawned, before returning, for effects.
 ///
 /// Delegates to the SAME `spawn_thread_peer` called by the monolith's `:thread`
 /// branch — no duplication.
@@ -275,12 +277,12 @@ pub fn eval_kernel_spawn_thread_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-thread'";
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 2,
+                expected: 3,
                 got: args.len(),
             },
         }
@@ -319,15 +321,33 @@ pub fn eval_kernel_spawn_thread_prime(
         }
     };
 
+    // arg 2: post-spawn-fn value (1-arg fn receiving ThreadLaunch, returning nil).
+    let post_spawn_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError {
+                span: args[2].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "fn value (1-arg post-spawn-fn receiving ThreadLaunch) for thread tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared thread-tier spawn logic.
-    spawn_thread_peer(program_fn, init_fn, sym, list_span).map_err(Into::into)
+    spawn_thread_peer(program_fn, init_fn, post_spawn_fn, sym, list_span).map_err(Into::into)
 }
 
-/// `(:wat::kernel::spawn-process' forms)` — arc 259 Stone S2c-i.
+/// `(:wat::kernel::spawn-process' forms post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
-/// One positional arg:
+/// Two positional args:
 /// - `args[0]` — program forms (a vec of WatAST): the forms-server program.
 ///   Returns `Process'<I,O>`.
+/// - `args[1]` — post-spawn-fn: `fn [l <- ProcessLaunch] -> nil` — runs OWNER-side
+///   in the parent after the child is forked, with the child pid in ProcessLaunch.
 ///
 /// Delegates to the SAME `spawn_process_peer` called by the monolith's `:process`
 /// branch — no duplication.
@@ -341,12 +361,12 @@ pub fn eval_kernel_spawn_process_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process'";
-    if args.len() != 1 {
+    if args.len() != 2 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 1,
+                expected: 2,
                 got: args.len(),
             },
         }
@@ -360,8 +380,24 @@ pub fn eval_kernel_spawn_process_prime(
         args[0].span().clone(),
     ).map_err(EvalBreak::from)?;
 
+    // arg 1: post-spawn-fn value (1-arg fn receiving ProcessLaunch, returning nil).
+    let post_spawn_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "fn value (1-arg post-spawn-fn receiving ProcessLaunch) for process tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared process-tier spawn logic.
-    spawn_process_peer(forms, sym, list_span).map_err(Into::into)
+    spawn_process_peer(forms, post_spawn_fn, sym, list_span).map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
@@ -378,9 +414,14 @@ pub fn eval_kernel_spawn_process_prime(
 /// The `init_fn` is a 0-arg fn returning `:wat::Record`. It runs at the peer's
 /// start (inside the closure, at peer-start timing); its return value becomes
 /// `user.program` in the peer's env (replacing the hardcoded EmptyEnv literal).
+///
+/// The `post_spawn_fn` is a 1-arg fn receiving `ThreadLaunch`, returning nil.
+/// It runs OWNER-side after `std::thread::Builder::spawn` returns the handle
+/// (i.e. in the parent, before returning the peer value), for effects only.
 pub fn spawn_thread_peer(
     program_fn: Arc<Function>,
     init_fn: Arc<Function>,
+    post_spawn_fn: Arc<Function>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -510,6 +551,22 @@ pub fn spawn_thread_peer(
         join: Some(join_handle),
     };
 
+    // Arc 209 C0b.3b-c — owner-side post-spawn hook (mirror of init_fn, owner side).
+    // Build the empty ThreadLaunch record and apply the hook for effects before returning.
+    // Uses the same format→parse_one!→eval pattern as the peer-env build above (:448).
+    let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch)")
+        .expect("arc 209 C0b.3b-c: ThreadLaunch ctor form parses");
+    let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
+        .map_err(|e| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("arc 209 C0b.3b-c: ThreadLaunch ctor eval failed: {e:?}"),
+            },
+        })?
+        .value_owned();
+    apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
+
     // Wrapped in Option so close' can `.take()` the peer (consuming it for
     // `close()+join`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
@@ -538,6 +595,7 @@ pub fn spawn_thread_peer(
 /// `Value::RustOpaque(PROCESS_PEER_TYPE_PATH)`.
 pub fn spawn_process_peer(
     forms: Vec<WatAST>,
+    post_spawn_fn: Arc<Function>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -642,6 +700,10 @@ pub fn spawn_process_peer(
     // ── PARENT BRANCH ─────────────────────────────────────────────────────────
     let lifeline_w = lifeline_writer.into_owned_fd();
 
+    // Arc 209 C0b.3b-c — capture the child pid BEFORE peer/pidfd is moved into
+    // the bundle. Pidfd::pid() is available on the parent's pidfd (clone.rs:217).
+    let child_pid: i64 = pidfd.pid() as i64;
+
     // Build the parent-side Process<String, String> peer.
     let peer = Process {
         input: input_tx,
@@ -659,6 +721,23 @@ pub fn spawn_process_peer(
         err: err_rx,
         _lifeline_w: lifeline_w,
     };
+
+    // Arc 209 C0b.3b-c — owner-side post-spawn hook. Build ProcessLaunch{pid}
+    // and apply the hook for effects before returning the wrapped peer.
+    // Uses the same format→parse_one!→eval pattern as spawn_thread_peer.
+    let launch_src = format!("(:wat::spawn::ProcessLaunch {child_pid})");
+    let launch_ast = crate::parse_one!(&launch_src)
+        .expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
+    let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
+        .map_err(|e| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("arc 209 C0b.3b-c: ProcessLaunch ctor eval failed: {e:?}"),
+            },
+        })?
+        .value_owned();
+    apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for
     // `close()+wait`) while send'/recv' detect use-after-close via
@@ -727,9 +806,22 @@ mod tests {
             .expect(":my::default-init must be in the symbol table")
             .clone();
 
+        // Build a no-op post-spawn-fn: 1-arg ThreadLaunch → nil (the default no-op).
+        let noop_world = crate::freeze::startup_from_source(
+            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
+            None,
+            Arc::new(crate::load::InMemoryLoader::new()),
+        )
+        .expect("startup for noop post-spawn fn must succeed");
+        let noop_post_spawn_fn: Arc<Function> = noop_world
+            .symbols
+            .get(":my::noop-post-spawn")
+            .expect(":my::noop-post-spawn must be in the symbol table")
+            .clone();
+
         // Spawn a thread peer.
         let dummy_span = Span::unknown();
-        let peer_val = spawn_thread_peer(echo_arc, default_init_fn, &world.symbols, &dummy_span)
+        let peer_val = spawn_thread_peer(echo_arc, default_init_fn, noop_post_spawn_fn, &world.symbols, &dummy_span)
             .expect("spawn_thread_peer must succeed");
 
         // Must be RustOpaque with the thread-peer type-path.
@@ -824,8 +916,21 @@ mod tests {
             .expect(":my::default-init must be in the symbol table")
             .clone();
 
+        // Build a no-op post-spawn-fn for the blocker test.
+        let noop_world = crate::freeze::startup_from_source(
+            "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
+            None,
+            Arc::new(crate::load::InMemoryLoader::new()),
+        )
+        .expect("startup for noop post-spawn fn must succeed");
+        let noop_post_spawn_fn: Arc<Function> = noop_world
+            .symbols
+            .get(":my::noop-post-spawn")
+            .expect(":my::noop-post-spawn must be in the symbol table")
+            .clone();
+
         let baseline = Arc::strong_count(&prog);
-        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, &world.symbols, &Span::unknown())
+        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, noop_post_spawn_fn, &world.symbols, &Span::unknown())
             .expect("spawn_thread_peer must succeed");
 
         // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.

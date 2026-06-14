@@ -89,6 +89,22 @@ fn forms_from_src(src: &str) -> Vec<wat::ast::WatAST> {
         .expect("test forms must parse")
 }
 
+/// Build a no-op post-spawn-fn: `fn [_l <- ProcessLaunch] -> nil nil`.
+/// Used to satisfy the `post_spawn_fn` arg when tests don't need the hook.
+fn noop_process_post_spawn_fn() -> Arc<wat::Function> {
+    let world = wat::freeze::startup_from_source(
+        "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)",
+        None,
+        Arc::new(wat::load::InMemoryLoader::new()),
+    )
+    .expect("startup for noop process post-spawn fn must succeed");
+    world
+        .symbols
+        .get(":my::noop-post-spawn")
+        .expect(":my::noop-post-spawn must be in the symbol table")
+        .clone()
+}
+
 // ─── The proven echo+1 server body (arc 214 β canonical shape) ───────────────
 //
 // Reads one i64 from fd 0 (`readln -> :i64`), writes n+1 to fd 1 (`println`).
@@ -135,9 +151,10 @@ fn spawn_program_prime_process_echo_round_trip() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
     let sym = wat::runtime::SymbolTable::new();
+    let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -186,9 +203,10 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
     let sym = wat::runtime::SymbolTable::new();
+    let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, &sym, &dummy_span)
             .expect("pure WAT forms-server must spawn successfully");
 
     let opaque_arc = rust_opaque_arc(
@@ -242,9 +260,10 @@ fn spawn_program_prime_process_helper_round_trip() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
     let sym = wat::runtime::SymbolTable::new();
+    let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed (forms-server startup)");
 
     let opaque_arc = rust_opaque_arc(
@@ -298,9 +317,10 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
     let dummy_span = Span::unknown();
     let sym = wat::runtime::SymbolTable::new();
+    let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -373,9 +393,10 @@ fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
     let forms = forms_from_src(DIVISION_CRASH_SERVER);
     let dummy_span = Span::unknown();
     let sym = wat::runtime::SymbolTable::new();
+    let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
