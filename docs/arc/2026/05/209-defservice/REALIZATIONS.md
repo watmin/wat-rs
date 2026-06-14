@@ -247,8 +247,21 @@ which is why it's still the right fix.)
 
 **NOT a bug in the faithful sense** — Clojure/Typed-Clojure macros are forms→forms; you type-check
 the *expansion*, not the macro's params. The defect is narrowly the mandatory-then-discarded
-annotation. **Fix (own stone; enforce-vs-drop is a builder/intueri decision):** either (1) enforce
-the annotation must be the AST type (`:wat::WatAST` / an `:AST<…>` form) and reject non-AST
-annotations at macro-def time, or (2) drop per-param types for macros entirely (names only — the
-more 251-faithful shape; type-checking lives at the expansion). Also a latent decomplect: `cond` /
-`keyword/of` carry the same `:wat::holon::HolonAST` legacy annotation.
+annotation.
+
+**Fix (own stone) — DECIDED 2026-06-14 (four-questions + builder's deciding constraint: "there is
+exactly one argspec — i'm not debugging a fifth impl"): ENFORCE, do NOT drop.** DROP (name-only
+macro params) was the first read — but it FORKS `parse_argspec_triples`, **the sole argspec parser
+across fn/defn/defclause/defmacro** (Stone 241.1; argspec/parse.rs:70 — `fixed_params:
+Vec<(Identifier, TypeExpr)>`, type *required*) — or it makes that `TypeExpr` optional (the optional
+smell, and it weakens `defn` too). A second argspec impl is intolerable, so DROP is dead. ENFORCE:
+a validation rule on the SOLE parser's **output** in the defmacro path — every macro param's
+declared type must MATCH what actually binds (`:wat::WatAST` for a fixed param; the forms-sequence
+type for the rest param), rejected at macro-def time otherwise. This turns the discarded lie into a
+**checked truth** (no-magic satisfied by enforcement, not deletion), leaves the one argspec parser
+untouched, and makes the holon crutch **unrepresentable** (`<- :wat::holon::HolonAST` is rejected →
+must be `:wat::WatAST`; extirpare top rung). The stone also flushes the existing crutch:
+`keyword/of` (`head <- :wat::holon::HolonAST`) + any macro with a non-AST/holon param type get
+corrected to `:wat::WatAST` (a bounded mechanical sweep, NOT a grammar change). `cond`'s
+`& clauses <- :AST<wat::holon::Holons>` rest type is the legit forms-sequence type (the valid-AST-type
+set to pin when the stone is drawn).
