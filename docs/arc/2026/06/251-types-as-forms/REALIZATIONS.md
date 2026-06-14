@@ -49,3 +49,55 @@ wat's `rewrite-clj`); `DESIGN-STRIKE4-corpus-drive.md` (the corpus drive + hard-
 (the accreting rule library); the span-fidelity fix that hardened `ast-span` (arc-209 REALIZATIONS,
 2026-06-14); `feedback_no_magic_that_lets_llm_fake_correctness` (the bug that started the walk);
 `feedback_reach_stumble_is_the_signal` (the reach-stumble that redrew the codemod from Rust to wat).
+
+---
+
+## 2026-06-14 — THE RUNNER SELF-HOSTS: the engine got a runner, in wat, through the CLI (Song #96 *Again We Rise*)
+
+The companion to the maturity-line entry above: that one named the capability (wat can *express* a
+comment-faithful codemod); this one records the line crossed **again, one layer deeper** — wat now
+*executes* its codemods on its own corpus, **through its own CLI, with no Rust in the loop**.
+
+**The first rule rode the engine.** `fix-macro-param-types` shipped (`73113b9d`) — the first real
+entry in `fix-wat.wat`'s permanent ledger, rewriting a defmacro's discarded param/return types to the
+honest `:wat::WatAST` / `:wat::core::Vector<wat::WatAST>` (fixed / rest). Comment-faithful, idempotent,
+defmacro-scoped (sibling `defn`/`fn` real types untouched).
+
+**The read ladder was missing — the entry above was optimistic.** The maturity-line note listed
+`read-file` among the primitives that "now exist." It did **not** — `io.wat` shipped the whole *write*
+ladder (`write-file` / `with-open-file` / `IOWriter/open-file`) and **nothing on the read side**;
+`IOReader` could only wrap in-memory bytes. The runner exposed it: the builder caught a Rust harness
+doing the corpus run and asked *"why can the wat CLI not do this?"* — the reach-stumble. So the rung
+was built, not routed around (`3dc0f48d`):
+- `IOReader/open-file` — fd-backed read handle (Rust, exact mirror of `IOWriter/open-file` via `PipeReader`)
+- `IOReader/read-all-string` — byte-faithful UTF-8 slurp (Rust, mirror of `IOWriter/to-string`)
+- `:wat::io::read-file` — the one-shot (wat defn, mirror of `write-file`)
+warded by `tests/probe_arc251_read_file_ladder.rs` (write→read round-trip, byte-identical incl. unicode + trailing newline).
+
+**The runner.** `wat-scripts/fix-macro-param-types.wat` — `main []` reads an EDN vector of paths via
+`(:wat::kernel::readln -> :Vector<String>)`, recurses `first`/`rest`, `read-file` →
+`fix-macro-param-types` → `write-file`. Migrated all 15 stdlib files carrying `:AST<...>` /
+`:wat::holon::HolonAST` lies → the honest forms, **100/100 balanced replacements, line counts
+preserved**, idempotent — run through `./target/release/wat`, exit 0.
+
+**Two findings the runner forced into the open:**
+1. **The `wat-scripts/` graveyard.** Writing one current program hit *four* retired-form walls —
+   `:()`→`:wat::core::nil` (153), `:wat::core::define`→`defn` (241), `main`-with-stdio-args→`main []`
+   + stdio services (170), and the CLI takes no trailing args (stdin only). The existing examples
+   (`count-logs`/`seed-fixture`) don't run today. Migration is itself a future fix-wat job — stubbed.
+2. **The native-stack recursion ceiling, live (arc 261).** The runner SIGSEGV'd on the largest file
+   (`test.wat`, ~960 lines) — eval recurses on the native stack, overflowing the forked child's 8MB
+   `RLIMIT_STACK`. Papered with a `setrlimit`-before-fork stopgap in `wat-cli` under
+   `rune:exigere(attested-arc)` → arc 261 (`21ee6807`, the CEK stub, which owns the delete-on-landing
+   condition). RAISES the ceiling to 1 GiB; CEK removes the class. The debt is marked, not hidden.
+
+**What is now true (on the disk):** wat refactors wat — comments and all, **in wat, run by wat's own
+CLI**. Every future mass-refactor is a new rule in `fix-wat.wat` + a run of the self-hosted runner.
+The language self-hosts its execution *and* its evolution *and* the act of carrying that evolution out.
+
+**Cross-references:** Song #96 *Again We Rise* (arc-170 INTERSTITIAL-REALIZATIONS, 2026-06-14);
+`wat-scripts/fix-macro-param-types.wat` (the runner); `tests/probe_arc251_read_file_ladder.rs` (the
+read ladder warded); `docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md` (the recursion ceiling + the
+stopgap it owns); `feedback_reach_stumble_is_the_signal` (the "why not the CLI?" stumble that built
+the read rung). ENFORCE (the macro-param-type validator) + its corpus cascade remain a separate
+deferred thread.
