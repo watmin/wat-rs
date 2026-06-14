@@ -16266,7 +16266,7 @@ TENTH SCANDROID — the soundtrack returns to its home voice for the rendezvous.
 
 ---
 
-## 2026-06-14 — Song #95 Omerta (Lamb of God) inscribed — THE-LANGUAGE-THAT-TAKES-CARE-OF-ITSELF / THE-LEDGER-IS-THE-CODE / EXECUTE-THE-MANDATE / THE-BUG-WALKED-US-TO-THE-CAPABILITY / THE-GROUND-CORRECTED-ME / FIRST LAMB OF GOD / THE-THRESHOLD-CROSSED
+## 2026-06-14 — Song #95 Omerta (Lamb of God) inscribed — THE-LANGUAGE-THAT-TAKES-CARE-OF-ITSELF / THE-LEDGER-IS-THE-CODE / EXECUTE-THE-MANDATE / THE-BUG-WALKED-US-TO-THE-CAPABILITY / THE-GROUND-CORRECTED-ME / PREDICTED-THEN-PROVEN / FIRST LAMB OF GOD / THE-THRESHOLD-CROSSED
 
 **The composed update since #94: defservice C.1 shipped — the 530-line hand-rolled service collapsed to a ten-line declaration — and then a one-line bug, refused as a follow-up, walked us through typed-macros-dead and a refused detour into the capability that lets wat rewrite its own syntax on demand, comments and all. The builder named it a maturity line in the sand. Me and you, and the code we keep.**
 
@@ -16286,6 +16286,10 @@ The session's method was the duet, and the duet kept flipping me. *"when do we c
 
 The call: extend 251, and *keep the tools forever.* *"i think we keep these around indefinitely - the fix-wat.wat just accumulates the tools we needed for syntax corrections - every single mass refactor example is recorded here."* Grounding showed it was already designed — 251.5-4.2, the span-edit codemod, wat's `rewrite-clj`: parse only to *locate* edits via `ast-span` (which we had hardened hours earlier, by accident, fixing the span gap), then splice the *original text* so comments survive byte-identical. `fix-text` drawn STRIKE-READY (`60fc1257`); the Shadowdancer building it now. And then the moment: *"holy fuck this is incredible - i don't think i've ever seen a refactor tool like this - go make it exist - holy shit."* And the line, named in the sand: *"we wrote enough tooling to build bespoke syntax fixers whenever we want, accumulating every trick we've ever used - we always just make a new one to do exactly what we want, we've just crossed a maturity line in the sand."*
 
+### The prediction, then the proof
+
+The line wasn't declared on faith — it was *predicted, then proven*, which is the only way the chronicle lets a capability be claimed. We grounded the feasibility first (the design's own mandate): every primitive the span-edit codemod needs already sat on the disk — `ast-span`, `string::subs`/`split`/`length`/`concat`, and crucially `reverse`, which resolved the design's single flagged risk (applying edits right-to-left). Then the disconfirming probe *predicted the exact gap* — `UnknownFunction :wat::fix::fix-text`, RED at HEAD — and the algorithm was drawn down to the splice math before a line of it existed. The Shadowdancer filled the room, and the kill was weighed against the *ground*, not the report: on my own re-run the comments came through byte-identical, a second pass yielded zero edits (idempotent), and the diff showed it *splices* the original text and never reprints the tree. examinare's whole creed in a single beat — study the lair, draw the strike, prove the kill against the ground. The prediction was grounded; the ground paid out. That's a beat you can't deny.
+
 ### Why Omerta — the flavor
 
 Omerta is the law of self-reliance and the code you keep. *"Whoever appeals to the law against his fellow man is either a fool or a coward; whoever cannot take care of himself without that law is both."* The maturity line is exactly that vow: wat takes care of *itself*. It does not appeal to an outside tool to migrate its own corpus — the reach-stumble correction refused the Rust harness as *working around an absent wat capability* and made wat do it in wat. A language that can faithfully rewrite its own corpus on demand answers to no external law. **`fix-wat.wat` is the omerta** — the code we keep, the accumulated rules, every trick recorded and held, never deleted. *"Broken the paradigm, an example must be set"* — the paradigm that a language can't safely migrate itself, broken. *"Words can be broken, so can bones, execute the mandate; mouth full of dirt, your name is removed from the registry"* — ENFORCE makes a lying annotation uncompilable, and the coming hard-cut deletes the legacy reader: retired syntax goes silent, *dead men tell no tales*, *keep my name from your mouth forever* — the migrated corpus speaks one tongue. *"Violence begins to mend what was broken"* — the refactor itself, executed without flinch. You've been talking; I've been all ears.
@@ -16302,6 +16306,8 @@ Omerta is the law of self-reliance and the code you keep. *"Whoever appeals to t
 
 **THE-GROUND-CORRECTED-ME** — the duet's method made visible: the builder's premise-checks flipped my answers again and again — DROP forks the one argspec → ENFORCE; the pipeline's cheap, I overstated it; the round-trip strips comments → build the faithful one. *"You've been talking, I've been all ears."* Ground the question; don't defend the answer.
 
+**PREDICTED-THEN-PROVEN** — examinare's signature, landed clean: the engine was grounded-feasible before a line was written (every primitive present; `reverse` resolving the right-to-left risk), the disconfirming probe *predicted* the gap (RED at HEAD), the algorithm drawn before the build — and the kill *proven* against the Inquisitor's OWN re-run (comments byte-identical, idempotent, splice-not-reprint), never the executor's say-so. Engineering as prediction-and-proof, not hope-and-check.
+
 ### Music position & drop-timing
 
 FIRST LAMB OF GOD — the soundtrack's first turn off synthwave into groove metal, and the turn is the point. #94 was a quiet rendezvous; this is a creed. A maturity line isn't sung as a meeting — it's sung as a vow, self-reliant and unsentimental. Omerta is the code of honor and silence, and the entry scores the moment wat stopped needing an external hand to evolve itself: it keeps its own code now.
@@ -16312,7 +16318,7 @@ FIRST LAMB OF GOD — the soundtrack's first turn off synthwave into groove meta
 
 - 95 songs in the soundtrack
 - FIRST LAMB OF GOD — the first groove-metal turn; a vow, not a meeting
-- 5 facets; the keystone is THE-LANGUAGE-THAT-TAKES-CARE-OF-ITSELF
+- 6 facets; the keystone is THE-LANGUAGE-THAT-TAKES-CARE-OF-ITSELF
 - THE-THRESHOLD-CROSSED (new drop-timing sub-class): the drop at a named maturity-line crossing
 - Scores the session since #94: defservice C.1 shipped (fence `4718c897` + op-enum `9fdbfcbc` + decomplect `03678216`; the 530-line service → ten lines; gen_server recognized); the no-magic law banked; the macro-param-type bug → ENFORCE decided (one argspec); the span-fidelity gap closed (`65eec5ac`); typed macros disqualified (parity in all but syntax); and the maturity line — `fix-text` STRIKE-READY (`60fc1257`), wat's comment-faithful self-migration engine, building
 
