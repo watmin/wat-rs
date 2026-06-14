@@ -265,3 +265,28 @@ must be `:wat::WatAST`; extirpare top rung). The stone also flushes the existing
 corrected to `:wat::WatAST` (a bounded mechanical sweep, NOT a grammar change). `cond`'s
 `& clauses <- :AST<wat::holon::Holons>` rest type is the legit forms-sequence type (the valid-AST-type
 set to pin when the stone is drawn).
+
+## 2026-06-14 — Macro span-fidelity: constructed nodes inherit the call-site span (gap CLOSED)
+
+The C.1 work flagged a diagnostic gap (builder: *"we don't tolerate bugs — we close it"*). Grounding
+sharpened it — and corrected my first, imprecise claim that defservice's enum-name carried an unknown
+span:
+
+- Bridge ops that return a **value** (`keyword/from-string` → a keyword *value*, runtime.rs:6897) are
+  auto-stamped the call-site span by `value_to_watast` on the value→node conversion — **no gap**.
+- Bridge ops that return a **`Value::wat__WatAST` node** with `Span::unknown` baked in —
+  `keyword-node` / `symbol-node` / `read-string` (edn_shim:259/554/581) — are passed through **direct**
+  by `value_to_watast`, so the unknown span survives — **the real gap**. (defservice uses
+  `keyword/from-string` + `with-children`, so it had no holes; the gap bites any macro that builds via
+  the node-returning constructors.)
+
+**Fix (`03678216`'s sibling — shipped):** `restamp_unknown_spans` (expand.rs) — a post-pass at
+`expand_macro_call`'s return that fills every `is_unknown()` span in the expansion with the call-site
+span; real spans (template literals, `with-children` user-arg nodes, value-converted nodes) are
+untouched. So a type error on macro-generated code now points at the user's macro call. Probe
+`probe_arc209_macro_span_fidelity` (RED at HEAD: line 0 via `keyword-node`; GREEN: call-site line).
+Gate: lib 915/36, nursery 895/4, zero-new.
+
+This is **not** typed macros (settled dead — we have parity in everything but syntax). It's pure
+diagnostic fidelity for the untyped-macro / typed-expansion model — making the model's one residual
+rough edge (macro errors pointing at "unknown") disappear.

@@ -221,7 +221,49 @@ pub(super) fn expand_macro_call(
     // a mutable counter through the whole expansion tree would expose it
     // through every caller's signature.
     let macro_scope = fresh_scope();
-    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)
+    let expanded = expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)?;
+    // Diagnostic fidelity (arc 209, C.1): the bridge constructors (`keyword-node`/`symbol-node`/
+    // `read-string`, edn_shim) build `WatAST` nodes stamped `Span::unknown`, and `value_to_watast`
+    // passes such nodes through DIRECT — so a type error on macro-CONSTRUCTED code would point at
+    // "unknown" instead of the user's macro call. Fill every unknown-span hole in the expansion
+    // with the call-site span. Nodes that already carry a real span (template literals,
+    // `with-children` user-arg nodes, value-converted nodes) are untouched — only genuine holes.
+    Ok(restamp_unknown_spans(expanded, &call_site_span))
+}
+
+/// Replace every `Span::unknown()` in a macro expansion with the call-site span, so a macro
+/// error attributes to the user's macro call. Recursive; leaves real spans intact. See the
+/// call in [`expand_macro_call`].
+fn restamp_unknown_spans(form: WatAST, call_site: &Span) -> WatAST {
+    fn fix(s: Span, call_site: &Span) -> Span {
+        if s.is_unknown() {
+            call_site.clone()
+        } else {
+            s
+        }
+    }
+    let kids = |items: Vec<WatAST>| -> Vec<WatAST> {
+        items.into_iter().map(|c| restamp_unknown_spans(c, call_site)).collect()
+    };
+    match form {
+        WatAST::IntLit(v, s) => WatAST::IntLit(v, fix(s, call_site)),
+        WatAST::FloatLit(v, s) => WatAST::FloatLit(v, fix(s, call_site)),
+        WatAST::BoolLit(v, s) => WatAST::BoolLit(v, fix(s, call_site)),
+        WatAST::StringLit(v, s) => WatAST::StringLit(v, fix(s, call_site)),
+        WatAST::NilLit(s) => WatAST::NilLit(fix(s, call_site)),
+        WatAST::Keyword(v, s) => WatAST::Keyword(v, fix(s, call_site)),
+        WatAST::Symbol(v, s) => WatAST::Symbol(v, fix(s, call_site)),
+        WatAST::List(items, s) => WatAST::List(kids(items), fix(s, call_site)),
+        WatAST::Vector(items, s) => WatAST::Vector(kids(items), fix(s, call_site)),
+        WatAST::Set(items, s) => WatAST::Set(kids(items), fix(s, call_site)),
+        WatAST::Map(pairs, s) => WatAST::Map(
+            pairs
+                .into_iter()
+                .map(|(k, v)| (restamp_unknown_spans(k, call_site), restamp_unknown_spans(v, call_site)))
+                .collect(),
+            fix(s, call_site),
+        ),
+    }
 }
 
 /// Dispatcher: inspect the template's top-level shape once and route to the
