@@ -160,3 +160,31 @@ it is an explicit `HashMap` field — a *declared* choice, never the typed spine
 **Cross-references:** `DESIGN-REGROUNDED-2026-06-12.md` § "What is preserved" pt 1 (state-as-self
 = the mutex); the reach-stumble doctrine (`feedback_reach_stumble_is_the_signal`); the ADT-language
 identity (wat is nominal tagged sums, not dynamic maps — `project_typed_clojure_parity_pivot`).
+
+## 2026-06-14 — Prior-art collisions (independent rediscovery = a taste signal)
+
+Both patterns above turned out to be textbook the builder hadn't known by name — one he'd
+perfected independently over ~5 years. Worth naming, for two honest reasons: converging on an
+established pattern is a *taste signal* (the constraints forced the optimum, the shape good
+engineers keep rediscovering), and naming the prior art rather than claiming novelty is the same
+discipline as the no-magic entry above (don't-make-shit-up) — while noting what *is* genuinely
+ours.
+
+- **defservice ≡ the actor model / gen_server.** State + handlers serialized by one loop is the
+  **actor model** (Hewitt, 1973), Erlang/OTP **`gen_server`** (`handle_call`/`handle_cast`),
+  Elixir **`GenServer`**, **Akka**. The builder's Ruby "gen_server in lambdas" was itself a
+  reinvention. *Ours:* pure state-as-self handlers (not captured mutable state), deadlock-free-
+  on-drop termination, transport-blindness across thread/process/remote. The model is textbook;
+  the substrate guarantees around it are the contribution.
+- **The recursive locking hash ≡ mutable-builder → frozen value.** **Builder pattern** (GoF, 1994;
+  Bloch, *Effective Java*); freeze-after-init (Ruby `freeze` / JS `Object.freeze` / Python frozen
+  dataclass); **Clojure `transient`/`persistent!`** (the closest twin — mutable-in-scope then
+  frozen, with use-after-freeze an error = the `do |state| … end` auto-lock beat-for-beat); and
+  the **typestate pattern** (the type-level rung wat sits on). *Ours:* the specific ergonomic
+  bundle — block-scoped auto-lock + dot-notation auto-vivify + recursive lock as one unit (each
+  ingredient textbook; the composition plausibly the builder's — no citation invented for the
+  exact bundle). wat deliberately drops the auto-vivify half (see the no-magic entry).
+
+Habit (`feedback_note_prior_art_collisions`): when we collide with prior art the builder didn't
+know — especially a pattern he perfected over years — name it. Real names only (no invented
+citations); note the genuinely-novel part.
