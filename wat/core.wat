@@ -186,9 +186,9 @@
 ;; through too — the substrate peels binding-level metadata from the fn-form,
 ;; so the macro template stays metadata-blind and UNCHANGED.
 (:wat::core::defmacro :wat::core::defn
-  [name <- :AST<wat::core::nil>
-   & rest <- :AST<wat::core::Vector<wat::WatAST>>]
-  -> :AST<wat::core::nil>
+  [name <- :wat::WatAST
+   & rest <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   `(:wat::core::def ~name (:wat::core::fn ~@rest)))
 
 ;; Restrictions live as a :restricted-to key in the metadata-map on def/defn
@@ -202,8 +202,8 @@
 ;; Empty-list step `()`: Option/expect on (first ()) fires "-> step has no head"
 ;;   as a panic_any(AssertionPayload) at macro-expansion time (during startup).
 (:wat::core::defmacro :wat::core::->
-  [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
@@ -219,8 +219,8 @@
 ;; Empty-list step `()`: ~@() splices nothing, yielding `(acc)` — expansion succeeds
 ;;   but eval rejects the integer-head form with MalformedForm at runtime.
 (:wat::core::defmacro :wat::core::->>
-  [acc <- :wat::holon::HolonAST & steps <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
@@ -252,8 +252,8 @@
 ;; empty? is checked FIRST (before any Option/expect) so the empty-clause case
 ;; goes through the RuntimeError channel, not panic_any.
 (:wat::core::defmacro :wat::core::cond
-  [& clauses <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [& clauses <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? clauses)
     ;; empty clause list — non-exhaustive / no terminal :else. Arc 258 Stone 258.2b: use the
     ;; first-class macro-error primitive to abort with a clean diagnostic. This replaces the
@@ -298,8 +298,8 @@
 ;; Arc 249 Stone 249.4a — promoted from construct_keyword_of (expand.rs).
 ;; Zero args: string::join "" [] = "", yielding `:Head<>` (empty angle brackets).
 (:wat::core::defmacro :wat::core::keyword/of
-  [head <- :wat::holon::HolonAST & args <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [head <- :wat::WatAST & args <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   (:wat::core::let [head-text (:wat::core::keyword/to-string head)
                     arg-texts (:wat::core::map
                                 (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String

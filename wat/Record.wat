@@ -89,9 +89,9 @@
 ;; ─── BASE macro (:wat::Record::def) ──────────────────────────────────────────
 
 (:wat::core::defmacro :wat::Record::def
-  [fqdn   <- :AST<wat::core::nil>
-   fields <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [fqdn   <- :wat::WatAST
+   fields <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::do
      (:wat::core::recordtype ~fqdn :wat::Record
        [~@(:wat::core::let
@@ -186,9 +186,9 @@
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
 
 (:wat::core::defmacro :wat::holon::Record::def
-  [fqdn   <- :AST<wat::core::nil>
-   fields <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [fqdn   <- :wat::WatAST
+   fields <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::do
      (:wat::core::recordtype ~fqdn :wat::holon::Record
        [~@(:wat::core::let

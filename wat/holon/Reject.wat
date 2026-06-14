@@ -17,9 +17,9 @@
 ;; Engram matching — residual vs subspace.
 
 (:wat::core::defmacro :wat::holon::Reject
-  [x <- :AST<wat::holon::HolonAST>
-   y <- :AST<wat::holon::HolonAST>]
-  -> :AST<wat::holon::HolonAST>
+  [x <- :wat::WatAST
+   y <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::holon::Blend
      ~x
      ~y

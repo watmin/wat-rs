@@ -18,9 +18,9 @@
 ;; `:wat::core::f64` types.
 
 (:wat::core::defmacro :wat::holon::Circular
-  [value  <- :AST<wat::core::f64>
-   period <- :AST<wat::core::f64>]
-  -> :AST<wat::holon::HolonAST>
+  [value  <- :wat::WatAST
+   period <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [frac
        (:wat::core::/ ~value ~period)

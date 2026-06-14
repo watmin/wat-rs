@@ -9,6 +9,6 @@
 ;; parameter. Pure sugar — same semantics as `(Ngram 2 xs)`.
 
 (:wat::core::defmacro :wat::holon::Bigram
-  [xs <- :AST<List<wat::holon::HolonAST>>]
-  -> :AST<wat::holon::BundleResult>
+  [xs <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::holon::Ngram 2 ~xs))

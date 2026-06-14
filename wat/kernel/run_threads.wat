@@ -123,9 +123,9 @@
 ;; Coordinator call: (~coordinator peer-name-0).
 
 (:wat::core::defmacro :wat::kernel::run-threads-n1
-  [coordinator <- :AST<wat::core::nil>
-   factory-0   <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [coordinator <- :wat::WatAST
+   factory-0   <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [thread-0
         (:wat::kernel::spawn-thread
@@ -197,11 +197,11 @@
 ;; Coordinator call: (~coordinator peer-0-name peer-1-name peer-2-name).
 
 (:wat::core::defmacro :wat::kernel::run-threads-n3
-  [coordinator <- :AST<wat::core::nil>
-   factory-0   <- :AST<wat::core::nil>
-   factory-1   <- :AST<wat::core::nil>
-   factory-2   <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [coordinator <- :wat::WatAST
+   factory-0   <- :wat::WatAST
+   factory-1   <- :wat::WatAST
+   factory-2   <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [thread-0
         (:wat::kernel::spawn-thread
@@ -379,9 +379,9 @@
 ;; WatAST::Symbol via extract-arg-names + to-wat).
 
 (:wat::core::defmacro :wat::kernel::run-threads
-  [coordinator <- :AST<wat::core::nil>
-   & factories <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [coordinator <- :wat::WatAST
+   & factories <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   `~(:wat::core::let
       [;; Count N from coordinator's binder count via reflection chain.
        ;; signature-of-fn evals coordinator inline → fn value, no user env needed.

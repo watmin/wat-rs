@@ -13928,6 +13928,15 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // IOReader — construction + ops.
     env.register(
+        ":wat::io::IOReader/open-file".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: ioreader_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
         ":wat::io::IOReader/from-bytes".to_string(),
         TypeScheme {
             type_params: vec![],
@@ -13960,6 +13969,15 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty()],
             ret: vec_u8_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/read-all-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty()],
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );

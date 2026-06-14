@@ -7,7 +7,7 @@
 ;; name was REJECTED — one name per operation; Subtract wins.
 
 (:wat::core::defmacro :wat::holon::Subtract
-  [x <- :AST<wat::holon::HolonAST>
-   y <- :AST<wat::holon::HolonAST>]
-  -> :AST<wat::holon::HolonAST>
+  [x <- :wat::WatAST
+   y <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::holon::Blend ~x ~y 1.0 -1.0))

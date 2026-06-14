@@ -4164,8 +4164,10 @@ fn dispatch_keyword_head_value(
         // primitives with char-level conveniences.
         ":wat::io::IOReader/from-bytes" => crate::io::eval_ioreader_from_bytes(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::IOReader/from-string" => crate::io::eval_ioreader_from_string(args, list_span, env, sym).map_err(Into::into),
+        ":wat::io::IOReader/open-file" => crate::io::eval_ioreader_open_file(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::IOReader/read" => crate::io::eval_ioreader_read(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym, list_span).map_err(Into::into),
+        ":wat::io::IOReader/read-all-string" => crate::io::eval_ioreader_read_all_string(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, list_span, env, sym).map_err(Into::into),

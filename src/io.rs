@@ -829,6 +829,24 @@ pub fn eval_ioreader_read_all(
     Ok(bytes_to_vec_u8_value(bytes))
 }
 
+/// `(:wat::io::IOReader/read-all-string <reader>)` → `:wat::core::String`. Reads the
+/// reader to EOF and UTF-8-decodes the bytes — byte-faithful (no line-splitting, no
+/// reconstruction). The read mirror of `IOWriter/to-string`; the rung `read-file` rides.
+/// A non-UTF-8 stream is an environment error worth halting on (panic-vs-Option).
+pub fn eval_ioreader_read_all_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/read-all-string";
+    arity(op, args, 1, list_span)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let bytes = reader.read_all(list_span.clone())?;
+    let s = String::from_utf8(bytes).unwrap_or_else(|e| panic!("{op}: invalid UTF-8: {e}"));
+    Ok(Value::String(Arc::new(s)))
+}
+
 /// `(:wat::io::IOReader/read-line <reader>)` → `:Option<String>`.
 pub fn eval_ioreader_read_line(
     args: &[WatAST],
@@ -915,6 +933,43 @@ pub fn eval_iowriter_open_file(
     let fd: OwnedFd = file.into();
     let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(fd));
     Ok(Value::io__IOWriter(writer))
+}
+
+/// `(:wat::io::IOReader/open-file path)` → `:wat::io::IOReader`. Opens a
+/// regular file at `path` for reading and returns a file-backed IOReader.
+/// Each `read`/`read-all` goes through `libc::read(2)` on the underlying
+/// fd; `Drop` closes via OwnedFd. The read-side mirror of
+/// `IOWriter/open-file` — completes the explicit rung of the file ladder.
+///
+/// Panics on open errors via the panic-vs-Option discipline (memory
+/// `feedback_shim_panic_vs_option`): bad path / permission at
+/// construction-time is an environment error worth halting on.
+pub fn eval_ioreader_open_file(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::os::fd::OwnedFd;
+    let op = ":wat::io::IOReader/open-file";
+    arity(op, args, 1, list_span)?;
+    let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::String",
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+            } });
+        }
+    };
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .open(&path)
+        .unwrap_or_else(|e| panic!(":wat::io::IOReader/open-file {path:?}: {e}"));
+    let fd: OwnedFd = file.into();
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(fd));
+    Ok(Value::io__IOReader(reader))
 }
 
 /// `(:wat::io::IOWriter/to-bytes <writer>)` → `:wat::core::Vector<u8>`. Clones the

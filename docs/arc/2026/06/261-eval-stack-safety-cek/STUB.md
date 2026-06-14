@@ -109,6 +109,26 @@ when a second driver appears.
 
 ---
 
+## ⚠️ SHIPPED STOPGAP — `rune:exigere(attested-arc)` (2026-06-14) — DELETE WHEN THIS ARC LANDS
+
+The cheap "big-stack entry" rung is **live now**, on purpose and visibly, so the self-hosted
+fix-wat migration runner works over the whole corpus today (the largest stdlib file, `wat/test.wat`,
+SIGSEGV'd the forked child at the default 8MB `RLIMIT_STACK`).
+
+- **Site:** `crates/wat-cli/src/lib.rs`, just before `fork_program_from_source` — a `setrlimit`
+  raising `RLIMIT_STACK` soft to 1 GiB (or the hard cap) before the fork; the child inherits it.
+- **Marker:** `rune:exigere(attested-arc)` citing this arc. It is the standing, grep-able reminder:
+  `grep -rn "rune:exigere(attested-arc)" crates/wat-cli` surfaces it; it MUST NOT be forgotten.
+- **What it does / does not do:** RAISES the ceiling (~1 GiB); does NOT remove the class. A
+  pathologically large file would still overflow. Only the forked-program (CLI) path is covered;
+  in-process eval is unchanged.
+- **Retirement condition:** when this arc lands the structural fix (CEK — no native eval
+  recursion), **delete the `setrlimit` block and its rune.** The rune retires with the arc, per
+  `docs/CONFORMARE.md` `rune:exigere(attested-arc)` discipline.
+
+This stopgap is the lower rung of the ladder below, made real. It does not change the arc's goal;
+it buys time without hiding the debt.
+
 ## Open questions to resolve before scoping stones
 
 1. Is CEK already committed for metered/pausable eval? (cross-ref `project_metered_eval_verification_market`)

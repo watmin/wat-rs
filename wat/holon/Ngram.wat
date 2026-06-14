@@ -22,9 +22,9 @@
 ;; `:wat::core::Result/try`.
 
 (:wat::core::defmacro :wat::holon::Ngram
-  [n  <- :AST<wat::core::i64>
-   xs <- :AST<List<wat::holon::HolonAST>>]
-  -> :AST<wat::holon::BundleResult>
+  [n  <- :wat::WatAST
+   xs <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::holon::Bundle
      (:wat::core::map
        (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST

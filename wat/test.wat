@@ -241,8 +241,8 @@
 ;; to `:wat::kernel::run-sandboxed-ast`.
 
 (:wat::core::defmacro :wat::test::program
-  [& forms <- :AST<wat::core::Vector<wat::WatAST>>]
-  -> :AST<wat::core::Vector<wat::WatAST>>
+  [& forms <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
   `(:wat::core::forms ~@forms))
 
 (:wat::core::defn :wat::test::run-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
@@ -301,10 +301,10 @@
 ;;     (:wat::core::defn :my::test::two-plus-two [] -> :wat::test::TestResult
 ;;       (:wat::test::run-thread <body>)))
 (:wat::core::defmacro :wat::test::deftest
-  [name    <- :AST<wat::core::nil>
-   prelude <- :AST<wat::core::nil>
-   body    <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name    <- :wat::WatAST
+   prelude <- :wat::WatAST
+   body    <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::do
      ~@prelude
      (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body))))
@@ -329,10 +329,10 @@
 ;; typealias / defalias) and `extract_closure`'s `split_body_prelude`
 ;; lifts them to the closure prologue before child eval sees them.
 (:wat::core::defmacro :wat::test::deftest-hermetic
-  [name    <- :AST<wat::core::nil>
-   prelude <- :AST<wat::core::nil>
-   body    <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name    <- :wat::WatAST
+   prelude <- :wat::WatAST
+   body    <- :wat::WatAST]
+  -> :wat::WatAST
   ;; Arc 170 slice 6 — route through run-hermetic-with-prelude so the
   ;; prelude declarations land as TOP-LEVEL program forms in the spawned
   ;; child. Pre-slice-6 the prelude was spliced into the fn body's do-
@@ -378,9 +378,9 @@
 ;; preserve across the outer pass — they're the inner macro's own
 ;; parameters and fire when the user calls the configured variant.
 (:wat::core::defmacro :wat::test::make-deftest
-  [name           <- :AST<wat::core::nil>
-   default-prelude <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name           <- :wat::WatAST
+   default-prelude <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
      [test-name <- :AST<wat::core::nil>
@@ -394,9 +394,9 @@
 ;; :wat::test::deftest-hermetic. Use when the configured tests
 ;; spawn driver threads and need subprocess isolation.
 (:wat::core::defmacro :wat::test::make-deftest-hermetic
-  [name           <- :AST<wat::core::nil>
-   default-prelude <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name           <- :wat::WatAST
+   default-prelude <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
      [test-name <- :AST<wat::core::nil>
@@ -589,8 +589,8 @@
 ;; entry point running in PARALLEL to the existing macros. Consumer
 ;; sweep (migrating deftest callers to run-hermetic) is phase E.
 (:wat::core::defmacro :wat::test::run-hermetic
-  [body <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [body <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
@@ -651,9 +651,9 @@
 ;; RunResult flow; the only difference is the spawn-process program
 ;; shape carries a prelude slot.
 (:wat::core::defmacro :wat::test::run-hermetic-with-prelude
-  [prelude <- :AST<wat::core::nil>
-   body    <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [prelude <- :wat::WatAST
+   body    <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::test::run-hermetic-driver
      (:wat::kernel::spawn-process
        (:wat::core::forms
@@ -763,8 +763,8 @@
 ;; DO NOT MODIFY deftest's body (currently expands to run-thread) —
 ;; this mint stands on its own; sweep + flip are downstream.
 (:wat::core::defmacro :wat::test::run-thread
-  [body <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [body <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::test::run-thread-driver
      (:wat::kernel::spawn-thread
        (:wat::core::fn
@@ -791,8 +791,8 @@
 ;; S3.5's back-half.
 
 (:wat::core::defmacro :wat::test::run-thread'
-  [body <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [body <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
@@ -804,10 +804,10 @@
        :wat::core::None)))
 
 (:wat::core::defmacro :wat::test::deftest'
-  [name    <- :AST<wat::core::nil>
-   prelude <- :AST<wat::core::nil>
-   body    <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name    <- :wat::WatAST
+   prelude <- :wat::WatAST
+   body    <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::do
      ~@prelude
      (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body))))
@@ -837,8 +837,8 @@
 ;; special-casing.
 
 (:wat::core::defmacro :wat::test::run-hermetic'
-  [body <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [body <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::process)
           (:wat::core::forms
@@ -851,10 +851,10 @@
        :wat::core::None)))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic'
-  [name    <- :AST<wat::core::nil>
-   prelude <- :AST<wat::core::nil>
-   body    <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [name    <- :wat::WatAST
+   prelude <- :wat::WatAST
+   body    <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::do
      ~@prelude
      (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic' ~body))))
@@ -1060,11 +1060,11 @@
 ;; DO NOT MODIFY run-hermetic (Layer 1) above — this is an ADDITION.
 ;; DO NOT touch deftest / deftest-hermetic macro definitions (phase E).
 (:wat::core::defmacro :wat::test::run-hermetic-with-io
-  [input-type  <- :AST<wat::core::nil>
-   output-type <- :AST<wat::core::nil>
-   inputs      <- :AST<wat::core::nil>
-   body        <- :AST<wat::core::nil>]
-  -> :AST<wat::core::nil>
+  [input-type  <- :wat::WatAST
+   output-type <- :wat::WatAST
+   inputs      <- :wat::WatAST
+   body        <- :wat::WatAST]
+  -> :wat::WatAST
   ;; Arc 170 slice 6 pivot — spawn-process takes a wat PROGRAM
   ;; (Vector<wat::WatAST>). The body becomes the entry-point define's
   ;; body. See run-hermetic above for the full IPC-contract rationale.

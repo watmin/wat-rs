@@ -9,6 +9,13 @@
 ;;   with-open-file    — managed scope: we hand you the writer, you use it, we close it (RAII on error).
 ;;   IOWriter/open-file + close — explicit: you own the handle and the close (already live, Rust).
 
+;; read-file — Ruby's File.read. Opens a file at `path`, reads the whole content to a
+;; String (byte-faithful UTF-8 decode), and the reader's Arc drops at scope end so RAII
+;; (Drop) closes the fd. The read mirror of write-file: one-shot, no handle surfaced.
+(:wat::core::defn :wat::io::read-file [path <- :wat::core::String] -> :wat::core::String
+  (:wat::core::let [r (:wat::io::IOReader/open-file path)]
+    (:wat::io::IOReader/read-all-string r)))
+
 ;; write-file — Ruby's File.write. Opens, writes the whole content, closes. Surfaces NO handle,
 ;; so there is nothing for the caller to leak; on a mid-write error the writer's Arc drops and
 ;; RAII (Drop) closes the fd. NOT a `with-` form: there is no scope handed to the caller.

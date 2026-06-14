@@ -17,8 +17,8 @@
 ;; std::list combinators (no new primitives).
 
 (:wat::core::defmacro :wat::holon::Sequential
-  [items <- :AST<List<wat::holon::HolonAST>>]
-  -> :AST<wat::holon::HolonAST>
+  [items <- :wat::WatAST]
+  -> :wat::WatAST
   `(:wat::core::let
      [positioned
        (:wat::std::list::map-with-index ~items

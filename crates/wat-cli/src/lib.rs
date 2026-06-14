@@ -373,6 +373,25 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     // shell args. Flag-stripping (e.g. `--check`) happens at the
     // wat-cli layer above; if the program reaches the fork path,
     // every shell arg passes through unfiltered.
+
+    // rune:exigere(attested-arc) — TEMPORARY STOPGAP, tracked in arc 261
+    // (docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md). The eval loop recurses on
+    // the NATIVE stack; deep non-tail recursion (e.g. a fix-wat codemod over a large
+    // source file) overflows the default 8MB RLIMIT_STACK and SIGSEGVs the child. We
+    // raise the soft stack limit before the fork — the child inherits it and its main
+    // stack grows on demand — so the self-hosted migration runner works on the whole
+    // corpus today. This only RAISES the ceiling; it does NOT remove the class. The
+    // structural cure is CEK (arc 261), which has no native eval recursion. WHEN ARC 261
+    // LANDS, DELETE THIS BLOCK. Until then this rune is the standing reminder: we have a
+    // recursion-depth ceiling, papered over, on purpose, visibly.
+    unsafe {
+        let mut rl = std::mem::zeroed::<libc::rlimit>();
+        if libc::getrlimit(libc::RLIMIT_STACK, &mut rl) == 0 {
+            rl.rlim_cur = (1024u64 * 1024 * 1024).min(rl.rlim_max); // 1 GiB or hard cap
+            let _ = libc::setrlimit(libc::RLIMIT_STACK, &rl);
+        }
+    }
+
     let handles = match fork_program_from_source(
         &source,
         canonical.as_deref(),
