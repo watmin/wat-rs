@@ -107,5 +107,56 @@ defservice is the pattern the builder already trusts — minus the "remember to 
 state" footgun, because there is nothing captured to race on. The concurrency-safety moved from
 *discipline* into *structure*.
 
+**Second pattern, same theme (builder, 2026-06-14).** A recursive locking hash with dot-notation:
+
+```ruby
+State.from_state(has_defaults) do |state|   # auto-UNLOCKS
+  state.whatever.nested.depth = 42
+  state.something = Hash.new(0)
+end                                          # auto-LOCKS (frozen thereafter)
+```
+
+This is **mutable-builder → frozen value**, enforced by the block boundary. It maps onto the
+init/env-fn: build the state with defaults + deps inside the constructor, return the record;
+after that it's the loop's threaded, immutable state. But the `end`-auto-lock is a RUNTIME
+mechanism *emulating value semantics* — a toggle that freezes a hash so nothing scribbles on it
+after build. wat needs no toggle: a record IS a value; "locked after build" is not a flipped bit,
+it's the absence of a mutator. The builder hand-rolled, in Ruby, the thing the substrate just is.
+**Twice now**: lock-the-captured-state (gen_server) and lock-after-build (the hash) are both
+discipline-enforced reconstructions of value semantics + structural serialization — handed over
+for free here.
+
+## 2026-06-14 — NO magic auto-hash: typed records are mandatory, because the author may be a confabulating LLM
+
+The dot-notation hash above **auto-vivifies** — `state.a.b.c = 42` conjures the whole nested path,
+untyped. **We do NOT build that, and the reason is load-bearing, not aesthetic.** Builder: *"users
+must use fully typed records — i got away with it by discipline — llms make shit up and i can't
+have a lower tier llm produce code that is forced into a working position."*
+
+A magic auto-vivifying structure **forces any code into a working position**: a wrong field name,
+a typo'd nested path, a confabulated key — all silently vivify and the program runs. That
+"always sort-of-works" property is exactly what a careful human can ride on discipline, and
+exactly what lets a **confabulating (or lower-tier) LLM ship confident garbage** — the structure
+bends to whatever was written and masks the mistake. A fully-typed record turns the same mistake
+into a **compile error**: a made-up field/path has no constructor, doesn't type-check, cannot
+ship. The author — human or LLM — is *forced into correctness by the type system*; it cannot skate
+by on a structure that conforms to its confabulation.
+
+This is the **complement of the reach-stumble doctrine** (`feedback_reach_stumble_is_the_signal`):
+engineering the substrate for an LLM to operate instinctively means not only handing it the tool
+it reaches for, but **denying the tool that lets it fake success.** It is also the extirpare
+ladder, climbed to the top: the builder's Ruby safety was a *convention* (discipline — the weakest
+rung); the typed record is *a shape the mistake cannot be expressed in* (uncompilable — the top
+rung). And it is `Honest` in the four-questions sense — a magic hash papers over the gap between
+what was written and what is correct; the typed record makes that gap a hard failure.
+
+It is directly load-bearing for the Inquisitor/Shadowdancer protocol: substrate code is delegated
+to sonnet (a lower tier). Typed records are part of *why* a Shadowdancer cannot ship working-
+looking-but-wrong code — the human gate catches at the review layer, the types catch at the
+substrate layer. The auto-vivify convenience is precisely the affordance that would defeat both,
+which is why wat is nominal/ADT and refuses it. Where genuinely-open dynamic nesting is needed,
+it is an explicit `HashMap` field — a *declared* choice, never the typed spine bending silently.
+
 **Cross-references:** `DESIGN-REGROUNDED-2026-06-12.md` § "What is preserved" pt 1 (state-as-self
-= the mutex); the reach-stumble doctrine (`feedback_reach_stumble_is_the_signal`).
+= the mutex); the reach-stumble doctrine (`feedback_reach_stumble_is_the_signal`); the ADT-language
+identity (wat is nominal tagged sums, not dynamic maps — `project_typed_clojure_parity_pivot`).
