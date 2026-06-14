@@ -223,3 +223,32 @@ ours.
 Habit (`feedback_note_prior_art_collisions`): when we collide with prior art the builder didn't
 know — especially a pattern he perfected over years — name it. Real names only (no invented
 citations); note the genuinely-novel part.
+
+## 2026-06-14 — FINDING (follow-up stone): macro params demand a type annotation, then discard it
+
+Decomplecting defservice's signature (it typed its params `:wat::holon::HolonAST` — the holon
+crutch again, [[feedback_honest_abstraction_decomplect_crutch_open_seam]] — when the macro does
+pure syntactic work and the engine binds every param as `Value::wat__WatAST` regardless) surfaced
+a deeper smell in the macro-def grammar itself:
+
+- The defmacro grammar **requires** the `name <- :Type` triple per param (a bare `[param]` won't
+  parse — parse.rs).
+- The type is then **discarded**: `MacroDef.params: Vec<String>` (registry.rs:13); parse.rs:89
+  verbatim *"Extract param names only — MacroDef carries names, not types"* → `.map(|(ident,
+  _ty)| …)`. Nothing — parser, `validate_pure_total`, or checker — ever reads it.
+
+So a per-param type annotation is **mandatory-then-ignored** — the exact confabulation surface the
+no-magic law (this file, 2026-06-14) condemns: a slot you're forced to fill whose contents are
+never checked, so a wrong fill (`fqdn <- :wat::core::i64` — a lie; a macro arg is always a
+syntactic node) is silently "forced into a working position." Found dogfooding our own law the same
+week we wrote it. (It also explains why the `HolonAST → WatAST` decomplect passed every test: the
+engine discards the type, so the change is invisible to the engine — but it matters to the *reader*,
+which is why it's still the right fix.)
+
+**NOT a bug in the faithful sense** — Clojure/Typed-Clojure macros are forms→forms; you type-check
+the *expansion*, not the macro's params. The defect is narrowly the mandatory-then-discarded
+annotation. **Fix (own stone; enforce-vs-drop is a builder/intueri decision):** either (1) enforce
+the annotation must be the AST type (`:wat::WatAST` / an `:AST<…>` form) and reject non-AST
+annotations at macro-def time, or (2) drop per-param types for macros entirely (names only — the
+more 251-faithful shape; type-checking lives at the expansion). Also a latent decomplect: `cond` /
+`keyword/of` carry the same `:wat::holon::HolonAST` legacy annotation.

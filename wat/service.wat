@@ -14,12 +14,12 @@
 ;; a NESTED quasiquote. A top-level quasiquote would EVALUATE the arg and break
 ;; `ast->children` (STOP-2). Model: `cond` (wat/core.wat:254) + foundation probe.
 (:wat::core::defmacro :wat::service::defservice
-  [fqdn      <- :wat::holon::HolonAST     ;; :my::counter
-   _state-kw <- :wat::holon::HolonAST     ;; the literal :state marker (ignored)
-   state-ty  <- :wat::holon::HolonAST     ;; :wat::core::i64  (C.2 uses; C.1 ignores)
-   _ops-kw   <- :wat::holon::HolonAST     ;; the literal :ops marker (ignored)
-   ops       <- :wat::holon::HolonAST]    ;; the [ (:Get …) (:Increment …) ] vector NODE
-  -> :wat::holon::HolonAST
+  [fqdn      <- :wat::WatAST     ;; :my::counter
+   _state-kw <- :wat::WatAST     ;; the literal :state marker (ignored)
+   state-ty  <- :wat::WatAST     ;; :wat::core::i64  (C.2 uses; C.1 ignores)
+   _ops-kw   <- :wat::WatAST     ;; the literal :ops marker (ignored)
+   ops       <- :wat::WatAST]    ;; the [ (:Get …) (:Increment …) ] vector NODE
+  -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
     [enum-name (:wat::core::keyword/from-string
