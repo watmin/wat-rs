@@ -58,3 +58,54 @@ the concurrency tooling — is *why* the migration will be clean and *why* defse
 - `docs/arc/2026/06/251-types-as-forms/DESIGN.md` — the parity call + the "bridge" framing.
 - `crates/wat-lru/wat/lru/CacheService.wat` — the 530-line hand-rolled reference defservice generates.
 - `DESIGN-STONE-C.1-defservice-skeleton-op-enum.md` — the surface (option A) this entry was drawn against.
+
+---
+
+## 2026-06-14 — defservice is the gen_server you've been hand-rolling (capture → threading is the whole point)
+
+**The recognition (builder, looking at the C.1 surface).** *"we implemented a ruby pattern i've
+been using for like 5 years."* The pattern:
+
+```ruby
+def make_state(args...)
+  State.new do |state|
+    state.handle = handle(state)   # bind deps; attach the handler to the state
+  end
+end
+
+def handle(state)
+  ->(event, ctx) { ... use state to process event with ctx ... }   # a lambda closing over state
+end
+```
+
+State + a set of event-handlers bound to it — a gen_server / actor, hand-rolled in Ruby lambdas.
+It maps onto defservice almost line-for-line:
+
+| Ruby pattern | defservice |
+|---|---|
+| `make_state(args…)` — build state, bind deps | `:state <T>` + its init/env-fn (the 0-arg constructor, run child-side, that wires deps) |
+| `state.handle = handle(state)` | `:ops` — the handlers, bound to the state |
+| `->(event, ctx)` | an op `(:Op [s <- :State …args] -> ret body)` (`event` = the op + args; `ctx` = the client peer) |
+| `state.handle.(event, ctx)` | a client calling `(ns/App/Op handle …args)` |
+
+**Why this matters (the design working).** The surface matches a shape a working engineer already
+reaches for — and per the reach-stumble doctrine, an LLM/engineer instinctively reaching for a
+tool IS the design spec. The substrate surfacing the exact pattern the builder has trusted for
+five years is among the strongest signals the surface is right. This is the *human* half of "the
+braid" (see the 2026-06-13 entry): honesty-of-form isn't only EDN/Clojure faithfulness — it's
+landing on shapes practitioners already trust by hand.
+
+**Where it diverges — and the divergence is the whole point.** The Ruby handler **closes over**
+`state` (lexical capture; `handle(state)` captures by reference, processing mutates in place).
+Fine single-threaded; the moment two threads call `state.handle`, you race on shared mutable
+state and locking is *on you*. defservice does NOT capture: it is **state-as-self** — the single
+`poll'` loop owns the one live state and **threads it explicitly** through each handler
+(`[s <- :State …] -> (:Tuple :State …)`); every handler is a pure transform `(state, args) →
+(new-state, reply)`. No capture, no mutation, no lock. The single loop serializing every op **is**
+the mutex, by construction (Rust `&mut self` / Haskell `s→(s,a)` / Erlang `handle_call`). So
+defservice is the pattern the builder already trusts — minus the "remember to lock the captured
+state" footgun, because there is nothing captured to race on. The concurrency-safety moved from
+*discipline* into *structure*.
+
+**Cross-references:** `DESIGN-REGROUNDED-2026-06-12.md` § "What is preserved" pt 1 (state-as-self
+= the mutex); the reach-stumble doctrine (`feedback_reach_stumble_is_the_signal`).
