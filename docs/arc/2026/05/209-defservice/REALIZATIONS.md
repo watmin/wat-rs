@@ -185,6 +185,21 @@ ours.
   ingredient textbook; the composition plausibly the builder's — no citation invented for the
   exact bundle). wat deliberately drops the auto-vivify half (see the no-magic entry).
 
+- **defservice's client wrappers (C.3 — FORWARD-MAP) ≡ reflective facade + partial application.**
+  The builder's Ruby `install_closures`: a module that, on `extend`, reflects a client's public
+  methods and installs per-method curried closures —
+  `(client, defaults) → (kwargs) → client.call(method, defaults.merge(kwargs))` — so
+  `state.s3.get_object = My::S3.get_object(s3, bucket: 'foobar')` then
+  `state.s3.get_object.call(key: 'burbaz')`. That is exactly what **C.3** will generate: one
+  wrapper per `:op`, closing over the connection (the peer/handle = his `client`), invoked with
+  the op's args (`bucket:` = bound per-op defaults; `key:` = the call args). *Prior art:*
+  **partial application** (bind client + defaults, return a fn of the rest — Clojure `partial`;
+  not strictly currying); **reflective facade / dynamic proxy** (Ruby `define_method`
+  metaprogramming; Java `Proxy`; Python `__getattr__`). *What'll be ours:* the wrappers are
+  generated from a *declared* `:ops` surface read at macro time (not runtime reflection), each
+  closing over a typed, transport-blind `Peer` — the same call site works thread/process/remote.
+  (FORWARD-MAP, captured 2026-06-14 per capture-live; confirm against the shipped C.3.)
+
 Habit (`feedback_note_prior_art_collisions`): when we collide with prior art the builder didn't
 know — especially a pattern he perfected over years — name it. Real names only (no invented
 citations); note the genuinely-novel part.
