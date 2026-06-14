@@ -37,6 +37,15 @@ untrusted callers; we are NOT using namespaces).
 drain/join — not a tier, just a held handle). The handler contract (`[s <- :State ...args] ->
 (:Tuple :State ...rest)` = state-as-self) and the mutex framing below are UNCHANGED.
 
+> **⛕ SURFACE CORRECTION (2026-06-14, Stone C.1 draw, four-questions).** The phrasing below —
+> "signatures reflected from the handler defns" (§ "What is preserved" pt 4, § "The re-grounded
+> stone plan") — described an option where handlers are SEPARATE `defn`s the macro reflects over
+> (`signature-of-fn`). **That is retired.** The settled surface (option A) puts the handler
+> bodies INLINE in `:ops`, each op a List `(:Op [s <- :State …args] -> ret body)`; the macro reads
+> the inline surface directly with the WatAST tooling and needs ZERO reflection. Op-heads are
+> keywords. Authority: `DESIGN-STONE-C.1-defservice-skeleton-op-enum.md` § "Surface". Read the
+> reflection mentions below as historical.
+
 **(2) The service loop is NOT a new verb — it is the existing homogeneous event-loop.** No
 `serve'`/`Connected|Message` verb. ONE message enum (the ops as variants); `select'` over a
 homogeneous set of client `Peer'`s (plus the `Listener'` at process tier); `match` the
