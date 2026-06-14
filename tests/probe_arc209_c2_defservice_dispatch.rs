@@ -35,11 +35,11 @@ const PROGRAM: &str = r#"
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::core::Tuple s (:my::counter::Reply::Get s)))
+     (:wat::service::Outcome::Reply s (:my::counter::Reply::Get s)))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::core::Tuple s' (:my::counter::Reply::Increment s'))))])
+       (:wat::service::Outcome::Reply s' (:my::counter::Reply::Increment s'))))])
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +

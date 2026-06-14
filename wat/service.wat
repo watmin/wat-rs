@@ -13,6 +13,18 @@
 ;; form (`let`), params are node-values that `ast->children` accepts, output built with
 ;; a NESTED quasiquote. A top-level quasiquote would EVALUATE the arg and break
 ;; `ast->children` (STOP-2). Model: `cond` (wat/core.wat:254) + foundation probe.
+
+;; ── Outcome<S,R> — the handler result (the gen_server callback-return model) ──────────
+;;
+;; A handler is a PURE transform `(s <- :State, …in) -> :Outcome<:State, <fqdn>::Reply>`.
+;; It returns what to DO: reply-and-continue (C.2), and later (C.4) no-reply / stop. This
+;; is OTP gen_server's `{reply,R,S} | {noreply,S} | {stop,…}` re-derived as a wat tagged sum
+;; (named — NOT a bare `(:Tuple state reply)`; a structured result with distinct roles is a
+;; record/sum, per the ADT identity, not an order-convention pair). Generic + stdlib: every
+;; service reuses it (not minted per-service). C.4 GROWS it by ADDING variants — no reshape.
+(:wat::core::defenum :wat::service::Outcome<S,R>
+  :Reply [state <- :S  reply <- :R])
+
 (:wat::core::defmacro :wat::service::defservice
   [fqdn      <- :wat::WatAST     ;; :my::counter
    _state-kw <- :wat::WatAST     ;; the literal :state marker (ignored)

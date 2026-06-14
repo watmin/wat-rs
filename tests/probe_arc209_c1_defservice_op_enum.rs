@@ -39,13 +39,13 @@ const PROGRAM: &str = r#"
   :state :wat::core::i64
   :ops
   [(:Get [s <- :State]
-         -> (:wat::core::Tuple :State :wat::core::i64)
-     (:wat::core::Tuple s s))
+         -> [value <- :wat::core::i64]
+     (:wat::service::Outcome::Reply s (:my::counter::Reply::Get s)))
 
    (:Increment [s <- :State n <- :wat::core::i64]
-               -> (:wat::core::Tuple :State :wat::core::i64)
+               -> [value <- :wat::core::i64]
      (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::core::Tuple s' s')))])
+       (:wat::service::Outcome::Reply s' (:my::counter::Reply::Increment s'))))])
 
 ;; Exercise the GENERATED op enum: build :Increment with a client arg, match both variants.
 ;; The bare `:Get` arm compiles only if Get is a real fieldless variant; the `:Increment`

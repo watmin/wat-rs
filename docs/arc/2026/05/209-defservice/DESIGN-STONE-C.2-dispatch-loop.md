@@ -23,9 +23,18 @@ model). Consequences that REVISE the design below:
 - **NO `& rest`** in op argvecs (fixed-arity records; want variadic → a `Vector<T>` field). **NO
   uniform scalar `O`** — that's the pre-reshape sketch; the real `O` is the `<fqdn>::Reply` sum.
 
-The "exact target output" + "uniform-`O`" sections below are the PRE-RESHAPE draft, kept for the
-ServiceEvent-loop skeleton (which is unchanged); the op-dispatch + reply must be rebuilt to the
-two-enum RPC model above. (This stone grew into the full RPC codegen — best drawn from fresh context.)
+**FINAL surface (locked 2026-06-14, builder-ratified) — the authoritative target is `BRIEF-STONE-C.2-dispatch-loop.md`:**
+- Op clause: `(:Op [s <- :State …in] -> [..out fields] body)` — SINGLE RPC format (the C.1 probe is
+  migrated; NO dual-format / format-detection shim).
+- Handler returns the **gen_server result**: `:wat::service::Outcome<S,R>` (stdlib type, minted in
+  `service.wat`; `:Reply [state reply]` for C.2, GROWS to `:NoReply`/`:Stop` at C.4). Body returns
+  `(:wat::service::Outcome::Reply new-state (<fqdn>::Reply::<Op> …))`; `serve` MATCHES the `Outcome`
+  (not a bare-Tuple `first`/`second` — a structured result with distinct roles is named, per the ADT
+  identity). Prior-art collision: ≡ OTP gen_server `{reply,R,S}|{noreply,S}|{stop,…}` (→ REALIZATIONS).
+- Two minted enums: `<fqdn>::Op` (requests, C.1) + `<fqdn>::Reply` (responses, NEW). Wire `Peer'<Reply,Op>`.
+
+The "exact target output" + "uniform-`O`" sections below are the SUPERSEDED pre-reshape draft (kept only
+for the ServiceEvent-loop skeleton, which is unchanged). The BRIEF carries the final exact expansion.
 
 ### NAMING — LOCKED (intueri cast 2026-06-14, weighed against the disk + accepted)
 
