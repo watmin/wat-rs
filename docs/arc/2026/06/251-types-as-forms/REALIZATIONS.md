@@ -74,7 +74,7 @@ was built, not routed around (`3dc0f48d`):
 - `:wat::io::read-file` — the one-shot (wat defn, mirror of `write-file`)
 warded by `tests/probe_arc251_read_file_ladder.rs` (write→read round-trip, byte-identical incl. unicode + trailing newline).
 
-**The runner.** `wat-scripts/fix-macro-param-types.wat` — `main []` reads an EDN vector of paths via
+**The runner.** `wat-scripts/fixes/fix-macro-param-types.wat` — `main []` reads an EDN vector of paths via
 `(:wat::kernel::readln -> :Vector<String>)`, recurses `first`/`rest`, `read-file` →
 `fix-macro-param-types` → `write-file`. Migrated all 15 stdlib files carrying `:AST<...>` /
 `:wat::holon::HolonAST` lies → the honest forms, **100/100 balanced replacements, line counts
@@ -96,7 +96,7 @@ CLI**. Every future mass-refactor is a new rule in `fix-wat.wat` + a run of the 
 The language self-hosts its execution *and* its evolution *and* the act of carrying that evolution out.
 
 **Cross-references:** Song #96 *Again We Rise* (arc-170 INTERSTITIAL-REALIZATIONS, 2026-06-14);
-`wat-scripts/fix-macro-param-types.wat` (the runner); `tests/probe_arc251_read_file_ladder.rs` (the
+`wat-scripts/fixes/fix-macro-param-types.wat` (the runner); `tests/probe_arc251_read_file_ladder.rs` (the
 read ladder warded); `docs/arc/2026/06/261-eval-stack-safety-cek/STUB.md` (the recursion ceiling + the
 stopgap it owns); `feedback_reach_stumble_is_the_signal` (the "why not the CLI?" stumble that built
 the read rung). ENFORCE (the macro-param-type validator) + its corpus cascade remain a separate

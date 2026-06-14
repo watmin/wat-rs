@@ -61,7 +61,7 @@ This is a natural second customer for the arc-251 self-hosted runner, and a good
 
 ## Cross-references
 
-- Trigger: arc 251 self-hosted runner (Song #96 *Again We Rise*); `wat-scripts/fix-macro-param-types.wat`
+- Trigger: arc 251 self-hosted runner (Song #96 *Again We Rise*); `wat-scripts/fixes/fix-macro-param-types.wat`
   is the current-syntax reference shape.
 - The retired forms: arc 153 (unit→nil), arc 170 slice 1e (main `[]` + stdio services), arc 241.11/241.16 (`define` retired).
 - `wat/fix.wat` — where the new `fix-form` rules would accrue.

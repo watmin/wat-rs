@@ -3,7 +3,7 @@
 ;; self-hosted: no Rust harness.
 ;;
 ;; Usage (one EDN vector of paths on stdin):
-;;   printf '["wat/core.wat" "wat/Record.wat"]\n' | ./target/release/wat ./wat-scripts/fix-macro-param-types.wat
+;;   printf '["wat/core.wat" "wat/Record.wat"]\n' | ./target/release/wat ./wat-scripts/fixes/fix-macro-param-types.wat
 ;;
 ;; readln parses the line as a Vector<String>; for each path:
 ;;   read-file → :wat::fix::fix-macro-param-types → write-file.

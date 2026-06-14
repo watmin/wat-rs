@@ -450,7 +450,25 @@
                     ret-edits  (:wat::fix::rettype-edit-walk ch false lines)]
     (:wat::core::concat av-edits ret-edits)))
 
-;; macro-param-edits — walk top-level forms; for each defmacro, collect edits; else [].
+;; collect-defmacro-edits-deep — RECURSIVE: find defmacro forms at ANY depth (incl. ones
+;; nested inside quasiquote templates — a defmacro-generating-defmacro like make-deftest,
+;; whose generated macro's param types are lies sitting in the template). Quasiquote /
+;; unquote desugar to Lists (no distinct ast-kind), and ast->children is TOTAL (atoms → []),
+;; so the recursion descends through templates and bottoms out on leaves. Mutually recursive
+;; with macro-param-edits (which maps this over a vector of children).
+(:wat::core::defn :wat::fix::collect-defmacro-edits-deep
+  [node  <- :wat::WatAST
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::let [here (:wat::core::if (:wat::fix::defmacro? node)
+                           (:wat::fix::defmacro-edits node lines)
+                           (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+    (:wat::core::concat here
+      (:wat::fix::macro-param-edits (:wat::core::ast->children node) lines))))
+
+;; macro-param-edits — map the deep collector over a vector of forms; concat all edits.
+;; Each form is walked to ALL depths, so a defmacro nested in another macro's template is
+;; found and fixed, not just top-level defmacros.
 (:wat::core::defn :wat::fix::macro-param-edits
   [forms <- :wat::core::Vector<wat::WatAST>
    lines <- :wat::core::Vector<wat::core::String>]
@@ -460,11 +478,8 @@
     (:wat::core::let [form (:wat::core::Option/expect -> :wat::WatAST
                                (:wat::core::first forms)
                                "macro-param-edits: form")
-                      rest-forms (:wat::core::rest forms)
-                      form-edits (:wat::core::if (:wat::fix::defmacro? form)
-                                   (:wat::fix::defmacro-edits form lines)
-                                   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
-      (:wat::core::concat form-edits
+                      rest-forms (:wat::core::rest forms)]
+      (:wat::core::concat (:wat::fix::collect-defmacro-edits-deep form lines)
         (:wat::fix::macro-param-edits rest-forms lines)))))
 
 ;; fix-macro-param-types — comment-faithful defmacro param/return type migrator.

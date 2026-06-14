@@ -383,9 +383,9 @@
   -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
-     [test-name <- :AST<wat::core::nil>
-      body      <- :AST<wat::core::nil>]
-     -> :AST<wat::core::nil>
+     [test-name <- :wat::WatAST
+      body      <- :wat::WatAST]
+     -> :wat::WatAST
      `(:wat::test::deftest ~test-name ~~default-prelude ~body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
@@ -399,9 +399,9 @@
   -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
-     [test-name <- :AST<wat::core::nil>
-      body      <- :AST<wat::core::nil>]
-     -> :AST<wat::core::nil>
+     [test-name <- :wat::WatAST
+      body      <- :wat::WatAST]
+     -> :wat::WatAST
      `(:wat::test::deftest-hermetic ~test-name ~~default-prelude ~body)))
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
