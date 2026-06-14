@@ -1057,7 +1057,19 @@ pub fn invoke_user_main(
     frozen: &FrozenWorld,
     args: Vec<Value>,
 ) -> Result<Value, RuntimeError> {
-    invoke_user_main_orchestrated(frozen, args)
+    invoke_user_main_orchestrated(frozen, args, None)
+}
+
+/// Like [`invoke_user_main`], but installs `user_program` as the `user.program` field of the
+/// ambient `:wat::program::Env` (instead of the `EmptyEnv` default) before `:user::main` runs.
+/// `user_program` must be a `:wat::Record` (any subtype). The root (wat-cli `--env`) and process
+/// children supply the result of running their env-producing fn here.
+pub fn invoke_user_main_with_program(
+    frozen: &FrozenWorld,
+    args: Vec<Value>,
+    user_program: Value,
+) -> Result<Value, RuntimeError> {
+    invoke_user_main_orchestrated(frozen, args, Some(user_program))
 }
 
 /// The orchestrator body. Delegates to [`bootstrap_wat_vm_process`] for
@@ -1066,6 +1078,7 @@ pub fn invoke_user_main(
 fn invoke_user_main_orchestrated(
     frozen: &FrozenWorld,
     args: Vec<Value>,
+    user_program: Option<Value>,
 ) -> Result<Value, RuntimeError> {
     // Steps 1–4: bootstrap services + ThreadIO (substrate-owned).
     let runtime = bootstrap_wat_vm_process(BootstrapArgs { frozen })?;
@@ -1085,18 +1098,38 @@ fn invoke_user_main_orchestrated(
     //   spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
     // The RAII guard is held across main's run on this thread and uninstalls on
     // scope exit.
+    //
+    // Arc 209 C0b.3b-d — `user.program` injection seam: the 7th field of
+    // `:wat::program::Env` is populated from the injected value (if any) or the
+    // `EmptyEnv` default (current behavior, preserved). The value is bound as a
+    // local in `ctor_env` and referenced by name in the env constructor source —
+    // exactly the thread-tier init-fn pattern from spawn.rs:482–498.
     let pid = std::process::id() as i64;
     let tid = unsafe { libc::gettid() } as i64;
     let boot_nanos = crate::time::process_boot_instant().timestamp_nanos_opt().unwrap_or(0);
     // cpu_count = available_parallelism() via host_cpu_count(), a host constant inherited
     // down the spawn tree (like wat.started-at). Fallback 1 if the OS refuses to report.
     let cpu_count = crate::runtime::host_cpu_count();
+    let user_program_val = match user_program {
+        Some(v) => v,
+        None => eval_in_frozen(
+            &crate::parse_one!("(:wat::program::EmptyEnv)")
+                .expect("arc 209 C0b.3b-d: EmptyEnv ctor parses"),
+            frozen,
+            &crate::runtime::Environment::new(),
+        )
+        .map(|tv| tv.value_owned())?,
+    };
+    let ctor_env = crate::runtime::Environment::new()
+        .child()
+        .bind_unknown_span("user-program", crate::value::TrackedValue::from(user_program_val))
+        .build();
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} (:wat::program::EmptyEnv))"
+        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} user-program)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");
-    let program_env = eval_in_frozen(&env_ast, frozen, &crate::runtime::Environment::new())
+    let program_env = eval_in_frozen(&env_ast, frozen, &ctor_env)
         .map(|tv| tv.value_owned())?;
     let _program_env_guard = crate::services::install_program_env(program_env);
 
