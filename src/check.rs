@@ -10478,27 +10478,34 @@ fn infer_connect_prime(
             return CheckResult::partial_with(ty, local_errors);
         }
     };
-    let addr_surface = apply_subst(&addr_ty, subst);
-    let addr_reduced = reduce(&addr_surface, subst, env.types());
-    let ty = match addr_reduced {
-        TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Address'" && args.len() == 2 => {
+    // Arc 258.5a (IO-cluster arrow-kill) — UNIFY the arg against `Address'<?,?>` rather than rigid
+    // pattern-match. A fresh `recv'` result (a process handle's opaque O, check.rs:10827) then BINDS
+    // to `Address'` and flows from this consumer — no `-> :T` ascription needed (258 NOTE: "the type
+    // lives in the channel"). A concrete `Address'<i64,i64>` still unifies (binding S,R to its real
+    // params); a wrong concrete type still fails. Reduce first so an alias-to-`Address'` resolves.
+    let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
+    let s = fresh.fresh();
+    let r = fresh.fresh();
+    let expected = TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s.clone(), r.clone()] };
+    match unify(&addr_reduced, &expected, subst, env.types()) {
+        Ok(_) => {
             // Arc 209 C0b.2e-iii — unified Address'<S,R> → Peer'<S,R> (both tiers).
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[0].clone(), args[1].clone()] }
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+            if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
         }
-        other => {
+        Err(_) => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
                 expected: "Address'<S,R>".into(),
-                got: format_type(&other),
+                got: format_type(&addr_reduced),
             } });
-            let s = fresh.fresh();
-            let r = fresh.fresh();
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
-            return CheckResult::partial_with(ty, local_errors);
+            let s2 = fresh.fresh();
+            let r2 = fresh.fresh();
+            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s2, r2] };
+            CheckResult::partial_with(ty, local_errors)
         }
-    };
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+    }
 }
 
 /// Arc 209 Stone C0b.1 — `(:wat::kernel::accept' listener)` → `Peer'<R,S>`.

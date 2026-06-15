@@ -54,11 +54,15 @@ full 6a round-trip probe green.)
 
 ## Decomposition
 
-- **258.5a** — `connect'` unifies its arg (the 6a unblock + the pattern); RED probe → GREEN.
-- **258.5b** — generalize to the shared IO-consumer projection helpers (so `recv'`/`send'`/`select'`
-  results infer wherever a consumer constrains, not just `connect'`).
-- **258.5c** — sweep `tests/` `recv' -> :T` uses: strip the now-inferable ones; KEEP the genuine-ambiguous
-  seeds (value-exits-to-Rust). The ascription stays OPTIONAL (it IS the seed) — do NOT hard-cut.
+- **258.5a — ✅ DONE** (`connect'` unifies its arg; the 6a unblock + the pattern). RED probe → GREEN;
+  lib 919/36, nursery 896/4 (zero-new). `recv'` now infers `Address'` from the `connect'` consumer.
+- **258.5b — DEFERRED (don't build the forcing function).** Generalize the unify-not-rigid-match pattern
+  to other IO consumers only when one actually needs it. `connect'` is the sole consumer the arrow-kill
+  has a caller for today (`send'` already unifies its payload; `accept'` takes a `Listener'`, not a
+  `recv'` result). Build per-consumer as a real caller surfaces.
+- **258.5c — EMPTY for the corpus.** `grep "recv'.*->" wat/ wat-tests/` = 0; all `tests/` uses are
+  genuine-ambiguous seeds (value-exits-to-Rust) → KEEP. Nothing to strip; the ascription stays OPTIONAL
+  (it IS the seed) — do NOT hard-cut. Revisit only if a wat-corpus `recv' -> :T` appears.
 
 Pairs the NOTE (redundant-`-> :T` class) + [[feedback_reach_stumble_is_the_signal]] +
 [[feedback_deferred_dep_becomes_necessary_block_and_build]] (arc-272 6a blocks on this) +
