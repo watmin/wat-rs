@@ -13,6 +13,8 @@
 //! owns the registry + codecs (and, v4, the policy). See `docs/arc/2026/06/272-…/` REALIZATIONS.md for
 //! the ocap / narrow-waist / end-to-end synthesis this home embodies.
 
+pub mod policy;
 pub mod registry;
 
+pub use policy::CommsPolicy;
 pub use registry::{decode_capability, encode_capability, CapCodec};

@@ -261,11 +261,15 @@ pub struct SocketListener {
 }
 
 impl SocketListener {
-    /// The gate decision (SO_PEERCRED is local mTLS): serve only our own euid AND a pid in
-    /// the allow-set. Pure + Rust-testable.
+    /// The accept-gate decision: admit only a peer in **`only-my-peers`** — our euid AND a pid in the
+    /// allow-set (the lineage set). Arc 272 v4 — the rule itself lives in `capability::CommsPolicy`
+    /// (the powerbox); this gate CONSULTS it. The connect gate (`kernel::address`) consults the same
+    /// policy from the other side. (Prior "SO_PEERCRED is local mTLS" was an overclaim — it is mutual
+    /// UDS peer-cred, NOT TLS.) Pure + Rust-testable.
     pub(crate) fn authorizes(&self, cred: &crate::comms::process::PeerCred) -> bool {
-        cred.uid == unsafe { libc::geteuid() }
-            && self.allowed_pids.lock().unwrap().contains(&cred.pid)
+        let lineage = self.allowed_pids.lock().unwrap();
+        crate::capability::CommsPolicy::OnlyMyPeers { lineage: &lineage }
+            .admits(cred, unsafe { libc::geteuid() })
     }
     /// Owner provisions another pid (beyond the birth-seeded self).
     pub(crate) fn allow(&self, pid: i32) {
