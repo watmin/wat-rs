@@ -258,6 +258,29 @@ mod autobind_tests {
         drop(l1);
         drop(l2);
     }
+
+    #[test]
+    fn autobind_address_round_trips_in_process() {
+        // The minted capability is dialable: connect to the kernel-assigned name in the
+        // SAME process, accept, and round-trip a byte. Proves the autobind address is a
+        // real, connectable rendezvous (the basis for listener'(process)→Bound + connect').
+        use std::io::{Read, Write};
+        use std::os::linux::net::SocketAddrExt;
+        use std::os::unix::net::{SocketAddr, UnixStream};
+
+        let (listener, name) = autobind_listener(16).expect("autobind binds");
+        // Accept needs to block until the connect lands; the listener is SOCK_NONBLOCK.
+        listener.set_nonblocking(false).expect("clear nonblocking for the test accept");
+
+        let sa = SocketAddr::from_abstract_name(&name).expect("reconstruct the minted address");
+        let mut client = UnixStream::connect_addr(&sa).expect("dial the minted capability");
+        let (mut server, _) = listener.accept().expect("accept the in-proc connection");
+
+        server.write_all(&[42]).expect("server writes");
+        let mut buf = [0u8; 1];
+        client.read_exact(&mut buf).expect("client reads");
+        assert_eq!(buf[0], 42, "the autobind capability round-trips a byte in-process");
+    }
 }
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
