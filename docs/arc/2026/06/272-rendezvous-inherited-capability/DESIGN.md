@@ -76,24 +76,37 @@ The two requirements (no fixed name · mutual pid trust) do not conflict; they s
 ## Relation to host-parity
 
 This **supersedes the planned stone 4b**. The process `extend-type :wat::spawn::ProcessOpts
-:wat::spawn::Host` `launch` impl mints the rendezvous at spawn (socketpair for the control/self-peer,
-autobind for the service listener), passes the child its end by inheritance, and returns a `Handle`
+:wat::spawn::Host` `launch` impl mints the rendezvous at spawn (the EXISTING inherited pipe-pair
+self-peer for the control channel — step 4; autobind for the service listener), passes the child its
+end by inheritance, and returns a `Handle`
 whose `addr` is the capability — mirroring the thread tier. Zero edit to defservice `start` (it already
 routes through `Host/launch`, arc-209 4a-iii `41e01b8d`).
 
 ## Decomposition (to draw as strikes)
 
 1. **Kernel probe — DONE** (the C probe above grounds socketpair vs autobind SO_PEERCRED semantics).
-2. **Autobind primitive** — `listener'(process)` binds via autobind (kernel-assigned address), returns
-   the unguessable address as the `Address` capability. No string arg.
-3. **Mutual SO_PEERCRED** — client reads the server's peer_cred after connect and checks euid/pid
-   (mirror the accept-side check); make the "mutual" real, both directions.
-4. **socketpair self-peer** — confirm/realize the control channel as inherited socketpair (lineage
-   trust), no name.
+2. **Autobind primitive + wire — DONE** (`4fa8f859` `comms::process::autobind_listener` + `5354c582`
+   `listener'(process)` 3-arg autobind → `Bound<S,R>`; `SocketAddress.name`→`Vec<u8>`; the legacy
+   2-arg named form kept as LEGACY for step 5).
+3. **Mutual UDS peer-cred — DONE** (`2b451f2e` — `SocketAddress::connect` reads the server's peer_cred
+   + refuses on euid mismatch, mirroring the accept gate; euid floor; pid-exact match deferred to
+   step 6 when the expected pid threads via the Handle. NOT "mTLS").
+4. **socketpair self-peer — GROUNDED: already satisfied by construction, no change.** The control
+   self-peer is ALREADY the doctrine's point-to-point channel: the parent creates the pipes pre-fork
+   (`kernel/spawn.rs:622+`, `dup2` onto fd0/fd1 at `:692`), the child inherits them and builds its
+   self-peer from fd0/fd1 (`process/verbs.rs:391-408`, `Peer::from_socket`). No name, no discovery,
+   lineage trust — built right in C0b.3a-0. The four-questions on the status quo find no failure
+   mode; a *literal* socketpair offers nothing over the inherited pipe-pair (the probe showed
+   SO_PEERCRED on a socketpair reports the creator, not the peer — useless), so converting would be
+   pure churn + a new fd-plumbing failure surface for zero need. "socketpair" was an
+   over-specification in this design ([[feedback_dont_build_the_forcing_function]] /
+   [[feedback_curated_note_mechanism_must_be_grounded]] — four-Q the status quo first).
 5. **Annihilate the name stack** — remove socket-address'/connect-by-name/allow-set + the overclaiming
    comment; migrate/retire the `c0b3bb`/`c0b3aii` tests onto the capability model (their flake dies
    with the namespace).
-6. **Process Host/launch impl** — the `extend-type ProcessOpts Host` on the above (was "4b").
+6. **Process Host/launch impl** — the `extend-type ProcessOpts Host` on the above (was "4b"); reuses
+   the EXISTING inherited self-peer (step 4) + threads the expected server pid → enables step 3's
+   pid-exact match.
 
 Pairs [[project_shared_memory_partition_hosting]] + [[feedback_reach_stumble_is_the_signal]]
 + [[feedback_dont_build_the_forcing_function]] + [[feedback_no_magic_that_lets_llm_fake_correctness]]
