@@ -495,3 +495,84 @@
                     all-edits (:wat::fix::macro-param-edits forms lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
+
+;; ─── Stone 269 vehicle — rename-keyword-prefix: comment-faithful keyword PREFIX rename ───────
+;;
+;; rename-keyword-prefix(old-prefix new-prefix src) → migrated-src
+;;
+;; For every keyword LEAF in src whose name starts-with old-prefix, splices the prefix →
+;; new-prefix (the suffix, including /accessor and ::Variant forms, is preserved).
+;; Comments and formatting survive byte-identical (rides fix-text-apply's right-to-left
+;; span splice). Structural nodes (list/vector/map/set) are recursed into; other leaves
+;; (symbol, int, float, bool, string, nil) produce no edit.
+;;
+;; structural? dispatch mirrors fix-text-node-edits (fix.wat:225): (structural? node) is
+;; the same predicate (list/vector/map/set by ast-kind). The suffix subs uses char indices
+;; (string::length and string::subs are both char-oriented — string_ops.rs:9,74,415).
+
+;; rename-prefix-edits-walk — walk a vector of nodes, concating prefix-swap edits.
+;; Internal helper mirroring macro-param-edits; not a public API.
+(:wat::core::defn :wat::fix::rename-prefix-edits-walk
+  [items      <- :wat::core::Vector<wat::WatAST>
+   old-prefix <- :wat::core::String
+   new-prefix <- :wat::core::String
+   lines      <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
+                             (:wat::core::first items)
+                             "rename-prefix-edits-walk: head")
+                      tl (:wat::core::rest items)]
+      (:wat::core::concat
+        (:wat::fix::rename-prefix-edits h old-prefix new-prefix lines)
+        (:wat::fix::rename-prefix-edits-walk tl old-prefix new-prefix lines)))))
+
+;; rename-prefix-edits — recursive collector: every keyword leaf whose name starts-with
+;; old-prefix → one prefix-swap edit (Tuple off old-len new-name); structural nodes recurse
+;; into children via rename-prefix-edits-walk; other leaves → empty Vector.
+;; structural? dispatch: (structural? node) = list/vector/map/set (fix.wat:23).
+;; suffix: (string::subs name (string::length old-prefix) (string::length name)) — char-indexed.
+(:wat::core::defn :wat::fix::rename-prefix-edits
+  [node       <- :wat::WatAST
+   old-prefix <- :wat::core::String
+   new-prefix <- :wat::core::String
+   lines      <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::fix::structural? node)
+    ;; structural: recurse into children
+    (:wat::fix::rename-prefix-edits-walk (:wat::core::ast->children node) old-prefix new-prefix lines)
+    ;; leaf: check for keyword-with-matching-prefix
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+      (:wat::core::let [name (:wat::core::ast-name node)]
+        (:wat::core::if (:wat::core::string::starts-with? name old-prefix)
+          ;; emit one prefix-swap edit
+          (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
+                            old-len  (:wat::core::string::length name)
+                            new-name (:wat::core::string::concat
+                                        new-prefix
+                                        (:wat::core::string::subs name
+                                          (:wat::core::string::length old-prefix)
+                                          (:wat::core::string::length name)))]
+            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+              (:wat::core::Tuple off old-len new-name)))
+          ;; keyword but prefix doesn't match — no edit
+          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+      ;; non-keyword leaf (symbol, int, float, bool, string, nil) — no edit
+      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+
+;; rename-keyword-prefix — comment-faithful keyword PREFIX rename rule.
+;; Parses src → collects prefix-swap edits for every matching keyword leaf →
+;; reverses to right-to-left → splices the ORIGINAL text via fix-text-apply.
+;; Comments, formatting, and non-matching keywords survive byte-identical.
+(:wat::core::defn :wat::fix::rename-keyword-prefix
+  [old-prefix <- :wat::core::String
+   new-prefix <- :wat::core::String
+   src        <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+                    tree      (:wat::core::read-string src)
+                    forms     (:wat::core::ast->children tree)
+                    all-edits (:wat::fix::rename-prefix-edits-walk forms old-prefix new-prefix lines)
+                    rev-edits (:wat::core::reverse all-edits)]
+    (:wat::fix::fix-text-apply src rev-edits)))
