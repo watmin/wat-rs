@@ -645,22 +645,38 @@ pub fn register_defines(
 /// Stone 237.8b — register stdlib defclause forms into runtime_def_values.
 /// Passes allow_reserved=true to permit the `:wat::core::*` prefix on stdlib names.
 /// For use ONLY with stdlib forms that live under :wat::core::* (reserved).
-pub fn register_stdlib_defclauses(
+pub fn register_stdlib_runtime_defs(
     forms: &[WatAST],
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
     for form in forms {
-        if let crate::ast::WatAST::List(items, _) = form {
-            if !matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause") {
-                continue;
+        let head = match form {
+            crate::ast::WatAST::List(items, _) => match items.first() {
+                Some(crate::ast::WatAST::Keyword(k, _)) => k.as_str(),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        match head {
+            ":wat::core::defclause" => {
+                let (name, cs) = parse_defclause_form(form, true)?;
+                let value = Value::wat__core__clauses(cs);
+                sym.functions.remove(&name); // remove stub if pre-registered
+                sym.runtime_def_values.insert(name, value);
             }
-        } else {
-            continue;
+            // Arc 209 host-parity-4a — stdlib protocol/impl registration (mirrors the
+            // user-source path, register_runtime_defs_form runtime.rs:1812/1820), so
+            // a stdlib `:P/method` dispatches to its stdlib `extend-type` impl.
+            ":wat::core::defprotocol" => {
+                let (name, pd) = parse_defprotocol_form(form)?;
+                sym.runtime_def_values.insert(name, Value::wat__core__protocol_def(pd));
+            }
+            ":wat::core::extend-type" => {
+                let (canonical_key, ed) = parse_extend_type_form(form)?;
+                sym.runtime_def_values.insert(canonical_key, Value::wat__core__extend_def(ed));
+            }
+            _ => continue,
         }
-        let (name, cs) = parse_defclause_form(form, true)?;
-        let value = Value::wat__core__clauses(cs);
-        sym.functions.remove(&name); // remove stub if pre-registered
-        sym.runtime_def_values.insert(name, value);
     }
     Ok(())
 }

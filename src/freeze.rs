@@ -895,12 +895,19 @@ fn startup_from_forms_post_config(
     for form in &stdlib_residue {
         crate::runtime::preregister_stdlib_defclause_stub(form, &mut symbols);
     }
-    // (b) Extract only defclause forms from stdlib residue (other stdlib forms
-    // already processed; defclauses need runtime registration via runtime_defs).
-    let stdlib_defclause_forms: Vec<crate::ast::WatAST> = stdlib_residue.into_iter()
+    // (b) Extract the stdlib forms that need RUNTIME registration via runtime_defs:
+    // defclause (clause sets), defprotocol (protocol defs), and extend-type (impl
+    // dispatch entries). Other stdlib forms are already processed. Arc 209
+    // host-parity-4a: `:wat::spawn::Host` is the FIRST stdlib protocol/extend-type —
+    // before it only defclause reached this pass, so defprotocol/extend-type were
+    // silently dropped here (registered for user source at runtime.rs:1812/1820, but
+    // never for stdlib). Broadened so stdlib protocol impls reach runtime dispatch.
+    let stdlib_runtime_def_forms: Vec<crate::ast::WatAST> = stdlib_residue.into_iter()
         .filter(|form| {
             if let crate::ast::WatAST::List(items, _) = form {
-                matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _)) if k.as_str() == ":wat::core::defclause")
+                matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _))
+                    if matches!(k.as_str(),
+                        ":wat::core::defclause" | ":wat::core::defprotocol" | ":wat::core::extend-type"))
             } else {
                 false
             }
@@ -1033,12 +1040,12 @@ fn startup_from_forms_post_config(
     symbols.redef_allowed = config.redef_allowed;
     symbols.eval_redef_allowed = config.eval_redef_allowed;
 
-    // 7.6 Stone 237.8b — register stdlib defclauses into runtime_def_values.
-    // Uses a privileged parser that bypasses the reserved-prefix check
-    // (`:wat::core::+` etc. live under :wat::core::* which is reserved from
-    // user code but legal for the stdlib). These forms have already been
-    // through macro-expansion at step 4; they're stdlib-privileged.
-    crate::runtime::register_stdlib_defclauses(&stdlib_defclause_forms, &mut symbols)
+    // 7.6 Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib defclause /
+    // defprotocol / extend-type forms into runtime_def_values. Uses privileged
+    // parsers that bypass the reserved-prefix check (`:wat::core::*` / `:wat::spawn::*`
+    // are reserved from user code but legal for the stdlib). These forms have already
+    // been through macro-expansion at step 4; they're stdlib-privileged.
+    crate::runtime::register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
         .map_err(|e| StartupError::Runtime(Box::new(e)))?;
 
     // 8. Type check.

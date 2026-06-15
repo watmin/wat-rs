@@ -152,3 +152,37 @@
   ([host <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
     (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn host) (:wat::spawn::ProcessOpts/env-fn host))))
+
+;; ── Host — the host-agnostic service-launch protocol (arc 209 host-parity-4a) ─
+;;
+;; defservice's `start [host <- :Host]` routes the per-tier service launch through
+;; this protocol. `listener'` is host-blind on its own (its checker accepts an
+;; abstract :Host and dispatches the Bound shape on arity; the runtime dispatches
+;; on the concrete value) — but the PROGRAM handed to spawn-program' is
+;; shared-vs-not-shared specific: thread captures a closure over the in-memory
+;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
+;; So `launch` builds the host-appropriate program INSIDE the concrete impl and
+;; returns the Spawned handle. A new transport joins as one `extend-type`, zero
+;; edit to `start`.
+;;
+;; Generic over S,R (the listener/peer channel types) and St (service state).
+;; `serve` is the per-service serve loop, passed by NAME (a runtime keyword) so
+;; the impl invokes it tier-neutrally via `apply` — the thread impl captures and
+;; applies; a future process impl ships forms that apply the same keyword.
+;; serve's shape: (serve self-peer listener clients state) -> nil.
+(:wat::core::defprotocol :wat::spawn::Host
+  (launch<S,R,St> [self     <- :wat::spawn::Host
+                   listener <- :wat::kernel::Listener'<S,R>
+                   clients0 <- :wat::core::Vector<wat::kernel::Peer'<R,S>>
+                   state0   <- :St
+                   serve    <- :wat::core::keyword] -> :wat::spawn::Spawned))
+
+;; Thread (shared-memory) impl — the deftest' strategy: the serve loop is a
+;; CLOSURE capturing the in-memory listener + initial clients + state; spawn-program'
+;; (thread) runs it on a freshly-spawned peer. serve is invoked by keyword via apply
+;; so this generic impl never names the per-service serve fn.
+(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Host
+  (launch [self listener clients0 state0 serve]
+    (:wat::kernel::spawn-program' self
+      (:wat::core::fn [self-peer <- :wat::kernel::Peer'<R,S>] -> :wat::core::nil
+        (:wat::core::apply -> :wat::core::nil serve self-peer listener clients0 state0 [])))))

@@ -10382,13 +10382,31 @@ fn infer_listener_prime(
                     TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] }
                 }
             }
+        } else if host_reduced == TypeExpr::Path(":wat::spawn::Host".into()) {
+            // Arc 209 host-parity-4a — abstract host (the `:wat::spawn::Host`
+            // protocol): a host-blind `(listener' host :S :R)` inside
+            // defservice's `start [host <- :Host]`. Shape mirrors the thread
+            // tier (3 args: host, :S, :R → Bound<S,R>); runtime
+            // `eval_listener_prime` dispatches on the concrete host value the
+            // caller actually passes.
+            if args.len() != 3 {
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                    callee: OP.into(), expected: 3, got: args.len()
+                } });
+                let s = fresh.fresh();
+                let r = fresh.fresh();
+                return CheckResult::partial_with(bound_type(s, r), local_errors);
+            }
+            let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+            let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+            bound_type(s_ty, r_ty)
         } else {
             local_errors.push(CheckError {
                 span: args[0].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "host".into(),
-                    expected: "(:wat::spawn::thread) or (:wat::spawn::process)".into(),
+                    expected: "(:wat::spawn::thread), (:wat::spawn::process), or a :wat::spawn::Host".into(),
                     got: format_type(&host_reduced),
                 },
             });
