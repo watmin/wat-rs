@@ -18749,10 +18749,13 @@ fn eval_listener_prime(
         use crate::kernel::listener::Listener;
         use crate::kernel::spawn::{ADDRESS_TYPE_PATH, LISTENER_TYPE_PATH};
         use crate::rust_deps::marshal::make_rust_opaque;
-        Ok(Value::Tuple(Arc::new(vec![
-            make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
-            make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx)),
-        ])))
+        Ok(Value::Struct(Arc::new(StructValue {
+            type_name: ":wat::kernel::Bound".into(),
+            fields: vec![
+                make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
+                make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx)),
+            ],
+        })))
     }
 }
 

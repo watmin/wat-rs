@@ -10267,7 +10267,7 @@ fn infer_listener_prime(
         } });
         let s = fresh.fresh();
         let r = fresh.fresh();
-        return CheckResult::partial_with(listener_tuple(s, r), local_errors);
+        return CheckResult::partial_with(bound_type(s, r), local_errors);
     }
     // args[0] = host expression — infer it, then dispatch on ThreadOpts vs ProcessOpts.
     let host_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -10282,11 +10282,11 @@ fn infer_listener_prime(
                 } });
                 let s = fresh.fresh();
                 let r = fresh.fresh();
-                return CheckResult::partial_with(listener_tuple(s, r), local_errors);
+                return CheckResult::partial_with(bound_type(s, r), local_errors);
             }
             let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-            listener_tuple(s_ty, r_ty)
+            bound_type(s_ty, r_ty)
         } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
             // Process tier: 2 args — host, addr (SocketAddress'<S,R>).
             if args.len() != 2 {
@@ -10346,23 +10346,20 @@ fn infer_listener_prime(
             });
             let s = fresh.fresh();
             let r = fresh.fresh();
-            listener_tuple(s, r)
+            bound_type(s, r)
         }
     } else {
         // Host type couldn't be inferred; fall back.
         let s = fresh.fresh();
         let r = fresh.fresh();
-        listener_tuple(s, r)
+        bound_type(s, r)
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(Tuple Listener'<S,R> Address'<S,R>)` — result type of `(listener' (thread) …)`.
-fn listener_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
-    TypeExpr::Tuple(vec![
-        TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s.clone(), r.clone()] },
-        TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
-    ])
+/// `Bound<S,R>` — result type of `(listener' (thread) …)`.
+fn bound_type(s: TypeExpr, r: TypeExpr) -> TypeExpr {
+    TypeExpr::Parametric { head: "wat::kernel::Bound".into(), args: vec![s, r] }
 }
 
 

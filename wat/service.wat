@@ -485,9 +485,9 @@
 
      ;; ── C.3: start fn ────────────────────────────────────────────────────────────
      ;; (defn <fqdn>/start [state0 <- <state-ty>] -> <fqdn>::Handle
-     ;;   (let [pair (listener' (spawn::thread) Op Reply)
-     ;;         l    (first pair)
-     ;;         addr (second pair)
+     ;;   (let [b    (listener' (spawn::thread) Op Reply)
+     ;;         l    (Bound/listener b)
+     ;;         addr (Bound/address b)
      ;;         svc  (spawn-program' (spawn::thread)
      ;;                (fn [self <- Peer'<Reply,Op>] -> nil
      ;;                  (serve self l (Vector Peer'<Reply,Op>) state0)))]
@@ -506,8 +506,8 @@
      start-params  `[state0 <- ~state-ty]
      start-body    `(:wat::core::let
                       [~pair-sym (:wat::kernel::listener' (:wat::spawn::thread) ~enum-name ~reply-name)
-                       ~l-sym    (:wat::core::first ~pair-sym)
-                       ~addr-sym (:wat::core::second ~pair-sym)
+                       ~l-sym    (:wat::kernel::Bound/listener ~pair-sym)
+                       ~addr-sym (:wat::kernel::Bound/address ~pair-sym)
                        ~svc-sym  (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [~self-sym <- ~peer-ty] -> :wat::core::nil
                                      (~serve-name ~self-sym ~l-sym

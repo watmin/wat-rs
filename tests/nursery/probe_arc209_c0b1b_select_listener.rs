@@ -71,8 +71,8 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :user::Op :wat::core::i64)
-     l    (:wat::core::first pair)
-     addr (:wat::core::second pair)
+     l    (:wat::kernel::Bound/listener pair)
+     addr (:wat::kernel::Bound/address pair)
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))

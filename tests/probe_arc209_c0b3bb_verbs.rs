@@ -51,7 +51,7 @@ const THREAD_VERB_PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
-     l    (:wat::core::first pair)
+     l    (:wat::kernel::Bound/listener pair)
      _    (:wat::kernel::allow' l 123)]
     42))
 

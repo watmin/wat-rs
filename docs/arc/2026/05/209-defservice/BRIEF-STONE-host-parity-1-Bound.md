@@ -60,19 +60,26 @@ callers off `first`/`second`. **Thread tier ONLY — do not touch the process ti
    in `type_name`). The **process tier** (the `if is_process` branch returning a bare
    `make_rust_opaque(LISTENER_TYPE_PATH, …)`, ~18721) is UNCHANGED.
 
-4. **Migrate the three thread-tier callers** (mandatory — `first`/`second` break on a struct):
+4. **Migrate the FIVE thread-tier callers** off `first`/`second` (mandatory — `first`/`second` break
+   on a struct). The full set was swept (`grep -rn "listener'"` across `wat/ tests/ crates/`):
    - **`wat/service.wat:507-516`** — the `start-body` quasiquote. Change
      `~l-sym (:wat::core::first ~pair-sym)` → `~l-sym (:wat::kernel::Bound/listener ~pair-sym)` and
      `~addr-sym (:wat::core::second ~pair-sym)` → `~addr-sym (:wat::kernel::Bound/address ~pair-sym)`.
      Also update the human comment at 488-494 (`l (first pair)` / `addr (second pair)` →
      `l (Bound/listener b)` / `addr (Bound/address b)`).
-   - **`tests/probe_arc209_c2_defservice_dispatch.rs`** — find `(:wat::core::first pair)` /
-     `(:wat::core::second pair)` (grep `first pair`/`second pair`) and swap to
-     `(:wat::kernel::Bound/listener pair)` / `(:wat::kernel::Bound/address pair)`.
+   - **`tests/probe_arc209_c2_defservice_dispatch.rs:56-57`** — `(:wat::core::first pair)` /
+     `(:wat::core::second pair)` → `(:wat::kernel::Bound/listener pair)` / `(:wat::kernel::Bound/address pair)`.
    - **`tests/nursery/probe_arc209_c0b1b_select_listener.rs:74-75`** — same swap.
-   - **Sweep for stragglers:** `grep -rn "listener'" wat/ tests/ crates/` and, for each thread-tier
-     call (`(listener' (thread|spawn::thread) …)`), confirm any `first`/`second` on its result is
-     migrated. Report what you found.
+   - **`tests/probe_arc209_c0b3bb_verbs.rs:54`** — `THREAD_VERB_PROGRAM`: `l (:wat::core::first pair)`
+     → `l (:wat::kernel::Bound/listener pair)` (only `first` here; `allow' l` follows — the
+     thread-tier-error assertion is UNCHANGED, you're just fixing how `l` is extracted).
+   - **`tests/nursery/probe_arc209_c0b1_thread_connection.rs:45-46`** — `first pair`/`second pair`
+     → `Bound/listener`/`Bound/address` (green live round-trip).
+   - **NOT to migrate:** `tests/nursery/probe_arc209_c0b2a_listener_host_thread_only.rs:43` binds
+     `pair` UNUSED (no `first`/`second`); it stays as-is and stays green (an unused Bound binding
+     type-checks fine). Leave it.
+   - **Final sanity sweep:** re-run `grep -rn "first pair\|second pair\|first ~pair\|second ~pair" wat/ tests/`
+     and confirm ZERO remain that target a thread-tier `listener'` result. Report the result.
 
 ## Gate (run all; report verbatim from YOUR runs)
 ```
@@ -80,6 +87,9 @@ cargo test --release -p wat --test probe_arc209_bound_listener -- --test-threads
 cargo test --release -p wat --test probe_arc209_c2_defservice_dispatch -- --test-threads=1   # passes (migrated)
 cargo test --release -p wat --test nursery probe_arc209_c0b1b_select_listener -- --test-threads=1   # passes (migrated)
 cargo test --release -p wat --test probe_arc209_c3_defservice_client_face -- --test-threads=1   # passes (start fn uses Bound)
+cargo test --release -p wat --test probe_arc209_c0b3bb_verbs -- --test-threads=1         # passes (straggler migrated)
+cargo test --release -p wat --test nursery probe_arc209_c0b1_thread_connection -- --test-threads=1   # passes (straggler migrated)
+cargo test --release -p wat --test nursery probe_arc209_c0b2a_listener_host_thread_only -- --test-threads=1   # passes (unused pair binding, untouched)
 cargo test --release -p wat --lib -- --test-threads=1                                   # zero NEW vs baseline 915/36
 cargo test --release -p wat --test nursery -- --test-threads=1                          # zero NEW vs baseline 895/4
 cargo test --release --workspace --no-run                                               # compiles
@@ -91,17 +101,21 @@ cargo test --release --workspace --no-run                                       
    the exact error).
 2. Rust can't build `Value::Struct` for `:wat::kernel::Bound` (StructDef not registered at the call,
    accessor unresolved) → STOP (the defstruct must load before `listener'` runs; report the error).
-3. You find a thread-tier `listener'` caller NOT in the three listed → STOP and report it (the blast
-   radius was mis-mapped); do not silently migrate beyond the plan without surfacing it first.
+3. You find a thread-tier `listener'` caller (one that applies `first`/`second` to the result) NOT
+   among the FIVE now listed in room #4 → STOP and report it (blast radius still mis-mapped); do not
+   silently migrate beyond the plan. (The five were swept and confirmed; a sixth would be news.)
 4. Migrating forces a change to the **process tier** of `listener'`, or to `first`/`second`
    themselves → STOP (process-tier leveling is a later sub-stone; this stone is thread-tier only).
 
 ## Blast radius
 `wat/spawn.wat` (+~6 lines), `src/check.rs` (1 helper body + rename at 5 sites), `src/runtime.rs`
-(1 return expr, thread tier), `wat/service.wat` (2 template lines + a comment),
-`tests/probe_arc209_c2_defservice_dispatch.rs` + `tests/nursery/probe_arc209_c0b1b_select_listener.rs`
-(2 lines each). The probe `tests/probe_arc209_bound_listener.rs` is already committed. NO new types
-beyond `Bound`; NO process-tier changes; NO change to `first`/`second`/`Listener'`/`Address'`/`Peer'`.
+(1 return expr, thread tier), `wat/service.wat` (2 template lines + a comment), and FOUR test files
+(2 lines each, except c0b3bb which is 1 line): `tests/probe_arc209_c2_defservice_dispatch.rs`,
+`tests/nursery/probe_arc209_c0b1b_select_listener.rs`, `tests/probe_arc209_c0b3bb_verbs.rs`,
+`tests/nursery/probe_arc209_c0b1_thread_connection.rs`. The probe
+`tests/probe_arc209_bound_listener.rs` is already committed. NO new types beyond `Bound`; NO
+process-tier changes; NO change to `first`/`second`/`Listener'`/`Address'`/`Peer'`; do NOT touch
+`c0b2a` (unused `pair` binding stays).
 
 ## Return
 Report: the `defstruct` (file:line); the `bound_type` body + all 5 renamed call sites; the

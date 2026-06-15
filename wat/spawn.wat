@@ -105,6 +105,14 @@
   :Closed     [idx   <- :wat::core::i64]
   :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])
 
+;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
+;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
+;; (Listener'/Address'). `listener` is the server accept-side; `address` is what
+;; clients dial via connect'. Replaces the bare Tuple the thread tier returned.
+(:wat::core::defstruct :wat::kernel::Bound<S,R>
+  [listener <- :wat::kernel::Listener'<S,R>
+   address  <- :wat::kernel::Address'<S,R>])
+
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
 ;;
 ;; Arc 259 S2c-ii-b — `spawn-program'` as a host-type defclause.

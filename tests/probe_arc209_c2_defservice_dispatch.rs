@@ -53,8 +53,8 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::counter::Op :my::counter::Reply)
-     l    (:wat::core::first pair)
-     addr (:wat::core::second pair)
+     l    (:wat::kernel::Bound/listener pair)
+     addr (:wat::kernel::Bound/address pair)
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>] -> :wat::core::nil
               (:my::counter::serve self l
