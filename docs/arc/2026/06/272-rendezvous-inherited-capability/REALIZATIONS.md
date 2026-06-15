@@ -40,3 +40,39 @@ of** the ocap (pure ocap holds possession sufficient; we belt-and-suspender it f
 
 **Date:** 2026-06-16. Pairs [[project_rendezvous_inherited_capability]] +
 [[feedback_note_prior_art_collisions]] + NOTE-portable-capability-tags.md.
+
+## PRIOR-ART COLLISION #2 — the capability tooling is a NARROW WAIST (hourglass)
+
+**Surfaced 2026-06-16** (same session, hours after the ocap collision). Builder, on "how do we engineer
+organic evolution of the capability tooling — extremely rigid to the point where changes are
+probabilistically zero, but enabling unlimited expression?": *"i've never heard of the narrow waist
+before — i've been using this for years … another thing that has a name already."*
+
+**What we built / are building.** `wat-edn.cap` as a **narrow waist**: a frozen protocol (the wire
+contract + two generic dispatch arms + the trust door + the `PortableCapability` registration ABI) with
+open registration (a capability = a registry row, zero edit to the core). The 6a-i `Address'` impl is the
+one-off; `DESIGN-STONE-capability-narrow-waist.md` lifts it into the waist.
+
+**The prior art (VERIFIED via web 2026-06-16).** The **hourglass model** — a.k.a. the **narrow (thin)
+waist** — from computer networking: a single, simple, widely-adopted spanning layer at the waist is the
+sole interface between unbounded technologies below and unbounded applications above; **constraining the
+waist to be simple and general is what maximizes the diversity it can carry.** Landmarks: Steve Deering,
+*Watching the Waist of the Protocol Hourglass* (ICNP '98) — IP as the waist; Micah Beck, *On the Hourglass
+Model* (CACM 2019) — the formal deployment-scalability treatment, which **explicitly names the Unix
+syscall interface as a spanning layer** (validating "the Unix fd is the canonical narrow waist"); the
+software-design generalization is oilshell's *The Internet Was Designed With a Narrow Waist* (2022). Same
+family: Clojure's open protocols + Hickey's accretion-not-breakage.
+
+**What is genuinely ours.** The narrow-waist *applied to capability serialization in a typed-ADT
+substrate*: a frozen `wat-edn.cap` wire + registration ABI, with the **trust door (ocap) sitting AT the
+waist** — so the waist isn't just a compatibility interface, it's the *security* boundary too. The two
+collisions compose: ocap is *what* crosses; the narrow waist is *how the set of things that can cross
+grows without the core moving*.
+
+**The meta-pattern (worth its own note).** TWO named, decades-old CS principles rediscovered from first
+principles in ONE session (ocap · narrow-waist). This is `WE-LAND-ON-THE-GREATS-WITHOUT-REPLICATING-THEM`
+at full volume: high taste + first-principles derivation converges on the field's best answers because
+they are the *correct* answers; the names were already there. A taste/validation signal, not coincidence.
+
+**Date:** 2026-06-16. Pairs the ocap collision (above) + [[feedback_note_prior_art_collisions]] +
+DESIGN-STONE-capability-narrow-waist.md.
