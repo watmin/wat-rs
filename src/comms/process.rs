@@ -171,6 +171,95 @@ pub fn peer_cred(fd: std::os::fd::RawFd) -> std::io::Result<PeerCred> {
     })
 }
 
+// ─── Autobind UDS listener primitive (arc 272) ────────────────────────────────
+
+/// Bind an *autobind* abstract-namespace UDS listener: pass a zero-length address
+/// (`addrlen == sizeof(sa_family_t)`, no `sun_path`) and the kernel mints a UNIQUE,
+/// unguessable abstract name (`\0` + 5 bytes). There is no fixed/chosen name, so there
+/// is no shared namespace to collide in — `EADDRINUSE` becomes *unreachable*, not
+/// handled — and nothing to squat. The rendezvous is a minted capability, not a
+/// discovered name (arc 272: rendezvous is an inherited capability, not a name).
+///
+/// Returns the bound, non-blocking `UnixListener` (`SOCK_NONBLOCK`, the C0b.3a-i
+/// invariant; `SOCK_CLOEXEC` so it does not leak across an unrelated exec — fork
+/// inheritance is unchanged) + the kernel-assigned abstract name (the bytes *after*
+/// the leading `\0`), which `connect'` dials.
+pub fn autobind_listener(backlog: i32) -> std::io::Result<(std::os::unix::net::UnixListener, Vec<u8>)> {
+    use std::os::fd::FromRawFd;
+    // socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC).
+    // SAFETY: socket(2) with constant args; the returned fd is checked below.
+    let fd = unsafe {
+        libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC, 0)
+    };
+    if fd < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // Own the fd immediately: every early-return below drops the listener → closes fd.
+    // SAFETY: `fd` is a fresh, valid, owned socket fd from socket(2).
+    let listener = unsafe { std::os::unix::net::UnixListener::from_raw_fd(fd) };
+
+    // bind() with addrlen = sizeof(sa_family_t): the kernel autobinds a unique abstract name.
+    // SAFETY: `sa` is a zeroed sockaddr_un with only sun_family set; `autobind_len` selects
+    // the autobind form (no sun_path read).
+    let mut sa: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    sa.sun_family = libc::AF_UNIX as libc::sa_family_t;
+    let autobind_len = std::mem::size_of::<libc::sa_family_t>() as libc::socklen_t;
+    let rc = unsafe { libc::bind(fd, &sa as *const _ as *const libc::sockaddr, autobind_len) };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    // getsockname() → the kernel-assigned abstract name.
+    // SAFETY: `got`/`gl` are valid out-params sized to sockaddr_un.
+    let mut got: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    let mut gl = std::mem::size_of::<libc::sockaddr_un>() as libc::socklen_t;
+    let rc = unsafe { libc::getsockname(fd, &mut got as *mut _ as *mut libc::sockaddr, &mut gl) };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // Abstract address: sun_path[0] == 0, the assigned bytes follow. The total path
+    // length is (returned addrlen − offsetof(sun_path)); offsetof(sun_path) ==
+    // sizeof(sa_family_t) (sun_family is the only field before sun_path; sun_path is a
+    // byte array, alignment 1, so no padding). Drop the leading null → the abstract name.
+    let path_off = std::mem::size_of::<libc::sa_family_t>();
+    let path_len = (gl as usize).saturating_sub(path_off);
+    let name: Vec<u8> = if path_len > 1 {
+        got.sun_path[1..path_len].iter().map(|&c| c as u8).collect()
+    } else {
+        Vec::new()
+    };
+
+    // listen(): the socket becomes an accepting listener.
+    // SAFETY: `fd` is a bound socket fd owned by `listener`.
+    let rc = unsafe { libc::listen(fd, backlog) };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    Ok((listener, name))
+}
+
+#[cfg(test)]
+mod autobind_tests {
+    use super::autobind_listener;
+
+    #[test]
+    fn autobind_mints_unique_unguessable_names_no_collision() {
+        // Two autobinds in the SAME process: the kernel hands each a distinct address.
+        // Collision is impossible by construction — there is no chosen name to clash on.
+        let (l1, n1) = autobind_listener(16).expect("autobind 1 binds");
+        let (l2, n2) = autobind_listener(16).expect("autobind 2 binds");
+        assert!(!n1.is_empty(), "autobind must mint a non-empty abstract name");
+        assert!(!n2.is_empty(), "autobind must mint a non-empty abstract name");
+        assert_ne!(n1, n2, "two autobinds MUST get distinct names — collision unrepresentable");
+        // The listeners are real, bound, and non-blocking (accept would EAGAIN, not block).
+        l1.set_nonblocking(true).expect("l1 is a usable listener");
+        l2.set_nonblocking(true).expect("l2 is a usable listener");
+        drop(l1);
+        drop(l2);
+    }
+}
+
 // ─── Sender ──────────────────────────────────────────────────────────────────
 
 /// Process-tier send endpoint. Generic over the payload type T (Stone C).
