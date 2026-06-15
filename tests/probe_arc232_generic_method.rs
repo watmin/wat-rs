@@ -34,7 +34,7 @@ const PROGRAM: &str = r#"
   (make<T> [self <- :t::Maker  x <- :T] -> :wat::core::Vector<T>))
 
 (:wat::Record::def :t::Dup [])
-(:wat::core::extend-type :t::Dup :t::Maker (make [self x] (:wat::core::Vector x x)))
+(:wat::core::extend-type :t::Dup :t::Maker (make [self x] [x x]))
 
 ;; Call with a concrete i64 → T must instantiate to i64 → result is Vector<i64>.
 (:wat::core::defn :user::go [] -> :wat::core::i64

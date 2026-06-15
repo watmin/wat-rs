@@ -422,15 +422,24 @@ pub struct ClauseSet {
 /// `arg_types[0]` is always the receiver type `:P` (single-receiver invariant).
 /// `ret` is the declared return type. The method body is provided by each
 /// `extend-type` implementor; it is NOT stored here.
+///
+/// Arc 232 follow-on (generic methods): `type_params` holds the bare type-variable
+/// names declared on the method name (`make<T>` → `["T"]`). Empty for monomorphic
+/// methods. The call-site checker instantiates these to fresh unification vars,
+/// mirroring the generic-fn path (`instantiate`, check.rs).
 #[derive(Debug, Clone)]
 pub struct ProtocolMethodSig {
-    /// Method name (e.g. `"greet"`).
+    /// Method name (e.g. `"greet"`, `"make"` — always the BARE name, no `<T>` suffix).
     pub name: String,
     /// Declared argument types in declaration order. `arg_types[0]` is the
     /// receiver type (always `:P`, the protocol itself). Must be non-empty.
     pub arg_types: Vec<TypeExpr>,
     /// Declared return type.
     pub ret: TypeExpr,
+    /// Arc 232 follow-on — universally-quantified type-parameter names declared
+    /// on the method (`make<T>` → `["T"]`). Empty for monomorphic methods.
+    /// The call-site checker instantiates these to fresh unification vars.
+    pub type_params: Vec<String>,
 }
 
 /// Arc 232 Stone 232.1 — a `defprotocol` declaration.

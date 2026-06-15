@@ -448,6 +448,7 @@ mod tests {
                 TypeExpr::Path(":wat::core::i64".into()),
             ],
             ret: TypeExpr::Path(":wat::core::String".into()),
+            type_params: vec![],
         };
         let pd = Arc::new(ProtocolDef {
             name: ":t::Greeter".to_string(),

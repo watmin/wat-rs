@@ -5524,6 +5524,30 @@ fn infer_list(
                         }
                         return CheckResult::errs(local_errors);
                     }
+                    // Arc 232 follow-on (generic methods) — if the method has type params
+                    // (`make<T>` → `sig.type_params = ["T"]`), instantiate them to fresh
+                    // unification vars (mirroring `instantiate`, check.rs:13942 / `rename`):
+                    //   - build a mapping:  "T" → fresh.fresh()
+                    //   - apply `rename` to sig.arg_types[1..] and sig.ret
+                    // Monomorphic methods (empty type_params) take the identity path: the
+                    // instantiated slices ARE the original slices (no-op, existing behaviour).
+                    let (inst_rest_arg_types, inst_ret): (Vec<TypeExpr>, TypeExpr) =
+                        if sig.type_params.is_empty() {
+                            // Monomorphic — no-op: clone the existing slices verbatim.
+                            (sig.arg_types[1..].to_vec(), sig.ret.clone())
+                        } else {
+                            // Generic — build fresh-var substitution and rename.
+                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+                            for tp in &sig.type_params {
+                                mapping.insert(tp.clone(), fresh.fresh());
+                            }
+                            let rest: Vec<TypeExpr> = sig.arg_types[1..]
+                                .iter()
+                                .map(|ty| rename(ty, &mapping))
+                                .collect();
+                            let ret = rename(&sig.ret, &mapping);
+                            (rest, ret)
+                        };
                     // Infer each arg's type.
                     let arg_tys: Vec<Option<TypeExpr>> = args
                         .iter()
@@ -5533,6 +5557,8 @@ fn infer_list(
                         })
                         .collect();
                     // Check receiver (arg 0) is assignable to :P.
+                    // Receiver check is UNCHANGED — receiver is always :P (the protocol),
+                    // never a type-param, so no instantiation needed here.
                     if let Some(recv_ty) = &arg_tys[0] {
                         let receiver_expected = TypeExpr::Path(protocol_fqdn.to_string());
                         if !assignable(recv_ty, &receiver_expected, subst, env.types()) {
@@ -5547,10 +5573,12 @@ fn infer_list(
                             });
                         }
                     }
-                    // Check rest args against sig.arg_types[1..].
+                    // Check rest args against INSTANTIATED arg types.
+                    // For monomorphic methods inst_rest_arg_types == sig.arg_types[1..] (clone).
+                    // For generic methods each :T has been replaced by a fresh unification var.
                     for (i, (arg_ty_opt, expected_ty)) in arg_tys[1..]
                         .iter()
-                        .zip(sig.arg_types[1..].iter())
+                        .zip(inst_rest_arg_types.iter())
                         .enumerate()
                     {
                         if let Some(arg_ty) = arg_ty_opt {
@@ -5567,8 +5595,9 @@ fn infer_list(
                             }
                         }
                     }
-                    // Return the method's declared return type.
-                    let ret = apply_subst(&sig.ret, subst);
+                    // Return the INSTANTIATED return type (for monomorphic: same as sig.ret clone).
+                    // apply_subst resolves any unification vars unified during the assignable calls.
+                    let ret = apply_subst(&inst_ret, subst);
                     return if local_errors.is_empty() {
                         CheckResult::ok(ret)
                     } else {

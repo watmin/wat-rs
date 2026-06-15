@@ -5716,8 +5716,27 @@ pub(crate) fn parse_defprotocol_form(
                 reason: format!("method sig must have at least 4 elements `(name [args] -> :R)`; got {}", sig_items.len())
             } }.into());
         }
-        let method_name = match &sig_items[0] {
-            WatAST::Symbol(s, _) => s.as_str().to_owned(),
+        // Arc 232 follow-on (generic methods) — strip `<T,…>` suffix off the
+        // method name into type_params, reusing split_name_and_type_params
+        // (the same splitter defn uses on `:name<T>` at runtime.rs:2324).
+        // The Symbol payload is a plain string (e.g. `"make<T>"` — no leading
+        // `:`) — the splitter operates on the raw string, so it is directly
+        // reusable: `split_name_and_type_params("make<T>")` → `("make", ["T"])`.
+        // Monomorphic methods (no `<`) return the name unchanged with an empty vec.
+        let (method_name, method_type_params) = match &sig_items[0] {
+            WatAST::Symbol(s, _) => {
+                match split_name_and_type_params(s.as_str()) {
+                    Ok(pair) => pair,
+                    Err(EvalBreak::Diagnostic(e)) => return Err(e),
+                    Err(_) => return Err(RuntimeError {
+                        span: sig_items[0].span().clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: HEAD.into(),
+                            reason: format!("malformed type params in method name `{}`", s.as_str())
+                        }
+                    }),
+                }
+            }
             other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method sig first element must be a Symbol method name; got {}", other.variant_name())
@@ -5776,7 +5795,8 @@ pub(crate) fn parse_defprotocol_form(
                 )
             } }.into());
         }
-        methods.push(crate::value::ProtocolMethodSig { name: method_name, arg_types, ret });
+        // Arc 232 follow-on: store the (possibly empty) type_params collected above.
+        methods.push(crate::value::ProtocolMethodSig { name: method_name, arg_types, ret, type_params: method_type_params });
     }
 
     let pd = Arc::new(crate::value::ProtocolDef { name: protocol_name.clone(), methods });
