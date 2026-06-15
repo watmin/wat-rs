@@ -65,13 +65,38 @@ The two requirements (no fixed name · mutual pid trust) do not conflict; they s
   the other's real pid. **Do not forget: the client MUST check the server's pid/identity too** — the
   half we never built.
 
-## What gets annihilated (retire, do not patch)
+## Trust installation — the post-spawn-fn seam (the lineage trust root)
 
-- `:wat::kernel::socket-address'` + connect-by-name (arc C0b.2d) — fixed-name discovery.
-- The allow-set (`allow'`/`deny'`, birth-seed, C0b.3b-b) — it exists *only because* the squattable
-  name created the exposure; with no fixed name there are no strangers to bounce.
-- The "SO_PEERCRED is local mTLS" comment — replaced by *actual* mutual SO_PEERCRED.
-- The fixed-name `listener'(process)` / `connect'` arms — rebuilt on socketpair / autobind.
+The same perfect knowledge as the rendezvous: **the parent learns every child's pid at fork**, and
+the **post-spawn-fn** is the one moment it learns it — it runs OWNER-side in the parent after the fork
+with `ProcessLaunch{pid}` (`spawn.wat:32`, `kernel/spawn.rs:349-350`). So the parent is the trust
+ROOT, and the post-spawn-fn is where it INSTALLS the lineage trust (no discovery — it's told):
+
+- Parent spawns the **server** S → its post-spawn-fn hands the parent `pid_S` (records "my server").
+- Parent spawns a **client** C for S → C's post-spawn-fn (in the parent) calls `(allow' S-listener
+  pid_C)` → S trusts C's pid. **Server→client pid trust, lineage-installed.** (`allow'`:
+  `(Listener'<S,R>, i64) -> nil`, `runtime.rs:4770` / `listener.rs:272` — already built.)
+- The parent hands C the capability (S's autobind addr) **and `pid_S`** via the `Handle` → C checks
+  `server.pid == pid_S`. **Client→server pid trust** — the half step 3 is missing (euid-only);
+  lands when the Handle carries the expected pid (step 6).
+
+The capability bounds *who can reach you*; euid+pid (both ways, lineage-installed at post-spawn)
+confirm *who they are*.
+
+## What gets annihilated — and what SURVIVES re-grounded
+
+**Annihilate (retire, do not patch) — the NAME:**
+- `:wat::kernel::socket-address'` + connect-by-name (arc C0b.2d) — fixed-name discovery (forgeable,
+  collidable).
+- The fixed-name 2-arg `listener'(process)` arm (the LEGACY kept through step 2b).
+- The "SO_PEERCRED is local mTLS" overclaiming comment (`listener.rs`) — it is mutual peer-cred over
+  UDS, NOT TLS.
+
+**KEEP, re-grounded — the lineage pid-trust** (builder correction, 2026-06-15): the allow-set +
+`allow'`/`deny'` are NOT name-stranger-defense to delete — they are the **server's pid-trust half,
+installed by the parent via the post-spawn-fn** (above). The rationale flips from *"bounce strangers
+who guessed a public name"* to *"the parent declares the trusted lineage at spawn."* Same mechanism,
+honest reason. (The birth-seed comment + the "stranger" framing get rewritten; the code stays.)
 
 ## Relation to host-parity
 
