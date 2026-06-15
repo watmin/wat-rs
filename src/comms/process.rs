@@ -129,7 +129,8 @@ type Frame = Vec<u8>;
 /// Kernel-vouched identity of the peer connected to a UDS socket fd.
 /// Captured by the kernel at connect time — unforgeable, no `/proc`, no handshake.
 /// This is the mechanism C0b.3b-b's accept enforcement checks against the allow-set.
-/// ("SO_PEERCRED is local mTLS.")
+/// (Mutual peer-credential auth over UDS — NOT TLS: no certs, no handshake, no transport
+/// encryption; just the kernel's unforgeable `{pid,uid,gid}` vouching, both directions.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PeerCred {
     pub pid: i32,

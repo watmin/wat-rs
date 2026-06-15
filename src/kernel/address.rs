@@ -159,6 +159,40 @@ impl CommAddress for SocketAddress {
                 reason: format!("connect abstract UDS: {}", e),
             },
         })?;
+        // Arc 272 — MUTUAL UDS peer-cred: the CLIENT verifies the SERVER's kernel-vouched identity,
+        // mirroring the accept-side euid gate (kernel/listener.rs:267). Before this, auth was
+        // one-directional: the server checked the client, but the client trusted whoever answered
+        // the address. euid match is the floor — "the answerer is a process of our own user";
+        // combined with the unguessable autobind capability (the address came from the Handle, not
+        // a guessable name), the rendezvous is now mutually authenticated. Read peer_cred BEFORE
+        // `OwnedFd::from(stream)` consumes the stream. (pid-exact match lands when the expected
+        // server pid is threaded via the Handle — arc 272 step 6; DO NOT drop the pid half.)
+        {
+            use std::os::fd::AsRawFd;
+            let server = crate::comms::process::peer_cred(stream.as_raw_fd()).map_err(|e| RuntimeError {
+                span: span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("mutual UDS peer-cred: peer_cred on the server socket: {}", e),
+                },
+            })?;
+            // SAFETY: geteuid() is always-succeeds, no args, no memory effects.
+            let me = unsafe { libc::geteuid() };
+            if server.uid != me {
+                return Err(RuntimeError {
+                    span: span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "mutual UDS peer-cred: refusing connection — server euid {} != our euid {} \
+                             (the answerer is not a process of our user)",
+                            server.uid, me
+                        ),
+                    },
+                }
+                .into());
+            }
+        }
         // Arc 209 C0b.2e-i-b: switched from String to Value — encoding is internal.
         let (tx, rx) =
             crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream))
