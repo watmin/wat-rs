@@ -147,6 +147,14 @@ pub struct SymbolTable {
     /// Populated by `register_defines` / `register_runtime_defs_form`
     /// when a `def` form carries a metadata-map at items[2].
     pub binding_metadata: BindingMetadata,
+    /// Arc 265 — namespace-scoped acronym registry.
+    /// Maps namespace keyword string (e.g. `":my::aws"`) to the list of
+    /// canonical acronyms declared for that namespace (e.g. `["ACL", "HTTP"]`).
+    /// Populated by `preregister_acronyms` (freeze step 6.96, before macro
+    /// expansion) via `(:wat::core::string::declare-acronyms :ns ["ACL"])` forms.
+    /// Consulted by `pascal->kebab-in` and `kebab->pascal-in` at expand time.
+    /// No entry for a namespace → plain `pascal->kebab` / `kebab->pascal` behavior.
+    pub acronym_registry: HashMap<String, Vec<String>>,
 }
 
 impl std::fmt::Debug for SymbolTable {

@@ -1488,6 +1488,97 @@ pub fn preregister_protocol_names(
     Ok(())
 }
 
+/// Arc 265 — parse a `declare-acronyms` form and return `(namespace, acronyms)`.
+///
+/// Shape: `(:wat::core::string::declare-acronyms :ns ["ACL" "HTTP"])`.
+/// The namespace is the keyword string (with leading colon, e.g. `":my::aws"`).
+/// The acronym list is a `WatAST::Vector` of `WatAST::String` nodes.
+/// Returns `Err` on malformed input; callers silently skip errors (pre-pass).
+pub(crate) fn parse_declare_acronyms_form(
+    form: &WatAST,
+) -> Result<(String, Vec<String>), RuntimeError> {
+    const HEAD: &str = ":wat::core::string::declare-acronyms";
+    let form_span = form.span().clone();
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: "expected list".into()
+        } }),
+    };
+    // items[0] = :wat::core::string::declare-acronyms keyword
+    // items[1] = :ns namespace keyword
+    // items[2] = ["ACL" ...] vector of string literals
+    if items.len() != 3 {
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!(
+                "expected (:wat::core::string::declare-acronyms :ns [\"ACL\" ...]); got {} elements",
+                items.len()
+            )
+        } });
+    }
+    let ns = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!("first arg must be a keyword namespace; got {}", other.variant_name())
+        } }),
+    };
+    let acronyms = match &items[2] {
+        WatAST::Vector(children, _) => {
+            let mut acc = Vec::with_capacity(children.len());
+            for child in children {
+                match child {
+                    WatAST::StringLit(s, _) => acc.push(s.clone()),
+                    other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: HEAD.into(),
+                        reason: format!("acronym list entries must be String literals; got {}", other.variant_name())
+                    } }),
+                }
+            }
+            acc
+        }
+        other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!("second arg must be a Vector of String literals; got {}", other.variant_name())
+        } }),
+    };
+    Ok((ns, acronyms))
+}
+
+/// Arc 265 — pre-register `declare-acronyms` forms into `sym.acronym_registry`
+/// BEFORE the macro-expansion pass so a `defservice` macro expanding later can
+/// consult the registry via `pascal->kebab-in` at expand time.
+///
+/// Mirrors `preregister_protocol_names` (the 232.3 pattern) — a single
+/// pre-pass that covers ONLY `declare-acronyms` forms. The full (no-op)
+/// runtime eval of these forms happens in `register_runtime_defs`; this
+/// pre-pass is the ORDERING guarantee.
+pub fn preregister_acronyms(
+    residue: &[WatAST],
+    sym: &mut SymbolTable,
+) -> Result<(), EvalBreak> {
+    for form in residue {
+        let items = match form {
+            WatAST::List(items, _) => items,
+            _ => continue,
+        };
+        if items.is_empty() {
+            continue;
+        }
+        match &items[0] {
+            WatAST::Keyword(k, _) if k.as_str() == ":wat::core::string::declare-acronyms" => {
+                if let Ok((ns, acronyms)) = parse_declare_acronyms_form(form) {
+                    sym.acronym_registry.entry(ns).or_insert_with(Vec::new).extend(acronyms);
+                }
+            }
+            _ => continue,
+        }
+    }
+    Ok(())
+}
+
 /// Arc 157 slice 1a-ii — evaluate top-level `def` forms in the program
 /// residue and populate `sym.runtime_def_values` with the resulting values.
 ///
@@ -3960,6 +4051,12 @@ fn dispatch_keyword_head_value(
         ":wat::core::string::to-lowercase" => crate::string_ops::eval_string_to_lowercase(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::to-uppercase" => crate::string_ops::eval_string_to_uppercase(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::pascal->kebab" => crate::string_ops::eval_string_pascal_to_kebab(args, list_span, env, sym).map_err(Into::into),
+        // Arc 265 — namespace-scoped PascalCase⇄kebab converters.
+        ":wat::core::string::pascal->kebab-in" => crate::string_ops::eval_string_pascal_to_kebab_in(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::string::kebab->pascal-in" => crate::string_ops::eval_string_kebab_to_pascal_in(args, list_span, env, sym).map_err(Into::into),
+        // Arc 265 — declare-acronyms is a no-op at runtime (registry already populated
+        // at freeze time by preregister_acronyms). Accept it as unit.
+        ":wat::core::string::declare-acronyms" => Ok(Value::Unit),
         ":wat::core::string::subs" => crate::string_ops::eval_string_subs(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::split" => crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into),

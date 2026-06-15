@@ -58,6 +58,9 @@
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
     [fqdn-str      (:wat::core::keyword/to-string fqdn)
+     ;; Arc 265 — reconstruct fqdn as a keyword value so pascal->kebab-in
+     ;; can use it as the namespace for acronym-registry lookup.
+     fqdn-kw       (:wat::core::keyword/from-string fqdn-str)
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::concat fqdn-str "::Op"))
      reply-name    (:wat::core::keyword/from-string
@@ -367,7 +370,9 @@
      ;; For each op:
      ;;   (defn <fqdn>/<op-lower>-request [<in-fields>] -> :<fqdn>::<Op>Request
      ;;     (<fqdn>::<Op>Request <in-field-names>))
-     ;; Constructor name uses pascal->kebab op (via string::pascal->kebab).
+     ;; Constructor name uses pascal->kebab-in (namespace-aware; Arc 265) so a
+     ;; namespace with declared acronyms gets correct kebab lowering (e.g.
+     ;; :CreateWebACL → "create-web-acl" when "ACL" is declared for the service ns).
      ;; ctor-body = `(~req-ty ~@arg-names)`: head is Unquote → checker skips let/fn check.
      constructors  (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
@@ -384,7 +389,7 @@
                           ;; in-fields minus the leading s <- :State triple
                           in-fieldch   (:wat::core::drop (:wat::core::ast->children argvec) 3)
                           op-str       (:wat::core::keyword/to-string opkw)
-                          op-lower     (:wat::core::string::pascal->kebab op-str)
+                          op-lower     (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           ctor-name    (:wat::core::keyword/from-string
                                          (:wat::core::string::concat fqdn-str
                                            (:wat::core::string::concat "/" op-lower "-request")))
@@ -420,7 +425,7 @@
      ;;     -> :<fqdn>::<Op>Response
      ;;     (let [_ (send' c (Op::<Op> req))  r (recv' c)]
      ;;       (match r -> <resp-ty> ((Reply::<Op> resp) resp))))
-     ;; Method name uses lowercase op.
+     ;; Method name uses namespace-aware pascal->kebab-in (Arc 265).
      ;;
      ;; Hygiene for method-body: `_` and `r` are let binders inside a nested quasiquote.
      ;; Fix: `discard-sym` = (symbol-node "_") and `r-sym` = (symbol-node "r") make them
@@ -440,7 +445,7 @@
                                             (:wat::core::first (:wat::core::drop ch 3))
                                             "defservice methods: op-clause has no out-fieldvec")
                           op-str          (:wat::core::keyword/to-string opkw)
-                          op-lower        (:wat::core::string::pascal->kebab op-str)
+                          op-lower        (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           method-name     (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
                                               (:wat::core::string::concat "/" op-lower)))

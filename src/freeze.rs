@@ -813,7 +813,21 @@ fn startup_from_forms_post_config(
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::stream bodies
     // use :wat::holon::Subtract / list helpers / etc.
-    let macro_sym = SymbolTable::default();
+    let mut macro_sym = SymbolTable::default();
+    // Arc 265 — pre-register declare-acronyms forms into macro_sym BEFORE
+    // expand_all so defservice's pascal->kebab-in call at expand time can
+    // consult the registry. This is the ORDERING guarantee: declare-acronyms
+    // must appear BEFORE the defservice that reads them in the user program.
+    // (The later preregister_acronyms at step 6.96 populates `symbols` so
+    // runtime eval also sees the registry; this pre-pass covers the macro-sym
+    // carrier that expand_all reads.)
+    crate::runtime::preregister_acronyms(&post_macro_reg, &mut macro_sym)
+        .map_err(|e| match e {
+            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+            crate::runtime::EvalBreak::Signal(_) => unreachable!(
+                "interpreter bug: eval-loop control signal escaped to freeze layer"
+            ),
+        })?;
     let expanded_stdlib = expand_all(
         stdlib_post_macros,
         &mut macros,
@@ -984,6 +998,20 @@ fn startup_from_forms_post_config(
     // (step 9) via register_runtime_defs; this pre-pass covers ONLY defprotocol
     // so the resolve pass can accept `:P/method` call heads without error.
     crate::runtime::preregister_protocol_names(&residue, &mut symbols)
+        .map_err(|e| match e {
+            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+            crate::runtime::EvalBreak::Signal(_) => unreachable!(
+                "interpreter bug: eval-loop control signal escaped to freeze layer"
+            ),
+        })?;
+
+    // 6.96. Arc 265 — pre-register declare-acronyms forms into sym.acronym_registry
+    // so runtime calls to pascal->kebab-in / kebab->pascal-in see the registry.
+    // Macro-expand-time registration (for defservice's expand-time pascal->kebab-in
+    // call) was done at step 4 into macro_sym. This pass covers the runtime
+    // SymbolTable so the intrinsics are also available at eval time.
+    // Idempotent; parse errors silently skipped here (infer_list arm reports them).
+    crate::runtime::preregister_acronyms(&residue, &mut symbols)
         .map_err(|e| match e {
             crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
             crate::runtime::EvalBreak::Signal(_) => unreachable!(

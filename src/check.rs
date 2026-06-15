@@ -3769,6 +3769,26 @@ fn infer_list(
                     CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
                 };
             }
+            // Arc 265 — `:wat::core::string::declare-acronyms` type-check arm.
+            // Shape: (:wat::core::string::declare-acronyms :ns ["ACL" ...])
+            // Registry-only: parse for shape validation; registration already
+            // happened in preregister_acronyms (freeze step 4 / 6.96).
+            // Returns unit type — a declaration, not a value expression.
+            ":wat::core::string::declare-acronyms" => {
+                let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
+                if let Err(e) = crate::runtime::parse_declare_acronyms_form(&form_as_list) {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: format!("{e}"),
+                        remedies: vec![],
+                    } });
+                }
+                return if local_errors.is_empty() {
+                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                } else {
+                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                };
+            }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
             // Shape: (:wat::config::set-redef! <bool>) — returns Unit.
             // The bool arg is type-checked; the actual flag update is
@@ -14855,6 +14875,30 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 265 — namespace-scoped PascalCase⇄kebab intrinsics.
+    // Both take (keyword, String) → String. `declare-acronyms` handled
+    // as a special form in infer_list (returns unit; no TypeScheme).
+    {
+        let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+        env.register(
+            ":wat::core::string::pascal->kebab-in".to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![keyword_ty(), string_ty()],
+                ret: string_ty(),
+                rest_param_type: None,
+            },
+        );
+        env.register(
+            ":wat::core::string::kebab->pascal-in".to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![keyword_ty(), string_ty()],
+                ret: string_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
     env.register(
         ":wat::core::string::subs".to_string(),
         TypeScheme {

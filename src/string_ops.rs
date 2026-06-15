@@ -146,6 +146,214 @@ pub fn eval_string_pascal_to_kebab(
     Ok(Value::String(Arc::new(result)))
 }
 
+/// Resolve a keyword argument (used as a namespace) to the registry key form.
+///
+/// The registry key is the full keyword string with leading colon (e.g. `":my::aws"`).
+/// Two value forms are accepted:
+/// - `Value::wat__core__keyword(k)` — a keyword in value position (e.g. `:my::aws` literal).
+///   The value already carries the leading colon.
+/// - `Value::wat__WatAST(WatAST::Keyword(k, _))` — a WatAST keyword node bound as a
+///   macro argument (type `:wat::WatAST`). The AST form also carries the leading colon.
+///   (Mirrors the dual-arm handling in `keyword/to-string`.)
+fn keyword_value_to_registry_key(
+    op: &str,
+    arg: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, RuntimeError> {
+    let v = eval(arg, env, sym)?.value_owned();
+    match v {
+        Value::wat__core__keyword(ref k) => Ok((**k).clone()),
+        Value::wat__WatAST(ref ast) => {
+            if let WatAST::Keyword(k, _) = ast.as_ref() {
+                Ok(k.clone())
+            } else {
+                Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: op.into(),
+                    expected: "keyword",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&v))
+                } })
+            }
+        }
+        ref other => Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: "keyword",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other))
+        } }),
+    }
+}
+
+/// `(:wat::core::string::pascal->kebab-in ns s)` → `:String`.
+///
+/// Namespace-scoped PascalCase → kebab-case. Reads `sym.acronym_registry[ns]`;
+/// a registered acronym is ONE segment (e.g. `"ACL"` → one token `"acl"`);
+/// capital-boundary for the rest. No entry for `ns` → plain `pascal->kebab`
+/// behavior. Examples (with `["ACL"]` declared for `ns`):
+///   `"CreateWebACL"` → `"create-web-acl"`, `"ACLRule"` → `"acl-rule"`.
+///
+/// On `is_pure_total` — the `defservice` macro calls it at expand time to
+/// derive fn names from PascalCase op keywords using the namespace's declared
+/// acronyms. Arc 265 acronym-registry stone.
+pub fn eval_string_pascal_to_kebab_in(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::string::pascal->kebab-in";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        } });
+    }
+    let ns = keyword_value_to_registry_key(OP, &args[0], env, sym)?;
+    let s = match eval(&args[1], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "String",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
+    };
+
+    // Look up the acronym set for this namespace.
+    let acronyms: &[String] = sym.acronym_registry.get(&ns).map(|v| v.as_slice()).unwrap_or(&[]);
+
+    let result = pascal_to_kebab_with_acronyms(&s, acronyms);
+    Ok(Value::String(Arc::new(result)))
+}
+
+/// Core algorithm: PascalCase → kebab-case using a known acronym set.
+///
+/// A registered acronym is ONE segment (e.g. `"ACL"` starts at an uppercase
+/// boundary and consumes all its chars as a single token). Capital-boundary
+/// for everything else. Empty acronym set → plain `pascal->kebab` behavior.
+fn pascal_to_kebab_with_acronyms(s: &str, acronyms: &[String]) -> String {
+    // Collect chars to allow look-ahead.
+    let chars: Vec<char> = s.chars().collect();
+    let mut segments: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if i > 0 && ch.is_uppercase() {
+            // Try to match a known acronym at this position.
+            let mut matched: Option<usize> = None;
+            for acr in acronyms {
+                let acr_chars: Vec<char> = acr.chars().collect();
+                if chars[i..].len() >= acr_chars.len() {
+                    // Case-sensitive match (acronyms are canonical uppercase).
+                    if chars[i..i + acr_chars.len()].iter().zip(&acr_chars).all(|(a, b)| a == b) {
+                        // Ensure it's a word boundary — next char (if any) must be uppercase
+                        // or end of string (not a lowercase continuation).
+                        let end = i + acr_chars.len();
+                        let at_boundary = end >= chars.len() || chars[end].is_uppercase();
+                        if at_boundary {
+                            matched = Some(acr_chars.len());
+                            break;
+                        }
+                    }
+                }
+            }
+            if let Some(len) = matched {
+                // Flush current segment, then emit the whole acronym as one segment.
+                if !current.is_empty() {
+                    segments.push(std::mem::take(&mut current));
+                }
+                let acr_str: String = chars[i..i + len].iter().collect();
+                segments.push(acr_str.to_lowercase());
+                i += len;
+                continue;
+            } else {
+                // Plain capital boundary — flush current.
+                if !current.is_empty() {
+                    segments.push(std::mem::take(&mut current));
+                }
+            }
+        }
+        // Accumulate lowercase.
+        for lc in ch.to_lowercase() {
+            current.push(lc);
+        }
+        i += 1;
+    }
+    if !current.is_empty() {
+        segments.push(current);
+    }
+    segments.join("-")
+}
+
+/// `(:wat::core::string::kebab->pascal-in ns s)` → `:String`.
+///
+/// Namespace-scoped kebab-case → PascalCase. Reads `sym.acronym_registry[ns]`;
+/// each segment matching a declared acronym (case-insensitive) is replaced by
+/// the canonical form (e.g. `"acl"` → `"ACL"`); else capitalize (first char
+/// upper, rest as-is). No entry for `ns` → plain `kebab->pascal` behavior.
+/// Examples (with `["ACL"]` declared for `ns`):
+///   `"create-web-acl"` → `"CreateWebACL"`.
+///
+/// NOT on `is_pure_total` — no macro needs it (only `pascal->kebab-in` is
+/// called at defservice expand time). Arc 265 acronym-registry stone.
+pub fn eval_string_kebab_to_pascal_in(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::string::kebab->pascal-in";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len()
+        } });
+    }
+    let ns = keyword_value_to_registry_key(OP, &args[0], env, sym)?;
+    let s = match eval(&args[1], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "String",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other))
+        } }),
+    };
+
+    // Look up the acronym set for this namespace.
+    let acronyms: &[String] = sym.acronym_registry.get(&ns).map(|v| v.as_slice()).unwrap_or(&[]);
+
+    let result = kebab_to_pascal_with_acronyms(&s, acronyms);
+    Ok(Value::String(Arc::new(result)))
+}
+
+/// Core algorithm: kebab-case → PascalCase using a known acronym set.
+///
+/// Splits on `-`; each segment matching a registered acronym (case-insensitive)
+/// → the canonical form (e.g. `"acl"` → `"ACL"`); else capitalize (first char
+/// upper, rest as-is). Empty acronym set → plain `kebab->pascal` behavior.
+fn kebab_to_pascal_with_acronyms(s: &str, acronyms: &[String]) -> String {
+    let mut result = String::with_capacity(s.len());
+    for segment in s.split('-') {
+        // Check if this segment (case-insensitive) matches a known acronym.
+        let canonical = acronyms.iter().find(|acr| acr.eq_ignore_ascii_case(segment));
+        if let Some(acr) = canonical {
+            result.push_str(acr);
+        } else {
+            // Plain capitalize: first char upper, rest as-is.
+            let mut chars = segment.chars();
+            if let Some(first) = chars.next() {
+                for uc in first.to_uppercase() {
+                    result.push(uc);
+                }
+                result.push_str(chars.as_str());
+            }
+        }
+    }
+    result
+}
+
 /// `(:wat::core::string::subs s start end)` → `:String`.
 ///
 /// Clojure's `subs`: start-inclusive, end-exclusive, CHAR-indexed.
