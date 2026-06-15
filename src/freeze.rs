@@ -975,6 +975,22 @@ fn startup_from_forms_post_config(
         symbols.binding_metadata.entry(name).or_insert_with(HashMap::new).extend(meta);
     }
 
+    // 6.95. Arc 232 Stone 232.3 — pre-register defprotocol names into
+    // runtime_def_values BEFORE the resolve pass (step 7). The resolver's
+    // `is_resolvable_call_head` needs to distinguish `:P/method` protocol-method
+    // call heads from unknown keywords; it does this by checking whether the
+    // stem (before the last `/`) is a registered protocol via runtime_def_values.
+    // Full defprotocol + extend-type registration happens in FrozenWorld::freeze
+    // (step 9) via register_runtime_defs; this pre-pass covers ONLY defprotocol
+    // so the resolve pass can accept `:P/method` call heads without error.
+    crate::runtime::preregister_protocol_names(&residue, &mut symbols)
+        .map_err(|e| match e {
+            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
+            crate::runtime::EvalBreak::Signal(_) => unreachable!(
+                "interpreter bug: eval-loop control signal escaped to freeze layer"
+            ),
+        })?;
+
     // 7. Name resolution.
     // Stone 251.1b — normalize namespaced symbol refs (`wat.core/+` →
     // `WatAST::Keyword(":wat::core::+", span)`) BEFORE resolve_references so

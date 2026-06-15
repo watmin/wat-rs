@@ -1445,6 +1445,49 @@ pub fn register_type_predicates(
     Ok(())
 }
 
+/// Arc 232 Stone 232.3 — pre-register protocol names from `defprotocol` forms
+/// into `sym.runtime_def_values` BEFORE the resolve pass.
+///
+/// The resolve pass (`is_resolvable_call_head`) needs to see protocol FQDNs as
+/// `Value::wat__core__protocol_def` entries in `runtime_def_values` so it can
+/// accept `:P/method` call heads.  Full `register_runtime_defs` runs at
+/// `FrozenWorld::freeze` (step 9), AFTER the resolve pass (step 7).  This
+/// lightweight pre-pass covers ONLY `defprotocol` forms so the resolve pass can
+/// look up the stem before the last `/` and confirm it is a protocol.
+///
+/// Idempotent with `register_runtime_defs` — inserting the same protocol def
+/// twice is harmless; the freeze pass overwrites with the same value.
+pub fn preregister_protocol_names(
+    residue: &[WatAST],
+    sym: &mut SymbolTable,
+) -> Result<(), EvalBreak> {
+    for form in residue {
+        let items = match form {
+            WatAST::List(items, _) => items,
+            _ => continue,
+        };
+        if items.is_empty() {
+            continue;
+        }
+        match &items[0] {
+            WatAST::Keyword(k, _) if k.as_str() == ":wat::core::defprotocol" => {
+                // Reuse parse_defprotocol_form — the form is well-formed at
+                // this point (macro-expanded, type-validated by check.rs,
+                // which runs at step 8, but we rely on shape correctness here
+                // — malformed forms simply produce a parse error that is then
+                // also reported at step 8 via the check pass).
+                if let Ok((name, pd)) = parse_defprotocol_form(form) {
+                    sym.runtime_def_values
+                        .entry(name)
+                        .or_insert_with(|| Value::wat__core__protocol_def(pd));
+                }
+            }
+            _ => continue,
+        }
+    }
+    Ok(())
+}
+
 /// Arc 157 slice 1a-ii — evaluate top-level `def` forms in the program
 /// residue and populate `sym.runtime_def_values` with the resulting values.
 ///
@@ -4772,6 +4815,116 @@ fn dispatch_keyword_head_value(
 
         // Anything else: user-defined function lookup.
         other => {
+            // Arc 232 Stone 232.3 — protocol-method dispatch.
+            // A head `:P/method` where P is a registered protocol dispatches on
+            // the receiver's CONCRETE type via the extend registry.  This branch
+            // fires BEFORE the generic sym.get / def-bound lookup so protocol
+            // method calls don't fall through to UnknownFunction.
+            //
+            // Disambiguation from Record/Struct accessors: Record accessors are
+            // registered as Function entries in sym.functions under
+            // `<record-fqdn>/<field>`.  A protocol FQDN is registered as
+            // `Value::wat__core__protocol_def` in runtime_def_values — NOT as a
+            // sym.functions entry.  We check the protocol registry first; if the
+            // stem before the last `/` names a protocol-def, it's a protocol call.
+            if let Some(slash_pos) = other.rfind('/') {
+                let protocol_fqdn = &other[..slash_pos];
+                let method_name   = &other[slash_pos + 1..];
+                // Check whether the stem is a registered protocol.
+                let is_protocol = matches!(
+                    sym.runtime_def_values.get(protocol_fqdn),
+                    Some(Value::wat__core__protocol_def(_))
+                );
+                if is_protocol {
+                    // Must have at least 1 arg (the receiver).
+                    if args.is_empty() {
+                        return Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::ArityMismatch {
+                                op: other.to_string(),
+                                expected: 1,
+                                got: 0,
+                            },
+                        }.into());
+                    }
+                    // Eval the receiver (arg 0).
+                    let receiver = eval_inner(&args[0], env, sym)?.value_owned();
+                    // Read the receiver's concrete type FQDN.
+                    // STOP-2: only Record variants carry class_fqdn; other shapes panic.
+                    let concrete_type_fqdn: String = match &receiver {
+                        Value::wat__Record { class_fqdn, .. }
+                        | Value::wat__holon__Record { class_fqdn, .. } => {
+                            // class_fqdn has NO leading colon — add it for the extend key.
+                            format!(":{}", class_fqdn)
+                        }
+                        other_val => {
+                            return Err(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: other.to_string(),
+                                    reason: format!(
+                                        "protocol-method receiver must be a Record type \
+                                         implementing `{}`; got a `{}` value",
+                                        protocol_fqdn,
+                                        other_val.type_name()
+                                    ),
+                                },
+                            }.into());
+                        }
+                    };
+                    // Look up the extend-def for (P, concrete_type).
+                    // Key format: "extend:<P>:<T>" — confirmed in parse_extend_type_form.
+                    let extend_key = format!("extend:{}:{}", protocol_fqdn, concrete_type_fqdn);
+                    let ed = match sym.runtime_def_values.get(&extend_key) {
+                        Some(Value::wat__core__extend_def(ed)) => ed.clone(),
+                        _ => {
+                            return Err(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::UnknownFunction(format!(
+                                    "type `{}` does not extend protocol `{}`",
+                                    concrete_type_fqdn, protocol_fqdn
+                                )),
+                            }.into());
+                        }
+                    };
+                    // Get the method impl clause.
+                    // STOP-4: if the clause is missing for this method, surface cleanly.
+                    let clause = match ed.impl_clauses.get(method_name) {
+                        Some(c) => c.clone(),
+                        None => {
+                            return Err(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::UnknownFunction(format!(
+                                    "method `{}` not found in extend-type impl for `{}` on `{}`",
+                                    method_name, protocol_fqdn, concrete_type_fqdn
+                                )),
+                            }.into());
+                        }
+                    };
+                    // Eval the remaining args.
+                    let rest_vals: Vec<Value> = args[1..]
+                        .iter()
+                        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    // Build the call env: bind clause arg names to (receiver + rest).
+                    let mut all_vals = Vec::with_capacity(1 + rest_vals.len());
+                    all_vals.push(receiver);
+                    all_vals.extend(rest_vals);
+                    // clause.args is [(name, type), ...]; types are placeholder :nil.
+                    let mut builder = env.child();
+                    for ((name, _ty), val) in clause.args.iter().zip(all_vals.iter()) {
+                        builder = builder.bind_unknown_span(
+                            name.clone(),
+                            TrackedValue::from(val.clone()),
+                        );
+                    }
+                    let call_env = builder.build();
+                    // Eval the clause body.
+                    return eval_inner(&clause.body, &call_env, sym)
+                        .map(|tv| tv.value_owned());
+                }
+            }
+
             // Arc 139 — strip `<T,...>` from the head before lookup.
             // The substrate registers user defines under the canonical
             // name (sans turbofish); call sites that use turbofish
@@ -31048,5 +31201,71 @@ mod tests {
         let a = Value::wat__WatAST(Arc::new(ast_a));
         let b = Value::wat__WatAST(Arc::new(ast_b));
         assert_eq!(values_equal(&a, &b), Some(false));
+    }
+
+    /// Arc 232 Stone 232.3 — negative: calling a protocol method on a concrete
+    /// type that does NOT extend the protocol must produce a CLEAN runtime error
+    /// (UnknownFunction "type `:X` does not extend protocol `:P`"), not a panic.
+    ///
+    /// Proof: `:t::Dog` extends `:t::Swimmer`; `:t::Rock` does not. Calling
+    /// `(:t::Swimmer/swim rock 3)` must surface a clean `UnknownFunction` error.
+    #[test]
+    fn protocol_method_missing_impl_is_a_clean_runtime_error() {
+        use std::sync::Arc;
+        use crate::freeze::startup_from_source;
+        use crate::load::InMemoryLoader;
+
+        const SRC: &str = r#"
+(:wat::core::defprotocol :t::Swimmer
+  (swim [self <- :t::Swimmer laps <- :wat::core::i64] -> :wat::core::String))
+(:wat::Record::def :t::Dog [])
+(:wat::Record::def :t::Rock [])
+(:wat::core::extend-type :t::Dog :t::Swimmer (swim [self laps] "splash"))
+
+;; Callers typed over :t::Dog — safe.
+;; We test the missing-impl path by defn-ing a fn that accepts :t::Swimmer,
+;; then passing a :t::Rock at runtime (it is assignable to :t::Swimmer at
+;; check time because we lie about Rock extending Swimmer — simpler: just
+;; have a defn that calls swim on a Dog, confirm it works, then at the
+;; runtime level the missing-impl is tested via direct eval).
+(:wat::core::defn :user::dog-swim [d <- :t::Dog] -> :wat::core::String
+  (:t::Swimmer/swim d 3))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+        let world = startup_from_source(SRC, None, Arc::new(InMemoryLoader::new()))
+            .expect("startup: Dog extends Swimmer, should succeed");
+
+        // Positive: Dog dispatch works cleanly.
+        let ast = crate::parse_one!("(:user::dog-swim (:t::Dog))")
+            .expect("parse dog-swim");
+        let result = crate::freeze::eval_in_frozen(&ast, &world, &Environment::new());
+        assert!(
+            result.is_ok(),
+            "Dog extends Swimmer — swim dispatch must succeed; got: {:?}", result.err()
+        );
+        match result.unwrap().value_owned() {
+            Value::String(s) => assert_eq!(*s, "splash"),
+            other => panic!("expected 'splash', got {:?}", other),
+        }
+
+        // Negative: Build a Rock value and call :t::Swimmer/swim on it directly
+        // via a direct keyword-head eval.  The Rock value is a wat__Record whose
+        // class_fqdn is "t::Rock"; the extend-def for "extend::t::Swimmer::t::Rock"
+        // does NOT exist → must yield a clean UnknownFunction, not a panic.
+        //
+        // We synthesize the call form manually so we bypass the check-time
+        // assignable gate (which would reject :t::Rock for :t::Swimmer at startup).
+        let call_src = r#"(:t::Swimmer/swim (:t::Rock) 3)"#;
+        let call_ast = crate::parse_one!(call_src).expect("parse direct swim call");
+        match crate::freeze::eval_in_frozen(&call_ast, &world, &Environment::new()) {
+            Err(RuntimeError { kind: RuntimeErrorKind::UnknownFunction(msg), .. }) => {
+                assert!(
+                    msg.contains(":t::Rock") && msg.contains(":t::Swimmer"),
+                    "error message must name the missing type and protocol; got: {:?}", msg
+                );
+            }
+            Ok(v) => panic!("expected UnknownFunction error for Rock with no impl; got value {:?}", v),
+            Err(other) => panic!("expected UnknownFunction, got: {:?}", other),
+        }
     }
 }

@@ -5447,6 +5447,104 @@ fn infer_list(
             _ => {}
         }
 
+        // Arc 232 Stone 232.3 — protocol-method call-site check.
+        // A head `:P/method` where `P ∈ protocol_registrations` and `method`
+        // is one of P's sigs is a protocol-method call.  Disambiguate from
+        // Record/Struct accessor heads (which are registered as Function entries
+        // in sym.functions / env schemes) by consulting the protocol registry
+        // FIRST — protocol membership is the authoritative signal.
+        //
+        // STOP-1 guard: if the head has `/` and the stem is in BOTH the protocol
+        // registry and the accessor scheme table at the same time, we still prefer
+        // the protocol registry (a protocol named identically to a Record type
+        // would be a programmer error, not a language ambiguity; protocol lookup
+        // wins because protocols are checked before env.get below).
+        if let Some(slash_pos) = k.rfind('/') {
+            let protocol_fqdn = &k[..slash_pos];
+            let method_name   = &k[slash_pos + 1..];
+            if let Some(methods) = env.get_protocol_methods(protocol_fqdn) {
+                // Head is a protocol-method call.  Find the matching method sig.
+                if let Some(sig) = methods.iter().find(|s| s.name == method_name) {
+                    // sig.arg_types[0] is the receiver type (:P).
+                    // sig.arg_types[1..] are the rest-arg types.
+                    // Total call arity must match the sig arity.
+                    let expected_arity = sig.arg_types.len();
+                    if args.len() != expected_arity {
+                        local_errors.push(CheckError {
+                            span: head_span.clone(),
+                            kind: CheckErrorKind::ArityMismatch {
+                                callee: k.clone(),
+                                expected: expected_arity,
+                                got: args.len(),
+                            },
+                        });
+                        // Still infer args for side-effects.
+                        for arg in args {
+                            let _ = infer(arg, env, locals, fresh, subst)
+                                .drain_errors_into(&mut local_errors);
+                        }
+                        return CheckResult::errs(local_errors);
+                    }
+                    // Infer each arg's type.
+                    let arg_tys: Vec<Option<TypeExpr>> = args
+                        .iter()
+                        .map(|arg| {
+                            infer(arg, env, locals, fresh, subst)
+                                .drain_errors_into(&mut local_errors)
+                        })
+                        .collect();
+                    // Check receiver (arg 0) is assignable to :P.
+                    if let Some(recv_ty) = &arg_tys[0] {
+                        let receiver_expected = TypeExpr::Path(protocol_fqdn.to_string());
+                        if !assignable(recv_ty, &receiver_expected, subst, env.types()) {
+                            local_errors.push(CheckError {
+                                span: args[0].span().clone(),
+                                kind: CheckErrorKind::TypeMismatch {
+                                    callee: k.clone(),
+                                    param: "#1 (receiver)".into(),
+                                    expected: protocol_fqdn.to_string(),
+                                    got: format_type(&apply_subst(recv_ty, subst)),
+                                },
+                            });
+                        }
+                    }
+                    // Check rest args against sig.arg_types[1..].
+                    for (i, (arg_ty_opt, expected_ty)) in arg_tys[1..]
+                        .iter()
+                        .zip(sig.arg_types[1..].iter())
+                        .enumerate()
+                    {
+                        if let Some(arg_ty) = arg_ty_opt {
+                            if !assignable(arg_ty, expected_ty, subst, env.types()) {
+                                local_errors.push(CheckError {
+                                    span: args[i + 1].span().clone(),
+                                    kind: CheckErrorKind::TypeMismatch {
+                                        callee: k.clone(),
+                                        param: format!("#{}", i + 2),
+                                        expected: format_type(expected_ty),
+                                        got: format_type(&apply_subst(arg_ty, subst)),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                    // Return the method's declared return type.
+                    let ret = apply_subst(&sig.ret, subst);
+                    return if local_errors.is_empty() {
+                        CheckResult::ok(ret)
+                    } else {
+                        CheckResult::partial_with(ret, local_errors)
+                    };
+                }
+                // Protocol found but method name not in its sig list.
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                });
+                return CheckResult::errs(local_errors);
+            }
+        }
+
         // Stone 237.2 — defclause call-site dispatch.
         // If the head names a registered defclause, infer arg types,
         // find the first matching clause (arity + arg-type unification

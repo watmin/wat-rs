@@ -225,6 +225,27 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     if macros.contains(head) {
         return true;
     }
+    // Arc 232 Stone 232.3 — protocol-method call heads (`:<P>/<method>`).
+    //
+    // A keyword head that contains `/` where the part before the last `/` names
+    // a registered protocol is a protocol-method call — e.g. `:t::Greeter/greet`.
+    // The resolver must accept these so they survive to the type-checker and
+    // runtime dispatch added in Stone 232.3; only the runtime knows the
+    // receiver's concrete type and can dispatch to the right impl.
+    //
+    // Disambiguate from Record/Struct accessor heads: those are registered as
+    // Function entries in `sym.functions` (caught by `sym.get(canonical)` above);
+    // protocol FQDNs are stored as `Value::wat__core__protocol_def` in
+    // `runtime_def_values`.
+    if let Some(slash_pos) = head.rfind('/') {
+        let protocol_fqdn = &head[..slash_pos];
+        if matches!(
+            sym.runtime_def_values.get(protocol_fqdn),
+            Some(crate::runtime::Value::wat__core__protocol_def(_))
+        ) {
+            return true;
+        }
+    }
     // Arc 245 long-tail — single-segment keyword call heads (field accessors).
     //
     // A keyword without `::` in its body (e.g. `:magnitude`, `:x`, `:port`,
