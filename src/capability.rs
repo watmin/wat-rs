@@ -49,21 +49,30 @@ fn registry() -> &'static [CapCodec] {
 /// `#wat-edn.cap/<name>` tag when `inner` is a registered portable capability WITH a portable form;
 /// `None` otherwise (→ the caller emits the non-portable opaque tag).
 pub fn encode_capability(inner: &RustOpaqueInner) -> Option<OwnedValue> {
-    let codec = registry().iter().find(|c| c.type_path == inner.type_path)?;
-    let body = (codec.encode)(inner)?;
-    Some(OwnedValue::Tagged(Tag::ns("wat-edn.cap", codec.name), Box::new(body)))
+    encode_in(registry(), inner)
 }
 
 /// Generic DECODE dispatch — called by `edn_shim`'s `wat-edn.cap` tag arm, which is reached ONLY off
 /// the trusted door (`decode_trusted_wire`). An unregistered name is refused.
 pub fn decode_capability(name: &str, body: &OwnedValue) -> Result<Value, EdnReadError> {
-    let codec = registry()
-        .iter()
-        .find(|c| c.name == name)
-        .ok_or_else(|| EdnReadError {
-            span: Span::unknown(),
-            kind: EdnReadErrorKind::UnsupportedTag(format!("wat-edn.cap/{name}")),
-        })?;
+    decode_in(registry(), name, body)
+}
+
+/// The encode dispatch over an EXPLICIT codec set. Identical for N capabilities — a linear find by
+/// `type_path`. Split out so the waist's N-capability behaviour is directly testable (the strike-2
+/// proof passes a 2-codec slice); `encode_capability` is just `encode_in(registry(), …)`.
+fn encode_in(caps: &[CapCodec], inner: &RustOpaqueInner) -> Option<OwnedValue> {
+    let codec = caps.iter().find(|c| c.type_path == inner.type_path)?;
+    let body = (codec.encode)(inner)?;
+    Some(OwnedValue::Tagged(Tag::ns("wat-edn.cap", codec.name), Box::new(body)))
+}
+
+/// The decode dispatch over an EXPLICIT codec set — a linear find by tag `name`.
+fn decode_in(caps: &[CapCodec], name: &str, body: &OwnedValue) -> Result<Value, EdnReadError> {
+    let codec = caps.iter().find(|c| c.name == name).ok_or_else(|| EdnReadError {
+        span: Span::unknown(),
+        kind: EdnReadErrorKind::UnsupportedTag(format!("wat-edn.cap/{name}")),
+    })?;
     (codec.decode)(body)
 }
 
@@ -117,5 +126,60 @@ fn address_codec() -> CapCodec {
                 addr,
             ))
         },
+    }
+}
+
+#[cfg(test)]
+mod waist_proof {
+    //! Arc 272 narrow-waist STRIKE 2 — the proof. A SECOND capability round-trips through the SAME
+    //! generic dispatch that carries `Address'`, with `edn_shim`'s core UNTOUCHED — the entire diff
+    //! for capability #2 is one `CapCodec`. That is the waist working: N capabilities, one frozen core.
+    use super::*;
+    use crate::rust_deps::marshal::make_rust_opaque;
+
+    /// A toy second capability: `:test::Token` over a `u64`. Real shape, trivial payload.
+    fn toy_token_codec() -> CapCodec {
+        CapCodec {
+            name: "test-token",
+            type_path: ":test::Token",
+            encode: |inner| Some(OwnedValue::Integer(*inner.payload.downcast_ref::<u64>()? as i64)),
+            decode: |body| match body {
+                OwnedValue::Integer(n) => Ok(make_rust_opaque(":test::Token", *n as u64)),
+                _ => Err(EdnReadError {
+                    span: Span::unknown(),
+                    kind: EdnReadErrorKind::UnsupportedTag(
+                        "wat-edn.cap/test-token (expected an integer)".into(),
+                    ),
+                }),
+            },
+        }
+    }
+
+    #[test]
+    fn a_second_capability_rides_the_same_waist() {
+        // The registry extended by exactly ONE row — the only change a new capability requires.
+        let caps = vec![address_codec(), toy_token_codec()];
+
+        // Encode a Token through the SAME generic dispatch that carries Address'.
+        let token = make_rust_opaque(":test::Token", 42u64);
+        let tag = match &token {
+            Value::RustOpaque(inner) => encode_in(&caps, inner).expect("the 2nd cap encodes generically"),
+            _ => unreachable!(),
+        };
+        let (name, body) = match tag {
+            OwnedValue::Tagged(t, b) => (t.name().to_string(), *b),
+            _ => panic!("expected a #wat-edn.cap/<name> tag"),
+        };
+        assert_eq!(name, "test-token", "the toy cap got its own tag through the generic dispatch");
+
+        // Decode it back through the SAME generic dispatch → a live :test::Token.
+        let back = decode_in(&caps, &name, &body).expect("the 2nd cap decodes generically");
+        match back {
+            Value::RustOpaque(inner) => {
+                assert_eq!(inner.payload.downcast_ref::<u64>(), Some(&42u64))
+            }
+            _ => panic!("expected a reconstructed :test::Token opaque"),
+        }
+        // ZERO lines of edn_shim changed to add this capability. The waist is frozen; the edge grew.
     }
 }
