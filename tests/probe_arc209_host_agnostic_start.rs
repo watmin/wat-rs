@@ -2,7 +2,7 @@
 //!
 //! C.3 shipped a THREAD-HARDCODED `start [state0]` (it bakes `(:wat::spawn::thread)` into the
 //! `listener'` + `spawn-program'` calls, `wat/service.wat` start-body). Stone 4a makes `start` take
-//! the host as its first arg and route through the `:wat::kernel::Host` protocol (arc 232) — so one
+//! the host as its first arg and route through the `:wat::spawn::Host` protocol (arc 232) — so one
 //! `start` serves any transport, dispatching the per-tier launch to the `extend-type :Host` impl.
 //! Thread is `extend-type :wat::spawn::ThreadOpts :Host` (the shared-memory/capture strategy — the
 //! `deftest'` model); process/remote join later as not-shared `extend-type`s, zero edit to `start`.

@@ -67,6 +67,10 @@
                      (:wat::core::string::concat fqdn-str "::Reply"))
      serve-name    (:wat::core::keyword/from-string
                      (:wat::core::string::concat fqdn-str "::serve"))
+     ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
+     ;; `(keyword/from-string …)` so Host/launch receives serve by a RUNTIME keyword
+     ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
+     serve-name-str (:wat::core::string::concat fqdn-str "::serve")
      start-name    (:wat::core::keyword/from-string
                      (:wat::core::string::concat fqdn-str "/start"))
      handle-name   (:wat::core::keyword/from-string
@@ -476,36 +480,39 @@
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
 
-     ;; ── C.3: start fn ────────────────────────────────────────────────────────────
-     ;; (defn <fqdn>/start [state0 <- <state-ty>] -> <fqdn>::Handle
-     ;;   (let [b    (listener' (spawn::thread) Op Reply)
+     ;; ── host-parity-4a: host-agnostic start fn ────────────────────────────────────
+     ;; (defn <fqdn>/start [host <- :wat::spawn::Host  state0 <- <state-ty>] -> <fqdn>::Handle
+     ;;   (let [b    (listener' host Op Reply)                ; listener' accepts an abstract :Host
      ;;         l    (Bound/listener b)
      ;;         addr (Bound/address b)
-     ;;         svc  (spawn-program' (spawn::thread)
-     ;;                (fn [self <- Peer'<Reply,Op>] -> nil
-     ;;                  (serve self l (Vector Peer'<Reply,Op>) state0)))]
+     ;;         svc  (:wat::spawn::Host/launch host l (Vector Peer'<Reply,Op>) state0
+     ;;                (keyword/from-string "<fqdn>::serve"))]  ; the protocol builds the per-tier prog
      ;;     (Handle svc addr)))
+     ;;
+     ;; C.3 baked `(spawn::thread)` + the serve CLOSURE into start. host-parity-4a makes
+     ;; start host-blind: the thread-specific closure (capturing l + state0) moved INTO the
+     ;; ThreadOpts `Host/launch` impl (wat/spawn.wat), and serve is passed by NAME (a runtime
+     ;; keyword via keyword/from-string — a spliced literal `:fqdn::serve` would Arc-009-resolve
+     ;; to a Fn, not a keyword) so the impl invokes it via apply. Process (4b) joins as one
+     ;; extend-type, zero edit here.
      ;;
      ;; Hygiene for start-body:
      ;;   `pair`, `l`, `addr`, `svc` are let binders in the nested quasiquote → symbol-node.
-     ;;   `self` is a fn param binder in the nested quasiquote → symbol-node.
-     ;;   `state0` is a value reference (closure over start's param) → fine as literal.
-     ;; start-params `[state0 <- ~state-ty]` → Vector inner → checker skips it.
+     ;;   `host`, `state0` are value references (start's params) → fine as literals.
+     ;; start-params `[host <- :Host  state0 <- ~state-ty]` → Vector inner → checker skips it.
      pair-sym      (:wat::core::symbol-node "pair")
      l-sym         (:wat::core::symbol-node "l")
      addr-sym      (:wat::core::symbol-node "addr")
      svc-sym       (:wat::core::symbol-node "svc")
-     self-sym      (:wat::core::symbol-node "self")
-     start-params  `[state0 <- ~state-ty]
+     start-params  `[host <- :wat::spawn::Host  state0 <- ~state-ty]
      start-body    `(:wat::core::let
-                      [~pair-sym (:wat::kernel::listener' (:wat::spawn::thread) ~enum-name ~reply-name)
+                      [~pair-sym (:wat::kernel::listener' host ~enum-name ~reply-name)
                        ~l-sym    (:wat::spawn::Bound/listener ~pair-sym)
                        ~addr-sym (:wat::spawn::Bound/address ~pair-sym)
-                       ~svc-sym  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-                                   (:wat::core::fn [~self-sym <- ~peer-ty] -> :wat::core::nil
-                                     (~serve-name ~self-sym ~l-sym
-                                       (:wat::core::Vector ~peer-ty)
-                                       state0)))]
+                       ~svc-sym  (:wat::spawn::Host/launch host ~l-sym
+                                   (:wat::core::Vector ~peer-ty)
+                                   state0
+                                   (:wat::core::keyword/from-string ~serve-name-str))]
                       (~handle-name ~svc-sym ~addr-sym))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
