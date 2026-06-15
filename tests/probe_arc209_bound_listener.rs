@@ -3,22 +3,22 @@
 //!
 //! `Bound` is a parametric STRUCT (not a record) because its fields are non-EDN
 //! RustOpaque kernel entities (`Listener'`/`Address'`):
-//!   (:wat::core::defstruct :wat::kernel::Bound<S,R>
+//!   (:wat::core::defstruct :wat::spawn::Bound<S,R>
 //!     [listener <- :wat::kernel::Listener'<S,R>
 //!      address  <- :wat::kernel::Address'<S,R>])
 //! The thread tier of `listener'` builds it; the accessors `Bound/listener` and
 //! `Bound/address` replace the positional `first`/`second` on the old tuple.
 //!
 //! This probe is `probe_arc209_c0b1b_select_listener` reduced to a single client,
-//! with EXACTLY two lines changed: `(first pair)` → `(:wat::kernel::Bound/listener b)`
-//! and `(second pair)` → `(:wat::kernel::Bound/address b)`. So a failure isolates
+//! with EXACTLY two lines changed: `(first pair)` → `(:wat::spawn::Bound/listener b)`
+//! and `(second pair)` → `(:wat::spawn::Bound/address b)`. So a failure isolates
 //! precisely to `Bound` — everything around it is the proven c0b1b round-trip.
 //!
-//! RED at HEAD: `:wat::kernel::Bound` is unregistered (no `defstruct`) AND `listener'`
+//! RED at HEAD: `:wat::spawn::Bound` is unregistered (no `defstruct`) AND `listener'`
 //! returns a `Tuple` — so the `Bound/listener` / `Bound/address` accessors do not
 //! resolve and the program fails to check on exactly that gap. GREEN once the
 //! `defstruct` ships in `wat/spawn.wat` and `eval_listener_prime`'s thread tier
-//! returns `Value::Struct{ ":wat::kernel::Bound", [listener, address] }`.
+//! returns `Value::Struct{ ":wat::spawn::Bound", [listener, address] }`.
 //!
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_bound_listener -- --test-threads=1
@@ -41,18 +41,18 @@ const PROGRAM: &str = r#"
    clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
-    (:wat::kernel::ServiceEvent::Shutdown nil)
-    ((:wat::kernel::ServiceEvent::Connection peer)
+    (:wat::spawn::ServiceEvent::Shutdown nil)
+    ((:wat::spawn::ServiceEvent::Connection peer)
       (:user::serve self l (:wat::core::conj clients peer)))
-    ((:wat::kernel::ServiceEvent::Message idx msg)
+    ((:wat::spawn::ServiceEvent::Message idx msg)
       (:wat::core::match msg -> :wat::core::nil
         ((:user::Op::Compute n)
           (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
                                  (:wat::core::* n 2))]
             (:user::serve self l clients)))))
-    ((:wat::kernel::ServiceEvent::Closed idx)
+    ((:wat::spawn::ServiceEvent::Closed idx)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))
-    ((:wat::kernel::ServiceEvent::Lost idx _cause)
+    ((:wat::spawn::ServiceEvent::Lost idx _cause)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))))
 
 ;; Spawn the service, connect one client, round-trip a scalar (5*2 = 10), then
@@ -60,8 +60,8 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [b    (:wat::kernel::listener' (:wat::spawn::thread) :user::Op :wat::core::i64)
-     l    (:wat::kernel::Bound/listener b)
-     addr (:wat::kernel::Bound/address b)
+     l    (:wat::spawn::Bound/listener b)
+     addr (:wat::spawn::Bound/address b)
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))

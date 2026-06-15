@@ -18821,7 +18821,7 @@ fn eval_listener_prime(
         use crate::kernel::spawn::{ADDRESS_TYPE_PATH, LISTENER_TYPE_PATH};
         use crate::rust_deps::marshal::make_rust_opaque;
         Ok(Value::Struct(Arc::new(StructValue {
-            type_name: ":wat::kernel::Bound".into(),
+            type_name: ":wat::spawn::Bound".into(),
             fields: vec![
                 make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_crossbeam(rx)),
                 make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_thread(tx)),
@@ -24555,7 +24555,7 @@ fn eval_poll_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::poll'";
-    const SELECT_EVENT_TYPE: &str = ":wat::kernel::ServiceEvent";
+    const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
     // The self-peer is the spawned worker's own Peer'<O,I> (tx=output_tx, rx=input_rx).

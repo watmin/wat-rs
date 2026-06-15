@@ -42,8 +42,8 @@ fn thread_connection_listen_accept_connect_round_trips() {
     // client (this body): connect to the Address', send 5, recv 10.
     let expr = r#"(:wat::core::let
         [pair  (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
-         l     (:wat::kernel::Bound/listener pair)
-         addr  (:wat::kernel::Bound/address pair)
+         l     (:wat::spawn::Bound/listener pair)
+         addr  (:wat::spawn::Bound/address pair)
          svc   (:wat::kernel::spawn-program' (:wat::spawn::thread)
                   (:wat::core::fn [_admin <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                     (:wat::core::let

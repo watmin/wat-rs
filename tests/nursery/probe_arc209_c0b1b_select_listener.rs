@@ -14,7 +14,7 @@
 //! join completes. No cooperative stop — dropping the handle IS the shutdown. (If this hangs,
 //! `poll'` isn't watching the self-peer — the deadlock this stone annihilates.)
 //!
-//! RED at HEAD: the 3-arg `poll'` form and `:wat::kernel::ServiceEvent` do not exist — the
+//! RED at HEAD: the 3-arg `poll'` form and `:wat::spawn::ServiceEvent` do not exist — the
 //! program fails to type-check on exactly that gap. GREEN once C0b.1b ships the 3-arg `poll'`
 //! returning `ServiceEvent<I,O>`.
 //!
@@ -46,24 +46,24 @@ const PROGRAM: &str = r#"
     ;; self-peer → poll' fired :Shutdown. Return nil → the loop exits, clients drop,
     ;; the thread ends, the owner's join completes. The deadlock-free guarantee:
     ;; dropping the handle ALWAYS terminates the loop, structurally, no cooperation.
-    (:wat::kernel::ServiceEvent::Shutdown nil)
+    (:wat::spawn::ServiceEvent::Shutdown nil)
     ;; GROW — poll' accepted the dialing client and hands the new peer back; add it.
-    ((:wat::kernel::ServiceEvent::Connection peer)
+    ((:wat::spawn::ServiceEvent::Connection peer)
       (:user::serve self l (:wat::core::conj clients peer)))
     ;; SERVE — an op arrived from clients[idx].
-    ((:wat::kernel::ServiceEvent::Message idx msg)
+    ((:wat::spawn::ServiceEvent::Message idx msg)
       (:wat::core::match msg -> :wat::core::nil
         ((:user::Op::Compute n)
           (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
                                  (:wat::core::* n 2))]
             (:user::serve self l clients)))))
     ;; SHRINK — clients[idx] left gracefully (clean disconnect, no diagnostic).
-    ((:wat::kernel::ServiceEvent::Closed idx)
+    ((:wat::spawn::ServiceEvent::Closed idx)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))
     ;; SHRINK — clients[idx]'s transport broke abnormally; `cause` is the first-class
     ;; diagnostic (a Failure). Emitted by the remote tier; the thread tier never
     ;; raises this, but the arm is built for the union.
-    ((:wat::kernel::ServiceEvent::Lost idx _cause)
+    ((:wat::spawn::ServiceEvent::Lost idx _cause)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))))
 
 ;; Spawn the service, connect two clients dynamically, round-trip a scalar through each,
@@ -71,8 +71,8 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :user::Op :wat::core::i64)
-     l    (:wat::kernel::Bound/listener pair)
-     addr (:wat::kernel::Bound/address pair)
+     l    (:wat::spawn::Bound/listener pair)
+     addr (:wat::spawn::Bound/address pair)
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))

@@ -49,16 +49,16 @@ const SERVICE_FORMS: &str = r#"
                 clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>]
                -> :wat::core::nil
                (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
-                 (:wat::kernel::ServiceEvent::Shutdown nil)
-                 ((:wat::kernel::ServiceEvent::Connection peer)
+                 (:wat::spawn::ServiceEvent::Shutdown nil)
+                 ((:wat::spawn::ServiceEvent::Connection peer)
                    (:user::serve self l (:wat::core::conj clients peer)))
-                 ((:wat::kernel::ServiceEvent::Message idx n)
+                 ((:wat::spawn::ServiceEvent::Message idx n)
                    (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
                                           (:wat::core::+ n 100))]
                      (:user::serve self l clients)))
-                 ((:wat::kernel::ServiceEvent::Closed idx)
+                 ((:wat::spawn::ServiceEvent::Closed idx)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))
-                 ((:wat::kernel::ServiceEvent::Lost idx _cause)
+                 ((:wat::spawn::ServiceEvent::Lost idx _cause)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let

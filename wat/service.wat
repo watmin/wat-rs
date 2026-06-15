@@ -348,15 +348,15 @@
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
      ;; or value positions — the checker only fires for let/fn binder Vectors.
      serve-body   `(:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
-                     (:wat::kernel::ServiceEvent::Shutdown nil)
-                     ((:wat::kernel::ServiceEvent::Connection peer)
+                     (:wat::spawn::ServiceEvent::Shutdown nil)
+                     ((:wat::spawn::ServiceEvent::Connection peer)
                        (~serve-name self l (:wat::core::conj clients peer) state))
-                     ((:wat::kernel::ServiceEvent::Message idx op)
+                     ((:wat::spawn::ServiceEvent::Message idx op)
                        (:wat::core::match op -> :wat::core::nil
                          ~@serve-op-arms))
-                     ((:wat::kernel::ServiceEvent::Closed idx)
+                     ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at clients idx) state))
-                     ((:wat::kernel::ServiceEvent::Lost idx _cause)
+                     ((:wat::spawn::ServiceEvent::Lost idx _cause)
                        (~serve-name self l (:wat::std::list::remove-at clients idx) state)))
 
      ;; ── C.3: request constructors ────────────────────────────────────────────────
@@ -499,8 +499,8 @@
      start-params  `[state0 <- ~state-ty]
      start-body    `(:wat::core::let
                       [~pair-sym (:wat::kernel::listener' (:wat::spawn::thread) ~enum-name ~reply-name)
-                       ~l-sym    (:wat::kernel::Bound/listener ~pair-sym)
-                       ~addr-sym (:wat::kernel::Bound/address ~pair-sym)
+                       ~l-sym    (:wat::spawn::Bound/listener ~pair-sym)
+                       ~addr-sym (:wat::spawn::Bound/address ~pair-sym)
                        ~svc-sym  (:wat::kernel::spawn-program' (:wat::spawn::thread)
                                    (:wat::core::fn [~self-sym <- ~peer-ty] -> :wat::core::nil
                                      (~serve-name ~self-sym ~l-sym
@@ -511,12 +511,12 @@
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
      ;; (Record::def <fqdn>::Handle
-     ;;   [handle <- :wat::kernel::Spawned
+     ;;   [handle <- :wat::spawn::Spawned
      ;;    addr   <- :wat::kernel::Address'<fqdn::Op,fqdn::Reply>])
      ;; handle is the host-agnostic spawn-handle marker: Thread'/Process'/future-remote
-     ;; all derive :wat::kernel::Spawned so any concrete handle satisfies this field.
+     ;; all derive :wat::spawn::Spawned so any concrete handle satisfies this field.
      ;; addr carries the typed Address'<Op,Reply> for client connect'.
-     handle-fields `[handle <- :wat::kernel::Spawned addr <- ~addr-ty]
+     handle-fields `[handle <- :wat::spawn::Spawned addr <- ~addr-ty]
      handle-record `(:wat::Record::def ~handle-name ~handle-fields)]
 
     ;; Assemble the final `do`:

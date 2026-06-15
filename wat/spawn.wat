@@ -98,7 +98,7 @@
 ;;              O = the type the server RECEIVES from peers (peer's send type).
 ;; Mirror Peer'<I,O>: the accepted peer is Peer'<I,O>, message is O.
 ;;
-(:wat::core::defenum :wat::kernel::ServiceEvent<I,O>
+(:wat::core::defenum :wat::spawn::ServiceEvent<I,O>
   :Shutdown                                                              ;; owner dropped the handle (self-peer drained) — exit; deadlock-free termination
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]
   :Message    [idx   <- :wat::core::i64  msg   <- :O]
@@ -109,14 +109,14 @@
 ;; Spawned — the owner-side spawn-handle marker (typesub/derive axis; no methods). Thread'/Process'/
 ;; future-remote derive it so the host-agnostic Handle field + Host/spawn return can bind any of them.
 ;; Lifecycle = close'/join (intrinsics). A new transport's handle joins with one more `derive`.
-(:wat::core::derive :wat::kernel::Thread'  :wat::kernel::Spawned)
-(:wat::core::derive :wat::kernel::Process' :wat::kernel::Spawned)
+(:wat::core::derive :wat::kernel::Thread'  :wat::spawn::Spawned)
+(:wat::core::derive :wat::kernel::Process' :wat::spawn::Spawned)
 
 ;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what
 ;; clients dial via connect'. Replaces the bare Tuple the thread tier returned.
-(:wat::core::defstruct :wat::kernel::Bound<S,R>
+(:wat::core::defstruct :wat::spawn::Bound<S,R>
   [listener <- :wat::kernel::Listener'<S,R>
    address  <- :wat::kernel::Address'<S,R>])
 

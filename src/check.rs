@@ -10407,7 +10407,7 @@ fn infer_listener_prime(
 
 /// `Bound<S,R>` — result type of `(listener' (thread) …)`.
 fn bound_type(s: TypeExpr, r: TypeExpr) -> TypeExpr {
-    TypeExpr::Parametric { head: "wat::kernel::Bound".into(), args: vec![s, r] }
+    TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r] }
 }
 
 
@@ -11364,7 +11364,7 @@ fn infer_select_prime(
 ///   args[1] = listener (`Listener'<S,R>` — inferred permissively, not further constrained).
 ///   args[2] = peers (`Vector<Peer'<I,O>>` — the connected client peers).
 ///
-/// Returns `Parametric { "wat::kernel::ServiceEvent", [I, O] }` extracted from the peers.
+/// Returns `Parametric { "wat::spawn::ServiceEvent", [I, O] }` extracted from the peers.
 /// The self-peer parameter is accepted as any `Peer'` (the supervisor link); its type params
 /// are the program's self-channel which are independent of the client peer I/O types.
 fn infer_poll_prime(
@@ -11389,7 +11389,7 @@ fn infer_poll_prime(
         Some(t) => t,
         None => {
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::ServiceEvent".into(),
+                head: "wat::spawn::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return if local_errors.is_empty() {
@@ -11420,7 +11420,7 @@ fn infer_poll_prime(
                 },
             });
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::ServiceEvent".into(),
+                head: "wat::spawn::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
@@ -11447,7 +11447,7 @@ fn infer_poll_prime(
                 },
             });
             let fb = TypeExpr::Parametric {
-                head: "wat::kernel::ServiceEvent".into(),
+                head: "wat::spawn::ServiceEvent".into(),
                 args: vec![fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
@@ -11457,7 +11457,7 @@ fn infer_poll_prime(
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
     let ret = TypeExpr::Parametric {
-        head: "wat::kernel::ServiceEvent".into(),
+        head: "wat::spawn::ServiceEvent".into(),
         args: vec![i_resolved, o_resolved],
     };
     if local_errors.is_empty() {

@@ -53,20 +53,20 @@ const PROGRAM: &str = r#"
                (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
                  ;; SHUTDOWN — owner dropped the handle; RAII drain EOF'd the self-peer.
                  ;; Return nil → the loop exits, clients drop, the child ends, join completes.
-                 (:wat::kernel::ServiceEvent::Shutdown nil)
+                 (:wat::spawn::ServiceEvent::Shutdown nil)
                  ;; GROW — poll' accepted the dialing client; conj the new peer.
-                 ((:wat::kernel::ServiceEvent::Connection peer)
+                 ((:wat::spawn::ServiceEvent::Connection peer)
                    (:user::serve self l (:wat::core::conj clients peer)))
                  ;; SERVE — an i64 arrived from clients[idx]; reply n+100.
-                 ((:wat::kernel::ServiceEvent::Message idx n)
+                 ((:wat::spawn::ServiceEvent::Message idx n)
                    (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
                                           (:wat::core::+ n 100))]
                      (:user::serve self l clients)))
                  ;; SHRINK — clients[idx] left gracefully.
-                 ((:wat::kernel::ServiceEvent::Closed idx)
+                 ((:wat::spawn::ServiceEvent::Closed idx)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))
                  ;; SHRINK — clients[idx]'s transport broke (remote tier; cause is a Failure).
-                 ((:wat::kernel::ServiceEvent::Lost idx _cause)
+                 ((:wat::spawn::ServiceEvent::Lost idx _cause)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))))
              ;; the child entry: bind the listener by name, signal READY, serve.
              (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -11,8 +11,8 @@
 //! `extend-type` it onto `Thread'` (and `Process'`); a fn typed `[h <- :t::Spawnable]` accepts a real
 //! `Thread'` value from `spawn-program'` and dispatches the method on its concrete type.
 //!
-//! NOTE: renamed from `:wat::kernel::Spawned` → `:t::Spawnable` (stone host-parity-2 mints the
-//! stdlib marker `:wat::kernel::Spawned` as a typesub/derive marker; the protocol here is a
+//! NOTE: renamed from `:wat::spawn::Spawned` → `:t::Spawnable` (stone host-parity-2 mints the
+//! stdlib marker `:wat::spawn::Spawned` as a typesub/derive marker; the protocol here is a
 //! test-local name to avoid the clash). Stays a valid arc-267 regression test (protocol bound
 //! over the opaque `Thread'`; only the name changed).
 //!
