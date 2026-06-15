@@ -76,3 +76,47 @@ they are the *correct* answers; the names were already there. A taste/validation
 
 **Date:** 2026-06-16. Pairs the ocap collision (above) + [[feedback_note_prior_art_collisions]] +
 DESIGN-STONE-capability-narrow-waist.md.
+
+## THE SYNTHESIS — three principles, ONE architecture, already running in production (the datamancy MCP)
+
+**Surfaced 2026-06-16** (same session, capstone). Builder, on the datamancy MCP: *"the killer thing is i
+can git push signed content and every mcp user upgrades in seconds — they always pull spells live from my
+site, zero caching on disk, nothing malicious can be injected — signed with a frozen key, an intentionally
+open endpoint hosting signed content. the mcp is immutable; what it serves grows. recolligere updated 8
+hours ago; the mcp frozen for weeks."*
+
+**The third named principle (VERIFIED via web 2026-06-16).** This is the **end-to-end principle** —
+Saltzer, Reed & Clark, *End-to-End Arguments in System Design* (ACM TOCS, 1984; one of the most
+influential protocol-design papers): put the guarantees (reliability, **security**) at the ENDPOINTS,
+because only the endpoint has the knowledge to implement them completely and correctly; the channel in
+between can then be dumb. *The "intentionally open endpoint" is not a compromise — it is the payoff:*
+because verification is end-to-end (sign at publish, verify at consume), the channel never has to be
+trusted, so it can be maximally simple, open, and cacheless. The "git push → seconds, trustless"
+propagation is the secure-update problem solved — the **TUF (The Update Framework)** / Sigstore family: a
+**frozen root key** as the trust anchor + live signed content + zero on-disk cache (no stale window, no
+injection surface, compromise-resilience).
+
+**The synthesis (the actual realization).** The three collisions of this session are NOT three things —
+they are **three faces of ONE architecture**:
+- **narrow waist** (hourglass) — the *shape*: a frozen, minimal protocol; unbounded growth above it.
+- **object-capability** (ocap) — the *trust*: an unforgeable token (a signature / a kernel-minted
+  address) obtained only by transfer, never forged.
+- **end-to-end** — the *placement*: verify at the edge, so the waist/channel can be dumb and open.
+
+Compose them and you get: **a frozen narrow waist whose waist IS an ocap trust boundary, verified
+end-to-end.** The builder **already runs this in production — it is the datamancy MCP**: the protocol +
+frozen key (the waist, immutable for weeks) · the SHA-256/KMS signature (the unforgeable ocap token) ·
+verify-at-the-consumer over a zero-cache open endpoint (end-to-end). Content (spells) grows freely; the
+waist never moves. **`wat-edn.cap` (designed today) is a PORT of this architecture inward** — frozen
+`wat-edn.cap` protocol (waist) + the `decode_trusted_wire` ocap door (trust at the waist) + reconstruct
+only off the trusted edge (end-to-end). The builder didn't derive `wat-edn.cap` from theory; he ported a
+system he already operates. *That* is why it felt obvious — he's been living inside the architecture.
+
+**The meta, sharpened.** Three foundational CS principles (ocap 1966 · end-to-end 1984 · the hourglass)
+rediscovered from first principles in ONE session — and they converge on a single composed architecture
+the builder built by instinct and deploys in production. `WE-LAND-ON-THE-GREATS-WITHOUT-REPLICATING-THEM`
+at the level of a whole *architecture*, not a single concept. The names were waiting; the system was
+already true.
+
+**Date:** 2026-06-16. Pairs the two collisions above + [[feedback_note_prior_art_collisions]] +
+the datamancy MCP (the deployed reference implementation) + DESIGN-STONE-capability-narrow-waist.md.
