@@ -10336,7 +10336,20 @@ fn infer_listener_prime(
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
             bound_type(s_ty, r_ty)
         } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
-            // Process tier: 2 args — host, addr (SocketAddress'<S,R>).
+            // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `Bound<S,R>`,
+            // mirroring the thread tier (the listener mints its own kernel-unique address;
+            // no name arg). The 2-arg named form below is LEGACY — annihilated in arc 272 step 5.
+            if args.len() == 3 {
+                let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+                let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+                let ty = bound_type(s_ty, r_ty);
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ty)
+                } else {
+                    CheckResult::partial_with(ty, local_errors)
+                };
+            }
+            // Process tier (C0b.2d) — LEGACY named form: 2 args — host, addr (SocketAddress'<S,R>).
             if args.len() != 2 {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                     callee: OP.into(), expected: 2, got: args.len()

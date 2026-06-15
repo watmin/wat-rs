@@ -129,7 +129,10 @@ impl CommAddress for ThreadAddress {
 ///
 /// Verbatim body from the former socket arm of `eval_connect_prime`.
 pub struct SocketAddress {
-    pub(crate) name: String,
+    /// The abstract-namespace UDS name as RAW BYTES. Arc 272: an autobind address is
+    /// kernel-minted (5 random bytes), NOT UTF-8 — a `String` would corrupt it. Legacy
+    /// user-chosen names (`socket-address'`) are UTF-8 and stored via their byte form.
+    pub(crate) name: Vec<u8>,
 }
 
 impl CommAddress for SocketAddress {
@@ -142,7 +145,7 @@ impl CommAddress for SocketAddress {
         use std::os::fd::OwnedFd;
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixStream};
-        let sa = SocketAddr::from_abstract_name(self.name.as_bytes()).map_err(|e| RuntimeError {
+        let sa = SocketAddr::from_abstract_name(&self.name).map_err(|e| RuntimeError {
             span: span.clone(),
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -192,8 +195,16 @@ impl Address {
         Address { inner: Box::new(ThreadAddress { tx }) }
     }
 
-    /// Construct a process-tier address from the abstract-namespace UDS name.
+    /// Construct a process-tier address from a (UTF-8) abstract-namespace UDS name.
+    /// Legacy `socket-address'` path; delegates to the canonical bytes constructor.
     pub fn from_socket_name(name: String) -> Self {
+        Self::from_socket_name_bytes(name.into_bytes())
+    }
+
+    /// Construct a process-tier address from the RAW abstract-namespace name bytes.
+    /// Arc 272: the autobind path — the kernel-minted name (binary, not UTF-8) is the
+    /// capability `connect'` dials.
+    pub fn from_socket_name_bytes(name: Vec<u8>) -> Self {
         Address { inner: Box::new(SocketAddress { name }) }
     }
 

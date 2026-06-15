@@ -18719,7 +18719,45 @@ fn eval_listener_prime(
             if class_fqdn.as_str() == "wat::spawn::ProcessOpts");
 
     if is_process {
-        // Process tier (C0b.2d): 2 args — host + addr (SocketAddress' opaque).
+        // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)`: mint a kernel-unique,
+        // unguessable abstract address (no chosen name → no collision, no squatting) and return
+        // `Bound<S,R>{listener, address}`, MIRRORING the thread tier. The address is the
+        // capability `connect'` dials. (The 2-arg `(host addr)` named form below is LEGACY —
+        // annihilated in arc 272 step 5 with the rest of the name-discovery stack.)
+        if args.len() == 3 {
+            for i in [1usize, 2usize] {
+                if !matches!(args[i], WatAST::Keyword(_, _)) {
+                    return Err(RuntimeError {
+                        span: args[i].span().clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
+                        },
+                    }.into());
+                }
+            }
+            // autobind_listener creates the socket SOCK_NONBLOCK (the C0b.3a-i invariant).
+            let (ul, name_bytes) = crate::comms::process::autobind_listener(128)
+                .map_err(|e| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("autobind UDS listener: {}", e),
+                    },
+                })?;
+            use crate::kernel::address::Address;
+            use crate::kernel::listener::Listener;
+            use crate::kernel::spawn::{ADDRESS_TYPE_PATH, LISTENER_TYPE_PATH};
+            use crate::rust_deps::marshal::make_rust_opaque;
+            return Ok(Value::Struct(Arc::new(StructValue {
+                type_name: ":wat::spawn::Bound".into(),
+                fields: vec![
+                    make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(ul)),
+                    make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name_bytes(name_bytes)),
+                ],
+            })));
+        }
+        // Process tier (C0b.2d) — LEGACY named form: 2 args — host + addr (SocketAddress' opaque).
         if args.len() != 2 {
             return Err(RuntimeError {
                 span: list_span.clone(),
@@ -18730,7 +18768,7 @@ fn eval_listener_prime(
         // Arc 209 C0b.2e-iii: Address' is now the unified entity (was SocketAddress').
         // The process tier of listener' needs the abstract-namespace UDS name to bind.
         let addr_val = eval_inner(&args[1], env, sym)?.value_owned();
-        let name: String = if let Value::RustOpaque(ref inner) = addr_val {
+        let name: Vec<u8> = if let Value::RustOpaque(ref inner) = addr_val {
             if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH {
                 use crate::kernel::address::{Address, SocketAddress};
                 use crate::rust_deps::marshal::downcast_ref_opaque;
@@ -18775,7 +18813,7 @@ fn eval_listener_prime(
         // Bind the abstract-namespace UDS by the given name and return a Listener entity.
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixListener};
-        let sa = SocketAddr::from_abstract_name(name.as_bytes())
+        let sa = SocketAddr::from_abstract_name(&name)
             .map_err(|e| RuntimeError {
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {
