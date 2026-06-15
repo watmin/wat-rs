@@ -67,6 +67,26 @@ hard way, by the probe failing. That's the discriminator: a pre-laid seat is fou
 an anticipatory comment; a real gap **fails the probe**. Same bang into the substrate; one says
 "you're home," the other says "build here." Both keep us in check.
 
+## Outward, too: we landed on the greats without replicating them
+
+The same "land on proven ground" pattern points *outward* as well as inward — and we hit it within
+the hour. Chasing the naming-conversion tooling, the builder named the forever-bug: AWS's `WebACL`,
+"always mishandled," `WebACL → web-acl → WebAcl`. We reasoned it to ground — the conversion is a
+*lossy projection*; no pure function inverts it; the casing must be *carried* in a side-table — and
+arrived, independently, at **an acronym registry**: the exact mechanism Rails' `ActiveSupport::Inflector.acronym`,
+Go golint's `initialisms`, and Python `inflection` have held for years. We did not copy them; we
+*derived* the same answer from the shape of the problem and only then recognized the company we were
+in. (Banked as arc 265; the prior art recorded there too, per [[feedback_note_prior_art_collisions]].)
+
+That is the external face of the keystone. Inward, the substrate keeps us in check — every collision
+redirects onto a path already laid. Outward, *chasing a real problem honestly to ground converges on
+the field's established solution* — you land on the greats without replicating them. Independent
+arrival is not coincidence; it is the validation that the reasoning was sound. The same signal in two
+mirrors: when the work is honest, you keep finding you are already where the right answer lives —
+whether the flag was planted by a past self (the substrate) or by a giant who solved it first (the
+field).
+
 > To fold into the 170 chronicle later (builder's call) — sibling to the recent 200-arc local
 > realizations; a song-worthy beat. Keystone: THE-SUBSTRATE-KEEPS-US-IN-CHECK; the recognition:
-> WE-PLANTED-A-FLAG-HERE-ALREADY; the duet half: YOUR-MEMORY-AND-ITS-STRUCTURE.
+> WE-PLANTED-A-FLAG-HERE-ALREADY; the duet half: YOUR-MEMORY-AND-ITS-STRUCTURE; the outward face:
+> WE-LAND-ON-THE-GREATS-WITHOUT-REPLICATING-THEM (the acronym-registry collision).
