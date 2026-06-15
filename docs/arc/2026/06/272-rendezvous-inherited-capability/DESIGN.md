@@ -60,7 +60,8 @@ The two requirements (no fixed name · mutual pid trust) do not conflict; they s
   inherits both ends", clone.rs:355.)
 - **Accept-many (a defservice service):** **autobind**. The "name" becomes a kernel-minted, unique,
   unguessable token — no fixed/public/forgeable string — carried as a **capability on the `Handle`**
-  (exactly like the thread tier's Sender). SO_PEERCRED delivers **true mutual mTLS**: both ends read
+  (exactly like the thread tier's Sender). SO_PEERCRED delivers **true mutual peer-cred auth over UDS**
+  (NOT mTLS — no certs/handshake/encryption): both ends read
   the other's real pid. **Do not forget: the client MUST check the server's pid/identity too** — the
   half we never built.
 
