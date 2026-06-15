@@ -422,6 +422,9 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::string::length"
         | ":wat::core::string::trim"
         | ":wat::core::string::to-lowercase"
+        // Arc 209 naming-conversion — pascal->kebab is on is_pure_total (the defservice macro
+        // calls it at expand time to derive fn names). to-uppercase is NOT here (no macro needs it).
+        | ":wat::core::string::pascal->kebab"
         | ":wat::core::string::split"
         | ":wat::core::string::join"
         | ":wat::core::String/empty?"

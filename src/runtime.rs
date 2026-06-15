@@ -3958,6 +3958,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::string::length" => crate::string_ops::eval_string_length(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::to-lowercase" => crate::string_ops::eval_string_to_lowercase(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::string::to-uppercase" => crate::string_ops::eval_string_to_uppercase(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::string::pascal->kebab" => crate::string_ops::eval_string_pascal_to_kebab(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::subs" => crate::string_ops::eval_string_subs(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::split" => crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into),

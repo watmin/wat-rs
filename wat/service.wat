@@ -367,7 +367,7 @@
      ;; For each op:
      ;;   (defn <fqdn>/<op-lower>-request [<in-fields>] -> :<fqdn>::<Op>Request
      ;;     (<fqdn>::<Op>Request <in-field-names>))
-     ;; Constructor name uses lowercase op (via string::to-lowercase).
+     ;; Constructor name uses pascal->kebab op (via string::pascal->kebab).
      ;; ctor-body = `(~req-ty ~@arg-names)`: head is Unquote → checker skips let/fn check.
      constructors  (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
@@ -384,7 +384,7 @@
                           ;; in-fields minus the leading s <- :State triple
                           in-fieldch   (:wat::core::drop (:wat::core::ast->children argvec) 3)
                           op-str       (:wat::core::keyword/to-string opkw)
-                          op-lower     (:wat::core::string::to-lowercase op-str)
+                          op-lower     (:wat::core::string::pascal->kebab op-str)
                           ctor-name    (:wat::core::keyword/from-string
                                          (:wat::core::string::concat fqdn-str
                                            (:wat::core::string::concat "/" op-lower "-request")))
@@ -440,7 +440,7 @@
                                             (:wat::core::first (:wat::core::drop ch 3))
                                             "defservice methods: op-clause has no out-fieldvec")
                           op-str          (:wat::core::keyword/to-string opkw)
-                          op-lower        (:wat::core::string::to-lowercase op-str)
+                          op-lower        (:wat::core::string::pascal->kebab op-str)
                           method-name     (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
                                               (:wat::core::string::concat "/" op-lower)))

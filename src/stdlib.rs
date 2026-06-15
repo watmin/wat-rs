@@ -238,6 +238,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
+    // Arc 209 naming-conversion stone — wat-level string helpers (kebab->pascal + capitalize).
+    // Loads after core.wat so the Rust string primitives (to-uppercase, split, subs, concat, join)
+    // are registered before this file's defns are evaluated.
+    WatSource {
+        path: "wat/string.wat",
+        source: include_str!("../wat/string.wat"),
+    },
     // Arc 143 slice 7 — :wat::list::* list-operation aliases.
     // Stone 241.12 — uses :wat::core::defalias (native substrate form) to create
     // :wat::list::reduce and :wat::list::fold as aliases for :wat::core::foldl.

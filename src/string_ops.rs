@@ -100,6 +100,52 @@ pub fn eval_string_to_lowercase(
     Ok(Value::String(Arc::new(s.to_lowercase())))
 }
 
+/// `(:wat::core::string::to-uppercase s)` → `:String`.
+///
+/// Converts all ASCII/Unicode characters in `s` to their uppercase equivalent.
+/// Pure and total (Rust `String::to_uppercase` is deterministic, no IO).
+/// Arc 209 naming-conversion stone — sibling of `to-lowercase`; needed by the
+/// `kebab->pascal` wat helper to capitalize each segment's first character.
+/// NOT on `is_pure_total` (no macro calls it; add only if a future macro needs it).
+pub fn eval_string_to_uppercase(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = one_string(":wat::core::string::to-uppercase", args, env, sym, list_span)?;
+    Ok(Value::String(Arc::new(s.to_uppercase())))
+}
+
+/// `(:wat::core::string::pascal->kebab s)` → `:String`.
+///
+/// PascalCase → kebab-case. Inserts a `-` before each uppercase character that
+/// is NOT at position 0, then lowercases every character. Digits ride the current
+/// word. Examples: `GetObject` → `get-object`, `Get` → `get`, `GetV2` → `get-v2`.
+///
+/// Pure and total on the disciplined subset (one uppercase letter per word, no
+/// consecutive-capital acronym runs). On `is_pure_total` — the `defservice` macro
+/// calls it at expand time to derive fn names from PascalCase op keywords.
+/// Arc 209 naming-conversion stone.
+pub fn eval_string_pascal_to_kebab(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = one_string(":wat::core::string::pascal->kebab", args, env, sym, list_span)?;
+    let mut result = String::with_capacity(s.len() + 4);
+    for (i, ch) in s.chars().enumerate() {
+        if i > 0 && ch.is_uppercase() {
+            result.push('-');
+        }
+        for lc in ch.to_lowercase() {
+            result.push(lc);
+        }
+    }
+    Ok(Value::String(Arc::new(result)))
+}
+
 /// `(:wat::core::string::subs s start end)` → `:String`.
 ///
 /// Clojure's `subs`: start-inclusive, end-exclusive, CHAR-indexed.

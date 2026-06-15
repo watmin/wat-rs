@@ -14838,6 +14838,24 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
+        ":wat::core::string::to-uppercase".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::string::pascal->kebab".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
         ":wat::core::string::subs".to_string(),
         TypeScheme {
             type_params: vec![],
