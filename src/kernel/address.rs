@@ -242,6 +242,20 @@ impl Address {
         Address { inner: Box::new(SocketAddress { name }) }
     }
 
+    /// Arc 272 6a-i — the PORTABLE wire bytes of this address, IF it is a process-tier socket
+    /// address (the kernel-minted name). A process-tier address is a true capability: its name
+    /// bytes are meaningful across a process boundary, so it may cross the IPC wire (as a
+    /// `#wat-edn.cap/address` tag). A thread-tier address (a crossbeam `Sender`) has NO portable
+    /// form — it is in-memory, same-process only — so this returns `None` and the address falls to
+    /// the opaque (non-portable) wire path. The `Address` owns this knowledge so the wire layer
+    /// never reaches into the concrete `CommAddress` impls.
+    pub(crate) fn portable_name_bytes(&self) -> Option<Vec<u8>> {
+        self.inner
+            .as_any_ref()
+            .downcast_ref::<SocketAddress>()
+            .map(|s| s.name.clone())
+    }
+
     /// Dispatch connect to the concrete impl; wrap the returned `Peer` as a
     /// `PEER_TYPE_PATH` opaque `Value` for the eval layer.
     pub fn connect_as_value(

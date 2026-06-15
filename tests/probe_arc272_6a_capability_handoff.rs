@@ -15,13 +15,13 @@
 //!   - parent: `(spawn-program' (process) <forms>)` → `svc`; `(recv' svc)` → the minted `Address'`;
 //!     `(connect' addr)`; `send' 5`; `recv'` → 105.
 //!
-//! RED at HEAD — and PARKED (6a is blocked on the recv'/send' arrow-kill, arc 258 IO cluster). Two
-//! gaps stand: (1) the `spawn-program'` handle carries fresh independent vars (`Process'<I,O>`,
-//! check.rs:10827), not the child's self-peer type, so 1-arg `(recv' svc)` can't infer `Address'` from
-//! the channel ("the type lives in the channel" — the arrow-kill we pivoted to); (2) `Address'` has no
-//! EDN decode arm. GREEN once the handle carries its type (arrow-kill) AND `Address'` round-trips.
-//! No `-> :T` ascription is used here on purpose — that arrow is being killed, not propagated.
-//! `spawn-program'` stays 2-arg throughout — the listener never touches the spawn surface.
+//! GREEN as of 258.5a + 272 6a-i. Two composing fixes made the no-ascription handoff work: (1)
+//! arc 258.5a — `connect'` UNIFIES its arg, so the fresh 1-arg `(recv' svc)` result binds to
+//! `Address'` from the consumer ("the type lives in the channel"; no `-> :T`); (2) arc 272 6a-i —
+//! `Address'` crosses as a portable `#wat-edn.cap/address [bytes]` tag (decode via
+//! `from_socket_name_bytes`), so `recv'` reconstructs the capability with no runtime type hint.
+//! No `-> :T` ascription anywhere — that arrow stays killed. `spawn-program'` stays 2-arg throughout —
+//! the listener never touches the spawn surface.
 //!
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6a_capability_handoff

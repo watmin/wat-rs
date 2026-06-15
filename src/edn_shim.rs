@@ -1811,6 +1811,55 @@ fn strip_keyword_colon(k: &str) -> String {
     stripped.replace("::", ".")
 }
 
+/// Arc 272 6a-i — reconstruct a PORTABLE substrate capability from a `#wat-edn.cap/<name>` tag.
+/// The decode mirror of the `wat-edn.cap` encode branch in `value_to_edn`. Sibling to the
+/// `wat-edn.opaque` refusal: a capability in this namespace carries enough on the wire to be
+/// rebuilt on the far side. Portability is per-type (the 272 minted-not-built doctrine) — add a
+/// `name` arm here only for a type whose wire content is genuinely portable.
+fn cap_tag_to_value(name: &str, body: &OwnedValue) -> Result<Value, EdnReadError> {
+    use wat_edn::Value as Edn;
+    match name {
+        // `Address'` — body is a vector of bytes (the kernel-minted abstract UDS name).
+        // Reconstruct via `from_socket_name_bytes` and re-box under `ADDRESS_TYPE_PATH`.
+        "address" => {
+            let items = match body {
+                Edn::Vector(items) => items,
+                _ => {
+                    return Err(EdnReadError {
+                        span: Span::unknown(),
+                        kind: EdnReadErrorKind::UnsupportedTag(
+                            "wat-edn.cap/address (expected a byte vector)".into(),
+                        ),
+                    })
+                }
+            };
+            let mut bytes = Vec::with_capacity(items.len());
+            for it in items {
+                match it {
+                    Edn::Integer(n) if (0..=255).contains(n) => bytes.push(*n as u8),
+                    _ => {
+                        return Err(EdnReadError {
+                            span: Span::unknown(),
+                            kind: EdnReadErrorKind::UnsupportedTag(
+                                "wat-edn.cap/address (byte out of 0..=255)".into(),
+                            ),
+                        })
+                    }
+                }
+            }
+            let addr = crate::kernel::address::Address::from_socket_name_bytes(bytes);
+            Ok(crate::rust_deps::marshal::make_rust_opaque(
+                crate::kernel::spawn::ADDRESS_TYPE_PATH,
+                addr,
+            ))
+        }
+        other => Err(EdnReadError {
+            span: Span::unknown(),
+            kind: EdnReadErrorKind::UnsupportedTag(format!("wat-edn.cap/{other}")),
+        }),
+    }
+}
+
 fn tagged_to_value(
     tag: &Tag,
     body: &OwnedValue,
@@ -1819,6 +1868,13 @@ fn tagged_to_value(
     use wat_edn::Value as Edn;
     let ns = tag.namespace();
     let name = tag.name();
+
+    // Arc 272 6a-i — PORTABLE CAPABILITY tags. Sibling to `wat-edn.opaque` (which refuses): these
+    // ARE reconstructable across a process boundary. The first inhabitant is `address` (a kernel
+    // socket name). Checked BEFORE the opaque refusal below.
+    if ns == "wat-edn.cap" {
+        return cap_tag_to_value(name, body);
+    }
 
     // Substrate-emitted special tags. We don't reconstruct opaque
     // handles (Sender, ProgramHandle, etc.) — they have no
@@ -2232,12 +2288,38 @@ pub fn value_to_edn_with(
         Value::wat__kernel__ChildHandle(_) => opaque_nil("wat-edn.opaque", "ChildHandle"),
         Value::io__IOReader(_) => opaque_nil("wat-edn.opaque", "IOReader"),
         Value::io__IOWriter(_) => opaque_nil("wat-edn.opaque", "IOWriter"),
-        Value::RustOpaque(inner) => OwnedValue::Tagged(
-            Tag::ns("wat-edn.opaque", "RustOpaque"),
-            Box::new(OwnedValue::String(std::borrow::Cow::Owned(
-                inner.type_path.to_string(),
-            ))),
-        ),
+        Value::RustOpaque(inner) => {
+            // Arc 272 6a-i — PORTABLE CAPABILITY tags (`wat-edn.cap/*`). Most opaques are
+            // process-local handles (an fd, a Sender) that MUST NOT cross a boundary — they stay
+            // payload-less `#wat-edn.opaque/RustOpaque` (the decoder refuses them). `Address'` is the
+            // exception: a process-tier socket address carries kernel-minted name bytes that ARE
+            // meaningful across a process boundary, so it crosses as a self-describing
+            // `#wat-edn.cap/address [byte …]` tag, reconstructed via `from_socket_name_bytes`. This is
+            // the first inhabitant of the `wat-edn.cap` namespace — portability is a deliberate,
+            // per-type capability decision (the 272 minted-not-built doctrine), never a blanket
+            // opt-in. Thread-tier addresses (a crossbeam `Sender`) have no portable form → `None` →
+            // they fall to the opaque (non-portable) path below.
+            if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH {
+                if let Some(bytes) = inner
+                    .payload
+                    .downcast_ref::<crate::kernel::address::Address>()
+                    .and_then(|a| a.portable_name_bytes())
+                {
+                    return OwnedValue::Tagged(
+                        Tag::ns("wat-edn.cap", "address"),
+                        Box::new(OwnedValue::Vector(
+                            bytes.into_iter().map(|b| OwnedValue::Integer(b as i64)).collect(),
+                        )),
+                    );
+                }
+            }
+            OwnedValue::Tagged(
+                Tag::ns("wat-edn.opaque", "RustOpaque"),
+                Box::new(OwnedValue::String(std::borrow::Cow::Owned(
+                    inner.type_path.to_string(),
+                ))),
+            )
+        }
         Value::OnlineSubspace(_) => opaque_nil("wat-edn.opaque", "OnlineSubspace"),
         Value::Reckoner(_) => opaque_nil("wat-edn.opaque", "Reckoner"),
         Value::Engram(_) => opaque_nil("wat-edn.opaque", "Engram"),
