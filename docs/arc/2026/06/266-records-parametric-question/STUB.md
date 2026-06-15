@@ -1,7 +1,35 @@
-# Arc 266 (STUB) — are records meant to be parametric? (the type_params asymmetry)
+# Arc 266 (CLOSED — REJECTED) — are records meant to be parametric? (the type_params asymmetry)
 
-> **Status: STUB — a question to investigate, banked 2026-06-14.** Surfaced while naming the
-> `listener'`-mint result (arc-209 host-parity / sub-stone `Bound`). NOT blocking anything.
+> **Status: CLOSED / REJECTED 2026-06-14.** Records stay **concrete by purpose**; `RecordDef` will
+> NOT gain `type_params`. Decided by four-questions (below). NOT a deferral — an affirmative cut.
+
+## Verdict (four-questions)
+
+A record's purpose is a **concrete EDN data shape** (`Stats`, `Handle`, the defservice
+Request/Response records). Making `RecordDef` parametric was rejected:
+
+- **Obvious? NO** — parametric blurs the line the design draws: *records are concrete EDN shapes;
+  structs are the flexible/parametric/non-EDN ones.*
+- **Simple? NO** — adds a concept to records for no demonstrated use.
+- **Honest? NO** — no caller has surfaced (this very question bit nothing — `Bound<S,R>` is a
+  struct, correctly). Adding `type_params` with no consumer is a forcing function / optional-is-a-smell.
+- **Good UX?** — the generic-container role is already filled: built-in collections
+  `Vector<T>`/`HashMap<K,V>`/`Option`/`Result`/`Tuple` (declared via the `wat.type/…` parametric-form
+  plan) **plus** parametric **structs**. A user wanting a generic container reaches for those.
+
+A concrete record may still **carry** a parametric field at concrete args (e.g.
+`field <- :HashMap<String,i64>`); it just is not generic *over* those args — and that generic role
+is the collections + structs, not records.
+
+**Re-open only if** a real caller needs a user-defined parametric EDN record that the collections +
+parametric structs cannot serve. None exists today.
+
+> The `type_params` asymmetry (`RecordDef` is the lone product type without it) is therefore
+> **intentional**, not a latent gap. The observation below is preserved as the record of why.
+
+---
+
+## (historical) The observation that raised the question
 
 ## The observation
 
