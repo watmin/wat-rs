@@ -1805,7 +1805,10 @@ fn encode_value_with_path(
         | Value::RustOpaque(_)
         | Value::Vector(_)
         | Value::Instant(_)
-        | Value::Duration(_) => Err(ExtractionError {
+        | Value::Duration(_)
+        // Arc 232 Stone 232.1 — registry carriers are top-level registrations, not closure values.
+        | Value::wat__core__protocol_def(_)
+        | Value::wat__core__extend_def(_) => Err(ExtractionError {
             span: crate::span::Span::unknown(),
             kind: ExtractionErrorKind::Internal(format!(
                 "encoding for captured Value of kind {} not implemented in slice 1",

@@ -43,4 +43,5 @@ pub use observe::{Provenance, TrackedValue, ValueSnapshot};
 pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
 pub use value::{Value, StructValue, EnumValue, SpawnOutcome, ProgramHandleInner,
-    Clause, ClauseSet, ClauseAttempt, ClauseFailureReason};
+    Clause, ClauseSet, ClauseAttempt, ClauseFailureReason,
+    ProtocolMethodSig, ProtocolDef, ExtendDef};

@@ -3727,6 +3727,48 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 232 Stone 232.1 — `:wat::core::defprotocol` type-check arm.
+            // Shape: (:wat::core::defprotocol :P (method-sig ...) ...)
+            // Registry-only stone: parse + register into protocol_registrations.
+            // No assignable edge (232.2) and no method dispatch (232.3) here.
+            // Returns unit type — a declaration, not a value expression.
+            ":wat::core::defprotocol" => {
+                // Delegate shape validation to the runtime parser; surface any
+                // parse error as a check error. Registration happens in
+                // collect_splice_defs_ctx.
+                let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
+                if let Err(e) = crate::runtime::parse_defprotocol_form(&form_as_list) {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: format!("{e}"),
+                        remedies: vec![],
+                    } });
+                }
+                return if local_errors.is_empty() {
+                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                } else {
+                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                };
+            }
+            // Arc 232 Stone 232.1 — `:wat::core::extend-type` type-check arm.
+            // Shape: (:wat::core::extend-type :T :P (method-impl ...) ...)
+            // Registry-only stone: parse + register into extend_registrations.
+            // Returns unit type — a declaration, not a value expression.
+            ":wat::core::extend-type" => {
+                let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
+                if let Err(e) = crate::runtime::parse_extend_type_form(&form_as_list) {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: format!("{e}"),
+                        remedies: vec![],
+                    } });
+                }
+                return if local_errors.is_empty() {
+                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                } else {
+                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                };
+            }
             // Arc 157 slice 1a-ii — config setters for redef opt-in.
             // Shape: (:wat::config::set-redef! <bool>) — returns Unit.
             // The bool arg is type-checked; the actual flag update is
@@ -8213,6 +8255,21 @@ fn collect_splice_defs_ctx(
             // sequential loop where the most-recently-seen registration wins.
             // Parse errors are silently skipped here (infer_defclause reports them).
             register_defclause_from_form(form, env, false);
+        }
+        // Arc 232 Stone 232.1 — defprotocol registration into protocol_registrations.
+        // Parse errors silently skipped here (infer_list arm reports them).
+        ":wat::core::defprotocol" if is_top => {
+            if let Ok((protocol_name, pd)) = crate::runtime::parse_defprotocol_form(form) {
+                env.register_protocol(protocol_name, pd.methods.clone());
+            }
+        }
+        // Arc 232 Stone 232.1 — extend-type registration into extend_registrations.
+        // Parse errors silently skipped here (infer_list arm reports them).
+        ":wat::core::extend-type" if is_top => {
+            if let Ok((_key, ed)) = crate::runtime::parse_extend_type_form(form) {
+                let method_names: Vec<String> = ed.impl_clauses.keys().cloned().collect();
+                env.register_extend(ed.protocol_name.clone(), ed.type_name.clone(), method_names);
+            }
         }
         ":wat::core::do" if is_top => {
             for child in &items[1..] {

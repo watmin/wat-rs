@@ -2278,6 +2278,15 @@ pub fn value_to_edn_with(
             let _ = cs;
             "clauses"
         }),
+        // Arc 232 Stone 232.1 — registry carriers: opaque (not value-serializable).
+        Value::wat__core__protocol_def(pd) => opaque_nil("wat-edn.opaque", {
+            let _ = pd;
+            "protocol-def"
+        }),
+        Value::wat__core__extend_def(ed) => opaque_nil("wat-edn.opaque", {
+            let _ = ed;
+            "extend-def"
+        }),
     }
 }
 

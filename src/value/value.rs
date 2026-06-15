@@ -350,6 +350,19 @@ pub enum Value {
     /// NOT a wrapping variant (carries metadata + Vec<Clause>; not
     /// Arc<Self>). Compiles cleanly under the `#[wat_value]` seal.
     wat__core__clauses(Arc<ClauseSet>),
+    /// Arc 232 Stone 232.1 — `:wat::core::defprotocol` declaration.
+    ///
+    /// Carries the protocol name + its method signatures (each with arg
+    /// types and return type). Stored in `runtime_def_values` under the
+    /// protocol name so `CheckEnv::from_symbols` can rebuild
+    /// `protocol_registrations` headlessly. NOT a wrapping variant.
+    wat__core__protocol_def(Arc<ProtocolDef>),
+    /// Arc 232 Stone 232.1 — `:wat::core::extend-type` implementation.
+    ///
+    /// Carries the type + protocol names and the per-method impl bodies
+    /// (parsed as `Clause` values). Stored in `runtime_def_values` under a
+    /// canonical `"extend:<T>:<P>"` key. NOT a wrapping variant.
+    wat__core__extend_def(Arc<ExtendDef>),
 }
 // Arc 233 Stone 233.2.k: Value::Tracked variant DELETED.
 // Environment now stores TrackedValue directly (Option A); provenance flows
@@ -401,6 +414,56 @@ pub struct ClauseSet {
 }
 
 // ─── end Stone 237.2 structs ──────────────────────────────────────────────────
+
+// ─── Arc 232 Stone 232.1 — defprotocol / extend-type structs ─────────────────
+
+/// Arc 232 Stone 232.1 — a single method signature in a `defprotocol` declaration.
+///
+/// `arg_types[0]` is always the receiver type `:P` (single-receiver invariant).
+/// `ret` is the declared return type. The method body is provided by each
+/// `extend-type` implementor; it is NOT stored here.
+#[derive(Debug, Clone)]
+pub struct ProtocolMethodSig {
+    /// Method name (e.g. `"greet"`).
+    pub name: String,
+    /// Declared argument types in declaration order. `arg_types[0]` is the
+    /// receiver type (always `:P`, the protocol itself). Must be non-empty.
+    pub arg_types: Vec<TypeExpr>,
+    /// Declared return type.
+    pub ret: TypeExpr,
+}
+
+/// Arc 232 Stone 232.1 — a `defprotocol` declaration.
+///
+/// Produced by `parse_defprotocol_form`; stored as
+/// `Value::wat__core__protocol_def` in `runtime_def_values` under the
+/// protocol FQDN key so `CheckEnv::from_symbols` can load it headlessly.
+#[derive(Debug, Clone)]
+pub struct ProtocolDef {
+    /// Protocol FQDN (e.g. `":t::Greeter"`).
+    pub name: String,
+    /// Method signatures in declaration order.
+    pub methods: Vec<ProtocolMethodSig>,
+}
+
+/// Arc 232 Stone 232.1 — an `extend-type` implementation.
+///
+/// Produced by `parse_extend_type_form`; stored as
+/// `Value::wat__core__extend_def` in `runtime_def_values` under a canonical
+/// `"extend:<P>:<T>"` key. The `impl_clauses` map holds the parsed impl
+/// body for each method (keyed by method name), ready for 232.3 dispatch.
+#[derive(Debug, Clone)]
+pub struct ExtendDef {
+    /// Type FQDN being extended (e.g. `":t::Robot"`).
+    pub type_name: String,
+    /// Protocol FQDN being implemented (e.g. `":t::Greeter"`).
+    pub protocol_name: String,
+    /// Per-method impl bodies: method name → `Clause` (argspec + body).
+    /// Keyed by method name string. Consumed by 232.3 dispatch.
+    pub impl_clauses: HashMap<String, Clause>,
+}
+
+// ─── end Arc 232 Stone 232.1 structs ─────────────────────────────────────────
 
 /// Stone 237.4 — per-clause failure reason for defclause dispatch.
 ///
@@ -827,6 +890,15 @@ impl std::hash::Hash for Value {
                 "wat__core__clauses".hash(state);
                 (Arc::as_ptr(cs) as usize).hash(state);
             }
+            // Arc 232 Stone 232.1 — registry carriers: not atomizable; pointer hash.
+            Value::wat__core__protocol_def(pd) => {
+                "wat__core__protocol_def".hash(state);
+                (Arc::as_ptr(pd) as usize).hash(state);
+            }
+            Value::wat__core__extend_def(ed) => {
+                "wat__core__extend_def".hash(state);
+                (Arc::as_ptr(ed) as usize).hash(state);
+            }
         }
     }
 }
@@ -978,6 +1050,9 @@ impl Value {
             Value::wat__holon__Record { .. } | Value::wat__Record { .. } => "wat::Record",
             // Stone 237.2 — multi-arity callable dispatcher.
             Value::wat__core__clauses(_) => "wat::core::clauses",
+            // Arc 232 Stone 232.1 — protocol registry carriers (not runtime-callable values).
+            Value::wat__core__protocol_def(_) => "wat::core::protocol-def",
+            Value::wat__core__extend_def(_) => "wat::core::extend-def",
         }
     }
 
@@ -1065,6 +1140,9 @@ impl Value {
             Value::wat__core__Char(_) => self.type_name().to_string(),
             Value::wat__core__List(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),
+            // Arc 232 Stone 232.1 — registry carriers: generic kind string.
+            Value::wat__core__protocol_def(_) => self.type_name().to_string(),
+            Value::wat__core__extend_def(_) => self.type_name().to_string(),
         }
     }
 }
