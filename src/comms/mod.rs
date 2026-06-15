@@ -793,6 +793,10 @@ impl EdnRepresentable for crate::value::Value {
     where
         Self: Sized,
     {
+        // Arc 272 6a-i — `from_wire` is the GENERAL `Value` deserializer; it does NOT assume a
+        // trusted channel, so it REFUSES capability (`wat-edn.cap`) tags. The trusted peer wire is
+        // the `recv'`/`select'` eval path (runtime.rs), which calls `decode_trusted_wire` directly —
+        // the one audited door that may reconstruct a capability (ocap transfer-only).
         crate::edn_shim::edn_string_to_value(s)
             .map_err(|e| WireError::new(format!("Value from_wire: {e}")))
     }

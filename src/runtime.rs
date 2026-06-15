@@ -23975,7 +23975,9 @@ fn eval_peer_recv_prime(
                         .into()
                     })
                 }
-                None => crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                // Arc 272 6a-i — recv' is the TRUSTED peer wire (bytes from a lineage peer): decode
+                // through the one capability-reconstructing door, not the general (cap-refusing) path.
+                None => crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
                     RuntimeError {
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
@@ -24431,7 +24433,9 @@ fn eval_peer_select_prime(
                         },
                     })
                 })?;
-                let value = crate::edn_shim::read_edn(&edn_str, None).map_err(|e| {
+                // Arc 272 6a-i — select' is the TRUSTED peer wire (bytes from a lineage peer): decode
+                // through the one capability-reconstructing door, not the general (cap-refusing) path.
+                let value = crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
                     EvalBreak::from(RuntimeError {
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {

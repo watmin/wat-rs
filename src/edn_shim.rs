@@ -879,10 +879,24 @@ pub fn read_edn(
     s: &str,
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnReadError> {
+    // General (untrusted) decode — capability tags are REFUSED (allow_caps = false).
+    read_edn_caps(s, types, false)
+}
+
+/// Arc 272 6a-i — the capability-aware decode worker. PRIVATE by design: when `allow_caps` is true,
+/// portable `wat-edn.cap` tags reconstruct into live capabilities. There is intentionally NO public
+/// way to pass `allow_caps = true` — the only caller that may is [`decode_trusted_wire`], the single
+/// audited door. This is what makes "mint a capability from an untrusted decode" UNREPRESENTABLE:
+/// general code holds no flag to flip and no fn to reach (extirpare top rung; ocap transfer-only).
+fn read_edn_caps(
+    s: &str,
+    types: Option<&crate::types::TypeEnv>,
+    allow_caps: bool,
+) -> Result<Value, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
         // arc 138: no span — read_edn operates on a raw &str with no WatAST trace
         .map_err(|e| EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
-    edn_to_value(&edn, types)
+    edn_to_value_caps(&edn, types, allow_caps)
 }
 
 /// Bridge a parsed `wat_edn::OwnedValue` to a runtime [`Value`],
@@ -894,10 +908,22 @@ pub fn read_edn(
 // `Value` contains `Arc`-wrapped types with interior mutability, triggering the lint.
 // The opaque-handle variants with interior mutability are never inserted into the set
 // (only EDN-representable primitive values are bridged here). False positive.
-#[allow(clippy::mutable_key_type)]
 pub fn edn_to_value(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnReadError> {
+    // Arc 272 6a-i gating — the GENERAL decode path REFUSES portable-capability (`wat-edn.cap`)
+    // tags. Object-capability rule: a capability is obtained only by being handed it on a trusted
+    // channel, NEVER forged from parsed data. The trusted peer wire opts in via the `_caps` worker
+    // with `allow_caps = true` (see `read_edn_caps` / `edn_string_to_value_trusted`).
+    edn_to_value_caps(edn, types, false)
+}
+
+#[allow(clippy::mutable_key_type)]
+fn edn_to_value_caps(
+    edn: &OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+    allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     match edn {
@@ -927,14 +953,14 @@ pub fn edn_to_value(
         Edn::List(items) => {
             let walked: std::collections::LinkedList<Value> = items
                 .iter()
-                .map(|x| edn_to_value(x, types))
+                .map(|x| edn_to_value_caps(x, types, allow_caps))
                 .collect::<Result<_, _>>()?;
             Ok(Value::wat__core__List(Arc::new(walked)))
         }
         Edn::Vector(items) => {
             let walked: Vec<Value> = items
                 .iter()
-                .map(|x| edn_to_value(x, types))
+                .map(|x| edn_to_value_caps(x, types, allow_caps))
                 .collect::<Result<_, _>>()?;
             Ok(Value::Vec(Arc::new(walked)))
         }
@@ -946,8 +972,8 @@ pub fn edn_to_value(
             let mut backing: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(entries.len());
             for (k, v) in entries {
-                let k_val = edn_to_value(k, types)?;
-                let v_val = edn_to_value(v, types)?;
+                let k_val = edn_to_value_caps(k, types, allow_caps)?;
+                let v_val = edn_to_value_caps(v, types, allow_caps)?;
                 if !crate::runtime::value_is_key_hashable(&k_val) {
                     return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::Other(format!("non-hashable map key: {}", k_val.type_name())) });
                 }
@@ -960,7 +986,7 @@ pub fn edn_to_value(
             // Value: Hash + Eq (Stone 216.5a) makes this work natively.
             let mut backing = std::collections::HashSet::with_capacity(items.len());
             for x in items {
-                let v_val = edn_to_value(x, types)?;
+                let v_val = edn_to_value_caps(x, types, allow_caps)?;
                 backing.insert(v_val);
             }
             Ok(Value::wat__std__HashSet(Arc::new(backing)))
@@ -970,7 +996,7 @@ pub fn edn_to_value(
         // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
         // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
         Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
-        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types),
+        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps),
     }
 }
 
@@ -1864,16 +1890,28 @@ fn tagged_to_value(
     tag: &Tag,
     body: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     let ns = tag.namespace();
     let name = tag.name();
 
     // Arc 272 6a-i — PORTABLE CAPABILITY tags. Sibling to `wat-edn.opaque` (which refuses): these
-    // ARE reconstructable across a process boundary. The first inhabitant is `address` (a kernel
-    // socket name). Checked BEFORE the opaque refusal below.
+    // ARE reconstructable — but ONLY off a TRUSTED channel (`allow_caps`, set by the peer wire). On
+    // the general decode path (`:wat::edn::read`, config, any parsed data) a `wat-edn.cap` tag is
+    // REFUSED exactly like an opaque: an object-capability is obtained by being handed it over a
+    // channel, never forged from data (ocap unforgeability + transfer-only). Checked BEFORE the
+    // opaque refusal below.
     if ns == "wat-edn.cap" {
-        return cap_tag_to_value(name, body);
+        if allow_caps {
+            return cap_tag_to_value(name, body);
+        }
+        return Err(EdnReadError {
+            span: Span::unknown(),
+            kind: EdnReadErrorKind::UnsupportedTag(format!(
+                "{ns}/{name} (capability tags reconstruct only off the trusted peer wire, never from parsed data)"
+            )),
+        });
     }
 
     // Substrate-emitted special tags. We don't reconstruct opaque
@@ -2156,6 +2194,56 @@ pub(crate) fn value_to_edn_string(v: &Value) -> String {
 /// process tier's program fn works on the decoded primitive scaffold.
 pub(crate) fn edn_string_to_value(s: &str) -> Result<Value, EdnReadError> {
     read_edn(s, None)
+}
+
+/// Arc 272 6a-i — **THE ONE TRUSTED-WIRE DECODE DOOR.** The sole entry that reconstructs portable
+/// capability (`wat-edn.cap`) tags into live capabilities. Object-capability transfer-only: a
+/// capability is obtained only by being handed it over a trusted channel — the process peer wire
+/// (`recv'` / `select'`, whose bytes came from a lineage peer) — NEVER forged from parsed data.
+///
+/// Every other decode entry (`edn_to_value` / `read_edn` / `edn_string_to_value` / `:wat::edn::read`)
+/// is **structurally incapable** of minting a capability: `read_edn_caps` is private, so no
+/// `allow_caps` flag exists for general code to set. To mint a capability you MUST come through this
+/// one named, greppable, audited door — the trap door nailed shut. A decode site that forgets to use
+/// it **safe-fails to refuse** (a regression, never a forge-hole).
+///
+/// **v3/v4 seam:** granularity lands HERE, additively — the door grows to take the sending peer's
+/// verified `SO_PEERCRED` (per-peer powerbox, v3) and ultimately a `fn(cap_type, peer, body) ->
+/// Decision` predicate (the capability-decode policy language, v4). Today: coarse "trusted ⇒ caps
+/// reconstruct." Enriching the policy never re-threads the decode.
+pub(crate) fn decode_trusted_wire(
+    s: &str,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnReadError> {
+    read_edn_caps(s, types, true)
+}
+
+#[cfg(test)]
+mod cap_decode_boundary {
+    //! Arc 272 6a-i — the trap-door ward. A capability (`wat-edn.cap`) tag reconstructs ONLY through
+    //! the trusted door; the general/untrusted decode path REFUSES it. If this ever flips, the
+    //! forge-hole reopens (parsed data minting live capabilities). This is the regression alarm bolted
+    //! onto the exact trap we fell through — it must never open again.
+    use super::{decode_trusted_wire, edn_string_to_value};
+
+    const CAP_TAG: &str = "#wat-edn.cap/address [0 1 2 3 4]";
+
+    #[test]
+    fn general_decode_refuses_capability_tags() {
+        assert!(
+            edn_string_to_value(CAP_TAG).is_err(),
+            "general/untrusted decode MUST refuse a wat-edn.cap tag — a capability is handed over a \
+             trusted channel, never forged from parsed data (ocap transfer-only)"
+        );
+    }
+
+    #[test]
+    fn trusted_door_reconstructs_capability_tags() {
+        assert!(
+            decode_trusted_wire(CAP_TAG, None).is_ok(),
+            "the trusted-wire door MUST reconstruct a wat-edn.cap tag into a live capability"
+        );
+    }
 }
 
 /// Convert a wat `Value` to `wat_edn::OwnedValue` consulting the
