@@ -126,12 +126,29 @@ routes through `Host/launch`, arc-209 4a-iii `41e01b8d`).
    pure churn + a new fd-plumbing failure surface for zero need. "socketpair" was an
    over-specification in this design ([[feedback_dont_build_the_forcing_function]] /
    [[feedback_curated_note_mechanism_must_be_grounded]] — four-Q the status quo first).
-5. **Annihilate the name stack** — remove socket-address'/connect-by-name/allow-set + the overclaiming
-   comment; migrate/retire the `c0b3bb`/`c0b3aii` tests onto the capability model (their flake dies
-   with the namespace).
-6. **Process Host/launch impl** — the `extend-type ProcessOpts Host` on the above (was "4b"); reuses
-   the EXISTING inherited self-peer (step 4) + threads the expected server pid → enables step 3's
-   pid-exact match.
+6. **Process Host/launch impl** — the `extend-type ProcessOpts Host` (was "4b"). **DOING THIS BEFORE
+   step 5** (agreed 2026-06-16): step 6 builds the capability-model process tests that REPLACE the
+   name-model tests, so step 5 then annihilates onto green replacements (author-adjacent /
+   [[feedback_dont_patch_the_grave]]). Design (A) — parent mints, child inherits — keeps `start`
+   uniform (it already autobinds via `listener'(process)` in 4a-iii). Sub-decomposition:
+   - **6a — listener-fd inheritance.** The parent's autobind listener (from `start`) must reach the
+     forked child so it accepts on it. The substrate ALREADY supports this:
+     `child_post_fork_init_preserving(lifeline_r_raw, extra_preserved: &[i32])` (child.rs:299)
+     preserves extra fds across the `close_inherited_fds_above_stdio` sweep (same as the lifeline).
+     So: thread the listener fd through `spawn-program'(process)` → `extra_preserved` → the child's
+     forms obtain it via an `install_listener` (mirror `install_self_peer`, verbs.rs:411). Probe:
+     parent autobinds, forks a child that accepts on the inherited fd, round-trips.
+   - **6b — `extend-type :wat::spawn::ProcessOpts :wat::spawn::Host` launch impl.** Builds the
+     serve-loop as FORMS (the deftest-hermetic' shape; the serve fn is invoked by the SAME keyword as
+     thread, via apply) + `spawn-program'(process)` passing the listener fd (6a) + returns `Spawned`.
+     Same `launch` method sig as thread; zero edit to `start`.
+   - **6c — post-spawn pid-trust + Handle pid threading.** The post-spawn-fn installs the lineage
+     trust (`allow'` the client into the server) and the `Handle` carries `pid_S` → completes step 3's
+     client→server pid-exact match (the symmetry; DO NOT forget the pid half).
+5. **Annihilate the name stack** (AFTER 6) — remove socket-address'/connect-by-name + the legacy 2-arg
+   `listener'(process)` arm + the overclaiming comment. **KEEP** the allow-set/`allow'`/`deny'`
+   (re-grounded, see above). Retire `c0b2c`/`c0b2d`/`c0b2a` (name rendezvous); the `c0b3aii`/`c0b3bb`
+   coverage now has capability-model replacements from step 6.
 
 Pairs [[project_shared_memory_partition_hosting]] + [[feedback_reach_stumble_is_the_signal]]
 + [[feedback_dont_build_the_forcing_function]] + [[feedback_no_magic_that_lets_llm_fake_correctness]]
