@@ -69,7 +69,8 @@ Available string primitives (`src/string_ops.rs`, `wat/` registrations):
 - `:wat::core::string::length s` → char count.
 - `:wat::core::string::subs s start end` → **char-indexed** substring (start-incl, end-excl). So
   `char-at(s, i)` = `(:wat::core::string::subs s i (:wat::core::i64::+ i 1))`.
-- `:wat::core::string::to-lowercase s` → lowercased copy.
+- `:wat::core::string::to-lowercase s` → lowercased copy. (Minted in arc 209 C.3 — it did NOT
+  exist before; it is the lowercase basis this conversion needs.)
 - `:wat::core::string::split s sep` → `Vector<String>`.
 - `:wat::core::string::concat …` → joined string.
 - `:wat::core::=` / `not=` on strings.

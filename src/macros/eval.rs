@@ -421,6 +421,7 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::String/ends-with?"
         | ":wat::core::string::length"
         | ":wat::core::string::trim"
+        | ":wat::core::string::to-lowercase"
         | ":wat::core::string::split"
         | ":wat::core::string::join"
         | ":wat::core::String/empty?"

@@ -85,6 +85,21 @@ pub fn eval_string_trim(
     Ok(Value::String(Arc::new(s.trim().to_string())))
 }
 
+/// `(:wat::core::string::to-lowercase s)` → `:String`.
+///
+/// Converts all ASCII/Unicode characters in `s` to their lowercase equivalent.
+/// Pure and total (Rust `String::to_lowercase` is deterministic, no IO).
+/// Arc 209 Stone C.3 — needed by `defservice` macro to derive fn names from PascalCase op keywords.
+pub fn eval_string_to_lowercase(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = one_string(":wat::core::string::to-lowercase", args, env, sym, list_span)?;
+    Ok(Value::String(Arc::new(s.to_lowercase())))
+}
+
 /// `(:wat::core::string::subs s start end)` → `:String`.
 ///
 /// Clojure's `subs`: start-inclusive, end-exclusive, CHAR-indexed.
