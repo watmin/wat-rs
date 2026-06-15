@@ -86,11 +86,15 @@ the process pipe. GREEN once 6a-i makes `Address'` EDN-representable.
 
 ## Decomposition
 
-- **6a-i** — `Address'` EDN-representable: `to_wire` = the name bytes; `from_wire` → `from_socket_name_bytes`.
-  The gate probe goes GREEN. (Pure substrate; no start/Host touch.)
+- **6a-i — ✅ DONE** (`f35bcfb5`). `Address'` crosses as a portable `#wat-edn.cap/address [bytes]` tag
+  (new `wat-edn.cap` namespace — see [NOTE-portable-capability-tags.md]); decode via
+  `from_socket_name_bytes`. The gate probe (`probe_arc272_6a_capability_handoff`) is GREEN end-to-end —
+  child autobinds (no name) → sends `Address'` over the self-peer → parent `recv'`s the capability (no
+  `-> :T`, via 258.5a) → `connect'`s it → 5→105. lib 919/36, nursery 896/4 (zero-new). The CORE
+  capability handoff is proven. (Depended on arc 258.5a — `connect'` infers — both shipped.)
 - **6b** — `extend-type :wat::spawn::ProcessOpts :wat::spawn::Host` `launch` (child autobinds + reports;
   parent recv's the addr; returns the `Handle`) + unify `start` (listener-minting moves into per-tier
-  `Host/launch`). Zero change to the constant `spawn-program'` surface.
+  `Host/launch`). Zero change to the constant `spawn-program'` surface. NEXT.
 - **6c** — post-spawn pid-trust (the mutual euid+pid both directions; `allow'` the client in).
 
 Pairs [[project_rendezvous_inherited_capability]] + [[project_shared_memory_partition_hosting]]
