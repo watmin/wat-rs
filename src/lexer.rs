@@ -811,8 +811,39 @@ fn lex_numeric_or_symbol(src: &str, start: usize) -> Result<(Token, usize), LexE
 fn lex_symbol(src: &str, start: usize) -> (String, usize) {
     let bytes = src.as_bytes();
     let mut i = start;
-    while i < bytes.len() && !is_symbol_break(bytes[i] as char) {
-        i += 1;
+    // Arc 271 — track `<...>` depth so a multi-type-param generic method name
+    // (a bare Symbol like `combine<A,B>`) keeps the comma that EDN treats as
+    // whitespace (`is_symbol_break`). This mirrors `lex_keyword`'s angle handling
+    // (which is why generic FNS `:foldl<T,Acc>` — keyword names — already worked):
+    // `<` opens a type-head only when preceded by an alphanumeric / `_` / `'`
+    // (`make<`, `Thread'<`), NEVER for a leading/operator `<` (`<-`, `<`, `<=`),
+    // so binder/arrow symbols are unaffected. While `angle_depth > 0`, a comma is
+    // retained instead of breaking the scan; at depth 0 it breaks as before.
+    let mut angle_depth = 0i32;
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        if c == '<' {
+            let prev_type_head = i > start && {
+                let p = bytes[i - 1] as char;
+                p.is_ascii_alphanumeric() || p == '_' || p == '\''
+            };
+            if prev_type_head {
+                angle_depth += 1;
+            }
+            i += 1;
+        } else if c == '>' {
+            if angle_depth > 0 {
+                angle_depth -= 1;
+            }
+            i += 1;
+        } else if c == ',' && angle_depth > 0 {
+            // Inside `<...>` the comma separates type params — keep it.
+            i += 1;
+        } else if is_symbol_break(c) {
+            break;
+        } else {
+            i += 1;
+        }
     }
     (src[start..i].to_string(), i)
 }
