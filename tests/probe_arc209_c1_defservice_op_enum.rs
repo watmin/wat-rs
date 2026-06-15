@@ -1,28 +1,24 @@
 //! Arc 209 Stone C.1 — `defservice` emits the op enum (the skeleton's first generated form).
 //!
 //! Stone C mints `:wat::service::defservice` (a PURE-WAT defmacro in `wat/service.wat`) that
-//! generates a complete service — the op enum + the `poll'` dispatch loop + the client wrappers
-//! — from a flat `:state` + `:ops` surface. **C.1 is the first sub-stone: the macro skeleton +
-//! the OP ENUM only.** C.2 adds the dispatch loop; C.3 the client wrappers + start fn.
+//! generates a complete service — per-op Request/Response records, op/reply enums, the dispatch
+//! loop, and the client face — from a flat `:state` + `:ops` surface. **C.1 is the first
+//! sub-stone: the macro skeleton + the OP ENUM only.** C.2 adds the dispatch loop; C.3 the
+//! client face + start fn.
 //!
 //! THE SURFACE (settled 2026-06-13, four-questions → option A): each op is a self-contained
-//! List `(OpName [s <- :State ...client-args] -> RetType body)` — bodies INLINE, the whole
-//! service in one form. The macro walks `:ops` WatAST-native (`ast->children` per op-List), and
-//! for the op enum it takes OpName + the arg-vec MINUS the leading `s <- :State` self-arg →
-//! the variant's client-arg fields. (The `->`/RetType/body are consumed by C.2, not C.1.)
+//! List `(OpName [s <- :State ...client-args] -> [out-fields] body)` — bodies INLINE, the whole
+//! service in one form. The macro walks `:ops` WatAST-native (`ast->children` per op-List).
 //!
-//! C.1's ONLY claim: `(defservice :my::counter :state :i64 :ops [...])` emits an op enum
-//! `:my::counter::Op` with one variant per op, each carrying the op's CLIENT args:
-//!   - `Get` handler args = `[s <- :State]` → only the self-arg → a BARE (fieldless) variant.
-//!   - `Increment` handler args = `[s <- :State n <- :i64]` → drop `s` → variant field `n <- :i64`.
+//! C.3 SHAPE (single format — no dual-format detection): per op, the macro emits a standalone
+//! Request record (`<fqdn>::<Op>Request`) and `Op::<Op>` WRAPS it (one field: `req`). No inline
+//! variant fields. The C.1 probe validates only the Op enum + the underlying IncrementRequest
+//! record (C.3 emits both before the enum).
 //!
-//! THE PROOF: construct `(:my::counter::Op::Increment 5)` and `match` it — the bare `:Get`
-//! arm compiles (proving the fieldless variant exists), the `:Increment` arm extracts `n == 5`
-//! (proving the client arg became a variant field, and the `s <- :State` self-arg was dropped).
-//!
-//! RED at HEAD: `:wat::service::defservice` is an unknown macro — `startup_from_source` fails
-//! to expand the top-level form, so the world never builds (and `:my::counter::Op::Increment`
-//! never resolves). Deterministically GREEN once C.1 ships the defservice skeleton + op enum.
+//! THE PROOF: construct `(:my::counter/increment-request 5)` (generated ctor), wrap in
+//! `(:my::counter::Op::Increment req)`, match — the bare `(:my::counter::Op::Get _r) 0` arm
+//! compiles (proving Get variant exists wrapping a GetRequest), the Increment arm extracts
+//! `n` via the generated accessor `(:my::counter::IncrementRequest/n req)` and returns 5.
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defservice_op_enum
 
@@ -31,47 +27,50 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-// The counter as ONE defservice (surface A — inline bodies). C.1 reads the op surface and
-// emits the op enum; the bodies/ret are inert until C.2 builds the loop. `probe-op` exercises
-// ONLY the generated enum: construct the payload variant, match both arms, return `n`.
+// The counter as ONE defservice (C.3 surface — wrapped-record shape). C.1 reads the op surface
+// and emits the Request/Response records + the op enum; probe-op exercises ONLY the generated
+// enum + the IncrementRequest record.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
   :state :wat::core::i64
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::Reply::Get s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
 
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::Reply::Increment s'))))])
+       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
 
-;; Exercise the GENERATED op enum: build :Increment with a client arg, match both variants.
-;; The bare `:Get` arm compiles only if Get is a real fieldless variant; the `:Increment`
-;; arm extracts the client field `n`.
+;; Exercise the GENERATED op enum (wrapped-record C.3 shape):
+;;   1. Build an IncrementRequest via the generated constructor.
+;;   2. Wrap it in the Op::Increment variant.
+;;   3. Match: Get arm returns 0 (proves Get variant exists + wraps GetRequest);
+;;      Increment arm extracts n via IncrementRequest/n accessor → 5.
 (:wat::core::defn :user::probe-op [] -> :wat::core::i64
-  (:wat::core::let [op (:my::counter::Op::Increment 5)]
+  (:wat::core::let [req (:my::counter/increment-request 5)
+                    op  (:my::counter::Op::Increment req)]
     (:wat::core::match op -> :wat::core::i64
-      (:my::counter::Op::Get 0)
-      ((:my::counter::Op::Increment n) n))))
+      ((:my::counter::Op::Get _r) 0)
+      ((:my::counter::Op::Increment req) (:my::counter::IncrementRequest/n req)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
 #[test]
-fn defservice_emits_op_enum_with_client_arg_fields() {
+fn defservice_emits_op_enum_with_wrapped_request_records() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed (Stone C.1: defservice emits the op enum)");
+        .expect("startup should succeed (Stone C.1: defservice emits Op enum + Request records)");
     let ast = wat::parse_one!("(:user::probe-op)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .map(|tv| tv.value_owned())
         .unwrap_or_else(|e| panic!("probe-op raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),
-        "expected 5: defservice :my::counter must emit `:my::counter::Op` with a bare \
-         (fieldless) `:Get` variant and an `:Increment` variant carrying the client arg \
-         `n <- :i64` (the leading `s <- :State` self-arg dropped); constructing \
-         `(:my::counter::Op::Increment 5)` + matching extracts n=5; got {got:?}"
+        "expected 5: defservice :my::counter must emit `:my::counter::Op` with a `:Get` variant \
+         wrapping `GetRequest` and an `:Increment` variant wrapping `IncrementRequest`; \
+         constructing `(increment-request 5)` + `(Op::Increment req)` + matching via \
+         `IncrementRequest/n` accessor extracts n=5; got {got:?}"
     );
 }

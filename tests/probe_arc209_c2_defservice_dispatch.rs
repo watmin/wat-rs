@@ -1,24 +1,23 @@
 //! Arc 209 Stone C.2 — `defservice` generates the dispatch loop (`serve`), RPC model.
 //!
-//! C.1 made `defservice` emit the request enum `<fqdn>::Op`. C.2 makes it ALSO emit the
-//! response enum `<fqdn>::Reply` AND `<fqdn>::serve` — the `poll'`/`ServiceEvent` dispatch
-//! loop that owns the live `:state` (state-as-self = the mutex), decodes each `Op`, runs the
-//! INLINE handler `(s, in) -> (:Tuple new-state reply)`, `send'`s the `Reply`, and TCO-recurs.
+//! C.1 made `defservice` emit the request enum `<fqdn>::Op` (+ per-op Request records). C.2 makes
+//! it ALSO emit the response enum `<fqdn>::Reply` (+ per-op Response records) AND `<fqdn>::serve`
+//! — the `poll'`/`ServiceEvent` dispatch loop that owns the live `:state` (state-as-self = the
+//! mutex), decodes each `Op` (unwrapping the inner Request record), runs the INLINE handler
+//! `(s, in...) -> Outcome::Reply{new-state, ResponseRecord}`, wraps the `Reply::<Op>(resp)`,
+//! `send'`s it back, and TCO-recurs.
 //!
-//! THE RPC MODEL (builder, 2026-06-14): an op is `(InRecord, OutRecord)`. Inline-and-minted:
-//!   - input fields  → `Op::<Op>`    variant (the request record)
-//!   - output fields → `Reply::<Op>` variant (the response record)
-//! Wire = `Peer'<Reply, Op>` (mirrors c0b1b's `Peer'<reply, request>` order). Names locked by
-//! an intueri cast: Op / Reply / serve / :state / :ops, variant-IS-the-record (no ::In/::Out).
+//! THE RPC MODEL (builder, 2026-06-14): an op is `(RequestRecord, ResponseRecord)`. Emitted as:
+//!   - per-op Request + Response records (Record::def)
+//!   - `Op::<Op>` variant WRAPS the Request (`req <- <Op>Request`)
+//!   - `Reply::<Op>` variant WRAPS the Response (`resp <- <Op>Response`)
+//! Wire = `Peer'<Reply, Op>` (server-side peer; mirrors c0b1b's `Peer'<reply, request>` order).
 //!
-//! THE GATE: defservice a counter, hand-drive the generated `serve` on a thread (C.3 will add
-//! the start fn + client wrappers; here the probe drives `serve` directly with a literal initial
-//! state). connect' → send' (Increment 5) → recv' = Reply::Increment{value 5} → send' Get →
-//! recv' = Reply::Get{value 5} → owner drops the handle → :Shutdown → join completes.
-//!
-//! RED at HEAD: C.1's macro emits only `Op`; `<fqdn>::Reply` and `<fqdn>::serve` do not exist,
-//! and the op bodies reference `:my::counter::Reply::*` (undefined) — the world fails to build.
-//! Deterministically GREEN once C.2 ships the two-enum + serve generation.
+//! THE GATE: defservice a counter, hand-drive the generated `serve` on a thread (C.3 adds the
+//! start fn + client wrappers; here the probe drives `serve` directly). connect' → send'
+//! (Op::Increment wrapping IncrementRequest{n=5}) → recv' = Reply::Increment{resp=IncrementResponse{5}}
+//! → send' (Op::Get wrapping GetRequest{}) → recv' = Reply::Get{resp=GetResponse{5}} →
+//! owner drops the handle → :Shutdown → join completes.
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c2_defservice_dispatch
 
@@ -27,28 +26,30 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-// The counter as ONE defservice — RPC model, inline In/Out, locked names. C.2 must generate
-// `Op` (C.1, unchanged), `Reply`, and `serve`.
+// The counter as ONE defservice — C.3 wrapped-record shape (single format). C.2 must generate
+// Op (C.1), Reply, and serve. Probe hand-drives serve directly.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
   :state :wat::core::i64
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::Reply::Get s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::Reply::Increment s'))))])
+       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
+
+;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
+;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
+(:wat::core::defn :user::reply-value [r <- :my::counter::Reply] -> :wat::core::i64
+  (:wat::core::match r -> :wat::core::i64
+    ((:my::counter::Reply::Get resp) (:my::counter::GetResponse/value resp))
+    ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))))
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
 ;; literal initial state 0, connects a client, round-trips two ops, reads the typed Reply.
-(:wat::core::defn :user::reply-value [r <- :my::counter::Reply] -> :wat::core::i64
-  (:wat::core::match r -> :wat::core::i64
-    ((:my::counter::Reply::Get value) value)
-    ((:my::counter::Reply::Increment value) value)))
-
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::counter::Op :my::counter::Reply)
@@ -60,11 +61,12 @@ const PROGRAM: &str = r#"
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
                 0)))
      c    (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c (:my::counter::Op::Increment 5))
+     _    (:wat::kernel::send' c (:my::counter::Op::Increment (:my::counter/increment-request 5)))
      r1   (:wat::kernel::recv' c)
-     _    (:wat::kernel::send' c :my::counter::Op::Get)
+     _    (:wat::kernel::send' c (:my::counter::Op::Get (:my::counter/get-request)))
      r2   (:wat::kernel::recv' c)]
-    ;; Increment 5 → state 0→5, reply 5; Get → reply 5. Assert the Get reply is 5.
+    ;; Increment 5 → state 0→5, reply IncrementResponse{5}; Get → reply GetResponse{5}.
+    ;; Assert the Get reply's value is 5.
     ;; Scope-exit drops `svc` → RAII drain → :Shutdown → serve exits → join completes.
     (:user::reply-value r2)))
 
@@ -81,7 +83,9 @@ fn defservice_generates_dispatch_loop_round_trips_on_thread() {
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),
-        "expected the Get reply value 5 (Increment 5 set state 0→5; Get read it back) round-tripped \
-         through the spawned counter service's generated serve-loop; got {got:?}"
+        "expected the Get reply's value 5 (Increment 5 set state 0→5; Get read it back) \
+         round-tripped through the spawned counter service's generated serve-loop \
+         (wrapped-record C.3 shape: Op::Increment wraps IncrementRequest, \
+          Reply::Get wraps GetResponse); got {got:?}"
     );
 }
