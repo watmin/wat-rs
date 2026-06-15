@@ -4956,6 +4956,10 @@ fn dispatch_keyword_head_value(
                             // class_fqdn has NO leading colon — add it for the extend key.
                             format!(":{}", class_fqdn)
                         }
+                        // Arc 267 — parametric/opaque receivers: type_name/type_path are
+                        // already colon-prefixed; use directly (do NOT re-add a colon).
+                        Value::Struct(sv) => sv.type_name.clone(),
+                        Value::RustOpaque(inner) => inner.type_path.to_string(),
                         other_val => {
                             return Err(RuntimeError {
                                 span: list_span.clone(),

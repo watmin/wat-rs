@@ -13683,6 +13683,14 @@ pub(crate) fn assignable(
             return true;
         }
     }
+    // Arc 267 — a parametric type satisfies a plain protocol bound iff its CONSTRUCTOR
+    // extend-types the protocol. Edge keys carry the leading colon (types.rs:1402);
+    // Parametric.head does not — reconcile with `format!(":{head}")`.
+    if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
+        if crate::types::is_subtype(&format!(":{head}"), ep, types) {
+            return true;
+        }
+    }
     unify(actual, expected, subst, types).is_ok()
 }
 

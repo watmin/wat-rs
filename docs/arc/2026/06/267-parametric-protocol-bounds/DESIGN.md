@@ -21,24 +21,39 @@ A `Parametric` actual (`Box<i64>`, or the real `Thread'<I,O>`/`Process'<I,O>` ha
 `Path` protocol bound (`:t::Tagged`, `:wat::kernel::Spawned`) never reaches the subtype check → falls
 to `unify` → rejected, even though the constructor `extend-type`s the protocol.
 
-## The fix (the one contract decision)
+## The fix — TWO parts (corrected after the strike found the runtime half)
 
-**A `Foo<…>` satisfies `:P` iff the CONSTRUCTOR `Foo` extend-types `:P`.** Add one arm to
-`assignable`: a `Parametric { head }` actual against a `Path(ep)` expected consults
-`is_subtype(head, ep)`. The type ARGS are irrelevant to satisfaction — the edge is registered on the
-constructor (`extend-type :wat::kernel::Thread' :P`), so any instantiation satisfies it.
+**A `Foo<…>` satisfies `:P` iff the CONSTRUCTOR `Foo` extend-types `:P`.** This must hold at BOTH the
+check layer (so a `:P`-typed param accepts the value) AND the runtime-dispatch layer (so
+`(:P/method recv)` finds the impl by the receiver's concrete type). The first strike applied part 1
+and the probe — running end-to-end, not just type-checking — caught that part 2 was missing
+(runtime.rs:4953 only recognized `Record` receivers; an explicit `// STOP-2: only Record variants…`
+comment confirms 232.3 scoped dispatch to Records knowingly).
 
-**Form reconciliation (load-bearing):** subtype edges are keyed WITH the leading colon
-(`register_subtype(":wat::holon::Record", ":wat::Record")`, types.rs:1402), but `Parametric.head` is
-stored WITHOUT it (`head: "wat::kernel::Listener'"`, check.rs:10299). So the head must be reconciled
-as `format!(":{head}")` before the `is_subtype` lookup.
-
+**Part 1 — check (`assignable`, check.rs:13681).** A `Parametric { head }` actual against a `Path(ep)`
+expected consults `is_subtype(head, ep)`. Args are irrelevant (the edge is on the constructor). Edge
+keys are keyed WITH the leading colon (`register_subtype(":wat::holon::Record", …)`, types.rs:1402),
+but `Parametric.head` is stored WITHOUT it (`head: "wat::kernel::Listener'"`, check.rs:10299) — so
+reconcile as `format!(":{head}")`:
 ```rust
 if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
-    let head_path = format!(":{head}");
-    if crate::types::is_subtype(&head_path, ep, types) { return true; }
+    if crate::types::is_subtype(&format!(":{head}"), ep, types) { return true; }
 }
 ```
+
+**Part 2 — runtime dispatch (`runtime.rs:4953`).** The `concrete_type_fqdn` match recognizes only
+`Value::wat__Record`/`wat__holon__Record` (via `class_fqdn`, which it colon-prefixes). Extend it to
+the other receiver shapes — both already carry the colon-prefixed FQDN, so use them directly:
+```rust
+Value::Struct(sv) => sv.type_name.clone(),            // e.g. ":t::Box" — already colon-prefixed
+Value::RustOpaque(inner) => inner.type_path.clone(),  // e.g. ":wat::kernel::Thread'" — already colon-prefixed
+```
+(Grounded: `StructValue.type_name` is stored colon-form — runtime.rs:18753 `":wat::kernel::Bound"`;
+`RustOpaque.type_path` is colon-form — `THREAD_PEER_TYPE_PATH = ":wat::kernel::Thread'"`; both match
+the `extend:<P>:<T>` key, whose `<T>` is the colon-form FQDN the Record path also produces.) The
+`other_val =>` error arm stays as the genuine fallback (a non-dispatchable receiver). No over-
+acceptance: a Struct/opaque that doesn't extend the protocol still fails the `extend_key` lookup →
+the existing clean "does not extend protocol" error.
 
 `is_subtype` already walks the multi-parent DAG transitively, so a head with several `extend-type`
 edges (or a chain) is handled unchanged.
