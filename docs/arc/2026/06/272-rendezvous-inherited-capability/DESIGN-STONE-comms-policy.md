@@ -55,20 +55,46 @@ only-my-peers(peer) := peer.uid == geteuid()  AND  peer.pid ∈ my-lineage-set
 - **Good UX?** YES — flipping the posture (strict-lineage vs any-of-my-user vs a custom predicate) is one
   policy value, not a scattered edit across accept/connect/decode.
 
-## The proof (here, on the 272 process tier)
+## The proof (here, on the 272 process tier) — SHIPPED, and where the honest ceiling sits
 
-A multi-process probe: parent spawns a child peer (in `only-my-peers`) — they comms, a capability flows
-(6a green). A **non-peer** process (not in the lineage, or different euid) attempts to connect — **refused
-at the gate** by the policy, not by an ad-hoc check. The refusal is the policy doing its job; the success
-is the peer being recognized. (RED at HEAD: no unified policy exists — the checks are scattered and a
-non-peer's refusal can't be attributed to a policy.)
+The proof set, all CI-portable + unprivileged (2026-06-16, `3d6357ed`):
+- **predicate logic** — `capability::policy::tests` unit-prove both rungs: `OnlyMyPeers` admits a lineage
+  peer, refuses a wrong-euid and a non-lineage pid; `AnyOfMyUser` admits my user at any pid, refuses a
+  different euid. No IO — pure logic.
+- **gate wiring (the refuse branch is real)** — `probe_arc209_c0b3bb_bounced::stranger_is_bounced`: a
+  genuine separate process whose pid ∉ the allow-set is **bounced at the live accept gate**,
+  multi-process — and post-v4 that refusal flows through `OnlyMyPeers.admits()`. The uid clause sits one
+  `&&` away in the same `admits()`, on the same call path.
+
+### Why there is NO cross-uid multi-process test (the dead-end, recorded so it is not re-walked)
+
+The tempting next test — "a *different-uid* process refused at the live gate" — was **examined and
+declined**. Two findings, grounded 2026-06-16:
+
+1. **It is OS-impossible to stage unprivileged.** An unprivileged process cannot manufacture a foreign
+   *kernel* uid: `unshare(CLONE_NEWUSER)` with no map makes a process `nobody` *to itself*, but its kuid
+   is invariant — our init-ns gate reads its real kuid (probed: child sees 65534, gate reads 1000 →
+   admitted). A genuine foreign kuid needs `newuidmap` + `/etc/subuid` (the rootless-container stack) or
+   root — i.e. privilege at runtime, which breaks public-CI portability. **We do not use sudo for this.**
+2. **Even if staged, it tests the kernel, not us (the decisive reason).** Its only delta over (predicate
+   unit) ∘ (c0b3bb wiring) is "does `getsockopt(SO_PEERCRED)` report a foreign process's uid as foreign"
+   — that is Linux's honesty, the **trusted axiom the whole ocap model stands on**, not our code. You do
+   not test your axioms. The four-questions kill it on **Honest**: it would masquerade as proving our
+   gate while proving the OS. (Same verdict retires the kuid-invariance probe as a permanent test — it
+   too measures the kernel; it served once as exploration and is done.)
+
+The connect-gate refuse branch (`!AnyOfMyUser.admits(...) → Err`) is a trivial early-return, identical in
+shape to the accept refuse branch that `c0b3bb` exercises; it is correct by the predicate unit test + by
+inspection. v4 is proven to the honest ceiling.
 
 ## Decomposition (to draw as strikes)
 
-1. **`CommsPolicy` + `only-my-peers`** — the predicate over `PeerCred` (Rust; the powerbox value).
+1. **`CommsPolicy` + `only-my-peers`** — the predicate over `PeerCred` (Rust; the powerbox value). ✅ DONE.
 2. **Consult it at the gates** — accept + connect call the policy instead of the inline euid/allow-set
-   checks (the allow-set BECOMES the lineage set the policy reads; `allow'`/`deny'` mutate it).
-3. **Prove** — the multi-process probe (peer comms; non-peer refused at the gate).
+   checks (the allow-set BECOMES the lineage set the policy reads; `allow'`/`deny'` mutate it). ✅ DONE
+   (`410af5e1` accept; `3d6357ed` connect → `AnyOfMyUser`, the honest connect-side rung until 6c).
+3. **Prove** — ✅ DONE to the honest ceiling: predicate unit tests + `c0b3bb` gate-wiring (see *The proof*
+   above). The cross-uid multi-process test is declined — OS-impossible unprivileged + tests the kernel.
 4. (later / v-next) **wat-expressible policy** — the predicate as a wat `fn(PeerCred) -> bool`, so a
    service declares its posture in wat. The full policy language.
 
