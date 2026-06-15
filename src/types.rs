@@ -1539,6 +1539,38 @@ fn splice_type_decls(
             }
             Ok(WatAST::List(new_children, span))
         }
+        // Arc 232.2 — register the subtype edge `T → P` from an `extend-type` form and KEEP the
+        // form (do NOT strip it — downstream passes, 232.1 CheckEnv + runtime, still need it).
+        // The form shape is `(:wat::core::extend-type :T :P (impl…)…)`.
+        ":wat::core::extend-type" => {
+            let decl_span = span.clone();
+            let type_name = match items.get(1) {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => {
+                    return Err(TypeError {
+                        span: decl_span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "extend-type".into(),
+                            reason: "expected keyword type name at position 1".into(),
+                        },
+                    })
+                }
+            };
+            let protocol_name = match items.get(2) {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => {
+                    return Err(TypeError {
+                        span: decl_span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "extend-type".into(),
+                            reason: "expected keyword protocol name at position 2".into(),
+                        },
+                    })
+                }
+            };
+            env.register_subtype(&type_name, &protocol_name, decl_span)?;
+            Ok(WatAST::List(items, span))
+        }
         _ => Ok(WatAST::List(items, span)),
     }
 }
