@@ -96,13 +96,6 @@
                        (:wat::core::string::concat fqdn-str
                          (:wat::core::string::concat "::Op,"
                            (:wat::core::string::concat fqdn-str "::Reply>")))))
-     ;; Thread'<fqdn::Op,fqdn::Reply> — the return type of spawn-program' with :thread
-     ;; when the prog fn takes Peer'<Reply,Op> (S=Reply, R=Op) → Thread'<R,S>=Thread'<Op,Reply>.
-     thread-ty     (:wat::core::keyword/from-string
-                     (:wat::core::string::concat "wat::kernel::Thread'<"
-                       (:wat::core::string::concat fqdn-str
-                         (:wat::core::string::concat "::Op,"
-                           (:wat::core::string::concat fqdn-str "::Reply>")))))
      ;; Client Peer'<fqdn::Op,fqdn::Reply> — connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
      ;; peer-ty (Peer'<Reply,Op>) which is the server-side peer (accepts via listener').
@@ -518,12 +511,12 @@
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
      ;; (Record::def <fqdn>::Handle
-     ;;   [handle <- :wat::kernel::Thread'<fqdn::Op,fqdn::Reply>
+     ;;   [handle <- :wat::kernel::Spawned
      ;;    addr   <- :wat::kernel::Address'<fqdn::Op,fqdn::Reply>])
-     ;; thread-ty = Thread'<Op,Reply>: spawn-program'/:thread returns Thread'<R,S> when
-     ;; prog takes Peer'<S,R>; here S=Reply,R=Op → Thread'<Op,Reply>.
-     ;; `[handle <- ~thread-ty addr <- ~addr-ty]` → Vector inner → checker skips it.
-     handle-fields `[handle <- ~thread-ty addr <- ~addr-ty]
+     ;; handle is the host-agnostic spawn-handle marker: Thread'/Process'/future-remote
+     ;; all derive :wat::kernel::Spawned so any concrete handle satisfies this field.
+     ;; addr carries the typed Address'<Op,Reply> for client connect'.
+     handle-fields `[handle <- :wat::kernel::Spawned addr <- ~addr-ty]
      handle-record `(:wat::Record::def ~handle-name ~handle-fields)]
 
     ;; Assemble the final `do`:

@@ -105,6 +105,13 @@
   :Closed     [idx   <- :wat::core::i64]
   :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])
 
+;; ── Spawned — the owner-side spawn-handle marker ────────────────────────────
+;; Spawned — the owner-side spawn-handle marker (typesub/derive axis; no methods). Thread'/Process'/
+;; future-remote derive it so the host-agnostic Handle field + Host/spawn return can bind any of them.
+;; Lifecycle = close'/join (intrinsics). A new transport's handle joins with one more `derive`.
+(:wat::core::derive :wat::kernel::Thread'  :wat::kernel::Spawned)
+(:wat::core::derive :wat::kernel::Process' :wat::kernel::Spawned)
+
 ;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what
