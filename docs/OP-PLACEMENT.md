@@ -1,8 +1,12 @@
-# DISPATCH — clause vs intrinsic: the polymorphism partition
+# OP-PLACEMENT — the checkable boundaries that decide where every operation lives
 
-Substrate doctrine. wat has **two** mechanisms for polymorphic operations, and which one an op uses is **not a taste call** — it is decided by a *checkable property of the op's type*. This document is the rule. When you add a new polymorphic op, or reclassify an existing one, the answer comes from here, not from a hunch.
+Substrate doctrine. **Where an op lives — clause, Rust intrinsic, or wat helper — is not a taste call.** Each boundary is decided by a *checkable property*, not a hunch. This document is the rule: when you add an op, or reclassify one, the answer comes from here. (The doc was once `DISPATCH.md` — "clause vs intrinsic"; it grew to hold the second boundary too, so the name now names the decision, not one mechanism.)
 
 Sibling to `CONFORMARE.md` / `ZERO-MUTEX.md`: same shape of doctrine — a decision made *checkable* so the wrong choice is caught by a property, not argued by vibe.
+
+This doc holds **two** checkable op-placement boundaries, both decided by a property not a hunch:
+1. **clause vs intrinsic** — for a polymorphic op, which dispatch mechanism (the bulk of this doc).
+2. **intrinsic vs wat-helper** — for *any* op, whether its implementation lives in Rust (the floor) or in wat (a helper composed from intrinsics). Decided by the macro fence — see *The macro fence* below.
 
 ## The two mechanisms
 
@@ -59,6 +63,39 @@ The fixed return type alone does **not** make an op a clause. Equality returns `
 | `get`, `conj`, `assoc`, `contains` | `Vector<T> -> Option<T>`, … | **intrinsic — projective** | return is a function of the container's type params |
 | `=`, `not=` | `a:T, b:T -> bool` (∀T) | **intrinsic — relational** | cross-argument unification; a clause checks positions independently and cannot tie them |
 
+## The macro fence — the second boundary (intrinsic vs wat-helper)
+
+The partition above decides *clause vs intrinsic* for a polymorphic op. A second, orthogonal
+boundary decides where an op's **implementation** lives — Rust (an intrinsic) or wat (a helper
+composed from intrinsics) — and it too is checkable, not taste.
+
+> **The rubric: does a macro need to call it?** Macro bodies run behind the macro-eval purity fence
+> — `is_pure_total` in `src/macros/eval.rs`, **default-DENY**. At expand time a macro may call only
+> allow-listed heads (Rust intrinsics + specific pure forms); it **cannot** call a user-defined wat
+> fn. So:
+> - **A macro needs it → Rust intrinsic**, added to `is_pure_total`. There is no other home — the
+>   fence cannot reach a wat helper.
+> - **No macro needs it → wat helper** (the **default** — the self-hosting ethos; keep it in wat
+>   unless a reason forces it to the floor).
+
+This is why `string::to-lowercase` and `string::pascal->kebab` are Rust intrinsics even though they
+are **monomorphic and composable** — the polymorphism partition above would *not* force them down.
+The defservice macro derives fn names at expand time, so it must reach them; the **fence** is the
+reason, not their type.
+
+It splits a pair by direction: `pascal->kebab` (defservice's macro needs it → intrinsic) vs
+`kebab->pascal` (no macro needs it → wat helper). Same family, opposite sides of the floor, one
+question deciding.
+
+The floor grows **only** for a real reason — a macro-need, a genuine primitive/syscall/FFI, or the
+polymorphism partition above — never on a whim. Reaching to add a Rust op? Ask the rubric first: if
+no macro needs it and it composes from intrinsics, it is a wat helper.
+
+| Op | Mono/poly | Verdict | Why |
+|---|---|---|---|
+| `string::to-lowercase`, `string::pascal->kebab` | monomorphic | **intrinsic — macro fence** | a macro (defservice) calls it at expand time; the fence can't reach a wat helper |
+| `kebab->pascal` (when built) | monomorphic | **wat helper** | composable from intrinsics; no macro needs it |
+
 ## Where it's declared (the source markers)
 
 The partition is marked **in the code**, at the dispatch sites, so a reader standing in the substrate sees it without leaving:
@@ -68,6 +105,8 @@ The partition is marked **in the code**, at the dispatch sites, so a reader stan
 - **The clause matcher** (the thing intrinsics are *not*): the defclause call-site checker, also in `infer_list` — first-match-wins, `assignable(arg_i, param_i)` per position. This is the mechanism whose two blind spots define the two intrinsic flavors above.
 
 The collection intrinsic *implementations* lift to `src/collection/` (arc 246); the *declaration* arms stay at the dispatch sites and redirect. Equality stays where it is (no home move).
+
+- **The macro fence (intrinsic vs wat-helper):** `fn is_pure_total` in `src/macros/eval.rs` — the default-DENY allow-list of heads a macro body may call at expand time. An op's presence on this list *is* the declaration that "a macro needs it, so it lives on the Rust floor." Adding a Rust intrinsic that a macro will call means adding its head here; a wat helper never appears.
 
 ## The trap (a cautionary tale, recorded so it isn't re-walked)
 

@@ -1,6 +1,6 @@
 # BRIEF — Stone 246.1 — lift the collection dispatch into `src/collection/`
 
-**Mission.** Lift the collection operations out of the flat `src/check.rs` + `src/runtime.rs` into a new warded-home-in-waiting `src/collection/`, and redirect the central dispatch arms into it. **Behavior-preserving — a pure move + redirect, no logic changes.** Full rationale + the intueri-cast names: `DESIGN.md` (same dir) + `docs/DISPATCH.md`. Read both first.
+**Mission.** Lift the collection operations out of the flat `src/check.rs` + `src/runtime.rs` into a new warded-home-in-waiting `src/collection/`, and redirect the central dispatch arms into it. **Behavior-preserving — a pure move + redirect, no logic changes.** Full rationale + the intueri-cast names: `DESIGN.md` (same dir) + `docs/OP-PLACEMENT.md`. Read both first.
 
 This stone does NOT ward (that's 246.2) and does NOT change any op's behavior. The existing `cargo test` suite is the regression guard — it must stay green by construction.
 
@@ -10,7 +10,7 @@ This stone does NOT ward (that's 246.2) and does NOT change any op's behavior. T
 src/collection/
   mod.rs        — home root. Module-doc states the clause-vs-intrinsic partition
                   doctrine (the word "intrinsic" lives HERE in prose; `get` as the
-                  worked proof; cite docs/DISPATCH.md). Declares `mod infer; mod eval;
+                  worked proof; cite docs/OP-PLACEMENT.md). Declares `mod infer; mod eval;
                   mod transform;`. NO vigilatum stamp yet (earned in 246.2). Mirror
                   the `src/function/mod.rs` doc shape (without the stamp line).
   infer.rs      — the 4 check-side inference intrinsics.
@@ -42,7 +42,7 @@ Substrate-as-teacher: move the fns, add `mod collection;`, then `cargo build --r
 
 ## The doctrine in `mod.rs` (the home's reason to exist)
 
-State the partition rule in prose (cite `docs/DISPATCH.md`): collections are the **projective intrinsic** — `get : Vector<T> → Option<T>`; the return is a function of the container's type params, which a monomorphic `defclause` cannot express. This is why these ops are intrinsics and live here. (The word `intrinsic` belongs here, in prose — not in a filename.)
+State the partition rule in prose (cite `docs/OP-PLACEMENT.md`): collections are the **projective intrinsic** — `get : Vector<T> → Option<T>`; the return is a function of the container's type params, which a monomorphic `defclause` cannot express. This is why these ops are intrinsics and live here. (The word `intrinsic` belongs here, in prose — not in a filename.)
 
 ## Green-gate (raw commands)
 

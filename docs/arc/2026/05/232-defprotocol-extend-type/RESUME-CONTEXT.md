@@ -14,7 +14,7 @@ The original 232.1 sub-DESIGN (2026-05-23) built defprotocol as a macro over han
 
 > *"AFTER arc 237 closes, defprotocol becomes a macro layer over **defclause + typeunion + extend-type** for open extension. Reduced scope (~2-3 stones)."*
 
-237 consolidated the substrate's dispatch into **defclause** (monomorphic ops) + **intrinsics** (type-level computation) — see `docs/DISPATCH.md`. That is the foundation defprotocol should build on now. Striking the pre-237 design would build defprotocol on a classifier-cond mechanism that 237 superseded.
+237 consolidated the substrate's dispatch into **defclause** (monomorphic ops) + **intrinsics** (type-level computation) — see `docs/OP-PLACEMENT.md`. That is the foundation defprotocol should build on now. Striking the pre-237 design would build defprotocol on a classifier-cond mechanism that 237 superseded.
 
 ## THE GATE — 232 HOLDS these closures (rejoin only when ALL FOUR close)
 

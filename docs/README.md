@@ -78,7 +78,7 @@ caveats (atomics, `OnceLock`, `Arc` are not the tiers but not violations
 either). Read it before writing your first concurrent wat program.
 Read it before reaching for a lock.
 
-**[`DISPATCH.md`](./DISPATCH.md)** — the polymorphism partition. wat
+**[`OP-PLACEMENT.md`](./OP-PLACEMENT.md)** — the polymorphism partition. wat
 has two mechanisms for polymorphic ops — `defclause` (monomorphic:
 concrete args, fixed return, no type-variable flow) and Rust intrinsics
 (type-level computation) — and which one an op uses is decided by a

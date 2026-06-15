@@ -23,7 +23,7 @@ engine); the KNOWLEDGE moves to wat.
    anonymous fn-form path hard-codes `type_params: Vec::new()`
    (`function/eval.rs:64`).
 2. **defclause** — multi-body, type-dispatched, but MONOMORPHIC: the matcher is
-   `assignable(arg_i, param_i)` against fixed named types (docs/DISPATCH.md).
+   `assignable(arg_i, param_i)` against fixed named types (docs/OP-PLACEMENT.md).
 3. **The HM machinery** — `Subst`/`unify`/`fresh` in check.rs (058-030), already
    instantiating the 91 Rust-synthesized ∀ schemes + arc-139 generic defns.
 4. **The arithmetic recipe** — wat defclause surface over Rust leaves
@@ -66,7 +66,7 @@ replaces every per-verb infer fn.
 - **The collection intrinsics sweep** — `get`/`conj`/`assoc`/`contains` become
   generic clauses per container head. Even equality's relational
   `[a <- T, b <- T]` is expressible under unification.
-- **docs/DISPATCH.md forward-corrects**: "clause" grows generic; "intrinsic"
+- **docs/OP-PLACEMENT.md forward-corrects**: "clause" grows generic; "intrinsic"
   shrinks to the true residue — genuinely COMPUTED types (variadic arities,
   conditional shapes, value-dispatch).
 
@@ -88,7 +88,7 @@ replaces every per-verb infer fn.
 214 finishes on the Rust intrinsics → 255 lands Native-leaf registration →
 THIS ARC: generic defclause → rewrite peer verbs as wat defclauses → DELETE the
 four Rust infer fns (probes must stay green unchanged) → sweep the collection
-intrinsics → DISPATCH.md forward-correction. Horizon: arc 251 types-as-forms /
+intrinsics → OP-PLACEMENT.md forward-correction. Horizon: arc 251 types-as-forms /
 `(ann-type …)` makes the signatures symbolic data; the compile-time wat tier
 eventually self-hosts the engine itself.
 
@@ -111,7 +111,7 @@ Layering matters — most of the potential arrives BEFORE type-forms:
    (:wat::core::structural-eq a b))` — the relational signature becomes
    expressible under matcher unification; the body stays ONE Native leaf
    (today's `values_equal` — the hottest loop belongs in the machine).
-   DISPATCH.md's intrinsic column shrinks to nearly nothing.
+   OP-PLACEMENT.md's intrinsic column shrinks to nearly nothing.
 4. **Process/thread control delegates as control-plane vs data-plane:**
    native forever = clone3/fds/io_uring/close-sweep/signals (~8 leaf verbs,
    the FFI boundary — Erlang-BIFs lineage). Wat = spawn policy
@@ -144,5 +144,5 @@ split (`split_name_and_type_params`, runtime.rs:2542 region) applied to the
 DEFCLAUSE name — mirror, don't reinvent.
 
 With this named, the stub is strike-complete: lair-study at strike time covers
-the rest (exact matcher line numbers shift; DISPATCH.md § "Where it's declared"
+the rest (exact matcher line numbers shift; OP-PLACEMENT.md § "Where it's declared"
 is the stable pointer).

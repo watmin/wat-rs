@@ -13,7 +13,7 @@ Verified against an independent orchestrator re-run, not the agent's self-report
 ## Structural verification (the HARD READ)
 
 - **Pure move:** the lifted fn bodies are byte-identical (path/visibility changes only — `pub(crate)`, `use crate::…`). No logic edits. Confirm via diff that `collection/*.rs` fn bodies match the originals.
-- **mod.rs doctrine:** states the clause-vs-intrinsic partition (the projective flavor, `get` as the worked proof) citing `docs/DISPATCH.md`; the word `intrinsic` appears in prose, NOT as a filename. Mirrors `function/mod.rs` doc shape. **No vigilatum stamp** (246.2 earns it).
+- **mod.rs doctrine:** states the clause-vs-intrinsic partition (the projective flavor, `get` as the worked proof) citing `docs/OP-PLACEMENT.md`; the word `intrinsic` appears in prose, NOT as a filename. Mirrors `function/mod.rs` doc shape. **No vigilatum stamp** (246.2 earns it).
 - **Module split honest:** `infer.rs` imports only check-side types (CheckEnv/InferCtx/Subst/TypeExpr); `eval.rs`/`transform.rs` only runtime types (Value/Environment/SymbolTable/RuntimeError). If a shared helper emerged, it lives in `mod.rs` (not a 4th file).
 
 ## Scope guard (do NOT touch)

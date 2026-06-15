@@ -29,7 +29,7 @@ A second strike deleted every `_lifted_*` fn + its `#[allow(dead_code)]` + the g
 
 - `collection/eval.rs` `eval_vector_get` (pub(crate), line 425) is a real impl; dispatch arm `:wat::core::Vector/get => crate::collection::eval::eval_vector_get`; `dispatch_substrate_impl` → `ceval::vector_get_inner`. The home is the live path. ✓
 - Faithful (not re-implemented): the move is behavior-preserving — proven by the unchanged 895/0/1 suite (any logic edit would break a collection-ops test) + the structural wiring. ✓
-- `mod.rs` inscribes the partition doctrine in prose (`get` worked proof, cites `docs/DISPATCH.md`); declares `mod infer; mod eval; mod transform;`. **No vigilatum stamp** (246.2 earns it). ✓
+- `mod.rs` inscribes the partition doctrine in prose (`get` worked proof, cites `docs/OP-PLACEMENT.md`); declares `mod infer; mod eval; mod transform;`. **No vigilatum stamp** (246.2 earns it). ✓
 - Legit support changes: `reduce` (check.rs), `require_vec`/`require_i64` (runtime.rs) → `pub(crate)` (the home needs them). Equality / `dispatch_keyword_head` / `infer_list` bodies otherwise untouched. ✓
 
 ## Doctrine note (the new wrinkle)

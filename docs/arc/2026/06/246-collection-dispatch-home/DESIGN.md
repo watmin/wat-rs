@@ -4,11 +4,11 @@
 
 ## Mission
 
-Lift the **container-polymorphic collection intrinsic dispatch** out of the flat `src/check.rs` + `src/runtime.rs` into a warded `src/collection/` home, redirect the central routing arms into it, ward it to L1+L2=0 (vigilatum stamp), and **inscribe the partition doctrine in the home's module-doc** so the "why isn't this a clause?" question is answered structurally, forever. Doctrine home: `docs/DISPATCH.md` (the prose); this arc is the **code** that proves it.
+Lift the **container-polymorphic collection intrinsic dispatch** out of the flat `src/check.rs` + `src/runtime.rs` into a warded `src/collection/` home, redirect the central routing arms into it, ward it to L1+L2=0 (vigilatum stamp), and **inscribe the partition doctrine in the home's module-doc** so the "why isn't this a clause?" question is answered structurally, forever. Doctrine home: `docs/OP-PLACEMENT.md` (the prose); this arc is the **code** that proves it.
 
 ## The name — `src/collection/` (intueri-cast, 2026-06-04)
 
-A spawned `intueri` cast settled the name (verdict grounded on the live tree + `docs/DISPATCH.md`):
+A spawned `intueri` cast settled the name (verdict grounded on the live tree + `docs/OP-PLACEMENT.md`):
 
 - **`src/collection/`** — names the DOMAIN; matches the noun-by-domain precedent (`function/`, `check/`, `types/`, `remedy/`, `comms/`, `rust_deps/`); makes no promise it can't keep.
 - **`src/dispatch/` REJECTED** — it would **lie**: it names itself after `dispatch_keyword_head`/`_value` (runtime.rs ~5295/5318, the *central* keyword dispatch that STAYS OUTSIDE this home and merely redirects in). A home named for the one mechanism it does not contain is an active cold-read lie — the worst Level-1 failure. Its only honest place is *demoted to a child module* under `collection/`, where the parent noun kills the collision.
@@ -35,7 +35,7 @@ A spawned `intueri` cast named the submodules, grounded on the **`src/function/`
 src/collection/
   mod.rs        — home root; the module-doc inscribes the clause-vs-intrinsic partition
                   doctrine (the word "intrinsic" lives HERE, in prose — `get` as the
-                  worked proof, cites docs/DISPATCH.md); the vigilatum stamp; any shared
+                  worked proof, cites docs/OP-PLACEMENT.md); the vigilatum stamp; any shared
                   helper (cf. `function/mod.rs`'s `FN_HEAD`).
   infer.rs      — the 4 check-side inference intrinsics (CheckEnv/InferCtx/Subst/TypeExpr).
   eval.rs       — the ~30 runtime per-Type impls + 3 constructors (Value/Environment/…).
@@ -44,7 +44,7 @@ src/collection/
                   weigh at the sweep.)
 ```
 
-**Why by-side, not a single `intrinsic.rs` (cast verdict):** the two sides have disjoint imports (check vs runtime types), so a by-side split keeps each file's import-world cohesive (intueri's "too many import-worlds = a mumbling file"); and `intrinsic` is the *doctrine* word — it belongs in the `mod.rs` prose where the DISPATCH.md doctrine lives, NOT a filename (a filename must show the home's shape on `ls`; `infer`/`eval` do, `intrinsic.rs` hides it). Mirrors `function/`'s `{eval,infer,parse,metadata}.rs`. A shared helper, if one emerges, lands in `mod.rs` (not a third mumbling file).
+**Why by-side, not a single `intrinsic.rs` (cast verdict):** the two sides have disjoint imports (check vs runtime types), so a by-side split keeps each file's import-world cohesive (intueri's "too many import-worlds = a mumbling file"); and `intrinsic` is the *doctrine* word — it belongs in the `mod.rs` prose where the OP-PLACEMENT.md doctrine lives, NOT a filename (a filename must show the home's shape on `ls`; `infer`/`eval` do, `intrinsic.rs` hides it). Mirrors `function/`'s `{eval,infer,parse,metadata}.rs`. A shared helper, if one emerges, lands in `mod.rs` (not a third mumbling file).
 
 ## Difficulty — moderate, bounded (a homes-walk sibling)
 
@@ -55,7 +55,7 @@ src/collection/
 1. **246.0 — DESIGN** (this doc). Name cast ✓, scope verified ✓, fn set grounded ✓. *Done when this commits.*
 2. **246.1 — LIFT + REDIRECT.** Create `src/collection/`; move the 4 `infer_*` + ~30 `eval_*` in; `pub(crate)` as needed; redirect the 110 central-match arms to `collection::*`; cascade to green (lib 895/0/1, build clean). FM-2-bis probe: a disconfirming contract that the collection ops still dispatch correctly post-lift + the home module exists.
 3. **246.2 — WARD** (vigilia 8-spell → L1+L2=0). Annihilate the failure classes; earn the `vigilatum` stamp. (Clippy-in-home = L2 — the home is held to the warded bar the flat files are not.)
-4. **246.3 — INSCRIBE + INSCRIPTION.** The module-doc states the discriminant with `get` as the worked proof, citing `docs/DISPATCH.md`; the home *answers* the question structurally. INSCRIPTION closes the arc.
+4. **246.3 — INSCRIBE + INSCRIPTION.** The module-doc states the discriminant with `get` as the worked proof, citing `docs/OP-PLACEMENT.md`; the home *answers* the question structurally. INSCRIPTION closes the arc.
 
 ## Gates (per stone)
 
