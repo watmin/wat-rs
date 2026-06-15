@@ -3769,6 +3769,25 @@ fn infer_list(
                     CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
                 };
             }
+            // Arc 237 follow-on — `:wat::core::derive` type-check arm.
+            // Shape: (:wat::core::derive :Child :Parent)
+            // Declaration form: validate shape via parse_derive_form; edge registration
+            // already happened in splice_type_decls (types.rs). Returns unit type.
+            ":wat::core::derive" => {
+                let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
+                if let Err(e) = crate::runtime::parse_derive_form(&form_as_list) {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: k.to_string(),
+                        reason: format!("{e}"),
+                        remedies: vec![],
+                    } });
+                }
+                return if local_errors.is_empty() {
+                    CheckResult::ok(TypeExpr::Tuple(vec![]))
+                } else {
+                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
+                };
+            }
             // Arc 265 — `:wat::core::string::declare-acronyms` type-check arm.
             // Shape: (:wat::core::string::declare-acronyms :ns ["ACL" ...])
             // Registry-only: parse for shape validation; registration already

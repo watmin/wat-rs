@@ -1539,6 +1539,40 @@ fn splice_type_decls(
             }
             Ok(WatAST::List(new_children, span))
         }
+        // Arc 237 follow-on — register the typesub edge Child→Parent from a `derive` form and
+        // KEEP the form (downstream passes — infer_list check arm + runtime eval arm — still
+        // see it). The form shape is `(:wat::core::derive :Child :Parent)`.
+        // Mirrors the extend-type arm immediately below: same register_subtype call, same
+        // pre-check point so assignable sees the edge; cycle check surfaces as CyclicSubtype.
+        ":wat::core::derive" => {
+            let decl_span = span.clone();
+            let child = match items.get(1) {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => {
+                    return Err(TypeError {
+                        span: decl_span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "derive".into(),
+                            reason: "expected keyword child type name at position 1".into(),
+                        },
+                    })
+                }
+            };
+            let parent = match items.get(2) {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => {
+                    return Err(TypeError {
+                        span: decl_span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "derive".into(),
+                            reason: "expected keyword parent type name at position 2".into(),
+                        },
+                    })
+                }
+            };
+            env.register_subtype(&child, &parent, decl_span)?;
+            Ok(WatAST::List(items, span))
+        }
         // Arc 232.2 — register the subtype edge `T → P` from an `extend-type` form and KEEP the
         // form (do NOT strip it — downstream passes, 232.1 CheckEnv + runtime, still need it).
         // The form shape is `(:wat::core::extend-type :T :P (impl…)…)`.

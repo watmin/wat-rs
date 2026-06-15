@@ -4054,6 +4054,9 @@ fn dispatch_keyword_head_value(
         // Arc 265 — namespace-scoped PascalCase⇄kebab converters.
         ":wat::core::string::pascal->kebab-in" => crate::string_ops::eval_string_pascal_to_kebab_in(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::kebab->pascal-in" => crate::string_ops::eval_string_kebab_to_pascal_in(args, list_span, env, sym).map_err(Into::into),
+        // Arc 237 follow-on — derive is a no-op at runtime (edge already registered
+        // at splice/pre-check time by splice_type_decls in types.rs). Accept as unit.
+        ":wat::core::derive" => Ok(Value::Unit),
         // Arc 265 — declare-acronyms is a no-op at runtime (registry already populated
         // at freeze time by preregister_acronyms). Accept it as unit.
         ":wat::core::string::declare-acronyms" => Ok(Value::Unit),
@@ -5914,6 +5917,50 @@ pub(crate) fn parse_extend_type_form(
         impl_clauses,
     });
     Ok((canonical_key, ed))
+}
+
+/// Arc 237 follow-on — parse a `(:wat::core::derive :Child :Parent)` form.
+///
+/// Returns `(child, parent)` keyword strings. Shape: exactly 3 items;
+/// items[1] = :Child keyword, items[2] = :Parent keyword. No method-impl
+/// loop — `derive` is the edge-only half of `extend-type`.
+pub(crate) fn parse_derive_form(form: &WatAST) -> Result<(String, String), RuntimeError> {
+    const HEAD: &str = ":wat::core::derive";
+    let form_span = form.span().clone();
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: "expected list".into()
+        } }.into()),
+    };
+    // items[0] = :wat::core::derive
+    // items[1] = :Child keyword
+    // items[2] = :Parent keyword
+    if items.len() != 3 {
+        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!(
+                "expected (:wat::core::derive :Child :Parent); got {} elements",
+                items.len()
+            )
+        } }.into());
+    }
+    let child = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!("derive first arg must be a keyword child type name; got {}", other.variant_name())
+        } }.into()),
+    };
+    let parent = match &items[2] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: HEAD.into(),
+            reason: format!("derive second arg must be a keyword parent type name; got {}", other.variant_name())
+        } }.into()),
+    };
+    Ok((child, parent))
 }
 
 // ─── end Arc 232 Stone 232.1 parse fns ───────────────────────────────────────
