@@ -15,12 +15,26 @@ use crate::comms::process::PeerCred;
 use std::collections::HashSet;
 
 /// A comms authorization policy over a peer's verified credentials.
+///
+/// The variants form a **ladder** of posture, from the strict lineage form down: each lower rung
+/// drops one clause of the one above it. The gates pick the rung they can honestly stand on —
+/// `OnlyMyPeers` where the lineage is known (the accept gate, which holds its allow-set),
+/// `AnyOfMyUser` where it is not yet (the connect gate, until the expected server pid is threaded
+/// in — arc 272 step 6c). Adding a rung (`these-gids`, a wat `fn(PeerCred) -> bool`, …) extends the
+/// policy language; the `admits` contract never changes (the narrow-waist law, applied to authority).
 pub enum CommsPolicy<'a> {
     /// Admit iff the peer runs as me (euid match) AND its pid is one of mine — a member of the
     /// **lineage set** (the pids I spawned; a listener's allow-set). The 272 trust model — *"only my
     /// peers"* — named. This is the object-capability transfer-only rule made a predicate: authority
     /// flows only along the spawn lineage, verified by the kernel, never to a stranger.
     OnlyMyPeers { lineage: &'a HashSet<i32> },
+    /// Admit iff the peer runs as me (euid match) — **any** process of my own user, regardless of
+    /// pid. `OnlyMyPeers` with the lineage clause dropped. The honest posture of the **connect** gate
+    /// today: dialing out, the client verifies the answerer is one of our user's processes, but it
+    /// cannot yet pin *which* pid it expected — that knowledge arrives only when the Handle threads
+    /// the server pid (arc 272 step 6c), at which point connect upgrades to `OnlyMyPeers`. Naming the
+    /// weaker rung keeps the gate from *claiming* a pid check it does not perform.
+    AnyOfMyUser,
 }
 
 impl CommsPolicy<'_> {
@@ -31,6 +45,7 @@ impl CommsPolicy<'_> {
             CommsPolicy::OnlyMyPeers { lineage } => {
                 peer.uid == my_euid && lineage.contains(&peer.pid)
             }
+            CommsPolicy::AnyOfMyUser => peer.uid == my_euid,
         }
     }
 }
@@ -55,5 +70,19 @@ mod tests {
         assert!(!policy.admits(&cred(100, me + 1), me), "another user's process is not my peer");
         // My user, but a STRANGER pid (∉ lineage) → refused (transfer-only: not in my lineage).
         assert!(!policy.admits(&cred(999, me), me), "a non-lineage pid is not my peer");
+    }
+
+    #[test]
+    fn any_of_my_user_admits_my_user_at_any_pid_and_refuses_other_users() {
+        let policy = CommsPolicy::AnyOfMyUser;
+        let me: u32 = 1000;
+
+        // My user — ADMITTED regardless of pid (the connect gate cannot pin a pid yet; the lineage
+        // clause is dropped, so any pid of my user passes).
+        assert!(policy.admits(&cred(100, me), me), "a process of my user, pid 100 — admitted");
+        assert!(policy.admits(&cred(999, me), me), "a process of my user, any other pid — admitted");
+        // Different user (euid mismatch) → REFUSED — the floor every rung shares (the connect gate's
+        // euid check, now expressed as policy; a cross-uid server is bounced at dial time).
+        assert!(!policy.admits(&cred(100, me + 1), me), "another user's process — refused at the floor");
     }
 }
