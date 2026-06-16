@@ -124,37 +124,84 @@ re-casts and converges. Pairs [[project_rendezvous_inherited_capability]] +
 
 ---
 
-## 6c.2 — THE STRIKE (the live plan; redrawn 2026-06-16 round 6)
+## 6c.2 — THE STRIKE (the live plan; contract PINNED 2026-06-15, grounded against `32e2e9d6`)
 
 **Contract decision (pinned):** the connect gate verifies `answerer.uid == my_euid AND answerer.pid ==
 the minter pid carried by the dialed `Address'`.` The minter pid is stamped at autobind (perfect
 knowledge: the minter's own `getpid`), travels with the capability by value (no global set, no mutex),
 and is checked against the kernel-vouched `SO_PEERCRED` pid of the answerer.
 
-**Files / seams (grounded):**
-- `src/kernel/address.rs` — `SocketAddress` gains a `minter_pid: i32` (or `Option<i32>`; prefer
-  always-present since every autobind has one). `connect_admits` (addr.rs:224) becomes
-  `OnlyMyPeers`-shaped: `answerer.uid==euid AND answerer.pid==self.minter_pid` (NOT `AnyOfMyUser`). The
-  connect gate (addr.rs:183) passes the dialed address's `minter_pid`.
-- `src/runtime.rs` `eval_listener_prime` autobind arm (~18752) — stamp `libc::getpid()` into the
-  `Address::from_socket_name_bytes(...)` result (extend the ctor or set the field).
-- `src/capability/registry.rs` `address_codec` — the `wat-edn.cap/address` wire body carries name bytes
-  **+** the minter pid (e.g. `OwnedValue::Vector([pid, ...name bytes])` or a 2-field tagged shape).
-  Encode `portable_name_bytes` + pid; decode reconstructs both. Update `address_decode_rejects_*` tests +
-  add the distinctness already there.
-- `Address::from_socket_name_bytes` + `portable_name_bytes` signatures extend to carry the pid.
-- 6a handoff (`probe_arc272_6a_capability_handoff`, `c0b3bb_bounced` served leg) — the child autobinds
-  (its pid stamped), sends the `Address'` up; the parent connect verifies answerer.pid==child pid. Should
-  stay green (parent dials the live child). The c0b3bb stranger leg: the stranger rebinds → different pid
-  → connect (by the owner) would now ALSO bounce on pid — but that test bounces at ACCEPT; keep it.
+### The seven pinned decisions (the orchestrator's crawl, settled)
 
-**RED probe:** a same-uid process binds a DIFFERENT autobind address than the one stamped, hand the client
-an `Address'` whose `minter_pid` ≠ the actual answerer's pid → connect REFUSES (today it would admit on
-euid alone). GREEN after 6c.2.
+1. **A new policy rung `OnlyThisPeer { pid: i32 }`** (`src/capability/policy.rs`) — `admits` iff
+   `peer.uid == my_euid && peer.pid == pid`. The connect side has perfect knowledge of *exactly one*
+   expected pid (the minter), not a *set* — so the cardinality-honest shape is its own rung, not
+   `OnlyMyPeers{lineage:{minter}}` (a singleton-set fiction) nor `AnyOfMyUser` (the dropped-pid floor).
+   The module doc already invites this: "adding a rung extends the policy language; the `admits`
+   contract never changes" (the narrow-waist law). Add a parallel unit test.
+2. **`AnyOfMyUser` is ANNIHILATED** (extirpare — not bypassed). Grounded: its *sole* consumer is
+   `connect_admits` (address.rs:184/226). With the minter pid stamped, the euid-only posture has no
+   honest consumer left → remove the variant, its `admits` arm, its doc paragraph, and its unit test
+   `any_of_my_user_admits_my_user_at_any_pid_and_refuses_other_users`. The enum is left with two live
+   rungs: `OnlyMyPeers{lineage}` (accept gate) and `OnlyThisPeer{pid}` (connect gate).
+3. **`SocketAddress` gains `minter_pid: i32`** (always present — every autobind stamps one; not
+   `Option`, there is no address without a minter). `ThreadAddress` is untouched (in-process, no
+   peer-cred gate, no portable form).
+4. **Wire shape (PINNED):** the `wat-edn.cap/address` body becomes a 2-element vector
+   `OwnedValue::Vector([OwnedValue::Integer(minter_pid), OwnedValue::Vector([name bytes…])])` —
+   `(pid, name-bytes-vector)`. Decode validates: outer is a `Vector` of len exactly 2; elem 0 is an
+   `Integer` in `i32` range; elem 1 is the byte-vector (the existing empty / over-long / `0..=255`
+   checks move onto elem 1). The pid being a distinct element (not folded into the byte stream) keeps
+   the existing byte-range validation honest.
+5. **`from_socket_name_bytes(name: Vec<u8>, minter_pid: i32)`** — both call sites pass the pid: the
+   autobind arm stamps `libc::getpid()` (runtime.rs:18697); decode passes the wire pid (registry.rs:138).
+6. **`portable_name_bytes` → `portable_form() -> Option<(i32, Vec<u8>)>`** returning `(minter_pid, name)`
+   — one downcast yields both fields (they always cross together or not at all). `Some` only for
+   `SocketAddress`; `None` for `ThreadAddress` (no portable form).
+7. **`connect_admits(server, euid, minter_pid)`** → `CommsPolicy::OnlyThisPeer{pid: minter_pid}
+   .admits(server, euid)`. `SocketAddress::connect` passes `self.minter_pid`.
 
-**Then:** retract the false "unguessable" claims (listed in the corrected banner above) + the exigere
-future-rungs prose; re-cast the `src/capability/` vigilatum → converges (the round-6 L1 was the false
-claim; 6c.2 + the retraction close it) → **stamp** the vigilatum in `src/capability/mod.rs`.
+### The disconfirming probe — OUR gate logic, never the kernel's honesty
+
+`tests/probe_arc272_6c2_pid_gate.rs` exercises the **public** `CommsPolicy::OnlyThisPeer` rung with
+**synthesized** `PeerCred` values (no socket, no fork, no privilege): exact-pid same-uid → admitted;
+**same-uid wrong-pid → REFUSED** (the death-then-rebind edge); right-pid wrong-uid → refused (the floor).
+**RED at HEAD** because the `OnlyThisPeer` variant does not exist — the compile failure names exactly the
+gap: *the policy language cannot express "only this one pid" today.*
+
+⛔ **No multi-process IO probe.** The earlier draft proposed a same-uid forked process with a mismatched
+stamped pid → connect refuses. That is REJECTED per [[feedback_dont_test_the_substrates_honesty]]: it
+would need privileged staging and would prove the kernel reports `SO_PEERCRED` pid honestly — an axiom,
+not our code. The pid *comparison* is ours and is proven pure, at the unit level. The live wiring
+(connect passes `self.minter_pid`; the wire round-trips the pid) is covered by inspection + the
+GREEN-after regression guards below.
+
+### Regression guards (must stay green)
+
+- `probe_arc272_6a_capability_handoff` — the parent dials the **live** child; answerer pid == the child's
+  stamped minter pid → admitted. The codec now carries the pid across the wire, so the parent decodes
+  the child's pid. Stays GREEN.
+- `address.rs` connect-gate unit test — rewritten for the 3-arg `connect_admits`: exact pid admitted,
+  wrong-pid-same-uid refused, wrong-uid refused.
+- `registry.rs` codec tests — a pid round-trip (encode→decode carries pid + name); the empty / over-long
+  rejections updated to the 2-element wire shape.
+
+### Retractions (the false "unguessable ⇒ lineage-proven" claim) + exigere L1
+
+Re-anchor every site on: *the `SO_PEERCRED` uid+pid checks ARE the security; the autobind name is an
+exclusive-bind rendezvous token, not a secret.*
+- `policy.rs` — the `AnyOfMyUser` doc block goes with the variant; the module-doc `these-gids` /
+  wat-predicate "future rungs" prose (the exigere round-6 L1, policy.rs:12-14/25-26) rewritten
+  present-tense to the two rungs that EXIST.
+- `address.rs:163-172` (the connect comment) + `connect_admits` doc — the pid IS checked now.
+- `runtime.rs` autobind arm (18636/18663 "unguessable") + recv'/select' decode comments
+  (23845/24307) — re-anchor on the pid-verified channel, not name-secrecy.
+- `comms/process.rs:178` — soften "unguessable abstract name" → "kernel-minted, exclusive-bind, not a
+  chosen name" (the collision/squat-freedom claim is TRUE; only the secrecy implication is dropped).
+- `DESIGN-STONE-step5-annihilate-the-name.md:24` — the false "unguessable" line.
+
+**Then:** re-cast the `src/capability/` vigilatum → converges (round-6 L1 was the false claim; 6c.2 +
+the retraction close it) → **stamp** the vigilatum in `src/capability/mod.rs`.
 
 **Why this is the bar (not euid-only-resignation):** both gates do uid+pid; the connect leg is genuinely
 lineage-verified; name-secrecy is irrelevant because the PID is checked, not because we gave up on
