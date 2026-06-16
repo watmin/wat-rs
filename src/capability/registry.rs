@@ -106,6 +106,21 @@ fn address_codec() -> CapCodec {
                     })
                 }
             };
+            // Cap the decoded name at the abstract-UDS limit (`sun_path` is 108 bytes; an abstract
+            // name occupies `sun_path[1..]`, so ≤ 107). Reject an over-long name HERE — an early,
+            // located error on the trusted wire — rather than letting it fail late + unlocated at
+            // `connect_addr` (kernel/address.rs).
+            const ABSTRACT_UDS_NAME_MAX: usize = 107;
+            if items.len() > ABSTRACT_UDS_NAME_MAX {
+                return Err(EdnReadError {
+                    span: Span::unknown(),
+                    kind: EdnReadErrorKind::UnsupportedTag(format!(
+                        "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
+                        items.len(),
+                        ABSTRACT_UDS_NAME_MAX
+                    )),
+                });
+            }
             let mut bytes = Vec::with_capacity(items.len());
             for it in items {
                 match it {
@@ -181,5 +196,21 @@ mod waist_proof {
             _ => panic!("expected a reconstructed :test::Token opaque"),
         }
         // ZERO lines of edn_shim changed to add this capability. The waist is frozen; the edge grew.
+    }
+
+    #[test]
+    fn address_decode_rejects_overlong_name() {
+        // A name longer than the abstract-UDS limit (107 bytes) is refused at decode with a located
+        // error — not deferred to a late, unlocated connect failure. (A trusted-wire codec rejects a
+        // malformed body early.)
+        let overlong = OwnedValue::Vector((0..200).map(|_| OwnedValue::Integer(b'a' as i64)).collect());
+        let err = decode_in(&[address_codec()], "address", &overlong)
+            .expect_err("an over-long address name must be refused at decode");
+        match err.kind {
+            EdnReadErrorKind::UnsupportedTag(msg) => {
+                assert!(msg.contains("exceeds"), "expected the over-long rejection, got: {msg}")
+            }
+            other => panic!("expected UnsupportedTag for an over-long name, got {other:?}"),
+        }
     }
 }

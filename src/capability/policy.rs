@@ -2,14 +2,16 @@
 //!
 //! *"Only my peers can comms with me."* A [`CommsPolicy`] decides, from a peer's KERNEL-VERIFIED
 //! credentials ([`PeerCred`] = `SO_PEERCRED` `{pid,uid,gid}`, unforgeable), whether to admit it. It is
-//! the single mediator that unifies the formerly-scattered accept/connect credential checks — Mark
-//! Miller's *powerbox*: the one place deciding which peers a process may obtain authority from.
+//! the single mediator for the **process-tier** (cross-boundary) accept/connect credential checks —
+//! Mark Miller's *powerbox*: the one place deciding which peers a process may obtain authority from.
+//! The thread tier needs no powerbox: an in-process peer is reached only by holding its crossbeam
+//! handle, so possession of the handle IS the grant — there is no kernel credential to verify.
 //!
 //! The trust boundary is verified at the gate (end-to-end); the capability waist (`registry`) then
-//! rides an already-authorized channel. Shaped to grow into a **policy language**: today the single
-//! `OnlyMyPeers` variant (euid + lineage pid); future variants (any-of-my-user, these-gids, and
-//! ultimately a wat `fn(PeerCred) -> bool` predicate) are added to the enum — the rigid `admits`
-//! contract never changes, the expressible policies do (the narrow-waist law, applied to authority).
+//! rides an already-authorized channel. Shaped to grow into a **policy language**: the two present
+//! rungs are `OnlyMyPeers` (euid + lineage pid) and `AnyOfMyUser` (euid alone); further rungs
+//! (`these-gids`, ultimately a wat `fn(PeerCred) -> bool` predicate) are added to the enum — the
+//! rigid `admits` contract never changes, the expressible policies do (the narrow-waist law).
 
 use crate::comms::process::PeerCred;
 use std::collections::HashSet;
@@ -19,9 +21,9 @@ use std::collections::HashSet;
 /// The variants form a **ladder** of posture, from the strict lineage form down: each lower rung
 /// drops one clause of the one above it. The gates pick the rung they can honestly stand on —
 /// `OnlyMyPeers` where the lineage is known (the accept gate, which holds its allow-set),
-/// `AnyOfMyUser` where it is not yet (the connect gate, until the expected server pid is threaded
-/// in — arc 272 step 6c). Adding a rung (`these-gids`, a wat `fn(PeerCred) -> bool`, …) extends the
-/// policy language; the `admits` contract never changes (the narrow-waist law, applied to authority).
+/// `AnyOfMyUser` where it is not (the connect gate, which holds no allow-set — dialing out, it has
+/// no set of expected pids to check against, so it checks euid alone). Adding a rung (`these-gids`,
+/// a wat `fn(PeerCred) -> bool`, …) extends the policy language; the `admits` contract never changes.
 pub enum CommsPolicy<'a> {
     /// Admit iff the peer runs as me (euid match) AND its pid is one of mine — a member of the
     /// **lineage set** (the pids I spawned; a listener's allow-set). The 272 trust model — *"only my
@@ -29,10 +31,9 @@ pub enum CommsPolicy<'a> {
     /// flows only along the spawn lineage, verified by the kernel, never to a stranger.
     OnlyMyPeers { lineage: &'a HashSet<i32> },
     /// Admit iff the peer runs as me (euid match) — **any** process of my own user, regardless of
-    /// pid. `OnlyMyPeers` with the lineage clause dropped. The honest posture of the **connect** gate
-    /// today: dialing out, the client verifies the answerer is one of our user's processes, but it
-    /// cannot yet pin *which* pid it expected — that knowledge arrives only when the Handle threads
-    /// the server pid (arc 272 step 6c), at which point connect upgrades to `OnlyMyPeers`. Naming the
+    /// pid. `OnlyMyPeers` with the lineage clause dropped. The honest posture of the **connect** gate:
+    /// dialing out, the client verifies the answerer is one of our user's processes; it holds no
+    /// allow-set of expected pids (unlike the accept gate), so it checks euid alone. Naming the
     /// weaker rung keeps the gate from *claiming* a pid check it does not perform.
     AnyOfMyUser,
 }
