@@ -12,6 +12,9 @@
 //!   error is "unknown verb", which does NOT mention the tier). GREEN after 3b-b: `allow'` on a
 //!   thread `listener'` is a clean runtime error whose message names the process-tier gate.
 //!
+//! The listener is now autobiound (arc 272 — no fixed name); `(Bound/listener b)` extracts the
+//! `Listener'` value for use with `allow'`/`deny'`. The verb proof is identical.
+//!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_verbs -- --test-threads=1
 
 use std::sync::Arc;
@@ -20,11 +23,12 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 // allow'/deny' on a PROCESS listener' succeed (return nil). The allow-set is the SocketListener's.
+// Autobind: (listener' (process) :S :R) → Bound; (Bound/listener b) extracts the Listener'.
 const PROCESS_VERBS_PROGRAM: &str = r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [l (:wat::kernel::listener' (:wat::spawn::process)
-         (:wat::kernel::socket-address' "wat.arc209.c0b3bb.verbs" :wat::core::i64 :wat::core::i64))
+    [b (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+     l (:wat::spawn::Bound/listener b)
      _ (:wat::kernel::allow' l 12345)
      _ (:wat::kernel::deny' l 12345)]
     42))

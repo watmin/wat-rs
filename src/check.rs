@@ -4969,16 +4969,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.2d — socket-address': (name :S :R) -> SocketAddress'<S,R>.
-            // Constructs a typed address from a shared String name; both sides rendezvous by name.
-            ":wat::kernel::socket-address'" => {
-                let (val, mut errs) = infer_socket_address_prime(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
             // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> Peer'<S,R>.
             // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
             // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
@@ -10181,66 +10171,6 @@ fn infer_socket_pair_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 209 C0b.2d / C0b.2e-iii — `(:wat::kernel::socket-address' name :S :R)` → `Address'<S,R>`.
-///
-/// 3 args: `name` (a `String` value), `:S`, `:R` (type keywords — checker-only).
-/// Infers `name` as `:wat::core::String`; parses `:S` and `:R` via `parse_peer_pair_type_arg`;
-/// returns `Address'<S,R>` (was `SocketAddress'<S,R>` — arc 209 C0b.2e-iii unifies).
-fn infer_socket_address_prime(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::kernel::socket-address'";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-
-    if args.len() != 3 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: OP.into(), expected: 3, got: args.len()
-        } });
-        let s = fresh.fresh();
-        let r = fresh.fresh();
-        return CheckResult::partial_with(
-            TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
-            local_errors,
-        );
-    }
-
-    // args[0] must be a String.
-    let name_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-        Some(t) => t,
-        None => {
-            let s = fresh.fresh();
-            let r = fresh.fresh();
-            return CheckResult::partial_with(
-                TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s, r] },
-                local_errors,
-            );
-        }
-    };
-    let string_ty = TypeExpr::Path(":wat::core::String".into());
-    if let Err(_) = unify(&name_ty, &string_ty, subst, env.types()) {
-        local_errors.push(CheckError {
-            span: args[0].span().clone(),
-            kind: CheckErrorKind::TypeMismatch {
-                callee: OP.into(),
-                param: "name".into(),
-                expected: ":wat::core::String".into(),
-                got: format_type(&apply_subst(&name_ty, subst)),
-            },
-        });
-    }
-
-    // args[1] and args[2] are type keywords for S and R.
-    // Arc 209 C0b.2e-iii: return Address'<S,R> (unified; was SocketAddress'<S,R>).
-    let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
-    let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
-    let ty = TypeExpr::Parametric { head: "wat::kernel::Address'".into(), args: vec![s_ty, r_ty] };
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
-}
 
 /// `(Tuple Peer'<S,R> Peer'<R,S>)` — the crossed result type of `socket-pair'`
 /// (arc 209 C0b.2e-i-b: socket peers now have the same checker type as thread peers).
@@ -10349,52 +10279,15 @@ fn infer_listener_prime(
                     CheckResult::partial_with(ty, local_errors)
                 };
             }
-            // Process tier (C0b.2d) — LEGACY named form: 2 args — host, addr (SocketAddress'<S,R>).
-            if args.len() != 2 {
-                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                    callee: OP.into(), expected: 2, got: args.len()
-                } });
-                let s = fresh.fresh();
-                let r = fresh.fresh();
-                return CheckResult::partial_with(
-                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] },
-                    local_errors,
-                );
-            }
-            // Infer args[1] — must be Address'<S,R> (arc 209 C0b.2e-iii: was SocketAddress').
-            let addr_ty = match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-                Some(t) => t,
-                None => {
-                    let s = fresh.fresh();
-                    let r = fresh.fresh();
-                    return CheckResult::partial_with(
-                        TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] },
-                        local_errors,
-                    );
-                }
-            };
-            let addr_surface = apply_subst(&addr_ty, subst);
-            let addr_reduced = reduce(&addr_surface, subst, env.types());
-            match addr_reduced {
-                TypeExpr::Parametric { ref head, args: ref type_args } if head == "wat::kernel::Address'" && type_args.len() == 2 => {
-                    // Arc 209 C0b.2e-ii/iii — unified Listener' from unified Address'.
-                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![type_args[0].clone(), type_args[1].clone()] }
-                }
-                other => {
-                    local_errors.push(CheckError {
-                        span: args[1].span().clone(),
-                        kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "addr".into(),
-                            expected: "Address'<S,R>".into(),
-                            got: format_type(&other),
-                        },
-                    });
-                    let s = fresh.fresh();
-                    let r = fresh.fresh();
-                    TypeExpr::Parametric { head: "wat::kernel::Listener'".into(), args: vec![s, r] }
-                }
-            }
+            // Arc 272 step 5 — the process listener is AUTOBIND-ONLY (the 3-arg form above). The
+            // legacy 2-arg named form `(listener' (process) <socket-address'>)` is annihilated with
+            // the rest of the name-discovery stack: a chosen name is guessable hence squattable.
+            local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(), expected: 3, got: args.len()
+            } });
+            let s = fresh.fresh();
+            let r = fresh.fresh();
+            bound_type(s, r)
         } else if host_reduced == TypeExpr::Path(":wat::spawn::Host".into()) {
             // Arc 209 host-parity-4a — abstract host (the `:wat::spawn::Host`
             // protocol): a host-blind `(listener' host :S :R)` inside

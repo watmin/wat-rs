@@ -232,12 +232,6 @@ impl Address {
         Address { inner: Box::new(ThreadAddress { tx }) }
     }
 
-    /// Construct a process-tier address from a (UTF-8) abstract-namespace UDS name.
-    /// Legacy `socket-address'` path; delegates to the canonical bytes constructor.
-    pub fn from_socket_name(name: String) -> Self {
-        Self::from_socket_name_bytes(name.into_bytes())
-    }
-
     /// Construct a process-tier address from the RAW abstract-namespace name bytes.
     /// Arc 272: the autobind path — the kernel-minted name (binary, not UTF-8) is the
     /// capability `connect'` dials.

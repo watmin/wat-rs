@@ -4743,12 +4743,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::socket-pair'" => {
             eval_socket_pair_prime(args, list_span)
         }
-        // Arc 209 C0b.2d — socket-address': construct a typed SocketAddress' opaque from
-        // a shared String name.  (:wat::kernel::socket-address' name :S :R) → SocketAddress'<S,R>.
-        // The name is an abstract UDS name; two processes naming the same string rendezvous.
-        ":wat::kernel::socket-address'" => {
-            eval_socket_address_prime(args, list_span, env, sym)
-        }
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
@@ -18600,59 +18594,6 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// Arc 209 C0b.2d / C0b.2e-iii — `(:wat::kernel::socket-address' name :S :R)` → `Address'<S,R>`.
-///
-/// Constructs a typed `Address'` opaque from a shared `String` name.  Two processes
-/// that name the same string rendezvous on the same abstract-namespace UDS.  `:S` and `:R`
-/// are type keywords consumed by the checker only; they are not evaluated.
-///
-/// Arc 209 C0b.2e-iii: produces `Address{inner: Box::new(SocketAddress{name})}` under
-/// `ADDRESS_TYPE_PATH` (was `SOCKET_ADDRESS_TYPE_PATH` with a bare `String` payload).
-fn eval_socket_address_prime(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::socket-address'";
-    // 3 args: name (a String value), :S, :R (type keywords — checker-only).
-    if args.len() != 3 {
-        return Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
-        }.into());
-    }
-    // args[1] and args[2] must be type keywords (not evaluated — checker-only).
-    for i in [1usize, 2usize] {
-        if !matches!(args[i], WatAST::Keyword(_, _)) {
-            return Err(RuntimeError {
-                span: args[i].span().clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("argument {} must be a type keyword (e.g. :wat::core::i64)", i),
-                },
-            }.into());
-        }
-    }
-    // Evaluate args[0] to get the name String.
-    let name = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::String(s) => (*s).clone(),
-        other => return Err(RuntimeError {
-            span: args[0].span().clone(),
-            kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::String",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        }.into()),
-    };
-    // Arc 209 C0b.2e-iii — produce the unified Address entity (SocketAddress impl).
-    use crate::kernel::address::Address;
-    use crate::kernel::spawn::ADDRESS_TYPE_PATH;
-    use crate::rust_deps::marshal::make_rust_opaque;
-    Ok(make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name(name)))
-}
-
 /// Arc 209 C0b.2c / C0b.2e-i-b — wrap a connected `UnixStream` as a unified `Peer'` opaque.
 ///
 /// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to
@@ -18757,93 +18698,16 @@ fn eval_listener_prime(
                 ],
             })));
         }
-        // Process tier (C0b.2d) — LEGACY named form: 2 args — host + addr (SocketAddress' opaque).
-        if args.len() != 2 {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
-            }.into());
-        }
-        // Evaluate args[1] → Address' opaque → downcast to &Address → extract socket name.
-        // Arc 209 C0b.2e-iii: Address' is now the unified entity (was SocketAddress').
-        // The process tier of listener' needs the abstract-namespace UDS name to bind.
-        let addr_val = eval_inner(&args[1], env, sym)?.value_owned();
-        let name: Vec<u8> = if let Value::RustOpaque(ref inner) = addr_val {
-            if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH {
-                use crate::kernel::address::{Address, SocketAddress};
-                use crate::rust_deps::marshal::downcast_ref_opaque;
-                let addr: &Address = downcast_ref_opaque(
-                    inner.as_ref(),
-                    crate::kernel::spawn::ADDRESS_TYPE_PATH,
-                    OP,
-                    args[1].span().clone(),
-                )?;
-                // Extract the socket name via as_any_ref downcast to SocketAddress.
-                match addr.inner.as_any_ref().downcast_ref::<SocketAddress>() {
-                    Some(sa) => sa.name.clone(),
-                    None => return Err(RuntimeError {
-                        span: args[1].span().clone(),
-                        kind: RuntimeErrorKind::TypeMismatch {
-                            op: OP.into(),
-                            expected: "Address'<S,R> (socket-address' — process tier needs a socket address for bind)",
-                            got: Box::new(ValueSnapshot::of(&addr_val)),
-                        },
-                    }.into()),
-                }
-            } else {
-                return Err(RuntimeError {
-                    span: args[1].span().clone(),
-                    kind: RuntimeErrorKind::TypeMismatch {
-                        op: OP.into(),
-                        expected: "Address'<S,R>",
-                        got: Box::new(ValueSnapshot::of(&addr_val)),
-                    },
-                }.into());
-            }
-        } else {
-            return Err(RuntimeError {
-                span: args[1].span().clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Address'<S,R>",
-                    got: Box::new(ValueSnapshot::of(&addr_val)),
-                },
-            }.into());
-        };
-        // Bind the abstract-namespace UDS by the given name and return a Listener entity.
-        use std::os::linux::net::SocketAddrExt;
-        use std::os::unix::net::{SocketAddr, UnixListener};
-        let sa = SocketAddr::from_abstract_name(&name)
-            .map_err(|e| RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("abstract addr: {}", e),
-                },
-            })?;
-        let listener = UnixListener::bind_addr(&sa)
-            .map_err(|e| RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("bind abstract UDS: {}", e),
-                },
-            })?;
-        // Arc 209 C0b.3a-i — the listen fd MUST be non-blocking so that a
-        // spurious PollAdd POLLIN wakeup (connection RST'd between poll and accept)
-        // yields EWOULDBLOCK → re-poll, never a blocking accept().
-        listener.set_nonblocking(true).map_err(|e| RuntimeError {
+        // Arc 272 step 5 — the process listener is AUTOBIND-ONLY. The legacy 2-arg named form
+        // `(listener' (process) <socket-address'>)` is ANNIHILATED with the rest of the
+        // name-discovery stack: a chosen name is guessable hence squattable, so all rendezvous is
+        // the unguessable autobind capability (the 3-arg form above), handed over the lineage
+        // channel. Anything but the 3-arg autobind form is an arity error.
+        Err(RuntimeError {
             span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("set_nonblocking: {}", e),
-            },
-        })?;
-        // Arc 209 C0b.2e-ii — wrap as the unified Listener entity.
-        use crate::kernel::listener::Listener;
-        use crate::kernel::spawn::LISTENER_TYPE_PATH;
-        use crate::rust_deps::marshal::make_rust_opaque;
-        Ok(make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(listener)))
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+        }
+        .into())
     } else {
         // Thread tier (C0b.1): 3 args — host, :S, :R.
         if args.len() != 3 {

@@ -7,23 +7,20 @@
 //! listener + N socket client peers over ONE `process::Select` ring → `ServiceEvent`.
 //!
 //! THE GATE (this probe IS the process service proof — and the DEADLOCK gate): a spawned
-//! `(process)` service binds a listener by NAME, signals READY to its owner over the
-//! self-peer (race-free, no sleep), then `poll'`-loops — `:Connection`→grow, `:Message`→
-//! echo n+100 + reply, `:Closed`→shrink, `:Shutdown`→exit. The PARENT waits READY,
-//! `connect'`s by the SAME name, round-trips 5→105, then simply DROPS the service handle at
-//! scope-exit. The deadlock-free termination: dropping the handle → the child's input pipe
-//! EOFs → the self-peer's `Recv{0}` fires → `poll'` returns `:Shutdown` → the loop exits →
-//! the child ends → the owner's join completes. **No cooperative Stop — dropping the handle
-//! IS the shutdown.** If this hangs, `poll'` isn't watching the self-peer over the socket
-//! tier — the exact deadlock this stone must annihilate.
+//! `(process)` service autobinds a listener (no name — unguessable capability), sends its
+//! minted `Address'` to its owner over the self-peer (arc 272 capability handoff — race-free,
+//! no sleep, no fixed name), then `poll'`-loops — `:Connection`→grow, `:Message`→
+//! echo n+100 + reply, `:Closed`→shrink, `:Shutdown`→exit. The PARENT waits for the
+//! capability, `connect'`s to the minted address, round-trips 5→105, then simply DROPS the
+//! service handle at scope-exit. The deadlock-free termination: dropping the handle → the
+//! child's input pipe EOFs → the self-peer's `Recv{0}` fires → `poll'` returns `:Shutdown` →
+//! the loop exits → the child ends → the owner's join completes. **No cooperative Stop —
+//! dropping the handle IS the shutdown.** If this hangs, `poll'` isn't watching the self-peer
+//! over the socket tier — the exact deadlock this stone must annihilate.
 //!
-//! RED at HEAD: the process branch of `poll'` does not exist — a socket-backed
-//! self-peer/listener/client in `poll'` errors ("socket/remote poll' is C0b.3a-ii"), so the
-//! child crashes on its first `poll'` and tears down its listener. The parent then fails
-//! downstream — observed as `connect'` "Connection refused" (the child died + unbound before
-//! the dial), or, if it dialed first, `recv'` raising on the dead peer. Reliably RED at HEAD
-//! (the child ALWAYS crashes → never green, and its death EOFs the parent rather than hanging
-//! it); deterministically GREEN once C0b.3a-ii ships the process `poll'` branch.
+//! RED at HEAD (pre-272): the service bound by NAME (socket-address') — the guessable name
+//! is eliminated; now autobind+capability-handoff (arc 272 step 5). The proof is preserved:
+//! service loop runs, round-trips, terminates on owner-drop.
 //!
 //! GREEN proves BOTH serve AND termination: `compute` returns 105 only after `svc` drops at
 //! scope-exit, and the process handle's Drop joins the child — so if the loop did NOT
@@ -46,7 +43,7 @@ const PROGRAM: &str = r#"
              ;; (owner link → :Shutdown), the socket listener (new connections), and the
              ;; connected socket client peers (requests) over ONE process::Select ring. ──
              (:wat::core::defn :user::serve
-               [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
+               [self    <- :wat::kernel::Peer'<wat::kernel::Address'<wat::core::i64,wat::core::i64>,wat::core::i64>
                 l       <- :wat::kernel::Listener'<wat::core::i64,wat::core::i64>
                 clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>]
                -> :wat::core::nil
@@ -68,20 +65,23 @@ const PROGRAM: &str = r#"
                  ;; SHRINK — clients[idx]'s transport broke (remote tier; cause is a Failure).
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))))
-             ;; the child entry: bind the listener by name, signal READY, serve.
+             ;; the child entry: autobind (no name — unguessable capability), hand the minted
+             ;; address to the parent over the self-peer (arc 272 capability handoff), then serve.
+             ;; The self-peer carries Address'<i64,i64> up to the parent (S), i64 down from parent (R).
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let
-                 [l    (:wat::kernel::listener' (:wat::spawn::process)
-                         (:wat::kernel::socket-address' "wat.arc209.c0b3aii.svc" :wat::core::i64 :wat::core::i64))
-                  self (:wat::program::self-peer :wat::core::i64 :wat::core::i64)
-                  _    (:wat::kernel::send' self 1)]
-                 (:user::serve self l
+                 [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+                  self (:wat::program::self-peer
+                          :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
+                  _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))]
+                 (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))))
-     _   (:wat::kernel::recv' svc)
-     c   (:wat::kernel::connect'
-           (:wat::kernel::socket-address' "wat.arc209.c0b3aii.svc" :wat::core::i64 :wat::core::i64))
-     _   (:wat::kernel::send' c 5)
-     got (:wat::kernel::recv' c)]
+     ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
+     addr (:wat::kernel::recv' svc)
+     ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
+     c    (:wat::kernel::connect' addr)
+     _    (:wat::kernel::send' c 5)
+     got  (:wat::kernel::recv' c)]
     ;; No Stop op. Scope-exit drops `svc` → the child's input pipe EOFs → the self-peer's
     ;; Recv{0} fires → serve's poll' returns :Shutdown → the child exits → join completes.
     ;; (If this hangs, poll' isn't watching the self-peer over the socket tier — STOP-1.)

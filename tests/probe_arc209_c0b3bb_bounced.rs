@@ -8,25 +8,32 @@
 //! SERVICE's, not the socket's: raw `accept'` stays ungated; the thread tier stays ungated
 //! (the crossbeam handle IS the grant). ("SO_PEERCRED is local mTLS.")
 //!
+//! Arc 272 step 5: the service NOW autobinds (no fixed name — unguessable capability) and sends
+//! its `Address'` to the owner over the self-peer (capability handoff). The owner holds the
+//! address and, for the bounce proof, leaks it to a stranger child via the stranger's lineage
+//! channel. The allow-set check is by PID (not name), so the mechanism is unchanged.
+//!
 //! TWO proofs, one gate (the DESIGN's "same code, different pid, opposite outcome"):
 //!
 //! 1. `owner_served_via_birth_seed` — the OWNER (this test process) spawns a `(process)`
 //!    service; the service birth-seeds its allow-set with `getppid()` = THIS process. The owner
-//!    `connect'`s by name and round-trips 5→105. GREEN at HEAD (no gate yet) AND after 3b-b
-//!    (the birth-seed admits the owner) — the regression guard that the gate does NOT break the
-//!    owner. (c0b3aii is the broader service-loop guard; this is the explicit birth-seed proof.)
+//!    `recv'`s the minted `Address'` from `svc` (capability handoff), `connect'`s, and
+//!    round-trips 5→105. GREEN at HEAD (no gate yet) AND after 3b-b (the birth-seed admits
+//!    the owner) — the regression guard that the gate does NOT break the owner. (c0b3aii is the
+//!    broader service-loop guard; this is the explicit birth-seed proof.)
 //!
-//! 2. `stranger_is_bounced` — the owner spawns the service, then spawns a SEPARATE `(process)`
-//!    STRANGER child. The stranger's pid ≠ the owner's pid → it is NOT in the service's
-//!    birth-seeded allow-set. The stranger `connect'`s to the service by name, `send'`s, then
-//!    `recv'`s, and (if it gets a reply) forwards it to its own self-peer for the owner to read.
-//!    - RED at HEAD: no gate → the stranger is SERVED → it gets 107 back, forwards it → the
-//!      owner's `recv' stranger` returns 107 (Ok). The test expects a bounce (Err) → FAILS.
+//! 2. `stranger_is_bounced` — the owner spawns the service, `recv'`s the `Address'`, then
+//!    spawns a SEPARATE `(process)` STRANGER child and HANDS the (leaked) service address DOWN
+//!    to the stranger over the stranger's lineage channel (`send' stranger addr`; the stranger
+//!    `recv'`s it via its own self-peer). The stranger's pid ≠ the owner's pid → it is NOT in
+//!    the service's birth-seeded allow-set. The stranger `connect'`s to the service, `send'`s,
+//!    then `recv'`s.
+//!    - RED at HEAD: no gate → the stranger is SERVED → the stranger's `recv'` returns a value;
+//!      it doesn't die; the owner's `recv' stranger` returns Ok. The test expects Err → FAILS.
 //!    - GREEN after 3b-b: the service accepts the stranger's socket, reads `peer_cred`, finds
 //!      the stranger's pid ∉ `{owner}` → drops the stream. The stranger's `recv'` sees EOF →
-//!      RAISES → the stranger process DIES before forwarding → the owner's `recv' stranger`
-//!      surfaces the death → RAISES. The test asserts the raise (a genuine unauthorized process
-//!      refused — no `deny'`/owner-pid contrivance).
+//!      RAISES → the stranger process DIES → the owner's `recv' stranger` surfaces the death →
+//!      RAISES. The test asserts the raise (a genuine unauthorized process refused).
 //!
 //! Together: a connector IN the allow-set (the owner, via birth-seed) is served; a connector
 //! NOT in it (a real stranger child) is refused — same service code, opposite outcome by pid.
@@ -40,11 +47,13 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 // ── The service forms (the c0b3aii poll'-loop), reused by both programs below. ──────────────
-// A spawned (process) service: bind a listener by NAME (birth-seeds the allow-set with
-// getppid() = the owner), signal READY over the self-peer, then poll'-serve echo n+100.
+// A spawned (process) service: autobind a listener (no name — arc 272 capability handoff),
+// send the minted Address' to the owner over the self-peer (birth-seeds allow-set with
+// getppid() = the owner), then poll'-serve echo n+100.
+// The self-peer carries Address'<i64,i64> up to the parent (S), i64 down (R, unused).
 const SERVICE_FORMS: &str = r#"
              (:wat::core::defn :user::serve
-               [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
+               [self    <- :wat::kernel::Peer'<wat::kernel::Address'<wat::core::i64,wat::core::i64>,wat::core::i64>
                 l       <- :wat::kernel::Listener'<wat::core::i64,wat::core::i64>
                 clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>]
                -> :wat::core::nil
@@ -62,11 +71,11 @@ const SERVICE_FORMS: &str = r#"
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let
-                 [l    (:wat::kernel::listener' (:wat::spawn::process)
-                         (:wat::kernel::socket-address' "wat.arc209.c0b3bb.svc" :wat::core::i64 :wat::core::i64))
-                  self (:wat::program::self-peer :wat::core::i64 :wat::core::i64)
-                  _    (:wat::kernel::send' self 1)]
-                 (:user::serve self l
+                 [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
+                  self (:wat::program::self-peer
+                          :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
+                  _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))]
+                 (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))
 "#;
 
@@ -76,14 +85,14 @@ fn served_program() -> String {
         r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program' (:wat::spawn::process)
-           (:wat::core::forms
+    [svc  (:wat::kernel::spawn-program' (:wat::spawn::process)
+            (:wat::core::forms
 {SERVICE_FORMS}))
-     _   (:wat::kernel::recv' svc)
-     c   (:wat::kernel::connect'
-           (:wat::kernel::socket-address' "wat.arc209.c0b3bb.svc" :wat::core::i64 :wat::core::i64))
-     _   (:wat::kernel::send' c 5)
-     got (:wat::kernel::recv' c)]
+     ;; recv' the child's minted capability over the lineage channel.
+     addr (:wat::kernel::recv' svc)
+     c    (:wat::kernel::connect' addr)
+     _    (:wat::kernel::send' c 5)
+     got  (:wat::kernel::recv' c)]
     got))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -109,31 +118,40 @@ fn owner_served_via_birth_seed() {
 }
 
 // ── Proof 2: a real stranger child (pid ≠ owner) is bounced. ────────────────────────────────
-// The stranger: connect' to the service by name, send 7, recv the reply, forward it to its own
-// self-peer. At HEAD (no gate) it is served → forwards 107. After 3b-b it is bounced → its
-// recv' EOFs → it DIES before forwarding → the owner's recv' on the stranger handle raises.
+// The owner recv's the service capability, then spawns a SEPARATE stranger process and HANDS
+// the (leaked) service address DOWN to the stranger over the stranger's lineage channel.
+// The stranger: recv' the capability from self-peer, connect' to the service, send 7, recv
+// the reply → at 3b-b the service bounces it → EOF → stranger RAISES → dies.
+// The owner: recv' stranger → stranger died → RAISES.
 fn bounced_program() -> String {
     format!(
         r#"
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [svc (:wat::kernel::spawn-program' (:wat::spawn::process)
-           (:wat::core::forms
+    [svc     (:wat::kernel::spawn-program' (:wat::spawn::process)
+               (:wat::core::forms
 {SERVICE_FORMS}))
-     _   (:wat::kernel::recv' svc)
+     ;; recv' the service's minted capability (blocks until service sends it).
+     svc-addr (:wat::kernel::recv' svc)
      ;; A SEPARATE process child — its pid ≠ the owner's → NOT in the birth-seeded allow-set.
+     ;; The owner hands the (leaked) service address DOWN to the stranger via its lineage channel.
+     ;; stranger self-peer: S=i64 (would send up — never does), R=Address'<i64,i64> (receives cap).
      stranger (:wat::kernel::spawn-program' (:wat::spawn::process)
                 (:wat::core::forms
                   (:wat::core::defn :user::main [] -> :wat::core::nil
                     (:wat::core::let
-                      [c    (:wat::kernel::connect'
-                              (:wat::kernel::socket-address' "wat.arc209.c0b3bb.svc" :wat::core::i64 :wat::core::i64))
+                      ;; receive the leaked service address from the owner via our lineage channel.
+                      [self (:wat::program::self-peer
+                               :wat::core::i64
+                               :wat::kernel::Address'<wat::core::i64,wat::core::i64>)
+                       addr (:wat::kernel::recv' self)    ;; blocks until parent sends the cap
+                       c    (:wat::kernel::connect' addr)
                        _    (:wat::kernel::send' c 7)
-                       got  (:wat::kernel::recv' c)        ;; 3b-b: EOF on the bounce → RAISES → die
-                       self (:wat::program::self-peer :wat::core::i64 :wat::core::i64)
-                       _    (:wat::kernel::send' self got)] ;; HEAD only: forward the served reply
+                       _got (:wat::kernel::recv' c)]      ;; 3b-b: EOF on the bounce → RAISES → die
                       nil))))
-     got (:wat::kernel::recv' stranger)]                   ;; HEAD: 107 ; 3b-b: stranger died → RAISES
+     ;; hand the (leaked) service capability DOWN to the stranger.
+     _   (:wat::kernel::send' stranger svc-addr)
+     got (:wat::kernel::recv' stranger)]                  ;; HEAD: stranger served; 3b-b: stranger died → RAISES
     got))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -150,14 +168,14 @@ fn stranger_is_bounced() {
     let outcome = eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned());
     // GREEN (3b-b): the stranger (pid ∉ allow-set) is bounced → its recv' EOFs → it dies →
     // the owner's recv' on the stranger surfaces the death → Err.
-    // RED (HEAD): no gate → the stranger is served → it forwards 107 → Ok(107).
+    // RED (HEAD): no gate → the stranger is served → its recv' returns; it doesn't die → Ok.
     match outcome {
         Err(_e) => { /* the stranger was refused and died — the gate is live */ }
         Ok(v) => panic!(
             "expected the stranger (a process whose pid is NOT in the service's birth-seeded \
              allow-set) to be BOUNCED — its recv' should EOF on the dropped stream and the \
              stranger should die, raising on the owner's recv'. Instead the stranger was SERVED \
-             and forwarded a reply: got {v:?}. The allow-set gate is not live."
+             and a reply was observed: got {v:?}. The allow-set gate is not live."
         ),
     }
 }
