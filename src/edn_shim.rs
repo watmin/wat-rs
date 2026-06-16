@@ -1895,8 +1895,18 @@ fn tagged_to_value(
     let types = types.ok_or(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
     // Body shape disambiguates struct vs enum.
+    // For Map bodies, resolve the TypeDef to route: Struct → reconstruct_struct,
+    // Record → reconstruct_record, neither → reconstruct_struct returns UnknownTag.
     match body {
-        Edn::Map(entries) => reconstruct_struct(ns, name, entries, types),
+        Edn::Map(entries) => {
+            let path = ns_to_wat_path(ns, name);
+            match types.get(&path) {
+                Some(crate::types::TypeDef::Record(_)) => {
+                    reconstruct_record(ns, name, entries, types)
+                }
+                _ => reconstruct_struct(ns, name, entries, types),
+            }
+        }
         Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types),
         Edn::Nil => reconstruct_enum_unit(ns, name, types),
         other => {
@@ -2011,6 +2021,71 @@ fn reconstruct_struct(
         type_name: path,
         fields,
     })))
+}
+
+/// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::wat__Record`.
+///
+/// Mirror of `reconstruct_struct` for `TypeDef::Record`. Uses `field_names` /
+/// `field_types` (parallel vecs on `RecordDef`) rather than `Vec<(name,ty)>` on
+/// `StructDef`. `field_types` is `Option<Vec<TypeExpr>>` — falls back to no
+/// `rewrap_option_field` when absent (untyped string-syntax record declarations).
+fn reconstruct_record(
+    ns: &str,
+    name: &str,
+    entries: &[(OwnedValue, OwnedValue)],
+    types: &crate::types::TypeEnv,
+) -> Result<Value, EdnReadError> {
+    let path = ns_to_wat_path(ns, name);
+    let def = match types.get(&path) {
+        Some(crate::types::TypeDef::Record(d)) => d,
+        _ => {
+            return Err(EdnReadError {
+                span: Span::unknown(),
+                kind: EdnReadErrorKind::UnknownTag {
+                    ns: ns.to_string(),
+                    name: name.to_string(),
+                    body_shape: "map",
+                },
+            });
+        }
+    };
+    // Build a key → value lookup from the EDN map (bare keyword names).
+    let mut by_key: std::collections::HashMap<String, &OwnedValue> =
+        std::collections::HashMap::with_capacity(entries.len());
+    for (k, v) in entries {
+        if let OwnedValue::Keyword(kw) = k {
+            by_key.insert(kw.name().to_string(), v);
+        }
+    }
+    // Walk declared field_names in declaration order.
+    let mut fields: Vec<Value> = Vec::with_capacity(def.field_names.len());
+    for (i, fname) in def.field_names.iter().enumerate() {
+        let fv = by_key.get(fname.as_str()).ok_or_else(|| EdnReadError {
+            span: Span::unknown(),
+            kind: EdnReadErrorKind::UnknownStructField {
+                type_path: path.clone(),
+                key: fname.clone(),
+            },
+        })?;
+        let inner = edn_to_value(fv, Some(types))?;
+        // Apply Option-rewrapping when field_types is present and the field is Option<T>.
+        let wrapped = if let Some(ftys) = &def.field_types {
+            if let Some(fty) = ftys.get(i) {
+                rewrap_option_field(fty, inner)
+            } else {
+                inner
+            }
+        } else {
+            inner
+        };
+        fields.push(wrapped);
+    }
+    // class_fqdn stored without leading ':'; path has it — strip.
+    let class_fqdn = path.strip_prefix(':').unwrap_or(&path).to_string();
+    Ok(Value::wat__Record {
+        class_fqdn: Arc::new(class_fqdn),
+        struct_form: Arc::new(fields),
+    })
 }
 
 /// Arc 113 slice 3 — when a declared field type is `Option<T>` but
@@ -2359,11 +2434,9 @@ pub fn value_to_edn_with(
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
         // Arc 234 Stone 234.1 — wat__holon__Record: render as a tagged map.
-        // Stone S-C.2c — wat__Record (base) uses the same tagged-map rendering.
-        // Tag carries the class_fqdn; fields render positionally (field-0, field-1, ...).
-        // Named-field EDN rendering lands in Stone 234.2 when defrecord macro ships field names.
-        Value::wat__holon__Record { class_fqdn, struct_form, .. }
-        | Value::wat__Record { class_fqdn, struct_form } => {
+        // Fields render positionally (field-0, field-1, ...). Stone 234.7b reworks
+        // this arm to ride holon_form as edn — do NOT alter this arm here.
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
             let tag = tag_from_type_path(class_fqdn);
             let entries: Vec<(OwnedValue, OwnedValue)> = struct_form
                 .iter()
@@ -2371,6 +2444,33 @@ pub fn value_to_edn_with(
                 .map(|(i, fv)| {
                     (
                         OwnedValue::Keyword(Keyword::new(format!("field-{}", i))),
+                        value_to_edn_with(fv, types),
+                    )
+                })
+                .collect();
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+        }
+        // Arc 234 Stone 234.7a — wat__Record (base): named-field tagged-map.
+        // class_fqdn has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
+        // Mirror the Struct arm (2264-2288) exactly, using TypeDef::Record.
+        // Fallback to field-{i} when no def is found (no-types or unregistered class).
+        Value::wat__Record { class_fqdn, struct_form } => {
+            let tag = tag_from_type_path(class_fqdn);
+            let type_key = format!(":{}", class_fqdn);
+            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
+                Some(crate::types::TypeDef::Record(def)) => def.field_names.clone(),
+                _ => (0..struct_form.len()).map(|i| format!("field-{}", i)).collect(),
+            };
+            let entries: Vec<(OwnedValue, OwnedValue)> = struct_form
+                .iter()
+                .enumerate()
+                .map(|(i, fv)| {
+                    let key = field_names
+                        .get(i)
+                        .cloned()
+                        .unwrap_or_else(|| format!("field-{}", i));
+                    (
+                        OwnedValue::Keyword(Keyword::new(key)),
                         value_to_edn_with(fv, types),
                     )
                 })
