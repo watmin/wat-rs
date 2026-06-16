@@ -1854,7 +1854,14 @@ fn tagged_to_value(
     // opaque refusal below.
     if ns == "wat-edn.cap" {
         if allow_caps {
-            return crate::capability::decode_capability(name, body);
+            // Arc 272 6c.2 — record-based codecs (SocketAddressWire) need the type registry.
+            // The trusted peer wire always provides types (decode_trusted_wire is always called
+            // with sym.types()); None here is a programming error, surfaced as a decode failure.
+            let t = types.ok_or_else(|| EdnReadError {
+                span: Span::unknown(),
+                kind: EdnReadErrorKind::NoTypeRegistry,
+            })?;
+            return crate::capability::decode_capability(name, body, t);
         }
         return Err(EdnReadError {
             span: Span::unknown(),
@@ -2378,18 +2385,34 @@ pub(crate) fn decode_trusted_wire(
 
 #[cfg(test)]
 mod cap_decode_boundary {
-    //! Arc 272 6a-i — the trap-door ward. A capability (`wat-edn.cap`) tag reconstructs ONLY through
-    //! the trusted door; the general/untrusted decode path REFUSES it. If this ever flips, the
+    //! Arc 272 6a-i / 6c.2 — the trap-door ward. A capability (`wat-edn.cap`) tag reconstructs ONLY
+    //! through the trusted door; the general/untrusted decode path REFUSES it. If this ever flips, the
     //! forge-hole reopens (parsed data minting live capabilities). This is the regression alarm bolted
     //! onto the exact trap we fell through — it must never open again.
     use super::{decode_trusted_wire, edn_string_to_value};
 
-    const CAP_TAG: &str = "#wat-edn.cap/address [0 1 2 3 4]";
+    // Arc 272 6c.2 — the wire format is now a SocketAddressWire record (not a bare byte vector).
+    // The address cap tag wraps a #wat.kernel/SocketAddressWire tagged map.
+    const CAP_TAG_GENERAL: &str = "#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
+
+    fn make_types() -> crate::types::TypeEnv {
+        use crate::types::{RecordDef, TypeDef};
+        // with_builtins seeds :wat::Record (required parent for SocketAddressWire).
+        let mut env = crate::types::TypeEnv::with_builtins();
+        env.register_stdlib(TypeDef::Record(RecordDef {
+            name: ":wat::kernel::SocketAddressWire".to_string(),
+            parent: ":wat::Record".to_string(),
+            field_names: vec!["minter-pid".to_string(), "name".to_string()],
+            field_types: None,
+        }))
+        .expect("SocketAddressWire registration must succeed");
+        env
+    }
 
     #[test]
     fn general_decode_refuses_capability_tags() {
         assert!(
-            edn_string_to_value(CAP_TAG).is_err(),
+            edn_string_to_value(CAP_TAG_GENERAL).is_err(),
             "general/untrusted decode MUST refuse a wat-edn.cap tag — a capability is handed over a \
              trusted channel, never forged from parsed data (ocap transfer-only)"
         );
@@ -2397,8 +2420,9 @@ mod cap_decode_boundary {
 
     #[test]
     fn trusted_door_reconstructs_capability_tags() {
+        let types = make_types();
         assert!(
-            decode_trusted_wire(CAP_TAG, None).is_ok(),
+            decode_trusted_wire(CAP_TAG_GENERAL, Some(&types)).is_ok(),
             "the trusted-wire door MUST reconstruct a wat-edn.cap tag into a live capability"
         );
     }
@@ -2540,8 +2564,14 @@ pub fn value_to_edn_with(
             // form, emit its `#wat-edn.cap/<name>` tag; otherwise it is a process-local handle (an fd,
             // a `Sender`) that must NOT cross → the payload-less `#wat-edn.opaque/RustOpaque` tag (the
             // decoder refuses it). The per-capability codecs live in `crate::capability::registry`.
-            if let Some(cap_tag) = crate::capability::encode_capability(inner) {
-                return cap_tag;
+            // `types` is required by record-based codecs (arc 272 6c.2 SocketAddressWire field
+            // naming); when `types` is None (display/logging paths), capability encoding is skipped
+            // and the address falls to the opaque tag (appropriate — it cannot be meaningfully
+            // encoded without the type registry).
+            if let Some(t) = types {
+                if let Some(cap_tag) = crate::capability::encode_capability(inner, t) {
+                    return cap_tag;
+                }
             }
             OwnedValue::Tagged(
                 Tag::ns("wat-edn.opaque", "RustOpaque"),

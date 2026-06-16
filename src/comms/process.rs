@@ -176,10 +176,12 @@ pub fn peer_cred(fd: std::os::fd::RawFd) -> std::io::Result<PeerCred> {
 
 /// Bind an *autobind* abstract-namespace UDS listener: pass a zero-length address
 /// (`addrlen == sizeof(sa_family_t)`, no `sun_path`) and the kernel mints a UNIQUE,
-/// unguessable abstract name (`\0` + 5 bytes). There is no fixed/chosen name, so there
-/// is no shared namespace to collide in — `EADDRINUSE` becomes *unreachable*, not
-/// handled — and nothing to squat. The rendezvous is a minted capability, not a
-/// discovered name (arc 272: rendezvous is an inherited capability, not a name).
+/// kernel-assigned abstract name (`\0` + 5 bytes, exclusive-bind, not a chosen name).
+/// There is no fixed/chosen name, so there is no shared namespace to collide in —
+/// `EADDRINUSE` becomes *unreachable*, not handled — and nothing to squat. The
+/// rendezvous is a minted capability, not a discovered name (arc 272: rendezvous is an
+/// inherited capability, not a name). The SO_PEERCRED uid+pid checks are the security;
+/// the autobind name is the exclusive-bind rendezvous token, not a secret.
 ///
 /// Returns the bound, non-blocking `UnixListener` (`SOCK_NONBLOCK`, the C0b.3a-i
 /// invariant; `SOCK_CLOEXEC` so it does not leak across an unrelated exec — fork
@@ -245,7 +247,7 @@ mod autobind_tests {
     use super::autobind_listener;
 
     #[test]
-    fn autobind_mints_unique_unguessable_names_no_collision() {
+    fn autobind_mints_unique_exclusive_bind_names_no_collision() {
         // Two autobinds in the SAME process: the kernel hands each a distinct address.
         // Collision is impossible by construction — there is no chosen name to clash on.
         let (l1, n1) = autobind_listener(16).expect("autobind 1 binds");

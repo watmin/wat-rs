@@ -18635,9 +18635,11 @@ fn wrap_stream_as_socket_peer(
 /// 3 args: host, :S, :R.
 ///
 /// Process tier (C0b.2d → arc 272): `(listener' (process) :S :R)` — autobinds an abstract-namespace
-/// UDS (kernel-minted name, unguessable) and returns `Bound{ listener, address }` mirroring the
-/// thread tier. 3 args: host, :S, :R. The legacy 2-arg named form (`socket-address'` opaque) was
-/// annihilated in arc 272 step 5 (guessable names → squattable; autobind is the only rendezvous).
+/// UDS (kernel-minted, exclusive-bind, not a chosen name) and returns `Bound{ listener, address }`
+/// mirroring the thread tier. 3 args: host, :S, :R. The legacy 2-arg named form (`socket-address'`
+/// opaque) was annihilated in arc 272 step 5 (guessable names → squattable; autobind is the only
+/// rendezvous). The SO_PEERCRED uid+pid checks are the security; the autobind name is an
+/// exclusive-bind rendezvous token, not a secret.
 ///
 /// The host value (args[0]) is evaluated at runtime to dispatch between tiers; arity is
 /// validated AFTER host dispatch (thread=3, process=2).
@@ -18663,10 +18665,12 @@ fn eval_listener_prime(
 
     if is_process {
         // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)`: mint a kernel-unique,
-        // unguessable abstract address (no chosen name → no collision, no squatting) and return
-        // `Bound<S,R>{listener, address}`, MIRRORING the thread tier. The address is the
-        // capability `connect'` dials. (The 2-arg `(host addr)` named form below is LEGACY —
-        // annihilated in arc 272 step 5 with the rest of the name-discovery stack.)
+        // exclusive-bind abstract address (kernel-minted, not a chosen name → no collision, no
+        // squatting) and return `Bound<S,R>{listener, address}`, MIRRORING the thread tier.
+        // The address is the capability `connect'` dials. (The 2-arg `(host addr)` named form
+        // below is LEGACY — annihilated in arc 272 step 5 with the rest of the name-discovery
+        // stack.) The SO_PEERCRED uid+pid checks are the security; the autobind name is the
+        // exclusive-bind rendezvous token, not a secret.
         if args.len() == 3 {
             for i in [1usize, 2usize] {
                 if !matches!(args[i], WatAST::Keyword(_, _)) {
@@ -18692,19 +18696,22 @@ fn eval_listener_prime(
             use crate::kernel::listener::Listener;
             use crate::kernel::spawn::{ADDRESS_TYPE_PATH, LISTENER_TYPE_PATH};
             use crate::rust_deps::marshal::make_rust_opaque;
+            // Arc 272 6c.2 — stamp the minter pid at autobind so the connect gate can verify the
+            // kernel-vouched answerer pid against it. SAFETY: getpid() is always-succeeds, no args.
+            let minter_pid = unsafe { libc::getpid() };
             return Ok(Value::Struct(Arc::new(StructValue {
                 type_name: ":wat::spawn::Bound".into(),
                 fields: vec![
                     make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(ul)),
-                    make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name_bytes(name_bytes)),
+                    make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name_bytes(name_bytes, minter_pid)),
                 ],
             })));
         }
         // Arc 272 step 5 — the process listener is AUTOBIND-ONLY. The legacy 2-arg named form
         // `(listener' (process) <socket-address'>)` is ANNIHILATED with the rest of the
         // name-discovery stack: a chosen name is guessable hence squattable, so all rendezvous is
-        // the unguessable autobind capability (the 3-arg form above), handed over the lineage
-        // channel. Anything but the 3-arg autobind form is an arity error.
+        // the kernel-minted exclusive-bind autobind capability (the 3-arg form above), handed
+        // over the lineage channel. Anything but the 3-arg autobind form is an arity error.
         Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
@@ -23816,16 +23823,16 @@ fn eval_peer_recv_prime(
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
-            // Arc 258.5b / 272 6a-i / step 5 — recv' is the TRUSTED peer wire: decode
+            // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — recv' is the TRUSTED peer wire: decode
             // through the capability-reconstructing door with the full type registry.
             // Every Peer is lineage BY CONSTRUCTION — a spawn handle / self-peer is
             // inherited; an accept'd peer passed OnlyMyPeers (euid + pid∈allow-set);
-            // a connect'd peer reached an unguessable autobind capability handed over
-            // the lineage channel (step 5 killed guessable names; abstract names are
-            // exclusive-bind ⇒ the answerer IS the minter). So "bytes from a lineage
-            // peer" holds on every leg. The EDN wire is self-describing (post-234.7:
-            // tagged records/structs/enums + typed scalars) — sym.types() reconstructs
-            // user records; no declared target type is needed.
+            // a connect'd peer passed OnlyThisPeer (euid + kernel-vouched pid == minter
+            // pid stamped in the address capability; the autobind name is an exclusive-bind
+            // rendezvous token, not a secret; the SO_PEERCRED checks are the security).
+            // So "bytes from a lineage peer" holds on every leg. The EDN wire is
+            // self-describing (post-234.7: tagged records/structs/enums + typed scalars)
+            // — sym.types() reconstructs user records; no declared target type is needed.
             crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
                 RuntimeError {
                     span: list_span.clone(),
@@ -24281,12 +24288,13 @@ fn eval_peer_select_prime(
                         },
                     })
                 })?;
-                // Arc 258.5b / 272 6a-i / step 5 — select' is the TRUSTED peer wire: decode
-                // through the capability door with the full type registry. Every Peer is lineage
-                // by construction (inherited handle/self-peer; accept' passed OnlyMyPeers;
-                // connect' reached an unguessable autobind capability handed over lineage — step 5
-                // killed guessable names). The EDN wire is self-describing (post-234.7) —
-                // sym.types() reconstructs user records; no declared target type is needed.
+                // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
+                // decode through the capability door with the full type registry. Every Peer is
+                // lineage by construction (inherited handle/self-peer; accept' passed OnlyMyPeers;
+                // connect' passed OnlyThisPeer — euid + kernel-vouched pid == minter pid in the
+                // address capability; the autobind name is an exclusive-bind rendezvous token, not
+                // a secret). The EDN wire is self-describing (post-234.7) — sym.types()
+                // reconstructs user records; no declared target type is needed.
                 let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
                     EvalBreak::from(RuntimeError {
                         span: list_span.clone(),

@@ -134,6 +134,10 @@ pub struct SocketAddress {
     /// always the kernel-minted autobind bytes; the legacy UTF-8 `socket-address'` path was
     /// annihilated in arc 272 step 5.
     pub(crate) name: Vec<u8>,
+    /// Arc 272 6c.2 — the pid of the process that autobind-minted this address, stamped at
+    /// `listener'` time via `getpid()`. Rides the capability by value as a record field; the
+    /// connect gate verifies the kernel-vouched `SO_PEERCRED` answerer pid against it.
+    pub(crate) minter_pid: i32,
 }
 
 impl CommAddress for SocketAddress {
@@ -160,16 +164,13 @@ impl CommAddress for SocketAddress {
                 reason: format!("connect abstract UDS: {}", e),
             },
         })?;
-        // Arc 272 v4 / step 5 — MUTUAL UDS peer-cred via the powerbox: the CLIENT verifies the
-        // SERVER's kernel-vouched identity through the SAME `CommsPolicy` the accept gate consults
-        // (kernel/listener.rs `authorizes`); both gates route through one mediator. The connect side
-        // stands on `AnyOfMyUser` (the euid floor) — but post-step-5 the address is ALWAYS an
-        // unguessable autobind capability handed over the lineage channel (guessable names are
-        // annihilated; abstract names are exclusive-bind), so the answerer IS the lineage minter:
-        // holding the capability is the lineage proof, the euid floor is defense-in-depth. (6c.2 — a
-        // per-Address minter-pid verified right here — is the belt-and-suspenders for the narrow
-        // leak-then-rebind edge; deferred, not load-bearing.) Read peer_cred BEFORE
-        // `OwnedFd::from(stream)` consumes the stream.
+        // Arc 272 6c.2 — MUTUAL UDS peer-cred via the powerbox: the CLIENT verifies the SERVER's
+        // kernel-vouched identity through `CommsPolicy::OnlyThisPeer`, symmetric with the accept
+        // gate's `OnlyMyPeers` check in `kernel/listener.rs`. The SO_PEERCRED uid+pid checks ARE
+        // the security; the autobind name is an exclusive-bind rendezvous token (kernel-minted,
+        // not a chosen name), not a secret. The connect gate verifies the kernel-vouched answerer
+        // pid against the minter pid stamped in the address capability at autobind time. Read
+        // peer_cred BEFORE `OwnedFd::from(stream)` consumes the stream.
         {
             use std::os::fd::AsRawFd;
             let server = crate::comms::process::peer_cred(stream.as_raw_fd()).map_err(|e| RuntimeError {
@@ -181,15 +182,16 @@ impl CommAddress for SocketAddress {
             })?;
             // SAFETY: geteuid() is always-succeeds, no args, no memory effects.
             let me = unsafe { libc::geteuid() };
-            if !connect_admits(&server, me) {
+            if !connect_admits(&server, me, self.minter_pid) {
                 return Err(RuntimeError {
                     span: span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
-                            "comms policy (any-of-my-user) refused the connection — server euid {} \
-                             != our euid {} (the answerer is not a process of our user)",
-                            server.uid, me
+                            "comms policy (only-this-peer) refused the connection — \
+                             server pid {} != minter pid {}, or server euid {} != our euid {} \
+                             (the answerer must be the exact process that minted this address)",
+                            server.pid, self.minter_pid, server.uid, me
                         ),
                     },
                 }
@@ -215,15 +217,23 @@ impl CommAddress for SocketAddress {
 /// The connect-gate policy consult — a single named seam so the comms-policy decision
 /// is one tested, located place rather than inlined at the call site.
 ///
-/// Returns `true` when `CommsPolicy::AnyOfMyUser` admits `server` for a caller whose
-/// effective uid is `euid` (i.e. `server.uid == euid`). False → the connection is
-/// refused by `SocketAddress::connect`.
+/// Returns `true` when `CommsPolicy::OnlyThisPeer { pid: minter_pid }` admits `server`
+/// for a caller whose effective uid is `euid`. That means: `server.uid == euid AND
+/// server.pid == minter_pid`. False → the connection is refused by `SocketAddress::connect`.
+///
+/// The connect gate verifies the kernel-vouched answerer pid against the minter pid stamped
+/// in the address capability at autobind time — symmetric with the accept gate's
+/// `OnlyMyPeers` pid-set check in `kernel::listener`.
 ///
 /// Extracted so a regression test can drive it with SYNTHESIZED `PeerCred` values
 /// (no real socket, no fork, no privilege) — exactly parallel to
 /// `kernel::listener::tests::authorizes_only_my_uid_and_an_allowed_pid`.
-pub(crate) fn connect_admits(server: &crate::comms::process::PeerCred, euid: u32) -> bool {
-    crate::capability::CommsPolicy::AnyOfMyUser.admits(server, euid)
+pub(crate) fn connect_admits(
+    server: &crate::comms::process::PeerCred,
+    euid: u32,
+    minter_pid: i32,
+) -> bool {
+    crate::capability::CommsPolicy::OnlyThisPeer { pid: minter_pid }.admits(server, euid)
 }
 
 // ─── Address entity ───────────────────────────────────────────────────────────
@@ -249,25 +259,24 @@ impl Address {
         Address { inner: Box::new(ThreadAddress { tx }) }
     }
 
-    /// Construct a process-tier address from the RAW abstract-namespace name bytes.
-    /// Arc 272: the autobind path — the kernel-minted name (binary, not UTF-8) is the
-    /// capability `connect'` dials.
-    pub fn from_socket_name_bytes(name: Vec<u8>) -> Self {
-        Address { inner: Box::new(SocketAddress { name }) }
+    /// Construct a process-tier address from the RAW abstract-namespace name bytes and the
+    /// minter pid. Arc 272 6c.2: the autobind path stamps `getpid()` so the connect gate can
+    /// verify the kernel-vouched answerer pid against the minter.
+    pub fn from_socket_name_bytes(name: Vec<u8>, minter_pid: i32) -> Self {
+        Address { inner: Box::new(SocketAddress { name, minter_pid }) }
     }
 
-    /// Arc 272 6a-i — the PORTABLE wire bytes of this address, IF it is a process-tier socket
-    /// address (the kernel-minted name). A process-tier address is a true capability: its name
-    /// bytes are meaningful across a process boundary, so it may cross the IPC wire (as a
-    /// `#wat-edn.cap/address` tag). A thread-tier address (a crossbeam `Sender`) has NO portable
-    /// form — it is in-memory, same-process only — so this returns `None` and the address falls to
-    /// the opaque (non-portable) wire path. The `Address` owns this knowledge so the wire layer
-    /// never reaches into the concrete `CommAddress` impls.
-    pub(crate) fn portable_name_bytes(&self) -> Option<Vec<u8>> {
+    /// Arc 272 6c.2 — the PORTABLE form of this address: `(minter_pid, name_bytes)`, IF it is
+    /// a process-tier socket address. A process-tier address is a true capability: its name bytes
+    /// and minter pid are meaningful across a process boundary, so it may cross the IPC wire (as a
+    /// `#wat-edn.cap/address` `#wat.kernel/SocketAddressWire` record). A thread-tier address (a
+    /// crossbeam `Sender`) has NO portable form — it is in-memory, same-process only — so this
+    /// returns `None` and the address falls to the opaque (non-portable) wire path.
+    pub(crate) fn portable_form(&self) -> Option<(i32, Vec<u8>)> {
         self.inner
             .as_any_ref()
             .downcast_ref::<SocketAddress>()
-            .map(|s| s.name.clone())
+            .map(|s| (s.minter_pid, s.name.clone()))
     }
 
     /// Dispatch connect to the concrete impl; wrap the returned `Peer` as a
@@ -296,25 +305,34 @@ mod tests {
     /// Regression guard: the connect gate's policy consult is exercised with SYNTHESIZED peer
     /// credentials — no real socket, no fork, no privilege required.
     ///
-    /// Mirrors `kernel::listener::tests::authorizes_only_my_uid_and_an_allowed_pid` (the accept
-    /// gate's parity test). A refactor that drops or weakens the `connect_admits` consult will
-    /// redden this test.
+    /// Arc 272 6c.2: the gate now checks `OnlyThisPeer { pid: minter_pid }` — exact pid AND
+    /// same euid. Mirrors `kernel::listener::tests::authorizes_only_my_uid_and_an_allowed_pid`
+    /// (the accept gate's parity test). A refactor that drops or weakens the `connect_admits`
+    /// consult will redden this test.
     #[test]
-    fn connect_admits_same_euid_admitted_different_euid_refused() {
+    fn connect_admits_exact_pid_admitted_wrong_pid_or_uid_refused() {
         let my_euid: u32 = 1000;
+        let minter_pid: i32 = 4242;
 
-        // Same uid as caller → admitted.
-        let same_user = PeerCred { pid: 42, uid: my_euid, gid: 0 };
+        // Exact pid + same uid → admitted.
+        let exact = PeerCred { pid: minter_pid, uid: my_euid, gid: 0 };
         assert!(
-            connect_admits(&same_user, my_euid),
-            "a peer with the same euid must be admitted by AnyOfMyUser"
+            connect_admits(&exact, my_euid, minter_pid),
+            "exact minter pid + same euid must be admitted by OnlyThisPeer"
         );
 
-        // Different uid → refused.
-        let foreign_user = PeerCred { pid: 42, uid: my_euid + 1, gid: 0 };
+        // Same uid, wrong pid → refused.
+        let wrong_pid = PeerCred { pid: minter_pid + 1, uid: my_euid, gid: 0 };
         assert!(
-            !connect_admits(&foreign_user, my_euid),
-            "a peer with a different euid must be refused by AnyOfMyUser"
+            !connect_admits(&wrong_pid, my_euid, minter_pid),
+            "same uid but wrong pid must be refused by OnlyThisPeer"
+        );
+
+        // Right pid, different uid → refused.
+        let wrong_uid = PeerCred { pid: minter_pid, uid: my_euid + 1, gid: 0 };
+        assert!(
+            !connect_admits(&wrong_uid, my_euid, minter_pid),
+            "right pid but different uid must be refused by OnlyThisPeer"
         );
     }
 }

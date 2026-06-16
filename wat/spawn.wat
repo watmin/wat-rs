@@ -25,6 +25,15 @@
 ;; See docs/arc/2026/06/259-forced-hand/DESIGN.md § "The spawn primitive".
 ;; Loads AFTER wat/Record.wat (uses :wat::Record::def).
 
+;; ── Arc 272 6c.2 — SocketAddressWire (the portable address capability record) ──
+;; The portable form of a process-tier Address': minter-pid + autobind name bytes
+;; (as Vector<i64>, since wat has no byte scalar). Encodes as:
+;;   #wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
+;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
+(:wat::Record::def :wat::kernel::SocketAddressWire
+  [minter-pid <- :wat::core::i64
+   name       <- :wat::core::Vector<:wat::core::i64>])
+
 ;; ── Per-env launch records (what each env hands the post-spawn hook) ─────────
 ;; ThreadLaunch is empty — no fields yet; grows if a need appears (don't build
 ;; the forcing function). ProcessLaunch carries the child pid, owner-side.

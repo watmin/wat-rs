@@ -1,4 +1,4 @@
-//! Arc 272 v4 — the comms policy (the object-capability **powerbox**).
+//! Arc 272 v4 / 6c.2 — the comms policy (the object-capability **powerbox**).
 //!
 //! *"Only my peers can comms with me."* A [`CommsPolicy`] decides, from a peer's KERNEL-VERIFIED
 //! credentials ([`PeerCred`] = `SO_PEERCRED` `{pid,uid,gid}`, unforgeable), whether to admit it. It is
@@ -8,37 +8,32 @@
 //! handle, so possession of the handle IS the grant — there is no kernel credential to verify.
 //!
 //! The trust boundary is verified at the gate (end-to-end); the capability waist (`registry`) then
-//! rides an already-authorized channel. Shaped to grow into a **policy language**: the two present
-//! rungs are `OnlyMyPeers` (euid + lineage pid) and `AnyOfMyUser` (euid alone); further rungs
-//! (`these-gids`, ultimately a wat `fn(PeerCred) -> bool` predicate) are added to the enum — the
-//! rigid `admits` contract never changes, the expressible policies do (the narrow-waist law).
+//! rides an already-authorized channel. The two live rungs are `OnlyMyPeers` (accept gate — euid +
+//! lineage pid set) and `OnlyThisPeer` (connect gate — euid + minter pid stamped in the address
+//! capability). Adding a rung extends the policy language; the `admits` contract never changes
+//! (the narrow-waist law).
 
 use crate::comms::process::PeerCred;
 use std::collections::HashSet;
 
 /// A comms authorization policy over a peer's verified credentials.
 ///
-/// The variants form a **ladder** of posture, from the strict lineage form down: each lower rung
-/// drops one clause of the one above it. The gates pick the rung they can honestly stand on —
-/// `OnlyMyPeers` where the lineage is known (the accept gate, which holds its allow-set),
-/// `AnyOfMyUser` where it is not (the connect gate, which holds no allow-set — dialing out, it has
-/// no set of expected pids to check against, so it checks euid alone). Adding a rung (`these-gids`,
-/// a wat `fn(PeerCred) -> bool`, …) extends the policy language; the `admits` contract never changes.
+/// The gates pick the rung they can honestly stand on — `OnlyMyPeers` where the full lineage set
+/// is held (the accept gate), `OnlyThisPeer` where the minter pid is stamped in the capability
+/// (the connect gate: the address carries the minter's pid, and the connect gate verifies the
+/// kernel-vouched answerer pid against it). The `admits` contract never changes.
 pub enum CommsPolicy<'a> {
     /// Admit iff the peer runs as me (euid match) AND its pid is one of mine — a member of the
     /// **lineage set** (the pids I spawned; a listener's allow-set). The 272 trust model — *"only my
     /// peers"* — named. This is the object-capability transfer-only rule made a predicate: authority
     /// flows only along the spawn lineage, verified by the kernel, never to a stranger.
     OnlyMyPeers { lineage: &'a HashSet<i32> },
-    /// Admit iff the peer runs as me (euid match) — **any** process of my own user, regardless of
-    /// pid. `OnlyMyPeers` with the lineage clause dropped. The honest posture of the **connect** gate:
-    /// dialing out, the client verifies the answerer is one of our user's processes; it holds no
-    /// allow-set of expected pids (unlike the accept gate), so it checks euid alone. Naming the
-    /// weaker rung keeps the gate from *claiming* a pid check it does not perform. (Post arc-272
-    /// step 5 the dialed address is ALWAYS an unguessable autobind capability handed over the lineage
-    /// channel — guessable names are annihilated — so the answerer is lineage-proven by possession;
-    /// the euid floor here is defense-in-depth, not the whole trust.)
-    AnyOfMyUser,
+    /// Admit iff the peer runs as me (euid match) AND its pid equals the **minter pid** stamped in
+    /// the address capability. The connect gate's rung: the minter stamps `getpid()` at autobind;
+    /// the capability carries it by value to the dialer; the dialer verifies the kernel-vouched
+    /// `SO_PEERCRED` answerer pid matches the stamped pid. Symmetric with the accept gate's
+    /// `OnlyMyPeers` pid check — both verify kernel-vouched pid, both require euid match.
+    OnlyThisPeer { pid: i32 },
 }
 
 impl CommsPolicy<'_> {
@@ -49,7 +44,7 @@ impl CommsPolicy<'_> {
             CommsPolicy::OnlyMyPeers { lineage } => {
                 peer.uid == my_euid && lineage.contains(&peer.pid)
             }
-            CommsPolicy::AnyOfMyUser => peer.uid == my_euid,
+            CommsPolicy::OnlyThisPeer { pid } => peer.uid == my_euid && peer.pid == *pid,
         }
     }
 }
@@ -77,16 +72,25 @@ mod tests {
     }
 
     #[test]
-    fn any_of_my_user_admits_my_user_at_any_pid_and_refuses_other_users() {
-        let policy = CommsPolicy::AnyOfMyUser;
+    fn only_this_peer_admits_exact_pid_refuses_wrong_pid_and_wrong_uid() {
+        let minter_pid: i32 = 4242;
+        let policy = CommsPolicy::OnlyThisPeer { pid: minter_pid };
         let me: u32 = 1000;
 
-        // My user — ADMITTED regardless of pid (the connect gate holds no allow-set, so the lineage
-        // clause is dropped and any pid of my user passes).
-        assert!(policy.admits(&cred(100, me), me), "a process of my user, pid 100 — admitted");
-        assert!(policy.admits(&cred(999, me), me), "a process of my user, any other pid — admitted");
-        // Different user (euid mismatch) → REFUSED — the floor every rung shares (the connect gate's
-        // euid check, now expressed as policy; a cross-uid server is bounced at dial time).
-        assert!(!policy.admits(&cred(100, me + 1), me), "another user's process — refused at the floor");
+        // Exact pid AND same uid → admitted.
+        assert!(
+            policy.admits(&cred(minter_pid, me), me),
+            "exact minter pid + same euid must be admitted"
+        );
+        // Same uid, WRONG pid → REFUSED (the capability was minted by a specific process).
+        assert!(
+            !policy.admits(&cred(minter_pid + 1, me), me),
+            "same uid but wrong pid must be refused"
+        );
+        // Right pid, WRONG uid → REFUSED (always requires euid match).
+        assert!(
+            !policy.admits(&cred(minter_pid, me + 1), me),
+            "right pid but wrong uid must be refused"
+        );
     }
 }
