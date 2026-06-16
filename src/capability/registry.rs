@@ -93,6 +93,94 @@ fn decode_in(caps: &[CapCodec], name: &str, body: &OwnedValue, types: &TypeEnv) 
 
 // ─── Registrants ──────────────────────────────────────────────────────────────
 
+/// The canonical FQDN for the `SocketAddressWire` base record — the single source of truth for
+/// both the encode and decode paths. Changing the wire class name is a ONE-site edit here.
+const SOCKET_ADDRESS_WIRE_CLASS: &str = "wat::kernel::SocketAddressWire";
+
+/// Build the `SocketAddressWire` `Value::wat__Record` from its two fields.
+/// struct_form = [i64(minter_pid), Value::Vec of i64 name bytes].
+/// Called by the encode closure so the class FQDN + field order live once, not twice.
+fn socket_address_wire_to_record(minter_pid: i32, name_bytes: Vec<u8>) -> Value {
+    let name_vec = Value::Vec(std::sync::Arc::new(
+        name_bytes.into_iter().map(|b| Value::i64(b as i64)).collect(),
+    ));
+    Value::wat__Record {
+        class_fqdn: std::sync::Arc::new(SOCKET_ADDRESS_WIRE_CLASS.into()),
+        struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
+    }
+}
+
+/// Extract `(minter_pid, name_bytes)` from a decoded `SocketAddressWire` `Value`.
+/// Owns the class check (vs `SOCKET_ADDRESS_WIRE_CLASS`), the 2-field check, and all
+/// per-field validation (byte range, non-empty, ≤107 limit). Called by the decode closure.
+fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnReadError> {
+    let (class_fqdn, struct_form) = match rec {
+        Value::wat__Record { ref class_fqdn, ref struct_form } => {
+            (class_fqdn.clone(), struct_form.clone())
+        }
+        _ => {
+            return Err(cap_decode_error(
+                "wat-edn.cap/address (expected a SocketAddressWire record)",
+            ))
+        }
+    };
+    if class_fqdn.as_str() != SOCKET_ADDRESS_WIRE_CLASS {
+        return Err(cap_decode_error(format!(
+            "wat-edn.cap/address (wrong record class: {})",
+            class_fqdn
+        )));
+    }
+    if struct_form.len() != 2 {
+        return Err(cap_decode_error(
+            "wat-edn.cap/address (SocketAddressWire must have 2 fields)",
+        ));
+    }
+    // Field 0: minter-pid (i64)
+    let minter_pid = match &struct_form[0] {
+        Value::i64(n) => *n as i32,
+        _ => {
+            return Err(cap_decode_error(
+                "wat-edn.cap/address (minter-pid field must be i64)",
+            ))
+        }
+    };
+    // Field 1: name (Vector<i64> = Value::Vec of Value::i64)
+    let name_bytes_vals = match &struct_form[1] {
+        Value::Vec(xs) => xs.clone(),
+        _ => {
+            return Err(cap_decode_error(
+                "wat-edn.cap/address (name field must be Vector<i64>)",
+            ))
+        }
+    };
+    // Cap the decoded name at the abstract-UDS limit (sun_path[1..] ≤ 107 bytes).
+    const ABSTRACT_UDS_NAME_MAX: usize = 107;
+    if name_bytes_vals.is_empty() {
+        return Err(cap_decode_error(
+            "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)",
+        ));
+    }
+    if name_bytes_vals.len() > ABSTRACT_UDS_NAME_MAX {
+        return Err(cap_decode_error(format!(
+            "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
+            name_bytes_vals.len(),
+            ABSTRACT_UDS_NAME_MAX
+        )));
+    }
+    let mut name_bytes = Vec::with_capacity(name_bytes_vals.len());
+    for v in name_bytes_vals.iter() {
+        match v {
+            Value::i64(n) if (0..=255).contains(n) => name_bytes.push(*n as u8),
+            _ => {
+                return Err(cap_decode_error(
+                    "wat-edn.cap/address (name byte out of 0..=255)",
+                ))
+            }
+        }
+    }
+    Ok((minter_pid, name_bytes))
+}
+
 /// `Address'` (arc 272 6c.2 D1) — the kernel-minted abstract UDS address. The first inhabitant of
 /// the waist. Portable as a process-tier socket address: carries the minter pid + name bytes as a
 /// registered `SocketAddressWire` base record (the general record encode/decode path handles
@@ -105,16 +193,10 @@ fn address_codec() -> CapCodec {
         encode: |inner, types| {
             let addr = inner.payload.downcast_ref::<crate::kernel::address::Address>()?;
             let (minter_pid, name_bytes) = addr.portable_form()?;
-            // Build a SocketAddressWire record: struct_form = [minter_pid, name as Vec<i64>].
-            // Value::Vec is :wat::core::Vector<T> at runtime (runtime.rs:6334).
-            let name_vec = Value::Vec(std::sync::Arc::new(
-                name_bytes.into_iter().map(|b| Value::i64(b as i64)).collect(),
-            ));
-            let record = Value::wat__Record {
-                class_fqdn: std::sync::Arc::new("wat::kernel::SocketAddressWire".into()),
-                struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
-            };
-            Some(crate::edn_shim::value_to_edn_with(&record, Some(types)))
+            Some(crate::edn_shim::value_to_edn_with(
+                &socket_address_wire_to_record(minter_pid, name_bytes),
+                Some(types),
+            ))
         },
         decode: |body, types| {
             // body is the OwnedValue body of #wat-edn.cap/address — expected to be a
@@ -123,70 +205,7 @@ fn address_codec() -> CapCodec {
             let record_val = crate::edn_shim::edn_to_value(body, Some(types)).map_err(|_| {
                 cap_decode_error("wat-edn.cap/address (body failed edn_to_value)")
             })?;
-            let (class_fqdn, struct_form) = match record_val {
-                Value::wat__Record { ref class_fqdn, ref struct_form } => {
-                    (class_fqdn.clone(), struct_form.clone())
-                }
-                _ => {
-                    return Err(cap_decode_error(
-                        "wat-edn.cap/address (expected a SocketAddressWire record)",
-                    ))
-                }
-            };
-            if class_fqdn.as_str() != "wat::kernel::SocketAddressWire" {
-                return Err(cap_decode_error(format!(
-                    "wat-edn.cap/address (wrong record class: {})",
-                    class_fqdn
-                )));
-            }
-            if struct_form.len() != 2 {
-                return Err(cap_decode_error(
-                    "wat-edn.cap/address (SocketAddressWire must have 2 fields)",
-                ));
-            }
-            // Field 0: minter-pid (i64)
-            let minter_pid = match &struct_form[0] {
-                Value::i64(n) => *n as i32,
-                _ => {
-                    return Err(cap_decode_error(
-                        "wat-edn.cap/address (minter-pid field must be i64)",
-                    ))
-                }
-            };
-            // Field 1: name (Vector<i64> = Value::Vec of Value::i64)
-            let name_bytes_vals = match &struct_form[1] {
-                Value::Vec(xs) => xs.clone(),
-                _ => {
-                    return Err(cap_decode_error(
-                        "wat-edn.cap/address (name field must be Vector<i64>)",
-                    ))
-                }
-            };
-            // Cap the decoded name at the abstract-UDS limit (sun_path[1..] ≤ 107 bytes).
-            const ABSTRACT_UDS_NAME_MAX: usize = 107;
-            if name_bytes_vals.is_empty() {
-                return Err(cap_decode_error(
-                    "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)",
-                ));
-            }
-            if name_bytes_vals.len() > ABSTRACT_UDS_NAME_MAX {
-                return Err(cap_decode_error(format!(
-                    "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
-                    name_bytes_vals.len(),
-                    ABSTRACT_UDS_NAME_MAX
-                )));
-            }
-            let mut name_bytes = Vec::with_capacity(name_bytes_vals.len());
-            for v in name_bytes_vals.iter() {
-                match v {
-                    Value::i64(n) if (0..=255).contains(n) => name_bytes.push(*n as u8),
-                    _ => {
-                        return Err(cap_decode_error(
-                            "wat-edn.cap/address (name byte out of 0..=255)",
-                        ))
-                    }
-                }
-            }
+            let (minter_pid, name_bytes) = socket_address_wire_from_record(&record_val)?;
             let addr = crate::kernel::address::Address::from_socket_name_bytes(name_bytes, minter_pid);
             Ok(crate::rust_deps::marshal::make_rust_opaque(
                 crate::kernel::spawn::ADDRESS_TYPE_PATH,
@@ -311,19 +330,25 @@ mod waist_proof {
         }
     }
 
+    /// Build a `SocketAddressWire` OwnedValue body with a caller-supplied `name` `Value` and the
+    /// given `minter_pid`. Takes a raw `Value` name (not `Vec<u8>`) so callers can pass malformed
+    /// or oversized names that `socket_address_wire_to_record`'s `Vec<u8>` path cannot construct.
+    fn make_address_body(minter_pid: i32, name: Value, types: &crate::types::TypeEnv) -> wat_edn::OwnedValue {
+        let record = Value::wat__Record {
+            class_fqdn: std::sync::Arc::new(SOCKET_ADDRESS_WIRE_CLASS.into()),
+            struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
+        };
+        crate::edn_shim::value_to_edn_with(&record, Some(types))
+    }
+
     #[test]
     fn address_decode_rejects_overlong_name() {
         // A name longer than the abstract-UDS limit (107 bytes) is refused at decode.
         let types = make_types_with_wire();
-        let minter_pid: i32 = 1;
         let name_vec = Value::Vec(std::sync::Arc::new(
             (0..200).map(|_| Value::i64(b'a' as i64)).collect(),
         ));
-        let record = Value::wat__Record {
-            class_fqdn: std::sync::Arc::new("wat::kernel::SocketAddressWire".into()),
-            struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
-        };
-        let body = crate::edn_shim::value_to_edn_with(&record, Some(&types));
+        let body = make_address_body(1, name_vec, &types);
         let err = decode_in(&[address_codec()], "address", &body, &types)
             .expect_err("an over-long address name must be refused at decode");
         match err.kind {
@@ -347,13 +372,8 @@ mod waist_proof {
     fn address_decode_rejects_empty_name() {
         // An empty byte vector is rejected at decode — symmetric with the over-long rejection.
         let types = make_types_with_wire();
-        let minter_pid: i32 = 1;
         let name_vec = Value::Vec(std::sync::Arc::new(vec![]));
-        let record = Value::wat__Record {
-            class_fqdn: std::sync::Arc::new("wat::kernel::SocketAddressWire".into()),
-            struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
-        };
-        let body = crate::edn_shim::value_to_edn_with(&record, Some(&types));
+        let body = make_address_body(1, name_vec, &types);
         let err = decode_in(&[address_codec()], "address", &body, &types)
             .expect_err("an empty address name must be refused at decode");
         match err.kind {
