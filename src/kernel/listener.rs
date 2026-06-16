@@ -255,8 +255,8 @@ impl CommListener for CrossbeamListener {
 pub struct SocketListener {
     pub(crate) listener: UnixListener,
     /// Arc 209 C0b.3b-b — the allow-set: a pid is in it or it isn't. Birth-seeded with
-    /// the owner's pid (getppid() = the spawner, trusted by construction). A connector
-    /// whose SO_PEERCRED pid ∉ this set (or whose uid ≠ ours) is bounced at accept.
+    /// `{getpid(), getppid()}` = self + owner (see `from_socket`). A connector whose
+    /// SO_PEERCRED pid ∉ this set (or whose uid ≠ ours) is bounced at accept.
     ///
     /// Arc 272 v4 — **ZERO-MUTEX**: a `ThreadOwnedCell`, not a `Mutex`. The listener is
     /// single-thread-owned — `Listener'` is never sendable across a peer wire (not in the
@@ -335,9 +335,33 @@ impl CommListener for SocketListener {
                 crate::comms::SelectOutcome::Listener => {
                     match self.listener.accept() {
                         Ok((stream, _)) => {
-                            // Inline wrap_stream_as_socket_peer (Arc 209 C0b.2e-i-b).
-                            // Arc 209 C0b.2e-i-b: switched from String to Value — encoding
-                            // is internal.
+                            // Arc 272 v4 — THE GATE (parity with the poll' accept arm in
+                            // runtime.rs): the kernel vouches for the connector's {pid,uid,gid};
+                            // consult the powerbox and serve only an authorized peer, else bounce
+                            // the stranger (drop + re-poll). Without this, the BLOCKING accept'
+                            // verb was an ungated accept path: a service that accept's instead of
+                            // poll's would admit ANY peer, and a recv' on that Peer would
+                            // reconstruct capabilities off a channel that never passed the policy
+                            // (the forge path the trusted-wire door's inheritance premise rests on
+                            // being closed). Both accept paths now enforce `CommsPolicy`. Read
+                            // peer_cred BEFORE `OwnedFd::from(stream)` consumes the stream.
+                            let cred = crate::comms::process::peer_cred(stream.as_raw_fd())
+                                .map_err(|e| RuntimeError {
+                                    span: span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "accept' (process tier): peer_cred on accepted socket: {}",
+                                            e
+                                        ),
+                                    },
+                                })?;
+                            if !self.authorizes(&cred) {
+                                drop(stream); // bounce the stranger — close the accepted fd
+                                continue; // re-poll for the next dialer
+                            }
+                            // Inline wrap_stream_as_socket_peer (Arc 209 C0b.2e-i-b): encoding
+                            // is internal (switched from String to Value).
                             let (tx, rx) =
                                 crate::comms::process::sender_receiver_from_fd::<Value>(
                                     OwnedFd::from(stream),
@@ -410,14 +434,22 @@ impl Listener {
 
     /// Construct a process-tier listener from the bound `UnixListener`.
     ///
-    /// Arc 209 C0b.3b-b — BIRTH-SEED: `{getppid()}` = the owner. `getppid()` in the service
-    /// child IS the spawner — spawn is clone3-direct (no CLONE_PARENT; clone.rs:388) and
-    /// `run_forms_as_server_child` runs the body in that child (spawn.rs:632). Dissolves the
-    /// bootstrap circularity → the gate is LIVE from construction.
+    /// Arc 209 C0b.3b-b / arc 272 v4 — BIRTH-SEED `{getpid(), getppid()}`: the two peers trusted by
+    /// construction.
+    /// - `getpid()` = **self**. A process is trivially its own peer — a connection whose
+    ///   `SO_PEERCRED` pid == ours is the same kernel process at the same euid (the strongest
+    ///   possible peer identity, unforgeable). This admits the same-process connect→accept path (a
+    ///   single-process service, or one thread dialing another's listener) through the gate, instead
+    ///   of the gate refusing self and a blocking `accept'` spinning forever.
+    /// - `getppid()` = the **owner/spawner**. A spawned `(process)` service is reached by its owner;
+    ///   the owner is trusted by construction (it minted this child). Spawn is clone3-direct (no
+    ///   CLONE_PARENT; clone.rs) and the body runs in that child (spawn.rs), so `getppid()` IS the
+    ///   spawner — the gate is LIVE from construction.
+    /// Further peers (spawned children) are admitted by the owner via `allow'`.
     pub fn from_socket(listener: UnixListener) -> Self {
-        let owner_pid = unsafe { libc::getppid() };
         let mut seed = HashSet::new();
-        seed.insert(owner_pid);
+        seed.insert(unsafe { libc::getpid() }); // self — a process is its own peer
+        seed.insert(unsafe { libc::getppid() }); // owner — the spawner, trusted by construction
         Listener {
             inner: Box::new(SocketListener { listener, allowed_pids: ThreadOwnedCell::new(seed) }),
         }
