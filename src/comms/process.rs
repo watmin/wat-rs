@@ -625,6 +625,51 @@ impl<T: EdnRepresentable> Receiver<T> {
     pub fn close(self) {
         // Drop happens at end of scope.
     }
+
+    /// Read one EDN wire frame and return the raw UTF-8 string WITHOUT calling
+    /// `T::from_wire`. Mirrors the `recv()` read loop exactly, but stops before
+    /// the decode step so the caller (socket-tier `Peer::recv_wire`) can hand the
+    /// string to `decode_trusted_wire` with a live type registry.
+    ///
+    /// Arc 272 6b-ii-α — the trusted-wire door (`decode_trusted_wire`) requires
+    /// the wire string; `recv()` decodes internally with no type registry, which
+    /// fails on user-defined record tags (e.g. `#user/Counter {:base 1000}`).
+    /// `recv_wire_raw` is the seam that separates "get the bytes" from "decode".
+    ///
+    /// Returns `Err(RecvError::Disconnected)` on EOF or UTF-8 failure; returns
+    /// `Err(RecvError::Shutdown)` when the substrate cascade fires.
+    ///
+    /// `pub(crate)` — only `kernel::peer::Peer::recv_wire` calls this, and only
+    /// for socket-tier peers (the self-peer's `Receiver<Value>` over the lineage pipe).
+    pub(crate) fn recv_wire_raw(&self) -> Result<String, RecvError> {
+        // Fast path — accumulator already holds a complete frame.
+        if let Some(frame) = self.take_buffered_frame() {
+            return std::str::from_utf8(&frame)
+                .map(str::to_owned)
+                .map_err(|_| RecvError::Disconnected);
+        }
+
+        let read_fd = self.read_fd.as_raw_fd();
+        let broadcast_opt = current_broadcast_fd();
+
+        loop {
+            if let Some(broadcast_fd) = broadcast_opt {
+                match wait_for_data_or_cascade(read_fd, broadcast_fd, &self.ring)? {
+                    PollOutcome::Shutdown => return Err(RecvError::Shutdown),
+                    PollOutcome::DataReady => {}
+                }
+            }
+            let n = self.read_into_acc().map_err(|_| RecvError::Disconnected)?;
+            if n == 0 {
+                return Err(RecvError::Disconnected);
+            }
+            if let Some(frame) = self.take_buffered_frame() {
+                return std::str::from_utf8(&frame)
+                    .map(str::to_owned)
+                    .map_err(|_| RecvError::Disconnected);
+            }
+        }
+    }
 }
 
 impl<T: EdnRepresentable> Clone for Receiver<T> {

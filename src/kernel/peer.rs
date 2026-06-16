@@ -279,6 +279,29 @@ impl Peer {
     pub fn recv(&self) -> Result<crate::value::Value, RecvError> {
         self.rx.recv()
     }
+
+    /// Read the raw EDN wire string from a **socket-tier** peer WITHOUT decoding.
+    ///
+    /// Arc 272 6b-ii-α — the trusted-wire door (`decode_trusted_wire`) needs the raw
+    /// EDN string so it can reconstruct user-defined records with the type registry.
+    /// `recv()` decodes internally via `Value::from_wire` (no type registry) and
+    /// fails on tagged user records (e.g. `#user/Counter {:base 1000}`).
+    ///
+    /// The eval layer (`eval_peer_recv_prime`) calls this for socket-tier self-peers,
+    /// then passes the returned string through `decode_trusted_wire(s, sym.types())`.
+    /// Thread-tier peers do not go through EDN serialisation; they must use `recv()`.
+    ///
+    /// Panics if called on a thread-tier peer (programming error — use `recv()`).
+    pub fn recv_wire(&self) -> Result<String, RecvError> {
+        // Arc 272 6b-ii-α: downcast the type-erased CommReceiver<Value> back to the
+        // concrete process::Receiver<Value> so we can call recv_wire_raw(), which reads
+        // the pipe bytes and returns the UTF-8 frame without calling T::from_wire.
+        self.rx
+            .as_any()
+            .downcast_ref::<crate::comms::process::Receiver<crate::value::Value>>()
+            .expect("recv_wire called on non-socket-tier peer (thread::Receiver does not impl from_wire via pipe)")
+            .recv_wire_raw()
+    }
 }
 
 impl std::fmt::Debug for Peer {

@@ -14,8 +14,12 @@
 //! `Counter{base 1000}` actually crossed parent→child over the lineage — a wrong/missing state could
 //! not produce 1005. Design B3, DESIGN-STONE-6b-process-launch.md.
 //!
-//! RED at HEAD isolates exactly the parent→child lineage send (and its send'/recv' inference) — the
-//! serve loop, capability handoff, and record-over-fork are all already GREEN around it.
+//! Was RED before 6b-ii-α; now GREEN (the regression test). The real failure was decode-side: the
+//! socket-tier `recv' self` arm decoded via `peer.recv()` with NO type registry, so the child's
+//! `(recv' self)` raised `NoTypeRegistry` on the `#user/Counter` tag and exited (the parent's send
+//! had already landed; `connect'` then found the listener gone — "Connection refused"). 6b-ii-α routes
+//! socket-tier `recv'` through `recv_wire()` + `decode_trusted_wire(sym.types())`, mirroring the
+//! PROCESS arm and symmetric with the encode-in-eval send side (258.5b-ii).
 //!
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6b_state_over_lineage
@@ -81,9 +85,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "6b-i RED until 6b-ii wires the parent→child lineage send: (send' svc state0) currently \
-            fails 'channel disconnected' even though the process handle holds an input_tx \
-            (spawn.rs:726). UN-IGNORE when 6b-ii lands."]
 fn initial_state_crosses_parent_to_child_over_lineage_and_serve_threads_it() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed (6b-i: state0 over the lineage channel)");

@@ -101,7 +101,13 @@ a type-arg to a parametric intrinsic is unproven**. 6b-i sidesteps it (hand-roll
 
 ## Decomposition (sub-stones)
 
-- **6b-i** — disconfirming probe (RED at HEAD), isolating the ONE genuinely-unproven bit. Already proven
+- **6b-i — ✅ DONE** (probe GREEN). The disconfirming probe surfaced the real gap: the socket-tier
+  `recv' self` arm decoded with NO type registry (`peer.recv()`), so the child raised `NoTypeRegistry`
+  on the crossed `#user/Counter` record and exited — the parent→child *send* worked; the *receive*
+  side was broken. 6b-ii-α fixed it: socket-tier `recv'` now does `recv_wire()` + `decode_trusted_wire(sym.types())`
+  (new `Receiver::recv_wire_raw` + `Peer::recv_wire`), mirroring the PROCESS arm. lib 929/36, all sibling
+  socket-tier probes GREEN.
+  - Original framing (kept for the WHY): isolating the ONE genuinely-unproven bit. Already proven
   on disk (do NOT re-probe): the process `poll'` serve loop + owner-drop termination
   (`probe_arc209_c0b3aii_process_service_loop.rs`, GREEN); a record crossing the fork **child→parent**
   over the lineage channel (`probe_arc272_6c2_record_ipc_derisk.rs`, GREEN). The gap B3 needs is the

@@ -23868,6 +23868,38 @@ fn eval_peer_recv_prime(
                             },
                         }
                         .into()),
+                        // Arc 272 6b-ii-α — socket-tier self-peer: recv the raw EDN wire
+                        // string and decode via the trusted-wire door with sym.types().
+                        // peer.recv() decodes internally via Value::from_wire (no type
+                        // registry) and fails on user-defined record tags
+                        // (e.g. `#user/Counter {:base 1000}`). Using recv_wire() +
+                        // decode_trusted_wire reconstructs the record correctly.
+                        // This matches the PROCESS_PEER_TYPE_PATH recv arm (line ~23779)
+                        // which calls bundle.recv() → raw String → decode_trusted_wire.
+                        Some(peer) if peer.is_socket_tier() => {
+                            let wire = peer.recv_wire().map_err(|_| {
+                                EvalBreak::from(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: "recv failed: peer closed / channel disconnected".into(),
+                                    },
+                                })
+                            })?;
+                            crate::edn_shim::decode_trusted_wire(
+                                &wire,
+                                sym.types().map(|a| a.as_ref()),
+                            )
+                            .map_err(|e| {
+                                EvalBreak::from(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!("recv' EDN decode failed: {}", e),
+                                    },
+                                })
+                            })
+                        }
                         Some(peer) => peer.recv().map_err(|_| {
                             RuntimeError {
                                 span: list_span.clone(),
