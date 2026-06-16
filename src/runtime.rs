@@ -19164,7 +19164,7 @@ fn eval_allow_prime(
                             .into());
                         }
                     };
-                    sl.allow(pid);
+                    sl.allow(pid, list_span.clone())?;
                     Ok(Value::Unit)
                 }
                 None => Err(RuntimeError {
@@ -19239,7 +19239,7 @@ fn eval_deny_prime(
                             .into());
                         }
                     };
-                    sl.deny(pid);
+                    sl.deny(pid, list_span.clone())?;
                     Ok(Value::Unit)
                 }
                 None => Err(RuntimeError {

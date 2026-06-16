@@ -26,7 +26,7 @@
 use std::collections::HashSet;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixListener;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::channel::inner::ReceiverInner;
 use crate::channel::SenderInner;
@@ -257,7 +257,15 @@ pub struct SocketListener {
     /// Arc 209 C0b.3b-b — the allow-set: a pid is in it or it isn't. Birth-seeded with
     /// the owner's pid (getppid() = the spawner, trusted by construction). A connector
     /// whose SO_PEERCRED pid ∉ this set (or whose uid ≠ ours) is bounced at accept.
-    pub(crate) allowed_pids: Mutex<HashSet<i32>>,
+    ///
+    /// Arc 272 v4 — **ZERO-MUTEX**: a `ThreadOwnedCell`, not a `Mutex`. The listener is
+    /// single-thread-owned — `Listener'` is never sendable across a peer wire (not in the
+    /// portable/cap path) and wat values cross programs only by `send'`, never by shared
+    /// reference, so the poll loop (`authorizes`) and the `allow'`/`deny'` verbs all run on
+    /// the one service eval thread. The `Sync` the trait demands is provided by ownership, not
+    /// by a lock: a cross-thread touch is a `RuntimeError`, never a contended wait. The old
+    /// `Mutex` was paying for contention that cannot occur. (`docs/ZERO-MUTEX.md`, tier 2.)
+    pub(crate) allowed_pids: ThreadOwnedCell<HashSet<i32>>,
 }
 
 impl SocketListener {
@@ -266,18 +274,31 @@ impl SocketListener {
     /// (the powerbox); this gate CONSULTS it. The connect gate (`kernel::address`) consults the same
     /// policy from the other side. (Prior "SO_PEERCRED is local mTLS" was an overclaim — it is mutual
     /// UDS peer-cred, NOT TLS.) Pure + Rust-testable.
+    ///
+    /// **Fail closed**: the only way the cell errors is a cross-thread access, which the
+    /// single-owner invariant forbids; were it ever to fire, denying is the correct gate
+    /// posture (strictly safer than the old `.lock().unwrap()`, which panicked on poison).
     pub(crate) fn authorizes(&self, cred: &crate::comms::process::PeerCred) -> bool {
-        let lineage = self.allowed_pids.lock().unwrap();
-        crate::capability::CommsPolicy::OnlyMyPeers { lineage: &lineage }
-            .admits(cred, unsafe { libc::geteuid() })
+        self.allowed_pids
+            .with_ref(":wat::kernel::accept'", |lineage| {
+                crate::capability::CommsPolicy::OnlyMyPeers { lineage }
+                    .admits(cred, unsafe { libc::geteuid() })
+            })
+            .unwrap_or(false)
     }
-    /// Owner provisions another pid (beyond the birth-seeded self).
-    pub(crate) fn allow(&self, pid: i32) {
-        self.allowed_pids.lock().unwrap().insert(pid);
+    /// Owner provisions another pid (beyond the birth-seeded self). Errors only on a
+    /// cross-thread touch (invariant-forbidden) — surfaced, not swallowed.
+    pub(crate) fn allow(&self, pid: i32, span: Span) -> Result<(), RuntimeError> {
+        self.allowed_pids.with_mut(":wat::kernel::allow'", span, |s| {
+            s.insert(pid);
+        })
     }
-    /// Owner de-provisions a pid (future accepts of it bounce).
-    pub(crate) fn deny(&self, pid: i32) {
-        self.allowed_pids.lock().unwrap().remove(&pid);
+    /// Owner de-provisions a pid (future accepts of it bounce). Errors only on a cross-thread
+    /// touch (invariant-forbidden) — surfaced, not swallowed.
+    pub(crate) fn deny(&self, pid: i32, span: Span) -> Result<(), RuntimeError> {
+        self.allowed_pids.with_mut(":wat::kernel::deny'", span, |s| {
+            s.remove(&pid);
+        })
     }
 }
 
@@ -397,7 +418,9 @@ impl Listener {
         let owner_pid = unsafe { libc::getppid() };
         let mut seed = HashSet::new();
         seed.insert(owner_pid);
-        Listener { inner: Box::new(SocketListener { listener, allowed_pids: Mutex::new(seed) }) }
+        Listener {
+            inner: Box::new(SocketListener { listener, allowed_pids: ThreadOwnedCell::new(seed) }),
+        }
     }
 
     /// Dispatch accept to the concrete impl; wrap the returned `Peer` as a
@@ -425,7 +448,10 @@ mod tests {
         use std::os::unix::net::SocketAddr;
         let sa = SocketAddr::from_abstract_name(b"wat.arc209.c0b3bb.unit").unwrap();
         let listener = UnixListener::bind_addr(&sa).unwrap();
-        SocketListener { listener, allowed_pids: Mutex::new(pids.iter().copied().collect()) }
+        SocketListener {
+            listener,
+            allowed_pids: ThreadOwnedCell::new(pids.iter().copied().collect()),
+        }
     }
 
     #[test]
@@ -434,7 +460,7 @@ mod tests {
         let mine = std::process::id() as i32;
         let sl = listener_with(&[]);
         assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // empty set → no
-        sl.allow(mine);
+        sl.allow(mine, Span::unknown()).unwrap();
         assert!(sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // allowed → yes
         assert!(!sl.authorizes(&PeerCred { pid: mine + 999_999, uid: me, gid: 0 })); // wrong pid
         assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me + 1, gid: 0 })); // wrong uid → no
