@@ -1909,6 +1909,22 @@ fn tagged_to_value(
         }
         Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types),
         Edn::Nil => reconstruct_enum_unit(ns, name, types),
+        // Arc 234 Stone 234.7b — holon-tagged body: a #wat-edn.holon/* tagged value
+        // under a class tag. If the class resolves to TypeDef::Record, this is a
+        // holon record (encoded by the 234.7b encode arm as holon_form-as-edn).
+        // Base records have Edn::Map bodies (handled above) — these are distinct.
+        Edn::Tagged(inner_tag, _) if inner_tag.namespace() == "wat-edn.holon" => {
+            let path = ns_to_wat_path(ns, name);
+            match types.get(&path) {
+                Some(crate::types::TypeDef::Record(_)) => {
+                    reconstruct_holon_record(ns, name, body, types)
+                }
+                _ => {
+                    // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
+                    Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "tagged-holon" } })
+                }
+            }
+        }
         other => {
             let shape = match other {
                 Edn::Bool(_) => "bool",
@@ -2085,6 +2101,106 @@ fn reconstruct_record(
     Ok(Value::wat__Record {
         class_fqdn: Arc::new(class_fqdn),
         struct_form: Arc::new(fields),
+    })
+}
+
+/// Arc 234 Stone 234.7b — Decode a holon-record tagged body (a `#wat-edn.holon/Bind[…]`
+/// inner value) back to `Value::wat__holon__Record`.
+///
+/// Steps:
+/// 1. Reconstruct `holon_form` exactly via `edn_to_holon_ast` (the proven round-trip).
+/// 2. Project `struct_form` from the Bundle leaves:
+///    `holon_form` must be `Bind(_, Bundle(children))`;
+///    each child must be `Bind(_, val_node)`;
+///    `struct_form[i] = from_holon_item(val_node)` (pure; no eval context).
+///    `val_node` is typically `Atom(to-holon(val))` — the Atom is unwrapped locally
+///    here (confined to record projection) before calling `from_holon_item`.
+/// 3. class_fqdn from the wire tag path (strip leading ':').
+///
+/// STOP: if `holon_form` is not `Bind(_, Bundle(_))` → `EdnReadError::Other`.
+fn reconstruct_holon_record(
+    ns: &str,
+    name: &str,
+    body: &OwnedValue,
+    _types: &crate::types::TypeEnv,
+) -> Result<Value, EdnReadError> {
+    use holon::HolonAST;
+
+    // 1. Reconstruct holon_form exactly via the proven edn round-trip.
+    let holon_arc = edn_to_holon_ast(body)?;
+    let holon_form: HolonAST = (*holon_arc).clone();
+
+    // 2. Project struct_form from the Bundle leaves.
+    //    Shape: Bind(_class, Bundle([Bind(_name, val_node), ...]))
+    let children = match &holon_form {
+        HolonAST::Bind(_, right) => match right.as_ref() {
+            HolonAST::Bundle(children) => children.clone(),
+            _ => {
+                return Err(EdnReadError {
+                    span: Span::unknown(),
+                    kind: EdnReadErrorKind::Other(
+                        "reconstruct_holon_record: holon_form inner (right of outer Bind) must be Bundle".into()
+                    ),
+                });
+            }
+        },
+        _ => {
+            return Err(EdnReadError {
+                span: Span::unknown(),
+                kind: EdnReadErrorKind::Other(
+                    "reconstruct_holon_record: holon_form must be Bind(class, Bundle)".into()
+                ),
+            });
+        }
+    };
+
+    // Each child is Bind(_name, val_node); project val_node → Value.
+    // val_node is Atom(to-holon(field_val)) from the Record.wat macro.
+    // Unwrap the opaque-identity Atom here (confined to record projection),
+    // then decode the inner via from_holon_item. NOT widened into the shared
+    // from_holon_item, where it would silently misdecode a collection of holon values.
+    let op = "reconstruct_holon_record";
+    let span = Span::unknown();
+    let mut fields: Vec<Value> = Vec::with_capacity(children.len());
+    for child in children.iter() {
+        match child {
+            HolonAST::Bind(_, val_node) => {
+                // The Record.wat macro stores each field value as Atom(to-holon(val)).
+                // Unwrap the opaque-identity Atom here (confined to record projection),
+                // then decode the inner via from_holon_item. NOT widened into the shared
+                // from_holon_item, where it would silently misdecode a collection of holon values.
+                let inner = match val_node.as_ref() {
+                    HolonAST::Atom(inner) => inner.as_ref(),
+                    other => other,
+                };
+                let v = crate::runtime::from_holon_item(inner, op, &span)
+                    .map_err(|e| EdnReadError {
+                        span: Span::unknown(),
+                        kind: EdnReadErrorKind::Other(format!(
+                            "reconstruct_holon_record: from_holon_item failed: {e}"
+                        )),
+                    })?;
+                fields.push(v);
+            }
+            _ => {
+                return Err(EdnReadError {
+                    span: Span::unknown(),
+                    kind: EdnReadErrorKind::Other(
+                        "reconstruct_holon_record: holon_form Bundle child must be Bind".into()
+                    ),
+                });
+            }
+        }
+    }
+
+    // 3. class_fqdn from the wire tag path (strip leading ':').
+    let path = ns_to_wat_path(ns, name);
+    let class_fqdn = path.strip_prefix(':').unwrap_or(&path).to_string();
+
+    Ok(Value::wat__holon__Record {
+        class_fqdn: Arc::new(class_fqdn),
+        struct_form: Arc::new(fields),
+        holon_form: Arc::new(holon_form),
     })
 }
 
@@ -2433,22 +2549,13 @@ pub fn value_to_edn_with(
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
-        // Arc 234 Stone 234.1 — wat__holon__Record: render as a tagged map.
-        // Fields render positionally (field-0, field-1, ...). Stone 234.7b reworks
-        // this arm to ride holon_form as edn — do NOT alter this arm here.
-        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
+        // Arc 234 Stone 234.7b — wat__holon__Record: ride holon_form as edn.
+        // The body is a #wat-edn.holon/Bind[...] value (NOT a map) so the decode
+        // path can distinguish holon records from base records (which have Map bodies).
+        // struct_form is not read here — identity lives in holon_form.
+        Value::wat__holon__Record { class_fqdn, holon_form, .. } => {
             let tag = tag_from_type_path(class_fqdn);
-            let entries: Vec<(OwnedValue, OwnedValue)> = struct_form
-                .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    (
-                        OwnedValue::Keyword(Keyword::new(format!("field-{}", i))),
-                        value_to_edn_with(fv, types),
-                    )
-                })
-                .collect();
-            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+            OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(holon_form)))
         }
         // Arc 234 Stone 234.7a — wat__Record (base): named-field tagged-map.
         // class_fqdn has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.

@@ -11904,7 +11904,7 @@ fn try_match_pattern(
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
-fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Result<Value, EvalBreak> {
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired. Recognise via accessors.
     // Symbol composition → keyword Value (Symbol carried colon-prefixed keywords).
     if let Some(s) = item.as_symbol() {
