@@ -177,11 +177,12 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 /// self-vs-connection role is positional at the call site (e.g. arg 0 of
 /// `select'`), not a type distinction.
 ///
-/// The transport is erased behind `Box<dyn CommSender<Value>>` /
-/// `Box<dyn CommReceiver<Value>>`: crossbeam thread-tier peers carry a
-/// `comms::thread::Sender/Receiver<Value>`; socket-tier peers carry a
-/// `comms::process::Sender/Receiver<Value>` (encoding is internal — the comms
-/// impl serialises to/from EDN; the runtime arm never sees raw EDN strings).
+/// Arc 258.5b-ii: the send path is now symmetric with recv.  Thread-tier peers
+/// carry a `CommSender<Value>` (crossbeam; no serialisation); socket-tier peers
+/// carry a `CommSender<String>` (process; `String::to_wire()` is a raw
+/// passthrough).  The eval layer encodes with `sym.types()` and calls
+/// `Peer::send_wire(String)` for socket-tier; thread-tier goes through the
+/// existing `Peer::send(Value)`.  NO thread-local type env is involved.
 ///
 /// Construct via `Peer::from_thread` (thread tier) or `Peer::from_socket`
 /// (socket tier).  Do not construct by naming fields directly.
@@ -190,9 +191,21 @@ impl<I: Send + 'static + std::fmt::Debug, O: Send + 'static + std::fmt::Debug> s
 /// RAII in S2b).  For the thread-tier self-peer the instance is created INSIDE
 /// the spawned thread's closure to satisfy the `ThreadOwnedCell` owner-thread
 /// invariant.
+
+/// Transport-erased send endpoint for a `Peer`.
+///
+/// `Thread` holds the crossbeam Value channel (no serialisation).
+/// `Socket` holds the process String channel (raw-passthrough EDN).
+/// The variant determines which `Peer::send*` method is valid at a given
+/// call site.
+pub(crate) enum PeerTx {
+    Thread(Box<dyn crate::comms::CommSender<crate::value::Value> + Send>),
+    Socket(Box<dyn crate::comms::CommSender<String> + Send>),
+}
+
 pub struct Peer {
-    /// Send endpoint (transport-erased; `Send` required for `ThreadOwnedCell<Option<Peer>>`).
-    pub(crate) tx: Box<dyn crate::comms::CommSender<crate::value::Value> + Send>,
+    /// Send endpoint — Thread or Socket tier.
+    pub(crate) tx: PeerTx,
     /// Receive endpoint (transport-erased; `Send` required; `as_any` for `select'` downcast).
     pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
 }
@@ -204,24 +217,58 @@ impl Peer {
         rx: crate::comms::thread::Receiver<crate::value::Value>,
     ) -> Self {
         // Both thread::Sender<Value> and thread::Receiver<Value> are Send.
-        Self { tx: Box::new(tx), rx: Box::new(rx) }
+        Self { tx: PeerTx::Thread(Box::new(tx)), rx: Box::new(rx) }
     }
 
-    /// Construct a socket (process-tier) peer from a concrete Sender/Receiver pair.
+    /// Construct a socket (process-tier) peer.
+    ///
+    /// Arc 258.5b-ii: the sender is `Sender<String>` (raw-passthrough EDN) —
+    /// the eval layer pre-encodes with `sym.types()` and calls
+    /// `Peer::send_wire(String)`.  The receiver remains `Receiver<Value>` so
+    /// `Peer::recv()` delivers `Value` directly (decode happens inside the boxed
+    /// `CommReceiver<Value>` via `Value::from_wire`, which is acceptable for the
+    /// current PEER_TYPE_PATH recv path).
     pub fn from_socket(
-        tx: crate::comms::process::Sender<crate::value::Value>,
+        tx: crate::comms::process::Sender<String>,
         rx: crate::comms::process::Receiver<crate::value::Value>,
     ) -> Self {
-        // Both process::Sender<Value> and process::Receiver<Value> are Send.
-        Self { tx: Box::new(tx), rx: Box::new(rx) }
+        Self { tx: PeerTx::Socket(Box::new(tx)), rx: Box::new(rx) }
     }
 
-    /// Send a value.  Encoding is handled internally by the boxed transport impl.
+    /// Returns `true` if this peer is socket-tier (process comms); `false` for
+    /// thread-tier (crossbeam).  Used by `eval_peer_send_prime` to choose between
+    /// `send(Value)` (thread-tier) and `send_wire(String)` (socket-tier).
+    pub fn is_socket_tier(&self) -> bool {
+        matches!(self.tx, PeerTx::Socket(_))
+    }
+
+    /// Send a value over a **thread-tier** peer.  Encoding is handled internally
+    /// by the crossbeam channel (no serialisation — values pass in-process).
+    ///
+    /// Panics if called on a socket-tier peer — use `send_wire` instead.
     ///
     /// Returns `Err(SendError(value))` if the peer's receiver endpoint has been
-    /// dropped (channel disconnected or process exited).
+    /// dropped (channel disconnected or thread exited).
     pub fn send(&self, value: crate::value::Value) -> Result<(), SendError<crate::value::Value>> {
-        self.tx.send(value)
+        match &self.tx {
+            PeerTx::Thread(tx) => tx.send(value),
+            PeerTx::Socket(_) => panic!("Peer::send called on socket-tier peer — use send_wire"),
+        }
+    }
+
+    /// Send a pre-encoded EDN wire string over a **socket-tier** peer.
+    ///
+    /// Arc 258.5b-ii: the eval layer encodes with `sym.types()` and ships the
+    /// `String`; the transport (`Sender<String>`) writes the bytes as-is
+    /// (`String::to_wire()` is a raw passthrough).
+    ///
+    /// Returns `Err(SendError(wire))` if the peer's receiver endpoint has been
+    /// dropped (channel disconnected or process exited).
+    pub fn send_wire(&self, wire: String) -> Result<(), SendError<String>> {
+        match &self.tx {
+            PeerTx::Socket(tx) => tx.send(wire),
+            PeerTx::Thread(_) => panic!("Peer::send_wire called on thread-tier peer — use send"),
+        }
     }
 
     /// Blocking recv.  Decoding is handled internally by the boxed transport impl.

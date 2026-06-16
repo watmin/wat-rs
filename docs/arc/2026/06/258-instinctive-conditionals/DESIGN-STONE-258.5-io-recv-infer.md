@@ -60,10 +60,18 @@ full 6a round-trip probe green.)
   to other IO consumers only when one actually needs it. `connect'` is the sole consumer the arrow-kill
   has a caller for today (`send'` already unifies its payload; `accept'` takes a `Listener'`, not a
   `recv'` result). Build per-consumer as a real caller surfaces.
-- **258.5c — EMPTY for the corpus.** `grep "recv'.*->" wat/ wat-tests/` = 0; all `tests/` uses are
-  genuine-ambiguous seeds (value-exits-to-Rust) → KEEP. Nothing to strip; the ascription stays OPTIONAL
-  (it IS the seed) — do NOT hard-cut. Revisit only if a wat-corpus `recv' -> :T` appears.
+- **258.5c — OVERRIDDEN by 258.5b (2026-06-16).** The "genuine-ambiguous seed" concession is
+  superseded. The `-> :T` ascription is FULLY KILLED — no seed, no optional form.
+  **The EDN wire is self-describing** (post-234.7): records cross as `#wat.kernel/Foo {…}`,
+  structs/enums tagged, scalars typed. `decode_trusted_wire(edn, sym.types())` reconstructs the
+  exact `Value` from the wire's own tags + the type registry — no declared target type is needed.
+  The `-> :T` branch was only doing coercion the self-describing wire makes redundant. The `tests/`
+  uses that were "genuine-ambiguous seeds" (value-exits-to-Rust, e.g. i64 round-trip) are migrated
+  to the no-ascription form — `decode_trusted_wire` with `sym.types()` handles scalar reconstruction.
+  `recv'` is 1-arg only; `select'` likewise. `-> :T` on either form is now a hard checker error.
+  Probe: `tests/probe_arc272_6c2_record_ipc_derisk.rs` (RED → GREEN on this kill).
 
 Pairs the NOTE (redundant-`-> :T` class) + [[feedback_reach_stumble_is_the_signal]] +
 [[feedback_deferred_dep_becomes_necessary_block_and_build]] (arc-272 6a blocks on this) +
-[[feedback_optional_is_a_smell]] (resolved honestly: the seed is required-where-ambiguous, absent-where-inferable).
+[[feedback_optional_is_a_smell]] (resolved: the seed was NOT required — the wire already carries
+the type; annihilated by construction rather than kept as an optional-is-a-smell).

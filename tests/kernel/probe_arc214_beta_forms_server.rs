@@ -58,7 +58,7 @@ fn beta_forms_server_round_trip_via_send_recv_prime() {
                            _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                           nil))))
              _   (:wat::kernel::send' peer 41)
-             got (:wat::kernel::recv' peer -> :wat::core::i64)]
+             got (:wat::kernel::recv' peer)]
             got))
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
     "#;

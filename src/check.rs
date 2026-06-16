@@ -10990,15 +10990,14 @@ fn infer_send_prime(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_recv_prime` is INTRINSIC (projective).
 // O flows from the peer's Parametric type param into the return type.
-/// Type-check `(:wat::kernel::recv' peer)` or `(:wat::kernel::recv' peer -> :T)` — Stone 4.6a-ii.
+/// Type-check `(:wat::kernel::recv' peer)` — Stone 4.6a-ii / arc 258.5b.
 ///
-/// One positional arg:   `args[0]` peer → returns O (the peer's output type).
-/// Three positional args: `args = [peer, Symbol("->"), Keyword(":T")]` → returns T
-///   (mirrors `infer_kernel_readln`; the declared type overrides O at the call site).
-///   Used with `Process'<Value,Value>` peers where O is the opaque EDN wire type and
-///   the caller names the concrete decode target.
+/// One positional arg: `args[0]` peer → returns O (the peer's output type).
 ///
-/// The 1-arg form is unchanged for all existing callers (STOP-3 guard).
+/// The `-> :T` ascription (3-arg form) is KILLED (arc 258.5b). `recv'` is 1-arg only.
+/// `-> :T` is a function-return annotation — it is illegal in any other position.
+/// The type flows from the consumer (258.5a: connect'/recv' unify) or the self-describing
+/// EDN wire (post-234.7: tagged records/structs/enums + typed scalars decoded via sym.types()).
 fn infer_recv_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11010,62 +11009,37 @@ fn infer_recv_prime(
     const OP: &str = ":wat::kernel::recv'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // Arc 214 γ-1 — optional `-> :T` ascription: 3-arg form [peer, "->", ":T"].
-    // Mirrors infer_kernel_readln (check.rs:8937). The 1-arg form is the base case.
-    if args.len() == 3 {
-        // Validate `->` symbol at args[1].
-        match &args[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-            _ => {
-                local_errors.push(CheckError {
-                    span: args[1].span().clone(),
-                    kind: CheckErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "expected `->` as the second argument; (recv' peer -> :T)".into(),
-                        remedies: vec![],
-                    },
-                });
-                let t = fresh.fresh();
-                return CheckResult::partial_with(t, local_errors);
-            }
-        }
-        // Validate `:T` keyword at args[2] and parse the declared type.
-        let declared_ty = match &args[2] {
-            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-                Ok(t) => t,
-                Err(e) => {
-                    local_errors.push(CheckError {
-                        span: args[2].span().clone(),
-                        kind: CheckErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: format!("declared type {:?} failed to parse: {}", k, e),
-                            remedies: vec![],
-                        },
-                    });
-                    let t = fresh.fresh();
-                    return CheckResult::partial_with(t, local_errors);
-                }
-            },
-            _ => {
-                local_errors.push(CheckError {
-                    span: args[2].span().clone(),
-                    kind: CheckErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "expected type keyword after `->` in (recv' peer -> :T)".into(),
-                        remedies: vec![],
-                    },
-                });
-                let t = fresh.fresh();
-                return CheckResult::partial_with(t, local_errors);
-            }
-        };
-        // Still infer the peer (args[0]) for error coverage (peer must be valid).
-        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-        return if local_errors.is_empty() {
-            CheckResult::ok(declared_ty)
+    // Arc 258.5b — `-> :T` on recv' is illegal; reject it with a clear error.
+    // The arrow is a function-return annotation only. Detect the 3-arg form and any
+    // multi-arg form that looks like an ascription attempt, and surface a targeted error.
+    if args.len() >= 2 {
+        let maybe_arrow = matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->");
+        let reason = if maybe_arrow {
+            "`-> :T` is a function-return annotation only — it is illegal on recv'. \
+             The type flows from the consumer (e.g. connect') or the self-describing EDN wire. \
+             Use (recv' peer) with no ascription."
+                .into()
         } else {
-            CheckResult::partial_with(declared_ty, local_errors)
+            format!(
+                "recv' takes exactly one argument (peer); got {}. \
+                 Use (recv' peer) with no ascription.",
+                args.len()
+            )
         };
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: OP.into(),
+                reason,
+                remedies: vec![],
+            },
+        });
+        // Still infer all args for error coverage.
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
     }
 
     if args.len() != 1 {

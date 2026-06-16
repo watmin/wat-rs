@@ -196,7 +196,7 @@ impl CommAddress for SocketAddress {
                 .into());
             }
         }
-        // Arc 209 C0b.2e-i-b: switched from String to Value — encoding is internal.
+        // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> — eval pre-encodes.
         let (tx, rx) =
             crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream))
                 .map_err(|e| RuntimeError {
@@ -206,7 +206,7 @@ impl CommAddress for SocketAddress {
                         reason: format!("wrap socket stream failed: {}", e),
                     },
                 })?;
-        Ok(Peer::from_socket(tx, rx))
+        Ok(Peer::from_socket(tx.reinterpret::<String>(), rx))
     }
 }
 

@@ -56,7 +56,6 @@ use crate::span::{span_prefix, Span};
 use std::sync::Arc;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-
 // ─── Public eval entry points ────────────────────────────────────
 
 /// `(:wat::edn::write v)` → `:String`. Compact single-line EDN.
@@ -2315,14 +2314,31 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
     value_to_edn_with(v, None)
 }
 
-/// Encode a `Value` to a compact EDN `String` — the single codec for
-/// process-tier wire serialization (`spawn-program' :process` apply-loop).
+/// Encode a `Value` to a compact EDN `String` without a type registry.
 ///
-/// This is the canonical `Value → String` conversion for the process
-/// tier; all encode sites in kernel/spawn.rs route through here so there
-/// is exactly ONE encode path. Inverse: [`edn_string_to_value`].
+/// This is the registry-free codec for process-tier wire serialisation when
+/// no `TypeEnv` is available (e.g. `EdnRepresentable::to_wire` for Value on
+/// the thread-tier, or `HolonRepresentable` paths). User-defined struct/enum
+/// fields are rendered with positional `:field-{i}` keys.
+///
+/// Arc 258.5b-ii: the socket-tier PEER_TYPE_PATH send path now uses
+/// [`value_to_edn_string_with`] (with `sym.types()`) so named record fields
+/// cross the wire correctly. This function no longer reads a thread-local.
 pub(crate) fn value_to_edn_string(v: &Value) -> String {
-    wat_edn::write(&value_to_edn(v))
+    wat_edn::write(&value_to_edn_with(v, None))
+}
+
+/// Encode a `Value` to a compact EDN `String` with an optional type registry.
+///
+/// Arc 258.5b-ii: called by `eval_peer_send_prime` (PEER_TYPE_PATH socket-tier
+/// arm) to encode with `sym.types()` so records cross the wire with named
+/// fields rather than positional `:field-{i}` fallback.  The resulting `String`
+/// is shipped via `Peer::send_wire` — no thread-local involved.
+pub(crate) fn value_to_edn_string_with(
+    v: &Value,
+    types: Option<&crate::types::TypeEnv>,
+) -> String {
+    wat_edn::write(&value_to_edn_with(v, types))
 }
 
 /// Decode a compact EDN `String` back to a `Value` — the inverse of

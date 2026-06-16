@@ -18534,13 +18534,13 @@ fn eval_peer_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Eval
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// `(:wat::kernel::socket-pair' :S :R)` — Arc 209 C0b.2b / C0b.2e-i-b.
+/// `(:wat::kernel::socket-pair' :S :R)` — Arc 209 C0b.2b / C0b.2e-i-b / Arc 258.5b-ii.
 ///
 /// Mints a connected socket peer pair via `socketpair(AF_UNIX, SOCK_STREAM)`.
-/// Each end is now a unified `Peer'<S,R>` / `Peer'<R,S>` opaque (arc 209 C0b.2e-i-b)
-/// backed by the comms::process io_uring reactor; encoding is internal to the boxed
-/// `CommSender<Value>` / `CommReceiver<Value>` (no arm-level EDN codec).
-/// Returns `(Tuple Peer'<S,R> Peer'<R,S>)`.
+/// Each end is a unified `Peer'<S,R>` / `Peer'<R,S>` opaque backed by the
+/// comms::process io_uring reactor.  Arc 258.5b-ii: the sender is `Sender<String>`
+/// (raw-passthrough); the eval layer encodes with `sym.types()` and ships the wire
+/// String via `Peer::send_wire`.  Returns `(Tuple Peer'<S,R> Peer'<R,S>)`.
 ///
 /// The socket fd is full-duplex; each end sends on its own fd and reads on a
 /// dup of the SAME fd — the dup gives Sender and Receiver independent OwnedFd
@@ -18566,8 +18566,9 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     use crate::rust_deps::marshal::make_rust_opaque;
 
     // Mint the socketpair; each side gets (Sender<Value>, Receiver<Value>).
-    // Arc 209 C0b.2e-i-b: switched from String to Value — encoding is internal to the
-    // comms::process tier (EdnRepresentable for Value, shipped in i-0).
+    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> so the eval layer
+    // can pre-encode with sym.types() and ship a wire String via Peer::send_wire.
+    // Receiver<Value> stays so Peer::recv() delivers Value directly.
     let ((tx_a, rx_a), (tx_b, rx_b)) = crate::comms::process::socket_pair::<Value>()
         .map_err(|e| RuntimeError {
             span: list_span.clone(),
@@ -18585,29 +18586,30 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
     // So end_a = (tx_a, rx_a) and end_b = (tx_b, rx_b) — no cross needed.
     let end_a = make_rust_opaque(
         PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_a, rx_a)))),
+        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_a.reinterpret::<String>(), rx_a)))),
     );
     let end_b = make_rust_opaque(
         PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_b, rx_b)))),
+        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx_b.reinterpret::<String>(), rx_b)))),
     );
     Ok(Value::Tuple(Arc::new(vec![end_a, end_b])))
 }
 
-/// Arc 209 C0b.2c / C0b.2e-i-b — wrap a connected `UnixStream` as a unified `Peer'` opaque.
+/// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
+/// unified `Peer'` opaque.
 ///
-/// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to
-/// produce `(Sender<Value>, Receiver<Value>)`, then wraps the pair in a unified
-/// `Peer` (via `Peer::from_socket`) inside a `ThreadOwnedCell` — the same custody
-/// model as `eval_socket_pair_prime`.  Called by both `eval_connect_prime` (client
-/// side) and `eval_accept_prime` (server side).
+/// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to produce
+/// `(Sender<Value>, Receiver<Value>)`, reinterprets the sender as `Sender<String>` for
+/// the honest eval-encode path (arc 258.5b-ii), then wraps as `Peer::from_socket`.
+/// Called by both `eval_connect_prime` (client side) and `eval_accept_prime` (server
+/// side).
 fn wrap_stream_as_socket_peer(
     stream: std::os::unix::net::UnixStream,
     span: &Span,
     op: &'static str,
 ) -> Result<Value, EvalBreak> {
     use std::os::fd::OwnedFd;
-    // Arc 209 C0b.2e-i-b: switched from String to Value — encoding is internal.
+    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> — eval layer pre-encodes.
     let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream))
         .map_err(|e| RuntimeError {
             span: span.clone(),
@@ -18622,7 +18624,7 @@ fn wrap_stream_as_socket_peer(
     use crate::rust_deps::marshal::make_rust_opaque;
     Ok(make_rust_opaque(
         PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx, rx)))),
+        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx.reinterpret::<String>(), rx)))),
     ))
 }
 
@@ -23498,10 +23500,12 @@ fn is_mutation_head(head: &str) -> bool {
 // The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
 // lets send'/recv' detect use-after-close (None → RuntimeError).
 
-/// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii.
+/// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///
-/// Thread': `peer.send(value)` Value pass-through.
+/// Thread': `peer.send(value)` Value pass-through (crossbeam, no serialisation).
 /// Process': encode payload via value_to_edn + wat_edn::write → peer.send(String).
+/// Peer' thread-tier: `peer.send(value)` Value pass-through.
+/// Peer' socket-tier: encode with sym.types() in eval → `peer.send_wire(String)`.
 /// Returns `nil`.  Use-after-close (Option is None) → RuntimeError.
 fn eval_peer_send_prime(
     args: &[WatAST],
@@ -23568,7 +23572,13 @@ fn eval_peer_send_prime(
                 OP,
                 list_span.clone(),
             )?;
-            let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn(&payload_val));
+            // Arc 258.5b — thread sym.types() into the encoder so records cross
+            // the process wire with named fields (e.g. {:x 7, :y 35}) rather than
+            // positional fallback ({:field-0 7, :field-1 35}). The decoder on the
+            // receiver side uses sym.types() too (arc 258.5b / 272 6c.2), so the
+            // named-field map round-trips exactly. Before 258.5b, send' called
+            // value_to_edn (no registry) and recv' expected a `-> :T` hint.
+            let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn_with(&payload_val, sym.types().map(|a| a.as_ref())));
             cell.with_ref(OP, |opt_bundle| -> Result<(), EvalBreak> {
                 match opt_bundle {
                     None => Err(RuntimeError {
@@ -23594,9 +23604,15 @@ fn eval_peer_send_prime(
             .map_err(Into::<EvalBreak>::into)??;
             Ok(Value::Unit)
         }
-        // Arc 209 C0b.2e-i-b — unified Peer' arm: thread-tier and socket-tier peers are
-        // both boxed as `Peer { tx: Box<dyn CommSender<Value>>, rx: Box<dyn CommReceiver<Value>> }`.
-        // Encoding is internal to the boxed transport impl — no value_to_edn here.
+        // Arc 209 C0b.2e-i-b / Arc 258.5b-ii — unified Peer' arm.
+        //
+        // Thread-tier peers: send Value in-process via crossbeam (no serialisation).
+        // Socket-tier peers: encode with sym.types() in the eval layer → ship the
+        //   wire String via Peer::send_wire (Sender<String> raw passthrough).
+        //
+        // Symmetric with recv': the decode side already threads sym.types() through
+        // decode_trusted_wire in eval_peer_recv_prime. Arc 258.5b's thread-local
+        // injection is gone — the encode type env travels honestly as a function-local.
         Value::RustOpaque(inner)
             if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH =>
         {
@@ -23617,16 +23633,36 @@ fn eval_peer_send_prime(
                         },
                     }
                     .into()),
-                    Some(peer) => peer.send(payload_val).map_err(|_| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "send failed: channel disconnected".into(),
-                            },
-                        }
-                        .into()
-                    }),
+                    Some(peer) if peer.is_socket_tier() => {
+                        // Socket-tier: encode with type registry in eval, ship the wire String.
+                        let wire = crate::edn_shim::value_to_edn_string_with(
+                            &payload_val,
+                            sym.types().map(|a| a.as_ref()),
+                        );
+                        peer.send_wire(wire).map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "send failed: channel disconnected".into(),
+                                },
+                            }
+                            .into()
+                        })
+                    }
+                    Some(peer) => {
+                        // Thread-tier: pass Value in-process, no serialisation.
+                        peer.send(payload_val).map_err(|_| {
+                            RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: "send failed: channel disconnected".into(),
+                                },
+                            }
+                            .into()
+                        })
+                    }
                 }
             })
             .map_err(Into::<EvalBreak>::into)??;
@@ -23644,16 +23680,17 @@ fn eval_peer_send_prime(
     }
 }
 
-/// `(:wat::kernel::recv' peer)` or `(:wat::kernel::recv' peer -> :T)` — Stone 4.6a-ii / arc 214 γ-1.
+/// `(:wat::kernel::recv' peer)` — Stone 4.6a-ii / arc 258.5b.
 ///
 /// Thread': `peer.recv()` → Value.
-/// Process': `peer.recv()` → decode EDN String → Value (optionally coerce to T).
+/// Process': `peer.recv()` → decode EDN String → Value via the self-describing wire.
 /// RecvError (peer closed / child gone) → RuntimeError.
 /// Use-after-close (Option is None) → RuntimeError.
 ///
-/// The optional `-> :T` ascription (3-arg form [peer, "->", ":T"]) coerces the
-/// received EDN to the declared type T. Mirrors `eval_kernel_readln`'s typed decode.
-/// The 1-arg form is unchanged (STOP-3 guard).
+/// The `-> :T` ascription form is KILLED (arc 258.5b). `recv'` is 1-arg only.
+/// The EDN wire is self-describing (post-234.7: tagged records/structs/enums + typed
+/// scalars) so `decode_trusted_wire(edn, sym.types())` reconstructs the exact value
+/// with no declared target type. `-> :T` in a non-return position is illegal.
 fn eval_peer_recv_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -23662,56 +23699,22 @@ fn eval_peer_recv_prime(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::recv'";
 
-    // Arc 214 γ-1 — optional `-> :T` ascription: detect 3-arg form.
-    let target_ty: Option<crate::types::TypeExpr> = if args.len() == 3 {
-        match &args[1] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-            other => {
-                return Err(RuntimeError {
-                    span: other.span().clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "expected `->` as the second argument; (recv' peer -> :T); got {}",
-                            other.variant_name()
-                        ),
-                    },
-                }.into());
-            }
-        }
-        let ty = match &args[2] {
-            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(RuntimeError {
-                        span: args[2].span().clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: format!("declared type {:?} failed to parse: {}", k, e),
-                        },
-                    }.into());
-                }
-            },
-            other => {
-                return Err(RuntimeError {
-                    span: other.span().clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "expected type keyword after `->` in (recv' peer -> :T)".into(),
-                    },
-                }.into());
-            }
-        };
-        Some(ty)
-    } else if args.len() != 1 {
+    // Arc 258.5b — recv' is 1-arg only; `-> :T` ascription is illegal on recv'.
+    if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "recv' takes exactly one argument (peer); got {}. \
+                     `-> :T` is a function-return annotation only — it is illegal on recv'. \
+                     The type flows from the consumer or the self-describing EDN wire.",
+                    args.len()
+                ),
+            },
         }
         .into());
-    } else {
-        None
-    };
+    }
 
     let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
 
@@ -23813,50 +23816,26 @@ fn eval_peer_recv_prime(
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
-            // Arc 214 γ-1: if `-> :T` ascription is present, use typed EDN coercion
-            // (mirrors eval_kernel_readln). Otherwise use the permissive read_edn path.
-            match &target_ty {
-                Some(ty) => {
-                    let edn = wat_edn::parse_owned(&edn_str).map_err(|e| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("recv' EDN parse failed: {}", e),
-                            },
-                        }
-                    })?;
-                    crate::edn_shim::edn_to_typed_value(ty, &edn, sym).map_err(|e| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::EdnCoerceMismatch {
-                                op: OP.into(),
-                                expected: e.expected,
-                                got: e.got,
-                                path: e.path,
-                            },
-                        }
-                        .into()
-                    })
+            // Arc 258.5b / 272 6a-i / step 5 — recv' is the TRUSTED peer wire: decode
+            // through the capability-reconstructing door with the full type registry.
+            // Every Peer is lineage BY CONSTRUCTION — a spawn handle / self-peer is
+            // inherited; an accept'd peer passed OnlyMyPeers (euid + pid∈allow-set);
+            // a connect'd peer reached an unguessable autobind capability handed over
+            // the lineage channel (step 5 killed guessable names; abstract names are
+            // exclusive-bind ⇒ the answerer IS the minter). So "bytes from a lineage
+            // peer" holds on every leg. The EDN wire is self-describing (post-234.7:
+            // tagged records/structs/enums + typed scalars) — sym.types() reconstructs
+            // user records; no declared target type is needed.
+            crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
+                RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("recv' EDN decode failed: {}", e),
+                    },
                 }
-                // Arc 272 6a-i / step 5 — recv' is the TRUSTED peer wire: decode through the
-                // capability-reconstructing door, not the general (cap-refusing) path. Every Peer is
-                // lineage BY CONSTRUCTION — a spawn handle / self-peer is inherited; an accept'd peer
-                // passed OnlyMyPeers (euid + pid∈allow-set); a connect'd peer reached an unguessable
-                // autobind capability handed over the lineage channel (step 5 killed guessable names;
-                // abstract names are exclusive-bind ⇒ the answerer IS the minter). So "bytes from a
-                // lineage peer" holds on every leg — the premise this door rests on is true.
-                None => crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
-                    RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: format!("recv' EDN decode failed: {}", e),
-                        },
-                    }
-                    .into()
-                }),
-            }
+                .into()
+            })
         }
         // Arc 209 C0b.2e-i-b — unified Peer' arm: thread-tier and socket-tier peers both
         // box their recv endpoint as `Box<dyn CommReceiver<Value>>`. Decoding is internal
@@ -24302,12 +24281,13 @@ fn eval_peer_select_prime(
                         },
                     })
                 })?;
-                // Arc 272 6a-i / step 5 — select' is the TRUSTED peer wire: decode through the
-                // capability door, not the general (cap-refusing) path. Every Peer is lineage by
-                // construction (inherited handle/self-peer; accept' passed OnlyMyPeers; connect'
-                // reached an unguessable autobind capability handed over lineage — step 5 killed
-                // guessable names). The "lineage peer" premise holds on every leg.
-                let value = crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
+                // Arc 258.5b / 272 6a-i / step 5 — select' is the TRUSTED peer wire: decode
+                // through the capability door with the full type registry. Every Peer is lineage
+                // by construction (inherited handle/self-peer; accept' passed OnlyMyPeers;
+                // connect' reached an unguessable autobind capability handed over lineage — step 5
+                // killed guessable names). The EDN wire is self-describing (post-234.7) —
+                // sym.types() reconstructs user records; no declared target type is needed.
+                let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
                     EvalBreak::from(RuntimeError {
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
@@ -24934,6 +24914,7 @@ fn eval_poll_prime(
                                     continue; // back to socket_listener.listener.accept()
                                 }
                                 let peer_value = {
+                                    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
                                     let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<
                                         Value,
                                     >(
@@ -24957,7 +24938,7 @@ fn eval_poll_prime(
                                     make_rust_opaque(
                                         PEER_TYPE_PATH,
                                         Arc::new(ThreadOwnedCell::new(Some(
-                                            Peer::from_socket(tx, rx),
+                                            Peer::from_socket(tx.reinterpret::<String>(), rx),
                                         ))),
                                     )
                                 };

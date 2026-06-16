@@ -360,8 +360,7 @@ impl CommListener for SocketListener {
                                 drop(stream); // bounce the stranger — close the accepted fd
                                 continue; // re-poll for the next dialer
                             }
-                            // Inline wrap_stream_as_socket_peer (Arc 209 C0b.2e-i-b): encoding
-                            // is internal (switched from String to Value).
+                            // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
                             let (tx, rx) =
                                 crate::comms::process::sender_receiver_from_fd::<Value>(
                                     OwnedFd::from(stream),
@@ -373,7 +372,7 @@ impl CommListener for SocketListener {
                                         reason: format!("wrap socket stream failed: {}", e),
                                     },
                                 })?;
-                            return Ok(Peer::from_socket(tx, rx));
+                            return Ok(Peer::from_socket(tx.reinterpret::<String>(), rx));
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                             continue; // spurious; re-poll

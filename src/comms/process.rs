@@ -386,6 +386,24 @@ impl<T: EdnRepresentable> Sender<T> {
         vec![self.write_fd.as_raw_fd()]
     }
 
+    /// Reinterpret this sender's wire type as `U` without touching the
+    /// underlying fd. Zero-cost (PhantomData swap only).
+    ///
+    /// Use when you need a `Sender<String>` (raw-passthrough EDN) from a
+    /// `Sender<Value>` that was created by `socket_pair` or
+    /// `sender_receiver_from_fd` — the on-wire framing is identical; only
+    /// the `T::to_wire()` call differs, and `String::to_wire()` is a raw
+    /// passthrough.
+    ///
+    /// Arc 258.5b-ii: callers that previously held `Sender<Value>` and
+    /// relied on `Value::to_wire()` (which read a thread-local type env)
+    /// now create a `Sender<String>` via `reinterpret::<String>()` and
+    /// let the eval layer encode with `sym.types()` before calling
+    /// `Peer::send_wire(String)`.
+    pub fn reinterpret<U: EdnRepresentable>(self) -> Sender<U> {
+        Sender { write_fd: self.write_fd, _phantom: std::marker::PhantomData }
+    }
+
     /// Signal end-of-stream from this sender. Consumes self so the
     /// endpoint is gone after close. This is the SOLE write-end —
     /// `process::Sender` is not `Clone` (single-writer by design, so

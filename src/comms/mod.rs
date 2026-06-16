@@ -771,12 +771,19 @@ fn extract_positional_binds<'a>(
 /// `EdnRepresentable` for `Value` — Stone C0b.2e-i-0 (arc 209).
 ///
 /// Plain-EDN wire — no holon tags. `to_wire` uses `value_to_edn_string`
-/// (the same plain-EDN codec the `send'`/`recv'` arms use); `from_wire`
-/// uses `edn_string_to_value` with `None` for the type registry (primitive
-/// scaffold only — reconstructs i64/f64/bool/nil/String/keyword/Vec/HashMap;
-/// user-defined structs are not reconstructed without a TypeEnv, which is
-/// acceptable here because the process tier works on the primitive scaffold
-/// and the runtime applies type resolution separately).
+/// (registry-free codec; positional `:field-{i}` for structs). This is used by
+/// thread-tier `CommSender<Value>` (crossbeam, no serialisation roundtrip) and
+/// as a fallback.
+///
+/// Arc 258.5b-ii: the socket-tier PEER_TYPE_PATH send path now uses
+/// `Peer::send_wire(String)` with the string pre-encoded by
+/// `value_to_edn_string_with(v, sym.types())` in the eval layer — `to_wire` is
+/// NOT called on that path.  `to_wire` remains for the thread-tier `CommSender`
+/// contract and any non-PEER_TYPE_PATH comms (process-tier thread-local is gone).
+///
+/// `from_wire` uses `edn_string_to_value` with `None` for the type registry
+/// (primitive scaffold only — reconstructs i64/f64/bool/nil/String/keyword/
+/// Vec/HashMap; user-defined structs are not reconstructed without a TypeEnv).
 ///
 /// `Value` does NOT impl `HolonRepresentable` — it is a plain wat value that
 /// serializes as plain EDN, not a holographic value with a HolonAST IR.
