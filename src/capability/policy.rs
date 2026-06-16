@@ -34,7 +34,10 @@ pub enum CommsPolicy<'a> {
     /// pid. `OnlyMyPeers` with the lineage clause dropped. The honest posture of the **connect** gate:
     /// dialing out, the client verifies the answerer is one of our user's processes; it holds no
     /// allow-set of expected pids (unlike the accept gate), so it checks euid alone. Naming the
-    /// weaker rung keeps the gate from *claiming* a pid check it does not perform.
+    /// weaker rung keeps the gate from *claiming* a pid check it does not perform. (Post arc-272
+    /// step 5 the dialed address is ALWAYS an unguessable autobind capability handed over the lineage
+    /// channel — guessable names are annihilated — so the answerer is lineage-proven by possession;
+    /// the euid floor here is defense-in-depth, not the whole trust.)
     AnyOfMyUser,
 }
 

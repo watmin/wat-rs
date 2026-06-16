@@ -23839,8 +23839,13 @@ fn eval_peer_recv_prime(
                         .into()
                     })
                 }
-                // Arc 272 6a-i — recv' is the TRUSTED peer wire (bytes from a lineage peer): decode
-                // through the one capability-reconstructing door, not the general (cap-refusing) path.
+                // Arc 272 6a-i / step 5 — recv' is the TRUSTED peer wire: decode through the
+                // capability-reconstructing door, not the general (cap-refusing) path. Every Peer is
+                // lineage BY CONSTRUCTION — a spawn handle / self-peer is inherited; an accept'd peer
+                // passed OnlyMyPeers (euid + pid∈allow-set); a connect'd peer reached an unguessable
+                // autobind capability handed over the lineage channel (step 5 killed guessable names;
+                // abstract names are exclusive-bind ⇒ the answerer IS the minter). So "bytes from a
+                // lineage peer" holds on every leg — the premise this door rests on is true.
                 None => crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
                     RuntimeError {
                         span: list_span.clone(),
@@ -24297,8 +24302,11 @@ fn eval_peer_select_prime(
                         },
                     })
                 })?;
-                // Arc 272 6a-i — select' is the TRUSTED peer wire (bytes from a lineage peer): decode
-                // through the one capability-reconstructing door, not the general (cap-refusing) path.
+                // Arc 272 6a-i / step 5 — select' is the TRUSTED peer wire: decode through the
+                // capability door, not the general (cap-refusing) path. Every Peer is lineage by
+                // construction (inherited handle/self-peer; accept' passed OnlyMyPeers; connect'
+                // reached an unguessable autobind capability handed over lineage — step 5 killed
+                // guessable names). The "lineage peer" premise holds on every leg.
                 let value = crate::edn_shim::decode_trusted_wire(&edn_str, None).map_err(|e| {
                     EvalBreak::from(RuntimeError {
                         span: list_span.clone(),

@@ -159,16 +159,15 @@ impl CommAddress for SocketAddress {
                 reason: format!("connect abstract UDS: {}", e),
             },
         })?;
-        // Arc 272 v4 — MUTUAL UDS peer-cred, via the powerbox: the CLIENT verifies the SERVER's
-        // kernel-vouched identity through the SAME `CommsPolicy` the accept gate consults from the
-        // other side (kernel/listener.rs `authorizes`). Before v4, auth was one-directional and the
-        // check was an inline euid compare; now both gates route through one mediator. The connect
-        // side stands on `AnyOfMyUser` (euid only) — dialing out, it can confirm the answerer is a
-        // process of our user, but it cannot yet pin WHICH pid it expected. That pid arrives when the
-        // Handle threads the expected server pid (arc 272 step 6c), at which point this becomes
-        // `OnlyMyPeers { lineage: {expected_pid} }` — DO NOT drop the pid half; it is named, not built.
-        // Combined with the unguessable autobind capability (the address came from the Handle, not a
-        // guessable name), the rendezvous is mutually authenticated. Read peer_cred BEFORE
+        // Arc 272 v4 / step 5 — MUTUAL UDS peer-cred via the powerbox: the CLIENT verifies the
+        // SERVER's kernel-vouched identity through the SAME `CommsPolicy` the accept gate consults
+        // (kernel/listener.rs `authorizes`); both gates route through one mediator. The connect side
+        // stands on `AnyOfMyUser` (the euid floor) — but post-step-5 the address is ALWAYS an
+        // unguessable autobind capability handed over the lineage channel (guessable names are
+        // annihilated; abstract names are exclusive-bind), so the answerer IS the lineage minter:
+        // holding the capability is the lineage proof, the euid floor is defense-in-depth. (6c.2 — a
+        // per-Address minter-pid verified right here — is the belt-and-suspenders for the narrow
+        // leak-then-rebind edge; deferred, not load-bearing.) Read peer_cred BEFORE
         // `OwnedFd::from(stream)` consumes the stream.
         {
             use std::os::fd::AsRawFd;
