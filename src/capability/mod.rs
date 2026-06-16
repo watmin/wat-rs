@@ -6,6 +6,10 @@
 //!   [`encode_capability`] / [`decode_capability`] dispatch over the `wat-edn.cap` wire. Adding a
 //!   capability is a registry row; the dispatch never changes — the hourglass / narrow-waist law, run
 //!   inward (a rigid core enabling unbounded capabilities above it).
+//! - [`policy`] — v4 the POWERBOX: [`policy::CommsPolicy`] decides, from a peer's kernel-verified
+//!   `PeerCred`, which peers may obtain authority (the process-tier accept/connect gates consult it).
+//!   Adding a posture is an enum rung; the `admits` contract never changes — the same narrow-waist
+//!   law applied to authorization.
 //!
 //! The object-capability trust boundary sits AT the waist: a capability reconstructs ONLY off the
 //! trusted door (`edn_shim::decode_trusted_wire`) — handed over a lineage channel, never forged from

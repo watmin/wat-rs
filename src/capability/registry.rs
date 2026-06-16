@@ -67,12 +67,23 @@ fn encode_in(caps: &[CapCodec], inner: &RustOpaqueInner) -> Option<OwnedValue> {
     Some(OwnedValue::Tagged(Tag::ns("wat-edn.cap", codec.name), Box::new(body)))
 }
 
+/// Construct a capability-decode error. Decode reconstructs off the trusted peer wire from an
+/// `OwnedValue` body, which carries no source position — so the span is legitimately unknown,
+/// attested here ONCE rather than filled by silent convention at each call site (a bare
+/// `Span::unknown()` reads identically to a discarded-span bug; this names why it is not one).
+// rune:conformare(spanless-by-domain) — capability decode reconstructs off the trusted wire from an
+// OwnedValue body that carries no source location; consumers of EdnReadError from decode_capability
+// do not expect a span.
+fn cap_decode_error(reason: impl Into<String>) -> EdnReadError {
+    EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(reason.into()) }
+}
+
 /// The decode dispatch over an EXPLICIT codec set — a linear find by tag `name`.
 fn decode_in(caps: &[CapCodec], name: &str, body: &OwnedValue) -> Result<Value, EdnReadError> {
-    let codec = caps.iter().find(|c| c.name == name).ok_or_else(|| EdnReadError {
-        span: Span::unknown(),
-        kind: EdnReadErrorKind::UnsupportedTag(format!("wat-edn.cap/{name}")),
-    })?;
+    let codec = caps
+        .iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| cap_decode_error(format!("wat-edn.cap/{name}")))?;
     (codec.decode)(body)
 }
 
@@ -97,42 +108,25 @@ fn address_codec() -> CapCodec {
         decode: |body| {
             let items = match body {
                 OwnedValue::Vector(items) => items,
-                _ => {
-                    return Err(EdnReadError {
-                        span: Span::unknown(),
-                        kind: EdnReadErrorKind::UnsupportedTag(
-                            "wat-edn.cap/address (expected a byte vector)".into(),
-                        ),
-                    })
-                }
+                _ => return Err(cap_decode_error("wat-edn.cap/address (expected a byte vector)")),
             };
             // Cap the decoded name at the abstract-UDS limit (`sun_path` is 108 bytes; an abstract
-            // name occupies `sun_path[1..]`, so ≤ 107). Reject an over-long name HERE — an early,
-            // located error on the trusted wire — rather than letting it fail late + unlocated at
-            // `connect_addr` (kernel/address.rs).
+            // name occupies `sun_path[1..]`, so ≤ 107). Reject an over-long name HERE — early, at
+            // decode — rather than letting it fail late at `connect_addr` (kernel/address.rs). (The
+            // wire body carries no source position, so the rejection is early, not span-located.)
             const ABSTRACT_UDS_NAME_MAX: usize = 107;
             if items.len() > ABSTRACT_UDS_NAME_MAX {
-                return Err(EdnReadError {
-                    span: Span::unknown(),
-                    kind: EdnReadErrorKind::UnsupportedTag(format!(
-                        "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
-                        items.len(),
-                        ABSTRACT_UDS_NAME_MAX
-                    )),
-                });
+                return Err(cap_decode_error(format!(
+                    "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
+                    items.len(),
+                    ABSTRACT_UDS_NAME_MAX
+                )));
             }
             let mut bytes = Vec::with_capacity(items.len());
             for it in items {
                 match it {
                     OwnedValue::Integer(n) if (0..=255).contains(n) => bytes.push(*n as u8),
-                    _ => {
-                        return Err(EdnReadError {
-                            span: Span::unknown(),
-                            kind: EdnReadErrorKind::UnsupportedTag(
-                                "wat-edn.cap/address (byte out of 0..=255)".into(),
-                            ),
-                        })
-                    }
+                    _ => return Err(cap_decode_error("wat-edn.cap/address (byte out of 0..=255)")),
                 }
             }
             let addr = crate::kernel::address::Address::from_socket_name_bytes(bytes);

@@ -78,8 +78,8 @@ mod tests {
         let policy = CommsPolicy::AnyOfMyUser;
         let me: u32 = 1000;
 
-        // My user — ADMITTED regardless of pid (the connect gate cannot pin a pid yet; the lineage
-        // clause is dropped, so any pid of my user passes).
+        // My user — ADMITTED regardless of pid (the connect gate holds no allow-set, so the lineage
+        // clause is dropped and any pid of my user passes).
         assert!(policy.admits(&cred(100, me), me), "a process of my user, pid 100 — admitted");
         assert!(policy.admits(&cred(999, me), me), "a process of my user, any other pid — admitted");
         // Different user (euid mismatch) → REFUSED — the floor every rung shares (the connect gate's
