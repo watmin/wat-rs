@@ -154,12 +154,9 @@ mod waist_proof {
             encode: |inner| Some(OwnedValue::Integer(*inner.payload.downcast_ref::<u64>()? as i64)),
             decode: |body| match body {
                 OwnedValue::Integer(n) => Ok(make_rust_opaque(":test::Token", *n as u64)),
-                _ => Err(EdnReadError {
-                    span: Span::unknown(),
-                    kind: EdnReadErrorKind::UnsupportedTag(
-                        "wat-edn.cap/test-token (expected an integer)".into(),
-                    ),
-                }),
+                // Route through the SAME attested spanless helper the production codecs use, so
+                // span-omission is ONE runed path, not a parallel hand-built struct literal.
+                _ => Err(cap_decode_error("wat-edn.cap/test-token (expected an integer)")),
             },
         }
     }
