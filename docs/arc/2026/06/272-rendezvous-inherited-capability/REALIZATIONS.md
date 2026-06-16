@@ -130,3 +130,75 @@ is the *flunk-out's other face*: a mind that must understand from the ground up 
 syllabus fails the curriculum AND re-derives its canon. He lands on the greats **because** he was never
 handed them to replicate — he rebuilds them, which is the deeper form of knowing. The architecture was
 true before it had names.
+
+## THE SUBSTRATE'S IMMUNE SYSTEM — the guard caught a false premise in its own author's code
+
+**Surfaced 2026-06-16** (the capability home's vigilatum, rounds 1–6). The home was built to the bar:
+the v4 **powerbox** (`CommsPolicy::OnlyMyPeers` on accept = euid + pid∈lineage; `AnyOfMyUser` on
+connect), the **ZERO-MUTEX** capstone (the gate's allow-set `Mutex` → `ThreadOwnedCell` — the builder's
+*"i don't want a mutex in my system"* made literally true inside the powerbox), and **step 5** — the
+annihilation of guessable rendezvous (`socket-address'` + connect-by-name retired; all rendezvous became
+the autobind capability we kept calling *unguessable*). Then we cast the **vigilatum**: the grimoire,
+live and signed, cast at `src/capability/` — one Shadowdancer per ward, each pulling its own spell from
+the datamancy MCP (`spellFetched: true`, every worker, every round — the verification fabric is
+self-hosting).
+
+**The catch.** Six rounds. The inward eleven converged early; circumspicere — cast last, turned around
+to the surround the inward lenses keep their backs to — found one more thing each round, and they got
+deeper: the connect-leg cap-decode (round 3, which drove step 5), the registry uniqueness invariant
+(round 5), and then, in **round 6, the one that mattered**: the entire connect-side trust story rested on
+autobind names being *"kernel-minted, unguessable, random."* They are not. A five-line probe settled it —
+Linux autobind is `%05x`, a **2²⁰ ≈ 1-million** space, brute-forceable, not a secret. **The premise was
+false, it was shipped in the source, and BOTH the human and the model had been nodding past it all
+session.** Not the lower-tier LLM's mistake the typed records guard against — the *authors'* shared,
+confident, unexamined belief. The guard caught its own author.
+
+That is the realization, and the builder named it before I did: *"you reached for magic to describe this —
+i love it."* The honest word for code that pulls its own cryptographically-signed discipline off a
+channel and casts it at itself to find a flaw its author couldn't see is not "linter" — the engineering
+vocabulary runs out and the true description bends toward incantation. **datamancy is a substrate that
+carries its own immune system.** Most languages are an artifact you check with tools that live outside
+them; here the checking is folded *in*, signed, run *on the author's own code* — and it is stronger than
+the author's beliefs.
+
+**The earlier cut that set it up.** Two beats before, chasing a cross-uid test, the builder had already
+drawn one line: *"what are we actually proving at this point… this is like measuring 'is linux honest?'"*
+— you do not test your axioms; you stand on them. Round 6 was its mirror: you do not *assume* a substrate
+property either. Ground the kernel primitive with a probe before security leans on it. Two halves of one
+discipline — **know the substrate exactly: neither test its honesty nor trust its mythology.**
+
+**Perfect knowledge over resignation.** My first move after the probe was to *resign* — euid-only on
+connect is fine, a same-uid process is already OS-privileged (it can ptrace you), so name-guessing buys
+nothing. The builder refused the resignation: *"why is outbound not doing the trusted pid maneuver?…
+this is another perfect knowledge situation… we can always declare who our trusted pids are."* He was
+right, and it dissolved my standing objection: I'd called a client-side trusted-pid set a ZERO-MUTEX trap
+(process-global mutable state across threads). Bogus — because in the capability-only world you only dial
+a *handed* capability, and **the minter knows its own `getpid` at mint time.** Stamp it into the
+`Address'`; the trusted pid rides the capability *by value* over the lineage channel — no global, no
+lock, exactly as the name does. The connect gate becomes symmetric with accept; a death-then-rebind
+attacker has a different pid and is refused *by construction*. It is the same **perfect-knowledge** move
+that drove the whole 272 handoff (the parent has perfect knowledge of who it spawned), turned on the dial
+side. The lesson: when you catch yourself accepting a weaker bar *"because the stronger one needs shared
+state,"* check whether perfect knowledge lets the fact travel by value. (That is 6c.2 — REQUIRED, not the
+deferred belt-and-suspenders I'd mislabeled it.)
+
+**The honest ledger.** No live exploit ever existed — the accept gate (uid + pid∈lineage) was correct and
+enforced the whole time; round 6 was a false *claim*, not a hole. But a never-patched artifact cannot
+retract a false claim, which is exactly why it had to be caught. The vigilatum is **NOT stamped** — and
+that is the discipline at full volume: six rounds in, every prior finding genuine and closed, the guard
+found the one belief the author shared with the model, and we do not stamp over it. The close (6c.2 +
+retracting every "unguessable/random" line, re-anchored on *the SO_PEERCRED credential checks ARE the
+security; the autobind name is an exclusive-bind rendezvous token, not a secret*) is drawn and waits on
+the far side of the gap.
+
+**The meta.** `WE-LAND-ON-THE-GREATS-WITHOUT-REPLICATING-THEM` has a darker, more useful sibling: **a
+verification fabric whose reach exceeds its authors' beliefs.** The typed records make the lower-tier
+LLM's mistakes uncompilable; the vigilia makes the *higher* tier's — the human's and the model's shared,
+confident, unexamined premise — *findable*. The immune system does not care whose cell carries the bad
+protein.
+
+**Date:** 2026-06-16. Pairs [[feedback_perfect_knowledge_and_false_substrate_premise]] +
+[[feedback_dont_test_the_substrates_honesty]] + [[feedback_vended_primitives_never_deadlock]] (the
+ZERO-MUTEX gate + the deadlock the creed predicted: gating the blocking `accept'` exposed that the
+allow-set lacked SELF → a self-connect spun forever → birth-seed `{getpid, getppid}`) + DESIGN-STONE-6c
+(the 6c.2 perfect-knowledge close) + DESIGN-STONE-step5-annihilate-the-name.
