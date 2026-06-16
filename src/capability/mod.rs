@@ -1,3 +1,8 @@
+//! vigilatum: 2026-06-16 — vigilia 12-spell + circumspicere, L1+L2=0 (post-6c.2; cast via the generic
+//! `.claude/workflows/vigilia.js`, live worker-fetch from the signed datamancy MCP; circumspicere
+//! confirmed the shipped claims honest — no surviving "unguessable" overclaim, CommsPolicy single-mediator
+//! holds across all accept arms, the minter-pid stamp consistent end-to-end).
+//!
 //! Arc 272 — the capability subsystem (a warded home). Three concerns: what may cross a boundary as a
 //! capability, how it serializes (the `wat-edn.cap` **narrow waist**), and — v4 — who may receive it
 //! (the comms policy / **powerbox**).

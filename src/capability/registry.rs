@@ -256,6 +256,37 @@ mod waist_proof {
         env
     }
 
+    /// Encode a `Value::RustOpaque` through the capability waist and unwrap the tag name + body.
+    /// Owns the encode + tag-unwrap step so round-trip tests don't repeat anonymous match/panic
+    /// scaffolding. Channel and opaque CONSTRUCTION stay inline in each test.
+    fn encode_through_waist(
+        caps: &[CapCodec],
+        opaque: &Value,
+        types: &crate::types::TypeEnv,
+    ) -> (String, wat_edn::OwnedValue) {
+        let inner = match opaque {
+            Value::RustOpaque(inner) => inner,
+            _ => unreachable!(),
+        };
+        let tag = encode_in(caps, inner, types).expect("capability must encode through the waist");
+        match tag {
+            OwnedValue::Tagged(t, b) => (t.name().to_string(), *b),
+            _ => panic!("expected a #wat-edn.cap/<name> tag"),
+        }
+    }
+
+    /// Decode a capability body through the waist dispatch. Owns the decode step so round-trip
+    /// tests don't repeat the inline expect scaffold. The final downcast/assert stays inline in
+    /// each test because each test asserts a different payload type.
+    fn decode_through_waist(
+        caps: &[CapCodec],
+        name: &str,
+        body: &wat_edn::OwnedValue,
+        types: &crate::types::TypeEnv,
+    ) -> Value {
+        decode_in(caps, name, body, types).expect("capability must decode through the waist")
+    }
+
     #[test]
     fn a_second_capability_rides_the_same_waist() {
         let types = TypeEnv::default();
@@ -263,20 +294,11 @@ mod waist_proof {
 
         // Encode a Token through the SAME generic dispatch that carries Address'.
         let token = make_rust_opaque(":test::Token", 42u64);
-        let tag = match &token {
-            Value::RustOpaque(inner) => {
-                encode_in(&caps, inner, &types).expect("the 2nd cap encodes generically")
-            }
-            _ => unreachable!(),
-        };
-        let (name, body) = match tag {
-            OwnedValue::Tagged(t, b) => (t.name().to_string(), *b),
-            _ => panic!("expected a #wat-edn.cap/<name> tag"),
-        };
+        let (name, body) = encode_through_waist(&caps, &token, &types);
         assert_eq!(name, "test-token", "the toy cap got its own tag through the generic dispatch");
 
         // Decode it back through the SAME generic dispatch → a live :test::Token.
-        let back = decode_in(&caps, &name, &body, &types).expect("the 2nd cap decodes generically");
+        let back = decode_through_waist(&caps, &name, &body, &types);
         match back {
             Value::RustOpaque(inner) => {
                 assert_eq!(inner.payload.downcast_ref::<u64>(), Some(&42u64))
@@ -303,17 +325,8 @@ mod waist_proof {
             crate::kernel::spawn::ADDRESS_TYPE_PATH,
             addr,
         );
-        let tag = match &opaque {
-            Value::RustOpaque(inner) => {
-                encode_in(&caps, inner, &types).expect("address must encode")
-            }
-            _ => unreachable!(),
-        };
-        let body = match tag {
-            OwnedValue::Tagged(_, b) => *b,
-            _ => panic!("expected a cap tag"),
-        };
-        let back = decode_in(&caps, "address", &body, &types).expect("address must decode");
+        let (_, body) = encode_through_waist(&caps, &opaque, &types);
+        let back = decode_through_waist(&caps, "address", &body, &types);
         match back {
             Value::RustOpaque(inner) => {
                 let reconstructed = inner
