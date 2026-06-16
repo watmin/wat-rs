@@ -126,6 +126,20 @@ re-casts and converges. Pairs [[project_rendezvous_inherited_capability]] +
 
 ## 6c.2 — THE STRIKE (the live plan; contract PINNED 2026-06-15, grounded against `32e2e9d6`)
 
+> ⛔ **WIRE SHAPE SUPERSEDED 2026-06-15 → see `BRIEF-STONE-6c.2-D1.md`.** The "2-element positional
+> vector" wire (decision #4 below) was rejected: a heterogeneous `(i64, bytes)` product modeled as a
+> homogeneous vector/map is ill-typed in wat (maps/vectors are `HashMap<K,V>`/`Vector<T>` — single
+> value type; `:Any` banned). The honest shape is a **record** (struct = non-wire/opaque; record =
+> EDN/wire — `wat/spawn.wat:116`). Since 234.7a/b now make records round-trip, the address's portable
+> form is a **registered base record** `:wat::kernel::SocketAddressWire {minter-pid, name}`, and the cap
+> codec reuses the ONE general record encode/decode (threading `types` into the `CapCodec` signature —
+> a one-time waist evolution) — no hand-build, no divergence. Wire:
+> `#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}`. Decisions
+> 1-3 + 7 below STAND (the pid gate, `OnlyThisPeer`, `AnyOfMyUser` annihilation, retractions);
+> decisions 4-6 (the positional wire / `from_socket_name_bytes` / `portable_form` shapes) are restated
+> in the D1 brief. The four-questions favored D1 over a codec hand-build on Simple + Honest
+> (single-source-of-truth, same discipline as 234.7b).
+
 **Contract decision (pinned):** the connect gate verifies `answerer.uid == my_euid AND answerer.pid ==
 the minter pid carried by the dialed `Address'`.` The minter pid is stamped at autobind (perfect
 knowledge: the minter's own `getpid`), travels with the capability by value (no global set, no mutex),
