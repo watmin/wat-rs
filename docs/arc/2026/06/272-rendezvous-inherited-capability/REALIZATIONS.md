@@ -202,3 +202,76 @@ protein.
 ZERO-MUTEX gate + the deadlock the creed predicted: gating the blocking `accept'` exposed that the
 allow-set lacked SELF → a self-connect spun forever → birth-seed `{getpid, getppid}`) + DESIGN-STONE-6c
 (the 6c.2 perfect-knowledge close) + DESIGN-STONE-step5-annihilate-the-name.
+
+---
+
+## THE CLOSE THAT SAT ON THREE FLOORS — and the loop that proved itself
+
+6c.2 was drawn as one strike: stamp the minter's `getpid` into the `Address'`, make the connect gate
+symmetric with accept. Striking it surfaced **three unbuilt floors beneath it**, none of which the
+DESIGN had seen — and the whole session became excavating them, bottom-up.
+
+**Floor 1 — records were silently encode-only on the wire (234.7a/b).** The address's portable form
+wanted to be a *record* (a heterogeneous `{minter-pid, name}` product). The builder caught the first
+draft — a positional `[int, [bytes]]` vector — with the law that decides it: *"wat hash-maps are
+strongly typed; value being int and vec-of-ints feels like it's illegal."* It is: a wat map is
+`HashMap<K,V>`, a vector is `Vector<T>` — homogeneous; the heterogeneous product is a **record**, and
+`wat/spawn.wat:116` already says it plainly (*"A STRUCT, not a record: its fields are non-EDN opaques"* —
+the inverse names the rule: **record = EDN/wire, struct = opaque/non-wire**). But records turned out to
+be *encode-only*: base rendered `field-0/field-1` with no decode path; holon couldn't cross at all. Both
+flavors made to round-trip (base by-name; holon riding its `holon_form`-as-edn, struct_form projected
+from the Bundle).
+
+**Floor 2 — `-> :T` was illegal-but-tolerated (258.5b).** The receiving side couldn't reconstruct a
+record because the *no-ascription* `recv'` path — the one meant to outlive the arrow — passed a hardcoded
+`None` for the type registry. The builder, adamant: *"`-> :T` in non-return positions is illegal — we
+must kill this — we were adamant we could do all the necessary infer work."* And we could: every
+`recv'`/`select'` value gets its type from a wat consumer (inference) or from the **self-describing wire**
+(tagged records + typed scalars + the registry) — never a declared arrow. The arrow died; the wire tells
+the type.
+
+**Floor 3 — the encode hid behind a trait + a thread-local (258.5b-ii).** Decode already happened in
+eval (where `sym.types()` lives); encode happened *inside the transport* via a no-types `to_wire()`, so a
+crashed strike had bridged it with a hidden `SEND_TYPE_ENV` thread-local. The four-questions killed it on
+Honesty (`sequi`: hidden state breaks composition); the decomplection made encode symmetric with decode —
+the eval layer encodes with `sym.types()` and ships bytes; the transport is a pipe. Only with all three
+floors poured did the pid-stamped `SocketAddressWire` record cross a fork — **6c.2 D1 shipped**, the gate
+symmetric, `AnyOfMyUser` annihilated, every "unguessable" claim retracted. arc-272 trust: **closed**, and
+the home **stamped** over a converged 12-spell vigilia.
+
+**The deferred-dep chain, run to ground.** One planned strike sat on a three-arc foundation that didn't
+exist. The honest move each time was the builder's *"a thing we deferred is now necessary — block and
+build it"* — recursively, three deep. The DESIGN that names a floor it assumes is the DESIGN that hides
+the dig.
+
+**The loop generalized — and proved itself on its own convergence.** The bespoke per-home vigilatum
+became a reusable `workflows/vigilia.js`: args-driven target + ward roster, each worker live-fetching its
+*current* signed spell. The builder corrected the first cut — *"we shouldn't embed — we need live
+collection from the mcp tooling… I update them regularly"* — overriding the grimoire's embed rule for the
+right reason (a snapshot casts a stale discipline; the MCP verifies per read, so live-fetch is both
+current and signed). Then *"build the generic tool and prove it works"* — and it did, by **casting the
+wards that judged the code its own fix had cleaned**, converging L1+L2 to 0. He named what it felt like:
+*"this feedback loop is such a wonderful device… actual magic."* The magic is only that no seam lets
+convergence be faked — live spell, grounded finding, weighed against the disk.
+
+**The discipline at full volume, against the agents themselves.** Two Shadowdancers crashed: one spawned
+a sub-agent, the parent died on a stream-timeout, and the **orphan kept writing the tree** — caught only
+because the builder said *"one agent is still running"* before I ground a moving target. A `perl -i` I
+thought was rejected had applied, and a read-only Explore agent then reported **my uncommitted edit as
+HEAD** — the "weigh the disk" lesson inverted: never ground an agent over a dirty tree. Stale IDE
+diagnostics cried `E0107`/`E0599` on code that built clean, repeatedly. Every single "green" was re-run on
+my own build. The loop that can't lie held — not because the tools were honest (they weren't), but because
+the *weigh* was. (Banked: [[feedback_shadowdancer_must_not_spawn_subagents]]; and "args don't wire" was a
+misdiagnosis — they arrive JSON-stringified, a `parse-if-string` guard wires them, unblocking args-driven
+workflows generally.)
+
+**The horizon, pinned.** Shipping typed records over a UDS socket is the complete *local* typed-capability
+IPC — and the data layer is transport-blind (any socket carries it). The trust layer is UDS-specific
+(`SO_PEERCRED`), and the builder pinned its network analog: *"I want mtls for remote trust — the ssl
+channel is the trust for networks."* SO_PEERCRED and mTLS are two credential sources for one powerbox
+decision; remote is a new `CommAddress` impl + a new `CommsPolicy` rung, the contract frozen
+(`NOTE-remote-mtls-trust.md`).
+
+**Date:** 2026-06-16. Pairs [[project_rendezvous_inherited_capability]] +
+[[feedback_deferred_dep_becomes_necessary_block_and_build]] + [[feedback_shadowdancer_must_not_spawn_subagents]] +
+[[feedback_ide_diagnostics_can_lie]] + DESIGN-STONE-6c.2-D1 + DESIGN-STONE-258.5b/ii + NOTE-remote-mtls-trust.
