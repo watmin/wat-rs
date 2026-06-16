@@ -1,5 +1,18 @@
 # DESIGN — 6c: a capability reconstructs ONLY over a lineage-verified channel
 
+> ⛔ **SUPERSEDED as THE close by `DESIGN-STONE-step5-annihilate-the-name.md` (2026-06-16).** Builder:
+> a deferred *security posture* is a violation — 6c.1 (the `PeerTrust` bit below) only refused
+> *capabilities* over a euid-only connect; it left the **data** path open to same-uid name-squatting,
+> which violates "only my peers." **Step 5 (annihilate guessable names → capability-only rendezvous) is
+> the real close** and SUBSUMES 6c.1: with no guessable names, every connect targets an unguessable
+> capability → the answerer is lineage-proven → there are no euid-only connect channels left, so the
+> `PeerTrust` enum is unnecessary. **6c.2** (per-Address minter-pid stamped + verified — the
+> belt-and-suspenders for the leak-then-rebind edge) survives as the accepted **deferral**. This doc is
+> retained for the gate-map + the ZERO-MUTEX reasoning (still valid); read step 5 for the live plan.
+
+---
+
+
 > Opened 2026-06-16. **Surfaced by the vigilatum, not planned** — round-3 circumspicere L1 on
 > `src/capability/`: recv' (runtime.rs:23980) decodes through the trusted capability door
 > *unconditionally*, and its comment claims *"bytes from a lineage peer"* — but the **process connect**
