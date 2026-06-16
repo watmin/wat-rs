@@ -94,7 +94,11 @@ the process pipe. GREEN once 6a-i makes `Address'` EDN-representable.
   capability handoff is proven. (Depended on arc 258.5a — `connect'` infers — both shipped.)
 - **6b** — `extend-type :wat::spawn::ProcessOpts :wat::spawn::Host` `launch` (child autobinds + reports;
   parent recv's the addr; returns the `Handle`) + unify `start` (listener-minting moves into per-tier
-  `Host/launch`). Zero change to the constant `spawn-program'` surface. NEXT.
+  `Host/launch`). Zero change to the constant `spawn-program'` surface. **Full design: see
+  [DESIGN-STONE-6b-process-launch.md]** — grounded crux (the child universe = stdlib + spliced forms
+  only, so the service code crosses as a defservice forms bundle [A1] and `state0` crosses over the
+  lineage channel [B3]); `launch` returns `Launched<S,R>{handle,address}`; decomposed 6b-i (probe) /
+  6b-ii (codegen) / 6b-iii (deftest process arm). IN FLIGHT.
 - **6c** — post-spawn pid-trust (the mutual euid+pid both directions; `allow'` the client in).
 
 Pairs [[project_rendezvous_inherited_capability]] + [[project_shared_memory_partition_hosting]]
