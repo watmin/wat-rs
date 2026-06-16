@@ -90,14 +90,24 @@ universe* via the child-forms bundle).
 - **B2 — splice `state0` into the child forms as an AST literal.** Needs a runtime value→AST quote
   primitive; the macro builds forms at expansion but state0 is a runtime arg, so it can't anyway. CUT.
 
-## The gap to probe (6b-ii sub-risk, named not assumed)
+## The blocking dep — CONFIRMED, 6b-ii-β is blocked on it (2026-06-16)
 
 The reshaped `launch` mints `(listener' self :S :R)` *inside a generic method body*, instantiating the
-method's own type-params `<S,R>` as type-args to the `listener'` intrinsic. Multi-param generic protocol
-methods parse + dispatch (arc-232 follow-on, shipped — task #246), but **passing a method type-param as
-a type-arg to a parametric intrinsic is unproven**. 6b-i sidesteps it (hand-rolled, literal `:i64`); the
-6b-ii brief must probe it first and, if it fails, block-and-build that dep
-([[feedback_deferred_dep_becomes_necessary_block_and_build]]) before the launch reshape.
+method's own type-params `<S,R>` as type-args to the `listener'` intrinsic. **PROBED at HEAD `611d68e3`
+(`/tmp/tparam_probe.wat`) — RED:** a generic protocol method called with explicit type-args resolves as
+`unknown callee: :user::Mk/mk<wat::core::i64,wat::core::i64>`, and (per the 4a probes, still true) the
+implicit form treats `:S`/`:R` as the literal type `Path(":S")`. So the launch-mints-internally shape is
+blocked on an unbuilt capability: **generic-method type-argument application** (call `:P/m<T,T>` + flow
+the type-params into the body's intrinsic type-args).
+
+**Four-questions, with PARITY as a hard criterion (zero central edit for a new transport):** the
+alternative — defservice generating per-tier programs so `launch` need not mint — was rejected. It keeps
+`start`/`spawn-program'` constant but makes the *transport seam* central: adding remote would edit
+defservice's codegen, not just add an `extend-type`. That fails the narrow-waist requirement (Honest/UX).
+So there is **no contention**: only the generic-method shape gives the constant `launch<S,R,St>` interface
+where a new transport is one `extend-type` impl, zero central edit. The dep's `Simple? = NO` means
+**decompose** (block-and-build it as its own stone — [[feedback_deferred_dep_becomes_necessary_block_and_build]]),
+not abandon. See `DESIGN-STONE-6b-DEP-generic-method-type-application.md`.
 
 ## Decomposition (sub-stones)
 
