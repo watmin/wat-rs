@@ -6,9 +6,9 @@
 //!      resolve to the INSTANTIATED types, not the literal `Path(":S")`.
 //! Generic FNS already do both (`foldl<T,Acc>`); generic METHODS do not.
 //!
-//! RED at HEAD `82b21ce8`: `(:user::Mk/mk<wat::core::i64,wat::core::i64> …)` → check error
-//! `unknown callee: :user::Mk/mk<wat::core::i64,wat::core::i64>` (the call-head resolver doesn't strip
-//! the `<…>` suffix to match the method name). `#[ignore]` until the dep lands; UN-IGNORE then.
+//! GREEN as of Stone 6b-DEP (arc 272): `(:user::Mk/mk<wat::core::i64,wat::core::i64> …)` now strips
+//! the `<…>` suffix to match the registered bare method name and binds the explicit type-args
+//! `S=i64, R=i64` so the call checks under that substitution.
 //! Full design: docs/arc/2026/06/272-…/DESIGN-STONE-6b-DEP-generic-method-type-application.md.
 
 use std::sync::Arc;
@@ -34,9 +34,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc-232 follow-on RED: generic method called with explicit <T,T> type-args resolves as \
-            'unknown callee'; the type-param→listener'-type-arg flow is unbuilt. Blocks 6b-ii-β. \
-            UN-IGNORE when the dep lands."]
 fn generic_method_called_with_explicit_type_args_mints_a_typed_bound() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed once generic-method type-application is built");

@@ -4941,7 +4941,11 @@ fn dispatch_keyword_head_value(
             // stem before the last `/` names a protocol-def, it's a protocol call.
             if let Some(slash_pos) = other.rfind('/') {
                 let protocol_fqdn = &other[..slash_pos];
-                let method_name   = &other[slash_pos + 1..];
+                let method_name_raw = &other[slash_pos + 1..];
+                // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
+                // so the impl_clauses lookup uses the bare method name (the key stored at
+                // extend-type registration time).  e.g. `mk<i64,i64>` → bare `mk`.
+                let (method_name, _explicit_suffix) = split_type_params(method_name_raw);
                 // Check whether the stem is a registered protocol.
                 let is_protocol = matches!(
                     sym.runtime_def_values.get(protocol_fqdn),
@@ -5881,7 +5885,14 @@ pub(crate) fn parse_extend_type_form(
             } }.into());
         }
         let method_name = match &impl_items[0] {
-            WatAST::Symbol(s, _) => s.as_str().to_owned(),
+            WatAST::Symbol(s, _) => {
+                // Stone 6b-DEP — strip any `<T>` suffix from the impl method name so that
+                // impl_clauses is keyed by the BARE name, consistent with how defprotocol
+                // stores its sigs (via split_name_and_type_params).  A bare impl name
+                // (no `<`) passes through unchanged (split_type_params returns ("name", "")).
+                let (bare, _suffix) = split_type_params(s.as_str());
+                bare.to_owned()
+            }
             other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: HEAD.into(),
                 reason: format!("method impl first element must be a Symbol method name; got {}", other.variant_name())
@@ -9991,6 +10002,12 @@ fn split_type_params(s: &str) -> (&str, &str) {
         Some(idx) => (&s[..idx], &s[idx..]),
         None => (s, ""),
     }
+}
+
+/// Public (crate-visible) re-export of [`split_type_params`] for use in `check.rs`
+/// (Stone 6b-DEP: strip explicit type-arg suffix from a protocol method call-head).
+pub(crate) fn split_type_params_pub(s: &str) -> (&str, &str) {
+    split_type_params(s)
 }
 
 /// `(:wat::runtime::rename-callable-name head from to) -> :wat::holon::HolonAST`

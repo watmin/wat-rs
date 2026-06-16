@@ -5490,7 +5490,13 @@ fn infer_list(
         // wins because protocols are checked before env.get below).
         if let Some(slash_pos) = k.rfind('/') {
             let protocol_fqdn = &k[..slash_pos];
-            let method_name   = &k[slash_pos + 1..];
+            let method_name_raw = &k[slash_pos + 1..];
+            // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
+            // so the look-up uses the bare method name registered in the protocol.
+            // e.g. `mk<wat::core::i64,wat::core::i64>` → bare=`mk`, suffix=`<wat::core::i64,wat::core::i64>`
+            let (method_name_bare, explicit_type_suffix) =
+                crate::runtime::split_type_params_pub(method_name_raw);
+            let method_name = method_name_bare;
             if let Some(methods) = env.get_protocol_methods(protocol_fqdn) {
                 // Head is a protocol-method call.  Find the matching method sig.
                 if let Some(sig) = methods.iter().find(|s| s.name == method_name) {
@@ -5515,18 +5521,53 @@ fn infer_list(
                         return CheckResult::errs(local_errors);
                     }
                     // Arc 232 follow-on (generic methods) — if the method has type params
-                    // (`make<T>` → `sig.type_params = ["T"]`), instantiate them to fresh
-                    // unification vars (mirroring `instantiate`, check.rs:13942 / `rename`):
-                    //   - build a mapping:  "T" → fresh.fresh()
-                    //   - apply `rename` to sig.arg_types[1..] and sig.ret
+                    // (`make<T>` → `sig.type_params = ["T"]`), instantiate them.
+                    //
+                    // Stone 6b-DEP — EXPLICIT binding: when the call site supplied
+                    // `<T1,T2>` type-args (suffix non-empty), parse them and bind each
+                    // `sig.type_params[i]` → parsed[i].  This is required when the
+                    // method's type-params cannot be inferred from value args (e.g. no
+                    // value arg carries S or R).  When no explicit args are present, fall
+                    // back to the existing fresh-var (inference) path.
+                    //
                     // Monomorphic methods (empty type_params) take the identity path: the
                     // instantiated slices ARE the original slices (no-op, existing behaviour).
                     let (inst_rest_arg_types, inst_ret): (Vec<TypeExpr>, TypeExpr) =
                         if sig.type_params.is_empty() {
                             // Monomorphic — no-op: clone the existing slices verbatim.
                             (sig.arg_types[1..].to_vec(), sig.ret.clone())
+                        } else if !explicit_type_suffix.is_empty() {
+                            // Generic with EXPLICIT type-args — parse and bind.
+                            // suffix is `<T1,T2,...>`: strip the enclosing `<` and `>`.
+                            let inner = &explicit_type_suffix[1..explicit_type_suffix.len() - 1];
+                            // Each type-arg in the suffix is a bare fqdn without
+                            // leading colon (e.g. `wat::core::i64`). parse_type_expr
+                            // requires the colon prefix.
+                            let type_strs: Vec<&str> = inner.split(',').collect();
+                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+                            for (i, tp) in sig.type_params.iter().enumerate() {
+                                if let Some(arg_str) = type_strs.get(i) {
+                                    let kw = format!(":{}", arg_str.trim());
+                                    match crate::types::parse_type_expr(&kw) {
+                                        Ok(parsed) => { mapping.insert(tp.clone(), parsed); }
+                                        Err(_) => {
+                                            // Unparseable type-arg: fall back to fresh var for this param.
+                                            mapping.insert(tp.clone(), fresh.fresh());
+                                        }
+                                    }
+                                } else {
+                                    // Fewer explicit args than type params: fresh var.
+                                    mapping.insert(tp.clone(), fresh.fresh());
+                                }
+                            }
+                            let rest: Vec<TypeExpr> = sig.arg_types[1..]
+                                .iter()
+                                .map(|ty| rename(ty, &mapping))
+                                .collect();
+                            let ret = rename(&sig.ret, &mapping);
+                            (rest, ret)
                         } else {
-                            // Generic — build fresh-var substitution and rename.
+                            // Generic — build fresh-var substitution and rename (inference path).
                             let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
                             for tp in &sig.type_params {
                                 mapping.insert(tp.clone(), fresh.fresh());
