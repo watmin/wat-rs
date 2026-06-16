@@ -115,6 +115,11 @@ fn address_codec() -> CapCodec {
             // decode — rather than letting it fail late at `connect_addr` (kernel/address.rs). (The
             // wire body carries no source position, so the rejection is early, not span-located.)
             const ABSTRACT_UDS_NAME_MAX: usize = 107;
+            if items.is_empty() {
+                return Err(cap_decode_error(
+                    "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)",
+                ));
+            }
             if items.len() > ABSTRACT_UDS_NAME_MAX {
                 return Err(cap_decode_error(format!(
                     "wat-edn.cap/address (name {} bytes exceeds the {}-byte abstract-UDS limit)",
@@ -202,6 +207,22 @@ mod waist_proof {
                 assert!(msg.contains("exceeds"), "expected the over-long rejection, got: {msg}")
             }
             other => panic!("expected UnsupportedTag for an over-long name, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn address_decode_rejects_empty_name() {
+        // An empty byte vector is rejected at decode — symmetric with the over-long rejection.
+        // A kernel-minted autobind name is ALWAYS non-empty (5 random bytes); zero-length is
+        // malformed by construction and must be caught early, not deferred to a connect failure.
+        let empty = OwnedValue::Vector(vec![]);
+        let err = decode_in(&[address_codec()], "address", &empty)
+            .expect_err("an empty address name must be refused at decode");
+        match err.kind {
+            EdnReadErrorKind::UnsupportedTag(msg) => {
+                assert!(msg.contains("empty"), "expected the empty-name rejection, got: {msg}")
+            }
+            other => panic!("expected UnsupportedTag for an empty name, got {other:?}"),
         }
     }
 }

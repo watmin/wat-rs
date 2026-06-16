@@ -180,7 +180,7 @@ impl CommAddress for SocketAddress {
             })?;
             // SAFETY: geteuid() is always-succeeds, no args, no memory effects.
             let me = unsafe { libc::geteuid() };
-            if !crate::capability::CommsPolicy::AnyOfMyUser.admits(&server, me) {
+            if !connect_admits(&server, me) {
                 return Err(RuntimeError {
                     span: span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
@@ -207,6 +207,22 @@ impl CommAddress for SocketAddress {
                 })?;
         Ok(Peer::from_socket(tx, rx))
     }
+}
+
+// ─── Connect-gate seam ───────────────────────────────────────────────────────
+
+/// The connect-gate policy consult — a single named seam so the comms-policy decision
+/// is one tested, located place rather than inlined at the call site.
+///
+/// Returns `true` when `CommsPolicy::AnyOfMyUser` admits `server` for a caller whose
+/// effective uid is `euid` (i.e. `server.uid == euid`). False → the connection is
+/// refused by `SocketAddress::connect`.
+///
+/// Extracted so a regression test can drive it with SYNTHESIZED `PeerCred` values
+/// (no real socket, no fork, no privilege) — exactly parallel to
+/// `kernel::listener::tests::authorizes_only_my_uid_and_an_allowed_pid`.
+pub(crate) fn connect_admits(server: &crate::comms::process::PeerCred, euid: u32) -> bool {
+    crate::capability::CommsPolicy::AnyOfMyUser.admits(server, euid)
 }
 
 // ─── Address entity ───────────────────────────────────────────────────────────
@@ -267,5 +283,36 @@ impl Address {
             PEER_TYPE_PATH,
             Arc::new(ThreadOwnedCell::new(Some(peer))),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::comms::process::PeerCred;
+
+    /// Regression guard: the connect gate's policy consult is exercised with SYNTHESIZED peer
+    /// credentials — no real socket, no fork, no privilege required.
+    ///
+    /// Mirrors `kernel::listener::tests::authorizes_only_my_uid_and_an_allowed_pid` (the accept
+    /// gate's parity test). A refactor that drops or weakens the `connect_admits` consult will
+    /// redden this test.
+    #[test]
+    fn connect_admits_same_euid_admitted_different_euid_refused() {
+        let my_euid: u32 = 1000;
+
+        // Same uid as caller → admitted.
+        let same_user = PeerCred { pid: 42, uid: my_euid, gid: 0 };
+        assert!(
+            connect_admits(&same_user, my_euid),
+            "a peer with the same euid must be admitted by AnyOfMyUser"
+        );
+
+        // Different uid → refused.
+        let foreign_user = PeerCred { pid: 42, uid: my_euid + 1, gid: 0 };
+        assert!(
+            !connect_admits(&foreign_user, my_euid),
+            "a peer with a different euid must be refused by AnyOfMyUser"
+        );
     }
 }
