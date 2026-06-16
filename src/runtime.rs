@@ -18632,10 +18632,10 @@ fn wrap_stream_as_socket_peer(
 /// channel and returns `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
 /// 3 args: host, :S, :R.
 ///
-/// Process tier (C0b.2d): `(listener' (process) addr)` — binds the abstract-namespace UDS
-/// named by `addr` (a `SocketAddress'` opaque from `socket-address'`) and returns JUST
-/// `SocketListener'<S,R>` (a single opaque, no tuple). set_nonblocking(true) is kept
-/// (C0b.3a-i invariant).  2 args: host, addr.
+/// Process tier (C0b.2d → arc 272): `(listener' (process) :S :R)` — autobinds an abstract-namespace
+/// UDS (kernel-minted name, unguessable) and returns `Bound{ listener, address }` mirroring the
+/// thread tier. 3 args: host, :S, :R. The legacy 2-arg named form (`socket-address'` opaque) was
+/// annihilated in arc 272 step 5 (guessable names → squattable; autobind is the only rendezvous).
 ///
 /// The host value (args[0]) is evaluated at runtime to dispatch between tiers; arity is
 /// validated AFTER host dispatch (thread=3, process=2).

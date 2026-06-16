@@ -36,6 +36,7 @@ pub struct CapCodec {
 /// `edn_shim` dispatch (the waist) never changes.** This central row is the open EDGE; the frozen
 /// WAIST is the two generic dispatch fns + the wire contract.
 fn registry() -> &'static [CapCodec] {
+    // rune:perspicere(read-once) — built once at registry init; a single-use CapRegistry alias would read worse
     static REG: OnceLock<Vec<CapCodec>> = OnceLock::new();
     REG.get_or_init(|| {
         vec![
@@ -208,6 +209,15 @@ mod waist_proof {
             }
             other => panic!("expected UnsupportedTag for an over-long name, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn registry_rows_have_distinct_keys() {
+        let rows = registry();
+        let names: std::collections::HashSet<_> = rows.iter().map(|c| c.name).collect();
+        let type_paths: std::collections::HashSet<_> = rows.iter().map(|c| c.type_path).collect();
+        assert_eq!(names.len(), rows.len(), "duplicate name in registry — decode would silently shadow");
+        assert_eq!(type_paths.len(), rows.len(), "duplicate type_path in registry — encode would silently shadow");
     }
 
     #[test]

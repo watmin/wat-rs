@@ -130,8 +130,9 @@ impl CommAddress for ThreadAddress {
 /// Verbatim body from the former socket arm of `eval_connect_prime`.
 pub struct SocketAddress {
     /// The abstract-namespace UDS name as RAW BYTES. Arc 272: an autobind address is
-    /// kernel-minted (5 random bytes), NOT UTF-8 — a `String` would corrupt it. Legacy
-    /// user-chosen names (`socket-address'`) are UTF-8 and stored via their byte form.
+    /// kernel-minted (5 random bytes), NOT UTF-8 — a `String` would corrupt it. The name is
+    /// always the kernel-minted autobind bytes; the legacy UTF-8 `socket-address'` path was
+    /// annihilated in arc 272 step 5.
     pub(crate) name: Vec<u8>,
 }
 
@@ -231,7 +232,8 @@ pub(crate) fn connect_admits(server: &crate::comms::process::PeerCred, euid: u32
 ///
 /// Stored as a `RustOpaque` under `ADDRESS_TYPE_PATH` (`:wat::kernel::Address'`).
 /// Produced by:
-/// - `socket-address'`: `Address{ inner: Box::new(SocketAddress{name}) }`
+/// - `listener'` (process): autobind via `Address::from_socket_name_bytes` — kernel-minted
+///   abstract UDS name, never a user-chosen string (arc 272 step 5 annihilated `socket-address'`).
 /// - `listener'` (thread): `Address{ inner: Box::new(ThreadAddress{tx}) }` for
 ///   the Address' tuple slot (was a bare `Sender` fiction).
 ///
