@@ -1,9 +1,15 @@
 # Arc 279.1 — `format` literal-brace escape (`{{`/`}}`): the char-walk tokenizer
 
-> **STATUS: STRIKE-READY.** Foundation shipped (`string::subs` added to `is_pure_total`) + proven
-> (`tests/probe_arc279b_subs_tuple_macro_eval.rs` GREEN). Feature gate RED + `#[ignore]`'d
-> (`tests/probe_arc279b_format_escape.rs`). The build = rewrite `format`'s template parse section in
-> `wat/core.wat` as a single-pass char-walk state machine that collapses the doubles. Opened 2026-06-17.
+> **STATUS: SHIPPED (2026-06-17).** `format`'s template parser is now a two-pass char-walk state
+> machine (`wat/core.wat`): Pass 1 tokenizes the char vector via a nested `Tuple(Tuple(mode,pending),
+> Tuple(buf,segs))` foldl accumulator (nested pair-of-pairs because Tuple has `first`/`second`/`third`
+> but no `fourth`, and `last` needs a Vector — the one deviation from the flat-4-Tuple sketch, design
+> intent unchanged); finalization handles trailing-lone-brace / unclosed-name + final flush; Pass 2 maps
+> segments → `(pieces, used-set)`. The read-string String-node trick is now a **single** site (Pass 2's
+> text branch) — the old triplication is gone structurally, not by a factored helper. `string::subs`
+> added to `is_pure_total` (the foundation grow). Weighed on the orchestrator's own build: escape gate
+> 3/3, arc-279 base 3/3, foundation 1/1, deftest 257/1, deporder 0 violations, lib 929/36 — no
+> regression. Opened + shipped 2026-06-17.
 
 ## Why
 

@@ -519,17 +519,19 @@
 ;;   - Every `{name}` MUST have a matching `:name` kwarg (else macro-error).
 ;;   - Every `:name` MUST appear in the template (else macro-error).
 ;;   - Template must be a string LITERAL (not a variable) — static parse.
-;;   - `\{` escape: NOT supported — lexer rejects `\{` (UnknownEscape; arc 279 DESIGN
-;;     ground-first point 1 STOP). No escape mechanism in this version.
+;;   - Literal braces: `{{` → `{`, `}}` → `}` (doubled-brace escape, Rust/Python convention).
+;;     Collapsed at EXPAND TIME by the macro — zero runtime cost.
+;;     A lone `{` or `}` that is not part of a placeholder or a double is a macro-error.
 ;;   - Template must not contain `"` characters (macro-error guard).
 ;;
-;; Implementation:
+;; Implementation (two-pass char-walk tokenizer, arc 279.1):
 ;;   1. Extract template string literal from first arg via ast-kind/ast-name.
 ;;   2. Fold trailing `:name val` pairs into a HashMap<String,WatAST> (kwargs-map).
-;;   3. Split template by "{" → leading static + [{chunk}, ...].
-;;      For each chunk: split by "}" → [name, trailing_static].
-;;   4a. Build pieces (Vector<WatAST>): leading-lit? + per-placeholder (str-call + trailing-lit?).
-;;   4b. Collect used-set (HashMap<String,bool>): which names were used.
+;;   3. Pass 1 — tokenize: build char vector via (map subs (range 0 length)), then foldl over
+;;      a Tuple(mode, pending, buf, segments) accumulator per the state-machine transition table.
+;;      Finalize: error on lone brace / unclosed name, flush final text segment.
+;;   4. Pass 2 — emit: foldl segments → pieces (Vector<WatAST>) + used-set (HashMap<String,bool>).
+;;      kind=="text" → String literal AST node; kind=="slot" → (:wat::core::str val-ast).
 ;;   5. Strict check: every kwarg key in used-set (else macro-error).
 ;;   6. Emit: (:wat::core::string::concat piece …).
 ;;
@@ -594,115 +596,232 @@
                    (:wat::core::HashMap :wat::core::String :wat::WatAST)
                    (:wat::core::range 0 n-pairs))
 
-     ;; ── 3. Parse template: split by "{" ─────────────────────────────
-     ;; Result: ["leading_static", "name}trailing", "name2}trailing2", …]
-     seg-by-open (:wat::core::string::split tmpl-str "{")
-     n-segs      (:wat::core::length seg-by-open)
+     ;; ── 3. Pass 1 — tokenize chars → segment list ───────────────────
+     ;; Build char vector: each element is a single-char String.
+     tmpl-len    (:wat::core::string::length tmpl-str)
+     chars       (:wat::core::map
+                   (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::String
+                     (:wat::core::string::subs tmpl-str i (:wat::core::i64::+ i 1)))
+                   (:wat::core::range 0 tmpl-len))
 
-     ;; The text before any "{" — always the first segment (may be empty).
-     leading     (:wat::core::Option/expect -> :wat::core::String
-                   (:wat::core::get seg-by-open 0)
-                   "format: internal — split returned empty")
+     ;; Accumulator: Tuple(mode, pending, buf, segments)
+     ;;   mode    : String — "text" | "name"
+     ;;   pending : String — "none" | "open" | "close"
+     ;;   buf     : String — accumulated chars (text or placeholder name)
+     ;;   segments: Vector<Tuple(kind,payload)> — emitted tokens
+     ;;
+     ;; Transition table (verbatim from DESIGN-279.1-escape.md):
+     ;;
+     ;; mode=="text", pending=="open":
+     ;;   c=="{" → {{ literal: (text,"none",buf+"{",segs)
+     ;;   c=="}" → macro-error "format: empty placeholder {} in template"
+     ;;   else   → flush buf as text-seg if non-empty, ("name","none",c,segs')
+     ;;
+     ;; mode=="text", pending=="close":
+     ;;   c=="}" → }} literal: (text,"none",buf+"}",segs)
+     ;;   else   → macro-error "format: lone '}' in template — use '}}' for a literal brace"
+     ;;
+     ;; mode=="text", pending=="none":
+     ;;   c=="{" → (text,"open",buf,segs)   (defer)
+     ;;   c=="}" → (text,"close",buf,segs)  (defer)
+     ;;   else   → (text,"none",buf+c,segs)
+     ;;
+     ;; mode=="name" (pending always "none"):
+     ;;   c=="}" → emit Tuple("slot",buf), (text,"none","",segs')
+     ;;   c=="{" → macro-error "format: '{' inside placeholder name — unclosed '{'?"
+     ;;   else   → ("name","none",buf+c,segs)
 
-     ;; Indices for placeholder chunks: 1..(n-segs-1).
-     ph-indices  (:wat::core::range 1 n-segs)
-
-     ;; ── 4a. Build concat pieces (Vector<WatAST>) ────────────────────
-     ;; init-pieces: leading static as a WatAST::String node (or empty vector).
-     ;; read-string returns WatAST::List([WatAST::String(text)]); extract the child.
-     init-pieces (:wat::core::if
-                   (:wat::core::String/empty? leading)
-                   -> :wat::core::Vector<wat::WatAST>
-                   (:wat::core::Vector :wat::WatAST)
-                   (:wat::core::conj
-                     (:wat::core::Vector :wat::WatAST)
-                     (:wat::core::Option/expect -> :wat::WatAST
-                       (:wat::core::first
-                         (:wat::core::ast->children
-                           (:wat::core::read-string
-                             (:wat::core::string::concat
-                               "\""
-                               (:wat::core::string::concat leading "\"")))))
-                       "format: str-node: leading")))
-
-     ;; For each placeholder chunk (idx → seg-by-open[idx]):
-     ;;   split by "}" → [name, trailing, ...]
-     ;;   validate name exists in kwargs-map
-     ;;   emit: (:wat::core::str val-ast)  +  trailing-node (if non-empty)
-     pieces      (:wat::core::foldl
-                   (:wat::core::fn [ps <- :wat::core::Vector<wat::WatAST>
-                                    idx <- :wat::core::i64]
-                     -> :wat::core::Vector<wat::WatAST>
+     ;; Accumulator layout: Tuple(Tuple(mode, pending), Tuple(buf, segs))
+     ;; — a nested pair-of-pairs, since first/second/third cover indices 0-2
+     ;; on a Tuple but there is no fourth accessor and `last` requires a Vector.
+     ;; Access: mode=(first (first acc)), pending=(second (first acc)),
+     ;;         buf=(first (second acc)), segs=(second (second acc)).
+     tok-state   (:wat::core::foldl
+                   (:wat::core::fn [acc <- :wat::core::Tuple
+                                    c   <- :wat::core::String]
+                     -> :wat::core::Tuple
                      (:wat::core::let
-                       [chunk  (:wat::core::Option/expect -> :wat::core::String
-                                  (:wat::core::get seg-by-open idx)
-                                  "format: internal — seg index out of range")
-                        ;; split "name}trailing" by "}" → ["name", "trailing", ...]
-                        cparts (:wat::core::string::split chunk "}")
-                        n-cp   (:wat::core::length cparts)
-                        ;; Need at least 2 parts: name before "}" and text after.
-                        _ok    (:wat::core::if
-                                 (:wat::core::i64::>= n-cp 2)
-                                 -> :wat::core::nil
-                                 nil
-                                 (:wat::core::macro-error
-                                   (:wat::core::string::concat
-                                     "format: unclosed `{` in template — chunk: " chunk)))
-                        name   (:wat::core::Option/expect -> :wat::core::String
-                                  (:wat::core::get cparts 0)
-                                  "format: internal — cparts[0] missing")
-                        ;; Trailing: rejoin remaining parts with "}" to restore any "}" chars.
-                        trail  (:wat::core::string::join "}"
-                                  (:wat::core::drop cparts 1))
-                        ;; Validate: placeholder name must have a matching kwarg.
-                        _vn    (:wat::core::if
-                                 (:wat::core::HashMap/contains-key? kwargs-map name)
-                                 -> :wat::core::nil
-                                 nil
-                                 (:wat::core::macro-error
-                                   (:wat::core::string::concat
-                                     "format: placeholder {"
-                                     (:wat::core::string::concat name "} has no matching kwarg"))))
-                        ;; Value AST for this placeholder.
-                        val-ast (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::HashMap/get kwargs-map name)
-                                   "format: internal — kwargs-map get post-contains?")
-                        ;; Emit (:wat::core::str val-ast) for unquoted runtime display.
-                        str-call `(:wat::core::str ~val-ast)
-                        ps-with-str (:wat::core::conj ps str-call)]
-                       ;; Emit trailing static (if non-empty) as WatAST::String node.
+                       [mp      (:wat::core::first acc)
+                        bs      (:wat::core::second acc)
+                        mode    (:wat::core::first mp)
+                        pending (:wat::core::second mp)
+                        buf     (:wat::core::first bs)
+                        segs    (:wat::core::second bs)]
                        (:wat::core::if
-                         (:wat::core::String/empty? trail)
-                         -> :wat::core::Vector<wat::WatAST>
-                         ps-with-str
-                         (:wat::core::conj ps-with-str
-                           (:wat::core::Option/expect -> :wat::WatAST
-                             (:wat::core::first
-                               (:wat::core::ast->children
-                                 (:wat::core::read-string
-                                   (:wat::core::string::concat
-                                     "\""
-                                     (:wat::core::string::concat trail "\"")))))
-                             "format: str-node: trail")))))
-                   init-pieces
-                   ph-indices)
+                         (:wat::core::= mode "text")
+                         -> :wat::core::Tuple
+                         (:wat::core::if
+                           (:wat::core::= pending "open")
+                           -> :wat::core::Tuple
+                           ;; mode=="text", pending=="open"
+                           (:wat::core::if
+                             (:wat::core::= c "{")
+                             -> :wat::core::Tuple
+                             ;; {{ → literal {
+                             (:wat::core::Tuple
+                               (:wat::core::Tuple "text" "none")
+                               (:wat::core::Tuple (:wat::core::string::concat buf "{") segs))
+                             (:wat::core::if
+                               (:wat::core::= c "}")
+                               -> :wat::core::Tuple
+                               ;; {} → error
+                               (:wat::core::macro-error
+                                 "format: empty placeholder {} in template")
+                               ;; { followed by other char → open placeholder
+                               ;; flush buf as text segment if non-empty, then start name
+                               (:wat::core::let
+                                 [segs-after (:wat::core::if
+                                               (:wat::core::String/empty? buf)
+                                               -> :wat::core::Vector<wat::core::Tuple>
+                                               segs
+                                               (:wat::core::conj segs
+                                                 (:wat::core::Tuple "text" buf)))]
+                                 (:wat::core::Tuple
+                                   (:wat::core::Tuple "name" "none")
+                                   (:wat::core::Tuple c segs-after)))))
+                           (:wat::core::if
+                             (:wat::core::= pending "close")
+                             -> :wat::core::Tuple
+                             ;; mode=="text", pending=="close"
+                             (:wat::core::if
+                               (:wat::core::= c "}")
+                               -> :wat::core::Tuple
+                               ;; }} → literal }
+                               (:wat::core::Tuple
+                                 (:wat::core::Tuple "text" "none")
+                                 (:wat::core::Tuple (:wat::core::string::concat buf "}") segs))
+                               ;; lone } → error
+                               (:wat::core::macro-error
+                                 "format: lone '}' in template — use '}}' for a literal brace"))
+                             ;; mode=="text", pending=="none"
+                             (:wat::core::if
+                               (:wat::core::= c "{")
+                               -> :wat::core::Tuple
+                               (:wat::core::Tuple
+                                 (:wat::core::Tuple "text" "open")
+                                 (:wat::core::Tuple buf segs))
+                               (:wat::core::if
+                                 (:wat::core::= c "}")
+                                 -> :wat::core::Tuple
+                                 (:wat::core::Tuple
+                                   (:wat::core::Tuple "text" "close")
+                                   (:wat::core::Tuple buf segs))
+                                 (:wat::core::Tuple
+                                   (:wat::core::Tuple "text" "none")
+                                   (:wat::core::Tuple (:wat::core::string::concat buf c) segs))))))
+                         ;; mode=="name" (pending always "none")
+                         (:wat::core::if
+                           (:wat::core::= c "}")
+                           -> :wat::core::Tuple
+                           ;; close placeholder: emit slot segment
+                           (:wat::core::Tuple
+                             (:wat::core::Tuple "text" "none")
+                             (:wat::core::Tuple ""
+                               (:wat::core::conj segs (:wat::core::Tuple "slot" buf))))
+                           (:wat::core::if
+                             (:wat::core::= c "{")
+                             -> :wat::core::Tuple
+                             ;; { inside name → error
+                             (:wat::core::macro-error
+                               "format: '{' inside placeholder name — unclosed '{'?")
+                             ;; accumulate name char
+                             (:wat::core::Tuple
+                               (:wat::core::Tuple "name" "none")
+                               (:wat::core::Tuple (:wat::core::string::concat buf c) segs)))))))
+                   (:wat::core::Tuple
+                     (:wat::core::Tuple "text" "none")
+                     (:wat::core::Tuple "" (:wat::core::Vector :wat::core::Tuple)))
+                   chars)
 
-     ;; ── 4b. Collect used placeholder names ──────────────────────────
-     used-set    (:wat::core::foldl
-                   (:wat::core::fn [used <- :wat::core::HashMap<wat::core::String,wat::core::bool>
-                                    idx  <- :wat::core::i64]
-                     -> :wat::core::HashMap<wat::core::String,wat::core::bool>
-                     (:wat::core::let
-                       [chunk  (:wat::core::Option/expect -> :wat::core::String
-                                  (:wat::core::get seg-by-open idx)
-                                  "format: internal — seg index (used pass)")
-                        cparts (:wat::core::string::split chunk "}")
-                        name   (:wat::core::Option/expect -> :wat::core::String
-                                  (:wat::core::get cparts 0)
-                                  "format: internal — cparts[0] (used pass)")]
-                       (:wat::core::HashMap/assoc used name true)))
-                   (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                   ph-indices)
+     ;; ── Finalization: inspect tok-state, error on bad endings ────────
+     ;; Extract final accumulator fields from the nested pair-of-pairs.
+     fin-mp      (:wat::core::first tok-state)
+     fin-bs      (:wat::core::second tok-state)
+     fin-mode    (:wat::core::first fin-mp)
+     fin-pending (:wat::core::second fin-mp)
+     fin-buf     (:wat::core::first fin-bs)
+     fin-segs    (:wat::core::second fin-bs)
+
+     ;; Check for trailing lone brace or unclosed name.
+     _fin-check  (:wat::core::if
+                   (:wat::core::= fin-pending "open")
+                   -> :wat::core::nil
+                   (:wat::core::macro-error
+                     "format: trailing lone '{' — use '{{' for a literal brace")
+                   (:wat::core::if
+                     (:wat::core::= fin-pending "close")
+                     -> :wat::core::nil
+                     (:wat::core::macro-error
+                       "format: trailing lone '}' — use '}}' for a literal brace")
+                     (:wat::core::if
+                       (:wat::core::= fin-mode "name")
+                       -> :wat::core::nil
+                       (:wat::core::macro-error
+                         (:wat::core::string::concat
+                           "format: unclosed placeholder {"
+                           fin-buf))
+                       nil)))
+
+     ;; Flush final text segment if non-empty.
+     segments    (:wat::core::if
+                   (:wat::core::String/empty? fin-buf)
+                   -> :wat::core::Vector<wat::core::Tuple>
+                   fin-segs
+                   (:wat::core::conj fin-segs (:wat::core::Tuple "text" fin-buf)))
+
+     ;; ── 4. Pass 2 — segments → pieces (Vector<WatAST>) + used-set ───
+     ;; Helper: build a WatAST String-literal node from a text string.
+     ;; (Option/expect (first (ast->children (read-string (concat "\"" text "\"")))))
+     ;; The `"` guard above guarantees text never contains `"`, so the re-wrap is safe.
+
+     pass2-result (:wat::core::foldl
+                    (:wat::core::fn [acc2 <- :wat::core::Tuple
+                                     seg  <- :wat::core::Tuple]
+                      -> :wat::core::Tuple
+                      (:wat::core::let
+                        [ps2   (:wat::core::first acc2)
+                         used2 (:wat::core::second acc2)
+                         kind  (:wat::core::first seg)
+                         pay   (:wat::core::second seg)]
+                        (:wat::core::if
+                          (:wat::core::= kind "text")
+                          -> :wat::core::Tuple
+                          ;; text segment → String literal AST node
+                          (:wat::core::Tuple
+                            (:wat::core::conj ps2
+                              (:wat::core::Option/expect -> :wat::WatAST
+                                (:wat::core::first
+                                  (:wat::core::ast->children
+                                    (:wat::core::read-string
+                                      (:wat::core::string::concat
+                                        "\""
+                                        (:wat::core::string::concat pay "\"")))))
+                                "format: str-node: text segment"))
+                            used2)
+                          ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
+                          (:wat::core::let
+                            [_vn     (:wat::core::if
+                                       (:wat::core::HashMap/contains-key? kwargs-map pay)
+                                       -> :wat::core::nil
+                                       nil
+                                       (:wat::core::macro-error
+                                         (:wat::core::string::concat
+                                           "format: placeholder {"
+                                           (:wat::core::string::concat pay
+                                             "} has no matching kwarg"))))
+                             val-ast (:wat::core::Option/expect -> :wat::WatAST
+                                        (:wat::core::HashMap/get kwargs-map pay)
+                                        "format: internal — kwargs-map get post-contains?")]
+                            (:wat::core::Tuple
+                              (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
+                              (:wat::core::HashMap/assoc used2 pay true))))))
+                    (:wat::core::Tuple
+                      (:wat::core::Vector :wat::WatAST)
+                      (:wat::core::HashMap :wat::core::String :wat::core::bool))
+                    segments)
+
+     pieces      (:wat::core::first pass2-result)
+     used-set    (:wat::core::second pass2-result)
 
      ;; ── 5. Strict check: every kwarg must be consumed ───────────────
      kwarg-keys  (:wat::core::HashMap/keys kwargs-map)

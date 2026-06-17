@@ -39,7 +39,6 @@ fn eval_format(body_expr: &str) -> Result<String, String> {
 
 // `{{` and `}}` with no placeholder → literal braces.
 #[test]
-#[ignore = "arc 279.1 — RED until the char-walk tokenizer ships; un-ignore on green"]
 fn escape_doubled_braces_render_literal() {
     let s = eval_format(r#"(:wat::core::format "{{literal}}")"#)
         .expect("format with doubled braces must expand cleanly");
@@ -48,7 +47,6 @@ fn escape_doubled_braces_render_literal() {
 
 // Doubled braces mixed with a real placeholder.
 #[test]
-#[ignore = "arc 279.1 — RED until the char-walk tokenizer ships; un-ignore on green"]
 fn escape_doubled_braces_with_placeholder() {
     let s = eval_format(r#"(:wat::core::format "{{x}} = {name}" :name "v")"#)
         .expect("format with doubled braces + placeholder must expand cleanly");
@@ -57,7 +55,6 @@ fn escape_doubled_braces_with_placeholder() {
 
 // A trailing literal close brace after a placeholder.
 #[test]
-#[ignore = "arc 279.1 — RED until the char-walk tokenizer ships; un-ignore on green"]
 fn escape_close_brace_after_placeholder() {
     let s = eval_format(r#"(:wat::core::format "{name}}}" :name "v")"#)
         .expect("format with placeholder + trailing }} must expand cleanly");
