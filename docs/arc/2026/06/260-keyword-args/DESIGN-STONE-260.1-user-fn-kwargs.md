@@ -1,80 +1,78 @@
-# DESIGN-STONE 260.1 — user-fn keyword arguments (the reorder mechanism)
+# DESIGN-STONE 260.1 — user-fn keyword arguments = a minted typed record
 
-> Opened 2026-06-17. First stone of arc 260. Grounded against HEAD `b644c5c6`. Builds on the arc's
-> GROUNDING + PROBE FINDINGS (DESIGN.md): kwargs are a real new feature; user fns retain param NAMES
-> (`func.params` at eval, `sym.functions[path].params` at check), so the reorder is feasible on existing
-> data. Intrinsics (no names) are 260.2 — NOT this stone. Gate probe committed: `tests/probe_arc260_keyword_args.rs`.
+> Re-pinned 2026-06-17. **SUPERSEDES the earlier draft of this file** (which pinned a "usage-detected
+> all-or-nothing reorder" disambiguation — wrong; clojure-guiding means OPT-IN, and opt-in dissolves the
+> ambiguity). Confirmed via four-questions + the REALIZATIONS entry. Grounded against HEAD `f21c1700`.
 
-## What this stone delivers
+## The confirmed contract — kwargs ARE a typed record
 
-A call to a **user `defn`** may pass its arguments as `:param-name value` pairs in ANY order; the call
-reorders to positional by the callee's declared param names, then checks + binds exactly as today.
-`(:user::sub :b 3 :a 10)` → reorder → `(sub 10 3)` → 7. Legibility at the call site (the arc's thesis),
-on the data that already exists.
+A fn opts into keyword arguments by declaring a **kwargs section** in its signature; that section is a
+**typed record** the definer mints (the rs-1 move). Keywords are first-class *values* in wat, so kwargs
+MUST be opt-in (a non-declaring fn is positional-only; `:foo` to it is a keyword value) — opt-in is what
+makes it unambiguous.
 
-## THE contract decision — disambiguation (keywords are first-class VALUES in wat)
+```clojure
+(:wat::core::defn :user::connect
+  [host <- :wat::core::String                 ; positional
+   & {port <- :wat::core::i64                 ; the kwargs section → minted record :user::connect::Kwargs
+      tls  <- :wat::core::bool}]
+  -> :wat::core::nil  (… port … tls …))
+```
 
-`(f :fast)` is ambiguous: `:fast` could be a keyword *value* passed positionally, or a *label*. wat has
-keywords as values, so this must be resolved, not hand-waved. **Pinned rule (all-or-nothing keyword mode):**
+- **`& {field <- :T …}`** (NEW) = the kwargs record, **minted** by `defn` as `:<name>::Kwargs`. (Today
+  `& name <- :T` = variadic rest; the two are mutually exclusive — one `&` slot, exactly as clojure's
+  `& {:keys}` *is* the rest position.)
+- **`& opts <- :SomeRecord`** = name an EXISTING record as the kwargs (the sharing case). Mint-vs-name is
+  identical to rs-1's `:state [fields]` vs `:state :Record`.
+- **Four-questions verdict (typed record, not untyped map):** the hard constraint is wat's no-magic /
+  typed-record law ([[feedback_no_magic_that_lets_llm_fake_correctness]]) — an untyped `Map<K,V>` is a
+  structureless bag (the magic affordance); a typed record carries per-key types, wrong shape uncompilable.
+  Clojure-guiding for the shape, wat-typed for the substance.
 
-> A call is in **keyword mode iff its argument list is entirely `:name value` pairs whose `:name`s are
-> exactly the callee's fixed param names — every param named once, no unknowns, no duplicates.** Otherwise
-> the call is **positional** (unchanged). No mixed positional+keyword in this stone.
+### Three call forms — all build/pass that one record
+```clojure
+(:user::connect "h" :port 443 :tls true)               ; inline :k v (sugar)
+(:user::connect "h" {:port 443 :tls true})             ; map literal (arc 257)
+(:user::connect "h" cfg)                               ; pass the record value (Ruby ** collapses to this)
+(:user::connect "h" (:user::connect::Kwargs 443 true)) ; explicit construct (no sugar — just a record arg)
+```
+Validation = the opts-map discipline (unknown/missing/duplicate key → named compile error). It transports
+across loci for free (it's a record → arc-272 rails).
 
-- **Unambiguous by construction.** A positional call that passes a keyword *value* (e.g. the lone
-  `serve <- :keyword` param, `spawn.wat:195`) is NOT all-`:name value`-pairs-covering-all-params, so it
-  stays positional. Keyword-valued args are nearly nonexistent (1 in the tree); the rule leaves them
-  untouched.
-- **Validation is the kwargs-map discipline we already shipped** (defservice opts): unknown name → named
-  error ("`:f` has no parameter `:x`"); missing a param / duplicate name → named error. Raise the bar:
-  the user's mistake is reported directly, never silently mis-bound.
-- **Clojure-faithful + honest:** the label IS the param name, matched structurally; reorder happens
-  BEFORE type unification (check) and BEFORE binding (eval), so the type story and arity are unchanged —
-  kwargs are pure surface sugar over the positional core, no new runtime/type semantics.
-- **Out of scope (affirmative cut):** mixed `(f 1 :b 2)` (positional + trailing kwargs, Python-style) —
-  a later stone if wanted; all-or-nothing is the honest floor. Intrinsics — 260.2 (they have no names).
-  Rest/variadic params interacting with kwargs — 260.x if a caller needs it.
+## Decomposition (the realization clarified the seam)
 
-### Four-questions on the disambiguation rule
-- **Obvious? YES** — `(f :a 1 :b 2)` reads as exactly what it is; the all-or-nothing rule is one sentence.
-- **Simple? YES** — one detector ("all args are `:param-name value` pairs covering the params") + one
-  reorder, applied at the two resolved-call sites. Pure surface sugar; no new type/runtime concept.
-- **Honest? YES** — no ambiguity (keyword-valued positional stays positional); every malformed kwarg call
-  is a named error; reorder-before-unification keeps types/arity truthful.
-- **Good UX? YES** — the call site labels itself; mistakes are named. (Mixed-mode is a future nicety, not
-  a correctness gap.)
+- **260.1a — declare side + explicit-record call (THE FOUNDATION, fully decided — build FIRST).**
+  `defn` detects `& {fields}` in the param vector, mints `(:wat::Record::def :<name>::Kwargs [fields])`
+  (or uses the named record for `& opts <- :Record`), and reshapes the `fn` so its last param is that
+  record. The **explicit-record call** then works with ZERO new call machinery — it's record construction
+  + a normal call. Proves: mint, share-by-name, transport-for-free. All-macro (defn is a macro), no Rust.
+- **260.1b — the inline `:k v` (and `{map}`) call sugar (the open fork — NEXT, not this stone).**
+  A normal macro fires on its OWN head; `(connect …)` has a fn head, so no macro intercepts it (the
+  phase-order wall, rs-1). Two paths to dial in: (a) `defn` emits a **companion macro** `connect` that
+  scoops trailing `:k v` → `(:<name>::Kwargs …)` and calls the impl — all-wat, but a macro-isn't-a-value
+  (no higher-order under the sugary name); (b) **check/eval** recognizes+builds the record at the resolved
+  call site — Rust, keeps fn-as-value. Four-questions this fork before drawing 260.1b.
 
-## The mechanism (where it lands)
+## 260.1a build (where it lands)
+`wat/core.wat` `defn` (the macro, ~188 — `(def name (fn ~@rest))`): add a branch — if the param vector's
+tail is `& {…}`, (1) extract the field vector, (2) mint `(:wat::Record::def :<name>::Kwargs <fields>)`
+(mirror defservice's Record::def emission), (3) reshape the param vector replacing `& {…}` with a normal
+final param `kwargs <- :<name>::Kwargs`, (4) emit `(:wat::core::do <record-def> (def name (fn <reshaped>)))`.
+Backward-compatible: no `& {…}` → defn unchanged. (The `& opts <- :Record` named form: no mint, just the
+final record param.)
 
-Parse stays positional (`parse_list_body` → `Vec<WatAST>`; the parser can't know the callee's signature).
-The reorder is a small pass at each **resolved** call site:
-
-1. **Check** (`src/check.rs` call-inference): when inferring a call `(f a…)` to a user fn, look up
-   `sym.functions[path].params` (the names — present, NOT in the scheme `TypeScheme.params` which is
-   types-only). If the args are keyword-mode, reorder to positional by those names (validate; named error
-   on mismatch), THEN run the existing positional arity+unification against the scheme.
-2. **Eval** (`src/runtime.rs` `apply_function` ~17990, and the user-fn call path): same detect + reorder by
-   `func.params` BEFORE `func.params.iter().zip(args)` binding.
-
-The detector + reorder is ONE helper used by both sites (a pure `(params: &[String], args) -> Result<Vec<positional>, KwargError>`), so check and eval agree by construction.
-
-## STOP triggers (for the brief)
-1. STOP if the check-side call-inference can't reach `sym.functions[path].params` at the call site (the
-   grounding says it can — `sym.functions` is iterated in check; confirm the call-inference has `sym`).
-2. STOP if reorder-before-unification breaks generic/`∀T` inference (it shouldn't — reorder is purely
-   positional rearrangement before the existing unifier runs; confirm with a generic-fn kwarg probe).
-3. STOP if the all-or-nothing detector misfires on an existing positional call (it must not change ANY
-   current call's meaning — the full suite is the guard).
+## STOP triggers
+1. STOP if the `defn` macro can't parse the param vector + detect `& {…}` in the macro-eval fence (it
+   should — defservice does heavier AST work; confirm `ast->children`/`with-children`/the `&`-tail read).
+2. STOP if minting `:<name>::Kwargs` collides with an existing generated/user name → report.
+3. STOP if reshaping the sig breaks an EXISTING `defn` (no `& {…}`) — the full suite is the guard; zero
+   existing fn may change meaning.
+4. STOP if `& {…}` and `& rest` can't be kept mutually exclusive cleanly → report.
 
 ## Gate
-- `tests/probe_arc260_keyword_args.rs` (the committed RED probe) GREEN, `#[ignore]` removed.
-- Add: a kwarg call with an UNKNOWN name → named error; a kwarg call MISSING a param → named error; a
-  positional call with a keyword VALUE arg still works (no misfire); a generic fn called with kwargs works.
-- lib 929/36, nursery 893/4 (zero new — no existing positional call changes meaning).
-
-## Open for builder ruling (syntax is yours)
-The disambiguation rule above (all-or-nothing keyword mode, opt-in by *usage* not by signature
-declaration) is the pinned contract. The alternative is **signature-declared opt-in** (Clojure
-`& {:keys [...]}` — a fn must mark itself kwargs-callable). I recommend usage-detected all-or-nothing: it
-needs no new signature syntax, the ambiguity is nil in practice (1 keyword-valued param), and it labels
-EVERY user call site (the thesis) rather than only opted-in fns. Confirm or override before the brief.
+- A probe (`tests/probe_arc260_decl_kwargs_minted_record.rs`, to write + commit RED): `defn` with
+  `& {fields}` → `:<name>::Kwargs` record exists + an explicit-record call round-trips; a `& opts <- :Rec`
+  named form works; an existing `& rest` fn still works.
+- The arc's headline probe `tests/probe_arc260_keyword_args.rs` (inline `:k v`) stays RED/#[ignore] until
+  260.1b ships the sugar.
+- lib 929/36, nursery 893/4 (zero new — no existing defn changes meaning).
