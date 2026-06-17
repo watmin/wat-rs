@@ -1,6 +1,16 @@
 # Arc 279 — `format`: the opinionated named-template printf (a macro over `concat`)
 
-> **STATUS: STRIKE-READY.** Opened 2026-06-17. The first TOOL of the self-fixing-toolchain doctrine
+> **STATUS: SHIPPED (`d117c54e`, 2026-06-17).** `format` macro in `wat/core.wat` + the `:wat::core::str`
+> intrinsic (unquoted polymorphic render — a rubric-grow) + `eval_ast_name` reads StringLit. Weighed:
+> probe 3/3, 5 format deftests, deporder gate 0, lib 929/36. **DEFERRED — the `\{` escape:** the lexer
+> (`src/lexer.rs` `lex_string`) only handles `\" \\ \n \t \r \0`; `\{` → `UnknownEscape`, so a template
+> cannot carry a literal `{` yet. **Decision owed:** teach the lexer `\{` (a lexer change) **or** adopt
+> `{{` doubling (Rust/Python-style, no lexer change). The macro currently guards against `{`/`"` in
+> templates. **Follow stones (next):** (1) the **concat-abuse lint rule** (277) that detects a
+> literals+values `concat`-chain and suggests `format` — the self-fixing-toolchain's RULE half for this
+> tool; (2) the escape decision above.
+>
+> Opened 2026-06-17. The first TOOL of the self-fixing-toolchain doctrine
 > (SELF-FIXING-TOOLCHAIN.md): the `string::concat`-chain interleaving literals and values is awful
 > (proven explicitly by `wat/lint.wat`'s `violation->finding`); `format` is the cure. It ships first as
 > the tool; the concat-abuse lint *rule* that suggests it is a later 277 stone (report-only until
