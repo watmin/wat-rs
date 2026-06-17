@@ -74,3 +74,21 @@ shows kwargs are cheap.
   space, then a disconfirming probe, then build through a shadowdancer + weigh (the arc-259 rhythm).
 - Pairs the prose-and-form thesis: a call form that needs a comment to decode its own arguments is
   the thing the comm channel exists to kill.
+
+## RELATED — the macro-time sibling (the kwargs pattern already exists, inlined)
+
+This arc is RUNTIME call-site keyword args. Its sibling is **macro-time options parsing**, and that
+pattern already shipped inlined in `defservice` (2026-06-16, arc-272 rs-1, `wat/service.wat` ~line 67):
+a variadic defmacro takes trailing `[:key val :key val …]`, folds them into a HashMap in one pass
+against a `known-opts` set (rejecting any unknown key with a named macro-error), then reads each option
+as `(HashMap/get opts-map "<key>")` with a default. Adding an option = one `known-opts` entry + one
+`get`. This IS the canonical "macro with optional keyword-options" shape (Clojure `& {:keys}`, CL
+`&key`, Python `**kwargs`).
+
+**Why it's inlined, not extracted (yet):** the macro-eval fence CANNOT call user-defined wat fns
+(`feedback_does_a_macro_need_it_intrinsic_boundary`), so a shared `parse-macro-opts` helper would have to
+be a **Rust intrinsic** on the macro-eval allow-list (the "does a macro need it → intrinsic" boundary),
+or this arc's facility generalized to expand-time. Per rule-of-three: defservice is the ONLY consumer
+today; extract when a SECOND option-taking macro appears (generalizing from N=1 risks baking in
+defservice's specifics). When this arc is built, weigh folding the macro-time pattern in (or minting the
+intrinsic) so the two layers share one kwargs story.
