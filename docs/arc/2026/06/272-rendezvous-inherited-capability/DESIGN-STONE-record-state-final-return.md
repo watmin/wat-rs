@@ -28,14 +28,67 @@ expanded BEFORE check, and its output carries no "this is the service state" mar
 emits a check-time assertion form (e.g. `(:wat::type::assert-record! state-ty)`) that the checker resolves +
 validates against the registry; (b) a macro-time type-registry-query intrinsic (the "does a macro need it?"
 boundary — [[feedback_does_a_macro_need_it_intrinsic_boundary]]). Probe-first to pick. (Intent + migration:)
-defservice CHECK: `:state` must resolve to a **registered record type** — uncompilable otherwise (a
-scalar/collection/struct `:state` fails at expansion with a diagnostic). The no-magic line: a
-structureless state can't be written down. Migrate the counter examples (`probe_arc209_c3_*`,
-`probe_arc272_6b_defservice_on_process`, `wat-tests/service-locus-parity.wat`) from `:state :wat::core::i64`
-to a record, e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i64])`, `:state :…::CounterState`.
-- **Probe (RED):** a defservice with `:state :wat::core::i64` → expansion error "service state must be a
-  record". GREEN once the check fires + the examples carry a record state.
-- Self-contained; no serve/await change. Build FIRST (it forces records, which rs-2/rs-3 need).
+#### The reasoning chain — why a CHECK, and why the type system does NOT catch this on its own
+
+This was worked out with the builder 2026-06-16 (preserve it; it is the load-bearing *why*):
+
+1. **The type system is SOUND — there is no type error to catch.** `:state :wat::core::i64` declares the
+   state type as `i64`, a perfectly valid type. defservice generates `StopResponse[state <- i64]`,
+   `start [state0 <- i64]`, `stop -> i64`, `serve [state <- i64]` — all well-typed; the rs-2 PROCESS probe
+   *proves* an `i64` state round-trips across a socket. "State must be a record" is a **domain constraint we
+   choose to impose** (conformance / resumability / evolvability), NOT a soundness property. The checker
+   enforces what the code *declares*; nothing in the generated code declares "must be a record."
+
+2. **defservice is a MACRO that monomorphizes user-defined state.** `serve` (and `start`, and every method)
+   is a generated `defn`. It does **not** declare "I want a record" — it declares **"I want `~state-ty`"**, the
+   *concrete* type the user chose. With `i64`, serve declares `[state <- :wat::core::i64]` — a true signature
+   the checker rightly accepts (serve genuinely wants an i64). The constraint is therefore NOT on the
+   generated defns (they are monomorphic and honest about the concrete type) — it is on the user's **choice**
+   of `:state`, i.e. on the **macro's argument**.
+
+3. **A macro-argument constraint has exactly ONE channel to the checker: an emitted form.** By the time the
+   checker runs, the macro is gone and `:state` is just concrete `i64` woven through the code. There is no
+   "service" marker and no surviving generic parameter. So the only way to state "your chosen state type must
+   be a record" to the checker is for the macro to EMIT a form that says exactly that.
+
+4. **It must be CHECK-time, not macro-expand-time** (phase order, `freeze.rs:691-695`): expand (step 4) →
+   register types (step 5) → check (step 8). At expand time the type registry is empty AND records are
+   themselves minted by macros (chicken-and-egg) — so the macro cannot inspect `state-ty`'s recordness as it
+   expands. By check time (step 8) every type is registered. The emitted form is validated there.
+
+5. **The (a) check vs (b) native-bound fork resolves to (a).** A native bound `∀S <: :wat::Record` *would*
+   let the type system reject `i64` by subtyping — but that requires a surviving **bounded type parameter**,
+   and the macro already monomorphized `S := i64` into concrete defns. Path (b) would mean making the state a
+   real bounded generic parameter (a typed construct, not a macro) — a paradigm move, not this stone. Given
+   defservice **is** a macro with **user-defined** state, the emitted check-time assertion is the honest
+   bridge — NOT a hand-rolled duplicate of the type system, but the only surface where the constraint can be
+   spoken. (Parallel: Rust `derive` macros can't resolve types either — same syntactic/pre-type boundary.)
+
+#### The contract (pin)
+
+A new **check-time** form `(:wat::type::assert-record! <type-keyword>)` — name is an intueri candidate
+(`require-record` / `record-bound` are alternates; the `!` reads as "raises a check error"):
+- **Check (`src/check.rs`):** recognized in the head dispatch; resolves the keyword against the `TypeEnv` and
+  asserts `is_subtype(ty, ":wat::Record") || is_subtype(ty, ":wat::holon::Record")` (the exact pattern in
+  `collection/infer.rs:378-381`). On failure → a `CheckError` ("a service's state must be a record (base or
+  holon-derived); `<ty>` is not a record type"). Types to `:wat::core::nil`.
+- **Runtime (`src/runtime.rs`):** a no-op → `nil` (the work is entirely at check time; it must still *eval*
+  cleanly because it rides the generated `do`).
+- **defservice (`wat/service.wat`):** emits `(:wat::type::assert-record! ~state-ty)` once in the final `do`.
+
+#### Build + migration (the blast radius — substrate-as-teacher cascade)
+
+rs-1 makes scalar state **uncompilable**, so all 12 existing `i64`-state service definitions break and migrate
+to a single-field record (e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i64])`,
+`:state :…::CounterState`) IN THE SAME STONE — handlers wrap/unwrap the field (`(CounterState/count s)` to
+read, `(:…::CounterState v)` to build). The files: `probe_arc209_c1`/`c2`/`c3`/`locus_agnostic_start`/
+`naming_conversion`, `probe_arc265_acronym_registry`, `probe_arc272_6b_defservice_on_process`,
+`probe_arc272_rs2_{thread,process}_stop_returns_final_state`, `probe_arc272_rs2_crash_surfaces_to_client`,
+`wat-tests/service-locus-parity.wat`. The `probe_arc272_rs1` NEGATIVE case STAYS `i64` (un-ignore → GREEN: it
+proves rejection); its positive case already carries a record.
+- **Probe (RED, committed `03b47b93`):** `scalar_state_is_rejected` (#[ignore], RED) + `record_state_is_accepted`
+  (GREEN). GREEN once the check fires + the examples carry record state.
+- No serve/start change beyond the one emitted assert form.
 
 ### rs-2 — a service's value IS its final state — ✅ SHIPPED (a57b9f0b, 2026-06-16) via the `:Stop` terminal op
 **Shipped by a DIFFERENT (better) mechanism than the framing below.** We did NOT make `serve` return `St`
