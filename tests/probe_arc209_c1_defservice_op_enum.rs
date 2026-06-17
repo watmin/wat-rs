@@ -32,16 +32,16 @@ use wat::runtime::{Environment, Value};
 // enum + the IncrementRequest record.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
 
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
 
 ;; Exercise the GENERATED op enum (wrapped-record C.3 shape):
 ;;   1. Build an IncrementRequest via the generated constructor.

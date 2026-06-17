@@ -55,11 +55,11 @@ fn namespace_scoped_acronym_conversion_restores_casing() {
 const SVC: &str = r#"
 (:wat::core::string::declare-acronyms :my::aws ["ACL"])
 (:wat::service::defservice :my::aws
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:CreateWebACL [s <- :State n <- :wat::core::i64]
                   -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::aws::CreateWebACLResponse s)))])
+     (:wat::service::Outcome::Reply s (:my::aws::CreateWebACLResponse (:my::aws::State/count s))))])
 
 (:wat::core::defn :user::req-n [] -> :wat::core::i64
   (:my::aws::CreateWebACLRequest/n (:my::aws/create-web-acl-request 7)))

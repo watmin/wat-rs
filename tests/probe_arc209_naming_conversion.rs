@@ -51,11 +51,11 @@ fn pascal_kebab_both_directions_and_roundtrip() {
 // `getobject-request` (bare lowercase). Calling the generated constructor proves the name.
 const SVC: &str = r#"
 (:wat::service::defservice :my::svc
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:GetObject [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::svc::GetObjectResponse s)))])
+     (:wat::service::Outcome::Reply s (:my::svc::GetObjectResponse (:my::svc::State/count s))))])
 
 (:wat::core::defn :user::req-id [] -> :wat::core::i64
   (:my::svc::GetObjectRequest/n (:my::svc/get-object-request 42)))

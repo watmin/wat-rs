@@ -21,7 +21,7 @@ use wat::runtime::Environment;
 // A service with one op whose handler CRASHES (assertion-failed! raises inside the serve loop).
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::svc
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Boom [s <- :State]
           -> [ok <- :wat::core::bool]
@@ -32,7 +32,7 @@ const PROGRAM: &str = r#"
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [h (:my::svc/start (:wat::spawn::thread) 0)
+    [h (:my::svc/start (:wat::spawn::thread) (:my::svc::State 0))
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
      _ (:my::svc/boom c (:my::svc/boom-request))]
     true))

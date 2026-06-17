@@ -30,15 +30,15 @@ use wat::runtime::{Environment, Value};
 // Op (C.1), Reply, and serve. Probe hand-drives serve directly.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
@@ -46,7 +46,7 @@ const PROGRAM: &str = r#"
   (:wat::core::match r -> :wat::core::i64
     ((:my::counter::Reply::Get resp) (:my::counter::GetResponse/value resp))
     ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))
-    ((:my::counter::Reply::Stop resp) (:my::counter::StopResponse/state resp))))
+    ((:my::counter::Reply::Stop resp) (:my::counter::State/count (:my::counter::StopResponse/state resp)))))
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
@@ -60,7 +60,7 @@ const PROGRAM: &str = r#"
             (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
-                0)))
+                (:my::counter::State 0))))
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c (:my::counter::Op::Increment (:my::counter/increment-request 5)))
      r1   (:wat::kernel::recv' c)

@@ -11,22 +11,22 @@
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::counter
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:wat-tests::counter::GetResponse s)))
+     (:wat::service::Outcome::Reply s (:wat-tests::counter::GetResponse (:wat-tests::counter::State/count s))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:wat-tests::counter::IncrementResponse s'))))])
+     (:wat::core::let [s' (:wat::core::i64::+ (:wat-tests::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:wat-tests::counter::State s') (:wat-tests::counter::IncrementResponse s'))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-thread
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::counter/start (:wat::spawn::thread) 0)
+      [h (:wat-tests::counter/start (:wat::spawn::thread) (:wat-tests::counter::State 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
        _ (:wat-tests::counter/increment c (:wat-tests::counter/increment-request 5))
        r (:wat-tests::counter/get c (:wat-tests::counter/get-request))]
@@ -38,7 +38,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::counter/start (:wat::spawn::process) 0)
+      [h (:wat-tests::counter/start (:wat::spawn::process) (:wat-tests::counter::State 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
        _ (:wat-tests::counter/increment c (:wat-tests::counter/increment-request 5))
        r (:wat-tests::counter/get c (:wat-tests::counter/get-request))]

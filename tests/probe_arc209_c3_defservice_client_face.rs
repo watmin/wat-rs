@@ -33,22 +33,22 @@ use wat::runtime::{Environment, Value};
 // Outcome::Reply). C.3 must generate the wrapped-record enums + serve + the full client face.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
 
 ;; Drive ENTIRELY through the generated client face: start → connect → method calls via request
 ;; constructors. `h` stays bound for the whole let, so the service lives until compute returns;
 ;; scope-exit drops `h` → :Shutdown → join completes.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h  (:my::counter/start (:wat::spawn::thread) 0)
+    [h  (:my::counter/start (:wat::spawn::thread) (:my::counter::State 0))
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _  (:my::counter/increment c (:my::counter/increment-request 5))
      r  (:my::counter/get c (:my::counter/get-request))]

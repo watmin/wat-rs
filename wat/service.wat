@@ -50,11 +50,12 @@
   :Stop  [state <- :S  reply <- :R])
 
 (:wat::core::defmacro :wat::service::defservice
-  [fqdn      <- :wat::WatAST     ;; :my::counter
-   _state-kw <- :wat::WatAST     ;; the literal :state marker (ignored)
-   state-ty  <- :wat::WatAST     ;; :wat::core::i64  (used in serve/start params)
-   _ops-kw   <- :wat::WatAST     ;; the literal :ops marker (ignored)
-   ops       <- :wat::WatAST]    ;; the [ (:Get …) (:Increment …) ] vector NODE
+  [fqdn         <- :wat::WatAST     ;; :my::counter
+   _state-kw    <- :wat::WatAST     ;; the literal :state marker (ignored)
+   state-fields <- :wat::WatAST     ;; the field vector [count <- :wat::core::i64] (minted into State record)
+   _ops-kw      <- :wat::WatAST     ;; the literal :ops marker (ignored)
+   ops          <- :wat::WatAST     ;; the [ (:Get …) (:Increment …) ] vector NODE
+   & opts       <- :wat::core::Vector<wat::WatAST>]  ;; optional trailing: [] or [:record-parent <parent>]
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
@@ -62,6 +63,33 @@
      ;; Arc 265 — reconstruct fqdn as a keyword value so pascal->kebab-in
      ;; can use it as the namespace for acronym-registry lookup.
      fqdn-kw       (:wat::core::keyword/from-string fqdn-str)
+
+     ;; ── rs-1: parse optional :record-parent from trailing opts ───────────────
+     ;; opts is Value::Vec (rest param); empty → default :wat::Record parent.
+     ;; Non-empty: must be [:record-parent <parent>]; extract second element.
+     state-parent   (:wat::core::if (:wat::core::empty? opts)
+                      -> :wat::WatAST
+                      :wat::Record
+                      (:wat::core::Option/expect -> :wat::WatAST
+                        (:wat::core::second opts)
+                        "defservice :record-parent: trailing opts must be [:record-parent <parent>]"))
+
+     ;; ── rs-1: mint state-ty as :<fqdn>::State ───────────────────────────────
+     ;; REBIND state-ty so every downstream ~state-ty use (serve param, StopResponse,
+     ;; stop method, start params, self-peer) keeps working unchanged.
+     state-ty       (:wat::core::keyword/from-string
+                      (:wat::core::string::concat fqdn-str "::State"))
+
+     ;; ── rs-1: emit the State record def, branching on state-parent ──────────
+     ;; :wat::holon::Record → (:wat::holon::Record::def ~state-ty ~state-fields)
+     ;; else              → (:wat::Record::def          ~state-ty ~state-fields)
+     ;; Compare via keyword/to-string since state-parent is a WatAST keyword node.
+     state-parent-str (:wat::core::keyword/to-string state-parent)
+     state-record   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
+                      -> :wat::WatAST
+                      `(:wat::holon::Record::def ~state-ty ~state-fields)
+                      `(:wat::Record::def ~state-ty ~state-fields))
+
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::concat fqdn-str "::Op"))
      reply-name    (:wat::core::keyword/from-string
@@ -639,6 +667,7 @@
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>
                           (:wat::core::forms
+                            ~state-record
                             ~@request-records
                             ~@response-records
                             (:wat::core::defenum ~enum-name ~@variants)
@@ -679,6 +708,7 @@
     ;; Type-decl forms (records, enums, Handle) splice to top-level via splice_type_decl;
     ;; defns keep the `do` non-empty after type-decl stripping.
     `(:wat::core::do
+       ~state-record
        ~@request-records
        ~@response-records
        (:wat::core::defenum ~enum-name ~@variants)

@@ -75,8 +75,6 @@ const TYPE_KEYWORD_STATE: &str = r#"
 "#;
 
 #[test]
-#[ignore = "rs-1 RED until defservice mints the state record from :state [fields]. Today :state \
-            takes a type keyword, so the [fields] form fails. UN-IGNORE when emit-mint lands."]
 fn field_vector_state_mints_base_record_and_round_trips() {
     let world = startup_from_source(BASE_STATE, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed (rs-1: :state [fields] mints a base State record)");
@@ -92,8 +90,6 @@ fn field_vector_state_mints_base_record_and_round_trips() {
 }
 
 #[test]
-#[ignore = "rs-1 RED until defservice supports :record-parent :wat::holon::Record (mint via \
-            holon::Record::def). UN-IGNORE when emit-mint lands."]
 fn record_parent_holon_mints_a_real_holon_record() {
     let world = startup_from_source(HOLON_STATE, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed (rs-1: :record-parent :wat::holon::Record mints a holon State)");
@@ -109,8 +105,6 @@ fn record_parent_holon_mints_a_real_holon_record() {
 }
 
 #[test]
-#[ignore = "rs-1 RED until a bare type-keyword :state is rejected (unexpressible). Today it is \
-            accepted. UN-IGNORE when emit-mint lands."]
 fn bare_type_keyword_state_is_rejected() {
     let result = startup_from_source(TYPE_KEYWORD_STATE, None, Arc::new(InMemoryLoader::new()));
     assert!(

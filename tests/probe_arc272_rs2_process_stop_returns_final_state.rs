@@ -16,23 +16,23 @@ use wat::runtime::{Environment, Value};
 // (state is i64 here — the strict state-must-be-a-record rule is arc-272 rs-1, deferred onto arc 273.)
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state :wat::core::i64
+  :state [count <- :wat::core::i64]
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ s n)]
-       (:wat::service::Outcome::Reply s' (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h     (:my::counter/start (:wat::spawn::process) 0)
+    [h     (:my::counter/start (:wat::spawn::process) (:my::counter::State 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _     (:my::counter/increment c (:my::counter/increment-request 5))
      final (:my::counter/stop c)]
-    final))
+    (:my::counter::State/count final)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
