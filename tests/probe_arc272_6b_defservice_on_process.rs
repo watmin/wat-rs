@@ -53,8 +53,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "6b-ii-β RED until the ProcessOpts launch arm + child-forms + the Launched/launch reshape \
-            land. A defservice can't yet start on (process). UN-IGNORE when 6b-ii-β ships."]
 fn defservice_runs_on_a_forked_process_through_the_same_client_face() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed (6b-ii-β: defservice on a process)");

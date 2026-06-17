@@ -24882,7 +24882,12 @@ fn eval_poll_prime(
             sel.listener(listen_raw_fd);
 
             // ── Block until one fires ──────────────────────────────────────────
-            let event_value = match sel.select().map_err(|io_err| {
+            // Arc 272 6b-ii-β: use select_raw() to get raw frame bytes for Recv
+            // outcomes. select() calls Value::from_wire (no type registry) which
+            // fails for user-defined enum/record types (e.g. Op::Increment).
+            // select_raw() returns Vec<u8>; the client arm decodes with
+            // decode_trusted_wire(wire, sym.types()) to reconstruct user values.
+            let event_value = match sel.select_raw().map_err(|io_err| {
                 EvalBreak::from(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
@@ -24920,7 +24925,36 @@ fn eval_poll_prime(
                         // is the accept-arm, NOT a recv index) → peer_idx = index - 1.
                         let peer_idx = (index.0 - 1) as i64;
                         match result {
-                            Ok(msg) => {
+                            Ok(raw_bytes) => {
+                                // Arc 272 6b-ii-β: decode the raw wire bytes with
+                                // decode_trusted_wire so user-defined enum/record values
+                                // (e.g. Op::Increment(IncrementRequest{n:5})) are
+                                // reconstructed correctly via the type registry.
+                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: "poll' (process tier): client message is not valid UTF-8".into(),
+                                        },
+                                    })
+                                })?;
+                                let msg = crate::edn_shim::decode_trusted_wire(
+                                    wire_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                )
+                                .map_err(|e| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                                "poll' (process tier): client message decode failed: {}",
+                                                e
+                                            ),
+                                        },
+                                    })
+                                })?;
                                 // ServiceEvent::Message [idx <- i64  msg <- Value]
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
@@ -25011,13 +25045,15 @@ fn eval_poll_prime(
                             {
                                 // Spurious POLLIN — re-poll via another select iteration.
                                 // Rebuild the Select with the same arms and retry.
+                                // Arc 272 6b-ii-β: use select_raw() here too so client
+                                // messages are decoded with decode_trusted_wire.
                                 let mut sel2 = crate::comms::process::Select::<Value>::new();
                                 sel2.recv(self_proc_rx);
                                 for rx in &client_proc_rxs {
                                     sel2.recv(*rx);
                                 }
                                 sel2.listener(listen_raw_fd);
-                                match sel2.select().map_err(|io_err| {
+                                match sel2.select_raw().map_err(|io_err| {
                                     EvalBreak::from(RuntimeError {
                                         span: list_span.clone(),
                                         kind: RuntimeErrorKind::MalformedForm {
@@ -25066,14 +25102,37 @@ fn eval_poll_prime(
                                                 } else {
                                                     let pidx = (idx2.0 - 1) as i64;
                                                     match res2 {
-                                                        Ok(msg) => {
+                                                        Ok(raw_bytes2) => {
+                                                            // Arc 272 6b-ii-β: decode with
+                                                            // trusted wire for user-defined types.
+                                                            let ws2 = std::str::from_utf8(&raw_bytes2).map_err(|_| {
+                                                                EvalBreak::from(RuntimeError {
+                                                                    span: list_span.clone(),
+                                                                    kind: RuntimeErrorKind::MalformedForm {
+                                                                        head: OP.into(),
+                                                                        reason: "poll' (process tier re-poll): client message is not valid UTF-8".into(),
+                                                                    },
+                                                                })
+                                                            })?;
+                                                            let msg2 = crate::edn_shim::decode_trusted_wire(
+                                                                ws2,
+                                                                sym.types().map(|a| a.as_ref()),
+                                                            ).map_err(|e| {
+                                                                EvalBreak::from(RuntimeError {
+                                                                    span: list_span.clone(),
+                                                                    kind: RuntimeErrorKind::MalformedForm {
+                                                                        head: OP.into(),
+                                                                        reason: format!("poll' (process tier re-poll): client message decode failed: {}", e),
+                                                                    },
+                                                                })
+                                                            })?;
                                                             Value::Enum(Arc::new(EnumValue {
                                                                 type_path: SELECT_EVENT_TYPE
                                                                     .into(),
                                                                 variant_name: "Message".into(),
                                                                 fields: vec![
                                                                     Value::i64(pidx),
-                                                                    msg,
+                                                                    msg2,
                                                                 ],
                                                             }))
                                                         }

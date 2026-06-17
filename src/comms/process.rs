@@ -1252,6 +1252,176 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
             // all arms (broadcast can fire mid-drain).
         }
     }
+
+    /// Like `select()` but returns raw frame bytes (`Vec<u8>`) for `Recv` outcomes,
+    /// bypassing `decode_frame`. The caller is responsible for UTF-8 validation and
+    /// typed decoding (e.g. `decode_trusted_wire` for user-defined enum/record values).
+    ///
+    /// Arc 272 6b-ii-β — the process-tier `poll'` needs this to decode client socket
+    /// messages via `decode_trusted_wire(wire, sym.types())` (which requires a type
+    /// registry). `select()` calls `Value::from_wire` internally (no registry) and
+    /// fails for user-defined enum variants. `select_raw` is the seam that separates
+    /// "get the bytes" from "decode with registry".
+    ///
+    /// Returns `SelectOutcome<Vec<u8>>` where `Recv{result: Ok(bytes)}` carries
+    /// the raw (newline-stripped) frame bytes. `Recv{result: Err(_)}` means EOF/disconnect.
+    /// `Shutdown` and `Listener` arms are identical to `select()`.
+    pub(crate) fn select_raw(
+        &mut self,
+    ) -> Result<crate::comms::SelectOutcome<Vec<u8>>, std::io::Error> {
+        if self.receivers.is_empty() && current_broadcast_fd().is_none() && self.listener_fd.is_none() {
+            return Err(std::io::Error::other(
+                "process::Select::select_raw() called with zero registered receivers, \
+                 no broadcast fd, and no listener fd — would block forever",
+            ));
+        }
+
+        // Fast path — any accumulator already has a complete frame?
+        for (i, rx) in self.receivers.iter().enumerate() {
+            if let Some(frame) = rx.take_buffered_frame() {
+                return Ok(crate::comms::SelectOutcome::Recv {
+                    index: ReceiverIndex(i),
+                    result: Ok(frame),
+                });
+            }
+        }
+
+        let broadcast_opt = current_broadcast_fd();
+
+        loop {
+            let arm_count = self.receivers.len()
+                + if broadcast_opt.is_some() { 1 } else { 0 }
+                + if self.listener_fd.is_some() { 1 } else { 0 };
+            let needed_capacity = ((arm_count.max(1)).next_power_of_two() as u32).max(2);
+
+            {
+                let mut ring_slot = self.ring.borrow_mut();
+                let needs_rebuild = match ring_slot.as_ref() {
+                    None => true,
+                    Some((_, current_cap)) => *current_cap != needed_capacity,
+                };
+                if needs_rebuild {
+                    *ring_slot = Some((IoUring::new(needed_capacity)?, needed_capacity));
+                }
+            }
+
+            const BROADCAST_TOKEN: u64 = 0;
+
+            let arm_idx_opt: Option<usize> = {
+                let mut ring_slot = self.ring.borrow_mut();
+                let ring = &mut ring_slot.as_mut().unwrap().0;
+
+                if let Some(broadcast_fd) = broadcast_opt {
+                    let poll_broadcast = opcode::PollAdd::new(
+                        types::Fd(broadcast_fd),
+                        libc::POLLHUP as u32,
+                    )
+                    .build()
+                    .user_data(BROADCAST_TOKEN);
+                    unsafe {
+                        if ring.submission().push(&poll_broadcast).is_err() {
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (broadcast POLL_ADD) failed: submission queue full",
+                            ));
+                        }
+                    }
+                }
+
+                for (i, rx) in self.receivers.iter().enumerate() {
+                    let poll_data = opcode::PollAdd::new(
+                        types::Fd(rx.poll_fd()),
+                        (libc::POLLIN | libc::POLLHUP) as u32,
+                    )
+                    .build()
+                    .user_data((i + 1) as u64);
+                    unsafe {
+                        if ring.submission().push(&poll_data).is_err() {
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (data POLL_ADD) failed: submission queue full",
+                            ));
+                        }
+                    }
+                }
+
+                const LISTENER_TOKEN: u64 = u64::MAX;
+                if let Some(lfd) = self.listener_fd {
+                    let poll_listener = opcode::PollAdd::new(
+                        types::Fd(lfd),
+                        libc::POLLIN as u32,
+                    )
+                    .build()
+                    .user_data(LISTENER_TOKEN);
+                    unsafe {
+                        if ring.submission().push(&poll_listener).is_err() {
+                            return Err(std::io::Error::other(
+                                "io_uring SQE push (listener POLL_ADD) failed: submission queue full",
+                            ));
+                        }
+                    }
+                }
+
+                ring.submit_and_wait(1)?;
+
+                let mut fired_broadcast = false;
+                let mut first_data_arm: Option<usize> = None;
+                let mut fired_listener = false;
+                while let Some(cqe) = ring.completion().next() {
+                    if cqe.result() < 0 {
+                        return Err(std::io::Error::from_raw_os_error(-cqe.result()));
+                    }
+                    let token = cqe.user_data();
+                    if token == BROADCAST_TOKEN {
+                        fired_broadcast = true;
+                    } else if token == LISTENER_TOKEN {
+                        fired_listener = true;
+                    } else {
+                        let arm = (token - 1) as usize;
+                        if first_data_arm.is_none() {
+                            first_data_arm = Some(arm);
+                        }
+                    }
+                }
+
+                if fired_broadcast {
+                    return Ok(crate::comms::SelectOutcome::Shutdown);
+                }
+                if first_data_arm.is_none() && fired_listener {
+                    return Ok(crate::comms::SelectOutcome::Listener);
+                }
+                first_data_arm
+            };
+
+            let arm_idx = match arm_idx_opt {
+                Some(i) => i,
+                None => continue,
+            };
+
+            let rx = self.receivers[arm_idx];
+            match rx.read_into_acc() {
+                Err(_) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError::Disconnected),
+                    });
+                }
+                Ok(0) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(RecvError::Disconnected),
+                    });
+                }
+                Ok(_) => {}
+            }
+
+            if let Some(frame) = rx.take_buffered_frame() {
+                return Ok(crate::comms::SelectOutcome::Recv {
+                    index: ReceiverIndex(arm_idx),
+                    result: Ok(frame),
+                });
+            }
+            // Partial bytes; no complete frame yet. Loop and re-poll.
+        }
+    }
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────────────

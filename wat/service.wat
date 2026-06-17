@@ -512,10 +512,62 @@
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Op,"
                             (:wat::core::string::concat fqdn-str "::Reply>")))))
+
+     ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
+     ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
+     ;; service-forms-kw: the keyword :<fqdn>::service-forms — the name of the emitted def.
+     service-forms-kw (:wat::core::keyword/from-string
+                        (:wat::core::string::concat fqdn-str "::service-forms"))
+     ;; The agnostic child :user::main: binds on :wat::spawn::service-host (a FREE
+     ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
+     ;; `(def :wat::spawn::service-host (process))` before spawning, so the child
+     ;; universe resolves service-host at startup to a ProcessOpts value.
+     ;; self-peer S=addr-ty (child sends minted Address' up), R=state-ty (parent sends
+     ;; state0 down). serve is invoked via apply (dynamic keyword) — the child main
+     ;; never statically names the per-service serve fn.
+     ;; Hygiene: child main let binders (b/cm-self/_/st) are synthetic names → must use
+     ;; symbol-node + unquote so they appear as Unquote nodes in the template, not bare
+     ;; Symbols that would trigger the ProgramBodyIntroducesName hygiene gate.
+     cm-b-sym    (:wat::core::symbol-node "b")
+     cm-self-sym (:wat::core::symbol-node "self")
+     cm-und-sym  (:wat::core::symbol-node "_")
+     cm-st-sym   (:wat::core::symbol-node "st")
+     child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
+                        (:wat::core::let
+                          [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-host
+                                            ~enum-name ~reply-name)
+                           ~cm-self-sym (:wat::program::self-peer ~addr-ty ~state-ty)
+                           ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
+                                            (:wat::spawn::Bound/address ~cm-b-sym))
+                           ~cm-st-sym   (:wat::kernel::recv' ~cm-self-sym)]
+                          (:wat::core::apply -> :wat::core::nil
+                            (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
+                            (:wat::spawn::Bound/listener ~cm-b-sym)
+                            (:wat::core::Vector ~peer-ty)
+                            ~cm-st-sym [])))
+     ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
+     ;; main. Emitted as `(defn :<fqdn>::service-forms [] -> Vector<WatAST> (forms …))`.
+     ;; A 0-arg fn so the checker can type-check call sites: `(:my::counter::service-forms)`
+     ;; returns Vector<WatAST>. Registered into sym.functions at step 6 via
+     ;; preregister_fn_defs_in_do, so the checker sees it before checking start-fn.
+     ;; The ProcessOpts launch arm receives the Vector value (the runtime evaluates the
+     ;; call before dispatch, so it arrives as the actual Vec).
+     service-forms-def `(:wat::core::defn ~service-forms-kw
+                          [] -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::forms
+                            ~@request-records
+                            ~@response-records
+                            (:wat::core::defenum ~enum-name ~@variants)
+                            (:wat::core::defenum ~reply-name ~@reply-variants)
+                            (:wat::core::defn ~serve-name ~serve-params
+                              -> :wat::core::nil ~serve-body)
+                            ~child-main-form))
+
      start-params  `[host <- :wat::spawn::Host  state0 <- ~state-ty]
      start-body    `(:wat::core::let
                       [~lr-sym (~launch-head-kw host state0
-                                 (:wat::core::keyword/from-string ~serve-name-str))]
+                                 (:wat::core::keyword/from-string ~serve-name-str)
+                                 (~service-forms-kw))]
                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
                                     (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
@@ -538,6 +590,8 @@
     ;;   methods (per-op type-safe methods)
     ;;   start fn (mints listener + spawns serve → Handle)
     ;;   Handle record (start's return type; emitted last)
+    ;;   service-forms def (transport-agnostic fragment; emitted last so all
+    ;;     referenced names are already declared in the top-level scope)
     ;; Type-decl forms (records, enums, Handle) splice to top-level via splice_type_decl;
     ;; defns keep the `do` non-empty after type-decl stripping.
     `(:wat::core::do
@@ -548,5 +602,6 @@
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
        ~@constructors
        ~@methods
+       ~service-forms-def
        ~start-fn
        ~handle-record)))
