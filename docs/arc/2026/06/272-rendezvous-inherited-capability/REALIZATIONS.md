@@ -301,10 +301,25 @@ recv'-raises-on-crash, and the owner-drop→Shutdown path close the failure mode
   pipe nobody can forge or squat ([[project_rendezvous_inherited_capability]]).
 - **remote** — the design-C seam is ready; same, over mTLS.
 
-One interface, location-transparent, typed-record state (rs-1). **Erlang/OTP has the lock-free mutex** (the
-BEAM gives process isolation for free); **defservice extends it past a single VM via ocap** — the thing the
-BEAM never had to engineer. That is why "we never touch it again": deadlock-free + location-transparent +
-capability-secured + typed-stateful, all by construction.
+One interface, location-transparent, typed-record state (rs-1).
+
+**Honest prior-art (corrected 2026-06-17 — builder flagged the BEAM framing):** Erlang/OTP has the
+lock-free mutex AND distributes it across nodes — location-transparent message-passing to a gen_server on
+another host, since the late 80s. It is their crown jewel; **we did NOT do something Erlang couldn't.** The
+difference is **trust model + substrate, not reach**:
+- **Trust:** Erlang distribution is a shared **magic-cookie**, all-or-nothing, transitively-trusted node
+  cluster (a connected node is *fully* trusted; the historical wire is cleartext, TLS-dist is opt-in). It
+  was designed for **closed telecom networks** — the cluster sits *inside* a trusted perimeter, so a shared
+  secret was the right model; capability-security wasn't the threat model. defservice's rendezvous is a
+  **capability** instead — ocap (mutual uid+pid local; the mTLS seam remote), per-connection and
+  mutual-by-construction, **no shared global secret**. ocap vs trusted-cluster.
+- **Substrate:** the BEAM provides isolation (green processes) + distribution as a custom VM. defservice
+  gets isolation from **real OS processes** (SO_PEERCRED) + a typed-ADT-Rust layer + ocap — **no custom VM**.
+
+So what's genuinely ours is a *different point in the design space*: the actor/mutex with **capability trust
+on real OS processes**, for the **don't-trust-the-network** threat model Erlang's era didn't face — not a
+reach Erlang lacked. That is why "we never touch it again": deadlock-free + location-transparent +
+**capability-secured** (not cookie-trusted) + typed-stateful, all by construction.
 
 **The velocity corollary** (builder: *"once we can work in wat and not rust we go fast fast"*): the
 defservice week was **capital** — the slow Rust foundation (records-over-wire, the macro engine,
