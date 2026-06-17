@@ -277,6 +277,17 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/deporder.wat",
         source: include_str!("../wat/deporder.wat"),
     },
+    // Arc 277 Stone 277.1 — :wat::lint:: — the wat-lint framework.
+    // A pure-wat linter: a rule is (form → Vector<Finding>); lint-source runs
+    // form-level rules over every top-level form of every file; lint-stdlib is
+    // the surface (form-level findings + deporder load-order as rule-zero).
+    // The first rule is nested-if-=-ladder (detect the if/=/true chain disguising
+    // a HashSet/contains? membership). STOP-1: auto-fix deferred to 277.1b.
+    // Loads after deporder.wat (uses SourceFile + stdlib-sources + verify).
+    WatSource {
+        path: "wat/lint.wat",
+        source: include_str!("../wat/lint.wat"),
+    },
     // Arc 209 Stone C.1 — :wat::service::defservice (pure-wat defmacro).
     // C.1 emits the op enum from the defservice surface; C.2/C.3 extend.
     // Order is not load-bearing (register_stdlib_defmacros pre-expansion walk).
