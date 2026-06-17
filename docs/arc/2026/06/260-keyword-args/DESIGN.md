@@ -101,17 +101,28 @@ is the hardest case — kwargs for intrinsics needs param-name infrastructure AD
 scope → DECOMPOSE** (per the parity lesson: a hard-constraint-forced path with Simple=NO means decompose,
 not abandon):
 
-- **260.1 — user-fn keyword args (the mechanism).** Reorder `:name val` → positional at the call chokepoint:
-  check via `sym.functions[path].params`, eval via `apply_function`/`func.params`. Names already exist; this
-  proves the reorder + the type story (reorder before unification) on the data we have. The committed probe
-  is its gate. Probe-first per sub-stone.
-- **260.2 — intrinsic keyword args (reach the trigger).** Give schemes param names (a `TypeScheme.param_names`
-  field; populate `derive_scheme_from_function` from `func.params` + the kernel-verb `env.register` sites) +
-  the intrinsic-call eval reorder. THIS is what lets `assertion-failed!` (and every kernel verb) take kwargs.
-- **260.3 — migrate `assertion-failed!`** (the original trigger) to kwargs + its call sites; close the arc.
+**DOCTRINE (builder, 2026-06-17 — supersedes the check/eval + intrinsic-native plans below):** *"if you
+want kwargs, you don't — you write a macro."* kwargs is ALWAYS a compile-time macro sugar over a positional
+primitive (reorder `:k v`→positional at expand; the runtime/checker/intrinsic never sees a kwarg; zero
+runtime cost). See [[feedback_kwargs_is_always_a_macro]]. This rewrites the decomposition:
 
-Each stone is flat-Simple; the bundle was not. Build 260.1 first (it's the mechanism on existing data; 260.2
-extends it to the nameless intrinsics).
+- **260.1a — declare side. ✅ SHIPPED.** `defn` mints `:<name>::Kwargs` from `& [argspec]` + the
+  explicit-record call form. (The hidden binder is `(fresh-symbol "kwargs")` — arc 274.) Gate probe
+  `probe_arc260_decl_kwargs_minted_record`.
+- **260.1b — inline `:k v` call sugar for user fns = a COMPANION MACRO** (NOT the old check/eval reorder).
+  `defn` emits a companion sugar macro alongside the fn that scoops trailing `:k v` → `(:<name>::Kwargs …)`
+  and calls the impl. Accept the consequence: a macro is not a value (no higher-order use under the sugary
+  name; Clojure's `(map and xs)` wart). Headline probe `probe_arc260_keyword_args` is its gate.
+- **260.2 — intrinsic-native kwargs. ❌ ANNIHILATED (not deferred).** We do NOT add `param_names` to
+  `TypeScheme` or teach the checker/eval keywords. Intrinsics stay positional primitives; you sugar them
+  with a macro (260.3 is the pattern). The substrate stays lean.
+- **260.3 — `assert-fail!` macro-wrapper** (the original trigger, and the first instance of the doctrine):
+  a wat macro taking `:message/:actual/:expected`, lowering to the positional `(:wat::kernel::assertion-failed!
+  …)`; migrate the ~14 internal call sites. (A) keep the positional intrinsic; the macro is the legible
+  surface. Buildable now, independent of 260.1b.
+
+Each is flat-Simple. The arc is now: 260.1a (done) + 260.1b (companion macro) + 260.3 (assert-fail! + any
+other opaque-intrinsic wrappers as they arise). No 260.2.
 
 ## Design space (to weigh with the four questions when the arc opens)
 
