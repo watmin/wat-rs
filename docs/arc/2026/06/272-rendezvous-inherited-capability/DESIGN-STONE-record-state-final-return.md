@@ -59,36 +59,54 @@ This was worked out with the builder 2026-06-16 (preserve it; it is the load-bea
 5. **The (a) check vs (b) native-bound fork resolves to (a).** A native bound `∀S <: :wat::Record` *would*
    let the type system reject `i64` by subtyping — but that requires a surviving **bounded type parameter**,
    and the macro already monomorphized `S := i64` into concrete defns. Path (b) would mean making the state a
-   real bounded generic parameter (a typed construct, not a macro) — a paradigm move, not this stone. Given
-   defservice **is** a macro with **user-defined** state, the emitted check-time assertion is the honest
-   bridge — NOT a hand-rolled duplicate of the type system, but the only surface where the constraint can be
-   spoken. (Parallel: Rust `derive` macros can't resolve types either — same syntactic/pre-type boundary.)
+   real bounded generic parameter (a typed construct, not a macro) — a paradigm move, not this stone.
 
-#### The contract (pin)
+6. **PIVOT (builder 2026-06-16) — option (c) emit-mint, a rung ABOVE the check.** Instead of letting the user
+   NAME a state type and CHECKING it's a record (extirpare middle rung — a check that fires), defservice takes
+   the state's FIELDS inline and **mints the state record itself**, so a non-record state is **unexpressible**
+   (top rung — a shape the mistake can't be written). No check, because there is nothing to reject. The
+   assert-record! plan is **SUPERSEDED**. Steps 1–4 still hold (the type system is sound; the constraint lives
+   at the macro's interface; it can't be macro-expand-time) — emit-mint enforces it AT the macro interface:
+   you simply cannot hand a scalar. (Bonus: it also answers the holon question — see `:record-parent`.)
 
-A new **check-time** form `(:wat::type::assert-record! <type-keyword>)` — name is an intueri candidate
-(`require-record` / `record-bound` are alternates; the `!` reads as "raises a check error"):
-- **Check (`src/check.rs`):** recognized in the head dispatch; resolves the keyword against the `TypeEnv` and
-  asserts `is_subtype(ty, ":wat::Record") || is_subtype(ty, ":wat::holon::Record")` (the exact pattern in
-  `collection/infer.rs:378-381`). On failure → a `CheckError` ("a service's state must be a record (base or
-  holon-derived); `<ty>` is not a record type"). Types to `:wat::core::nil`.
-- **Runtime (`src/runtime.rs`):** a no-op → `nil` (the work is entirely at check time; it must still *eval*
-  cleanly because it rides the generated `do`).
-- **defservice (`wat/service.wat`):** emits `(:wat::type::assert-record! ~state-ty)` once in the final `do`.
+#### The contract (pin) — emit-mint + `:record-parent`
+
+```
+(:wat::service::defservice :my::counter
+  :state       [count <- :wat::core::i64]      ; FIELDS, not a type keyword
+  :ops         [...]
+  :record-parent :wat::holon::Record)          ; OPTIONAL, trailing; OMITTED → :wat::Record (base)
+```
+- **`:state` now holds a field vector.** defservice MINTS `:<fqdn>::State` from it and uses that type
+  throughout (serve/start/stop params, `StopResponse[state <- :<fqdn>::State]`, the `:State` alias).
+- **`:record-parent`** (default `:wat::Record`) selects the minted record's parent. defservice branches:
+  `:wat::Record` → emit `(:wat::Record::def :<fqdn>::State <fields>)`; `:wat::holon::Record` → emit
+  `(:wat::holon::Record::def :<fqdn>::State <fields>)` — a REAL holon record (constructed via
+  `:wat::holon::Record::of` with the VSA `holon_form`). Both def macros exist (`wat/Record.wat`).
+- **Mechanism:** defservice becomes a VARIADIC defmacro (`rest_param`, `expand.rs:161-214`): fixed
+  `[fqdn _state-kw state-fields _ops-kw ops]` + a rest that is empty (base default) or
+  `[:record-parent <parent>]`. The macro body (fenced macro-eval — pure cond/keyword-equality) picks the def
+  macro. NO assert-record!, no new check-time form, no runtime no-op.
+- A non-record state is unexpressible: `:state` takes fields; there is no slot for a bare type keyword.
+
+#### Naming (intueri, cast 2026-06-16)
+`:record-parent` — builder's `:record-base` was **L2 (mumbles)**: "base" names the default *value*, not the
+axis, so `:record-base :wat::holon::Record` reads as a contradiction. `:record-parent` names the slot the user
+fills (it IS the `recordtype` 2nd arg = the parent), reads as a sentence, harmonizes with the substrate's own
+"parent" vocabulary. `State` — **shines**, keep (single domain noun, same register as `Op`/`Reply`/`Handle`).
 
 #### Build + migration (the blast radius — substrate-as-teacher cascade)
 
-rs-1 makes scalar state **uncompilable**, so all 12 existing `i64`-state service definitions break and migrate
-to a single-field record (e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i64])`,
-`:state :…::CounterState`) IN THE SAME STONE — handlers wrap/unwrap the field (`(CounterState/count s)` to
-read, `(:…::CounterState v)` to build). The files: `probe_arc209_c1`/`c2`/`c3`/`locus_agnostic_start`/
-`naming_conversion`, `probe_arc265_acronym_registry`, `probe_arc272_6b_defservice_on_process`,
-`probe_arc272_rs2_{thread,process}_stop_returns_final_state`, `probe_arc272_rs2_crash_surfaces_to_client`,
-`wat-tests/service-locus-parity.wat`. The `probe_arc272_rs1` NEGATIVE case STAYS `i64` (un-ignore → GREEN: it
-proves rejection); its positive case already carries a record.
-- **Probe (RED, committed `03b47b93`):** `scalar_state_is_rejected` (#[ignore], RED) + `record_state_is_accepted`
-  (GREEN). GREEN once the check fires + the examples carry record state.
-- No serve/start change beyond the one emitted assert form.
+The defservice change reds all 12 existing `:state <type-keyword>` services; migrate each IN THE SAME STONE to
+`:state [count <- :wat::core::i64]` (handlers wrap/unwrap: `(:<fqdn>::State/count s)` to read,
+`(:<fqdn>::State v)` to build; call-site `state0` → `(:<fqdn>::State 0)`). Files: `probe_arc209_c1`/`c2`/`c3`/
+`locus_agnostic_start`/`naming_conversion`, `probe_arc265_acronym_registry`,
+`probe_arc272_6b_defservice_on_process`, `probe_arc272_rs2_{thread,process}_stop_returns_final_state`,
+`probe_arc272_rs2_crash_surfaces_to_client`, `wat-tests/service-locus-parity.wat`. (c1/c2's white-box `Op`/
+`Reply` matches already carry the rs-2 `:Stop` arm.)
+- **Probe (RED at HEAD, this stone):** `tests/probe_arc272_rs1_state_must_be_record.rs` — three #[ignore]'d
+  tests: `field_vector_state_mints_base_record_and_round_trips`, `record_parent_holon_mints_a_real_holon_record`
+  (proves the holon mint via `record?`), `bare_type_keyword_state_is_rejected`. UN-IGNORE all three on landing.
 
 ### rs-2 — a service's value IS its final state — ✅ SHIPPED (a57b9f0b, 2026-06-16) via the `:Stop` terminal op
 **Shipped by a DIFFERENT (better) mechanism than the framing below.** We did NOT make `serve` return `St`

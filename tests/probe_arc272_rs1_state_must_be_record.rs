@@ -1,29 +1,69 @@
-//! Arc 272 rs-1 — a service's `:state` MUST be a record (base or holon-derived).
+//! Arc 272 rs-1 — a service's `:state` MUST be a record, enforced BY CONSTRUCTION.
 //!
-//! The no-magic / typed-record law applied to defservice: a service's state is the wire-conformant,
-//! named-typed contract for both `state0` (in) and the final state (out, via the rs-2 `:Stop` op). A bare
-//! scalar like `:wat::core::i64` is EDN-serializable but STRUCTURELESS — no named fields, no conformance —
-//! so it must NOT be accepted as a service state. A record (base `:wat::Record` derived, or
-//! `:wat::holon::Record` derived) must be.
+//! defservice takes the state's FIELDS inline and MINTS the state record itself (`:<fqdn>::State`),
+//! so a non-record state is UNEXPRESSIBLE (top-rung extirpare — not a check that fires, a shape the
+//! mistake can't be written). Default base (`:wat::Record`); the optional trailing
+//! `:record-parent :wat::holon::Record` opts into a real holon record (carrying the VSA `holon_form`).
+//! This supersedes the assert-record! check (which only caught a named non-record; here you give
+//! fields + a parent, so there is no slot for a scalar).
 //!
-//! Mechanism (Path A — the build, not asserted here): defservice emits a CHECK-TIME assertion form that
-//! resolves `:state-ty` against the TypeEnv and asserts record-or-derived via the existing
-//! `is_subtype(ty, ":wat::Record") || is_subtype(ty, ":wat::holon::Record")` (`collection/infer.rs:378-381`).
-//! Check-time, NOT macro-time: macros expand at freeze step 4, types register at step 5 — at expand time the
-//! registry is empty and records are themselves minted by macros (chicken-and-egg). The check lives where
-//! types live: step 8 (check).
-//!
-//! RED at HEAD: a scalar `:state` is ACCEPTED today (the shipped rs-2 probes use `:state :wat::core::i64`).
-//! GREEN once rs-1's check rejects a non-record `:state`. `#[ignore]` on the negative case until then.
+//! RED at HEAD: defservice currently takes `:state <type-keyword>`; the `:state [fields]` form fails
+//! (a vector in the type slot), and a bare type-keyword `:state` is (wrongly) accepted. GREEN once
+//! rs-1 ships emit-mint (`:state [fields]` + `:record-parent` + minted `:<fqdn>::State`).
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs1_state_must_be_record -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::startup_from_source;
+use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
+use wat::runtime::{Environment, Value};
 
-// A service whose `:state` is a bare scalar — the structureless form rs-1 must forbid.
-const SCALAR_STATE: &str = r#"
+// Base (default) — `:state [fields]` mints `:my::counter::State` as a BASE record. The handler
+// reads/builds the field; `stop` returns the minted State record; we extract count → 5.
+const BASE_STATE: &str = r#"
+(:wat::service::defservice :my::counter
+  :state [count <- :wat::core::i64]
+  :ops
+  [(:Increment [s <- :State n <- :wat::core::i64]
+               -> [count <- :wat::core::i64]
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::State/count s) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State c) (:my::counter::IncrementResponse c))))])
+
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::let
+    [h     (:my::counter/start (:wat::spawn::thread) (:my::counter::State 0))
+     c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
+     _     (:my::counter/increment c (:my::counter/increment-request 5))
+     final (:my::counter/stop c)]
+    (:my::counter::State/count final)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+// Holon — the optional trailing `:record-parent :wat::holon::Record` mints `:my::hcounter::State`
+// as a HOLON record. The :IsHolon op returns `(record? s)`, which is TRUE iff the value is a holon
+// record — so a `true` result proves the minted state is a REAL holon record, not a base one.
+const HOLON_STATE: &str = r#"
+(:wat::service::defservice :my::hcounter
+  :state [count <- :wat::core::i64]
+  :ops
+  [(:IsHolon [s <- :State]
+             -> [yes <- :wat::core::bool]
+     (:wat::service::Outcome::Reply s (:my::hcounter::IsHolonResponse (:wat::core::record? s))))]
+  :record-parent :wat::holon::Record)
+
+(:wat::core::defn :user::compute [] -> :wat::core::bool
+  (:wat::core::let
+    [h (:my::hcounter/start (:wat::spawn::thread) (:my::hcounter::State 0))
+     c (:wat::kernel::connect' (:my::hcounter::Handle/addr h))
+     r (:my::hcounter/is-holon c (:my::hcounter/is-holon-request))]
+    (:my::hcounter::IsHolonResponse/yes r)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+// The forbidden form — a bare type keyword in the `:state` slot. Unexpressible after rs-1.
+const TYPE_KEYWORD_STATE: &str = r#"
 (:wat::service::defservice :my::counter
   :state :wat::core::i64
   :ops
@@ -34,38 +74,48 @@ const SCALAR_STATE: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
-// A service whose `:state` is a record — the valid form. Must compile before AND after rs-1.
-const RECORD_STATE: &str = r#"
-(:wat::Record::def :my::counter2::CounterState [count <- :wat::core::i64])
-
-(:wat::service::defservice :my::counter2
-  :state :my::counter2::CounterState
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :my::counter2::CounterState]
-     (:wat::service::Outcome::Reply s (:my::counter2::GetResponse s)))])
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
-#[ignore = "rs-1 RED until defservice rejects a non-record :state. A scalar :state compiles today \
-            (the rs-2 probes use :state :wat::core::i64). UN-IGNORE when rs-1's check lands."]
-fn scalar_state_is_rejected() {
-    let result = startup_from_source(SCALAR_STATE, None, Arc::new(InMemoryLoader::new()));
+#[ignore = "rs-1 RED until defservice mints the state record from :state [fields]. Today :state \
+            takes a type keyword, so the [fields] form fails. UN-IGNORE when emit-mint lands."]
+fn field_vector_state_mints_base_record_and_round_trips() {
+    let world = startup_from_source(BASE_STATE, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed (rs-1: :state [fields] mints a base State record)");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let got = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
-        result.is_err(),
-        "expected a non-record :state (:wat::core::i64) to be REJECTED at compile time \
-         (a service state must be a record — base or holon-derived); instead startup succeeded"
+        matches!(got, Value::i64(5)),
+        "expected 5: :state [count] minted :my::counter::State; increment 5 then stop returned \
+         State{{count 5}}, extracted via State/count; got {got:?}"
     );
 }
 
 #[test]
-fn record_state_is_accepted() {
-    let result = startup_from_source(RECORD_STATE, None, Arc::new(InMemoryLoader::new()));
+#[ignore = "rs-1 RED until defservice supports :record-parent :wat::holon::Record (mint via \
+            holon::Record::def). UN-IGNORE when emit-mint lands."]
+fn record_parent_holon_mints_a_real_holon_record() {
+    let world = startup_from_source(HOLON_STATE, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed (rs-1: :record-parent :wat::holon::Record mints a holon State)");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let got = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
-        result.is_ok(),
-        "a record :state must compile (before and after rs-1 — records are the valid state form); \
-         got {result:?}"
+        matches!(got, Value::bool(true)),
+        "expected true: :record-parent :wat::holon::Record must mint a REAL holon record \
+         (record? s == true iff holon record); got {got:?}"
+    );
+}
+
+#[test]
+#[ignore = "rs-1 RED until a bare type-keyword :state is rejected (unexpressible). Today it is \
+            accepted. UN-IGNORE when emit-mint lands."]
+fn bare_type_keyword_state_is_rejected() {
+    let result = startup_from_source(TYPE_KEYWORD_STATE, None, Arc::new(InMemoryLoader::new()));
+    assert!(
+        result.is_err(),
+        "expected a bare type-keyword :state (:wat::core::i64) to be REJECTED — :state takes a \
+         field vector and defservice mints the record; a scalar state is unexpressible; got Ok"
     );
 }
