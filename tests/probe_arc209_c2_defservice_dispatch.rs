@@ -45,7 +45,8 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::reply-value [r <- :my::counter::Reply] -> :wat::core::i64
   (:wat::core::match r -> :wat::core::i64
     ((:my::counter::Reply::Get resp) (:my::counter::GetResponse/value resp))
-    ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))))
+    ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))
+    ((:my::counter::Reply::Stop resp) (:my::counter::StopResponse/state resp))))
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
