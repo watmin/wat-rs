@@ -29,7 +29,6 @@ const LINT_CONCAT: &str = r#"
 // The wat deftest (wat-tests/lint.wat) asserts the finding's rule == "concat-abuse" precisely; this
 // Rust probe is the coarse RED/GREEN gate on the count.
 #[test]
-#[ignore = "arc 277.1c — RED until the concat-abuse rule ships; un-ignore on green"]
 fn concat_abuse_surfaces_a_finding() {
     let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
         Arc::new(InMemoryLoader::new()))

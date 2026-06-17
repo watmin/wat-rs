@@ -105,3 +105,47 @@
             (:wat::core::first rule-zero-findings)
             "case-4: first rule-zero finding"))
         "load-order"))))
+
+;; ─── Case 5: detects concat-abuse ────────────────────────────────────
+
+(:wat::test::deftest :wat-tests::lint::detects-concat-abuse
+  ()
+  ;; A SourceFile whose body contains a defn with a concat call that mixes
+  ;; string literals ("x: ", " of ") with non-literal args (a, b) — the
+  ;; textbook hand-rolled template that `format` cures.
+  (:wat::core::let
+    [src "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" of \" b))"
+     sf  (:wat::deporder::SourceFile "t.wat" src)
+     files (:wat::core::Vector :wat::deporder::SourceFile sf)
+     findings (:wat::lint::lint-source files)]
+    (:wat::core::do
+      ;; must find at least 1 finding
+      (:wat::test::assert-true
+        (:wat::core::i64::>= (:wat::core::length findings) 1))
+      ;; there must be a finding with rule == "concat-abuse"
+      (:wat::test::assert-true
+        (:wat::core::i64::>=
+          (:wat::core::length
+            (:wat::core::filter
+              (:wat::core::fn [f <- :wat::lint::Finding] -> :wat::core::bool
+                (:wat::core::= (:wat::lint::Finding/rule f) "concat-abuse"))
+              findings))
+          1)))))
+
+;; ─── Case 6: no false positive for concat ────────────────────────────
+
+(:wat::test::deftest :wat-tests::lint::no-false-positive-concat
+  ()
+  ;; Two clean concat calls that must NOT trip the concat-abuse rule:
+  ;;   a) all-literal  (concat "a" "b") — nothing to interpolate
+  ;;   b) all-value    (concat a b)     — no literal scaffolding
+  (:wat::core::let
+    [;; a: all-literal — both args are string literals
+     src-a "(:wat::core::string::concat \"a\" \"b\")"
+     sf-a  (:wat::deporder::SourceFile "a.wat" src-a)
+     ;; b: all-value — both args are symbols (non-literals)
+     src-b "(:wat::core::string::concat a b)"
+     sf-b  (:wat::deporder::SourceFile "b.wat" src-b)
+     files (:wat::core::Vector :wat::deporder::SourceFile sf-a sf-b)
+     findings (:wat::lint::lint-source files)]
+    (:wat::test::assert-eq (:wat::core::length findings) 0)))

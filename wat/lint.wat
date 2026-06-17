@@ -280,6 +280,123 @@
           (:wat::core::ast->children form))
         (:wat::core::Vector :wat::lint::Finding)))))
 
+;; ─── concat-abuse detection ──────────────────────────────────────────
+;;
+;; Detect: (string::concat <mix of string-literal args and non-literal args>)
+;; A hand-rolled template — the cure is (:wat::core::format "…{name}…" :name v …).
+;;
+;; All-literal (concat "a" "b") → not abuse (nothing to interpolate).
+;; All-value   (concat a b)     → not abuse (no literal scaffolding).
+;; Only the mix triggers the rule.
+
+;; concat-head? — a list whose head is a keyword/symbol with name
+;; ":wat::core::string::concat" OR ":wat::core::String/concat".
+(:wat::core::defn :wat::lint::concat-head?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [children (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::i64::>= (:wat::core::length children) 1)
+        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
+                                  (:wat::core::first children)
+                                  "concat-head?: first child")]
+          (:wat::core::if (:wat::lint::kw-or-sym? head)
+            (:wat::core::let [n (:wat::core::ast-name head)]
+              (:wat::core::if (:wat::core::= n ":wat::core::string::concat")
+                true
+                (:wat::core::= n ":wat::core::String/concat")))
+            false))
+        false))
+    false))
+
+;; concat-arg-counts — count literal and non-literal args in a concat call.
+;; Returns Tuple(n-lits, n-vals) where n-lits = count of "string" ast-kind args,
+;; n-vals = count of all other arg kinds.
+(:wat::core::defn :wat::lint::concat-arg-counts
+  [node <- :wat::WatAST]
+  -> :(wat::core::i64,wat::core::i64)
+  (:wat::core::let [children (:wat::core::ast->children node)
+                    args     (:wat::core::drop children 1)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :(wat::core::i64,wat::core::i64)
+                       arg <- :wat::WatAST]
+        -> :(wat::core::i64,wat::core::i64)
+        (:wat::core::let [lits (:wat::core::first acc)
+                          vals (:wat::core::second acc)]
+          (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
+            (:wat::core::Tuple (:wat::core::i64::+ lits 1) vals)
+            (:wat::core::Tuple lits (:wat::core::i64::+ vals 1)))))
+      (:wat::core::Tuple 0 0)
+      args)))
+
+;; concat-abuse? — true when the concat call mixes string literals with non-literals.
+(:wat::core::defn :wat::lint::concat-abuse?
+  [node <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::lint::concat-head? node)
+    (:wat::core::let [counts (:wat::lint::concat-arg-counts node)
+                      n-lits (:wat::core::first counts)
+                      n-vals (:wat::core::second counts)]
+      (:wat::core::if (:wat::core::i64::>= n-lits 1)
+        (:wat::core::i64::>= n-vals 1)
+        false))
+    false))
+
+;; make-concat-finding — construct the Finding for a detected concat-abuse.
+(:wat::core::defn :wat::lint::make-concat-finding
+  [form   <- :wat::WatAST
+   file   <- :wat::core::String
+   n-lits <- :wat::core::i64
+   n-vals <- :wat::core::i64]
+  -> :wat::lint::Finding
+  (:wat::core::let [span (:wat::core::ast-span form)
+                    ln   (:wat::core::Option/expect -> :wat::core::i64
+                             (:wat::core::HashMap/get span :line)
+                             "make-concat-finding: :line")
+                    co   (:wat::core::Option/expect -> :wat::core::i64
+                             (:wat::core::HashMap/get span :col)
+                             "make-concat-finding: :col")
+                    msg  (:wat::core::string::concat
+                            "concat-abuse: string::concat interleaves "
+                            (:wat::core::i64::to-string n-lits)
+                            " literal(s) with "
+                            (:wat::core::i64::to-string n-vals)
+                            " value(s) — use (:wat::core::format \"…{name}…\" :name v …) instead")]
+    (:wat::lint::Finding
+      "concat-abuse"
+      file
+      ln
+      co
+      "warn"
+      msg
+      "")))
+
+;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
+;; Detects concat-abuse at the top level OR nested anywhere inside the form.
+(:wat::core::defn :wat::lint::rule-concat-abuse-form
+  [form <- :wat::WatAST
+   file <- :wat::core::String]
+  -> :wat::core::Vector<wat::lint::Finding>
+  ;; Check if THIS form is a concat-abuse
+  (:wat::core::if (:wat::lint::concat-abuse? form)
+    ;; This form IS a concat-abuse — report it (don't recurse into it)
+    (:wat::core::let [counts (:wat::lint::concat-arg-counts form)
+                      n-lits (:wat::core::first counts)
+                      n-vals (:wat::core::second counts)]
+      (:wat::core::Vector :wat::lint::Finding
+        (:wat::lint::make-concat-finding form file n-lits n-vals)))
+    ;; Not a concat-abuse — recurse into children (if structural)
+    (:wat::core::if (:wat::lint::lint-structural? form)
+      (:wat::core::foldl
+        (:wat::core::fn [acc   <- :wat::core::Vector<wat::lint::Finding>
+                         child <- :wat::WatAST]
+          -> :wat::core::Vector<wat::lint::Finding>
+          (:wat::core::concat acc
+            (:wat::lint::rule-concat-abuse-form child file)))
+        (:wat::core::Vector :wat::lint::Finding)
+        (:wat::core::ast->children form))
+      (:wat::core::Vector :wat::lint::Finding))))
+
 ;; ─── lint-source: run all rules over a Vector<SourceFile> ────────────
 
 ;; lint-file — run all form-level rules over one SourceFile.
@@ -295,7 +412,9 @@
                        form <- :wat::WatAST]
         -> :wat::core::Vector<wat::lint::Finding>
         (:wat::core::concat acc
-          (:wat::lint::rule-nested-if-=-ladder-form form path)))
+          (:wat::core::concat
+            (:wat::lint::rule-nested-if-=-ladder-form form path)
+            (:wat::lint::rule-concat-abuse-form form path))))
       (:wat::core::Vector :wat::lint::Finding)
       forms)))
 

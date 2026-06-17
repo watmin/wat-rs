@@ -1,8 +1,13 @@
 # Arc 277.1c — the `concat-abuse` lint rule (the `format` RULE-half)
 
-> **STATUS: STRIKE-READY.** RED probe `tests/probe_arc277_lint_concat_abuse.rs` (`#[ignore]`'d).
-> The build = add one report-only rule to `wat/lint.wat` mirroring `nested-if-=-ladder`, wire it into
-> `lint-file`, and add deftests. Opened 2026-06-17.
+> **STATUS: SHIPPED (2026-06-17).** `concat-abuse` rule live in `wat/lint.wat` (helpers `concat-head?`,
+> `concat-arg-counts` → `:(i64,i64)`, `concat-abuse?`, `make-concat-finding`, recursive
+> `rule-concat-abuse-form`), wired into `lint-file` after the ladder rule. Report-only (`fix ""`,
+> severity `"warn"`). Weighed on the orchestrator's own build: concat-abuse gate 1/1, ladder 1/1,
+> deftest 259/1 (+2 deftests: Cases 5 & 6), deporder 0 violations, lib 929/36 — no regression. **The
+> strange loop is live: `lint-stdlib` now surfaces 68 findings — the rule flags its OWN
+> `make-concat-finding` msg, `violation->finding`, and the format macro-error concats** (the proof-by-diff
+> fixtures the sweep will clean once the auto-fix lands). Opened + shipped 2026-06-17.
 
 ## Why
 
