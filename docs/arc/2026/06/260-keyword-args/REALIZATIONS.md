@@ -89,3 +89,42 @@ record over EDN**, minted by the definer, so it is nameable/shareable, transport
 and is the *same noun* as service state and wire payloads — one structure, every role. The macro-time
 sibling (defservice's opts-map) and this runtime layer are the same kwargs story at two tiers.
 Pairs [[feedback_no_magic_that_lets_llm_fake_correctness]] + the rs-1 mint + arc-272 record rails.
+
+## FOR CARBON AND SILICON ALIKE — the substrate is legible to its other author
+
+**2026-06-17.** Stone 260.1a shipped a ~120-line `defn`-macro change — detect `& [argspec]` vs `&`-rest,
+validate flat, mint `:<name>::Kwargs`, reshape the signature, destructure the fields into the body with
+correct `symbol-node` hygiene, emit the `(do record-def (def …))` — **written one-shot by a sonnet-tier
+model in a language it had never seen, and it weighed clean** (the backward-compat branch was the literal
+original emission; lib held 929/36, zero new). The builder, watching: *"i can't get over how effortlessly
+sonnet can write macros in a lang it's never seen before — and we're not even full clojure syntax yet …
+this is insane."*
+
+It is not luck, and naming the why is the realization:
+
+1. **The paradigm is in-distribution; only the surface is new.** wat is homoiconic Lisp, clojure-faithful —
+   quasiquote/unquote/splice, AST-as-data, the macro engine arc 249 built. The model isn't learning
+   *macros*; it's transferring Clojure/CL macros it already knows and re-skinning them onto `<-` /
+   `:wat::core::` / EDN, learned from the worked examples in the brief. "Never seen before" is doing far
+   less work than it feels — the *shape* is familiar; the *vocabulary* is what's new, and vocabulary is cheap.
+2. **The no-magic / typed-record law does the LLM's error-checking.** Macros are exactly where models
+   usually confabulate — hygiene, expansion order, AST surgery. Here a wrong macro is *uncompilable* (typed
+   records, the registry, the checker). The model is, in the builder's own earlier words,
+   *"forced into a working position"* ([[feedback_no_magic_that_lets_llm_fake_correctness]]). The law that
+   drove rs-1 and kwargs-as-record is the same law that lets a cheaper model nail the hardest construct.
+3. **Coherence makes it pattern-matching, not inventing.** The brief points at defservice — a macro that
+   already mints records, let-wraps, handles hygiene. One noun, consistent forms: once one macro exists, the
+   next is the same moves.
+
+**The thesis (the duet's landing):** the comm-channel / legibility thesis (#93 — *a form should say what it
+means*) has a **second customer**. The same legibility that kills the `:None :None` opacity for a human
+reader is what makes the language writable *cold* by an LLM. The substrate was built so that **correct code
+is the path of least resistance — for carbon and silicon alike.** The builder crowned the phrase:
+*"that's the fucking quote — this entire back and forth is a fucking realization."* That is not an
+aesthetic flourish; it is the **foundation the entire delegate-to-sonnet methodology rests on** — the
+method that built this whole arc. It was never luck that sonnet ships one-shot; it is the design goal
+realized. And arc 251 (full clojure-faithful surface) makes it *more* true, not less — every step toward
+legible-and-typed is a step toward both authors. (Pairs the AI-as-customer thread
+[[project_metered_eval_verification_market]] — a deterministic verifier an LLM can call — and
+[[user_does_not_read_derives_then_names]]: the builder recognized the phenomenon; the phrasing named the
+coordinate after he landed.)
