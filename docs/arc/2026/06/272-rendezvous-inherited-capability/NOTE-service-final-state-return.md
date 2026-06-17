@@ -63,3 +63,29 @@ Don't build until 6b closes (the process tier lands with `serve` still returning
 own stone: `serve -> :St`, the final-state return over the lineage (symmetric with state0 in), the
 `Handle` await, and the defservice `:state`-is-EDN check. Pairs [[project_rendezvous_inherited_capability]]
 + [[project_shared_memory_partition_hosting]] + NOTE-remote-mtls-trust + the record-vs-struct law.
+
+## PRIOR-ART COLLISION — Erlang/OTP gen_server terminate + supervised state handover
+
+**Surfaced 2026-06-16** (builder, on the `start`/`stop`-returns-final-state form: *"wut — we just
+stumbled into erlang's tooling again? outstanding"*). This DEEPENS the already-noted collision
+(arc-209 C.2 REALIZATIONS: *defservice ≡ gen_server at both ends* — the loop + the `Outcome` callback-return
+`{reply,R,S}|{noreply,S}|{stop,…}`). The final-state-return adds the **lifecycle end**:
+
+- **`gen_server:terminate(Reason, State)`** — OTP's shutdown callback RECEIVES the final `State`. Our
+  `(<svc>/stop h) -> St` is that, handed to the owner: terminate-with-state, returned not just logged.
+- **The `:Stop` Outcome** (banked C.4) = gen_server's `{stop, Reason, State}` handler return — the
+  self-initiated termination, distinct from owner-initiated `stop`.
+- **Resumability** (`final-state → next start's state0`) = OTP **supervised state recovery / takeover** —
+  a child restarts and is handed (a derivation of) its prior state; hot-handover across nodes. Our
+  version: drain a service, hand its final state to the next `start` — on the SAME or a DIFFERENT host.
+- **state-as-record** = OTP's structured `State` term, made a typed, wire-conformant contract.
+
+**What is genuinely ours** (the substrate guarantees *around* the textbook model): OTP's stateful-server
+lifecycle on a **typed-ADT-on-Rust** substrate where the State is a typed RECORD that crosses thread /
+process / remote via the ONE EDN capability — so resumability + handover fall out of the **wire-conformant
+state itself**, no bespoke persistence/handoff layer; and **host-parity** (the same lifecycle on every
+tier) comes from the narrow-waist + the per-host `launch` arm, where OTP gets it from the BEAM VM. Another
+`WE-LAND-ON-THE-GREATS` beat: high taste + first-principles derivation re-deriving OTP's gen_server.
+
+**Date:** 2026-06-16. Pairs [[feedback_note_prior_art_collisions]] + arc-209 REALIZATIONS (defservice ≡
+gen_server) + the record-vs-struct law.
