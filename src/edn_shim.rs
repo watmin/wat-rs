@@ -557,6 +557,34 @@ pub fn eval_symbol_node(
     ))
 }
 
+/// `(:wat::core::fresh-symbol <base>)` — arc 274 Stone 274.1. Construct a capture-proof Symbol node.
+///
+/// Like `symbol-node` but adds a fresh unique `ScopeId` to the `Identifier` via `add_scope(fresh_scope())`.
+/// The resulting symbol's `env_key` is `"<base>\u{1}<scope-id>"` — distinct from any user symbol of the
+/// same base name (which carries an empty scope set, key = bare name). A computing macro uses the SAME
+/// returned value for both the binder and all references, so they share the unique scope and resolve to
+/// each other — never to a user variable. Capture is structurally impossible by construction.
+pub fn eval_fresh_symbol(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::fresh-symbol";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) } }),
+    };
+    let ident = Identifier::bare(s).add_scope(crate::scope::fresh_scope());
+    let node = WatAST::Symbol(ident, crate::span::Span::unknown());
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
+        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
+    ))
+}
+
 /// `(:wat::core::keyword-node <string>)` — arc 251 Stone 251.5a-v. Construct a Keyword node (arg must start with ':').
 pub fn eval_keyword_node(
     args: &[WatAST],

@@ -3753,6 +3753,8 @@ fn dispatch_keyword_head(
         ":wat::core::ast-name" => return crate::edn_shim::eval_ast_name(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::ast-span" => return crate::edn_shim::eval_ast_span(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::symbol-node" => return crate::edn_shim::eval_symbol_node(args, list_span, env, sym).map_err(Into::into),
+        // Arc 274.1 — capture-proof binder for program-body macros (sets-of-scopes, fresh ScopeId).
+        ":wat::core::fresh-symbol" => return crate::edn_shim::eval_fresh_symbol(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword-node" => return crate::edn_shim::eval_keyword_node(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword/to-symbol" => return crate::edn_shim::eval_keyword_to_symbol(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::keyword/to-type-form" => return crate::edn_shim::eval_keyword_to_type_form(args, list_span, env, sym).map_err(Into::into),

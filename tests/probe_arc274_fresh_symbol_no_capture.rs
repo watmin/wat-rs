@@ -32,8 +32,6 @@ const MACRO: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 274.1 RED until :wat::core::fresh-symbol exists (scope-stamped capture-proof binder for \
-            program-body macros). UN-IGNORE when 274.1 lands."]
 fn fresh_symbol_binder_does_not_capture_caller() {
     let src = format!(
         "{MACRO}\n\
