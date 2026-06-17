@@ -1,11 +1,17 @@
 # Arc 282 — wat-fix over Rust: codemod the host language with borrowed eyes + wat rules
 
-> **STATUS: STUB / HORIZON — banked to mull (2026-06-17). BLOCKED behind arc 278 (rules engine).**
+> **STATUS: STUB / HORIZON — banked (2026-06-17). BLOCKED behind arc 278 (rules engine).**
 > Surfaced by the builder while the arc-281 `Span`-gains-a-field change was hand-rippling into 8
 > `Span { .. }` literal sites: *"do we extend wat-fix to write its own rust code? … write how to fix our
 > entire code base rust or wat … and express it in wat."* The answer: **yes — but borrow the parser,
-> never write it in wat.** Do NOT start before 278 ships; this is a fact-source for that engine, not a
-> standalone machine.
+> never write it in wat.**
+>
+> **ATTESTED DECISION (builder, 2026-06-17): we WILL take a dependency on Rust's lexer (`rustc_lexer`)
+> and EXPOSE IT AS A wat INTRINSIC** — a `:wat::core::rust::lex` (name TBD) that takes Rust source
+> (`String`) and returns the token stream as EDN facts (token kind + byte/line/col span). That is the
+> Rust fact-source; everything else (rules, apply) is the existing wat machinery. Do NOT start before
+> 278 ships — this is a fact-source for that engine, not a standalone machine — but the dep direction is
+> now decided, not open.
 
 ## The split — the folly vs the real idea
 
@@ -32,18 +38,30 @@ borrowed Rust frontend → EDN facts (nodes + spans)    ← the EYES   (Rust, BO
 The wat expresses the **policy** (what to fix) and does the **surgery**; the borrowed parser provides
 the **structure**. "Express it in wat" = the rules + the apply are wat; the parser is not.
 
-### Fact-source options (borrow, don't build — decision deferred to open)
+### Fact-source: DECIDED — `rustc_lexer`, exposed as a wat intrinsic
 
-- **`rustc_lexer`** — the actual rustc lexer; tiny, robust, token-level (token kind + byte span). Cheapest;
-  handles a large class of codemods (rename, add-field-to-struct-literal, add-arg, attribute insert) by
-  token-pattern + the span seam. NO full AST.
-- **`syn` + `proc-macro2`** — full Rust AST in Rust; walk it and emit nodes+spans as EDN. Heavier; gives
-  real structure (match on item/expr/struct-literal shapes).
-- **`tree-sitter-rust`** — incremental, error-tolerant, has a query language; strong for structural
-  match over possibly-not-compiling source.
+**Chosen (builder-attested 2026-06-17): `rustc_lexer`** — the *actual* rustc tokenizer, published as a
+standalone crate; tiny, dependency-light, robust, the real thing rustc itself uses. Token-level (token
+kind + byte length per token); the intrinsic walks the token stream accumulating byte→line/col to stamp
+each token with a span. This is the cheapest *and* most faithful fact-source, and it handles the large
+class of codemods we actually need (rename, add-field-to-struct-literal, add-arg, attribute insert,
+import-line edits) via token-pattern + the span seam. NO full AST — token + span is enough for the
+text-splice apply model, and it tolerates not-yet-compiling source (lexing ≠ parsing).
 
-⚠ **Dependency decision:** Cargo.toml carries ZERO rust-frontend deps today (grounded 2026-06-17) — the
-project is deliberately dep-light. Adding any of the above is a real call to weigh when this opens.
+**The intrinsic** — `:wat::core::rust::lex` (name TBD at open):
+`(String) -> Vector<{:kind String :text String :line i64 :col i64 :end-line i64 :end-col i64}>` (or a
+typed `RustToken` record). EDN facts, the no-magic shape: a wrong/garbled token is a visible bad fact,
+not a silent coercion. Mirrors how `read-string`/`ast-span` already expose the wat frontend to wat — this
+exposes the *Rust* frontend the same way. Impl beside the other reflection intrinsics
+(`src/edn_shim.rs` / `runtime.rs` dispatch / `check.rs` scheme); pure + total (lexing is deterministic,
+no IO), so it earns the macro-eval allow-list too if a macro ever needs it.
+
+**Why a dep is acceptable here** — Cargo.toml carries ZERO rust-frontend deps today (the project is
+deliberately dep-light), but `rustc_lexer` is the minimal, canonical exception: it is *rustc's own
+lexer*, not a third-party reimplementation, so it cannot drift from the language it tokenizes. Taking it
+is taking the source of truth, not a parallel guess. (Rejected alternatives: `syn`/`proc-macro2` —
+heavier, full-AST, more than the splice model needs; `tree-sitter-rust` — a separate grammar that *can*
+drift from rustc. `rustc_lexer` is the no-drift choice.)
 
 ## This IS arc 278 with a second fact-source
 
@@ -84,8 +102,12 @@ rules are your Lisp and the match can be coincidence, not exact."
 ## When opened (the sequence)
 
 1. arc 278 ships + is proven on wat (lint runs on the engine).
-2. Decide + add the frontend dep (rustc_lexer first — token-level covers the most-needed codemods).
-3. Build the Rust→EDN fact-bridge (nodes/tokens + spans). RED probe: a known Rust codemod (e.g. the
-   Span-field-add) expressed as a wat rule produces the right `(off,old-len,new-text)` edits.
+2. Add the `rustc_lexer` dep + build the **`:wat::core::rust::lex` intrinsic** (DECIDED — token stream →
+   EDN facts with spans; the byte→line/col accumulation is the only real work; impl + dispatch + check
+   scheme + allow-list, mirroring `read-string`/`ast-span`). RED probe first: `rust-lex` of a known
+   Rust snippet → the expected token+span facts.
+3. Wire the Rust facts into the rules engine (arc 278) as a second fact-source; rule over them in wat,
+   emit `(off,old-len,new-text)` edits, apply via the existing `fix-text-apply`. RED probe: a known Rust
+   codemod (e.g. the `Span`-field-add) expressed as a wat rule produces the right edits.
 4. Run it on the wat-rs Rust corpus itself (dogfood); the diff is the proof — the substrate codemods its
    own host.
