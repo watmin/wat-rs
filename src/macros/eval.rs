@@ -549,6 +549,12 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::struct->form"
         | ":wat::core::forms"
         | ":wat::core::show"
+        // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits.
+        // The format macro emits (:wat::core::str <val>) per placeholder at
+        // runtime. It is NOT called at expand time, but listed here so any
+        // future macro that needs unquoted display in its own program-body
+        // can use it. Pure: deterministic, no IO.
+        | ":wat::core::str"
 
         // ── Homoiconic WatAST bridge (arc 251.5a; pure-total node walk/build) ──
         // The read→walk→rebuild→write spine: parse, decompose, kind-preserving

@@ -487,9 +487,14 @@ pub fn eval_ast_name(
     let name: String = match ast {
         WatAST::Symbol(ident, _) => ident.as_str().to_string(),
         WatAST::Keyword(s, _) => s.clone(),
+        // Arc 279 — format macro needs the string content from a StringLit node.
+        // "Does a macro need it?" → YES: format extracts the template text at expand time.
+        // ast-name on a StringLit returns the string VALUE (unquoted content), matching the
+        // natural meaning of "name" for literal nodes alongside Symbol/Keyword.
+        WatAST::StringLit(s, _) => s.clone(),
         _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: "ast-name requires a Symbol or Keyword node (no other node has a name)".to_string(),
+            reason: "ast-name requires a Symbol, Keyword, or StringLit node".to_string(),
         } }),
     };
     Ok(crate::value::TrackedValue::new(

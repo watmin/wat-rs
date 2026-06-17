@@ -4471,6 +4471,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, list_span, env, sym),
         ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, list_span, env, sym),
         ":wat::core::show" => eval_show(args, list_span, env, sym),
+        // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
+        // which wraps strings in `"..."`, `str` renders values as format fills them.
+        ":wat::core::str" => eval_str(args, list_span, env, sym),
         ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, list_span, env, sym).map_err(Into::into),
         ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into),
         ":wat::edn::write-json" => crate::edn_shim::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into),
@@ -16859,6 +16862,57 @@ fn eval_show(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     Ok(Value::String(Arc::new(crate::value::observe::render_value(&v, 0))))
+}
+
+// ─── str — unquoted display (arc 279) ─────────────────────────────────────
+//
+// `:wat::core::str<T>` renders any primitive value to a String UNQUOTED:
+//   String  → the string itself (no surrounding `"..."` — unlike `show`)
+//   i64     → decimal digits
+//   f64     → decimal representation
+//   bool    → `true` / `false`
+//
+// Used by the `format` macro (arc 279): the macro emits
+//   `(:wat::core::str <val>)` for each `{name}` placeholder so the
+// substituted value fills as itself, not as its EDN representation.
+// "Does a macro need it?" → YES: `format` needs a polymorphic unquoted
+// renderer at runtime to display the substituted value. Added as an
+// intrinsic (not a defn) because the macro emits it directly.
+
+/// `(:wat::core::str v)` → `:String` (arc 279). Unquoted polymorphic
+/// renderer: String→itself, i64→digits, f64→decimal, bool→true/false.
+/// Distinct from `show` which wraps strings in `"..."`.
+fn eval_str(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::str";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let s = match v {
+        Value::String(s)  => (*s).clone(),
+        Value::i64(n)     => n.to_string(),
+        Value::f64(f)     => f.to_string(),
+        Value::bool(b)    => b.to_string(),
+        Value::u8(n)      => n.to_string(),
+        other => return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "String | i64 | f64 | bool | u8",
+                got: Box::new(ValueSnapshot::of(&other)),
+            }
+        }.into()),
+    };
+    Ok(Value::String(Arc::new(s)))
 }
 
 /// Arc 053 — helper. Extract a `Value::Vector` payload, error on
