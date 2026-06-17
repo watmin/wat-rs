@@ -179,7 +179,21 @@
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
-;; defn just binds a function value to a name: it macro-expands to
+;; Arc 260.1a — defn detects a trailing `& [argspec]` kwargs section:
+;;   - `& [name <- :T …]` (Vector tail)  → mints :<name>::Kwargs record, reshapes fn,
+;;                                          destructures fields into the body scope.
+;;   - `& sym <- :T`      (Symbol tail)  → variadic rest; pass through unchanged (no touch).
+;;   - no `&` at all                     → backward-compat pass-through (UNCHANGED).
+;;
+;; PROGRAM-BODY path (mirrors defservice): top-level `let` evaluates at macro-expand time;
+;; quasiquotes appear only at the tail of each branch. Checker skips non-quasiquote `let`/`fn`
+;; binders; generated let/fn binders inside quasiquote slots use `symbol-node` (Unquote at
+;; definition time → checker passes). `~reshaped-params` and `~let-binders-vec` are both
+;; Unquote nodes at definition time → checker skips their contents.
+;;
+;; Backward-compat: NO `& [...]` kwargs section → defn behaves EXACTLY as today.
+;;
+;; The original: `defn` macro just binds a function value to a name:
 ;; (:wat::core::def :name (:wat::core::fn …)). :wat::core::fn is the one and
 ;; only function constructor; defn forwards the argspec/arrow/ret/body to it
 ;; unchanged via rest-binder splicing, and an optional metadata-map threads
@@ -189,7 +203,126 @@
   [name <- :wat::WatAST
    & rest <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
-  `(:wat::core::def ~name (:wat::core::fn ~@rest)))
+  ;; PROGRAM-BODY path: top-level `let`, quasiquotes only at branch tails.
+  (:wat::core::let
+    [params-vec   (:wat::core::Option/expect -> :wat::WatAST
+                    (:wat::core::first rest)
+                    "defn: rest is empty — no params vec")
+     params-ch    (:wat::core::ast->children params-vec)
+     params-len   (:wat::core::length params-ch)
+     ;; Detect `& [...]` tail: params-len >= 2 AND second-to-last is a Symbol named "&"
+     ;; AND last element is a Vector node. `& sym <- :T` (variadic rest) is excluded
+     ;; because the element right after `&` is a Symbol (not a Vector).
+     has-kwargs   (:wat::core::if (:wat::core::i64::>= params-len 2)
+                    -> :wat::core::bool
+                    (:wat::core::let
+                      [stl-node  (:wat::core::Option/expect -> :wat::WatAST
+                                   (:wat::core::get params-ch (:wat::core::i64::- params-len 2))
+                                   "defn kwargs detect: stl index")
+                       last-node (:wat::core::Option/expect -> :wat::WatAST
+                                   (:wat::core::get params-ch (:wat::core::i64::- params-len 1))
+                                   "defn kwargs detect: last index")]
+                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind stl-node) "symbol")
+                        -> :wat::core::bool
+                        (:wat::core::if (:wat::core::= (:wat::core::ast-name stl-node) "&")
+                          -> :wat::core::bool
+                          (:wat::core::= (:wat::core::ast-kind last-node) "vector")
+                          false)
+                        false))
+                    false)]
+    (:wat::core::if has-kwargs
+      -> :wat::WatAST
+      ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
+      (:wat::core::let
+        [name-str        (:wat::core::keyword/to-string name)
+         ;; :<name>::Kwargs — the minted record type keyword value
+         kwargs-ty       (:wat::core::keyword/from-string
+                           (:wat::core::string::concat name-str "::Kwargs"))
+         kwargs-ty-str   (:wat::core::keyword/to-string kwargs-ty)
+         ;; The inner argspec Vector node (the last element of params-ch)
+         kw-argvec       (:wat::core::Option/expect -> :wat::WatAST
+                            (:wat::core::last params-ch)
+                            "defn kwargs: no inner argspec vector")
+         kw-ch           (:wat::core::ast->children kw-argvec)
+         kw-len          (:wat::core::length kw-ch)
+         n-kw-fields     (:wat::core::i64::/ kw-len 3)
+         ;; Validate: no nested `&` inside the kwargs section (flat, one level).
+         ;; Iterates over field-name positions (0, 3, 6, …); macro-errors on `&`.
+         _validate       (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::nil i <- :wat::core::i64]
+                             -> :wat::core::nil
+                             (:wat::core::let
+                               [fname-node (:wat::core::Option/expect -> :wat::WatAST
+                                              (:wat::core::get kw-ch (:wat::core::i64::* i 3))
+                                              "defn kwargs validate: field name index")]
+                               (:wat::core::if (:wat::core::= (:wat::core::ast-name fname-node) "&")
+                                 -> :wat::core::nil
+                                 (:wat::core::macro-error
+                                   "defn kwargs section is flat: no nested & — one level")
+                                 nil)))
+                           nil
+                           (:wat::core::range 0 n-kw-fields))
+         ;; Mint record form: (:wat::Record::def :<name>::Kwargs <kw-argvec>)
+         record-def      `(:wat::Record::def ~kwargs-ty ~kw-argvec)
+         ;; HYGIENIC hidden kwargs binder: symbol-node → Unquote at defmacro-definition time
+         kw-sym          (:wat::core::symbol-node "__kwargs__")
+         ;; kwargs-ty as a WatAST Keyword node (needed for with-children)
+         kwargs-ty-node  (:wat::core::keyword-node
+                            (:wat::core::string::concat ":" kwargs-ty-str))
+         ;; Build reshaped params children: drop trailing `& [...]` (last 2), append kw-sym <- kwargs-ty
+         base-ch         (:wat::core::take params-ch (:wat::core::i64::- params-len 2))
+         arrow-sym       (:wat::core::symbol-node "<-")
+         reshaped-ch     (:wat::core::conj
+                           (:wat::core::conj
+                             (:wat::core::conj base-ch kw-sym)
+                             arrow-sym)
+                           kwargs-ty-node)
+         reshaped-params (:wat::core::with-children params-vec reshaped-ch)
+         ;; ret-type: rest[2] (after params-vec and ->)
+         ret-type        (:wat::core::Option/expect -> :wat::WatAST
+                            (:wat::core::get rest 2)
+                            "defn kwargs: no return type")
+         ;; body forms: rest[3..] (everything after params-vec -> ret-type)
+         body-forms      (:wat::core::drop rest 3)
+         ;; Build destructure let-binder items:
+         ;;   [field1-sym (:<name>::Kwargs/field1 __kwargs__)  field2-sym (…) …]
+         ;; field-indices: 0, 3, 6, … (name positions in kw-ch)
+         field-indices   (:wat::core::map
+                           (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+                             (:wat::core::i64::* i 3))
+                           (:wat::core::range 0 n-kw-fields))
+         let-binder-items (:wat::core::foldl
+                            (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                             i   <- :wat::core::i64]
+                              -> :wat::core::Vector<wat::WatAST>
+                              (:wat::core::let
+                                [fname-node    (:wat::core::Option/expect -> :wat::WatAST
+                                                 (:wat::core::get kw-ch i)
+                                                 "defn kwargs let-binder: field name index")
+                                 fname-str     (:wat::core::ast-name fname-node)
+                                 ;; HYGIENIC field binder: symbol-node → Unquote at def time
+                                 binder-sym    (:wat::core::symbol-node fname-str)
+                                 ;; Accessor keyword: :<name>::Kwargs/<field-name>
+                                 accessor-kw   (:wat::core::keyword/from-string
+                                                 (:wat::core::string::concat kwargs-ty-str
+                                                   (:wat::core::string::concat "/" fname-str)))
+                                 ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
+                                 accessor-call `(~accessor-kw ~kw-sym)]
+                                (:wat::core::conj
+                                  (:wat::core::conj acc binder-sym)
+                                  accessor-call)))
+                            (:wat::core::Vector :wat::WatAST)
+                            field-indices)
+         ;; Wrap let-binder-items as a WatAST::Vector (kw-argvec is the shape template)
+         let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)]
+        ;; Emit: (do record-def (def name (fn reshaped-params -> ret (let binders body…))))
+        `(:wat::core::do
+           ~record-def
+           (:wat::core::def ~name
+             (:wat::core::fn ~reshaped-params -> ~ret-type
+               (:wat::core::let ~let-binders-vec ~@body-forms)))))
+      ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
+      `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
 
 ;; Restrictions live as a :restricted-to key in the metadata-map on def/defn
 ;; (e.g. {:restricted-to [<prefix-kw>…]}); the substrate enforces it.

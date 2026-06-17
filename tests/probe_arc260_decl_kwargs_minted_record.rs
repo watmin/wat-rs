@@ -36,8 +36,6 @@ const DECL_KWARGS: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 260.1a RED until defn mints :<name>::Kwargs from & {fields} + reshapes/destructures. \
-            Today & {…} is unparseable. UN-IGNORE when 260.1a lands."]
 fn decl_kwargs_mints_record_and_destructures() {
     let world = startup_from_source(DECL_KWARGS, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed once defn mints the kwargs record + destructures");
