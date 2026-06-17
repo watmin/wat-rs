@@ -1,17 +1,19 @@
-//! Arc 272 record-state rs-2 — a service's return value IS its final state: `(<svc>/stop h)` terminates
-//! the service and yields its last state. THREAD tier (process is rs-3, over the lineage).
+//! Arc 272 record-state rs-2 — a service's return value IS its final state: `(<svc>/stop c)` terminates
+//! the service and yields its last state. THREAD tier here; the SAME mechanism serves process/remote.
 //!
 //! The lifecycle counterpart to `start`: `(<svc>/start locus state0) -> Handle` launches with an initial
-//! state; `(<svc>/stop h) -> St` stops it and returns the final state (gen_server `terminate`-with-state).
+//! state; `(<svc>/stop c) -> St` stops it and returns the final state (gen_server `terminate`-with-state).
 //! Resumability falls out: this `final` is a valid `state0` for the next `start`.
 //!
-//! Mechanism (the build, not asserted here): `serve` returns its `state` on `:Shutdown` (today it returns
-//! `nil`); the per-tier wrapper delivers it — the THREAD closure sends the final state up the owner-link
-//! self-peer (shared crossbeam), and `stop` drains the owner→child link (→ `:Shutdown`), `recv'`s the
-//! final state, and reaps. (The PROCESS tier ships it over the lineage via `LineageEvent::State` — rs-3.)
+//! Mechanism (the build, not asserted here): the `:Stop` terminal op (gen_server `{stop, State}`).
+//! defservice auto-generates a `stop` op + serve's `Outcome::Stop` arm (reply the final state to the
+//! client, then EXIT the loop instead of recurring). `(<svc>/stop c)` sends the stop request over the
+//! CLIENT connection and `recv'`s the final state AS THE REPLY — CONSTANT SHAPE across thread/process/
+//! remote (it rides connect'/send'/recv', identical for every locus). No new substrate, no lineage
+//! reshape. A crashed service makes the call RAISE (the existing recv' crash-surfacing) — sibling probe.
 //!
-//! RED at HEAD: defservice generates no `<fqdn>/stop`; `serve` returns `nil`, not the state. GREEN once
-//! rs-2 ships serve-returns-state + the thread `stop`. `#[ignore]` until then.
+//! RED at HEAD: defservice generates no `<fqdn>/stop` op (UnresolvedReference). GREEN once rs-2 ships the
+//! `Outcome::Stop` variant + serve's stop arm + the generated stop op/method. `#[ignore]` until then.
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_thread_stop_returns_final_state -- --include-ignored
 
@@ -39,7 +41,7 @@ const PROGRAM: &str = r#"
     [h     (:my::counter/start (:wat::spawn::thread) 0)
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _     (:my::counter/increment c (:my::counter/increment-request 5))
-     final (:my::counter/stop h)]
+     final (:my::counter/stop c)]
     final))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
