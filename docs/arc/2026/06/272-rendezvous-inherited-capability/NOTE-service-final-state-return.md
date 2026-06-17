@@ -23,30 +23,39 @@ final state on shutdown. **Resumability falls out for free:** `final-state → n
 service is checkpointable/restartable across runs (and across hosts: drain a thread service, hand its
 final state to a process service).
 
-## The implication — state MUST be wire-serializable (structured state ⇒ a record)
+## The implication — state MUST be a RECORD (stricter than "EDN-serializable")
 
-Yes. The final state must travel child→parent over the lineage (process) and over the network (remote).
-By the **record-vs-struct law** (`wat/spawn.wat:116`): a **record is EDN-serializable / wire-safe**; a
-**struct holds non-EDN `RustOpaque` fields and can NEVER cross a wire**. Therefore:
+Yes — and **be strict about it: a record, not merely an EDN value.** The final state must travel
+child→parent over the lineage (process) and over the network (remote), so wire-serializability is
+necessary — but it is NOT the bar. An `int` happens to be EDN, yet it is **structureless**: no named
+fields, no declared shape, no conformance. A **record** carries **strong conformance** — every field
+named and typed, a malformed shape **uncompilable** (the no-magic / typed-record law,
+[[feedback_no_magic_that_lets_llm_fake_correctness]]). Tying a service to **/some record/** makes its
+state a **first-class typed contract** — exactly what state that checkpoints, resumes, evolves (add a
+field), and crosses hosts must be.
 
-- A service's `:state` must be **EDN-serializable** — a **record** (for structured/heterogeneous state),
-  or an EDN scalar/collection (the counter's `:wat::core::i64` qualifies). It must **never be a struct**
-  (a struct state could run on a thread but could not return its final state from a process/remote — it
-  would break the moment the service left shared memory).
+- A service's `:state` must be **a record** — full stop. NOT a bare scalar (an `i64` is EDN but not a
+  record → rejected), NOT a collection, and NEVER a struct (a struct holds non-EDN `RustOpaque` fields
+  and can't cross a wire at all — `wat/spawn.wat:116`). The state is *some specific record type*; that
+  record is the contract for BOTH `state0` (in) and the final state (out).
 
-- **Parity forces this uniformly** (the narrow-waist law again — see
-  [[feedback_four_questions_weigh_hard_constraint_parity]]): the SAME `defservice` must run on
-  thread/process/remote behind one client face. So the state constraint can't be per-tier — a structured
-  state must be a record for ALL tiers, or the service isn't host-agnostic. State-as-record is what makes
-  "swap the host, same service" honest end-to-end (in AND out).
+- **Parity forces this uniformly** (the narrow-waist law — see
+  [[feedback_four_questions_weigh_hard_constraint_parity]]): the SAME `defservice` runs on
+  thread/process/remote behind one client face, so the state contract can't be per-tier. State-as-record
+  is what makes "swap the host, same service" honest end-to-end (in AND out).
+
+- ⚠ **Migration consequence:** the counter examples use `:state :wat::core::i64` (a bare scalar — the
+  loose form this note now forbids). When this stone lands, they migrate to a record state (e.g.
+  `:my::counter::CounterState {count <- :wat::core::i64}`), and `serve`/start/the final-state return all
+  carry that record. (β-2 ships with the scalar state still accepted — the check is THIS stone, not β-2.)
 
 ## The enforcement (the no-magic line)
 
-This should be a **defservice CHECK**, not a convention: `:state` must be EDN-serializable, made
-**uncompilable** otherwise ([[feedback_no_magic_that_lets_llm_fake_correctness]]). A struct `:state`
-should fail at defservice-expansion with a diagnostic ("a service state must round-trip the wire — use a
-record, not a struct"), so a lower-tier author cannot write a service that silently can't leave the
-thread tier. The type makes the parity guarantee true, not discipline.
+A **defservice CHECK**, not a convention: `:state` must resolve to a **registered record type**, made
+**uncompilable** otherwise. A scalar/collection/struct `:state` fails at defservice-expansion with a
+diagnostic ("a service state must be a record — it is the typed, wire-conformant contract for state0 in
+and the final state out"). A lower-tier author cannot write a service whose state is structureless or
+can't leave the thread tier. The type makes the contract true, not discipline.
 
 ## Bar / sequence
 
