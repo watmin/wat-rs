@@ -278,6 +278,42 @@ decision; remote is a new `CommAddress` impl + a new `CommsPolicy` rung, the con
 
 ---
 
+## POST-CLOSE SYNTHESIS (2026-06-17) — defservice is a lock-free, location-transparent mutex
+
+> The arc closed 2026-06-16; this synthesis crystallized the next day (builder: *"making defservice our
+> in-thread AND in-process mutex — like, a mutex in a separate process space AND over a trusted pipe — is
+> incredible tech and we never need to touch it again"*). Recorded here because 272 is the arc that
+> completed it (host-parity + the capability pipe + record-state). The INSCRIPTION stands unchanged; this
+> is chronicle, not revision.
+
+**What defservice actually IS, now that 272 closed:** a **mutex with no lock.** A mutex serializes access
+to shared mutable state; defservice does it by **ownership + lockstep message-passing** — the serve loop is
+the *sole* owner of the state (state-as-self), every access is a size-1 blocking request→reply, nothing
+else can touch the state, callers serialize through the channel. Mutual exclusion the actor/gen_server way,
+**without a lock**, so **deadlock-free by construction** ([[feedback_vended_primitives_never_deadlock]] +
+[[project_lockstep_blocking_channels_fpga]]): no lock to acquire out of order; the lockstep rendezvous, the
+recv'-raises-on-crash, and the owner-drop→Shutdown path close the failure modes.
+
+**The same mutex in three address spaces** (host/locus parity):
+- **in-thread** — state owned by one loop; sibling threads serialize via the crossbeam channel.
+- **in-process** — state in a *separate address space*, reached over the **capability-trusted UDS pipe**
+  (mutual uid+pid, the 6c.2 ocap close). A mutex whose critical section lives in another process, over a
+  pipe nobody can forge or squat ([[project_rendezvous_inherited_capability]]).
+- **remote** — the design-C seam is ready; same, over mTLS.
+
+One interface, location-transparent, typed-record state (rs-1). **Erlang/OTP has the lock-free mutex** (the
+BEAM gives process isolation for free); **defservice extends it past a single VM via ocap** — the thing the
+BEAM never had to engineer. That is why "we never touch it again": deadlock-free + location-transparent +
+capability-secured + typed-stateful, all by construction.
+
+**The velocity corollary** (builder: *"once we can work in wat and not rust we go fast fast"*): the
+defservice week was **capital** — the slow Rust foundation (records-over-wire, the macro engine,
+sets-of-scopes, the typed checker, the ocap pipe). Once that capital exists, features compose **at the wat
+level** (macros over the substrate) — fast, and a sonnet writes them cold (the "for carbon and silicon
+alike" realization, arc-260 REALIZATIONS). kwargs / defn-kwargs / fresh-symbol are rapid-fire permanent wins
+because they *spend* the capital, not lay more. Every capability that drops from Rust to wat moves from
+capital-expenditure to compounding return.
+
 ## HOST PARITY — the same service runs anywhere, and the transport hides in its own arm
 
 6b set out to make a `defservice` run on a forked process the way it runs on a thread. It lands as a
