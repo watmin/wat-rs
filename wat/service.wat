@@ -46,7 +46,8 @@
 ;; record/sum, per the ADT identity, not an order-convention pair). Generic + stdlib: every
 ;; service reuses it (not minted per-service). C.4 GROWS it by ADDING variants — no reshape.
 (:wat::core::defenum :wat::service::Outcome<S,R>
-  :Reply [state <- :S  reply <- :R])
+  :Reply [state <- :S  reply <- :R]
+  :Stop  [state <- :S  reply <- :R])
 
 (:wat::core::defmacro :wat::service::defservice
   [fqdn      <- :wat::WatAST     ;; :my::counter
@@ -334,11 +335,67 @@
                                                 (:wat::kernel::send'
                                                   (:wat::core::nth clients idx)
                                                   (~reply-variant-kw resp))
-                                                (~serve-name self l clients new-state))))]
+                                                (~serve-name self l clients new-state)))
+                                            ((:wat::service::Outcome::Stop final-state resp)
+                                              (:wat::core::do
+                                                (:wat::kernel::send'
+                                                  (:wat::core::nth clients idx)
+                                                  (~reply-variant-kw resp))
+                                                nil)))]
                          (:wat::core::conj acc
                            `((~op-variant-kw req) ~outcome-match))))
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
+
+     ;; ── rs-2: AUTO stop op (standalone — not threaded through user-op folds) ───────
+     ;; The stop op has a different shape at every fold: nullary request, state-carrying
+     ;; response, auto serve body, state-typed client method. Built standalone and conj'd
+     ;; into each collection before final assembly.
+     ;;
+     ;; StopRequest [] — nullary; client sends it to terminate the service.
+     stop-req-name   (:wat::core::keyword/from-string
+                       (:wat::core::string::concat fqdn-str "::StopRequest"))
+     stop-req-record `(:wat::Record::def ~stop-req-name [])
+     ;; StopResponse [state <- <state-ty>] — carries the final state to the client.
+     stop-resp-name  (:wat::core::keyword/from-string
+                       (:wat::core::string::concat fqdn-str "::StopResponse"))
+     stop-resp-fields `[state <- ~state-ty]
+     stop-resp-record `(:wat::Record::def ~stop-resp-name ~stop-resp-fields)
+     ;; Op::Stop variant [req <- StopRequest]
+     stop-op-variant-kw (:wat::core::keyword/from-string
+                          (:wat::core::string::concat fqdn-str "::Op::Stop"))
+     stop-op-req-field `[req <- ~stop-req-name]
+     ;; Reply::Stop variant [resp <- StopResponse]
+     stop-reply-variant-kw (:wat::core::keyword/from-string
+                             (:wat::core::string::concat fqdn-str "::Reply::Stop"))
+     stop-reply-resp-field `[resp <- ~stop-resp-name]
+     ;; Auto serve arm for Op::Stop:
+     ;;   ((Op::Stop req)
+     ;;     (match (Outcome::Stop state (StopResponse state))
+     ;;       ((Outcome::Stop final-state resp)
+     ;;         (do (send' (nth clients idx) (Reply::Stop resp)) nil))))
+     ;; `state` is the serve param (value position in match). The outer outcome-match
+     ;; structure is duplicated here (no user body to bind; direct auto handler).
+     stop-resp-acc (:wat::core::keyword/from-string
+                     (:wat::core::string::concat fqdn-str "::StopResponse/state"))
+     stop-serve-arm `((~stop-op-variant-kw req)
+                       (:wat::core::match
+                         (:wat::service::Outcome::Stop state (~stop-resp-name state))
+                         -> :wat::core::nil
+                         ((:wat::service::Outcome::Reply _ _) nil)
+                         ((:wat::service::Outcome::Stop final-state resp)
+                           (:wat::core::do
+                             (:wat::kernel::send'
+                               (:wat::core::nth clients idx)
+                               (~stop-reply-variant-kw resp))
+                             nil))))
+     ;; Extend the record/enum/serve-arm collections now (before serve-body + service-forms-def
+     ;; use them). constructors/methods are extended after their user-op folds complete below.
+     request-records  (:wat::core::conj request-records stop-req-record)
+     response-records (:wat::core::conj response-records stop-resp-record)
+     variants         (:wat::core::conj (:wat::core::conj variants :Stop) stop-op-req-field)
+     reply-variants   (:wat::core::conj (:wat::core::conj reply-variants :Stop) stop-reply-resp-field)
+     serve-op-arms    (:wat::core::conj serve-op-arms stop-serve-arm)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
@@ -479,6 +536,33 @@
                            `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
+
+     ;; ── rs-2: stop constructor + method (extended after user-op folds complete) ───
+     ;; Constructor: (defn <fqdn>/stop-request [] -> StopRequest (StopRequest))
+     stop-ctor-name  (:wat::core::keyword/from-string
+                       (:wat::core::string::concat fqdn-str "/stop-request"))
+     stop-ctor       `(:wat::core::defn ~stop-ctor-name [] -> ~stop-req-name (~stop-req-name))
+     ;; Method: (defn <fqdn>/stop [c <- client-peer-ty] -> state-ty ...)
+     ;; Sends Op::Stop(StopRequest) over c, recv's Reply, matches Reply::Stop → extracts state.
+     ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
+     stop-discard-sym (:wat::core::symbol-node "_")
+     stop-r-sym       (:wat::core::symbol-node "r")
+     stop-method-name (:wat::core::keyword/from-string
+                        (:wat::core::string::concat fqdn-str "/stop"))
+     stop-method-params `[c <- ~client-peer-ty]
+     stop-method-body `(:wat::core::let
+                          [~stop-discard-sym (:wat::kernel::send' c (~stop-op-variant-kw (~stop-req-name)))
+                           ~stop-r-sym       (:wat::kernel::recv' c)]
+                          (:wat::core::match ~stop-r-sym -> ~state-ty
+                            ((~stop-reply-variant-kw resp) (~stop-resp-acc resp))
+                            (_ (:wat::kernel::assertion-failed!
+                                 "defservice stop method: unexpected reply variant (protocol violation)"
+                                 :wat::core::None
+                                 :wat::core::None))))
+     stop-method      `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~state-ty ~stop-method-body)
+     ;; Extend constructors and methods with the auto stop op.
+     constructors     (:wat::core::conj constructors stop-ctor)
+     methods          (:wat::core::conj methods stop-method)
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle

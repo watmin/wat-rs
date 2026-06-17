@@ -48,8 +48,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "rs-2 RED until defservice generates <svc>/stop + serve returns its final state on :Shutdown. \
-            Today stop doesn't exist and serve returns nil. UN-IGNORE when rs-2 lands."]
 fn thread_stop_returns_the_services_final_state() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("startup should succeed (rs-2: thread stop returns final state)");
