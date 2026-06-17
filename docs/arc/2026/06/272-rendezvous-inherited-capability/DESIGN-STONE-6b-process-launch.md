@@ -1,5 +1,13 @@
 # DESIGN — Arc 272 step 6b: the ProcessOpts `Host/launch` arm (the process service is born)
 
+> ⚠ **PARTIALLY SUPERSEDED (2026-06-16).** The 6b-i (state-over-lineage) + the launch-reshape spine here
+> shipped, but the β-2 framing in this doc — defservice emitting a transport-specific `child-forms` with a
+> literal `(listener' (process) …)` baked into the MACRO — was REJECTED (it puts the transport in
+> defservice, breaking the narrow-waist). The shipped shape is **design C**: defservice emits a
+> transport-AGNOSTIC `service-forms`; the per-host `launch` arm owns its transport. See
+> **`DESIGN-STONE-6b-ii-beta-IDEALIZED.md`** (authoritative for β-2) + REALIZATIONS "HOST PARITY". This
+> doc is retained for the 6b-i/β-1 history + the WHY.
+
 > Opened 2026-06-16. Grounded against HEAD `10c97f1e`. Continues
 > [DESIGN-STONE-6a-capability-handoff.md] (6a-i shipped `f35bcfb5`: the child-mints capability
 > handoff is proven — `tests/probe_arc272_6a_capability_handoff.rs` GREEN) and arc-209

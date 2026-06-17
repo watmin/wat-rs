@@ -275,3 +275,61 @@ decision; remote is a new `CommAddress` impl + a new `CommsPolicy` rung, the con
 **Date:** 2026-06-16. Pairs [[project_rendezvous_inherited_capability]] +
 [[feedback_deferred_dep_becomes_necessary_block_and_build]] + [[feedback_shadowdancer_must_not_spawn_subagents]] +
 [[feedback_ide_diagnostics_can_lie]] + DESIGN-STONE-6c.2-D1 + DESIGN-STONE-258.5b/ii + NOTE-remote-mtls-trust.
+
+---
+
+## HOST PARITY — the same service runs anywhere, and the transport hides in its own arm
+
+6b set out to make a `defservice` run on a forked process the way it runs on a thread. It lands as a
+one-token edit at the call site: `(<svc>/start (:wat::spawn::process) state0)` round-trips through the
+exact generated client face that `(<svc>/start (:wat::spawn::thread) state0)` does — `start`, `connect'`,
+the generated `increment`/`get`, the `Handle`, all byte-identical. The proof is the parity made literal:
+`probe_arc272_6b_defservice_on_process` IS the thread client-face probe with `(thread)` swapped for
+`(process)`, and it returns 5.
+
+The chain beneath it ran four floors. The socket-tier `recv'` (and then `poll'`) had been decoding
+client messages with no type registry — fine for an `i64`, fatal for a user record/enum — so the first
+two stones taught **all** process-tier comms to decode through `decode_trusted_wire(sym.types())`
+(`recv_wire`, then `select_raw`), which quietly generalized: any socket peer can now carry records, not
+just the lineage self-peer. Then a real type-system gap surfaced — a generic protocol method couldn't be
+called with explicit type-args (`:P/m<T,T>` was an "unknown callee", and no path *bound* explicit
+type-args; fns and methods only stripped-and-inferred). That was a deferred dep become necessary; we
+blocked and built it. Only then could the constant `launch<S,R,St>` interface exist.
+
+**The duet — three catches, each one a correction I needed.** The design's near-miss was mine: I had
+defservice **bake** `(listener' (:wat::spawn::process) …)` into the generated child-forms. The builder:
+*"i think its taking a too literal approach… we must support N+ remotes… we need to refine this where a
+program hosting env is passed in."* Then, when I came back with a fork and a recommendation: *"four-questions
+for decisions."* I'd pitched the easier path twice — first "defservice builds per-tier programs," then
+"the launch arm builds the child main at runtime" — and **the four-questions, run with parity as a
+first-class axis, overruled me both times**: the first breaks zero-central-edit-per-transport; the second
+fails Obvious (runtime codegen in a stdlib arm) and can't even produce a type-correct child main. And
+when I started to re-derive the host model, *"maybe go kick off a subagent to find the docs for this —
+we've been building defservice for like… almost two weeks now."* The spine — user passes a configured
+host to `start`; the `spawn-program'` defclause hosts it — was already designed. Mine the record; don't
+reinvent it.
+
+**The realization: the narrow waist is a placement rule, not a slogan.** "A new transport = zero central
+edit" only holds if the transport literal may appear in *exactly one place* — its own per-host `launch`
+arm. The moment `(process)` leaks into the shared macro, the waist is breached and the next transport
+pays. The idealized shape (design C) makes the rule structural: defservice emits a transport-**agnostic**
+`service-forms` (Op/Reply, records, serve, and a child `:user::main` that binds on a *free* name
+`:wat::spawn::service-host`); the ProcessOpts arm — and only it — supplies `(def :…service-host
+(process))`. A remote arm will supply its own; defservice never learns there was a remote. The host
+flows end-to-end as a value the user constructs: `user builds host → start host → launch host → spawn-program'
+host`, config riding parent-side. And the instrument that kept me honest was the four-questions
+themselves — they overruled the author's convenience twice in one sitting, which is the whole point of
+having a compass you don't get to argue with. ([[feedback_four_questions_weigh_hard_constraint_parity]] +
+[[feedback_mine_the_docs_user_only_for_disk_ambiguity]].)
+
+**Pinned for the next stone.** The builder closed the loop on what a service *returns*: its final state.
+Whoever holds the blocking serve — thread (via join), process/remote (over the lineage) — yields the last
+state, so `final-state → next start's state0` makes a service resumable across runs and hosts. The
+implication, stated strictly: a service's `:state` must be a **record** — not merely EDN (an `int` is EDN
+but structureless; a record carries the named-typed conformance a wire-crossing, evolving, resumable
+contract needs). To be enforced by a defservice check, after 6b (`NOTE-service-final-state-return.md`).
+
+**Date:** 2026-06-16. Pairs [[feedback_four_questions_weigh_hard_constraint_parity]] +
+[[feedback_mine_the_docs_user_only_for_disk_ambiguity]] + [[feedback_deferred_dep_becomes_necessary_block_and_build]] +
+[[project_shared_memory_partition_hosting]] + DESIGN-STONE-6b-ii-beta-IDEALIZED + DESIGN-STONE-6b-DEP +
+NOTE-service-final-state-return + NOTE-remote-mtls-trust.
