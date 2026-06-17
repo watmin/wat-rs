@@ -420,6 +420,11 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::string::ends-with?"
         | ":wat::core::String/ends-with?"
         | ":wat::core::string::length"
+        // Arc 279.1 — subs is on is_pure_total: the `format` macro walks the template
+        // character-by-character at expand time (length + subs i (i+1)) to collapse the
+        // `{{`/`}}` literal-brace escape. Char-indexed + total-deterministic (out-of-range
+        // is a deterministic abort, like split's empty-sep refusal). "Does a macro need it?" — yes.
+        | ":wat::core::string::subs"
         | ":wat::core::string::trim"
         | ":wat::core::string::to-lowercase"
         // Arc 209 naming-conversion — pascal->kebab is on is_pure_total (the defservice macro
