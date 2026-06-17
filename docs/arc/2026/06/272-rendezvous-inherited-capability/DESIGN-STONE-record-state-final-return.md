@@ -14,13 +14,20 @@ named-typed contract — `NOTE-service-final-state-return.md`).
 
 ## Decomposition (probe-first per stone)
 
-### rs-1 — `:state` MUST be a record (the guard) + migrate the examples — ⛔ DEFERRED onto arc 273
-**Blocked + deferred (2026-06-16):** the check needs a TYPE-level record predicate (is `:state` a
-registered record type) — and the crawl found `record?` is a VALUE predicate that ALSO only recognizes
-HOLON records, not base records (`runtime.rs:3860`). Both gaps are stubbed as **arc 273 (record reflection
-completeness)**; rs-1 builds when 273 lands (or sooner if it becomes a now-thing). The FEATURE (rs-2/rs-3)
-does NOT depend on rs-1 — it works with any EDN-serializable state — so the guard waits without blocking
-the feature. (Original intent retained below for when rs-1 activates:)
+### rs-1 — `:state` MUST be a record (base or holon-derived) — ✅ HARD REQUIREMENT (builder 2026-06-16); NOT blocked on arc 273
+**HARD REQUIREMENT (builder 2026-06-16):** *"make it a hard requirement that a service's state must be a
+record (base or holon derived)."* The earlier "blocked on arc 273" framing was WRONG — it conflated two
+predicates. **arc 273** is the runtime VALUE predicate `record?` (`runtime.rs:3860` — true iff
+`Value::wat__holon__Record`, holon-only); rs-1 does NOT need it. **rs-1 needs the TYPE-level check** "does
+`:state-ty` name a record TYPE (base or holon-derived)" — and THAT ALREADY EXISTS + is in use:
+`src/collection/infer.rs:378-381` = `is_subtype(ty, ":wat::Record", env) || is_subtype(ty,
+":wat::holon::Record", env)` over the `subtype_edges` registry (`:wat::holon::Record` derives `:wat::Record`;
+`TypeDef::Record` is a first-class variant, Stone S-B.1; `env.types().get(name)` resolves the keyword). So
+rs-1 is **UNBLOCKED**. ⚠ OPEN (the stone's own design call): WHERE the check fires — defservice is a wat macro
+expanded BEFORE check, and its output carries no "this is the service state" marker. Candidates: (a) defservice
+emits a check-time assertion form (e.g. `(:wat::type::assert-record! state-ty)`) that the checker resolves +
+validates against the registry; (b) a macro-time type-registry-query intrinsic (the "does a macro need it?"
+boundary — [[feedback_does_a_macro_need_it_intrinsic_boundary]]). Probe-first to pick. (Intent + migration:)
 defservice CHECK: `:state` must resolve to a **registered record type** — uncompilable otherwise (a
 scalar/collection/struct `:state` fails at expansion with a diagnostic). The no-magic line: a
 structureless state can't be written down. Migrate the counter examples (`probe_arc209_c3_*`,
@@ -30,7 +37,15 @@ to a record, e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i
   record". GREEN once the check fires + the examples carry a record state.
 - Self-contained; no serve/await change. Build FIRST (it forces records, which rs-2/rs-3 need).
 
-### rs-2 — `serve` returns the final state on `:Shutdown` + the THREAD await
+### rs-2 — a service's value IS its final state — ✅ SHIPPED (a57b9f0b, 2026-06-16) via the `:Stop` terminal op
+**Shipped by a DIFFERENT (better) mechanism than the framing below.** We did NOT make `serve` return `St`
+and add a join/lineage `await`. Instead: the `:Stop` terminal op (gen_server `{stop, State}`) — the final
+state comes back as a `:Stop` REPLY over the CLIENT connection (`(<svc>/stop c) -> <state-ty>`); `serve`
+STAYS `-> :nil` (the state rides as the reply); constant-shape across thread/process/remote, no lineage
+reshape, no new substrate. Probes: `tests/probe_arc272_rs2_{thread,process}_stop_returns_final_state.rs` +
+`…_crash_surfaces_to_client.rs`. The original (now-superseded) framing is kept below for the record:
+
+#### (superseded framing) `serve` returns the final state on `:Shutdown` + the THREAD await
 - serve-body: `(:wat::spawn::ServiceEvent::Shutdown nil)` → `(:wat::spawn::ServiceEvent::Shutdown state)`;
   serve's return type `-> :wat::core::nil` → `-> :St`. (Confirm `poll'`/`match` allow the non-nil arm.)
 - Thread delivery: the thread's serve returns `St` in-memory; the Handle gains an **await** that joins the
@@ -40,18 +55,19 @@ to a record, e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i
 - **Probe (RED):** a THREAD service; after shutdown, `(<svc>/await h)` returns the final state record
   (e.g. increment 5 then await → `CounterState{count 5}`). Thread only.
 
-### rs-3 — the PROCESS await (the wrinkle) + the unified await
-- The child's serve returns `St`; the child must send `St` **up** the lineage at shutdown. But the
-  self-peer `S` is already `Address'` (the 6a startup handoff). Two types up the same channel = the
-  conflict. **Candidate:** a tagged up-channel — `S = ServiceUp<…>` (`:Address [a]` at startup |
-  `:Final [s <- St]` at shutdown); parent `recv'`s `:Address` to connect, and the await `recv'`s `:Final`
-  → `St`. (Alternative considered: a separate fd / the process output channel — weigh in rs-3's design.)
-  This reshapes the child main's self-peer type + the 6a handoff sites; do it author-adjacent.
-- Unify `await` across tiers: `(<svc>/await h) -> St` — thread joins, process recv's `:Final`. The Handle
-  carries enough to dispatch (the `Spawned` handle is per-tier; await dispatches like launch).
-- **Probe (RED):** a PROCESS service; after shutdown, await → the final state record (over the lineage).
-- HARDEST; flag the `ServiceUp` reshape for builder confirm before building (it touches the proven 6a/6b
-  handoff). Probe-first.
+### rs-3 — the PROCESS await + unified await — ❌ REJECTED (builder 2026-06-16)
+**Cut, not deferred.** rs-3 was "await the final state *on owner-drop*" — recover a service's dying state
+when the owner just DROPS the handle (RAII), which on the process tier would need the child to push `St` up
+the lineage at exit (the `ServiceUp` tagged-channel reshape of the proven 6a/6b handoff). REJECTED because
+the **trigger already encodes intent, with no third case**:
+- **Want the final state** → call `(<svc>/stop c)` → it comes back as the `:Stop` reply (rs-2, SHIPPED).
+- **Don't care** → drop the handle; the EXISTING owner-drop → `ServiceEvent::Shutdown` path
+  (`wat/service.wat:355`) reaps it cleanly. Proven green by the arc-209 c3 probe, which never calls `stop`
+  and lets the handle drop — if drop-shutdown hung, c3 would hang.
+
+"I dropped it but also want its dying words" is a contradiction in intent. So the `ServiceUp` reshape
+evaporates, there is no `await` verb, no lineage reshape — and **the final-state feature is COMPLETE with
+rs-2 alone**. Not tracked elsewhere; nothing deferred.
 
 ## Open decisions (pin before each sub-stone)
 - **Shutdown trigger for await:** today owner-drop → `:Shutdown` (fire-and-forget). `await` must trigger
