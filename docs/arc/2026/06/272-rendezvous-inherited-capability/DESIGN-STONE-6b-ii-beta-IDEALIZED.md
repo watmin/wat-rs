@@ -1,18 +1,18 @@
-# DESIGN — Stone 6b-ii-β (IDEALIZED): the user passes the hosting env; the launch arm owns the transport
+# DESIGN — Stone 6b-ii-β (IDEALIZED): the user passes the execution locus; the launch arm owns the transport
 
 > Opened 2026-06-16. Grounded against HEAD `fc78f0b8`. SUPERSEDES the literal-`(process)` framing in
 > `DESIGN-STONE-6b-process-launch.md` (β-2 v1, reverted) and `BRIEF-STONE-6b-ii-beta-2.md`. Recovered the
 > established design via a doc hunt: `259-forced-hand/DESIGN.md` (the `spawn-program'` defclause; "new
-> hosting kinds = new clauses against new host types, zero existing edits"), `209/DESIGN-STONE-host-parity-4a-start.md`
-> (`start [host <- :Host]`), `wat/spawn.wat:43-90` (the typed opts records + constructors).
+> locus kinds = new clauses against new locus types, zero existing edits"), `209/DESIGN-STONE-host-parity-4a-start.md`
+> (`start [locus <- :Locus]`), `wat/spawn.wat:43-90` (the typed opts records + constructors).
 
 ## The law (what was already agreed — do not re-litigate)
 
-1. **The user passes a configured hosting env to `start`.** `start [host <- :wat::spawn::Host  state0]`
-   (β-1, shipped). The host is a typed opts **record** the user constructs: `(thread)`, `(thread/init f)`,
-   `(process)`, `(process/env "…")`, a future `RemoteOpts(host port cert …)`. The host carries its config.
-2. **Hosting is dispatched on the host TYPE, via the `spawn-program'` defclause.** A new transport = one
-   new `spawn-program'` clause + one new `Host/launch` `extend-type` — **zero edit to `start`, zero edit to
+1. **The user passes a configured execution locus to `start`.** `start [locus <- :wat::spawn::Locus  state0]`
+   (β-1, shipped). The locus is a typed opts **record** the user constructs: `(thread)`, `(thread/init f)`,
+   `(process)`, `(process/env "…")`, a future `RemoteOpts(host port cert …)`. The locus carries its config.
+2. **Launching is dispatched on the locus TYPE, via the `spawn-program'` defclause.** A new transport = one
+   new `spawn-program'` clause + one new `Locus/launch` `extend-type` — **zero edit to `start`, zero edit to
    defservice.** `RemoteOpts` is perpetually-awaiting-definition (its constructor arity will be the lock).
 
 ## The flaw β-2 v1 introduced (now corrected)
@@ -25,7 +25,7 @@ the **transport in the macro** — adding remote would edit defservice's codegen
 - **defservice emits `<fqdn>::service-forms`** — a transport-agnostic fragment: the `Op`/`Reply` enums,
   the Request/Response records, and `serve`. NO autobind, NO child `:user::main`, NO transport keyword.
   defservice never names thread/process/remote. (It also emits the agnostic client face + `start`, β-1.)
-- **`launch<S,R,St> [self state0 serve service-forms] -> Launched<S,R>`** — the per-host arm assembles the
+- **`launch<S,R,St> [self state0 serve service-forms] -> Launched<S,R>`** — the per-locus arm assembles the
   tier's program:
   - **Thread arm** (shared memory): mints `(listener' self :S :R)` in-process, builds the serve closure
     capturing it + state0 (uses `serve`), spawns. Ignores `service-forms` (serve is already in the parent
@@ -38,29 +38,29 @@ the **transport in the macro** — adding remote would edit defservice's codegen
     (`(listener' <remote-bind> …)` from `self`'s config). **Zero defservice edit, zero `start` edit** —
     exactly law #2.
 
-So the host flows end-to-end: `user builds host → start host → launch host (dispatches per type) →
-spawn-program' host (defclause hosts it)`. The transport literal appears ONLY inside the host's own
+So the locus flows end-to-end: `user builds locus → start locus → launch locus (dispatches per type) →
+spawn-program' locus (defclause executes it)`. The transport literal appears ONLY inside the locus's own
 `launch` arm.
 
 ## The one crux to confirm — how the process arm assembles the child `:user::main`
 
-The arm has `serve` (a runtime keyword), `service-forms` (a runtime `Vector<WatAST>`), `self` (the host),
+The arm has `serve` (a runtime keyword), `service-forms` (a runtime `Vector<WatAST>`), `self` (the locus),
 and `S`/`R` (type-params). It must produce `service-forms ++ [child-main-AST]` where the child main
 splices in `serve`. Three ways:
 
 - **(A) The arm builds the child main at runtime** (RECOMMENDED) — a forms template with `serve` spliced,
-  concatenated onto `service-forms`. Precedent: β-1's `start` built the `Host/launch<Op,Reply>` head at
+  concatenated onto `service-forms`. Precedent: β-1's `start` built the `Locus/launch<Op,Reply>` head at
   runtime via `string::concat` + `keyword/from-string`. The arm owns its transport literal; only `serve`
   is dynamic. Obvious/Simple/Honest: YES (the arm that owns the transport owns its child program); the
   runtime forms-assembly is the only new mechanism (confirm wat can splice a runtime value into a forms
   template, else build via `read-string` of a constructed source string).
-- **(B) defservice builds an agnostic child main** that dispatches `(Host/child-listen <transport> …)`,
+- **(B) defservice builds an agnostic child main** that dispatches `(Locus/child-listen <transport> …)`,
   with the transport crossing to the child first (an extra lineage recv before autobind). Cleaner phase
   split, but adds a child-listen protocol + a transport-config crossing. More moving parts.
 - **(C) child re-runs the parent program** — rejected (the fork-source path is slated to die;
   [[feedback_dont_patch_the_grave]]).
 
-**Recommendation: (A).** It places the transport exactly where law #2 wants it (the per-host arm), needs
+**Recommendation: (A).** It places the transport exactly where law #2 wants it (the per-locus arm), needs
 no new protocol or crossing, and reuses the β-1 runtime-keyword-building precedent. (B)'s extra crossing
 buys a cleaner phase split we don't need yet.
 

@@ -1,6 +1,6 @@
 //! Arc 232 follow-on (the 6b-ii-β blocking dep) — generic-method TYPE-ARGUMENT APPLICATION.
 //!
-//! For `Host/launch<S,R,St>` to mint its listener generically (`(listener' self :S :R)`), wat must:
+//! For `Locus/launch<S,R,St>` to mint its listener generically (`(listener' self :S :R)`), wat must:
 //!   1. call a generic protocol method with EXPLICIT type-args — `(:P/m<T1,T2> recv …)`;
 //!   2. flow the method's type-params into the body as type-args to an intrinsic, so `:S`/`:R`
 //!      resolve to the INSTANTIATED types, not the literal `Path(":S")`.

@@ -5,7 +5,7 @@
 //! increment/get methods, the request constructors, the Handle) is byte-identical.
 //!
 //! What 6b-ii-β must build for this to pass:
-//!   - `Launched<S,R>{handle,address}` (spawn.wat) — what `Host/launch` returns.
+//!   - `Launched<S,R>{handle,address}` (spawn.wat) — what `Locus/launch` returns.
 //!   - `launch<S,R,St>` reshaped to mint the listener internally (via the now-working
 //!     `(listener' self :S :R)`, the arc-232 dep) and return `Launched`; `start` unwraps it.
 //!   - the ProcessOpts `launch` arm: spawn `<fqdn>::child-forms` → recv' the child-minted addr →
@@ -28,7 +28,7 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-// IDENTICAL to the C.3 thread probe except the host is (process). Parity = same client face.
+// IDENTICAL to the C.3 thread probe except the locus is (process). Parity = same client face.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
   :state :wat::core::i64

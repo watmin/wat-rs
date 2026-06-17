@@ -4874,7 +4874,7 @@ fn infer_list(
             }
             // Arc 259 S2c-ii-b — spawn-program' is a wat defclause (spawn.wat);
             // the Rust intrinsic dispatch arm is RETIRED. The defclause machinery
-            // in the checker dispatches on the host type (ThreadOpts | ProcessOpts).
+            // in the checker dispatches on the locus type (ThreadOpts | ProcessOpts).
             // Arc 259 S2c-i — per-tier 1-arg primitives.
             // PARTITION — INTRINSIC: projective over the prog fn type (thread) /
             // forms (process).
@@ -4981,7 +4981,7 @@ fn infer_list(
                 };
             }
             // Arc 209 Stone C0b.1 — thread-tier connection verbs.
-            // listener' : (host :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
+            // listener' : (locus :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
             // connect'  : Address'<S,R>  -> Peer'<S,R>
             // accept'   : Listener'<S,R> -> Peer'<R,S>
             ":wat::kernel::listener'" => {
@@ -10259,16 +10259,16 @@ fn infer_program_self_peer(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener' host …)`.
+/// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener' locus …)`.
 ///
-/// Thread tier (C0b.1): `(listener' (thread) :S :R)` — 3 args; host, :S, :R →
+/// Thread tier (C0b.1): `(listener' (thread) :S :R)` — 3 args; locus, :S, :R →
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
 ///
-/// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; host, addr where
+/// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; locus, addr where
 /// addr is `SocketAddress'<S,R>` → `Listener'<S,R>` (unified entity, arc 209 C0b.2e-ii).
 /// Retires the C0b.2c mint-and-return form.
 ///
-/// Any other host is a `TypeMismatch` check error naming both valid hosts.
+/// Any other locus is a `TypeMismatch` check error naming both valid loci.
 fn infer_listener_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -10279,7 +10279,7 @@ fn infer_listener_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::listener'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Need at least host arg.
+    // Need at least locus arg.
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: 0
@@ -10288,7 +10288,7 @@ fn infer_listener_prime(
         let r = fresh.fresh();
         return CheckResult::partial_with(bound_type(s, r), local_errors);
     }
-    // args[0] = host expression — infer it, then dispatch on ThreadOpts vs ProcessOpts.
+    // args[0] = locus expression — infer it, then dispatch on ThreadOpts vs ProcessOpts.
     let host_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     let ty = if let Some(ref host_ty) = host_ty {
         let host_surface = apply_subst(host_ty, subst);
@@ -10329,12 +10329,12 @@ fn infer_listener_prime(
             let s = fresh.fresh();
             let r = fresh.fresh();
             bound_type(s, r)
-        } else if host_reduced == TypeExpr::Path(":wat::spawn::Host".into()) {
-            // Arc 209 host-parity-4a — abstract host (the `:wat::spawn::Host`
-            // protocol): a host-blind `(listener' host :S :R)` inside
-            // defservice's `start [host <- :Host]`. Shape mirrors the thread
-            // tier (3 args: host, :S, :R → Bound<S,R>); runtime
-            // `eval_listener_prime` dispatches on the concrete host value the
+        } else if host_reduced == TypeExpr::Path(":wat::spawn::Locus".into()) {
+            // Arc 209 host-parity-4a — abstract locus (the `:wat::spawn::Locus`
+            // protocol): a locus-blind `(listener' locus :S :R)` inside
+            // defservice's `start [locus <- :Locus]`. Shape mirrors the thread
+            // tier (3 args: locus, :S, :R → Bound<S,R>); runtime
+            // `eval_listener_prime` dispatches on the concrete locus value the
             // caller actually passes.
             if args.len() != 3 {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -10352,8 +10352,8 @@ fn infer_listener_prime(
                 span: args[0].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
-                    param: "host".into(),
-                    expected: "(:wat::spawn::thread), (:wat::spawn::process), or a :wat::spawn::Host".into(),
+                    param: "locus".into(),
+                    expected: "(:wat::spawn::thread), (:wat::spawn::process), or a :wat::spawn::Locus".into(),
                     got: format_type(&host_reduced),
                 },
             });
@@ -10362,7 +10362,7 @@ fn infer_listener_prime(
             bound_type(s, r)
         }
     } else {
-        // Host type couldn't be inferred; fall back.
+        // Locus type couldn't be inferred; fall back.
         let s = fresh.fresh();
         let r = fresh.fresh();
         bound_type(s, r)

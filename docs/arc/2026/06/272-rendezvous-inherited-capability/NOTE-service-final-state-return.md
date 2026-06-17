@@ -42,7 +42,7 @@ field), and crosses hosts must be.
 - **Parity forces this uniformly** (the narrow-waist law — see
   [[feedback_four_questions_weigh_hard_constraint_parity]]): the SAME `defservice` runs on
   thread/process/remote behind one client face, so the state contract can't be per-tier. State-as-record
-  is what makes "swap the host, same service" honest end-to-end (in AND out).
+  is what makes "swap the locus, same service" honest end-to-end (in AND out).
 
 - ⚠ **Migration consequence:** the counter examples use `:state :wat::core::i64` (a bare scalar — the
   loose form this note now forbids). When this stone lands, they migrate to a record state (e.g.
@@ -77,14 +77,14 @@ stumbled into erlang's tooling again? outstanding"*). This DEEPENS the already-n
   self-initiated termination, distinct from owner-initiated `stop`.
 - **Resumability** (`final-state → next start's state0`) = OTP **supervised state recovery / takeover** —
   a child restarts and is handed (a derivation of) its prior state; hot-handover across nodes. Our
-  version: drain a service, hand its final state to the next `start` — on the SAME or a DIFFERENT host.
+  version: drain a service, hand its final state to the next `start` — on the SAME or a DIFFERENT locus.
 - **state-as-record** = OTP's structured `State` term, made a typed, wire-conformant contract.
 
 **What is genuinely ours** (the substrate guarantees *around* the textbook model): OTP's stateful-server
 lifecycle on a **typed-ADT-on-Rust** substrate where the State is a typed RECORD that crosses thread /
 process / remote via the ONE EDN capability — so resumability + handover fall out of the **wire-conformant
 state itself**, no bespoke persistence/handoff layer; and **host-parity** (the same lifecycle on every
-tier) comes from the narrow-waist + the per-host `launch` arm, where OTP gets it from the BEAM VM. Another
+tier) comes from the narrow-waist + the per-locus `launch` arm, where OTP gets it from the BEAM VM. Another
 `WE-LAND-ON-THE-GREATS` beat: high taste + first-principles derivation re-deriving OTP's gen_server.
 
 **Date:** 2026-06-16. Pairs [[feedback_note_prior_art_collisions]] + arc-209 REALIZATIONS (defservice ≡

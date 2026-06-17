@@ -1,8 +1,8 @@
 # DESIGN — record-state + final-state-return: a service's value is its final state
 
 > Opened 2026-06-16. Grounded against HEAD `c3cf58b5`. Builds the design pinned in
-> `NOTE-service-final-state-return.md`. Sequenced AFTER 6b host-parity (shipped). defservice = arc 209;
-> kept here for continuity with the host-parity arc + the NOTE.
+> `NOTE-service-final-state-return.md`. Sequenced AFTER 6b locus-parity (shipped). defservice = arc 209;
+> kept here for continuity with the locus-parity arc + the NOTE.
 
 ## The feature
 
@@ -24,7 +24,7 @@ the feature. (Original intent retained below for when rs-1 activates:)
 defservice CHECK: `:state` must resolve to a **registered record type** — uncompilable otherwise (a
 scalar/collection/struct `:state` fails at expansion with a diagnostic). The no-magic line: a
 structureless state can't be written down. Migrate the counter examples (`probe_arc209_c3_*`,
-`probe_arc272_6b_defservice_on_process`, `wat-tests/service-host-parity.wat`) from `:state :wat::core::i64`
+`probe_arc272_6b_defservice_on_process`, `wat-tests/service-locus-parity.wat`) from `:state :wat::core::i64`
 to a record, e.g. `(:wat::Record::def :…::CounterState [count <- :wat::core::i64])`, `:state :…::CounterState`.
 - **Probe (RED):** a defservice with `:state :wat::core::i64` → expansion error "service state must be a
   record". GREEN once the check fires + the examples carry a record state.

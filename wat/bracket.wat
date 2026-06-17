@@ -72,7 +72,7 @@
 ;; (spawn+prime+collect+sort) lives here ONCE; `map` and `each` are thin wrappers.
 
 (:wat::core::defn :wat::bracket::map-worker<I,O>
-  [host        <- :wat::spawn::ThreadOpts
+  [locus       <- :wat::spawn::ThreadOpts
    items       <- :wat::core::Vector<I>
    worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
   -> :wat::core::Vector<O>
@@ -88,7 +88,7 @@
                   wf (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
                        (:wat::core::Tuple (:wat::core::first pair)
                          (work-fn (:wat::core::second pair))))
-                  p (:wat::kernel::spawn-program' host
+                  p (:wat::kernel::spawn-program' locus
                        (:wat::core::fn [self <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>]
                            -> :wat::core::nil
                          (:wat::bracket::runner-loop self wf)))
@@ -112,11 +112,11 @@
 ;; shared work-fn.  The coordinator (spawn+prime+collect+sort) lives in map-worker.
 
 (:wat::core::defn :wat::bracket::map<I,O>
-  [host    <- :wat::spawn::ThreadOpts
+  [locus   <- :wat::spawn::ThreadOpts
    items   <- :wat::core::Vector<I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::Vector<O>
-  (:wat::bracket::map-worker host items
+  (:wat::bracket::map-worker locus items
     (:wat::core::fn [_worker-id <- :wat::core::i64] -> :wat::core::Fn(I)->O
       work-fn)))
 
@@ -126,21 +126,21 @@
 ;; item through the pool, then return nil.
 
 (:wat::core::defn :wat::bracket::each-worker<I,O>
-  [host        <- :wat::spawn::ThreadOpts
+  [locus       <- :wat::spawn::ThreadOpts
    items       <- :wat::core::Vector<I>
    worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
   -> :wat::core::nil
-  (:wat::core::do (:wat::bracket::map-worker host items worker-init) nil))
+  (:wat::core::do (:wat::bracket::map-worker locus items worker-init) nil))
 
 ;; ── each — thin wrapper over each-worker (Ruby's Parallel.each) ──────────────
 ;;
 ;; Passes a constant `worker-init` that ignores the runner id.
 
 (:wat::core::defn :wat::bracket::each<I,O>
-  [host    <- :wat::spawn::ThreadOpts
+  [locus   <- :wat::spawn::ThreadOpts
    items   <- :wat::core::Vector<I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
-  (:wat::bracket::each-worker host items
+  (:wat::bracket::each-worker locus items
     (:wat::core::fn [_worker-id <- :wat::core::i64] -> :wat::core::Fn(I)->O
       work-fn)))

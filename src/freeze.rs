@@ -898,7 +898,7 @@ fn startup_from_forms_post_config(
     // (b) Extract the stdlib forms that need RUNTIME registration via runtime_defs:
     // defclause (clause sets), defprotocol (protocol defs), and extend-type (impl
     // dispatch entries). Other stdlib forms are already processed. Arc 209
-    // host-parity-4a: `:wat::spawn::Host` is the FIRST stdlib protocol/extend-type —
+    // host-parity-4a: `:wat::spawn::Locus` is the FIRST stdlib protocol/extend-type —
     // before it only defclause reached this pass, so defprotocol/extend-type were
     // silently dropped here (registered for user source at runtime.rs:1812/1820, but
     // never for stdlib). Broadened so stdlib protocol impls reach runtime dispatch.

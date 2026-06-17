@@ -1,22 +1,22 @@
-;; wat/spawn.wat — the HOST opts for spawn-program (arc 259, The Forced Hand).
+;; wat/spawn.wat — the LOCUS opts for spawn-program (arc 259, The Forced Hand).
 ;;
 ;; The Keymaker.  (The Matrix Reloaded, 2003 — the little man in the Château who
 ;; cuts a different key for every door, and the right key is the only thing that
 ;; opens the backdoor.)  Each constructor below cuts exactly one key, for exactly
-;; one hosting-door:
+;; one locus-door:
 ;;
 ;;   (thread)   — cuts a trivial key; the door is right here in this process.
 ;;   (process)  — cuts a trivial key; the door is a forked child universe.
 ;;
-;; A host's TYPE is the whole message (where to host); spawn-program is a clause-set
+;; A locus's TYPE is the whole message (where to execute); spawn-program is a clause-set
 ;; that matches on the key's type and opens the matching door. Every new kind of
-;; host that ever reveals itself is one new key + one new clause, the 2-arg
-;; (spawn-program <host> <prog>) sig unmoved.
+;; locus that ever reveals itself is one new key + one new clause, the 2-arg
+;; (spawn-program <locus> <prog>) sig unmoved.
 ;;
 ;; ⛔ THE REMOTE DOOR IS PERPETUALLY AWAITING ITS KEY.  `:remote` is the forcing
-;; function (like `spawn-program :remote` itself): we agree a remote host *must
+;; function (like `spawn-program :remote` itself): we agree a remote locus *must
 ;; materialize eventually* — and that whatever its opts record turns out to be, its
-;; constructor's arity will be the lock (a remote host that cannot reach its host is
+;; constructor's arity will be the lock (a remote locus that cannot reach its locus is
 ;; unrepresentable, the forced hand). But its STRUCT SHAPE IS NOT AGREED and must
 ;; NOT be guessed here — leaving the key uncut is the point. When the remote door's
 ;; lock is finally specified, `RemoteOpts` + its `(remote …)` constructor + a new
@@ -40,7 +40,7 @@
 (:wat::Record::def :wat::spawn::ThreadLaunch [])
 (:wat::Record::def :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
 
-;; ── The keys (host opts records) ─────────────────────────────────────────────
+;; ── The keys (locus opts records) ───────────────────────────────────────────
 ;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::Record.
 ;; The init-fn runs at the peer's start and populates user.program.
 ;; ProcessOpts carries no config — its TYPE is the whole message.
@@ -116,7 +116,7 @@
 
 ;; ── Spawned — the owner-side spawn-handle marker ────────────────────────────
 ;; Spawned — the owner-side spawn-handle marker (typesub/derive axis; no methods). Thread'/Process'/
-;; future-remote derive it so the host-agnostic Handle field + Host/spawn return can bind any of them.
+;; future-remote derive it so the locus-agnostic Handle field + Locus/spawn return can bind any of them.
 ;; Lifecycle = close'/join (intrinsics). A new transport's handle joins with one more `derive`.
 (:wat::core::derive :wat::kernel::Thread'  :wat::spawn::Spawned)
 (:wat::core::derive :wat::kernel::Process' :wat::spawn::Spawned)
@@ -129,21 +129,21 @@
   [listener <- :wat::kernel::Listener'<S,R>
    address  <- :wat::kernel::Address'<S,R>])
 
-;; ── Launched<S,R> — what Host/launch returns: the spawn handle + the dial address ──
+;; ── Launched<S,R> — what Locus/launch returns: the spawn handle + the dial address ──
 ;; A STRUCT, not a record (address is an Address' RustOpaque; handle is :Spawned).
 ;; `handle` is the owner-side spawn handle (Thread'/Process'/future-remote all derive :Spawned).
 ;; `address` is what clients dial via connect'.
-;; `start` unwraps Launched into the Handle record — host-agnostic launch, host-agnostic start.
+;; `start` unwraps Launched into the Handle record — locus-agnostic launch, locus-agnostic start.
 (:wat::core::defstruct :wat::spawn::Launched<S,R>
   [handle  <- :wat::spawn::Spawned
    address <- :wat::kernel::Address'<S,R>])
 
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
 ;;
-;; Arc 259 S2c-ii-b — `spawn-program'` as a host-type defclause.
+;; Arc 259 S2c-ii-b — `spawn-program'` as a locus-type defclause.
 ;;
-;; 2-arg `(host prog)` — the key's TYPE (ThreadOpts | ProcessOpts) selects
-;; the matching hosting door and delegates to the S2c-i tier primitives.
+;; 2-arg `(locus prog)` — the key's TYPE (ThreadOpts | ProcessOpts) selects
+;; the matching locus door and delegates to the S2c-i tier primitives.
 ;; The env arg of the 3-arg intrinsic is gone (it was discarded at runtime;
 ;; the defclause makes the absence structural).
 ;;
@@ -152,36 +152,36 @@
 ;; Process clause: prog is a `(:wat::core::forms ...)` block — a forms-server
 ;; program (`Vector<wat::WatAST>`) for the forked child universe.
 ;;
-;; A new host type (e.g. RemoteOpts when its door is finally specified)
+;; A new locus type (e.g. RemoteOpts when its door is finally specified)
 ;; arrives as one new key + one new clause here; the 2-arg sig is unmoved.
 (:wat::core::defclause :wat::kernel::spawn-program'
   ;; thread — the ONE true form (self-peer; apply-loop is the annihilated heresy).
-  ;; The host's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
-  ;; The host's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
+  ;; The locus's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
+  ;; The locus's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
   ;; after the peer is spawned, before spawn-program' returns, for effects.
-  ([host <- :wat::spawn::ThreadOpts
+  ([locus <- :wat::spawn::ThreadOpts
     prog <- [:wat::kernel::Peer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
-    (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn host) (:wat::spawn::ThreadOpts/post-spawn-fn host)))
+    (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn locus) (:wat::spawn::ThreadOpts/post-spawn-fn locus)))
   ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
-  ;; The host's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
+  ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
   ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
-  ;; The host's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
+  ;; The locus's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
   ;; evals in its own frozen world to produce user.program.
-  ([host <- :wat::spawn::ProcessOpts
+  ([locus <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
-    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn host) (:wat::spawn::ProcessOpts/env-fn host))))
+    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus))))
 
-;; ── Host — the host-agnostic service-launch protocol (arc 209 host-parity-4a) ─
+;; ── Locus — the locus-agnostic service-launch protocol (arc 209 host-parity-4a) ─
 ;;
-;; defservice's `start [host <- :Host]` routes the per-tier service launch through
-;; this protocol. `listener'` is host-blind on its own (its checker accepts an
-;; abstract :Host and dispatches the Bound shape on arity; the runtime dispatches
+;; defservice's `start [locus <- :Locus]` routes the per-tier service launch through
+;; this protocol. `listener'` is locus-blind on its own (its checker accepts an
+;; abstract :Locus and dispatches the Bound shape on arity; the runtime dispatches
 ;; on the concrete value) — but the PROGRAM handed to spawn-program' is
 ;; shared-vs-not-shared specific: thread captures a closure over the in-memory
 ;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
 ;; So `launch` MINTS THE LISTENER INSIDE the concrete impl (arc 272 6a: the child
 ;; must mint its own listener; parent-minting is wrong for the process tier) and
-;; returns a Launched<S,R>{handle,address}. `start` unwraps Launched — host-agnostic.
+;; returns a Launched<S,R>{handle,address}. `start` unwraps Launched — locus-agnostic.
 ;; A new transport joins as one `extend-type`, zero edit to `start`.
 ;;
 ;; Generic over S,R (the listener/peer channel types) and St (service state).
@@ -189,8 +189,8 @@
 ;; the impl invokes it tier-neutrally via `apply` — the thread impl captures and
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients state) -> nil.
-(:wat::core::defprotocol :wat::spawn::Host
-  (launch<S,R,St> [self          <- :wat::spawn::Host
+(:wat::core::defprotocol :wat::spawn::Locus
+  (launch<S,R,St> [self          <- :wat::spawn::Locus
                    state0        <- :St
                    serve         <- :wat::core::keyword
                    service-forms <- :wat::core::Vector<wat::WatAST>] -> :wat::spawn::Launched<S,R>))
@@ -202,7 +202,7 @@
 ;; via apply so this generic impl never names the per-service serve fn.
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
-(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Host
+(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
   (launch [self state0 serve service-forms]
     (:wat::core::let
       [b  (:wat::kernel::listener' self :S :R)
@@ -215,19 +215,19 @@
       (:wat::spawn::Launched/new sp (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
-;; prepend `(def :wat::spawn::service-host (process))` (the transport literal lives HERE,
+;; prepend `(def :wat::spawn::service-locus (process))` (the transport literal lives HERE,
 ;; not in defservice), concat service-forms (which contains the agnostic child :user::main
-;; that binds on :wat::spawn::service-host), spawn via spawn-program', handshake:
+;; that binds on :wat::spawn::service-locus), spawn via spawn-program', handshake:
 ;;   recv' the child-minted Address' (capability handoff — arc 272 6a)
 ;;   send' state0 to the child over the lineage (arc 272 6b-ii-α)
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
-;; The (process) literal lives ONLY here — the per-host arm owns its transport.
-(:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Host
+;; The (process) literal lives ONLY here — the per-locus arm owns its transport.
+(:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
   (launch [self state0 serve service-forms]
     (:wat::core::let
       [prog (:wat::core::concat
               (:wat::core::forms
-                (:wat::core::def :wat::spawn::service-host (:wat::spawn::process)))
+                (:wat::core::def :wat::spawn::service-locus (:wat::spawn::process)))
               service-forms)
        svc  (:wat::kernel::spawn-program' self prog)
        addr (:wat::kernel::recv' svc)

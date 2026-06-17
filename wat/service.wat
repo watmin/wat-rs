@@ -68,7 +68,7 @@
      serve-name    (:wat::core::keyword/from-string
                      (:wat::core::string::concat fqdn-str "::serve"))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
-     ;; `(keyword/from-string …)` so Host/launch receives serve by a RUNTIME keyword
+     ;; `(keyword/from-string …)` so Locus/launch receives serve by a RUNTIME keyword
      ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
      serve-name-str (:wat::core::string::concat fqdn-str "::serve")
      start-name    (:wat::core::keyword/from-string
@@ -480,35 +480,35 @@
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
 
-     ;; ── host-parity-4a: host-agnostic start fn ────────────────────────────────────
-     ;; (defn <fqdn>/start [host <- :wat::spawn::Host  state0 <- <state-ty>] -> <fqdn>::Handle
-     ;;   (let [b    (listener' host Op Reply)                ; listener' accepts an abstract :Host
+     ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
+     ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
+     ;;   (let [b    (listener' locus Op Reply)              ; listener' accepts an abstract :Locus
      ;;         l    (Bound/listener b)
      ;;         addr (Bound/address b)
-     ;;         svc  (:wat::spawn::Host/launch host l (Vector Peer'<Reply,Op>) state0
+     ;;         svc  (:wat::spawn::Locus/launch locus l (Vector Peer'<Reply,Op>) state0
      ;;                (keyword/from-string "<fqdn>::serve"))]  ; the protocol builds the per-tier prog
      ;;     (Handle svc addr)))
      ;;
      ;; C.3 baked `(spawn::thread)` + the serve CLOSURE into start. host-parity-4a makes
-     ;; start host-blind: the thread-specific closure (capturing l + state0) moved INTO the
-     ;; ThreadOpts `Host/launch` impl (wat/spawn.wat), and serve is passed by NAME (a runtime
+     ;; start locus-blind: the thread-specific closure (capturing l + state0) moved INTO the
+     ;; ThreadOpts `Locus/launch` impl (wat/spawn.wat), and serve is passed by NAME (a runtime
      ;; keyword via keyword/from-string — a spliced literal `:fqdn::serve` would Arc-009-resolve
      ;; to a Fn, not a keyword) so the impl invokes it via apply. Process (4b) joins as one
      ;; extend-type, zero edit here.
      ;;
      ;; Hygiene for start-body:
      ;;   `lr` is the let binder for the Launched<S,R> value → symbol-node.
-     ;;   `host`, `state0` are value references (start's params) → fine as literals.
-     ;; start-params `[host <- :Host  state0 <- ~state-ty]` → Vector inner → checker skips it.
+     ;;   `locus`, `state0` are value references (start's params) → fine as literals.
+     ;; start-params `[locus <- :Locus  state0 <- ~state-ty]` → Vector inner → checker skips it.
      ;;
-     ;; arc 272 6b-ii-β: listener-minting moved INTO Host/launch (child-mints for process tier).
-     ;; start calls Host/launch<Op,Reply> with EXPLICIT type-args (arc-232 dep) so the impl's
+     ;; arc 272 6b-ii-β: listener-minting moved INTO Locus/launch (child-mints for process tier).
+     ;; start calls Locus/launch<Op,Reply> with EXPLICIT type-args (arc-232 dep) so the impl's
      ;; (listener' self :S :R) resolves S=Op, R=Reply. The call-head is built as a runtime keyword
      ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
      launch-head-kw (:wat::core::keyword/from-string
-                      (:wat::core::string::concat "wat::spawn::Host/launch<"
+                      (:wat::core::string::concat "wat::spawn::Locus/launch<"
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Op,"
                             (:wat::core::string::concat fqdn-str "::Reply>")))))
@@ -518,10 +518,10 @@
      ;; service-forms-kw: the keyword :<fqdn>::service-forms — the name of the emitted def.
      service-forms-kw (:wat::core::keyword/from-string
                         (:wat::core::string::concat fqdn-str "::service-forms"))
-     ;; The agnostic child :user::main: binds on :wat::spawn::service-host (a FREE
+     ;; The agnostic child :user::main: binds on :wat::spawn::service-locus (a FREE
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
-     ;; `(def :wat::spawn::service-host (process))` before spawning, so the child
-     ;; universe resolves service-host at startup to a ProcessOpts value.
+     ;; `(def :wat::spawn::service-locus (process))` before spawning, so the child
+     ;; universe resolves service-locus at startup to a ProcessOpts value.
      ;; self-peer S=addr-ty (child sends minted Address' up), R=state-ty (parent sends
      ;; state0 down). serve is invoked via apply (dynamic keyword) — the child main
      ;; never statically names the per-service serve fn.
@@ -534,7 +534,7 @@
      cm-st-sym   (:wat::core::symbol-node "st")
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
-                          [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-host
+                          [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name)
                            ~cm-self-sym (:wat::program::self-peer ~addr-ty ~state-ty)
                            ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
@@ -563,9 +563,9 @@
                               -> :wat::core::nil ~serve-body)
                             ~child-main-form))
 
-     start-params  `[host <- :wat::spawn::Host  state0 <- ~state-ty]
+     start-params  `[locus <- :wat::spawn::Locus  state0 <- ~state-ty]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw host state0
+                      [~lr-sym (~launch-head-kw locus state0
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw))]
                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
@@ -576,7 +576,7 @@
      ;; (Record::def <fqdn>::Handle
      ;;   [handle <- :wat::spawn::Spawned
      ;;    addr   <- :wat::kernel::Address'<fqdn::Op,fqdn::Reply>])
-     ;; handle is the host-agnostic spawn-handle marker: Thread'/Process'/future-remote
+     ;; handle is the locus-agnostic spawn-handle marker: Thread'/Process'/future-remote
      ;; all derive :wat::spawn::Spawned so any concrete handle satisfies this field.
      ;; addr carries the typed Address'<Op,Reply> for client connect'.
      handle-fields `[handle <- :wat::spawn::Spawned addr <- ~addr-ty]
