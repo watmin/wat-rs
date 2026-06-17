@@ -80,6 +80,39 @@ the call chokepoint in both check + eval, with a type story — feasible (names 
 grounding; a disconfirming probe (does a `:name val` reach `apply_function` with the param names available
 to reorder?) settles option 1's feasibility before any build.
 
+## PROBE FINDINGS (2026-06-16) — the trigger is the hardest case; option 1 decomposes
+
+Four-questions gauge (builder + orchestrator): hard constraint = **generality** (label call sites across
+the language — the arc's thesis). Option 2 (record-arg) FAILS it (one verb, doesn't generalize) → it's a
+local patch, not the feature. Option 1 (real kwargs): Obvious YES, Honest YES, UX YES; **Simple was the sole
+open axis** → settled by the probe below. Builder's pick: **Option 1.**
+
+Disconfirming probe `tests/probe_arc260_keyword_args.rs` (#[ignore], RED at HEAD): `(:user::sub :b 3 :a 10)`
+must reorder by param name to `(sub 10 3) = 7`; at HEAD startup fails (positional only). The probe + the
+call-path crawl found the **decisive split**:
+
+| | USER fns (`defn`) | INTRINSICS (`assertion-failed!` — the trigger) |
+|---|---|---|
+| eval | `func.params` names ✓ (`apply_function`) | Rust fn, positional, **NO names** |
+| check | names via `sym.functions[path].params` ✓ (not in the scheme) | scheme is `params: Vec<TypeExpr>` — types only, **NO names anywhere** (check.rs:79-81, `assertion-failed!` :14391) |
+
+**`TypeScheme` carries param TYPES, not names.** So the arc's own TRIGGER (`assertion-failed!`, an intrinsic)
+is the hardest case — kwargs for intrinsics needs param-name infrastructure ADDED. **Simple = NO at full
+scope → DECOMPOSE** (per the parity lesson: a hard-constraint-forced path with Simple=NO means decompose,
+not abandon):
+
+- **260.1 — user-fn keyword args (the mechanism).** Reorder `:name val` → positional at the call chokepoint:
+  check via `sym.functions[path].params`, eval via `apply_function`/`func.params`. Names already exist; this
+  proves the reorder + the type story (reorder before unification) on the data we have. The committed probe
+  is its gate. Probe-first per sub-stone.
+- **260.2 — intrinsic keyword args (reach the trigger).** Give schemes param names (a `TypeScheme.param_names`
+  field; populate `derive_scheme_from_function` from `func.params` + the kernel-verb `env.register` sites) +
+  the intrinsic-call eval reorder. THIS is what lets `assertion-failed!` (and every kernel verb) take kwargs.
+- **260.3 — migrate `assertion-failed!`** (the original trigger) to kwargs + its call sites; close the arc.
+
+Each stone is flat-Simple; the bundle was not. Build 260.1 first (it's the mechanism on existing data; 260.2
+extends it to the nameless intrinsics).
+
 ## Design space (to weigh with the four questions when the arc opens)
 
 1. **Keyword arguments** — `(assertion-failed! :message "…" :actual … :expected …)`. The general
