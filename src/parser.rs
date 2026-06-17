@@ -205,16 +205,26 @@ impl<'a> Cursor<'a> {
         let span = st.span.clone();
         match &st.token {
             Token::LParen => {
-                let list = self.parse_list_body(span.clone())?;
-                Ok(Some(WatAST::List(list, span)))
+                // Arc 281 — thread the close span so the List node covers open..close.
+                let (list, close_span) = self.parse_list_body(span.clone())?;
+                let node_span = Span::with_end(
+                    span.file.clone(), span.line, span.col,
+                    close_span.end_line, close_span.end_col,
+                );
+                Ok(Some(WatAST::List(list, node_span)))
             }
             Token::RParen => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRParen }),
             Token::LBracket => {
                 // Arc 167 slice 1 — bracketed forms parse as
                 // `WatAST::Vector`. `[]` parses as an empty Vector
                 // (distinct from `()`, which is Unit / empty List).
-                let items = self.parse_vector_body(span.clone())?;
-                Ok(Some(WatAST::Vector(items, span)))
+                // Arc 281 — thread the close span so the Vector node covers open..close.
+                let (items, close_span) = self.parse_vector_body(span.clone())?;
+                let node_span = Span::with_end(
+                    span.file.clone(), span.line, span.col,
+                    close_span.end_line, close_span.end_col,
+                );
+                Ok(Some(WatAST::Vector(items, node_span)))
             }
             Token::RBracket => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBracket }),
             Token::LBrace => {
@@ -225,16 +235,26 @@ impl<'a> Cursor<'a> {
                 // BraceKind dispatch and the two StructPattern-body parsers
                 // are deleted here; `{x y z}` (odd-arity) is now a clean
                 // parse error from `parse_map_literal_body`.
-                let items = self.parse_brace_body(span.clone())?;
-                self.parse_map_literal_body(items, span)
+                // Arc 281 — thread the close span so the Map node covers open..close.
+                let (items, close_span) = self.parse_brace_body(span.clone())?;
+                let node_span = Span::with_end(
+                    span.file.clone(), span.line, span.col,
+                    close_span.end_line, close_span.end_col,
+                );
+                self.parse_map_literal_body(items, node_span)
             }
             Token::RBrace => Err(ParseError { span, kind: ParseErrorKind::UnexpectedRBrace }),
             Token::LHashBrace => {
                 // Arc 215 stone 1 — `#{x y z ...}` set literal.
                 // Desugars to `(:wat::core::HashSet :wat::type::Infer x y z ...)`.
                 // T inferred by check.rs from element types.
-                let items = self.parse_brace_body(span.clone())?;
-                self.parse_hashset_literal_body(items, span)
+                // Arc 281 — thread the close span so the Set node covers open..close.
+                let (items, close_span) = self.parse_brace_body(span.clone())?;
+                let node_span = Span::with_end(
+                    span.file.clone(), span.line, span.col,
+                    close_span.end_line, close_span.end_col,
+                );
+                self.parse_hashset_literal_body(items, node_span)
             }
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
             Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
@@ -287,13 +307,16 @@ impl<'a> Cursor<'a> {
     /// `(` that was consumed; surfaced in `UnclosedParen` errors so the
     /// reader can jump to the orphan opener instead of bisecting the
     /// file by paren-counting.
-    fn parse_list_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
+    ///
+    /// Arc 281 — returns the close `)` token's span alongside the children
+    /// so `parse_form` can build a node span covering open..close.
+    fn parse_list_body(&mut self, open_span: Span) -> Result<(Vec<WatAST>, Span), ParseError> {
         let mut children = Vec::new();
         loop {
             match self.peek().map(|st| &st.token) {
                 Some(Token::RParen) => {
-                    self.advance();
-                    return Ok(children);
+                    let close_span = self.advance().expect("peeked").span.clone();
+                    return Ok((children, close_span));
                 }
                 Some(Token::RBracket) => {
                     // Arc 167 slice 1 — a `]` inside a list body
@@ -324,13 +347,16 @@ impl<'a> Cursor<'a> {
     /// child forms until the matching `]`. `open_span` is the location
     /// of the `[`; surfaced in `UnclosedBracket` errors so the reader
     /// can jump to the orphan opener. Arc 167 slice 1.
-    fn parse_vector_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
+    ///
+    /// Arc 281 — returns the close `]` token's span alongside the children
+    /// so `parse_form` can build a node span covering open..close.
+    fn parse_vector_body(&mut self, open_span: Span) -> Result<(Vec<WatAST>, Span), ParseError> {
         let mut children = Vec::new();
         loop {
             match self.peek().map(|st| &st.token) {
                 Some(Token::RBracket) => {
-                    self.advance();
-                    return Ok(children);
+                    let close_span = self.advance().expect("peeked").span.clone();
+                    return Ok((children, close_span));
                 }
                 Some(Token::RParen) => {
                     // A `)` inside a vector body is a delimiter
@@ -365,13 +391,16 @@ impl<'a> Cursor<'a> {
     /// child forms and returns them. The LBrace arm in `parse_form`
     /// dispatches the result to either `parse_map_literal_body` or
     /// `parse_struct_destructure_body` based on the first child's shape.
-    fn parse_brace_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
+    ///
+    /// Arc 281 — returns the close `}` token's span alongside the children
+    /// so `parse_form` can build a node span covering open..close.
+    fn parse_brace_body(&mut self, open_span: Span) -> Result<(Vec<WatAST>, Span), ParseError> {
         let mut children = Vec::new();
         loop {
             match self.peek().map(|st| &st.token) {
                 Some(Token::RBrace) => {
-                    self.advance();
-                    return Ok(children);
+                    let close_span = self.advance().expect("peeked").span.clone();
+                    return Ok((children, close_span));
                 }
                 Some(Token::RParen) => {
                     let span = self.peek().expect("guard").span.clone();

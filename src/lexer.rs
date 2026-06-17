@@ -243,9 +243,13 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
     let mut i = 0;
     let line_starts = compute_line_starts(src);
 
-    let span_at = |pos: usize| -> Span {
-        let (line, col) = line_col(src, &line_starts, pos);
-        Span::new(file.clone(), line, col)
+    // Arc 281 — build a span with both start and end stamped.
+    // `start_i` is the byte index of the first char of the token;
+    // `end_i` is the byte index one past the last char of the token.
+    let span_with_end = |start_i: usize, end_i: usize| -> Span {
+        let (sl, sc) = line_col(src, &line_starts, start_i);
+        let (el, ec) = line_col(src, &line_starts, end_i);
+        Span::with_end(file.clone(), sl, sc, el, ec)
     };
 
     while i < bytes.len() {
@@ -280,14 +284,14 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
-        // Parens
+        // Parens — single-char; end_i = i + 1.
         if c == '(' {
-            tokens.push(SpannedToken { token: Token::LParen, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::LParen, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
         if c == ')' {
-            tokens.push(SpannedToken { token: Token::RParen, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::RParen, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
@@ -295,12 +299,12 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         // Brackets — arc 167 slice 1. Emit `LBracket` / `RBracket`
         // tokens which the parser turns into `WatAST::Vector`.
         if c == '[' {
-            tokens.push(SpannedToken { token: Token::LBracket, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::LBracket, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
         if c == ']' {
-            tokens.push(SpannedToken { token: Token::RBracket, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::RBracket, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
@@ -312,17 +316,17 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         // (set literal). Must check BEFORE plain `{` so `#{` is not
         // split into `Symbol("#")` + `LBrace`.
         if c == '#' && i + 1 < bytes.len() && bytes[i + 1] as char == '{' {
-            tokens.push(SpannedToken { token: Token::LHashBrace, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::LHashBrace, span: span_with_end(i, i + 2) });
             i += 2;
             continue;
         }
         if c == '{' {
-            tokens.push(SpannedToken { token: Token::LBrace, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::LBrace, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
         if c == '}' {
-            tokens.push(SpannedToken { token: Token::RBrace, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::RBrace, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
@@ -338,7 +342,7 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
         if c == '`' {
-            tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::Quasiquote, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
@@ -347,28 +351,27 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         // The keyword-body `'` discriminator (arc 171) is absorbed inside
         // `lex_keyword` before this point and never reaches this branch.
         if c == '\'' {
-            tokens.push(SpannedToken { token: Token::Quote, span: span_at(i) });
+            tokens.push(SpannedToken { token: Token::Quote, span: span_with_end(i, i + 1) });
             i += 1;
             continue;
         }
         if c == '~' {
             // `~@` or just `~`.
-            let s = span_at(i);
             if i + 1 < bytes.len() && bytes[i + 1] as char == '@' {
-                tokens.push(SpannedToken { token: Token::UnquoteSplicing, span: s });
+                tokens.push(SpannedToken { token: Token::UnquoteSplicing, span: span_with_end(i, i + 2) });
                 i += 2;
             } else {
-                tokens.push(SpannedToken { token: Token::Unquote, span: s });
+                tokens.push(SpannedToken { token: Token::Unquote, span: span_with_end(i, i + 1) });
                 i += 1;
             }
             continue;
         }
 
-        // String literal
+        // String literal — end_i = `next` (one past the closing `"`).
         if c == '"' {
             let start = i;
             let (s, next) = lex_string(src, i)?;
-            tokens.push(SpannedToken { token: Token::Str(s), span: span_at(start) });
+            tokens.push(SpannedToken { token: Token::Str(s), span: span_with_end(start, next) });
             i = next;
             continue;
         }
@@ -380,30 +383,32 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         if c == '\\' {
             let start = i;
             let (ch, next) = lex_char(src, i)?;
-            tokens.push(SpannedToken { token: Token::Char(ch), span: span_at(start) });
+            tokens.push(SpannedToken { token: Token::Char(ch), span: span_with_end(start, next) });
             i = next;
             continue;
         }
 
-        // Keyword token
+        // Keyword token — end_i = `next` (one past the last keyword char).
         if c == ':' {
             let start = i;
             let (kw, next) = lex_keyword(src, i)?;
-            tokens.push(SpannedToken { token: Token::Keyword(kw), span: span_at(start) });
+            tokens.push(SpannedToken { token: Token::Keyword(kw), span: span_with_end(start, next) });
             i = next;
             continue;
         }
 
-        // Numeric literal or symbol — disambiguate by leading char
+        // Numeric literal or symbol — disambiguate by leading char.
+        // end_i = `next` (one past the last char of the numeric/symbol).
         if c.is_ascii_digit() || (c == '-' && is_numeric_start_at(bytes, i + 1)) {
             let start = i;
             let (tok, next) = lex_numeric_or_symbol(src, i)?;
-            tokens.push(SpannedToken { token: tok, span: span_at(start) });
+            tokens.push(SpannedToken { token: tok, span: span_with_end(start, next) });
             i = next;
             continue;
         }
 
-        // Bare symbol — anything else until a break character
+        // Bare symbol — anything else until a break character.
+        // end_i = `next` (one past the last char of the symbol).
         let start = i;
         let (sym, next) = lex_symbol(src, i);
         let tok = match sym.as_str() {
@@ -411,7 +416,7 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             "false" => Token::Bool(false),
             _ => Token::Symbol(sym),
         };
-        tokens.push(SpannedToken { token: tok, span: span_at(start) });
+        tokens.push(SpannedToken { token: tok, span: span_with_end(start, next) });
         i = next;
     }
 

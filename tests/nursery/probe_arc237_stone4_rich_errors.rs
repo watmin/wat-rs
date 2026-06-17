@@ -44,11 +44,7 @@ use wat::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErro
 use wat::span::Span;
 
 fn test_span() -> Span {
-    Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 5,
-        col: 3,
-    }
+    Span::new(Arc::new("test.wat".to_string()), 5, 3)
 }
 
 fn arity_attempt() -> ClauseAttempt {

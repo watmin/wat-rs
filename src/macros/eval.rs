@@ -577,6 +577,7 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::ast-kind"
         | ":wat::core::ast-name"
         | ":wat::core::ast-span"
+        | ":wat::core::ast-end-span"
         | ":wat::core::symbol-node"
         // Arc 274.1 — capture-proof binder for program-body macros. A macro needs it to create
         // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.

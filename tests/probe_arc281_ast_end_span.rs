@@ -34,7 +34,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 281 — RED until ast-end-span ships; un-ignore on green"]
 fn ast_end_span_returns_position_past_close_paren() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("startup: ast-end-span must be defined once arc 281 ships");

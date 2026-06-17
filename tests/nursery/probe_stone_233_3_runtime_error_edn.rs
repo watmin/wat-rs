@@ -27,11 +27,7 @@ use wat::span::Span;
 
 #[test]
 fn probe_1_not_callable_serializes_to_tagged_edn() {
-    let span = Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 3,
-        col: 7,
-    };
+    let span = Span::new(Arc::new("test.wat".to_string()), 3, 7);
     let snap = ValueSnapshot::of(&Value::String(Arc::new("not-fn".to_string())));
     let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::NotCallable {
         got: Box::new(snap)
@@ -59,11 +55,7 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
 
 #[test]
 fn probe_2_type_mismatch_carries_all_struct_fields() {
-    let span = Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 5,
-        col: 12,
-    };
+    let span = Span::new(Arc::new("test.wat".to_string()), 5, 12);
     let snap = ValueSnapshot::of(&Value::i64(42));
     let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
         op: ":wat::core::+".into(),
@@ -99,11 +91,7 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
 
 #[test]
 fn probe_3_assertion_failed_with_optional_fields() {
-    let span = Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 1,
-        col: 1,
-    };
+    let span = Span::new(Arc::new("test.wat".to_string()), 1, 1);
     let err = RuntimeError { span: span.clone(), kind: RuntimeErrorKind::AssertionFailed {
         message: "assertion fired".into(),
         actual: Some("42".into()),
@@ -133,11 +121,7 @@ fn probe_3_assertion_failed_with_optional_fields() {
 
 #[test]
 fn probe_4_tuple_variant_serializes() {
-    let span = Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 9,
-        col: 4,
-    };
+    let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
     let err = RuntimeError { span: span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
 
     let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
@@ -165,20 +149,12 @@ fn probe_4_tuple_variant_serializes() {
 
 #[test]
 fn probe_5_provenance_variants_render_with_tags() {
-    let span = Span {
-        file: Arc::new("test.wat".to_string()),
-        line: 4,
-        col: 8,
-    };
+    let span = Span::new(Arc::new("test.wat".to_string()), 4, 8);
 
     // SymbolBound — Stone 233.2.e populates this on let-bound symbol lookup
     let prov = Provenance::SymbolBound {
         binding_span: span.clone(),
-        head_span: Span {
-            file: span.file.clone(),
-            line: 5,
-            col: 12,
-        },
+        head_span: Span::new(span.file.clone(), 5, 12),
     };
 
     let edn = wat::runtime_error_edn::provenance_to_edn(&prov);

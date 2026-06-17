@@ -175,11 +175,7 @@ fn probe_4_destructure_slot_lookup_yields_symbol_bound_provenance() {
 #[test]
 fn probe_5_literal_provenance_renders_source_coordinates() {
     // Construct a TrackedValue with Literal provenance + non-zero span.
-    let span = wat::span::Span {
-        file: Arc::new("test-source.wat".to_string()),
-        line: 7,
-        col: 13,
-    };
+    let span = wat::span::Span::new(Arc::new("test-source.wat".to_string()), 7, 13);
     let tv = TrackedValue::new(
         Value::i64(42),
         Provenance::Literal { span },

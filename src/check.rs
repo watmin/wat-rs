@@ -16919,6 +16919,18 @@ fn register_builtins(env: &mut CheckEnv) {
         },
         rest_param_type: None,
     });
+    // Arc 281 — source END location: {:line i64 :col i64} (one char past the node's last char).
+    env.register(":wat::core::ast-end-span".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Parametric {
+            head: "wat::core::HashMap".into(),
+            args: vec![
+                TypeExpr::Path(":wat::core::keyword".into()),
+                TypeExpr::Path(":wat::core::i64".into()),
+            ],
+        },
+        rest_param_type: None,
+    });
     env.register(":wat::core::symbol-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::core::String".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });

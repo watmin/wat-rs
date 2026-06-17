@@ -1,9 +1,15 @@
 # Arc 281 — `ast-end-span`: node end-position tracking (the structural-auto-fix keystone)
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc281_ast_end_span.rs` (`#[ignore]`'d):
-> `ast-end-span` is `UnknownFunction` at HEAD. The keystone that unblocks EVERY structural auto-fix —
-> 277.1b (ladder fix), the concat→format fix (277.1c is report-only TODAY waiting on this), and the
-> sweep. Arc-scale: lexer → SpannedToken → Span → parser → intrinsic.
+> **STATUS: SHIPPED (2026-06-17).** `:wat::core::ast-end-span` returns a node's END `{:line,:col}`.
+> `Span` gained `end_line`/`end_col` (additive — `new()` defaults end=start; `with_end` for explicit);
+> the lexer stamps each token's end (`span_with_end(start_i, end_i)`: single-char `i+1`, `#{`/`~@` `i+2`,
+> multi-char `next`); the parser combines `open.start..close.end` for List/Vector/Map/Set (atoms use
+> their token span); the intrinsic mirrors `ast-span` (impl/dispatch/scheme/allow-list). 8 direct
+> `Span { .. }` literals in nursery probes migrated to `Span::new`. Weighed on the orchestrator's own
+> build + diff read: end-span gate 1/1 (`(a b c)` end :col == 8), lib 929/36, deftest 259/1, deporder 0
+> — **all floors byte-identical, START positions provably unchanged** (the load-bearing invariant for a
+> Span change). Unblocks every structural auto-fix: 277.1b (ladder fix), the concat→format fix (277.1c
+> rule is report-only until this), and the sweep. Opened + shipped 2026-06-17.
 
 ## Why (the gap, grounded)
 

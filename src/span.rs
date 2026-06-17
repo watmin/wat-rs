@@ -52,6 +52,12 @@ pub struct Span {
     pub line: i64,
     /// 1-indexed column number (char-count from line start).
     pub col: i64,
+    /// 1-indexed end line (one past the last char of the token/form).
+    /// Defaults to `line` when constructed via `Span::new` (degenerate end==start).
+    pub end_line: i64,
+    /// 1-indexed end column (one past the last char of the token/form).
+    /// Defaults to `col` when constructed via `Span::new` (degenerate end==start).
+    pub end_col: i64,
 }
 
 impl Span {
@@ -67,12 +73,23 @@ impl Span {
             file: Arc::new("<runtime>".to_string()),
             line: 0,
             col: 0,
+            end_line: 0,
+            end_col: 0,
         }
     }
 
     /// Build a span with the given file label and 1-indexed position.
+    /// `end_line` and `end_col` default to `line`/`col` (degenerate end==start).
+    /// All existing call sites keep compiling unchanged.
     pub fn new(file: Arc<String>, line: i64, col: i64) -> Self {
-        Span { file, line, col }
+        Span { file, line, col, end_line: line, end_col: col }
+    }
+
+    /// Build a span with explicit start AND end positions. Used by the lexer
+    /// (to stamp each token's end) and the parser (to combine open..close for
+    /// structural nodes). Arc 281.
+    pub fn with_end(file: Arc<String>, line: i64, col: i64, end_line: i64, end_col: i64) -> Self {
+        Span { file, line, col, end_line, end_col }
     }
 
     /// `true` iff this is the synthetic sentinel — useful for error
