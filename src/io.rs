@@ -1451,6 +1451,33 @@ pub fn eval_io_list_dir(
     Ok(Value::Vec(Arc::new(entries)))
 }
 
+/// `(:wat::stdlib::sources)` → `:wat::core::Vector<Vector<String>>`
+///
+/// Returns the baked stdlib load order as a vector of `[path, source]` pairs.
+/// Each inner vector has exactly two elements: the path string and the full
+/// source string, in `STDLIB_FILES` order. Zero args; pure (no I/O).
+/// Consumer: `wat/deporder.wat` wraps these into `SourceFile` records and
+/// verifies the load order respects all eval-time dependencies.
+pub fn eval_stdlib_sources(
+    args: &[WatAST],
+    list_span: &Span,
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::stdlib::sources";
+    arity(op, args, 0, list_span)?;
+    let pairs: Vec<Value> = crate::stdlib::stdlib_files()
+        .iter()
+        .map(|ws| {
+            Value::Vec(Arc::new(vec![
+                Value::String(Arc::new(ws.path.to_string())),
+                Value::String(Arc::new(ws.source.to_string())),
+            ]))
+        })
+        .collect();
+    Ok(Value::Vec(Arc::new(pairs)))
+}
+
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
 
 #[cfg(test)]

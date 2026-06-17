@@ -27,7 +27,19 @@ pub(crate) fn stdlib_files() -> &'static [WatSource] {
     STDLIB_FILES
 }
 
+/// Foundational → derived. A file precedes another only if it has no
+/// eval-time dependency on it (defmacro refs are order-free — registered
+/// in the pre-pass). Enforced by `:wat::deporder::verify-stdlib` (see
+/// tests) — a violation is a red build.
 const STDLIB_FILES: &[WatSource] = &[
+    // wat/core.wat MUST be first: foundational aliases + defclauses that
+    // other stdlib files eval-depend on. No eval-deps on any other file
+    // (its only outward refs are :wat::Record::def [a defmacro = order-free]
+    // and :wat::holon::HolonAST [a builtin]).
+    WatSource {
+        path: "wat/core.wat",
+        source: include_str!("../wat/core.wat"),
+    },
     WatSource {
         path: "wat/holon/Amplify.wat",
         source: include_str!("../wat/holon/Amplify.wat"),
@@ -228,16 +240,6 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/edn.wat",
         source: include_str!("../wat/edn.wat"),
     },
-    // Arc 146 slice 2 — :wat::core::* dispatches. Routes polymorphic
-    // primitive names (length, etc.) to per-Type impls. Array position
-    // is not load-bearing for visibility: register_stdlib_defmacros
-    // (src/macros/parse.rs) walks the entire concatenated stdlib in a
-    // single pre-expansion pass, so all defmacros are registered before
-    // any expansion runs regardless of file order.
-    WatSource {
-        path: "wat/core.wat",
-        source: include_str!("../wat/core.wat"),
-    },
     // Arc 209 naming-conversion stone — wat-level string helpers (kebab->pascal + capitalize).
     // Loads after core.wat so the Rust string primitives (to-uppercase, split, subs, concat, join)
     // are registered before this file's defns are evaluated.
@@ -260,6 +262,20 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/fix.wat",
         source: include_str!("../wat/fix.wat"),
+    },
+    // Arc 275 Stone 275.1 — :wat::deporder:: — the stdlib load-order analyzer.
+    // A pure-wat tool: given an ordered list of SourceFile{path,source} pairs,
+    // parses each file's top-level forms, builds a symbol→(file,kind) map,
+    // classifies cross-file references (defmacro = order-free; defn/defenum/
+    // defalias/def/defprotocol/defclause = eval-dep), and returns Violations
+    // (files that eval-depend on later-loaded files). The surface:
+    //   (:wat::deporder::verify-stdlib) — verifies the real baked order.
+    // Loads after fix.wat (uses read-string + ast->children + ast-kind + ast-name).
+    // Array position is NOT load-bearing for the tool's defmacros (registered
+    // in the pre-expansion pass); the defns evaluate at load time in order.
+    WatSource {
+        path: "wat/deporder.wat",
+        source: include_str!("../wat/deporder.wat"),
     },
     // Arc 209 Stone C.1 — :wat::service::defservice (pure-wat defmacro).
     // C.1 emits the op enum from the defservice surface; C.2/C.3 extend.

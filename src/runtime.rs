@@ -4367,6 +4367,8 @@ fn dispatch_keyword_head_value(
         ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::read-file" => crate::io::eval_io_read_file(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::list-dir" => crate::io::eval_io_list_dir(args, list_span, env, sym).map_err(Into::into),
+        // Arc 275 Stone 275.1 — baked stdlib load order for deporder.
+        ":wat::stdlib::sources" => crate::io::eval_stdlib_sources(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym, list_span).map_err(Into::into),

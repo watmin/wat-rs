@@ -14355,6 +14355,24 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 275 Stone 275.1 — `:wat::stdlib::sources` : () → Vector<Vector<String>>
+    // Returns the baked STDLIB_FILES load order as [path, source] pairs.
+    // Zero params; the type is Vector<Vector<String>>.
+    env.register(
+        ":wat::stdlib::sources".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![string_ty()],
+                }],
+            },
+            rest_param_type: None,
+        },
+    );
 
     // :wat::kernel::run-sandboxed (string entry) and
     // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
