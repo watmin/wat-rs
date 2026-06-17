@@ -1,13 +1,15 @@
 //! Arc 260.1a — the DECLARE side: a `defn` kwargs section `& {fields}` mints a typed record and the
 //! fn takes/destructures it. The foundation (no call-site sugar yet — the explicit-record call form).
 //!
-//! `(:user::connect [host <- :String & {port <- :i64 tls <- :bool}] …)` → `defn` mints
-//! `:user::connect::Kwargs` (the rs-1 mint), reshapes the fn so its last param is that record, and
+//! `(:user::connect [host <- :String & [port <- :i64 tls <- :bool]] …)` → `defn` mints
+//! `:user::connect::Kwargs` (the rs-1 mint). The kwargs section is an ARGSPEC nested once (same
+//! binder-triple syntax as the main params, reusing the existing parse; a nested `&` inside it is
+//! disallowed — flat, one level). `defn` reshapes the fn so its last param is that record, and
 //! destructures the fields into the body scope (clojure `& {:keys}` binds `port`/`tls`). The body uses
 //! `port` + `tls` by name. The call constructs the record explicitly and passes it.
 //!
-//! RED at HEAD: `& {…}` in a param vector is unparseable (today `& name <- :T` expects a binder NAME,
-//! not a `{}` map node) → startup fails. GREEN once 260.1a mints + reshapes + destructures.
+//! RED at HEAD: `& [argspec]` in a param vector is unparseable (today `& name <- :T` expects a binder
+//! NAME, not a `[]` vector) → startup fails. GREEN once 260.1a mints + reshapes + destructures.
 //! The inline `:k v` call sugar is 260.1b (separate; the headline probe probe_arc260_keyword_args stays
 //! RED until then).
 //!
@@ -23,7 +25,7 @@ use wat::runtime::{Environment, Value};
 const DECL_KWARGS: &str = r#"
 (:wat::core::defn :user::connect
   [host <- :wat::core::String
-   & {port <- :wat::core::i64  tls <- :wat::core::bool}]
+   & [port <- :wat::core::i64  tls <- :wat::core::bool]]
   -> :wat::core::i64
   (:wat::core::i64::+ port (:wat::core::if tls -> :wat::core::i64 1 0)))
 
