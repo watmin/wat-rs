@@ -50,6 +50,36 @@ question this arc must answer first:
 
 Grep `keyword`/`kwarg`/named-arg support in the parser + checker before designing; do NOT assume.
 
+## GROUNDING (2026-06-16, orchestrator crawl — kwargs ARE a real new feature)
+
+The question is answered: **wat has NO call-site keyword/named arguments. This is the real
+reach-stumble** — a genuinely missing tool, not a workaround-able gap.
+
+- **Everything is positional, end to end.** Call args parse to a positional `Vec<WatAST>`
+  (`parse_list_body`); the checker matches by arity + positional index; eval binds via
+  `func.params.iter().zip(args.iter())` (`runtime.rs:23080`, `:9156`; defclause `:6166`/`:5035`).
+- **No existing named-arg machinery.** Every `keyword arg` hit in `src/` is something else: TYPE-keyword
+  args (`:S :R` type params), `use!`'s single path keyword, or namespace keywords (`string_ops`). None is
+  general named call args.
+- **BUT the foundation exists: fn signatures retain param NAMES** — `Function.params: Vec<String>` +
+  `param_types` + `rest_param` (`runtime.rs:886-901`; `function/parse.rs:54`). So matching `:name val`
+  call-args to param names and reordering to positional is BUILDABLE on existing data.
+- **Architectural constraint (the load-bearing design fact):** reordering `:name val` → positional needs
+  the **callee's param names AT the call site**. The PARSER does not know the callee's signature, so kwargs
+  CANNOT be a pure-parse desugar. It must happen **after the callee resolves** — at the call chokepoint
+  (`apply_function`, `runtime.rs:17990`) for eval, and in call-inference for check.
+- **OPEN sub-question to pin FIRST in the design:** does the call-site CHECKER carry the callee's param
+  NAMES, or only `param_types` (via the derived scheme, for unification)? `param_names` is present at fn
+  DEFINITION check (`function/infer.rs:115`); whether the CALL-site scheme retains names determines how
+  option 1 reorders before unification. Crawl this before drawing the stone.
+
+**Implication for the design space below:** option 1 (real kwargs) is a genuine language feature touching
+the call chokepoint in both check + eval, with a type story — feasible (names exist) but not free. Option 2
+(record-arg) needs zero new call machinery (records already carry field-name labels) and fixes
+`assertion-failed!` immediately, but doesn't generalize to every call site. Four-questions them with this
+grounding; a disconfirming probe (does a `:name val` reach `apply_function` with the param names available
+to reorder?) settles option 1's feasibility before any build.
+
 ## Design space (to weigh with the four questions when the arc opens)
 
 1. **Keyword arguments** — `(assertion-failed! :message "…" :actual … :expected …)`. The general
