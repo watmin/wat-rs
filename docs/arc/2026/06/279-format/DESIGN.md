@@ -2,13 +2,18 @@
 
 > **STATUS: SHIPPED (`d117c54e`, 2026-06-17).** `format` macro in `wat/core.wat` + the `:wat::core::str`
 > intrinsic (unquoted polymorphic render — a rubric-grow) + `eval_ast_name` reads StringLit. Weighed:
-> probe 3/3, 5 format deftests, deporder gate 0, lib 929/36. **DEFERRED — the `\{` escape:** the lexer
-> (`src/lexer.rs` `lex_string`) only handles `\" \\ \n \t \r \0`; `\{` → `UnknownEscape`, so a template
-> cannot carry a literal `{` yet. **Decision owed:** teach the lexer `\{` (a lexer change) **or** adopt
-> `{{` doubling (Rust/Python-style, no lexer change). The macro currently guards against `{`/`"` in
-> templates. **Follow stones (next):** (1) the **concat-abuse lint rule** (277) that detects a
-> literals+values `concat`-chain and suggests `format` — the self-fixing-toolchain's RULE half for this
-> tool; (2) the escape decision above.
+> probe 3/3, 5 format deftests, deporder gate 0, lib 929/36. **The literal-brace escape — RESOLVED:
+> `{{`/`}}` doubling (Rust/Python convention), NOT `\{`.** The `\{` route hit a real lexer STOP (`\` is
+> the lexer's escape trigger, so `\{` → `UnknownEscape` in `src/lexer.rs lex_string`), but `{{`/`}}`
+> needs **zero lexer change**: `{`/`}` are ordinary string chars, so `"{{foo}}"` lexes straight through
+> as literal text and the **format macro** collapses `{{`→`{` / `}}`→`}` at expand time. The escape is
+> pure macro-grammar. (The earlier "deferred on the lexer" framing over-stated the blocker — the
+> no-lexer route was always available.) **Follow stones (next, in order):** (1) **`{{`/`}}` literal-brace
+> handling** in the format macro's template parser (a small addition — collapse doubled braces, treat a
+> single `{`/`}` mid-template that isn't a placeholder as an error; the macro currently guards against
+> `{`/`"` in templates, which this supersedes); (2) the **concat-abuse lint rule** (a 277 stone) that
+> detects a literals+values `concat`-chain and suggests `format` — the self-fixing-toolchain's RULE half
+> for this tool.
 >
 > Opened 2026-06-17. The first TOOL of the self-fixing-toolchain doctrine
 > (SELF-FIXING-TOOLCHAIN.md): the `string::concat`-chain interleaving literals and values is awful
