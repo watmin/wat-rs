@@ -129,6 +129,15 @@
   [listener <- :wat::kernel::Listener'<S,R>
    address  <- :wat::kernel::Address'<S,R>])
 
+;; ── Launched<S,R> — what Host/launch returns: the spawn handle + the dial address ──
+;; A STRUCT, not a record (address is an Address' RustOpaque; handle is :Spawned).
+;; `handle` is the owner-side spawn handle (Thread'/Process'/future-remote all derive :Spawned).
+;; `address` is what clients dial via connect'.
+;; `start` unwraps Launched into the Handle record — host-agnostic launch, host-agnostic start.
+(:wat::core::defstruct :wat::spawn::Launched<S,R>
+  [handle  <- :wat::spawn::Spawned
+   address <- :wat::kernel::Address'<S,R>])
+
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
 ;;
 ;; Arc 259 S2c-ii-b — `spawn-program'` as a host-type defclause.
@@ -170,9 +179,10 @@
 ;; on the concrete value) — but the PROGRAM handed to spawn-program' is
 ;; shared-vs-not-shared specific: thread captures a closure over the in-memory
 ;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
-;; So `launch` builds the host-appropriate program INSIDE the concrete impl and
-;; returns the Spawned handle. A new transport joins as one `extend-type`, zero
-;; edit to `start`.
+;; So `launch` MINTS THE LISTENER INSIDE the concrete impl (arc 272 6a: the child
+;; must mint its own listener; parent-minting is wrong for the process tier) and
+;; returns a Launched<S,R>{handle,address}. `start` unwraps Launched — host-agnostic.
+;; A new transport joins as one `extend-type`, zero edit to `start`.
 ;;
 ;; Generic over S,R (the listener/peer channel types) and St (service state).
 ;; `serve` is the per-service serve loop, passed by NAME (a runtime keyword) so
@@ -180,18 +190,24 @@
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients state) -> nil.
 (:wat::core::defprotocol :wat::spawn::Host
-  (launch<S,R,St> [self     <- :wat::spawn::Host
-                   listener <- :wat::kernel::Listener'<S,R>
-                   clients0 <- :wat::core::Vector<wat::kernel::Peer'<R,S>>
-                   state0   <- :St
-                   serve    <- :wat::core::keyword] -> :wat::spawn::Spawned))
+  (launch<S,R,St> [self   <- :wat::spawn::Host
+                   state0 <- :St
+                   serve  <- :wat::core::keyword] -> :wat::spawn::Launched<S,R>))
 
-;; Thread (shared-memory) impl — the deftest' strategy: the serve loop is a
-;; CLOSURE capturing the in-memory listener + initial clients + state; spawn-program'
-;; (thread) runs it on a freshly-spawned peer. serve is invoked by keyword via apply
-;; so this generic impl never names the per-service serve fn.
+;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
+;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
+;; Builds the serve closure capturing the minted listener + empty clients vector + state0;
+;; spawn-program' (thread) runs it on a freshly-spawned peer. serve is invoked by keyword
+;; via apply so this generic impl never names the per-service serve fn.
+;; Returns Launched{handle=Thread', address=Bound/address}.
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Host
-  (launch [self listener clients0 state0 serve]
-    (:wat::kernel::spawn-program' self
-      (:wat::core::fn [self-peer <- :wat::kernel::Peer'<R,S>] -> :wat::core::nil
-        (:wat::core::apply -> :wat::core::nil serve self-peer listener clients0 state0 [])))))
+  (launch [self state0 serve]
+    (:wat::core::let
+      [b  (:wat::kernel::listener' self :S :R)
+       sp (:wat::kernel::spawn-program' self
+            (:wat::core::fn [self-peer <- :wat::kernel::Peer'<R,S>] -> :wat::core::nil
+              (:wat::core::apply -> :wat::core::nil serve self-peer
+                (:wat::spawn::Bound/listener b)
+                (:wat::core::Vector :wat::kernel::Peer'<R,S>)
+                state0 [])))]
+      (:wat::spawn::Launched/new sp (:wat::spawn::Bound/address b)))))

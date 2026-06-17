@@ -497,23 +497,27 @@
      ;; extend-type, zero edit here.
      ;;
      ;; Hygiene for start-body:
-     ;;   `pair`, `l`, `addr`, `svc` are let binders in the nested quasiquote → symbol-node.
+     ;;   `lr` is the let binder for the Launched<S,R> value → symbol-node.
      ;;   `host`, `state0` are value references (start's params) → fine as literals.
      ;; start-params `[host <- :Host  state0 <- ~state-ty]` → Vector inner → checker skips it.
-     pair-sym      (:wat::core::symbol-node "pair")
-     l-sym         (:wat::core::symbol-node "l")
-     addr-sym      (:wat::core::symbol-node "addr")
-     svc-sym       (:wat::core::symbol-node "svc")
+     ;;
+     ;; arc 272 6b-ii-β: listener-minting moved INTO Host/launch (child-mints for process tier).
+     ;; start calls Host/launch<Op,Reply> with EXPLICIT type-args (arc-232 dep) so the impl's
+     ;; (listener' self :S :R) resolves S=Op, R=Reply. The call-head is built as a runtime keyword
+     ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
+     ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
+     lr-sym        (:wat::core::symbol-node "lr")
+     launch-head-kw (:wat::core::keyword/from-string
+                      (:wat::core::string::concat "wat::spawn::Host/launch<"
+                        (:wat::core::string::concat fqdn-str
+                          (:wat::core::string::concat "::Op,"
+                            (:wat::core::string::concat fqdn-str "::Reply>")))))
      start-params  `[host <- :wat::spawn::Host  state0 <- ~state-ty]
      start-body    `(:wat::core::let
-                      [~pair-sym (:wat::kernel::listener' host ~enum-name ~reply-name)
-                       ~l-sym    (:wat::spawn::Bound/listener ~pair-sym)
-                       ~addr-sym (:wat::spawn::Bound/address ~pair-sym)
-                       ~svc-sym  (:wat::spawn::Host/launch host ~l-sym
-                                   (:wat::core::Vector ~peer-ty)
-                                   state0
-                                   (:wat::core::keyword/from-string ~serve-name-str))]
-                      (~handle-name ~svc-sym ~addr-sym))
+                      [~lr-sym (~launch-head-kw host state0
+                                 (:wat::core::keyword/from-string ~serve-name-str))]
+                      (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
+                                    (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
