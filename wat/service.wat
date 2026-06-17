@@ -64,15 +64,54 @@
      ;; can use it as the namespace for acronym-registry lookup.
      fqdn-kw       (:wat::core::keyword/from-string fqdn-str)
 
-     ;; ── rs-1: parse optional :record-parent from trailing opts ───────────────
-     ;; opts is Value::Vec (rest param); empty → default :wat::Record parent.
-     ;; Non-empty: must be [:record-parent <parent>]; extract second element.
-     state-parent   (:wat::core::if (:wat::core::empty? opts)
+     ;; ── rs-1: fold trailing opts into a kwargs MAP (honest + extensible) ──────
+     ;; opts is the rest param: a flat [:key val :key val …] list. We fold it into a
+     ;; HashMap ONCE (size-based pairs, not "exactly one pair"), rejecting any key not in
+     ;; `known-opts` DIRECTLY — named (raise the bar: the user's mistake is reported, not
+     ;; silently mis-read). Then each option is a plain `(HashMap/get opts-map "<key>")`.
+     ;; To add an option later: one entry in `known-opts` + one more `get` below. Keys are
+     ;; strings (a WatAST keyword node isn't reliably `=` a runtime keyword — `to-string` them).
+     known-opts     (:wat::core::HashMap/assoc
+                      (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                      "record-parent" true)
+     opts-len       (:wat::core::length opts)
+     n-opt-pairs    (:wat::core::i64::/ opts-len 2)
+     ;; even-length guard (no modulo: (len/2)*2 == len iff even)
+     _opts-even     (:wat::core::if
+                      (:wat::core::= (:wat::core::i64::* n-opt-pairs 2) opts-len)
+                      -> :wat::core::nil
+                      nil
+                      (:wat::core::macro-error
+                        "defservice: trailing options must be :keyword value pairs"))
+     ;; build + validate in one pass: assoc each recognized key; macro-error on an unknown one
+     opts-map       (:wat::core::foldl
+                      (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,wat::WatAST>
+                                       i <- :wat::core::i64]
+                        -> :wat::core::HashMap<wat::core::String,wat::WatAST>
+                        (:wat::core::let
+                          [k   (:wat::core::i64::* i 2)
+                           key (:wat::core::keyword/to-string
+                                 (:wat::core::Option/expect -> :wat::WatAST
+                                   (:wat::core::get opts k) "defservice: malformed trailing option key"))]
+                          (:wat::core::if (:wat::core::HashMap/contains-key? known-opts key)
+                            -> :wat::core::HashMap<wat::core::String,wat::WatAST>
+                            (:wat::core::HashMap/assoc m key
+                              (:wat::core::Option/expect -> :wat::WatAST
+                                (:wat::core::get opts (:wat::core::i64::+ k 1))
+                                "defservice: trailing option missing a value"))
+                            (:wat::core::macro-error
+                              (:wat::core::string::concat "defservice: unknown trailing option :"
+                                (:wat::core::string::concat key
+                                  " — recognized options: :record-parent"))))))
+                      (:wat::core::HashMap :wat::core::String :wat::WatAST)
+                      (:wat::core::range 0 n-opt-pairs))
+     ;; each option is now a plain get with a default
+     state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "record-parent")
                       -> :wat::WatAST
-                      :wat::Record
                       (:wat::core::Option/expect -> :wat::WatAST
-                        (:wat::core::second opts)
-                        "defservice :record-parent: trailing opts must be [:record-parent <parent>]"))
+                        (:wat::core::HashMap/get opts-map "record-parent")
+                        "defservice: :record-parent needs a value")
+                      :wat::Record)
 
      ;; ── rs-1: mint state-ty as :<fqdn>::State ───────────────────────────────
      ;; REBIND state-ty so every downstream ~state-ty use (serve param, StopResponse,

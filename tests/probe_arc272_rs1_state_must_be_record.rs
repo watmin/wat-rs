@@ -113,3 +113,27 @@ fn bare_type_keyword_state_is_rejected() {
          field vector and defservice mints the record; a scalar state is unexpressible; got Ok"
     );
 }
+
+// A bogus trailing option — defservice walks opts as keyword/value pairs against a recognized-keys
+// set and must reject any unknown key DIRECTLY (named), not silently mis-read it as the parent.
+const UNKNOWN_OPTION: &str = r#"
+(:wat::service::defservice :my::counter
+  :state [count <- :wat::core::i64]
+  :ops
+  [(:Get [s <- :State]
+         -> [value <- :wat::core::i64]
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))]
+  :bogus-option :wat::Record)
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+#[test]
+fn unknown_trailing_option_is_rejected() {
+    let result = startup_from_source(UNKNOWN_OPTION, None, Arc::new(InMemoryLoader::new()));
+    assert!(
+        result.is_err(),
+        "expected an unrecognized trailing option (:bogus-option) to be REJECTED directly — \
+         defservice walks opts as keyword/value pairs and names any unknown key; got Ok"
+    );
+}
