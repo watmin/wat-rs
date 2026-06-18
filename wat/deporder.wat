@@ -21,10 +21,7 @@
 ;;   wat/Record.wat — typed record definition
 
 ;; ─── Typed records (uncompilable on a wrong shape) ────────────────────
-
-(:wat::Record::def :wat::deporder::SourceFile
-  [path   <- :wat::core::String
-   source <- :wat::core::String])
+;; The source-unit `:wat::source::File` lifted to wat/source.wat (arc 283) — shared by every tool.
 
 (:wat::Record::def :wat::deporder::SymDef
   [file <- :wat::core::String
@@ -170,11 +167,11 @@
 ;; build-file-syms — update sym-map with all definitions from one file.
 (:wat::core::defn :wat::deporder::build-file-syms
   [sym-map <- :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
-   file    <- :wat::deporder::SourceFile]
+   file    <- :wat::source::File]
   -> :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
-  (:wat::core::let [tree  (:wat::core::read-string (:wat::deporder::SourceFile/source file))
+  (:wat::core::let [tree  (:wat::core::read-string (:wat::source::File/source file))
                     forms (:wat::core::ast->children tree)
-                    path  (:wat::deporder::SourceFile/path file)]
+                    path  (:wat::source::File/path file)]
     (:wat::core::foldl
       (:wat::core::fn [m    <- :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
                        form <- :wat::WatAST]
@@ -193,7 +190,7 @@
 
 ;; build-symbol-map — Pass 1: build the full symbol→SymDef map from all files.
 (:wat::core::defn :wat::deporder::build-symbol-map
-  [files <- :wat::core::Vector<wat::deporder::SourceFile>]
+  [files <- :wat::core::Vector<wat::source::File>]
   -> :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
   (:wat::core::foldl
     :wat::deporder::build-file-syms
@@ -204,16 +201,16 @@
 
 ;; build-pos-map — path → position (i64) map for all files.
 (:wat::core::defn :wat::deporder::build-pos-map
-  [files <- :wat::core::Vector<wat::deporder::SourceFile>]
+  [files <- :wat::core::Vector<wat::source::File>]
   -> :wat::core::HashMap<wat::core::String,wat::core::i64>
   (:wat::core::let [n (:wat::core::length files)]
     (:wat::core::foldl
       (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,wat::core::i64>
                        i <- :wat::core::i64]
         -> :wat::core::HashMap<wat::core::String,wat::core::i64>
-        (:wat::core::let [file (:wat::core::Option/expect -> :wat::deporder::SourceFile
+        (:wat::core::let [file (:wat::core::Option/expect -> :wat::source::File
                                   (:wat::core::get files i) "build-pos-map: get")]
-          (:wat::core::HashMap/assoc m (:wat::deporder::SourceFile/path file) i)))
+          (:wat::core::HashMap/assoc m (:wat::source::File/path file) i)))
       (:wat::core::HashMap :wat::core::String :wat::core::i64)
       (:wat::core::range 0 n))))
 
@@ -222,14 +219,14 @@
 ;; that resolves to a SymDef in a different file loaded AFTER this one
 ;; (definer-pos > ref-pos), and whose kind is not "defmacro".
 (:wat::core::defn :wat::deporder::check-file-violations
-  [file    <- :wat::deporder::SourceFile
+  [file    <- :wat::source::File
    ref-pos <- :wat::core::i64
    sym-map <- :wat::core::HashMap<wat::core::String,wat::deporder::SymDef>
    pos-map <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
   -> :wat::core::Vector<wat::deporder::Violation>
-  (:wat::core::let [tree  (:wat::core::read-string (:wat::deporder::SourceFile/source file))
+  (:wat::core::let [tree  (:wat::core::read-string (:wat::source::File/source file))
                     forms (:wat::core::ast->children tree)
-                    path  (:wat::deporder::SourceFile/path file)
+                    path  (:wat::source::File/path file)
                     ;; collect all keyword refs from all forms in this file
                     all-refs (:wat::core::foldl
                                (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
@@ -271,7 +268,7 @@
 ;; ─── verify — the main pure function ─────────────────────────────────
 
 (:wat::core::defn :wat::deporder::verify
-  [files <- :wat::core::Vector<wat::deporder::SourceFile>]
+  [files <- :wat::core::Vector<wat::source::File>]
   -> :wat::core::Vector<wat::deporder::Violation>
   (:wat::core::let [sym-map (:wat::deporder::build-symbol-map files)
                     pos-map (:wat::deporder::build-pos-map files)
@@ -280,7 +277,7 @@
       (:wat::core::fn [viols <- :wat::core::Vector<wat::deporder::Violation>
                        i     <- :wat::core::i64]
         -> :wat::core::Vector<wat::deporder::Violation>
-        (:wat::core::let [file (:wat::core::Option/expect -> :wat::deporder::SourceFile
+        (:wat::core::let [file (:wat::core::Option/expect -> :wat::source::File
                                   (:wat::core::get files i) "verify: get file")]
           (:wat::core::concat viols
             (:wat::deporder::check-file-violations file i sym-map pos-map))))
@@ -294,13 +291,13 @@
 ;; each inner Vector is [path, source] in STDLIB_FILES order.
 (:wat::core::defn :wat::deporder::stdlib-sources
   []
-  -> :wat::core::Vector<wat::deporder::SourceFile>
+  -> :wat::core::Vector<wat::source::File>
   (:wat::core::let [pairs (:wat::stdlib::sources)
                     n     (:wat::core::length pairs)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::Vector<wat::deporder::SourceFile>
+      (:wat::core::fn [acc <- :wat::core::Vector<wat::source::File>
                        i   <- :wat::core::i64]
-        -> :wat::core::Vector<wat::deporder::SourceFile>
+        -> :wat::core::Vector<wat::source::File>
         (:wat::core::let [pair   (:wat::core::Option/expect -> :wat::core::Vector<wat::core::String>
                                     (:wat::core::get pairs i) "stdlib-sources: get pair")
                           path   (:wat::core::Option/expect -> :wat::core::String
@@ -308,9 +305,9 @@
                           source (:wat::core::Option/expect -> :wat::core::String
                                     (:wat::core::get pair 1) "stdlib-sources: get source")]
           (:wat::core::concat acc
-            (:wat::core::Vector :wat::deporder::SourceFile
-              (:wat::deporder::SourceFile path source)))))
-      (:wat::core::Vector :wat::deporder::SourceFile)
+            (:wat::core::Vector :wat::source::File
+              (:wat::source::File path source)))))
+      (:wat::core::Vector :wat::source::File)
       (:wat::core::range 0 n))))
 
 ;; verify-stdlib — the two-line surface: wrap intrinsic then verify.

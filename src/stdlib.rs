@@ -263,6 +263,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/fix.wat",
         source: include_str!("../wat/fix.wat"),
     },
+    // Arc 283 — :wat::source::File — the source-unit type (path + text), shared substrate for every
+    // source-processing tool. Lifted out of deporder; MUST load before deporder (which references it).
+    WatSource {
+        path: "wat/source.wat",
+        source: include_str!("../wat/source.wat"),
+    },
     // Arc 275 Stone 275.1 — :wat::deporder:: — the stdlib load-order analyzer.
     // A pure-wat tool: given an ordered list of SourceFile{path,source} pairs,
     // parses each file's top-level forms, builds a symbol→(file,kind) map,

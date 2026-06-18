@@ -18,9 +18,9 @@
   ;; a loads before b. This must NOT be a violation because defmacros
   ;; are registered in the pre-expansion pass (order-free).
   (:wat::core::let
-    [a  (:wat::deporder::SourceFile "a" "(:t::caller (:t::m))")
-     b  (:wat::deporder::SourceFile "b" "(:wat::core::defmacro :t::m [] 1)")
-     files (:wat::core::Vector :wat::deporder::SourceFile a b)
+    [a  (:wat::source::File "a" "(:t::caller (:t::m))")
+     b  (:wat::source::File "b" "(:wat::core::defmacro :t::m [] 1)")
+     files (:wat::core::Vector :wat::source::File a b)
      viols (:wat::deporder::verify files)]
     (:wat::test::assert-eq (:wat::core::length viols) 0)))
 
@@ -31,10 +31,10 @@
   ;; File "a" calls (:t::f), which is defined in file "b" as a defn.
   ;; a loads before b (position 0 before position 1). This IS a violation.
   (:wat::core::let
-    [a  (:wat::deporder::SourceFile "a" "(:t::caller (:t::f))")
-     b  (:wat::deporder::SourceFile "b" "(:wat::core::defn :t::f [] 1)")
-     files-bad  (:wat::core::Vector :wat::deporder::SourceFile a b)
-     files-good (:wat::core::Vector :wat::deporder::SourceFile b a)
+    [a  (:wat::source::File "a" "(:t::caller (:t::f))")
+     b  (:wat::source::File "b" "(:wat::core::defn :t::f [] 1)")
+     files-bad  (:wat::core::Vector :wat::source::File a b)
+     files-good (:wat::core::Vector :wat::source::File b a)
      viols-bad  (:wat::deporder::verify files-bad)
      viols-good (:wat::deporder::verify files-good)]
     (:wat::core::do
@@ -48,8 +48,8 @@
   ;; A file referencing :wat::io::read-file (defined in no fixture)
   ;; must produce no violation (it resolves to an intrinsic / built-in).
   (:wat::core::let
-    [f (:wat::deporder::SourceFile "f" "(:wat::io::read-file \"some-path\")")
-     files (:wat::core::Vector :wat::deporder::SourceFile f)
+    [f (:wat::source::File "f" "(:wat::io::read-file \"some-path\")")
+     files (:wat::core::Vector :wat::source::File f)
      viols (:wat::deporder::verify files)]
     (:wat::test::assert-eq (:wat::core::length viols) 0)))
 

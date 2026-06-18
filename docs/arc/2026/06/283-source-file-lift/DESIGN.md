@@ -1,10 +1,19 @@
 # Arc 283 — lift `SourceFile` out of deporder → `:wat::source::File` (dogfood the rename)
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc283_source_file_lift.rs`
-> (`#[ignore]`'d): `:wat::source::File` undefined at HEAD. A decomplect (solvere): the generic
-> source-unit struct, born in `deporder` (arc 275), is the universal input to every source-processing
-> tool — it lifts to a neutral home. **The rename is dogfooded through `fix::rename-keyword-prefix`** —
-> the toolchain renaming its own symbol across the corpus.
+> **STATUS: SHIPPED (2026-06-17).** `:wat::source::File` in `wat/source.wat` (loaded before deporder);
+> deporder keeps Violation + SymDef. The `.wat` rename was **dogfooded through the (283.1-hardened)
+> `fix::rename-keyword-prefix`** — bare refs + accessors + type-args, comment-faithful. Manual seams: def
+> relocation, stdlib registration, 3 Rust fixtures. Weighed on own build: zero `deporder::SourceFile`
+> survivors (both colon-forms, all dirs), lift gate 1/1, deporder gate 0, lib 929/36, deftest 261/1,
+> nursery 893/4 — all floors byte-identical.
+>
+> **PROCESS LESSON (the bar-raise):** the first dogfood pass FAILED two ways, both incompleteness:
+> (1) the tool couldn't reach type-args → fixed at the root in **283.1** (don't hand-patch); (2) the
+> driver's file list was HAND-LISTED (3 files) and missed `wat-tests/deporder.wat`, and the
+> survivor-grep missed the no-colon type-arg form AND the `wat-tests/` dir. **A corpus rename must
+> DERIVE its file set (grep every `.wat` containing the symbol) and verify completeness across ALL dirs
+> + BOTH colon-forms (`:P` and `P`).** This is a hard requirement for the SWEEP stone — captured here so
+> it ships into that driver, not re-learned.
 
 ## Why
 

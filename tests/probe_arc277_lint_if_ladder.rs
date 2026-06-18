@@ -11,7 +11,7 @@
 //! At HEAD `:wat::lint::lint-source` is undefined → this eval errors → RED. GREEN when 277.1 ships the
 //! framework + the ladder rule and the fixture's 3-deep ladder surfaces ≥1 finding.
 //!
-//! Reuses `:wat::deporder::SourceFile` (shipped arc 275) — the pure-function-of-sources input shape.
+//! Reuses `:wat::source::File` (shipped arc 275) — the pure-function-of-sources input shape.
 //!
 //! Run: cargo test --release -p wat --test probe_arc277_lint_if_ladder -- --include-ignored
 
@@ -24,8 +24,8 @@ use wat::runtime::{Environment, Value};
 // (Inner quotes escaped for the wat string lexer; the raw Rust string preserves the backslashes.)
 const LINT_LADDER: &str = r#"
 (:wat::lint::lint-source
-  (:wat::core::Vector :wat::deporder::SourceFile
-    (:wat::deporder::SourceFile "t.wat"
+  (:wat::core::Vector :wat::source::File
+    (:wat::source::File "t.wat"
       "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))")))
 "#;
 

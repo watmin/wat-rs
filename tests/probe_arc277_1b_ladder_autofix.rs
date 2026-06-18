@@ -20,7 +20,7 @@ use wat::runtime::{Environment, Value};
 // and no longer contains the nested "(:wat::core::if (:wat::core::= x".
 const LINT_FIX: &str = r#"
 (:wat::lint::lint-fix-file
-  (:wat::deporder::SourceFile "t.wat"
+  (:wat::source::File "t.wat"
     "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"))
 "#;
 

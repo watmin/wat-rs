@@ -16,7 +16,6 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 283 — RED until SourceFile lifts to :wat::source::File; un-ignore on green"]
 fn source_file_is_at_the_neutral_home() {
     let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
         Arc::new(InMemoryLoader::new()))

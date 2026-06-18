@@ -424,10 +424,10 @@
 
 ;; lint-file — run all form-level rules over one SourceFile.
 (:wat::core::defn :wat::lint::lint-file
-  [sf <- :wat::deporder::SourceFile]
+  [sf <- :wat::source::File]
   -> :wat::core::Vector<wat::lint::Finding>
-  (:wat::core::let [path   (:wat::deporder::SourceFile/path sf)
-                    source (:wat::deporder::SourceFile/source sf)
+  (:wat::core::let [path   (:wat::source::File/path sf)
+                    source (:wat::source::File/source sf)
                     tree   (:wat::core::read-string source)
                     forms  (:wat::core::ast->children tree)]
     (:wat::core::foldl
@@ -444,11 +444,11 @@
 ;; lint-source — run form-level rules over every file in Vector<SourceFile>.
 ;; The primary pure entry point for the linter.
 (:wat::core::defn :wat::lint::lint-source
-  [files <- :wat::core::Vector<wat::deporder::SourceFile>]
+  [files <- :wat::core::Vector<wat::source::File>]
   -> :wat::core::Vector<wat::lint::Finding>
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::Vector<wat::lint::Finding>
-                     sf  <- :wat::deporder::SourceFile]
+                     sf  <- :wat::source::File]
       -> :wat::core::Vector<wat::lint::Finding>
       (:wat::core::concat acc (:wat::lint::lint-file sf)))
     (:wat::core::Vector :wat::lint::Finding)
@@ -520,10 +520,10 @@
 ;; fix-text-span-len, collects Tuple(off, old-len, new-text) in ascending order,
 ;; reverses to right-to-left, then splices via fix-text-apply.
 (:wat::core::defn :wat::lint::apply-fixes
-  [sf       <- :wat::deporder::SourceFile
+  [sf       <- :wat::source::File
    findings <- :wat::core::Vector<wat::lint::Finding>]
   -> :wat::core::String
-  (:wat::core::let [src   (:wat::deporder::SourceFile/source sf)
+  (:wat::core::let [src   (:wat::source::File/source sf)
                     lines (:wat::core::string::split src "\n")
                     edits (:wat::core::foldl
                             (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
@@ -552,6 +552,6 @@
 ;; lint-fix-file — lint a SourceFile and apply all auto-fixes, returning the fixed source.
 ;; Convenience entry called by probes and the sweep: lint-file → apply-fixes.
 (:wat::core::defn :wat::lint::lint-fix-file
-  [sf <- :wat::deporder::SourceFile]
+  [sf <- :wat::source::File]
   -> :wat::core::String
   (:wat::lint::apply-fixes sf (:wat::lint::lint-file sf)))

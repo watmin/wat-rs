@@ -19,8 +19,8 @@ use wat::runtime::{Environment, Value};
 // the textbook hand-rolled template that `format` cures.
 const LINT_CONCAT: &str = r#"
 (:wat::lint::lint-source
-  (:wat::core::Vector :wat::deporder::SourceFile
-    (:wat::deporder::SourceFile "t.wat"
+  (:wat::core::Vector :wat::source::File
+    (:wat::source::File "t.wat"
       "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" of \" b))")))
 "#;
 
