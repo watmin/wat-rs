@@ -46,7 +46,6 @@ fn ev(expr: &str) -> Value {
 }
 
 #[test]
-#[ignore = "arc 278 stone 3a — un-ignore when fire-rules seeds root-join Tokens"]
 fn root_join_populates_one_beta_node() {
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}] (:wat::core::length (:wat::core::PersistentMap/keys bmem)))"
@@ -55,7 +54,6 @@ fn root_join_populates_one_beta_node() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 3a — un-ignore when fire-rules seeds root-join Tokens"]
 fn root_join_seeds_one_token() {
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}{TOK}] (:wat::core::length toks))"
@@ -64,7 +62,6 @@ fn root_join_seeds_one_token() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 3a — un-ignore when fire-rules seeds root-join Tokens"]
 fn seeded_token_carries_bindings_and_support() {
     let binds = ev(&format!(
         "(:wat::core::let [{SETUP}{TOK} binds (:wat::rete::Token/bindings tok)] \

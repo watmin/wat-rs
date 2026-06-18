@@ -21,10 +21,12 @@
 ;; ─── data flow ──────────────────────────────────────────────────────────────
 
 ;; Token — provenance/support chain + left-side bindings; flows LEFT through joins.
-;; matches: [[fact node-id] …] — the support chain.
+;; matches: [(fact, alpha-id) …] — the support chain; each entry is a typed tuple
+;;   (the pair is heterogeneous: a Record + an i64, which a bare PV cannot honestly type).
+;;   Load-bearing for TM: the chain grows one tuple per condition as the token flows through joins.
 ;; bindings: {?var → value} — variable bindings accumulated left-to-right.
 (:wat::Record::def :wat::rete::Token
-  [matches  <- :wat::core::PersistentVector
+  [matches  <- :wat::core::PersistentVector<(wat::Record,wat::core::i64)>
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
@@ -534,11 +536,95 @@
            facts)))
       (:else alpha-mem))))
 
-;; fire-rules — alpha slice: run all staged facts through every AlphaNode and
-;; populate alpha-memory. Pure value-semantics: takes a Session, returns a new
-;; frozen Session. No beta join / no production firing / no cascade (stones 3/4).
+;; seed-token — build a single Token seeding the beta chain from one Element.
+;; The support entry is a typed tuple (fact, alpha-id); the bindings are the
+;; Element's alpha-bindings carried straight through (root-join adds no new bindings).
+;; WHY Tuple: the pair is heterogeneous — a Record plus an i64 — which a bare PV
+;; cannot honestly type.  The tuple form is what Token.matches is declared to hold.
+(:wat::core::defn :wat::rete::seed-token
+  [el       <- :wat::rete::Element
+   alpha-id <- :wat::core::i64]
+  -> :wat::rete::Token
+  (:wat::rete::Token
+    (:wat::core::PersistentVector
+      (:wat::core::Tuple (:wat::rete::Element/fact el) alpha-id))
+    (:wat::rete::Element/bindings el)))
+
+;; append-token — append a Token to beta-memory at root-join-id; create the PV if absent.
+;; WHY two assoc branches: same rationale as activate-fact — avoids a nested intermediate
+;; PV match where the empty branch would have an under-typed PersistentVector<?>.
+(:wat::core::defn :wat::rete::append-token
+  [beta-mem     <- :wat::core::PersistentMap
+   root-join-id <- :wat::core::i64
+   tok          <- :wat::rete::Token]
+  -> :wat::core::PersistentMap
+  (:wat::core::match (:wat::core::PersistentMap/get beta-mem root-join-id) -> :wat::core::PersistentMap
+    ((:wat::core::Some pv)
+     (:wat::core::PersistentMap/assoc beta-mem root-join-id
+       (:wat::core::PersistentVector/conj pv tok)))
+    (:wat::core::None
+     (:wat::core::PersistentMap/assoc beta-mem root-join-id
+       (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) tok)))))
+
+;; seed-root-join-children — for one AlphaNode that has Elements, follow its children;
+;; for each child that is a RootJoinNode, seed one Token per Element into beta-memory.
+;; WHY fold over children then fold over elements: the outer fold fans out to all
+;; RootJoinNode children; the inner fold seeds each Element as a Token.
+(:wat::core::defn :wat::rete::seed-root-join-children
+  [alpha-id  <- :wat::core::i64
+   els       <- :wat::core::PersistentVector
+   network   <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [alpha-node (:wat::core::Option/expect -> :wat::Record
+                                   (:wat::core::PersistentMap/get network alpha-id)
+                                   "seed-root-join-children: alpha node not found")
+                    child-ids  (:wat::rete::AlphaNode/children alpha-node)]
+    (:wat::core::foldl
+      (:wat::core::fn [bm       <- :wat::core::PersistentMap
+                       child-id <- :wat::core::i64]
+        -> :wat::core::PersistentMap
+        (:wat::core::let [child-node (:wat::core::Option/expect -> :wat::Record
+                                         (:wat::core::PersistentMap/get network child-id)
+                                         "seed-root-join-children: child node not found")]
+          (:wat::core::cond
+            ((:wat::core::= (:wat::rete::node-kind-label child-node) "RootJoinNode")
+             ;; WHY fold els here: seed one Token per Element into this RootJoinNode's slot.
+             (:wat::core::foldl
+               (:wat::core::fn [bm2 <- :wat::core::PersistentMap
+                                el  <- :wat::rete::Element]
+                 -> :wat::core::PersistentMap
+                 (:wat::rete::append-token bm2 child-id (:wat::rete::seed-token el alpha-id)))
+               bm
+               els))
+            (:else bm))))
+      beta-mem
+      child-ids)))
+
+;; root-join-pass — fold step for the root-join pass: for each network node id,
+;; if it is an AlphaNode with Elements in alpha-memory, seed its RootJoinNode children.
+(:wat::core::defn :wat::rete::root-join-pass
+  [alpha-mem <- :wat::core::PersistentMap
+   network   <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap
+   node-id   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "root-join-pass: node not found")]
+    (:wat::core::cond
+      ((:wat::core::= (:wat::rete::node-kind-label node) "AlphaNode")
+       (:wat::core::match (:wat::core::PersistentMap/get alpha-mem node-id) -> :wat::core::PersistentMap
+         ((:wat::core::Some els)
+          (:wat::rete::seed-root-join-children node-id els network beta-mem))
+         (:wat::core::None beta-mem)))
+      (:else beta-mem))))
+
+;; fire-rules — alpha pass then root-join pass: populate alpha-memory and beta-memory.
+;; Pure value-semantics: takes a Session, returns a new frozen Session.
+;; No hash-join (stone 3b) / no production firing / no cascade (stone 4).
 ;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
-;; (fire the rule network); the v1 scope is flagged in the DESIGN, not the name.
+;; (fire the rule network); the v3a scope is flagged in the DESIGN, not the name.
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
 (:wat::core::defn :wat::rete::fire-rules
   [session <- :wat::rete::Session]
@@ -546,18 +632,27 @@
   (:wat::core::let [network  (:wat::rete::Session/network session)
                     facts    (:wat::rete::Session/facts   session)
                     node-ids (:wat::core::PersistentMap/keys network)
+                    ;; alpha pass (2b) — populate alpha-memory
                     new-amem (:wat::core::foldl
                                 (:wat::core::fn [acc     <- :wat::core::PersistentMap
                                                  node-id <- :wat::core::i64]
                                   -> :wat::core::PersistentMap
                                   (:wat::rete::activate-alpha facts network acc node-id))
                                 (:wat::core::PersistentMap)
+                                node-ids)
+                    ;; root-join pass (3a) — seed RootJoinNode beta-memory from alpha Elements
+                    new-bmem (:wat::core::foldl
+                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                 node-id <- :wat::core::i64]
+                                  -> :wat::core::PersistentMap
+                                  (:wat::rete::root-join-pass new-amem network acc node-id))
+                                (:wat::core::PersistentMap)
                                 node-ids)]
     (:wat::rete::Session
       (:wat::rete::Session/network           session)
       (:wat::rete::Session/rules             session)
       new-amem
-      (:wat::rete::Session/beta-memory       session)
+      new-bmem
       (:wat::rete::Session/production-memory session)
       facts
       (:wat::rete::Session/next-id           session))))
