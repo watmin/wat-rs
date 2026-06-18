@@ -57,6 +57,25 @@ Pick via four-questions when the arc gets DESIGNed.
 - Default values for unspecified fields (separate feature; possibly its own arc)
 - Partial application / builder pattern
 
+## Follow-on (REQUIRED, not optional) — the positional-construction lint rule
+
+`Struct/from` is only half the cure. The constructor *offers* the safe form; the **lint rule** is what
+makes the codebase actually use it. **Once `:T/from` ships, add a `wat-lint` rule** that flags positional
+construction of a multi-field record (`(:my::T a b c …)` where `T` has ≥ N fields — N to be picked at
+design) and points at the kwarg form `(:my::T/from :field a …)`. With a `wat-fix` auto-fix
+(positional → kwarg, field names recovered from the record def), it becomes the arc-277 self-fixing-toolchain
+pattern: the sweep converts every construction site, and the diff is the proof.
+
+This is the extirpare climb: the constructor is the *check* rung (the safe form exists); the lint rule is what
+drives adoption; the compile-time field-check inside `:T/from` is the *type* rung (wrong field order
+uncompilable). The footgun this whole arc exists to kill is "a delegated/lower-tier LLM mis-arranges a
+positional N-field constructor and it compiles silently" — the rule makes the wrong form *visible*, the
+constructor makes the right form *easy*, the field-check makes the wrong form *impossible*.
+
+**First consumer:** the rete engine (`wat/rete.wat`) — its 7-field `Session` + multi-field node records are
+constructed positionally today (arc 278 stone 1b, where this need surfaced). Sweep those onto `:Session/from`
+the moment `/from` + the rule land.
+
 ## Cross-references
 
 - Arc 168 — let-flat-shape + tuple destructure (the parallel binding-vector idiom)
