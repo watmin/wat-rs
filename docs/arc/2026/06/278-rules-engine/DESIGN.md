@@ -547,3 +547,25 @@ engine (a different engine wat also hosts).
   the map an engine until the network exists.
 - **Good UX?** One `defrule` surface, homoiconic; lint/deporder/DDoS all consumers of one engine; the
   fuzzy matcher (if built) makes "rules over similarity" a first-class, novel affordance.
+
+---
+
+## ADDENDUM (2026-06-19) — engine architecture: a Rust `fire` kernel orchestrated by wat
+
+The stones 0–4 built the engine in wat (re-run-from-scratch, flat full-cross joins). A grounded throughput
+bench (`tests/perf_arc278_fire_baseline.rs`: ~130–820 facts/s, O(N²)) showed the wat-interpreted fire loop is
+4–7 orders of magnitude below the line-rate bar (HTTPS / sampled packets). Reconciled with the builder's
+stated philosophy — **"wat is an orchestration of Rust; Rust without Rust's syntax"** — and the bar
+(**Clara-parity-or-superior, Rust-backed**), the engine architecture is settled:
+
+- **Production engine = a Rust `fire` kernel** (delta propagation + `join-bindings`-keyed joins + native
+  mutable memories with transient-during-fire / persistent-at-rest freeze; TM via the support store + `matches`
+  chain). The mutation is sealed in Rust = out of the user's hands; the surface stays pure value-semantics.
+  This *realizes* the §"three RETE non-redundancies" (delta propagation) this DESIGN already required —
+  it is not new scope, it is where that requirement actually lives.
+- **wat = orchestration** (compile, rules-as-data, `defrule`/`defquery`/`query`/`insert`/`retract`).
+- **The wat re-run-from-scratch `fire-rules` (stones 4a/4b) = the reference SPEC + differential oracle** the
+  kernel is validated against (bit-identical `Session`). Kept, not ripped out.
+
+Full plan + the grounded baseline: **`PERF-ARC-rust-fire-kernel.md`**. Sequencing: finish the semantic slice
+(4c TM + 5 defrule/query → north-star green, the oracle) FIRST, then the Rust-kernel perf arc.
