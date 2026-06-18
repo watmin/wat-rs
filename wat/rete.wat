@@ -971,14 +971,14 @@
     facts
     derived))
 
-;; fire-rules — fixpoint driver over fire-once: re-run the full match over a dedup-growing fact set
-;; until a round adds no new fact (monotone-finite termination — datalog property).
+;; fire-fixpoint — internal fixpoint driver over fire-once: re-run the full match over a
+;; dedup-growing fact set until a round adds no new fact (monotone-finite termination — datalog property).
 ;; Re-run-from-scratch (pure replay) each round: fire-once recomputes all memories from Session.facts,
 ;; so derived facts in facts are matched exactly like input facts on the next round. No incremental
-;; delta-propagation (deferred perf path). No truth-maintenance / retraction (4c).
-;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
-;; (fire the rule network); stones build up the scope incrementally under this name.
-(:wat::core::defn :wat::rete::fire-rules
+;; delta-propagation (deferred perf path).
+;; Internal: the returned Session.facts = the whole closure (input + derived), which is what the
+;; matching machinery needs across rounds. The PUBLIC caller (fire-rules) restores facts = input only.
+(:wat::core::defn :wat::rete::fire-fixpoint
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [fired     (:wat::rete::fire-once session)
@@ -987,7 +987,7 @@
                     new-facts (:wat::rete::merge-facts old-facts derived)]
     (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
       fired
-      (:wat::rete::fire-rules
+      (:wat::rete::fire-fixpoint
         (:wat::rete::Session
           (:wat::rete::Session/network fired)
           (:wat::rete::Session/rules   fired)
@@ -996,3 +996,52 @@
           (:wat::rete::Session/production-memory fired)
           new-facts
           (:wat::rete::Session/next-id fired))))))
+
+;; fire-rules — public caller-facing wrapper: run fire-fixpoint, then restore Session.facts = input only.
+;; WHY the split: fire-fixpoint accumulates derived facts into Session.facts across rounds so cascades
+;; match (input ∪ derived visible to each round); but the RETURNED Session.facts must hold ONLY the
+;; asserted/input facts (the retractable base). This is the fact-model fix for 4c TM: with facts = input
+;; only, retract-then-fire recomputes the closure from a smaller input → consequences vanish transitively.
+;; Matching still sees input ∪ derived inside fire-fixpoint, so 4b cascade stays green.
+(:wat::core::defn :wat::rete::fire-rules
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::core::let [input (:wat::rete::Session/facts session)
+                    fired (:wat::rete::fire-fixpoint session)]
+    (:wat::rete::Session
+      (:wat::rete::Session/network           fired)
+      (:wat::rete::Session/rules             fired)
+      (:wat::rete::Session/alpha-memory      fired)
+      (:wat::rete::Session/beta-memory       fired)
+      (:wat::rete::Session/production-memory fired)
+      input
+      (:wat::rete::Session/next-id           fired))))
+
+;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.
+;; Symmetric with insert: the caller re-fires (fire-rules recomputes from the reduced input).
+;; WHY foldl + not-equals guard: mirrors merge-facts' foldl + contains? idiom; structural = on
+;; records makes removal type-safe and value-precise (not identity/pointer removal).
+;; WHY stage-only (no fire): same discipline as insert — the WM stays open for multiple staged
+;; removals before the caller locks them in with fire-rules.
+(:wat::core::defn :wat::rete::retract
+  [session <- :wat::rete::Session
+   fact    <- :wat::Record]
+  -> :wat::rete::Session
+  (:wat::core::let [old-facts (:wat::rete::Session/facts session)
+                    new-facts (:wat::core::foldl
+                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::Record>
+                                                  f   <- :wat::Record]
+                                   -> :wat::core::PersistentVector<wat::Record>
+                                   (:wat::core::if (:wat::core::not (:wat::core::= f fact))
+                                     (:wat::core::PersistentVector/conj acc f)
+                                     acc))
+                                 (:wat::core::PersistentVector)
+                                 old-facts)]
+    (:wat::rete::Session
+      (:wat::rete::Session/network           session)
+      (:wat::rete::Session/rules             session)
+      (:wat::rete::Session/alpha-memory      session)
+      (:wat::rete::Session/beta-memory       session)
+      (:wat::rete::Session/production-memory session)
+      new-facts
+      (:wat::rete::Session/next-id           session))))
