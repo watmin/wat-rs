@@ -412,18 +412,27 @@ insert (delta propagation); clone-on-write makes each O(n) — the wasteful tree
 level. Clara/Clojure get non-redundancy because their collections are **persistent (HAMT, structural
 sharing)** → O(log n) immutable updates, cheap modified-copies.
 
-**DECISION (builder, 2026-06-17): expose persistent collections (the expected Rust perf work).** The `im`
-crate is ALREADY a wat dependency (`src/wat_edn_bridge.rs`), so exposing `im::HashMap`/`im::Vector` as wat
-values is block-and-buildable, not a from-scratch HAMT. Deferred-dep-becomes-necessary
-([[feedback_deferred_dep_becomes_necessary_block_and_build]]): the RETE non-redundancy bar REVEALS
-clone-on-write as the bottleneck. Division of labor (the "does a macro need it?" boundary applied to perf):
-- **Rust** = the persistent-collection primitive (`im::*` as wat values: structural-sharing
+**DECISION (builder, 2026-06-17): expose persistent collections (the expected Rust perf work).**
+> ⚠ CORRECTION (2026-06-17): an earlier draft claimed `im` was ALREADY a dependency — FALSE (a grep
+> false-positive on `edn_shim::`). NO persistent-collection crate is in the tree; stone 0 ADDS one.
+
+Crate chosen by the four-questions + supply-chain grounding: **`rpds`** ("Rust Persistent Data Structures") —
+MIT, ~1M downloads/mo, 4 core deps (archery + smallvec), safe-Rust-leaning + auditable, provides exactly
+`HashTrieMap` (HAMT) + `Vector`. Beat `imbl` on **Simple** (lean surface) + **Honest** (MIT vs MPL-2.0; smaller
+auditable dep surface — imbl pulls SIMD `wide` + unsafe-carrying chunk crates); imbl's only real edge —
+transients — is NOT a hard constraint (persistent HAMT updates are already O(log n), non-wasteful; transients
+are a deferrable constant-factor refinement, add later if profiling demands). Use rpds's Arc-backed **Sync**
+variants (`HashTrieMapSync` / `VectorSync` via `archery`) since `Value` is `Send+Sync`.
+Deferred-dep-becomes-necessary ([[feedback_deferred_dep_becomes_necessary_block_and_build]]): the RETE
+non-redundancy bar REVEALED clone-on-write as the bottleneck. Division of labor ("does a macro need it?"
+applied to perf):
+- **Rust** = the persistent-collection primitive (`rpds` as wat values: structural-sharing
   `assoc`/`get`/`dissoc`/`keys`/`vals`, EDN round-trip) + any hot intrinsic profiling later demands. The
   expected, bounded perf work — and a **language-wide** win (clone-on-write is a latent perf issue for the
   whole values-flow-through language; RETE is just its forcing function).
 - **wat** = the WHOLE engine on top: node types, network compile, alpha activation (reuse `form::matches?`),
   beta joins + unification, `fire-rules`, truth maintenance, accumulators, `defrule`/`defquery`/`query`, the
-  DAG render, the state blob. Builder: if `im::*` lets nearly all the work be wat, "i'm fucking stoked."
+  DAG render, the state blob. Builder: if persistent collections let nearly all the work be wat, "i'm fucking stoked."
 
 ## Decomposition (proposed — examinare strikes; each ships a REAL piece, no naive stand-ins)
 

@@ -5,8 +5,9 @@
 
 ## Why
 
-Arc 278 (the rete engine) adds an **opt-in persistent collection family** (`im::*`-backed, structural
-sharing, O(log n) immutable updates) alongside the existing std `:wat::core::HashMap` / `:wat::core::Vector`
+Arc 278 (the rete engine) adds an **opt-in persistent collection family** (`rpds`-backed — MIT, safe-Rust;
+NOT `im`/`imbl`; chosen by four-questions, arc 278 DESIGN — structural sharing, O(log n) immutable updates)
+alongside the existing std `:wat::core::HashMap` / `:wat::core::Vector`
 (`Arc<std>`, clone-on-write). Two layers of "a map is a map":
 
 - **Layer 1 (ships IN arc 278, stone 0):** shared OP NAMES — `assoc`/`get`/`keys`/`vals`/etc. dispatch
