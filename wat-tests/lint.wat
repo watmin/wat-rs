@@ -179,6 +179,62 @@
       (:wat::test::assert-false
         (:wat::core::string::contains? result "Vector<t::Old>")))))
 
+;; ─── Case 8: concat-format-fix — bare-symbol rewrites to format; compound stays; dedup ────
+
+(:wat::test::deftest :wat-tests::lint::concat-format-fix-bare-symbol-rewrites
+  ()
+  ;; Part A: (string::concat "x: " a " y: " b) — a,b bare symbols.
+  ;; lint-fix-file must rewrite to a format call with {a}/{b} slots and :a a :b b kwargs.
+  ;;
+  ;; Part B: (string::concat "n=" (i64::to-string n)) — value slot is a compound expr.
+  ;; lint-fix-file must leave it unchanged (report-only, no format rewrite).
+  ;;
+  ;; Part C: (string::concat "pre:" x "-" x) — same symbol x twice.
+  ;; The template must have {x} twice but the kwarg list must have :x x only once.
+  (:wat::core::let
+    [;; Part A: bare-symbol concat
+     src-a "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" y: \" b))"
+     sf-a  (:wat::source::File "a.wat" src-a)
+     fixed-a (:wat::lint::lint-fix-file sf-a)
+     ;; Part B: compound-slot concat
+     src-b "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String (:wat::core::string::concat \"n=\" (:wat::core::i64::to-string n)))"
+     sf-b  (:wat::source::File "b.wat" src-b)
+     fixed-b (:wat::lint::lint-fix-file sf-b)
+     ;; Part C: same-symbol-twice dedup
+     src-c "(:wat::core::defn :u::k [x <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"pre:\" x \"-\" x))"
+     sf-c  (:wat::source::File "c.wat" src-c)
+     fixed-c (:wat::lint::lint-fix-file sf-c)]
+    (:wat::core::do
+      ;; Part A: must contain format call with {a}/{b} slots and kwargs
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-a "(:wat::core::format"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-a "{a}"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-a "{b}"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-a ":a a"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-a ":b b"))
+      ;; Part A: the concat call must be gone
+      (:wat::test::assert-false
+        (:wat::core::string::contains? fixed-a "string::concat"))
+      ;; Part B: compound-slot must stay report-only (concat must remain)
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-b "string::concat"))
+      (:wat::test::assert-false
+        (:wat::core::string::contains? fixed-b "(:wat::core::format"))
+      ;; Part C: format present, {x} appears, but :x x appears only once
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-c "(:wat::core::format"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-c "{x}"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed-c ":x x"))
+      ;; Part C: concat must be gone
+      (:wat::test::assert-false
+        (:wat::core::string::contains? fixed-c "string::concat")))))
+
 ;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
 
 (:wat::test::deftest :wat-tests::lint::ladder-autofix-rewrites-and-round-trips

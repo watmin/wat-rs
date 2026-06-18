@@ -1,6 +1,6 @@
 # Arc 277.1c-fix — the concat→format auto-fix (bare-symbol slots only; the four-questions line)
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc277_1c_concat_format_autofix.rs`
+> **STATUS: SHIPPED (2026-06-17).** Bare-symbol concat -> format auto-fix; compound stays report-only (naming deferred to arc-278 RETE map). Weighed on own build: gate 2/2 (eyeballed: `(string::concat "x: " a " y: " b)` -> `(:wat::core::format "x: {a} y: {b}" :a a :b b)`), deftest 262/1, deporder 0, lib 929/36. The eligibility check shipped as a nested-if disjunction (the smell this tool abolishes — builder caught it); cleaned to `(not (or ...))` (see REALIZATIONS R2 — it names the generalized boolean-ladder rule). RED probe `tests/probe_arc277_1c_concat_format_autofix.rs`
 > (`#[ignore]`'d): bare-symbol concat must rewrite to `format`; compound concat must stay report-only.
 > Gives 277.1c's report-only concat-abuse rule a real fix — but ONLY where naming is mechanical.
 

@@ -365,6 +365,110 @@
         false))
     false))
 
+;; concat-format-fix — compute an auto-fix for a concat-abuse form, if eligible.
+;;
+;; Eligible when:
+;;   - every non-string-literal arg is ast-kind "symbol" (bare name → honest placeholder)
+;;   - no string-literal arg's inner text contains `"`, `{`, or `}` (keeps template simple)
+;; Ineligible (compound value slot, or literal with special chars) → None (report-only).
+;;
+;; When eligible: fold args in order building:
+;;   - template  (String): literal args → their inner text; symbol args → "{name}"
+;;   - kwarg-names (Vector<String>): symbol names, deduped first-seen-order
+;; Emit: new-text = "(:wat::core::format \"<template>\" :a a :b b …)"
+;; Return: Some(FixEdit start-line start-col end-line end-col new-text)
+;; extent = ast-span..ast-end-span of the whole concat form (same as ladder fix).
+(:wat::core::defn :wat::lint::concat-format-fix
+  [form <- :wat::WatAST]
+  -> :wat::core::Option<wat::lint::FixEdit>
+  (:wat::core::let [args     (:wat::core::drop (:wat::core::ast->children form) 1)
+                    ;; ── Step 1: eligibility fold ─────────────────────────────
+                    ;; acc = bool (still-eligible). Fold args; if any arg fails,
+                    ;; propagate false (no early exit — fold goes to the end).
+                    eligible (:wat::core::foldl
+                               (:wat::core::fn [ok  <- :wat::core::bool
+                                                arg <- :wat::WatAST]
+                                 -> :wat::core::bool
+                                 (:wat::core::if ok
+                                   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
+                                     ;; literal: inner text must contain NONE of " { }
+                                     ;; (a boolean test, not a nested-if ladder — the very smell
+                                     ;; this tool exists to abolish; intueri caught the author's hand)
+                                     (:wat::core::let [inner (:wat::core::ast-name arg)]
+                                       (:wat::core::not
+                                         (:wat::core::or (:wat::core::string::contains? inner "\"")
+                                           (:wat::core::or (:wat::core::string::contains? inner "{")
+                                             (:wat::core::string::contains? inner "}")))))
+                                     ;; non-literal: must be a bare symbol
+                                     (:wat::core::= (:wat::core::ast-kind arg) "symbol"))
+                                   false))
+                               true
+                               args)]
+    (:wat::core::if eligible
+      ;; ── Step 2: build template + kwarg-names ────────────────────────
+      ;; acc = Tuple(template, kwarg-names) : :(String, Vector<String>)
+      (:wat::core::let [build-result
+                         (:wat::core::foldl
+                           (:wat::core::fn [acc <- :(wat::core::String,wat::core::Vector<wat::core::String>)
+                                            arg <- :wat::WatAST]
+                             -> :(wat::core::String,wat::core::Vector<wat::core::String>)
+                             (:wat::core::let [tmpl  (:wat::core::first acc)
+                                               names (:wat::core::second acc)]
+                               (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
+                                 ;; literal → append inner text to template
+                                 (:wat::core::Tuple
+                                   (:wat::core::string::concat tmpl (:wat::core::ast-name arg))
+                                   names)
+                                 ;; symbol → append {name} to template; dedup-add to names
+                                 (:wat::core::let [nm (:wat::core::ast-name arg)]
+                                   (:wat::core::Tuple
+                                     (:wat::core::string::concat tmpl
+                                       (:wat::core::string::concat "{"
+                                         (:wat::core::string::concat nm "}")))
+                                     (:wat::core::if (:wat::core::contains? names nm)
+                                       names
+                                       (:wat::core::conj names nm)))))))
+                           (:wat::core::Tuple "" (:wat::core::Vector :wat::core::String))
+                           args)
+                        template   (:wat::core::first build-result)
+                        kwarg-names (:wat::core::second build-result)
+                        ;; ── Step 3: emit new-text ────────────────────────────
+                        ;; "(:wat::core::format \"<template>\"" + " :nm nm" … + ")"
+                        kwargs-text (:wat::core::foldl
+                                      (:wat::core::fn [acc <- :wat::core::String
+                                                       nm  <- :wat::core::String]
+                                        -> :wat::core::String
+                                        (:wat::core::string::concat acc
+                                          (:wat::core::string::concat " :"
+                                            (:wat::core::string::concat nm
+                                              (:wat::core::string::concat " " nm)))))
+                                      ""
+                                      kwarg-names)
+                        new-text   (:wat::core::string::concat
+                                     "(:wat::core::format \""
+                                     (:wat::core::string::concat template
+                                       (:wat::core::string::concat "\""
+                                         (:wat::core::string::concat kwargs-text ")"))))
+                        ;; ── Step 4: span from ast-span + ast-end-span of form ─
+                        span    (:wat::core::ast-span form)
+                        ep      (:wat::core::ast-end-span form)
+                        ln      (:wat::core::Option/expect -> :wat::core::i64
+                                    (:wat::core::HashMap/get span :line)
+                                    "concat-format-fix: :line")
+                        co      (:wat::core::Option/expect -> :wat::core::i64
+                                    (:wat::core::HashMap/get span :col)
+                                    "concat-format-fix: :col")
+                        end-ln  (:wat::core::Option/expect -> :wat::core::i64
+                                    (:wat::core::HashMap/get ep :line)
+                                    "concat-format-fix: end :line")
+                        end-co  (:wat::core::Option/expect -> :wat::core::i64
+                                    (:wat::core::HashMap/get ep :col)
+                                    "concat-format-fix: end :col")
+                        fe      (:wat::lint::FixEdit ln co end-ln end-co new-text)]
+        (:wat::core::Some fe))
+      ;; ineligible (compound slot or special-char literal) — report-only
+      :wat::core::None)))
+
 ;; make-concat-finding — construct the Finding for a detected concat-abuse.
 (:wat::core::defn :wat::lint::make-concat-finding
   [form   <- :wat::WatAST
@@ -392,7 +496,7 @@
       co
       "warn"
       msg
-      :wat::core::None)))
+      (:wat::lint::concat-format-fix form))))
 
 ;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
 ;; Detects concat-abuse at the top level OR nested anywhere inside the form.

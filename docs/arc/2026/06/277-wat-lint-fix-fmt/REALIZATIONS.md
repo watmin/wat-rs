@@ -52,3 +52,31 @@ to repair itself.
 
 > The dragon was a doorway. Behind it: a linter that doesn't just point at the bad form — it reaches in
 > and replaces it with the cure, and leaves no fingerprints anywhere else.
+
+## R2 — the fix tool wrote the bad form it abolishes (the strange loop, caught mid-write)
+
+Building 277.1c-fix (the concat→format auto-fix), the executor wrote the eligibility check as a
+nested-`if` disjunction:
+
+```clojure
+(if (contains? inner "\"") false
+  (if (contains? inner "{") false
+    (if (contains? inner "}") false true)))
+```
+
+— a boolean test (`(not (or …))`) wearing four lines of `if`. The builder caught it live in the diff:
+*"rofl — did it just write its own bad form we're about to address?"* It did. arc 275's strange loop
+(deporder written in the bad form it detects) firing AGAIN: the tool built to clean bad forms, shipped
+*in* a bad form. Cleaned to `(:wat::core::not (:wat::core::or …))` before commit — the fix tool may not
+ship in the shape it exists to abolish (intueri).
+
+**The sharper finding — it names the NEXT rule.** The current `nested-if-=-ladder` rule would NOT have
+caught this: it keys narrowly on `(if (= VAR LIT) true …)` — equality conditions, `true` leaves. This is
+`(contains? …) → false` — different predicate, opposite polarity. So the bad form wasn't a fixture the
+toolchain could clean; it was a GAP. It generalizes the rule: **"a nested `if` whose every leaf is a
+boolean literal is a boolean expression in disguise → rewrite to `and`/`or`/`not`."** The
+`= VAR LIT → contains?(HashSet)` ladder is one special case of it. Banked as a 277/278 follow — a richer
+LHS than the narrow ladder match, and a natural early consumer of the arc-278 RETE engine.
+
+The doctrine, demonstrated in one screenshot: the toolchain's own author's hand caught writing the smell
+the toolchain hunts — and the catch didn't just fix an instance, it widened the net.
