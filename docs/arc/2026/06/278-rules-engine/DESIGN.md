@@ -91,6 +91,23 @@ tool caught writing the very smell it abolishes — `277/REALIZATIONS.md` R2):
 (The fix's RHS obeys the output contract below — for the boolean-collapse the rewrite is a pure fact, no
 name-holes; contrast the concat→format fix whose compound case yields holes.)
 
+### `compound-concat-collapse` (the COMPOUND concat→format/interpolate, deferred from arc-277)
+
+> **REQUIRED charter rule.** arc-277's concat→{format|interpolate} auto-fix is BARE-SYMBOL-ONLY — it
+> deliberately deferred the COMPOUND case (a `string::concat` whose args are themselves expressions — a
+> nested concat chain, or `(i64::to-string n)`) to the RETE engine, because naming a compound slot is a
+> JUDGMENT (a name-hole per the output contract, never faked as a fact).
+
+- **LHS:** a `:wat::core::string::concat` mixing ≥1 literal + ≥1 value where some value is NOT a bare symbol
+  (a nested concat, a call) — the case the bare-symbol fix skips.
+- **RHS:** flatten the whole nested chain to ONE `format` (runtime) / `interpolate` (defmacro-body) — bare
+  slots auto-named `{sym}`; compound slots emit a NAME-HOLE the consumer fills (never a faked `{arg0}`).
+  Position-gated (277.1d), purity-aware (255).
+- **First proof-by-diff fixture (builder, 2026-06-17):** `wat/rete.wat`'s `render-dag` ships with a
+  deliberate nested-concat chain (marked in-source). It SURVIVES the current bare-symbol sweep (confirmed —
+  the sweep emits no `[fixed]`); the RETE `compound-concat-collapse` rule will clean it, and THAT diff
+  proves the rule AND proves the engine fixes its own source (the self-fixing creed, on the flagship engine).
+
 ## The plan (the swap — author-adjacent / prime-drop)
 
 1. **277 first.** `wat-lint` ships and is *proven working* (rules catch real bad forms across the corpus,
@@ -433,6 +450,51 @@ applied to perf):
 - **wat** = the WHOLE engine on top: node types, network compile, alpha activation (reuse `form::matches?`),
   beta joins + unification, `fire-rules`, truth maintenance, accumulators, `defrule`/`defquery`/`query`, the
   DAG render, the state blob. Builder: if persistent collections let nearly all the work be wat, "i'm fucking stoked."
+
+## Clara doc review — inspection / durability / ruleforms (2026-06-17): two categorical wins
+
+- **Inspection** (`clara.tools.inspect`): `inspect` → `:rule-matches` + `:fact->explanations` (fact
+  provenance); `explain-activations` → why a rule fired (matched conditions + insertions). **Clara GAP:
+  inspection is UNSUPPORTED for `insert-unconditional!` facts (no TM metadata → no provenance).** We CUT
+  `insert-unconditional!` — all insertion is logical — so **every fact in `:wat::rete` has full provenance →
+  our inspection/explanation is COMPLETE by construction.** A categorical win (the purity cut buys superior
+  introspection). The state-blob + DAG render expose `fact→explanation` via the token `matches` support chain.
+- **Durability**: Clara serializes the **Rulebase** (compiled network) as opaque Fressian binary, separate
+  from facts (user supplies `IWorkingMemorySerializer`). **Our network is already EDN data
+  (`PersistentMap<id,Node>` of records) → durability is FREE** — the state-blob IS the EDN; no bespoke
+  serializer. Categorical win. Nudge (deferred, on need): a `Rulebase` (immutable network) vs `Session`
+  (memories+facts) split enables sharing one compiled network across many fact-sets — adopt IF that need
+  surfaces; stone 1a keeps a single `WorkingMemory`.
+- **Ruleforms (rules-as-data)**: a rule = data `{:name :lhs [condition-maps] :rhs}`; defrule / a symbol / a
+  raw map all yield identical sessions → Clara is a *compiler target*. Confirms our homoiconic `defrule`
+  (a macro emitting rule-data; a user may write the data directly) + adds a **`Rule [name lhs rhs]`** record
+  to the model. Our condition data = the `:wat::form::matches?` clause structure (arc 098).
+
+## The `defrule` surface — a namespaced MACRO + explicit `collect-rules`, NOT ambient injection (builder, 2026-06-17)
+
+Clara's `defrule` is an **ambient injection**: a definition-time side-effect registers the rule into a
+namespace's implicit rule set, which `mk-session 'the-ns` then magically collects. **We reject the
+ambient/magic model** ([[feedback_no_magic_that_lets_llm_fake_correctness]]). Instead `defrule` is a MACRO
+like `defservice` / defn-kwargs — you name the namespace to create the rule IN:
+
+```
+(:wat::rete::defrule :my::ns/my-rule-1  [conditions] => rhs)   ; a NAMED Rule value at :my::ns/my-rule-1
+(:wat::rete::defrule :my::ns/my-rule-2  …)
+(:wat::rete::collect-rules :my::ns)                            ; → Vector<Rule> — EXPLICITLY gather the ns's rules
+```
+
+- `defrule` emits a **named binding** (a `Rule` value) in the given namespace — explicit, inspectable, no
+  hidden global registry. Same house pattern as `defservice` (you provide the namespaced name).
+- `collect-rules :my::ns` **explicitly** gathers the namespace's `Rule` bindings into a `Vector<Rule>` →
+  fed to `working-memory`. Lifecycle: `(working-memory (collect-rules :my::ns))` → `insert` → `fire-rules`
+  → `query`. Nothing fires "ambiently"; you CHOOSE the rule-set by collecting it.
+- **Open capability question (stone 5, ground when drawn):** `collect-rules` must enumerate a namespace's
+  `Rule` bindings — does wat have namespace reflection (list bindings + filter by type)? If not, it's a
+  small prerequisite (or `defrule` keeps an explicit, inspectable per-namespace rule list — NOT Clara's
+  hidden global). Decide at stone 5.
+
+This is a **stone-5 surface** (`defrule`/`defquery`/`collect-rules`/`query`); stone 1a only fixes the `Rule`
+record it produces (`[name lhs rhs]`), which this confirms.
 
 ## Decomposition (proposed — examinare strikes; each ships a REAL piece, no naive stand-ins)
 
