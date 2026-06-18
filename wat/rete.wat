@@ -620,11 +620,160 @@
          (:wat::core::None beta-mem)))
       (:else beta-mem))))
 
-;; fire-rules — alpha pass then root-join pass: populate alpha-memory and beta-memory.
+;; ─── hash-join pass (stone 3b) ──────────────────────────────────────────────
+
+;; alpha-feeding — reverse-lookup: find the AlphaNode id whose children contains hj-id.
+;; WHY reverse-lookup: the network stores forward edges (alpha → join via children);
+;; the join semantics require the RIGHT memory = alpha-memory of the feeding alpha.
+;; Folds over all node-ids; carries the found alpha-id (>= 0) or -1 (not yet found).
+(:wat::core::defn :wat::rete::alpha-feeding
+  [hj-id   <- :wat::core::i64
+   network  <- :wat::core::PersistentMap]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [found   <- :wat::core::i64
+                     node-id <- :wat::core::i64]
+      -> :wat::core::i64
+      (:wat::core::if (:wat::core::i64::>= found 0)
+        found
+        (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                                   (:wat::core::PersistentMap/get network node-id)
+                                   "alpha-feeding: node not found")]
+          (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "AlphaNode")
+            (:wat::core::if (:wat::core::PersistentVector/contains?
+                               (:wat::rete::AlphaNode/children node)
+                               hj-id)
+              node-id
+              -1)
+            -1))))
+    -1
+    (:wat::core::PersistentMap/keys network)))
+
+;; token-element-compatible? — check shared-variable agreement between a Token and an Element.
+;; Fold over element.bindings keys: if a key is ALSO in token.bindings with a DIFFERENT value
+;; → incompatible. A variable present only on one side never conflicts.
+;; WHY contains-key? before get: avoids comparing Option(None) against Option(Some(v)),
+;; which would incorrectly flag a token-missing key as a conflict.
+(:wat::core::defn :wat::rete::token-element-compatible?
+  [tok <- :wat::rete::Token
+   el  <- :wat::rete::Element]
+  -> :wat::core::bool
+  (:wat::core::let [t-binds (:wat::rete::Token/bindings   tok)
+                    e-binds (:wat::rete::Element/bindings  el)]
+    (:wat::core::foldl
+      (:wat::core::fn [compat <- :wat::core::bool
+                       k      <- :wat::core::String]
+        -> :wat::core::bool
+        (:wat::core::if (:wat::core::not compat)
+          false
+          (:wat::core::if (:wat::core::PersistentMap/contains-key? t-binds k)
+            ;; key in BOTH — the Options agree iff the underlying values are equal
+            ;; (e-binds always has the key since we iterate its own keys → Some == Some)
+            (:wat::core::= (:wat::core::PersistentMap/get t-binds k)
+                           (:wat::core::PersistentMap/get e-binds k))
+            true)))
+      true
+      (:wat::core::PersistentMap/keys e-binds))))
+
+;; extend-token — produce a new Token that merges an Element's fact and bindings.
+;; matches: append (Tuple element.fact alpha-id) — the provenance support entry.
+;; bindings: fold element.bindings into token.bindings (assoc each entry; shared vars
+;;           are idempotent — they agree by construction after compatible? passed).
+(:wat::core::defn :wat::rete::extend-token
+  [tok      <- :wat::rete::Token
+   el       <- :wat::rete::Element
+   alpha-id <- :wat::core::i64]
+  -> :wat::rete::Token
+  (:wat::core::let [e-binds     (:wat::rete::Element/bindings el)
+                    new-matches (:wat::core::PersistentVector/conj
+                                   (:wat::rete::Token/matches tok)
+                                   (:wat::core::Tuple (:wat::rete::Element/fact el) alpha-id))
+                    new-binds   (:wat::core::foldl
+                                   (:wat::core::fn [bm <- :wat::core::PersistentMap
+                                                    k  <- :wat::core::String]
+                                     -> :wat::core::PersistentMap
+                                     (:wat::core::match (:wat::core::PersistentMap/get e-binds k)
+                                                        -> :wat::core::PersistentMap
+                                       ((:wat::core::Some v)
+                                        (:wat::core::PersistentMap/assoc bm k v))
+                                       (:wat::core::None bm)))
+                                   (:wat::rete::Token/bindings tok)
+                                   (:wat::core::PersistentMap/keys e-binds))]
+    (:wat::rete::Token new-matches new-binds)))
+
+;; cross-join-node — cross LEFT (tokens) × RIGHT (elements) for one HashJoinNode.
+;; For each compatible (token, element) pair, extend the token and append to beta-mem at hj-id.
+;; WHY nested foldl: outer fan-out over tokens, inner fan-out over elements; pure accumulator.
+(:wat::core::defn :wat::rete::cross-join-node
+  [tokens   <- :wat::core::PersistentVector
+   elements <- :wat::core::PersistentVector
+   hj-id    <- :wat::core::i64
+   alpha-id <- :wat::core::i64
+   beta-mem <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::foldl
+    (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                     tok <- :wat::rete::Token]
+      -> :wat::core::PersistentMap
+      (:wat::core::foldl
+        (:wat::core::fn [bm2 <- :wat::core::PersistentMap
+                         el  <- :wat::rete::Element]
+          -> :wat::core::PersistentMap
+          (:wat::core::if (:wat::rete::token-element-compatible? tok el)
+            (:wat::rete::append-token bm2 hj-id (:wat::rete::extend-token tok el alpha-id))
+            bm2))
+        bm
+        elements))
+    beta-mem
+    tokens))
+
+;; hash-join-pass — fold step: propagate tokens from a beta node to its HashJoinNode children.
+;; For each node-id: if it is a RootJoinNode or HashJoinNode with tokens in beta-memory,
+;; for each HashJoinNode child J, cross beta-memory[here] × alpha-memory[alpha-feeding(J)].
+;; WHY topological pass in node-id order: compile assigns IDs left-to-right (root-join < hash-join),
+;; so iterating ascending node-ids processes parents before children — one pass is a valid fixpoint
+;; for the v1 linear-chain topology. No cycle possible (DAG; monotone insertions only).
+(:wat::core::defn :wat::rete::hash-join-pass
+  [alpha-mem <- :wat::core::PersistentMap
+   network   <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap
+   node-id   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "hash-join-pass: node not found")
+                    kind (:wat::rete::node-kind-label node)]
+    (:wat::core::if (:wat::core::or (:wat::core::= kind "RootJoinNode")
+                                    (:wat::core::= kind "HashJoinNode"))
+      (:wat::core::match (:wat::core::PersistentMap/get beta-mem node-id) -> :wat::core::PersistentMap
+        ((:wat::core::Some tokens)
+         (:wat::core::foldl
+           (:wat::core::fn [bm       <- :wat::core::PersistentMap
+                            child-id <- :wat::core::i64]
+             -> :wat::core::PersistentMap
+             (:wat::core::let [child (:wat::core::Option/expect -> :wat::Record
+                                         (:wat::core::PersistentMap/get network child-id)
+                                         "hash-join-pass: child not found")]
+               (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label child) "HashJoinNode")
+                 ;; WHY match on alpha-mem: no elements on the right → no matches possible;
+                 ;; skip the cross to avoid building an empty PV (avoids the untyped-PV hazard).
+                 (:wat::core::let [aid (:wat::rete::alpha-feeding child-id network)]
+                   (:wat::core::match (:wat::core::PersistentMap/get alpha-mem aid)
+                                      -> :wat::core::PersistentMap
+                     ((:wat::core::Some els)
+                      (:wat::rete::cross-join-node tokens els child-id aid bm))
+                     (:wat::core::None bm)))
+                 bm)))
+           beta-mem
+           (:wat::rete::node-children-ids node)))
+        (:wat::core::None beta-mem))
+      beta-mem)))
+
+;; fire-rules — alpha pass → root-join seed → hash-join pass: full multi-condition matching.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session.
-;; No hash-join (stone 3b) / no production firing / no cascade (stone 4).
+;; No production firing / no cascade (stone 4).
 ;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
-;; (fire the rule network); the v3a scope is flagged in the DESIGN, not the name.
+;; (fire the rule network); stones build up the scope incrementally under this name.
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
 (:wat::core::defn :wat::rete::fire-rules
   [session <- :wat::rete::Session]
@@ -647,12 +796,21 @@
                                   -> :wat::core::PersistentMap
                                   (:wat::rete::root-join-pass new-amem network acc node-id))
                                 (:wat::core::PersistentMap)
-                                node-ids)]
+                                node-ids)
+                    ;; hash-join pass (3b) — propagate tokens LEFT→RIGHT through HashJoinNodes
+                    ;; WHY one ordered pass: compile assigns IDs in topological order (see hash-join-pass)
+                    joined-bmem (:wat::core::foldl
+                                   (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                    node-id <- :wat::core::i64]
+                                     -> :wat::core::PersistentMap
+                                     (:wat::rete::hash-join-pass new-amem network acc node-id))
+                                   new-bmem
+                                   node-ids)]
     (:wat::rete::Session
       (:wat::rete::Session/network           session)
       (:wat::rete::Session/rules             session)
       new-amem
-      new-bmem
+      joined-bmem
       (:wat::rete::Session/production-memory session)
       facts
       (:wat::rete::Session/next-id           session))))

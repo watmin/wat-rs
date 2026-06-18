@@ -59,14 +59,12 @@ fn ev(expr: &str) -> Value {
 }
 
 #[test]
-#[ignore = "arc 278 stone 3b — un-ignore when fire-rules does the hash-join"]
 fn join_produces_one_token_on_matching_loc() {
     let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length htoks))", setup("Oslo")));
     assert_eq!(got, Value::i64(1), "Temp+Wind at the same loc → one joined Token; got {got:?}");
 }
 
 #[test]
-#[ignore = "arc 278 stone 3b — un-ignore when fire-rules does the hash-join"]
 fn joined_token_unifies_both_conditions() {
     let s = setup("Oslo");
     let binds = format!("(:wat::core::let [{s} \
@@ -81,8 +79,39 @@ fn joined_token_unifies_both_conditions() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 3b — un-ignore when fire-rules does the hash-join"]
 fn join_drops_on_mismatched_loc() {
     let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length htoks))", setup("Bergen")));
     assert_eq!(got, Value::i64(0), "Temp(Oslo)+Wind(Bergen) → no joined Token; got {got:?}");
+}
+
+// HAZARD #1 — cross-product leakage. 2 Temps × 2 Winds across 2 locations must yield EXACTLY the 2 same-loc
+// joins (Oslo×Oslo, Bergen×Bergen), NOT 4 (a naive cross ignoring ?loc) and NOT 0 (a bad compatibility check).
+const SETUP_2X2: &str = "\
+   c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
+   c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+   s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+   s1 (:wat::rete::insert s0 (:user::Temperature 15 \"Oslo\"))\
+   s2 (:wat::rete::insert s1 (:user::Temperature 10 \"Bergen\"))\
+   s3 (:wat::rete::insert s2 (:user::WindSpeed 45 \"Oslo\"))\
+   s4 (:wat::rete::insert s3 (:user::WindSpeed 50 \"Bergen\"))\
+   fired (:wat::rete::fire-rules s4)\
+   network (:wat::rete::Session/network fired)\
+   bmem  (:wat::rete::Session/beta-memory fired)\
+   hjid  (:wat::core::Option/expect -> :wat::core::i64 \
+            (:wat::core::get \
+              (:wat::core::filter \
+                (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
+                  (:wat::core::= (:wat::rete::node-kind-label \
+                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                 \"HashJoinNode\")) \
+                (:wat::core::PersistentMap/keys network)) 0) \"hjid\")\
+   htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector \
+            ((:wat::core::Some pv) pv) \
+            (:wat::core::None (:wat::core::PersistentVector)))";
+
+#[test]
+fn join_no_cross_loc_leakage() {
+    let got = ev(&format!("(:wat::core::let [{SETUP_2X2}] (:wat::core::length htoks))"));
+    assert_eq!(got, Value::i64(2), "2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins (not 4, not 0); got {got:?}");
 }
