@@ -1,0 +1,67 @@
+//! Arc 278 — THE NORTH STAR: the cold-and-windy rule, end to end. The engine's acceptance test AND the
+//! executable spec of the rete DSL surface. RED at HEAD; GREEN at the stone-5 milestone (a working
+//! equality-join forward-chaining engine with truth maintenance — DESIGN.md decomposition step 5).
+//!
+//! Every per-stone strike builds toward THIS. It is the living contract for the DSL — if a surface detail
+//! is refined during a stone, update this test (curare), never let it drift.
+//!
+//! The DSL it pins:
+//!   - facts are plain typed records.
+//!   - (:wat::rete::defrule :ns::name :when [conditions] :then <pure-rhs>) — namespaced rule macro.
+//!   - condition = (:FactType <clause>...):
+//!       (?var <- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
+//!       (:wat::core::<op> a b)      constraint (FQDN value op; operands ∈ {?var, :field, literal}, resolved purely)
+//!   - lifecycle: collect-rules → compile → insert (value-threaded) → fire-rules (PURE, new frozen session) → query.
+//!
+//! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
+
+use std::sync::Arc;
+use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::load::InMemoryLoader;
+use wat::runtime::{Environment, Value};
+
+const WORLD: &str = "\
+(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+\n\
+(:wat::rete::defrule :weather::cold-and-windy\n\
+  :when\n\
+  [(:weather::Temperature\n\
+     (?loc <- :location)\n\
+     (?c   <- :celsius)\n\
+     (:wat::core::< ?c 20))\n\
+   (:weather::WindSpeed\n\
+     (?loc <- :location)\n\
+     (?k   <- :kph)\n\
+     (:wat::core::> ?k 30))]\n\
+  :then\n\
+  (:weather::ColdAndWindy ?loc))\n\
+\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+// The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the derived
+// facts (wrapped in `length` so the test is a single eval to a scalar — no env gymnastics).
+const RUN: &str = "\
+(:wat::core::length\n\
+  (:wat::core::let\n\
+    [rules    (:wat::rete::collect-rules :weather)\n\
+     session  (:wat::rete::compile rules)\n\
+     session  (:wat::rete::insert session (:weather::Temperature 15 \"Oslo\"))\n\
+     session  (:wat::rete::insert session (:weather::WindSpeed    45 \"Oslo\"))\n\
+     fired    (:wat::rete::fire-rules session)]\n\
+    (:wat::rete::query fired :weather::ColdAndWindy)))";
+
+#[test]
+#[ignore = "arc 278 NORTH STAR — green at the stone-5 milestone (defrule/collect-rules/insert/fire-rules/query)"]
+fn cold_and_windy_fires_and_derives_the_fact() {
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("world (records + defrule) should freeze once the rete surface exists");
+
+    // The rule fires (Temp 15<20 AND Wind 45>30 at the SAME location "Oslo" — the equality join on ?loc),
+    // logically inserting ONE ColdAndWindy fact; `query` reads the derived facts back out.
+    let count = eval_in_frozen(&wat::parse_one!(RUN).expect("parse lifecycle"), &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("rete lifecycle raised: {e:?}"))
+        .value_owned();
+    assert_eq!(count, Value::i64(1), "exactly one ColdAndWindy derived (the Oslo equality join)");
+}
