@@ -1,0 +1,89 @@
+# BRIEF — Stone 5a: `defrule` (rule macro) + `query` (read derived facts)
+
+Single-hop **sonnet** Shadowdancer in `/home/watmin/work/holon/wat-rs`. **No sub-agents. No `git`.** A PURE
+WAT stone (`wat/rete.wat` only — NO Rust). Build, run the named tests, report verbatim. Another agent weighs.
+
+## The work
+Add two surface forms to `wat/rete.wat`: the **`defrule`** macro (readable rule form → a zero-arg `defn`
+returning a `Rule`) and the **`query`** fn (read derived facts of a type from a fired session). The reflection
+that auto-gathers rules (`collect-rules`) is stone 5b — NOT here; 5a's probe collects the one rule manually.
+
+## Read FIRST (in order)
+1. `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-5a-defrule-query.md` — the worked `defrule` expansion, the
+   macro parse approach, the `query` algorithm, the pinned contract, out-of-scope.
+2. `wat/test.wat:303-310` — `deftest`: the canonical defmacro shape (`-> :wat::WatAST`, backtick quasiquote,
+   `~` unquote, `~@` unquote-splice, expanding to a `defn` whose RETURN TYPE marks it). `defrule` mirrors this
+   (zero-arg `defn` returning `:wat::rete::Rule`).
+3. `wat/core.wat` — a representative `defmacro` using `map` / `ast->children` / `keyword/to-string` over its
+   args (the macro-eval engine supports `map`, `~@`, nested quasiquote, ast helpers — arc 249). Find one to
+   copy the idiom for the per-condition quote-and-assemble.
+4. `wat/rete.wat` — the `Rule` record (`:48-55`: name String, lhs PV<WatAST>, rhs PV<WatAST>); how probes
+   build a `Rule` with `(:wat::core::quote <cond>)` forms (`tests/probe_arc278_4a_production_fire.rs:35-38`);
+   the `Session`/`production-memory` (`:124-131`) + the 4c flatten-production-memory + filter-by-type idiom.
+5. `tests/probe_arc278_5a_defrule_query.rs` — the contract (already live, RED). Do not modify it.
+
+## Part 1 — `query` (do this first; it's small + unblocks the probe's query tests)
+`(:wat::core::defn :wat::rete::query [session <- :wat::rete::Session  ty <- :wat::core::keyword] -> :wat::core::PersistentVector ...)`:
+- normalize `ty` to the `(:wat::core::type fact)` string: `(:wat::core::keyword/to-string ty)`, then strip a
+  leading `:` if present (so `:weather::ColdAndWindy` → `"weather::ColdAndWindy"`; confirm `keyword/to-string`'s
+  exact output and strip iff needed).
+- flatten `production-memory` values into one `PV<:wat::Record>` (foldl over
+  `(:wat::core::PersistentMap/values (:wat::rete::Session/production-memory session))`, inner foldl `conj` — the
+  exact idiom in `probe_arc278_4c_retraction.rs`'s `derived_of`).
+- `filter` by `(:wat::core::= (:wat::core::type f) <ty-string>)`; return the matching `PV`. Empty PV if none.
+
+## Part 2 — `defrule` (the macro)
+`(:wat::core::defmacro :wat::rete::defrule [name <- :wat::WatAST  & rest <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST ...)`.
+`rest` = `(:when  <conds-vector-node>  :then  <insert-form>…)`. Produce the expansion (DESIGN §expansion):
+```
+(:wat::core::defn <name> [] -> :wat::rete::Rule
+  (:wat::rete::Rule <name-string>
+    (:wat::core::PersistentVector (:wat::core::quote <cond1>) (:wat::core::quote <cond2>) …)
+    (:wat::core::PersistentVector (:wat::core::quote <insert1>) …)))
+```
+Steps inside the macro (all macro-eval-engine ops):
+1. `name-string` = `(:wat::core::keyword/to-string name)` minus a leading `:` (the fqdn WITHOUT colon).
+2. Parse `rest`: the element after `:when` is the conditions vector node → `(:wat::core::ast->children …)` gives
+   the per-condition forms; the elements after `:then` are the insert forms. Assume canonical `:when` then
+   `:then` order (STOP if a general keyword-section parser is required — name it).
+3. Build each side as `` `(:wat::core::PersistentVector ~@(:wat::core::map (:wat::core::fn [c] `(:wat::core::quote ~c)) <forms>)) ``.
+4. Emit the `defn` via quasiquote, splicing in name / name-string / the two PersistentVector forms.
+
+## Builder directive: build missing deps, never hack around
+Deps SHOULD all exist (`defmacro`, quasiquote/`~`/`~@`, `map`, `ast->children`, `keyword/to-string`,
+`PersistentVector`, `PersistentMap/values`, `foldl`, `filter`, `=`, `type`, the `Rule`/`Session` accessors).
+**If a macro-eval-engine op you need is genuinely missing / not on the pure-total allow-list → STOP + name it.**
+
+## Engine-source bar (DOGFOOD)
+LINT-CLEAN — `cond`/`contains?` over nested `if`; `format`/`interpolate` over nested `concat`. The ONLY
+below-bar spot is the EXISTING `render-dag` compound-concat FIXTURE — do NOT touch it.
+
+## STOP triggers
+1. A needed macro-eval op is missing / not pure-total-allow-listed → STOP, name it (do NOT hack a workaround
+   or move the macro logic to a runtime fn).
+2. The keyword-section parse needs more than the canonical `:when`/`:then` order to satisfy the probe → STOP,
+   describe (do NOT silently restrict the surface).
+3. You reach for `collect-rules` / reflection / a Rust change / `defquery` / `QueryNode` / `Snapshot` → that's
+   5b / later; STOP.
+
+## Verify (run each; paste VERBATIM)
+```
+cargo test --release -p wat --test probe_arc278_5a_defrule_query -- --include-ignored        # 4/4 GREEN
+cargo test --release -p wat --test probe_arc278_4c_retraction -- --include-ignored            # 4/4
+cargo test --release -p wat --test probe_arc278_4b_cascade -- --include-ignored               # 4/4
+cargo test --release -p wat --test probe_arc278_4a_production_fire -- --include-ignored         # 4/4
+cargo test --release -p wat --test probe_arc278_3b_hash_join -- --include-ignored               # 4/4
+cargo test --release -p wat --test probe_arc278_2a_alpha_match -- --include-ignored              # 3/3
+cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored                 # 2/2
+cargo test --release --test test_stdlib_load_order | grep result                               # 1/0
+cargo test --release -p wat --lib 2>&1 | grep "test result"                                    # 931/36 (UNCHANGED)
+cargo test --release --test test 2>&1 | grep "test result"                                     # 264/1 (UNCHANGED)
+cargo build --release 2>&1 | tail -2                                                            # Finished; 25 warnings (NO new)
+```
+Report: the `defrule` macro + `query` fn source verbatim; all outputs verbatim; any STOP hit. No git.
+NOTE: `defrule` is a stdlib macro in `wat/rete.wat` — confirm `test_stdlib_load_order` stays 1/0 (rete.wat
+loads after its deps; if defrule's expansion references something load-ordered later, that test catches it).
+
+## Blast radius
+`wat/rete.wat` ONLY (`defrule` macro + `query` fn + maybe a 1-line colon-strip helper) +
+`tests/probe_arc278_5a_defrule_query.rs` (already live). NO Rust. NO record/signature change. No git.
