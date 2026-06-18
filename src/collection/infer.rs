@@ -483,3 +483,605 @@ pub(crate) fn infer_assoc(
         CheckResult::partial_with(fallback_ty, local_errors)
     }
 }
+
+// ─── Arc-278-0d — 8 projective infer arms for transform ops ───────────────────
+//
+// Each arm accepts `Vector<T>` OR `PersistentVector<T>` and projects the return
+// type-preservingly.  The static Vec-only TypeSchemes for these ops are RETIRED
+// (check.rs:17963-18073); these arms are the single source of truth, mirroring
+// what infer_conj/infer_get/infer_assoc do for their ops.
+//
+// Common shape: extract the collection arg's parametric element type, accept
+// the two container heads, emit a teaching TypeMismatch for anything else.
+
+/// Extract `(container_head, elem_ty)` from a reduced TypeExpr that is either
+/// `Vector<T>` or `PersistentVector<T>`.  Returns `None` for a Var (caller defers
+/// to the runtime backstop) or for any unrecognized shape (caller emits TypeMismatch).
+fn extract_seq_elem(
+    reduced: &TypeExpr,
+    subst: &mut Subst,
+    fresh: &mut InferCtx,
+) -> Option<(&'static str, TypeExpr)> {
+    match reduced {
+        TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+            let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+            Some(("wat::core::Vector", elem_ty))
+        }
+        TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+            let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+            Some(("wat::core::PersistentVector", elem_ty))
+        }
+        // Unresolved type variable — defer to the runtime backstop (same policy as
+        // infer_contains/conj/get/assoc; see infer_contains for the authoritative comment).
+        TypeExpr::Var(_) => None,
+        _ => None,
+    }
+}
+
+/// Reconstruct a container type given the head name and an element type.
+fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
+    TypeExpr::Parametric {
+        head: coll_head.to_string(),
+        args: vec![elem_ty],
+    }
+}
+
+/// Type-check `(:wat::core::map f xs)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> × fn(T)->U → C<U>` where `C ∈ {Vector, PersistentVector}`.
+/// The container kind is preserved; the element type changes from T to U.
+pub(crate) fn infer_map(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::map";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // fn-first: arg[0] is the mapping function, arg[1] is the collection.
+    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((coll_head, elem_ty)) => {
+                // Unify arg[0] against fn(T)->U; U is the fresh output element type.
+                let u_var = fresh.fresh();
+                let expected_fn_ty = TypeExpr::Fn {
+                    args: vec![elem_ty],
+                    ret: Box::new(u_var.clone()),
+                };
+                if let Some(f_ty) = fn_ty {
+                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_fn_ty),
+                            got: format_type(&apply_subst(&f_ty, subst))
+                        }});
+                    }
+                }
+                // Return C<U> — same container kind, output element type.
+                let ret_ty = seq_ty(coll_head, apply_subst(&u_var, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {
+                // Unresolved collection type — still check the fn arg if possible.
+                // Return a fresh var; the runtime backstop enforces the rest.
+            }
+            None => {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#2".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::filter pred xs)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> × fn(T)->bool → C<T>` — container kind AND element type preserved.
+pub(crate) fn infer_filter(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::filter";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // fn-first: arg[0] is the predicate, arg[1] is the collection.
+    let pred_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((coll_head, elem_ty)) => {
+                // Predicate must be fn(T)->bool.
+                let expected_pred_ty = TypeExpr::Fn {
+                    args: vec![elem_ty.clone()],
+                    ret: Box::new(bool_ty),
+                };
+                if let Some(p_ty) = pred_ty {
+                    if unify(&p_ty, &expected_pred_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_pred_ty),
+                            got: format_type(&apply_subst(&p_ty, subst))
+                        }});
+                    }
+                }
+                // Return C<T> — both container kind and element type preserved.
+                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#2".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::foldl f init xs)` — arc 278 stone 0d.
+///
+/// Projective: `fn(Acc,T)->Acc × Acc × C<T> → Acc`.
+/// The collection arg is arg[2] (fn-first, init-second); result is the accumulator type.
+pub(crate) fn infer_foldl(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::foldl";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 3 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 3, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // fn-first: arg[0]=f, arg[1]=init (Acc), arg[2]=collection C<T>.
+    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let init_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((_coll_head, elem_ty)) => {
+                // Accumulator type: unify a fresh Acc var against init's inferred type.
+                let acc_var = fresh.fresh();
+                if let Some(init_ty) = init_ty_opt {
+                    if unify(&init_ty, &acc_var, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&acc_var),
+                            got: format_type(&apply_subst(&init_ty, subst))
+                        }});
+                    }
+                }
+                // f must be fn(Acc, T) -> Acc.
+                let acc_ty = apply_subst(&acc_var, subst);
+                let expected_fn_ty = TypeExpr::Fn {
+                    args: vec![acc_ty.clone(), elem_ty],
+                    ret: Box::new(acc_ty.clone()),
+                };
+                if let Some(f_ty) = fn_ty {
+                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_fn_ty),
+                            got: format_type(&apply_subst(&f_ty, subst))
+                        }});
+                    }
+                }
+                // Return type is the accumulator.
+                let ret_ty = apply_subst(&acc_var, subst);
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#3".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::foldr f init xs)` — arc 278 stone 0d.
+///
+/// Projective: `fn(T,Acc)->Acc × Acc × C<T> → Acc`.
+/// Same layout as foldl but fold function argument order is (T, Acc) → Acc instead of (Acc, T) → Acc.
+pub(crate) fn infer_foldr(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::foldr";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 3 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 3, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // fn-first: arg[0]=f, arg[1]=init (Acc), arg[2]=collection C<T>.
+    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let init_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((_coll_head, elem_ty)) => {
+                // Accumulator type: unify a fresh Acc var against init's inferred type.
+                let acc_var = fresh.fresh();
+                if let Some(init_ty) = init_ty_opt {
+                    if unify(&init_ty, &acc_var, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&acc_var),
+                            got: format_type(&apply_subst(&init_ty, subst))
+                        }});
+                    }
+                }
+                // f must be fn(T, Acc) -> Acc  — note T comes first, unlike foldl.
+                let acc_ty = apply_subst(&acc_var, subst);
+                let expected_fn_ty = TypeExpr::Fn {
+                    args: vec![elem_ty, acc_ty.clone()],
+                    ret: Box::new(acc_ty.clone()),
+                };
+                if let Some(f_ty) = fn_ty {
+                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_fn_ty),
+                            got: format_type(&apply_subst(&f_ty, subst))
+                        }});
+                    }
+                }
+                let ret_ty = apply_subst(&acc_var, subst);
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#3".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::reverse xs)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> → C<T>` — both container kind and element type are fully preserved.
+pub(crate) fn infer_reverse(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::reverse";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 1 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 1, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((coll_head, elem_ty)) => {
+                // C<T> → C<T>: return the same container type unchanged.
+                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::take xs n)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> × i64 → C<T>` — takes the first n elements; container preserved.
+pub(crate) fn infer_take(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::take";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // Receiver-first: arg[0] is the collection, arg[1] is the count (i64).
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((coll_head, elem_ty)) => {
+                // Verify the count argument is i64.
+                if let Some(n) = n_ty {
+                    if unify(&n, &i64_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&i64_ty),
+                            got: format_type(&apply_subst(&n, subst))
+                        }});
+                    }
+                }
+                // Return C<T> — container and element type preserved.
+                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::drop xs n)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> × i64 → C<T>` — drops the first n elements; container preserved.
+pub(crate) fn infer_drop(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::drop";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    // Receiver-first: arg[0] is the collection, arg[1] is the count (i64).
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_seq_elem(&reduced, subst, fresh) {
+            Some((coll_head, elem_ty)) => {
+                // Verify the count argument is i64.
+                if let Some(n) = n_ty {
+                    if unify(&n, &i64_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&i64_ty),
+                            got: format_type(&apply_subst(&n, subst))
+                        }});
+                    }
+                }
+                // Return C<T> — container and element type preserved.
+                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::core::concat a b)` — arc 278 stone 0d.
+///
+/// Projective: `C<T> × C<T> → C<T>` — same-kind-only; mixed Vector+PersistentVector → TypeMismatch.
+/// This mirrors the runtime 0c shipped: `vector_concat_inner` rejects mixed kinds.
+///
+/// CONCAT PATH: `concat` is a defalias for `:wat::core::Vector/concat` (core.wat:44).
+/// The alias synthesizes a Function whose scheme is `[Vec<T>, Vec<T>] → Vec<T>`.
+/// At check time that scheme rejects PersistentVector.  This custom arm intercepts
+/// `:wat::core::concat` in the keyword-head match BEFORE the alias scheme is consulted,
+/// enabling honest polymorphism over both container kinds.
+pub(crate) fn infer_concat(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::concat";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = fresh.fresh();
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let a_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let b_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    if let Some(a_ty) = a_ty_opt {
+        let a_reduced = reduce(&a_ty, subst, env.types());
+        match extract_seq_elem(&a_reduced, subst, fresh) {
+            Some((coll_head_a, elem_ty_a)) => {
+                // arg[1] must be the same container kind with the same element type.
+                if let Some(b_ty) = b_ty_opt {
+                    let b_reduced = reduce(&b_ty, subst, env.types());
+                    match extract_seq_elem(&b_reduced, subst, fresh) {
+                        Some((coll_head_b, elem_ty_b)) => {
+                            // Same-kind check: Vector+PersistentVector is a TypeMismatch.
+                            if coll_head_a != coll_head_b {
+                                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                    callee: OP.into(),
+                                    param: "#2".into(),
+                                    expected: format_type(&a_reduced),
+                                    got: format_type(&b_reduced)
+                                }});
+                            } else {
+                                // Same kind: unify element types.
+                                if unify(&elem_ty_b, &elem_ty_a, subst, env.types()).is_err() {
+                                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                        callee: OP.into(),
+                                        param: "#2".into(),
+                                        expected: format_type(&a_reduced),
+                                        got: format_type(&b_reduced)
+                                    }});
+                                }
+                            }
+                        }
+                        None if matches!(b_reduced, TypeExpr::Var(_)) => {}
+                        None => {
+                            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: OP.into(),
+                                param: "#2".into(),
+                                expected: "Vector<T> or PersistentVector<T>".into(),
+                                got: format_type(&b_reduced)
+                            }});
+                        }
+                    }
+                }
+                // Return C<T> — the container kind from arg[0] is preserved.
+                let ret_ty = seq_ty(coll_head_a, apply_subst(&elem_ty_a, subst));
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(a_reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    got: format_type(&a_reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+

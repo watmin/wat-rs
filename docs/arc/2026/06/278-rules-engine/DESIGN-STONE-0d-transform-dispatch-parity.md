@@ -115,6 +115,29 @@ keyword-head match; retire the 8 static Vec-only schemes at 17963-18073) · mayb
 `src/check.rs` for the `concat` alias path (per the grounding sub-step) · the probe. **NO runtime change**
 (0c already did it). NO new dispatch machinery. No git in the worker.
 
+## Realized (post-build, 2026-06-18) — deviations + residual
+
+- **SHIPPED**: 8 projective infer arms in `collection/infer.rs` + 8 `return`-early dispatch arms in `check.rs`;
+  `concat` enforces same-kind-only in code (mixed Vec+PV → TypeMismatch); all type-preserving. Probe 2/2;
+  lib 931/36, deftest 264/1, load-order 1/0 — all unchanged (own re-run). Build: 25 warnings, unchanged.
+- **DEVIATION (STOP-2 resolved, not retired-as-planned):** the DESIGN said retire all 8 static schemes.
+  Retiring `map`/`foldl`/`foldr`/`filter` broke `:wat::list::reduce`/`fold` — those are `defalias` whose
+  Function derivation (Case 2 in `register_defalias`) reads the TARGET's static scheme. So those 4 schemes are
+  **RETAINED** (only `reverse`/`take`/`drop` retired). No double-truth for call sites: the keyword-head arm
+  `return`s before `env.get`, so direct `(foldl …)` always goes through the arm; the retained scheme serves
+  ONLY alias derivation. Documented with WHY-comments in `check.rs`.
+- **RESIDUAL (banked, out of scope):** because aliases derive from the Vec-only scheme, `:wat::list::reduce`
+  and `:wat::list::fold` over a `PersistentVector` stay REJECTED — the alias-of-a-projective-intrinsic seam:
+  an alias cannot inherit the arm's polymorphism through static-scheme derivation. The rete engine uses
+  `foldl` directly, so this does not block 1b. **Follow-on (build only if a real call forces it):** give
+  projective-op aliases PV parity — either route the alias surface name through the same custom arm, or teach
+  the defalias Case-2 derivation to defer to the arm. Not the formal Seq/Map defprotocol (arc 285); a narrower
+  alias-derivation seam.
+- **IDE diagnostics were line-shift artifacts:** the 71-line insertion at check.rs:5203 shifted every line
+  below, so rust-analyzer reported pre-existing warnings (`head_span` at 11421/13711) as "new" and hadn't
+  reconciled the new `infer_*` call sites (flagged them dead). cargo is authoritative: the arms are used; 25
+  warnings, unchanged. ([[feedback_ide_diagnostics_can_lie]])
+
 ## Sequencing
 
 1. Revert the incomplete 1b from the tree (its child-edges were deferred — it re-strikes after this anyway,

@@ -40,7 +40,6 @@ const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:
 const PV: &str = "(:wat::core::PersistentVector 1 2 3)";
 
 #[test]
-#[ignore = "arc 278 stone 0d — un-ignore when transform-op check-side parity ships"]
 fn transform_ops_typecheck_on_persistent_vector() {
     // Each defn returns :i64; every container-producing op is wrapped in (foldl SUM 0 …) so the body
     // type is a scalar. The 8 ops: foldl, foldr, map, filter, reverse, take, drop, concat — each over a

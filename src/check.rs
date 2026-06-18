@@ -5203,6 +5203,77 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 278 Stone 0d — transform-op check-side parity.
+            // 8 projective intrinsics that accept Vector<T> | PersistentVector<T>.
+            // Static Vec-only TypeSchemes retired in register_builtins (check.rs:17963-18073).
+            // See docs/DISPATCH.md PARTITION doctrine: these are PROJECTIVE — DO NOT make clauses.
+            ":wat::core::map" => {
+                let (val, mut errs) = crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::filter" => {
+                let (val, mut errs) = crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::foldl" => {
+                let (val, mut errs) = crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::foldr" => {
+                let (val, mut errs) = crate::collection::infer::infer_foldr(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::reverse" => {
+                let (val, mut errs) = crate::collection::infer::infer_reverse(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::take" => {
+                let (val, mut errs) = crate::collection::infer::infer_take(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::drop" => {
+                let (val, mut errs) = crate::collection::infer::infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // concat is a defalias for :wat::core::Vector/concat (core.wat:44).
+            // This arm intercepts before the alias scheme (Vec<T>×Vec<T>→Vec<T>) is consulted,
+            // enabling PersistentVector support with same-kind-only semantics.
+            ":wat::core::concat" => {
+                let (val, mut errs) = crate::collection::infer::infer_concat(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
             // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
             // for List<T> → List<T> (arc 220 extension; runtime already handles
@@ -17960,15 +18031,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // :wat::core::empty? scheme retired (arc 058); polymorphic under
     // `infer_empty_q`. Same shape as `length` — Vec<T> | HashMap<K,V>
     // | HashSet<T> → bool.
-    env.register(
-        ":wat::core::reverse".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var())],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
+    // Arc-278-0d: :wat::core::reverse scheme RETIRED.
+    // Superseded by infer_reverse (collection/infer.rs) dispatched from the
+    // keyword-head match; accepts Vector<T> | PersistentVector<T>, type-preserving.
     env.register(
         ":wat::core::range".into(),
         TypeScheme {
@@ -17978,24 +18043,10 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    env.register(
-        ":wat::core::take".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::drop".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
+    // Arc-278-0d: :wat::core::take scheme RETIRED.
+    // Superseded by infer_take (collection/infer.rs); accepts Vector<T> | PersistentVector<T>.
+    // Arc-278-0d: :wat::core::drop scheme RETIRED.
+    // Superseded by infer_drop (collection/infer.rs); accepts Vector<T> | PersistentVector<T>.
     // Arc 056 — comparator-sort primitive (renamed sort' in Arc 251 Stone).
     // Arc 247: fn-first — `(sort' less? xs) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
     // Arc 251: wat-level `sort` and `sort-by` defclauses in core.wat wrap this primitive.
@@ -18016,6 +18067,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 247: fn-first — (map f xs) -> Vec<U>
+    // Arc-278-0d NOTE: direct :wat::core::map calls are intercepted by infer_map (keyword-head
+    // arm) before this scheme is consulted, enabling PersistentVector.  This scheme is RETAINED
+    // so that defalias targets that delegate to map (e.g. future stdlib aliases) derive a valid
+    // function signature from it.  The arm is the single source of truth for actual call sites.
     env.register(
         ":wat::core::map".into(),
         TypeScheme {
@@ -18032,6 +18087,8 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 247: fn-first — (foldl f init xs) -> Acc
+    // Arc-278-0d NOTE: direct calls intercepted by infer_foldl; scheme retained for aliases
+    // (:wat::list::reduce, :wat::list::fold) whose defalias derivation reads from this.
     env.register(
         ":wat::core::foldl".into(),
         TypeScheme {
@@ -18049,6 +18106,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 247: fn-first — (foldr f init xs) -> Acc
+    // Arc-278-0d NOTE: direct calls intercepted by infer_foldr; scheme retained for potential aliases.
     env.register(
         ":wat::core::foldr".into(),
         TypeScheme {
@@ -18066,6 +18124,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 247: fn-first — (filter pred xs) -> Vec<T>
+    // Arc-278-0d NOTE: direct calls intercepted by infer_filter; scheme retained for potential aliases.
     env.register(
         ":wat::core::filter".into(),
         TypeScheme {
