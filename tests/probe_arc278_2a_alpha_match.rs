@@ -44,7 +44,6 @@ fn is_none_option(v: &Value) -> bool {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2a — un-ignore when :wat::rete::alpha-match ships"]
 fn alpha_match_binds_and_constrains() {
     let w = world();
     // MATCH: 25 binds ?t and 25 > 20 holds → Some({"?t": 25}); PersistentMap/get "?t" → Some(25).
@@ -61,7 +60,6 @@ fn alpha_match_binds_and_constrains() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2a — un-ignore when :wat::rete::alpha-match ships"]
 fn alpha_match_rejects_failed_constraint() {
     let w = world();
     // 15 binds ?t but 15 > 20 is false → None (no-error, not a raise).
@@ -70,7 +68,6 @@ fn alpha_match_rejects_failed_constraint() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2a — un-ignore when :wat::rete::alpha-match ships"]
 fn alpha_match_rejects_wrong_type() {
     let w = world();
     // Condition head :user::Other ≠ fact type :user::Temp → None.

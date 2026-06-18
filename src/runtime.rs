@@ -3989,6 +3989,11 @@ fn dispatch_keyword_head_value(
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
         ":wat::form::matches?" => eval_form_matches(args, list_span, env, sym),
+        // Arc 278 Stone 2a — rete single-fact alpha matcher.
+        // Pure data-in/data-out: cond (WatAST from quote) × fact (Record) →
+        // Option<PersistentMap<String,Value>>. No Environment, no eval_inner.
+        // Bindings keyed by logic-var name string ("?t" → bound value).
+        ":wat::rete::alpha-match" => crate::rete::matcher::eval_alpha_match(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),

@@ -60,6 +60,7 @@ pub mod ast;
 pub mod check;
 pub mod closure_extract;
 pub(crate) mod collection;
+pub(crate) mod rete;
 pub mod argspec;
 pub(crate) mod remedy;
 pub mod capability;

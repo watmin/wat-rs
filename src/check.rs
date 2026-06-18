@@ -18831,6 +18831,38 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone 2a — rete single-fact alpha matcher.
+    // (:wat::rete::alpha-match cond fact) → Option<PersistentMap<String, V>>
+    // cond: :wat::WatAST (a quoted condition form `(:FactType clause …)`)
+    // fact: :wat::Record
+    // Returns Some(bindings) iff the fact type matches the condition head AND every
+    // clause holds; None otherwise (Clara no-error). Pure: no Environment, no eval.
+    // The PersistentMap binds logic-var name strings ("?t") to their field-typed values.
+    // type_params: [V] — V is the value type of the bindings map; unconstrained by the
+    // params (the map is heterogeneous at runtime). The call-site annotation
+    // `-> :wat::core::PersistentMap` in the probe pins the Option's inner type.
+    env.register(
+        ":wat::rete::alpha-match".into(),
+        TypeScheme {
+            type_params: vec!["V".into()],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::Record".into()),
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "wat::core::PersistentMap".into(),
+                    args: vec![
+                        TypeExpr::Path(":wat::core::String".into()),
+                        TypeExpr::Path(":V".into()),
+                    ],
+                }],
+            },
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]
