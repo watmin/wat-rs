@@ -150,6 +150,35 @@
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
 
+;; ─── Case 8: rename-keyword-prefix — type-arg reach + boundary guard (arc 283.1) ───
+
+(:wat::test::deftest :wat-tests::lint::rename-keyword-prefix-type-arg-and-boundary
+  ()
+  ;; Renaming :t::Old → :t::New over a source with:
+  ;;   - a TYPE-ARG  (Vector<t::Old>)    — must rename → Vector<t::New>
+  ;;   - a return type (:t::Old)          — must rename → :t::New
+  ;;   - an accessor (:t::Old/make)       — must rename → :t::New/make
+  ;;   - a boundary DECOY (:t::OldExtra)  — must NOT rename (boundary guard)
+  (:wat::core::let
+    [src "(:wat::core::defn :u::f [xs <- :wat::core::Vector<t::Old> y <- :t::OldExtra] -> :t::Old (:t::Old/make xs))"
+     result (:wat::fix::rename-keyword-prefix ":t::Old" ":t::New" src)]
+    (:wat::core::do
+      ;; type-arg must rename
+      (:wat::test::assert-true
+        (:wat::core::string::contains? result "Vector<t::New>"))
+      ;; return type must rename
+      (:wat::test::assert-true
+        (:wat::core::string::contains? result "-> :t::New "))
+      ;; accessor must rename
+      (:wat::test::assert-true
+        (:wat::core::string::contains? result ":t::New/make"))
+      ;; boundary decoy must survive untouched
+      (:wat::test::assert-true
+        (:wat::core::string::contains? result ":t::OldExtra"))
+      ;; old type-arg form must be gone
+      (:wat::test::assert-false
+        (:wat::core::string::contains? result "Vector<t::Old>")))))
+
 ;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
 
 (:wat::test::deftest :wat-tests::lint::ladder-autofix-rewrites-and-round-trips

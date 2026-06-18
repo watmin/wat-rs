@@ -28,7 +28,6 @@ const PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 283.1 — RED until rename reaches type-args; un-ignore on green"]
 fn rename_reaches_type_arguments() {
     let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new())).expect("startup");
     let ast = wat::parse_one!("(:user::run)").expect("parse");

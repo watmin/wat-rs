@@ -1,6 +1,7 @@
 # Arc 283.1 — `rename-keyword-prefix`: reach type-args + stop corrupting prefix-siblings
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc283_1_rename_typearg.rs`
+> **STATUS: SHIPPED (2026-06-17).** Both bugs annihilated, proven by eyeball: rename `:t::Old`->`:t::New` over
+> `Vector<t::Old> :t::OldExtra :other::t::Old :t::Old :t::Old/make` -> `Vector<t::New> :t::OldExtra :other::t::Old :t::New :t::New/make` (type-arg reached; right-boundary guards OldExtra; left-boundary guards other::t::Old; head+accessor rename). arc-269 probe green, lib 929/36, deftest 261/1. RED probe `tests/probe_arc283_1_rename_typearg.rs`
 > (`#[ignore]`'d). The 283 dogfood surfaced this: `rename-keyword-prefix` is start-anchored, so it
 > (a) MISSES a symbol used as a type-argument (`Vector<t::Old>`), and — found by the probe —
 > (b) CORRUPTS any prefix-sibling (`:t::OldExtra` → `:t::NewExtra`, because it has no boundary check).

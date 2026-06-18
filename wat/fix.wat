@@ -513,15 +513,92 @@
 ;;
 ;; rename-keyword-prefix(old-prefix new-prefix src) → migrated-src
 ;;
-;; For every keyword LEAF in src whose name starts-with old-prefix, splices the prefix →
-;; new-prefix (the suffix, including /accessor and ::Variant forms, is preserved).
-;; Comments and formatting survive byte-identical (rides fix-text-apply's right-to-left
-;; span splice). Structural nodes (list/vector/map/set) are recursed into; other leaves
-;; (symbol, int, float, bool, string, nil) produce no edit.
+;; Arc 283.1: boundary-aware whole-name rewrite. For every keyword LEAF in src, rewrites
+;; every VALID occurrence of old-bare (colon-stripped old-prefix) → new-bare within the
+;; keyword name, emitting one whole-name edit when the name changes. Comments, formatting,
+;; and non-matching keywords survive byte-identical. Structural nodes recurse into children.
 ;;
-;; structural? dispatch mirrors fix-text-node-edits (fix.wat:225): (structural? node) is
-;; the same predicate (list/vector/map/set by ast-kind). The suffix subs uses char indices
-;; (string::length and string::subs are both char-oriented — string_ops.rs:9,74,415).
+;; A match at index i in name is VALID iff:
+;;   present:     subs(name,i,i+len(old-bare)) == old-bare
+;;   left-valid:  (i==1 && char-at(name,0)==":") OR char-at(name,i-1) ∈ {"<",","," "}
+;;   right-valid: at-end OR char-at(name,i+len(old-bare)) ∉ [a-zA-Z0-9_-]
+;;
+;; This subsumes the head case (:t::Old), type-arg case (Vector<t::Old>), and accessor
+;; (:t::Old/make), while excluding prefix-siblings (:t::OldExtra) and unrelated symbols
+;; ending in the path (:other::t::Old, preceded by ::, not a valid left-ctx).
+
+;; rename-ident-char? — true if the single-char string c is an identifier-continuation char.
+;; [a-zA-Z0-9_-] — right-INVALID chars that signal the match bleeds into a sibling name.
+(:wat::core::defn :wat::fix::rename-ident-char? [c <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::string::contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
+
+;; rename-strip-colon — strip the leading ":" from a keyword prefix if present.
+;; ":t::Old" → "t::Old"; "t::Old" → "t::Old" (idempotent on bare strings).
+(:wat::core::defn :wat::fix::rename-strip-colon [s <- :wat::core::String] -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::string::subs s 0 1) ":")
+    (:wat::core::string::subs s 1 (:wat::core::string::length s))
+    s))
+
+;; rename-valid-match? — true iff old-bare (colon-stripped prefix) matches at index i in name
+;; with a valid left and right boundary.
+;;   present:     subs(name,i,i+old-len) == old-bare
+;;   left-valid:  (i==1 && char-at(name,0)==":") OR char-at(name,i-1) ∈ {"<",","," "}
+;;   right-valid: i+old-len==len(name) OR char-at(name,i+old-len) ∉ ident-chars
+(:wat::core::defn :wat::fix::rename-valid-match?
+  [name     <- :wat::core::String
+   i        <- :wat::core::i64
+   old-bare <- :wat::core::String
+   old-len  <- :wat::core::i64
+   name-len <- :wat::core::i64]
+  -> :wat::core::bool
+  (:wat::core::let [end (:wat::core::+ i old-len)]
+    (:wat::core::if (:wat::core::> end name-len)
+      ;; not enough chars to match — absent
+      false
+      (:wat::core::if (:wat::core::= (:wat::core::string::subs name i end) old-bare)
+        ;; present — check left-valid
+        (:wat::core::let [left-ok (:wat::core::if (:wat::core::= i 1)
+                                    ;; head case: i==1 and name[0]==":"
+                                    (:wat::core::= (:wat::core::string::subs name 0 1) ":")
+                                    ;; type-arg case: preceded by "<", ",", or " "
+                                    (:wat::core::if (:wat::core::< i 1)
+                                      false
+                                      (:wat::core::let [prev (:wat::core::string::subs name (:wat::core::- i 1) i)]
+                                        (:wat::core::if (:wat::core::= prev "<") true
+                                          (:wat::core::if (:wat::core::= prev ",") true
+                                            (:wat::core::= prev " "))))))]
+          (:wat::core::if left-ok
+            ;; check right-valid: at-end or not an ident char
+            (:wat::core::if (:wat::core::= end name-len)
+              true
+              (:wat::core::not (:wat::fix::rename-ident-char? (:wat::core::string::subs name end (:wat::core::+ end 1)))))
+            false))
+        ;; substr doesn't match — absent
+        false))))
+
+;; rename-in-name — char-walk that rewrites every valid occurrence of old-bare → new-bare.
+;; Returns the fully rewritten name string. If no occurrences are valid, returns name unchanged.
+;; i is the current index; acc accumulates the output. Tail-recursive.
+(:wat::core::defn :wat::fix::rename-in-name
+  [name     <- :wat::core::String
+   old-bare <- :wat::core::String
+   new-bare <- :wat::core::String
+   old-len  <- :wat::core::i64
+   name-len <- :wat::core::i64
+   i        <- :wat::core::i64
+   acc      <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::core::>= i name-len)
+    acc
+    (:wat::core::if (:wat::fix::rename-valid-match? name i old-bare old-len name-len)
+      ;; valid match — emit new-bare, advance by old-len
+      (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
+        (:wat::core::+ i old-len)
+        (:wat::core::string::concat acc new-bare))
+      ;; no match — emit one char, advance by 1
+      (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
+        (:wat::core::+ i 1)
+        (:wat::core::string::concat acc (:wat::core::string::subs name i (:wat::core::+ i 1)))))))
 
 ;; rename-prefix-edits-walk — walk a vector of nodes, concating prefix-swap edits.
 ;; Internal helper mirroring macro-param-edits; not a public API.
@@ -541,11 +618,10 @@
         (:wat::fix::rename-prefix-edits h old-prefix new-prefix lines)
         (:wat::fix::rename-prefix-edits-walk tl old-prefix new-prefix lines)))))
 
-;; rename-prefix-edits — recursive collector: every keyword leaf whose name starts-with
-;; old-prefix → one prefix-swap edit (Tuple off old-len new-name); structural nodes recurse
-;; into children via rename-prefix-edits-walk; other leaves → empty Vector.
+;; rename-prefix-edits — boundary-aware whole-name rewrite: for every keyword leaf, compute
+;; new-name by rewriting every valid occurrence of old-bare → new-bare within the name;
+;; if new-name != name, emit (off, length(name), new-name). Structural nodes recurse.
 ;; structural? dispatch: (structural? node) = list/vector/map/set (fix.wat:23).
-;; suffix: (string::subs name (string::length old-prefix) (string::length name)) — char-indexed.
 (:wat::core::defn :wat::fix::rename-prefix-edits
   [node       <- :wat::WatAST
    old-prefix <- :wat::core::String
@@ -555,22 +631,21 @@
   (:wat::core::if (:wat::fix::structural? node)
     ;; structural: recurse into children
     (:wat::fix::rename-prefix-edits-walk (:wat::core::ast->children node) old-prefix new-prefix lines)
-    ;; leaf: check for keyword-with-matching-prefix
+    ;; leaf: keyword → boundary-aware whole-name rewrite
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:wat::core::let [name (:wat::core::ast-name node)]
-        (:wat::core::if (:wat::core::string::starts-with? name old-prefix)
-          ;; emit one prefix-swap edit
-          (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                            old-len  (:wat::core::string::length name)
-                            new-name (:wat::core::string::concat
-                                        new-prefix
-                                        (:wat::core::string::subs name
-                                          (:wat::core::string::length old-prefix)
-                                          (:wat::core::string::length name)))]
+      (:wat::core::let [name     (:wat::core::ast-name node)
+                        old-bare (:wat::fix::rename-strip-colon old-prefix)
+                        new-bare (:wat::fix::rename-strip-colon new-prefix)
+                        old-len  (:wat::core::string::length old-bare)
+                        name-len (:wat::core::string::length name)
+                        new-name (:wat::fix::rename-in-name name old-bare new-bare old-len name-len 0 "")]
+        (:wat::core::if (:wat::core::= new-name name)
+          ;; no change — no edit
+          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+          ;; changed — emit whole-token replace edit
+          (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
             (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
-              (:wat::core::Tuple off old-len new-name)))
-          ;; keyword but prefix doesn't match — no edit
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+              (:wat::core::Tuple off name-len new-name)))))
       ;; non-keyword leaf (symbol, int, float, bool, string, nil) — no edit
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
