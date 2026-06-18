@@ -42,7 +42,6 @@ fn ev(expr: &str) -> Value {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2b — un-ignore when insert + fire-rules ship"]
 fn fire_populates_exactly_one_alpha() {
     // One condition → one AlphaNode; one of the two staged facts matches → exactly one populated alpha.
     let got = ev(&format!(
@@ -52,7 +51,6 @@ fn fire_populates_exactly_one_alpha() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2b — un-ignore when insert + fire-rules ship"]
 fn fire_stores_only_the_matching_element() {
     // The populated alpha holds ONE Element — 15 was rejected by (> ?t 20), proving activation honors the
     // full alpha-match (not just the type head).
@@ -66,7 +64,6 @@ fn fire_stores_only_the_matching_element() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 2b — un-ignore when insert + fire-rules ship"]
 fn fire_element_carries_alpha_bindings() {
     // The stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
     let got = ev(&format!(

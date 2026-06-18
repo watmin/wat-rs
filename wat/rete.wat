@@ -28,10 +28,10 @@
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
-;; fact: a fact represented as a field→value PersistentMap (v1 record-as-map).
+;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query-by-type).
 ;; bindings: alpha-bindings extracted by the alpha node's tests.
 (:wat::Record::def :wat::rete::Element
-  [fact     <- :wat::core::PersistentMap
+  [fact     <- :wat::Record
    bindings <- :wat::core::PersistentMap])
 
 ;; Activation — a ProductionNode queued to fire.
@@ -458,3 +458,106 @@
        empty-pm
        empty-pv
        next-id)))
+
+;; ─── insert + fire-rules ────────────────────────────────────────────────────────
+
+;; insert — stage a fact into the session's working memory. Zero activation.
+;; WHY zero activation: the WM stays open while the caller stages multiple facts;
+;; fire-rules is the lock that runs them through the network all at once.
+;; WHY reconstruct Session: Record/assoc returns the base :wat::Record type; the
+;; typed Session constructor preserves the concrete return type for the checker.
+(:wat::core::defn :wat::rete::insert
+  [session <- :wat::rete::Session
+   fact    <- :wat::Record]
+  -> :wat::rete::Session
+  (:wat::rete::Session
+    (:wat::rete::Session/network           session)
+    (:wat::rete::Session/rules             session)
+    (:wat::rete::Session/alpha-memory      session)
+    (:wat::rete::Session/beta-memory       session)
+    (:wat::rete::Session/production-memory session)
+    (:wat::core::PersistentVector/conj (:wat::rete::Session/facts session) fact)
+    (:wat::rete::Session/next-id           session)))
+
+;; activate-fact — fold step: try one fact against a single AlphaNode's condition.
+;; On a match, appends an Element(fact, bindings) to alpha-memory at alpha-id;
+;; on no match, returns alpha-memory unchanged.
+;; WHY two assoc branches: avoids a nested intermediate PV match (the empty PV
+;; would be typed PersistentVector<?> and conflict with the Some-arm's PV type).
+(:wat::core::defn :wat::rete::activate-fact
+  [alpha-id  <- :wat::core::i64
+   cond      <- :wat::WatAST
+   alpha-mem <- :wat::core::PersistentMap
+   fact      <- :wat::Record]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [match-result (:wat::rete::alpha-match cond fact)]
+    (:wat::core::match match-result -> :wat::core::PersistentMap
+      ((:wat::core::Some bindings)
+       ;; WHY staged-fact = Element(record, bindings): stores the original typed record
+       ;; (not a map) so downstream queries + TM provenance can use the fact type directly.
+       (:wat::core::let [staged-fact (:wat::rete::Element fact bindings)]
+         (:wat::core::match (:wat::core::PersistentMap/get alpha-mem alpha-id) -> :wat::core::PersistentMap
+           ((:wat::core::Some pv)
+            (:wat::core::PersistentMap/assoc alpha-mem alpha-id
+              (:wat::core::PersistentVector/conj pv staged-fact)))
+           (:wat::core::None
+            (:wat::core::PersistentMap/assoc alpha-mem alpha-id
+              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) staged-fact))))))
+      (:wat::core::None alpha-mem))))
+
+;; activate-alpha — fold step: run all staged facts through a single AlphaNode.
+;; Skips non-AlphaNode entries (join nodes, production nodes, etc.).
+;; acc = alpha-memory PersistentMap threaded through the network-keys fold.
+(:wat::core::defn :wat::rete::activate-alpha
+  [facts     <- :wat::core::PersistentVector
+   network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap
+   node-id   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "activate-alpha: node not found")
+                    kind (:wat::rete::node-kind-label node)]
+    (:wat::core::cond
+      ((:wat::core::= kind "AlphaNode")
+       ;; WHY get tests[0]: AlphaNode.tests is a PV; the first element is the single
+       ;; condition form (WatAST) compiled from the rule's LHS clause.
+       (:wat::core::let [cond (:wat::core::Option/expect -> :wat::WatAST
+                                  (:wat::core::get (:wat::rete::AlphaNode/tests node) 0)
+                                  "activate-alpha: AlphaNode has no tests")]
+         (:wat::core::foldl
+           (:wat::core::fn [acc  <- :wat::core::PersistentMap
+                            fact <- :wat::Record]
+             -> :wat::core::PersistentMap
+             (:wat::rete::activate-fact node-id cond acc fact))
+           alpha-mem
+           facts)))
+      (:else alpha-mem))))
+
+;; fire-rules — alpha slice: run all staged facts through every AlphaNode and
+;; populate alpha-memory. Pure value-semantics: takes a Session, returns a new
+;; frozen Session. No beta join / no production firing / no cascade (stones 3/4).
+;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
+;; (fire the rule network); the v1 scope is flagged in the DESIGN, not the name.
+;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
+(:wat::core::defn :wat::rete::fire-rules
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::core::let [network  (:wat::rete::Session/network session)
+                    facts    (:wat::rete::Session/facts   session)
+                    node-ids (:wat::core::PersistentMap/keys network)
+                    new-amem (:wat::core::foldl
+                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                 node-id <- :wat::core::i64]
+                                  -> :wat::core::PersistentMap
+                                  (:wat::rete::activate-alpha facts network acc node-id))
+                                (:wat::core::PersistentMap)
+                                node-ids)]
+    (:wat::rete::Session
+      (:wat::rete::Session/network           session)
+      (:wat::rete::Session/rules             session)
+      new-amem
+      (:wat::rete::Session/beta-memory       session)
+      (:wat::rete::Session/production-memory session)
+      facts
+      (:wat::rete::Session/next-id           session))))
