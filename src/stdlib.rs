@@ -307,6 +307,17 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/io.wat",
         source: include_str!("../wat/io.wat"),
     },
+    // Arc 278 stone 1a — :wat::rete:: — the rete engine data model.
+    // Pure data records (Token/Element/Activation, Rule, AlphaNode/RootJoinNode/
+    // HashJoinNode/ProductionNode/QueryNode), the Node defenum sum, the Session
+    // record, and a render-dag inspection fn. All on stone-0 persistent
+    // collections (PersistentMap/PersistentVector). No compile, no fire.
+    // Loads AFTER Record.wat (uses :wat::Record::def); PersistentMap/PersistentVector
+    // are Rust intrinsics — always available.
+    WatSource {
+        path: "wat/rete.wat",
+        source: include_str!("../wat/rete.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

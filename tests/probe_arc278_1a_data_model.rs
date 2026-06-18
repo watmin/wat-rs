@@ -28,7 +28,6 @@ const SESSION: &str = "\
   ";
 
 #[test]
-#[ignore = "arc 278 stone 1a — un-ignore when wat/rete.wat ships"]
 fn rete_data_model_constructs_and_renders() {
     let world = startup_from_source(
         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
