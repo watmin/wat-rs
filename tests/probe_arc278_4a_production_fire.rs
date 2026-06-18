@@ -1,0 +1,122 @@
+//! Arc 278 stone 4a — disconfirming probe: production-fire (token → RHS → derived fact). RED at HEAD.
+//!
+//! The first slice of stone 4. After the equality-join network matches (3b), a Token reaching the
+//! ProductionNode must FIRE the rule's RHS: evaluate `(:wat::rete::insert (:weather::ColdAndWindy ?loc))`
+//! with the token's bindings into a derived `:weather::ColdAndWindy` record, stored in production-memory.
+//!
+//!   :when  [(:weather::Temperature (?loc <- :location) (?t <- :celsius))
+//!           (:weather::WindSpeed    (?loc <- :location) (?w <- :kph))]
+//!   :then  (:wat::rete::insert (:weather::ColdAndWindy ?loc))
+//!
+//! - MATCH (same loc): the join yields one Token → the RHS fires → ONE ColdAndWindy("Oslo") in production-memory.
+//! - NO JOIN (diff loc): zero tokens at the ProductionNode → zero derived facts.
+//! - 2×2 (no leakage): 2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins → exactly 2 derived facts.
+//!
+//! RED at HEAD: `fire-rules` runs alpha → root-join → hash-join only (3b); no production pass exists, so
+//! production-memory is empty and no derived fact is ever produced.
+//!
+//! Run: cargo test --release -p wat --test probe_arc278_4a_production_fire -- --include-ignored
+
+use std::sync::Arc;
+use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::load::InMemoryLoader;
+use wat::runtime::{Environment, Value};
+
+const WORLD: &str = "\
+(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+// Build the fired session for a given WindSpeed location, then isolate the ProductionNode's derived facts
+// (`pfacts` = production-memory[prod-id], a flat PV<:wat::Record> in 4a).
+fn setup(wind_loc: &str) -> String {
+    format!("\
+   c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
+   c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
+   rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
+   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+   sess1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
+   sess2 (:wat::rete::insert sess1 (:weather::WindSpeed 45 \"{wind_loc}\"))\
+   fired (:wat::rete::fire-rules sess2)\
+   network (:wat::rete::Session/network fired)\
+   pmem  (:wat::rete::Session/production-memory fired)\
+   pid   (:wat::core::Option/expect -> :wat::core::i64 \
+            (:wat::core::get \
+              (:wat::core::filter \
+                (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
+                  (:wat::core::= (:wat::rete::node-kind-label \
+                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                 \"ProductionNode\")) \
+                (:wat::core::PersistentMap/keys network)) \
+              0) \"pid\")\
+   pfacts (:wat::core::match (:wat::core::PersistentMap/get pmem pid) -> :wat::core::PersistentVector \
+            ((:wat::core::Some pv) pv) \
+            (:wat::core::None (:wat::core::PersistentVector)))")
+}
+
+fn ev(expr: &str) -> Value {
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+        .value_owned()
+}
+
+#[test]
+fn production_fires_one_fact_on_matching_loc() {
+    let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length pfacts))", setup("Oslo")));
+    assert_eq!(got, Value::i64(1), "Temp+Wind at the same loc → the RHS fires once → one derived fact; got {got:?}");
+}
+
+#[test]
+fn derived_fact_is_cold_and_windy_at_oslo() {
+    let s = setup("Oslo");
+    let binds = format!("(:wat::core::let [{s} \
+        fact (:wat::core::Option/expect -> :wat::Record (:wat::core::get pfacts 0) \"fact\")]");
+    // The derived fact is a :weather::ColdAndWindy whose location field came from the token's ?loc binding.
+    assert_eq!(ev(&format!("{binds} (:wat::core::type fact))")),
+        Value::String(Arc::new("weather::ColdAndWindy".to_string())), "derived fact is a ColdAndWindy");
+    assert_eq!(ev(&format!("{binds} (:weather::ColdAndWindy/location fact))")),
+        Value::String(Arc::new("Oslo".to_string())), "location bound from the unified ?loc");
+}
+
+#[test]
+fn no_fire_on_mismatched_loc() {
+    let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length pfacts))", setup("Bergen")));
+    assert_eq!(got, Value::i64(0), "Temp(Oslo)+Wind(Bergen) → no token reaches the production → no derived fact; got {got:?}");
+}
+
+// HAZARD — one fact per activation, no cross-product. 2 Temps × 2 Winds / 2 locs → exactly the 2 same-loc
+// joins → exactly 2 derived facts (NOT 4 from a blind cross, NOT 1 from a clobbered accumulator).
+const SETUP_2X2: &str = "\
+   c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
+   c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
+   rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
+   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+   s1 (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
+   s2 (:wat::rete::insert s1 (:weather::Temperature 10 \"Bergen\"))\
+   s3 (:wat::rete::insert s2 (:weather::WindSpeed 45 \"Oslo\"))\
+   s4 (:wat::rete::insert s3 (:weather::WindSpeed 50 \"Bergen\"))\
+   fired (:wat::rete::fire-rules s4)\
+   network (:wat::rete::Session/network fired)\
+   pmem  (:wat::rete::Session/production-memory fired)\
+   pid   (:wat::core::Option/expect -> :wat::core::i64 \
+            (:wat::core::get \
+              (:wat::core::filter \
+                (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
+                  (:wat::core::= (:wat::rete::node-kind-label \
+                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                 \"ProductionNode\")) \
+                (:wat::core::PersistentMap/keys network)) 0) \"pid\")\
+   pfacts (:wat::core::match (:wat::core::PersistentMap/get pmem pid) -> :wat::core::PersistentVector \
+            ((:wat::core::Some pv) pv) \
+            (:wat::core::None (:wat::core::PersistentVector)))";
+
+#[test]
+fn no_cross_loc_leakage() {
+    let got = ev(&format!("(:wat::core::let [{SETUP_2X2}] (:wat::core::length pfacts))"));
+    assert_eq!(got, Value::i64(2), "2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins → 2 derived facts (not 4, not 1); got {got:?}");
+}
