@@ -880,13 +880,12 @@
       (:wat::rete::fire-production node-id network beta-mem rules prod-mem)
       prod-mem)))
 
-;; fire-rules — alpha pass → root-join seed → hash-join pass → production pass: full fire cycle.
-;; Pure value-semantics: takes a Session, returns a new frozen Session.
-;; Production pass (4a) fires RHS insert-forms into production-memory; no cascade / no TM (4b/4c).
-;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
-;; (fire the rule network); stones build up the scope incrementally under this name.
+;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
+;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
+;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
+;; go to production-memory only — they do not re-enter facts here (cascade is fire-rules' job).
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
-(:wat::core::defn :wat::rete::fire-rules
+(:wat::core::defn :wat::rete::fire-once
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [network  (:wat::rete::Session/network session)
@@ -919,7 +918,6 @@
                                    new-bmem
                                    node-ids)
                     ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
-                    ;; WHY facts unchanged: derived facts go to production-memory only (no re-entry / no cascade; 4b)
                     new-pmem (:wat::core::foldl
                                 (:wat::core::fn [acc     <- :wat::core::PersistentMap
                                                  node-id <- :wat::core::i64]
@@ -935,3 +933,66 @@
       new-pmem
       facts
       (:wat::rete::Session/next-id session))))
+
+;; collect-derived — flatten production-memory's per-node PV<Record> values into one PV<:wat::Record>.
+;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to PV<Record>;
+;; the outer foldl visits each node's PV, the inner foldl conj's each record into the accumulator.
+(:wat::core::defn :wat::rete::collect-derived
+  [prod-mem <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentVector
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector
+                     pv  <- :wat::core::PersistentVector]
+      -> :wat::core::PersistentVector
+      (:wat::core::foldl
+        (:wat::core::fn [a <- :wat::core::PersistentVector
+                         f <- :wat::Record]
+          -> :wat::core::PersistentVector
+          (:wat::core::PersistentVector/conj a f))
+        acc
+        pv))
+    (:wat::core::PersistentVector)
+    (:wat::core::PersistentMap/values prod-mem)))
+
+;; merge-facts — fold derived facts into the existing fact PV, conj-ing only new ones (dedup by value-equality).
+;; WHY contains?-before-conj: the dedup guard is the termination invariant — if a derived fact is already in
+;; facts, re-adding it would grow facts every round and spin the fixpoint forever.
+(:wat::core::defn :wat::rete::merge-facts
+  [facts   <- :wat::core::PersistentVector
+   derived <- :wat::core::PersistentVector]
+  -> :wat::core::PersistentVector
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector
+                     f   <- :wat::Record]
+      -> :wat::core::PersistentVector
+      (:wat::core::if (:wat::core::PersistentVector/contains? acc f)
+        acc
+        (:wat::core::PersistentVector/conj acc f)))
+    facts
+    derived))
+
+;; fire-rules — fixpoint driver over fire-once: re-run the full match over a dedup-growing fact set
+;; until a round adds no new fact (monotone-finite termination — datalog property).
+;; Re-run-from-scratch (pure replay) each round: fire-once recomputes all memories from Session.facts,
+;; so derived facts in facts are matched exactly like input facts on the next round. No incremental
+;; delta-propagation (deferred perf path). No truth-maintenance / retraction (4c).
+;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
+;; (fire the rule network); stones build up the scope incrementally under this name.
+(:wat::core::defn :wat::rete::fire-rules
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::core::let [fired     (:wat::rete::fire-once session)
+                    derived   (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired))
+                    old-facts (:wat::rete::Session/facts session)
+                    new-facts (:wat::rete::merge-facts old-facts derived)]
+    (:wat::core::if (:wat::core::= (:wat::core::length new-facts) (:wat::core::length old-facts))
+      fired
+      (:wat::rete::fire-rules
+        (:wat::rete::Session
+          (:wat::rete::Session/network fired)
+          (:wat::rete::Session/rules   fired)
+          (:wat::rete::Session/alpha-memory fired)
+          (:wat::rete::Session/beta-memory  fired)
+          (:wat::rete::Session/production-memory fired)
+          new-facts
+          (:wat::rete::Session/next-id fired))))))
