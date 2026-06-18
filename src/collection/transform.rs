@@ -33,10 +33,26 @@ pub(crate) fn eval_vec_reverse(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::reverse", eval_inner(&args[0], env, sym)?.value_owned())?;
-    let mut out = (*xs).clone();
-    out.reverse();
-    Ok(Value::Vec(Arc::new(out)))
+    match eval_inner(&args[0], env, sym)?.value_owned() {
+        Value::Vec(xs) => {
+            let mut out = (*xs).clone();
+            out.reverse();
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc-278-0c — PersistentVector: reverse returns a new PersistentVector (type-preserving).
+        Value::wat__core__PersistentVector(pv) => {
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
+                out = out.push_back(elem.clone());
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
+        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::reverse".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+    }
 }
 
 /// `(:wat::core::range start end)` → `Vec<i64>`. Two-arg only; the
@@ -81,11 +97,29 @@ pub(crate) fn eval_vec_take(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::take", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-    let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
-    Ok(Value::Vec(Arc::new(out)))
+    match coll {
+        Value::Vec(xs) => {
+            let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+            let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc-278-0c — PersistentVector: take n returns a new PersistentVector (type-preserving).
+        Value::wat__core__PersistentVector(pv) => {
+            let cap = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for elem in pv.iter().take(cap) {
+                out = out.push_back(elem.clone());
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
+        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::take".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+    }
 }
 
 /// `(:wat::core::drop xs n)` → `Vec<T>`. Skip first `n` elements. If
@@ -104,11 +138,29 @@ pub(crate) fn eval_vec_drop(
             got: args.len()
         } }.into());
     }
-    let xs = require_vec(":wat::core::drop", eval_inner(&args[0], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
-    let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-    let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
-    Ok(Value::Vec(Arc::new(out)))
+    match coll {
+        Value::Vec(xs) => {
+            let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+            let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc-278-0c — PersistentVector: drop n returns a new PersistentVector (type-preserving).
+        Value::wat__core__PersistentVector(pv) => {
+            let skip = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for elem in pv.iter().skip(skip) {
+                out = out.push_back(elem.clone());
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
+        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::drop".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+    }
 }
 
 /// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
@@ -231,7 +283,7 @@ pub(crate) fn eval_vec_map(
     }
     // Arc 247: fn-first — (map f xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::map", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -242,11 +294,28 @@ pub(crate) fn eval_vec_map(
             } }.into());
         }
     };
-    let mut out = Vec::with_capacity(xs.len());
-    for x in xs.iter() {
-        out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+    match coll {
+        Value::Vec(xs) => {
+            let mut out = Vec::with_capacity(xs.len());
+            for x in xs.iter() {
+                out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+            }
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc-278-0c — PersistentVector: map returns a new PersistentVector (type-preserving).
+        Value::wat__core__PersistentVector(pv) => {
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for x in pv.iter() {
+                out = out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
+        other => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::map".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
-    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
@@ -269,7 +338,7 @@ pub(crate) fn eval_vec_foldl(
     // Arc 247: fn-first — (foldl f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::foldl", eval_inner(&args[2], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[2], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -280,10 +349,26 @@ pub(crate) fn eval_vec_foldl(
             } }.into());
         }
     };
-    for x in xs.iter() {
-        acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+    match coll {
+        Value::Vec(xs) => {
+            for x in xs.iter() {
+                acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+            }
+            Ok(acc)
+        }
+        // Arc-278-0c — PersistentVector: foldl iterates pv left-to-right; returns the accumulator.
+        Value::wat__core__PersistentVector(pv) => {
+            for x in pv.iter() {
+                acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+            }
+            Ok(acc)
+        }
+        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::foldl".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
-    Ok(acc)
 }
 
 /// `(:wat::core::foldr f init xs)` → acc. Right-associative fold.
@@ -306,7 +391,7 @@ pub(crate) fn eval_vec_foldr(
     // Arc 247: fn-first — (foldr f init xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
     let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::foldr", eval_inner(&args[2], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[2], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -317,10 +402,27 @@ pub(crate) fn eval_vec_foldr(
             } }.into());
         }
     };
-    for x in xs.iter().rev() {
-        acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+    match coll {
+        Value::Vec(xs) => {
+            for x in xs.iter().rev() {
+                acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+            }
+            Ok(acc)
+        }
+        // Arc-278-0c — PersistentVector: foldr iterates pv in reverse; returns the accumulator.
+        Value::wat__core__PersistentVector(pv) => {
+            let elems: Vec<&Value> = pv.iter().collect();
+            for x in elems.into_iter().rev() {
+                acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+            }
+            Ok(acc)
+        }
+        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::foldr".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
-    Ok(acc)
 }
 
 /// `(:wat::core::filter pred xs)` → `Vec<T>`. Keeps elements for
@@ -341,7 +443,7 @@ pub(crate) fn eval_vec_filter(
     }
     // Arc 247: fn-first — (filter pred xs)
     let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(":wat::core::filter", eval_inner(&args[1], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[1], env, sym)?.value_owned();
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -352,21 +454,48 @@ pub(crate) fn eval_vec_filter(
             } }.into());
         }
     };
-    let mut out = Vec::with_capacity(xs.len());
-    for x in xs.iter() {
-        match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-            Value::bool(true) => out.push(x.clone()),
-            Value::bool(false) => {}
-            other => {
-                return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::filter".into(),
-                    expected: "bool",
-                    got: Box::new(ValueSnapshot::of(&other))
-                } }.into());
+    match coll {
+        Value::Vec(xs) => {
+            let mut out = Vec::with_capacity(xs.len());
+            for x in xs.iter() {
+                match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
+                    Value::bool(true) => out.push(x.clone()),
+                    Value::bool(false) => {}
+                    other => {
+                        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::filter".into(),
+                            expected: "bool",
+                            got: Box::new(ValueSnapshot::of(&other))
+                        } }.into());
+                    }
+                }
             }
+            Ok(Value::Vec(Arc::new(out)))
         }
+        // Arc-278-0c — PersistentVector: filter keeps elements where pred holds; returns PersistentVector.
+        Value::wat__core__PersistentVector(pv) => {
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for x in pv.iter() {
+                match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
+                    Value::bool(true) => { out = out.push_back(x.clone()); }
+                    Value::bool(false) => {}
+                    other => {
+                        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::filter".into(),
+                            expected: "bool",
+                            got: Box::new(ValueSnapshot::of(&other))
+                        } }.into());
+                    }
+                }
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
+        other => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::filter".into(),
+            expected: "wat::core::Vector or wat::core::PersistentVector",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
     }
-    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at

@@ -14,7 +14,6 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 278 stone 0c — un-ignore when PersistentVector reaches transform-op parity"]
 fn persistent_vector_transform_parity() {
     let world = startup_from_source(
         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",

@@ -755,30 +755,40 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
 
 pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Vector/concat";
-    let l = match left {
-        Value::Vec(xs) => xs.clone(),
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+    // Arc-278-0c — PersistentVector: concat two PersistentVectors returns a PersistentVector.
+    // Both sides must be the same collection kind (Vec+Vec or PersistentVector+PersistentVector).
+    match (left, right) {
+        (Value::Vec(l), Value::Vec(r)) => {
+            let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
+            out.extend((*l).iter().cloned());
+            out.extend((*r).iter().cloned());
+            Ok(Value::Vec(Arc::new(out)))
         }
-    };
-    let r = match right {
-        Value::Vec(xs) => xs.clone(),
-        other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T>",
-                got: Box::new(ValueSnapshot::of(other))
-            } }.into());
+        (Value::wat__core__PersistentVector(l), Value::wat__core__PersistentVector(r)) => {
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for elem in l.iter() {
+                out = out.push_back(elem.clone());
+            }
+            for elem in r.iter() {
+                out = out.push_back(elem.clone());
+            }
+            Ok(Value::wat__core__PersistentVector(out))
         }
-    };
-    let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
-    out.extend((*l).iter().cloned());
-    out.extend((*r).iter().cloned());
-    Ok(Value::Vec(Arc::new(out)))
+        (other, _) if !matches!(other, Value::Vec(_) | Value::wat__core__PersistentVector(_)) => {
+            Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<T> or PersistentVector<T>",
+                got: Box::new(ValueSnapshot::of(other))
+            } }.into())
+        }
+        (_, other) => {
+            Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<T> or PersistentVector<T>",
+                got: Box::new(ValueSnapshot::of(other))
+            } }.into())
+        }
+    }
 }
 
 pub(crate) fn eval_hashmap_assoc(
