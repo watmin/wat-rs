@@ -40,6 +40,42 @@ engine; `wat-lint` is its proving ground and first consumer.
    as the working memory, `cosine` as the match. That is not Clara; it is Clara's matcher replaced by the
    thing holon already is. (This is the deep one — note it; the exact-match engine ships first.)
 
+## Charter rules — what the engine SHIPS WITH
+
+The engine is not just a `defrule` runtime; it ships with a standing set of **charter rules** (the
+substrate's own quality rules, migrated off `wat/lint.wat`'s hand-written predicate ladders onto the
+engine as its first real rule-set). These are required, not optional — the engine is born watching the
+corpus. The migrating set: `concat-abuse`, `nested-if-=-ladder`, deporder load-order (rule-zero). Plus
+ONE the engine must ship with that the hand-written lint never had, surfaced by arc 277.1c-fix (the fix
+tool caught writing the very smell it abolishes — `277/REALIZATIONS.md` R2):
+
+### `nested-if-boolean-collapse` (the generalized boolean-ladder rule)
+
+> **REQUIRED charter rule.** The narrow `nested-if-=-ladder` (which keys on `(if (= VAR LIT) true …)`
+> only) is a *special case* of this. The engine ships the general rule; the narrow one folds into it.
+
+- **LHS (pattern):** an `(if cond then else)` form in which — recursively through the `else` chain —
+  **every leaf branch is a boolean literal** (`true`/`false`). I.e. the whole nested `if` evaluates to a
+  boolean and is therefore a boolean *expression* wearing control-flow clothes. The conditions are
+  arbitrary (`(= v l)`, `(contains? s c)`, any predicate) — the rule keys on the **boolean-leaf
+  structure**, not the condition shape.
+- **RHS (action):** emit a finding + a fix that rewrites the ladder to the equivalent `and`/`or`/`not`
+  combination. Worked examples (both real, from this campaign):
+  - `(if (= x "a") true (if (= x "b") true (if (= x "c") true false)))`
+    → `(:wat::core::contains? (:wat::core::HashSet :T "a" "b" "c") x)` (the `= VAR LIT → true` subcase —
+      a HashSet membership; this is the existing `nested-if-=-ladder` rewrite, now subsumed).
+  - `(if (contains? inner "\"") false (if (contains? inner "{") false (if (contains? inner "}") false true)))`
+    → `(:wat::core::not (:wat::core::or (contains? inner "\"") (contains? inner "{") (contains? inner "}")))`
+      (the `pred → false … true` subcase — a negated disjunction; the exact form 277.1c-fix shipped and
+      had to hand-clean because the narrow rule could not see it).
+- **Why it MUST ship with the engine:** the hand-written lint missed it (narrow predicate), and the
+  toolchain *demonstrably wrote it itself*. A rules engine whose charter is "the corpus stays clean by
+  construction" cannot omit the most general form of the smell it already half-catches. Shipping the
+  general rule closes the class; the narrow rule was the placeholder.
+
+(The fix's RHS obeys the output contract below — for the boolean-collapse the rewrite is a pure fact, no
+name-holes; contrast the concat→format fix whose compound case yields holes.)
+
 ## The plan (the swap — author-adjacent / prime-drop)
 
 1. **277 first.** `wat-lint` ships and is *proven working* (rules catch real bad forms across the corpus,

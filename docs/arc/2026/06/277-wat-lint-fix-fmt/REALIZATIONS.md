@@ -75,8 +75,11 @@ caught this: it keys narrowly on `(if (= VAR LIT) true …)` — equality condit
 `(contains? …) → false` — different predicate, opposite polarity. So the bad form wasn't a fixture the
 toolchain could clean; it was a GAP. It generalizes the rule: **"a nested `if` whose every leaf is a
 boolean literal is a boolean expression in disguise → rewrite to `and`/`or`/`not`."** The
-`= VAR LIT → contains?(HashSet)` ladder is one special case of it. Banked as a 277/278 follow — a richer
-LHS than the narrow ladder match, and a natural early consumer of the arc-278 RETE engine.
+`= VAR LIT → contains?(HashSet)` ladder is one special case of it. **PROMOTED to a REQUIRED charter rule
+the RETE engine ships with** — `nested-if-boolean-collapse`, specified in
+`docs/arc/2026/06/278-rules-engine/DESIGN.md` § "Charter rules". A richer LHS than the narrow ladder
+match (keys on the boolean-leaf structure, not the condition shape), and a natural early consumer of the
+arc-278 engine.
 
 The doctrine, demonstrated in one screenshot: the toolchain's own author's hand caught writing the smell
 the toolchain hunts — and the catch didn't just fix an instance, it widened the net.
