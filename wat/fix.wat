@@ -22,10 +22,7 @@
 ;; structural? — a node whose children we recurse into (list/vector/set/map).
 (:wat::core::defn :wat::fix::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::= k "list") true
-      (:wat::core::if (:wat::core::= k "vector") true
-        (:wat::core::if (:wat::core::= k "map") true
-          (:wat::core::if (:wat::core::= k "set") true false))))))
+    (:wat::core::contains? (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
 
 ;; annotated-if? — a List whose head is the `:wat::core::if` keyword and whose child[2] is
 ;; the bare Symbol `->` (the redundant return annotation). Keys on the EXACT head so an

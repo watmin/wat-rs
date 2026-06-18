@@ -467,7 +467,7 @@
                                       ""
                                       kwarg-names)
                         new-text   (:wat::core::string::concat
-                                     (:wat::core::string::concat "(" head-str)
+                                     (:wat::core::format "({head-str}" :head-str head-str)
                                      (:wat::core::string::concat " \""
                                        (:wat::core::string::concat template
                                          (:wat::core::string::concat "\""

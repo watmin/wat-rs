@@ -237,7 +237,7 @@
         [name-str        (:wat::core::keyword/to-string name)
          ;; :<name>::Kwargs — the minted record type keyword value
          kwargs-ty       (:wat::core::keyword/from-string
-                           (:wat::core::string::concat name-str "::Kwargs"))
+                           (:wat::core::string::interpolate "{name-str}::Kwargs" :name-str name-str))
          kwargs-ty-str   (:wat::core::keyword/to-string kwargs-ty)
          ;; The inner argspec Vector node (the last element of params-ch)
          kw-argvec       (:wat::core::Option/expect -> :wat::WatAST
@@ -271,7 +271,7 @@
          kw-sym          (:wat::core::fresh-symbol "kwargs")
          ;; kwargs-ty as a WatAST Keyword node (needed for with-children)
          kwargs-ty-node  (:wat::core::keyword-node
-                            (:wat::core::string::concat ":" kwargs-ty-str))
+                            (:wat::core::string::interpolate ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
          ;; Build reshaped params children: drop trailing `& [...]` (last 2), append kw-sym <- kwargs-ty
          base-ch         (:wat::core::take params-ch (:wat::core::i64::- params-len 2))
          arrow-sym       (:wat::core::symbol-node "<-")
@@ -308,7 +308,7 @@
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
                                  accessor-kw   (:wat::core::keyword/from-string
                                                  (:wat::core::string::concat kwargs-ty-str
-                                                   (:wat::core::string::concat "/" fname-str)))
+                                                   (:wat::core::string::interpolate "/{fname-str}" :fname-str fname-str)))
                                  ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
                                  accessor-call `(~accessor-kw ~kw-sym)]
                                 (:wat::core::conj

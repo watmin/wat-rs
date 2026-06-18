@@ -151,18 +151,8 @@
                                               "Record::def: field type index out of range")
                                type-w       (:wat::holon::to-wat type-h)
                                accessor-name (:wat::core::keyword/from-string
-                                               (:wat::core::string::concat
-                                                 fqdn-str
-                                                 "/"
-                                                 name-s))
-                               msg-prefix   (:wat::core::string::concat
-                                               ":"
-                                               fqdn-str
-                                               "/"
-                                               name-s
-                                               ": expected receiver of class :"
-                                               fqdn-str
-                                               ", got class :")]
+                                               (:wat::core::string::interpolate "{fqdn-str}/{name-s}" :fqdn-str fqdn-str :name-s name-s))
+                               msg-prefix   (:wat::core::string::interpolate ":{fqdn-str}/{name-s}: expected receiver of class :{fqdn-str}, got class :" :fqdn-str fqdn-str :name-s name-s)]
                               (:wat::core::quasiquote
                                 (:wat::core::defn
                                   (:wat::core::unquote accessor-name)
@@ -281,18 +271,8 @@
                                               "Record::def: field type index out of range")
                                type-w       (:wat::holon::to-wat type-h)
                                accessor-name (:wat::core::keyword/from-string
-                                               (:wat::core::string::concat
-                                                 fqdn-str
-                                                 "/"
-                                                 name-s))
-                               msg-prefix   (:wat::core::string::concat
-                                               ":"
-                                               fqdn-str
-                                               "/"
-                                               name-s
-                                               ": expected receiver of class :"
-                                               fqdn-str
-                                               ", got class :")]
+                                               (:wat::core::string::interpolate "{fqdn-str}/{name-s}" :fqdn-str fqdn-str :name-s name-s))
+                               msg-prefix   (:wat::core::string::interpolate ":{fqdn-str}/{name-s}: expected receiver of class :{fqdn-str}, got class :" :fqdn-str fqdn-str :name-s name-s)]
                               (:wat::core::quasiquote
                                 (:wat::core::defn
                                   (:wat::core::unquote accessor-name)

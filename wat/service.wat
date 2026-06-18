@@ -117,7 +117,7 @@
      ;; REBIND state-ty so every downstream ~state-ty use (serve param, StopResponse,
      ;; stop method, start params, self-peer) keeps working unchanged.
      state-ty       (:wat::core::keyword/from-string
-                      (:wat::core::string::concat fqdn-str "::State"))
+                      (:wat::core::string::interpolate "{fqdn-str}::State" :fqdn-str fqdn-str))
 
      ;; ── rs-1: emit the State record def, branching on state-parent ──────────
      ;; :wat::holon::Record → (:wat::holon::Record::def ~state-ty ~state-fields)
@@ -130,19 +130,19 @@
                       `(:wat::Record::def ~state-ty ~state-fields))
 
      enum-name     (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "::Op"))
+                     (:wat::core::string::interpolate "{fqdn-str}::Op" :fqdn-str fqdn-str))
      reply-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "::Reply"))
+                     (:wat::core::string::interpolate "{fqdn-str}::Reply" :fqdn-str fqdn-str))
      serve-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "::serve"))
+                     (:wat::core::string::interpolate "{fqdn-str}::serve" :fqdn-str fqdn-str))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
      ;; `(keyword/from-string …)` so Locus/launch receives serve by a RUNTIME keyword
      ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
-     serve-name-str (:wat::core::string::concat fqdn-str "::serve")
+     serve-name-str (:wat::core::string::interpolate "{fqdn-str}::serve" :fqdn-str fqdn-str)
      start-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "/start"))
+                     (:wat::core::string::interpolate "{fqdn-str}/start" :fqdn-str fqdn-str))
      handle-name   (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "::Handle"))
+                     (:wat::core::string::interpolate "{fqdn-str}::Handle" :fqdn-str fqdn-str))
      ;; Parametric type keywords for serve's typed params.
      ;; Peer'<fqdn::Reply,fqdn::Op>
      peer-ty       (:wat::core::keyword/from-string
@@ -198,7 +198,7 @@
                             op-str      (:wat::core::keyword/to-string opkw)
                             req-name    (:wat::core::keyword/from-string
                                           (:wat::core::string::concat fqdn-str
-                                            (:wat::core::string::concat "::" op-str "Request")))
+                                            (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
                             ;; Reuse argvec as the Vector carrier; with-children replaces children
                             req-fieldvec (:wat::core::with-children argvec in-fieldch)]
                            (:wat::core::conj acc
@@ -224,7 +224,7 @@
                              op-str       (:wat::core::keyword/to-string opkw)
                              resp-name    (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::concat "::" op-str "Response")))
+                                              (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
                              ;; Reuse out-fieldvec as the Vector carrier
                              resp-fieldvec (:wat::core::with-children out-fieldvec out-fieldch)]
                             (:wat::core::conj acc
@@ -251,7 +251,7 @@
                           op-str  (:wat::core::keyword/to-string opkw)
                           req-ty  (:wat::core::keyword/from-string
                                     (:wat::core::string::concat fqdn-str
-                                      (:wat::core::string::concat "::" op-str "Request")))
+                                      (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
                           ;; Build [req <- <req-ty>] as a quasiquoted Vector node.
                           ;; Value::wat__WatAST(WatAST::Vector) — spliced via ~@variants correctly.
                           req-field-vec `[req <- ~req-ty]]
@@ -277,7 +277,7 @@
                            op-str  (:wat::core::keyword/to-string opkw)
                            resp-ty (:wat::core::keyword/from-string
                                      (:wat::core::string::concat fqdn-str
-                                       (:wat::core::string::concat "::" op-str "Response")))
+                                       (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
                            ;; Build [resp <- <resp-ty>] as a quasiquoted Vector node.
                            resp-field-vec `[resp <- ~resp-ty]]
                           (:wat::core::conj (:wat::core::conj acc opkw)
@@ -320,10 +320,10 @@
                           op-str        (:wat::core::keyword/to-string opkw)
                           op-variant-kw (:wat::core::keyword/from-string
                                           (:wat::core::string::concat fqdn-str
-                                            (:wat::core::string::concat "::Op::" op-str)))
+                                            (:wat::core::string::interpolate "::Op::{op-str}" :op-str op-str)))
                           reply-variant-kw (:wat::core::keyword/from-string
                                              (:wat::core::string::concat fqdn-str
-                                               (:wat::core::string::concat "::Reply::" op-str)))
+                                               (:wat::core::string::interpolate "::Reply::{op-str}" :op-str op-str)))
                           ;; Extract state binder (e.g. `s`) from the first triple of argvec.
                           ;; Unquoted → Unquote node at definition time → passes hygiene check.
                           state-binder  (:wat::core::Option/expect -> :wat::WatAST
@@ -421,20 +421,20 @@
      ;;
      ;; StopRequest [] — nullary; client sends it to terminate the service.
      stop-req-name   (:wat::core::keyword/from-string
-                       (:wat::core::string::concat fqdn-str "::StopRequest"))
+                       (:wat::core::string::interpolate "{fqdn-str}::StopRequest" :fqdn-str fqdn-str))
      stop-req-record `(:wat::Record::def ~stop-req-name [])
      ;; StopResponse [state <- <state-ty>] — carries the final state to the client.
      stop-resp-name  (:wat::core::keyword/from-string
-                       (:wat::core::string::concat fqdn-str "::StopResponse"))
+                       (:wat::core::string::interpolate "{fqdn-str}::StopResponse" :fqdn-str fqdn-str))
      stop-resp-fields `[state <- ~state-ty]
      stop-resp-record `(:wat::Record::def ~stop-resp-name ~stop-resp-fields)
      ;; Op::Stop variant [req <- StopRequest]
      stop-op-variant-kw (:wat::core::keyword/from-string
-                          (:wat::core::string::concat fqdn-str "::Op::Stop"))
+                          (:wat::core::string::interpolate "{fqdn-str}::Op::Stop" :fqdn-str fqdn-str))
      stop-op-req-field `[req <- ~stop-req-name]
      ;; Reply::Stop variant [resp <- StopResponse]
      stop-reply-variant-kw (:wat::core::keyword/from-string
-                             (:wat::core::string::concat fqdn-str "::Reply::Stop"))
+                             (:wat::core::string::interpolate "{fqdn-str}::Reply::Stop" :fqdn-str fqdn-str))
      stop-reply-resp-field `[resp <- ~stop-resp-name]
      ;; Auto serve arm for Op::Stop:
      ;;   ((Op::Stop req)
@@ -444,7 +444,7 @@
      ;; `state` is the serve param (value position in match). The outer outcome-match
      ;; structure is duplicated here (no user body to bind; direct auto handler).
      stop-resp-acc (:wat::core::keyword/from-string
-                     (:wat::core::string::concat fqdn-str "::StopResponse/state"))
+                     (:wat::core::string::interpolate "{fqdn-str}::StopResponse/state" :fqdn-str fqdn-str))
      stop-serve-arm `((~stop-op-variant-kw req)
                        (:wat::core::match
                          (:wat::service::Outcome::Stop state (~stop-resp-name state))
@@ -513,10 +513,10 @@
                           op-lower     (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           ctor-name    (:wat::core::keyword/from-string
                                          (:wat::core::string::concat fqdn-str
-                                           (:wat::core::string::concat "/" op-lower "-request")))
+                                           (:wat::core::string::interpolate "/{op-lower}-request" :op-lower op-lower)))
                           req-ty       (:wat::core::keyword/from-string
                                          (:wat::core::string::concat fqdn-str
-                                           (:wat::core::string::concat "::" op-str "Request")))
+                                           (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
                           ;; Use argvec as Vector carrier for the parameter list
                           req-fieldvec  (:wat::core::with-children argvec in-fieldch)
                           ;; Extract field names for the constructor call body
@@ -569,19 +569,19 @@
                           op-lower        (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           method-name     (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::concat "/" op-lower)))
+                                              (:wat::core::string::interpolate "/{op-lower}" :op-lower op-lower)))
                           req-ty          (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::concat "::" op-str "Request")))
+                                              (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
                           resp-ty         (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::concat "::" op-str "Response")))
+                                              (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
                           op-variant-kw   (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::concat "::Op::" op-str)))
+                                              (:wat::core::string::interpolate "::Op::{op-str}" :op-str op-str)))
                           reply-variant-kw (:wat::core::keyword/from-string
                                              (:wat::core::string::concat fqdn-str
-                                               (:wat::core::string::concat "::Reply::" op-str)))
+                                               (:wat::core::string::interpolate "::Reply::{op-str}" :op-str op-str)))
                           ;; method params: [c <- Peer'<Op,Reply>  req <- <req-ty>]
                           ;; Client peer: connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
                           ;; Vector → checker skips Vector children.
@@ -607,7 +607,7 @@
      ;; ── rs-2: stop constructor + method (extended after user-op folds complete) ───
      ;; Constructor: (defn <fqdn>/stop-request [] -> StopRequest (StopRequest))
      stop-ctor-name  (:wat::core::keyword/from-string
-                       (:wat::core::string::concat fqdn-str "/stop-request"))
+                       (:wat::core::string::interpolate "{fqdn-str}/stop-request" :fqdn-str fqdn-str))
      stop-ctor       `(:wat::core::defn ~stop-ctor-name [] -> ~stop-req-name (~stop-req-name))
      ;; Method: (defn <fqdn>/stop [c <- client-peer-ty] -> state-ty ...)
      ;; Sends Op::Stop(StopRequest) over c, recv's Reply, matches Reply::Stop → extracts state.
@@ -615,7 +615,7 @@
      stop-discard-sym (:wat::core::symbol-node "_")
      stop-r-sym       (:wat::core::symbol-node "r")
      stop-method-name (:wat::core::keyword/from-string
-                        (:wat::core::string::concat fqdn-str "/stop"))
+                        (:wat::core::string::interpolate "{fqdn-str}/stop" :fqdn-str fqdn-str))
      stop-method-params `[c <- ~client-peer-ty]
      stop-method-body `(:wat::core::let
                           [~stop-discard-sym (:wat::kernel::send' c (~stop-op-variant-kw (~stop-req-name)))
@@ -668,7 +668,7 @@
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
      ;; service-forms-kw: the keyword :<fqdn>::service-forms — the name of the emitted def.
      service-forms-kw (:wat::core::keyword/from-string
-                        (:wat::core::string::concat fqdn-str "::service-forms"))
+                        (:wat::core::string::interpolate "{fqdn-str}::service-forms" :fqdn-str fqdn-str))
      ;; The agnostic child :user::main: binds on :wat::spawn::service-locus (a FREE
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
      ;; `(def :wat::spawn::service-locus (process))` before spawning, so the child
