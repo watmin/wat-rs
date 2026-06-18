@@ -83,3 +83,35 @@ arc-278 engine.
 
 The doctrine, demonstrated in one screenshot: the toolchain's own author's hand caught writing the smell
 the toolchain hunts — and the catch didn't just fix an instance, it widened the net.
+
+## R3 — the sweep proved the concat→format fix is RUNTIME-ONLY (a fix needs to know its position's purity)
+
+THE SWEEP ran the linter's auto-fixes over the whole corpus. The diffs were *beautiful* — `fix.wat`'s
+own `structural?` ladder → `(contains? (HashSet …) k)`; `Record.wat`'s 7-piece `msg-prefix` concat →
+a self-documenting `format`; ~15 `service.wat` name-building concats → `format` — net −23 lines,
+comment-faithful. Then the floors: **lib 591/374, deftest 0/263, deporder 0/1.** The stdlib would not
+load. (Reverted; nothing shipped — the preview-diff-then-floors discipline caught it before commit.)
+
+Root cause (the gate said it plainly):
+> `:wat::core::format refused at macro expand time — not on the pure-combinator allow-list (arc 249 F5)`
+
+**`format` is a macro.** The corpus's bare-symbol concats are overwhelmingly inside **defmacro bodies**
+(Record::def, defservice, the defn-kwargs branch — all build keyword names at EXPAND time). At expand
+time the macro-eval purity gate refuses `format`. So **concat→format is legal only in RUNTIME positions
+(a `defn` body), never in an expand-time position (a `defmacro` body).** The 277.1c-fix probe stayed
+green only because its fixture was a `defn` (runtime) — the fixture didn't represent the corpus, which
+is macro-heavy. (`ladder→contains?` was fine everywhere — `contains?` is pure-total, expand-time-legal.)
+
+**Two requirements this names (block-and-build):**
+1. **The detection rule must know if the form is in a macro (expand-time) position** — "am I inside a
+   defmacro body?" — and decline a macro-introducing fix (concat→format) there. The form-local walker
+   must thread an `in-defmacro?` context as it descends. This is the immediate gate; until it exists, a
+   blind sweep of concat→format is unsafe and the SWEEP applies only the ladder fix.
+2. **Purity/expand-time-legality must be queryable metadata** declared at definition time (arc 255 —
+   `NOTE-purity-is-definition-time-queryable-metadata.md`). The fix should ASK "is the callable I'm
+   introducing expand-time-legal at this position?" not rely on a guess. This is the callable-class half;
+   (1) is the position half.
+
+The sweep didn't fail — it did its job: it stress-tested the fix against the real corpus and exposed the
+hidden precondition the isolated fixture hid. The proof-by-diff is deferred until the fix is
+position-aware; the diffs themselves proved the *rewrites* correct, only the *contexts* wrong.

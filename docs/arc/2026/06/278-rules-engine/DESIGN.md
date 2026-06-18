@@ -122,6 +122,21 @@ This shapes the engine's value type: a fix is `{location, kind, data, holes?}` �
 judgment the consumer must supply. A fix with zero holes is auto-applicable; a fix with holes is a
 *proposal* the consumer completes. The engine stays pure either way.
 
+### The fact base must carry POSITION-PURITY (the arc-283 sweep demanded it)
+
+The arc-277 sweep proved a fix can be syntactically perfect and still illegal *in its position*: rewriting
+a `string::concat` to `(format …)` is valid in a **runtime** position but refused inside a **defmacro
+body** (`format` is a macro; the macro-eval purity gate, arc 249 F5, rejects it at expand time). The
+blind sweep broke the whole stdlib (deftest 0/263); reverted.
+
+So the engine's **fact base must include, per form, its expand-time/runtime POSITION** — "is this node
+inside a `defmacro` body?" — as a first-class fact a rule's LHS can match on. A macro-introducing fix
+(concat→format) gates on it: fire only where the position is runtime. The complementary half is the
+**callable's purity class** as queryable metadata (arc 255 — `is X expand-time-legal?`); a rule asks
+*both* — "is what I'm introducing legal where I'm introducing it?" — instead of guessing. Until the
+engine carries position-purity, the concat→format fix stays form-local-unsafe (the SWEEP applies only
+the position-independent `ladder→contains?`, since `contains?` is pure-total = legal everywhere).
+
 ## Four questions (sketch, to weigh when it opens)
 
 - **Obvious?** A `defrule` reads as `LHS → RHS`; the engine runs rules over facts and fires actions —
