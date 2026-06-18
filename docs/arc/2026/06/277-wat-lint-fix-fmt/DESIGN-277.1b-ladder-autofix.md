@@ -1,9 +1,14 @@
 # Arc 277.1b — the nested-if-=-ladder AUTO-FIX (the keystone pays off)
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc277_1b_ladder_autofix.rs`
-> (`#[ignore]`'d): `lint-fix-file` is undefined at HEAD. Now that arc 281 (`ast-end-span`) makes a
-> structural node's extent readable, the report-only ladder rule grows a real fix that REWRITES the
-> whole ladder → `(:wat::core::contains? (:wat::core::HashSet …) var)`. First end-to-end lint→fix.
+> **STATUS: SHIPPED (2026-06-17).** First end-to-end `lint → fix`. `lint-fix-file` rewrites a 3-deep
+> ladder into `(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer "a" "b" "c") x)` —
+> SURGICALLY: the surrounding `defn`/param-vector/arrow/return-type stayed byte-identical (eyeballed on
+> the orchestrator's own build), confirming the `ast-end-span` extent math. `FixEdit` record;
+> `Finding.fix : Option<FixEdit>` (None for the other two rules); `fix-text-span-len` (offset-of(end) −
+> offset-of(start)) in fix.wat; `apply-fixes` + `lint-fix-file` riding `fix-text-apply`; new-text built
+> via `format` (dogfood). Weighed: autofix gate 1/1, ladder-report 1/1, concat 1/1, deftest 260/1
+> (+Case 7), deporder 0 (lint→fix dep order-satisfied), lib 929/36. The keystone paid off. Opened +
+> shipped 2026-06-17.
 
 ## Why now
 

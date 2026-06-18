@@ -22,6 +22,21 @@
 ;;   wat/fix.wat      — fix-text-apply + edit shape (the seam)
 ;;   wat/Record.wat   — :wat::Record::def for the Finding record
 
+;; ─── Typed record: FixEdit (the extent + replacement for an auto-fix) ───────
+
+;; FixEdit — an auto-fix edit produced by a lint rule.
+;; start-line / start-col: 1-indexed position of the first char of the node to replace.
+;; end-line   / end-col:   1-indexed position one char PAST the last char (from ast-end-span).
+;; new-text:  the replacement source text.
+;; Position-based (not flat-offset-based): the rule has the spans but NOT the source;
+;; the applier (apply-fixes) holds the source and flattens via fix-text-offset-of.
+(:wat::Record::def :wat::lint::FixEdit
+  [start-line <- :wat::core::i64
+   start-col  <- :wat::core::i64
+   end-line   <- :wat::core::i64
+   end-col    <- :wat::core::i64
+   new-text   <- :wat::core::String])
+
 ;; ─── Typed record: Finding (uncompilable on a wrong shape) ───────────
 
 ;; Finding — a lint result.
@@ -31,11 +46,7 @@
 ;; col:      1-indexed column of the finding
 ;; severity: "error" | "warn" | "info"  (L1/L2/L3)
 ;; message:  human-readable description + cure
-;; fix:      None (STOP-1: auto-fix deferred to 277.1b)
-;;
-;; fix is typed :wat::core::String where "" means no fix available.
-;; The full (offset,old-len,new-text) triple seam will land when 277.1b
-;; adds the ast-end-span substrate primitive.
+;; fix:      Some(FixEdit) = an auto-fix is available; None = report-only.
 (:wat::Record::def :wat::lint::Finding
   [rule     <- :wat::core::String
    file     <- :wat::core::String
@@ -43,7 +54,7 @@
    col      <- :wat::core::i64
    severity <- :wat::core::String
    message  <- :wat::core::String
-   fix      <- :wat::core::String])
+   fix      <- :wat::core::Option<wat::lint::FixEdit>])
 
 ;; ─── Predicate helpers ───────────────────────────────────────────────
 
@@ -233,19 +244,31 @@
    lits     <- :wat::core::Vector<wat::core::String>]
   -> :wat::lint::Finding
   (:wat::core::let [span    (:wat::core::ast-span form)
+                    ep      (:wat::core::ast-end-span form)
                     ln      (:wat::core::Option/expect -> :wat::core::i64
                                 (:wat::core::HashMap/get span :line)
                                 "make-ladder-finding: :line")
                     co      (:wat::core::Option/expect -> :wat::core::i64
                                 (:wat::core::HashMap/get span :col)
                                 "make-ladder-finding: :col")
+                    end-ln  (:wat::core::Option/expect -> :wat::core::i64
+                                (:wat::core::HashMap/get ep :line)
+                                "make-ladder-finding: end :line")
+                    end-co  (:wat::core::Option/expect -> :wat::core::i64
+                                (:wat::core::HashMap/get ep :col)
+                                "make-ladder-finding: end :col")
                     n-lits  (:wat::core::length lits)
                     msg     (:wat::core::string::concat
                               "nested-if-=-ladder: var `"
                               var-name
                               "` compared against "
                               (:wat::core::i64::to-string n-lits)
-                              " literals — use (:wat::core::contains? (:wat::core::HashSet :T lit…) var) instead")]
+                              " literals — use (:wat::core::contains? (:wat::core::HashSet :T lit…) var) instead")
+                    new-text (:wat::core::format
+                               "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer {lits}) {var})"
+                               :lits (:wat::core::string::join " " lits)
+                               :var var-name)
+                    fe      (:wat::lint::FixEdit ln co end-ln end-co new-text)]
     (:wat::lint::Finding
       "nested-if-=-ladder"
       file
@@ -253,7 +276,7 @@
       co
       "warn"
       msg
-      "")))
+      (:wat::core::Some fe))))
 
 ;; rule-nested-if-=-ladder-form — run the ladder rule on ONE form (recursive walk).
 ;; Detects the ladder at the top level OR nested anywhere inside the form.
@@ -369,7 +392,7 @@
       co
       "warn"
       msg
-      "")))
+      :wat::core::None)))
 
 ;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
 ;; Detects concat-abuse at the top level OR nested anywhere inside the form.
@@ -435,7 +458,7 @@
 
 ;; violation->finding — convert a deporder Violation into a rule-zero Finding.
 ;; Violations have no span (deporder doesn't walk for positions); line and col = 0.
-;; The fix is always "" (no mechanical fix — load-order is a human decision).
+;; The fix is always None (no mechanical fix — load-order is a human decision).
 (:wat::core::defn :wat::lint::violation->finding
   [v <- :wat::deporder::Violation]
   -> :wat::lint::Finding
@@ -456,7 +479,7 @@
       (:wat::core::i64::to-string (:wat::deporder::Violation/definer-pos v))
       ") which loads later — symbol: "
       (:wat::deporder::Violation/symbol v))
-    ""))
+    :wat::core::None))
 
 ;; violations->findings — map Violations to rule-zero Findings.
 (:wat::core::defn :wat::lint::violations->findings
@@ -488,3 +511,47 @@
                     viols  (:wat::deporder::verify srcs)
                     rule-zero-findings (:wat::lint::violations->findings viols)]
     (:wat::core::concat form-findings rule-zero-findings)))
+
+;; ─── apply-fixes + lint-fix-file: the auto-fix applier ───────────────
+
+;; apply-fixes — apply all Some fixes from findings to the source in sf.
+;; For each finding with a Some(FixEdit): converts the span positions to flat offsets
+;; using fix-text-offset-of (via {:line,:col} HashMaps), computes old-len via
+;; fix-text-span-len, collects Tuple(off, old-len, new-text) in ascending order,
+;; reverses to right-to-left, then splices via fix-text-apply.
+(:wat::core::defn :wat::lint::apply-fixes
+  [sf       <- :wat::deporder::SourceFile
+   findings <- :wat::core::Vector<wat::lint::Finding>]
+  -> :wat::core::String
+  (:wat::core::let [src   (:wat::deporder::SourceFile/source sf)
+                    lines (:wat::core::string::split src "\n")
+                    edits (:wat::core::foldl
+                            (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                                             f   <- :wat::lint::Finding]
+                              -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                              (:wat::core::match (:wat::lint::Finding/fix f) -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                                (:wat::core::None acc)
+                                ((:wat::core::Some fe)
+                                 (:wat::core::let [start-map (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                                                               :line (:wat::lint::FixEdit/start-line fe)
+                                                               :col  (:wat::lint::FixEdit/start-col fe))
+                                                   end-map   (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+                                                               :line (:wat::lint::FixEdit/end-line fe)
+                                                               :col  (:wat::lint::FixEdit/end-col fe))
+                                                   off       (:wat::fix::fix-text-offset-of start-map lines)
+                                                   old-len   (:wat::fix::fix-text-span-len start-map end-map lines)
+                                                   new-text  (:wat::lint::FixEdit/new-text fe)]
+                                   (:wat::core::concat acc
+                                     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+                                       (:wat::core::Tuple off old-len new-text)))))))
+                            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+                            findings)
+                    rev-edits (:wat::core::reverse edits)]
+    (:wat::fix::fix-text-apply src rev-edits)))
+
+;; lint-fix-file — lint a SourceFile and apply all auto-fixes, returning the fixed source.
+;; Convenience entry called by probes and the sweep: lint-file → apply-fixes.
+(:wat::core::defn :wat::lint::lint-fix-file
+  [sf <- :wat::deporder::SourceFile]
+  -> :wat::core::String
+  (:wat::lint::apply-fixes sf (:wat::lint::lint-file sf)))

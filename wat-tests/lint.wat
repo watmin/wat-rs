@@ -149,3 +149,31 @@
      files (:wat::core::Vector :wat::deporder::SourceFile sf-a sf-b)
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
+
+;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
+
+(:wat::test::deftest :wat-tests::lint::ladder-autofix-rewrites-and-round-trips
+  ()
+  ;; Part A: a 3-deep nested-if-=-ladder over `x` — lint-fix-file must rewrite it
+  ;; to a (contains? (HashSet …) x) call. The fixed source must contain "contains?"
+  ;; and no longer contain the nested "(:wat::core::if (:wat::core::= x".
+  ;; Part B: a clean file (no findings) must round-trip byte-identical through
+  ;; lint-fix-file (no edits applied means source is returned unchanged).
+  (:wat::core::let
+    [src-ladder "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"
+     sf-ladder  (:wat::deporder::SourceFile "t.wat" src-ladder)
+     fixed      (:wat::lint::lint-fix-file sf-ladder)
+     src-clean  "(:wat::core::defn :t::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a b))"
+     sf-clean   (:wat::deporder::SourceFile "clean.wat" src-clean)
+     fixed-clean (:wat::lint::lint-fix-file sf-clean)]
+    (:wat::core::do
+      ;; Part A: fixed source must contain "contains?" and "HashSet"
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed "contains?"))
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed "HashSet"))
+      ;; Part A: the original ladder must be gone
+      (:wat::test::assert-false
+        (:wat::core::string::contains? fixed "(:wat::core::if (:wat::core::= x"))
+      ;; Part B: clean file must round-trip byte-identical
+      (:wat::test::assert-eq fixed-clean src-clean))))

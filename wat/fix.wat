@@ -158,6 +158,19 @@
     (:wat::core::+ (:wat::fix::fix-text-line-start ln lines)
                    (:wat::core::- co 1))))
 
+;; fix-text-span-len — compute the char length of a source span (end offset minus start offset).
+;; start-span and end-span are {:line N :col N} HashMaps (same shape as (ast-span node) /
+;; (ast-end-span node)); lines = (string::split src "\n").
+;; Returns offset-of(end) - offset-of(start): the number of chars the span covers.
+(:wat::core::defn :wat::fix::fix-text-span-len
+  [start-span <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
+   end-span   <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
+   lines      <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::i64
+  (:wat::core::i64::-
+    (:wat::fix::fix-text-offset-of end-span lines)
+    (:wat::fix::fix-text-offset-of start-span lines)))
+
 ;; fix-text-deletion-edit — a one-element Vector holding a deletion edit for node.
 ;; Deletion covers exactly the token text (ast-name char length); surrounding whitespace stays.
 (:wat::core::defn :wat::fix::fix-text-deletion-edit

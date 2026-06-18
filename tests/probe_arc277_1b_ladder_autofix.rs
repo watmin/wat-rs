@@ -25,7 +25,6 @@ const LINT_FIX: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 277.1b — RED until the ladder auto-fix + applier ship; un-ignore on green"]
 fn ladder_autofix_rewrites_to_contains() {
     let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
         Arc::new(InMemoryLoader::new()))
