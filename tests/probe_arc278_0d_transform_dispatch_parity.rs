@@ -77,3 +77,23 @@ fn wrong_element_still_rejected() {
         "folding a String reducer over an i64 PersistentVector must be rejected (parity != permissiveness). Got: {r:?}"
     );
 }
+
+#[test]
+fn bare_typed_containers_typecheck_through_hofs() {
+    // 0d.1 REGRESSION GUARD — a BARE container annotation (no <T>) is how record fields and fn params are
+    // declared (e.g. compile's `rules` param, every rete record's PV field). It reduces to a `Path`, not a
+    // `Parametric`, and the 0d probe only ever tested the constructor (parametric) form — so the HOF arms
+    // rejected bare containers, blocking the rete engine. This asserts foldl/map type-check over a bare
+    // PersistentVector AND a bare Vector param (both must work; both failed before 0d.1).
+    let src = format!(
+        "(:wat::core::defn :user::fold-bare-pv  [xs <- :wat::core::PersistentVector] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 xs))\n\
+         (:wat::core::defn :user::fold-bare-vec [xs <- :wat::core::Vector] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 xs))\n\
+         (:wat::core::defn :user::map-bare-pv   [xs <- :wat::core::PersistentVector] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::map {DBL} xs)))\n\
+         {MAIN}"
+    );
+    let r = check(&src);
+    assert!(
+        r.is_ok(),
+        "HOFs must type-check over BARE-typed (un-parameterized) containers — record fields + fn params use bare. Got: {r:?}"
+    );
+}

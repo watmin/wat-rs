@@ -511,6 +511,13 @@ fn extract_seq_elem(
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::PersistentVector", elem_ty))
         }
+        // Arc-278-0d.1 — BARE container annotations. A record field or fn param typed
+        // `:wat::core::Vector` / `:wat::core::PersistentVector` with no `<T>` reduces to a `Path`,
+        // not a `Parametric` (e.g. `compile`'s `rules` param + every rete record's PV field). Treat
+        // it as the container with a fresh element type — the fn-unification constrains it from the
+        // reducer/predicate's element param, exactly as the empty-args parametric case does.
+        TypeExpr::Path(p) if p == ":wat::core::Vector" => Some(("wat::core::Vector", fresh.fresh())),
+        TypeExpr::Path(p) if p == ":wat::core::PersistentVector" => Some(("wat::core::PersistentVector", fresh.fresh())),
         // Unresolved type variable — defer to the runtime backstop (same policy as
         // infer_contains/conj/get/assoc; see infer_contains for the authoritative comment).
         TypeExpr::Var(_) => None,
