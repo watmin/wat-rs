@@ -377,6 +377,13 @@ relative order does not change the final fixpoint (pure derivation + truth maint
 firing order is forward-chain-structural where it matters, immaterial where it doesn't; salience is neither
 needed nor offered.
 
+**Refinement from the Clara study (CLARA-REFERENCE.md §9):** "structural" is precisely two things —
+(a) `sort-conditions` dependency order (a condition's referenced vars must be bound by a prior condition),
+and (b) an *internal* sub-rule ordering for EXTRACTED sub-rules (Clara's `internal-salience`: an
+extracted-negation/exists sub-rule fires before its parent). We drop USER salience; we still honor (a)+(b)
+as engine-internal structural ordering for correctness. So "no salience" = no user-facing priority knob, not
+"no ordering."
+
 **Facts are records, end of story** — base `:wat::Record` or holon `:wat::holon::Record`. No maps, no
 arbitrary objects, no `:fact-type-fn`. The fact's type is its `class_fqdn`; the type hierarchy is our
 existing `derive`/typesub edges (arc 237/267). This is the no-magic discipline as a structural law of the
@@ -420,23 +427,39 @@ clone-on-write as the bottleneck. Division of labor (the "does a macro need it?"
 
 ## Decomposition (proposed — examinare strikes; each ships a REAL piece, no naive stand-ins)
 
-0. **Persistent collections (RUST prerequisite).** Expose `im::HashMap`/`im::Vector` as wat values:
-   structural-sharing `assoc`/`get`/`dissoc`/`keys`/`vals`, EDN round-trip. FM-2-bis probe: N incremental
-   assocs stay cheap (structural sharing, not clone-on-write) + EDN round-trip. Stands alone as a
-   language-wide substrate win; RETE non-redundancy is its forcing consumer. (Bookkeeping: own arc or 278.0 —
-   builder's call.)
-1. **Node types + network-as-data (wat).** The node records + the working-memory record holding the network
-   (id→node persistent map); compile a rule-set → network with alpha-node SHARING; the EDN/DAG render. No fire.
-2. **Alpha activation (wat).** `insert` a fact → through alpha nodes (reuse `form::matches?`) → alpha
-   memories. Single-condition rules fire end to end.
-3. **Beta joins + unification (wat — THE HEART).** Cross-condition `?var` unification; beta memories;
-   partial-match tokens; beta-prefix sharing.
-4. **`fire-rules` + production + truth maintenance (wat).** Delta propagation; logical insertion of derived
-   facts; cascade-retract on support loss; frozen WM + state blob.
-5. **`defrule`/`defquery`/`query` (wat).** The homoiconic surface; query read-out over the frozen WM.
-6. **Accumulators (wat).** count/sum/min/max(+:returns-fact)/average/distinct/all/grouping-by + custom; the
-   retract-fn drives TM over aggregates.
-7. **Swap `wat-lint` onto the engine** — the rule-of-three consumer; `nested-if-boolean-collapse` lands as a
+> Refined against `CLARA-REFERENCE.md` (the translated, file:line-anchored Clara architecture). The node
+> taxonomy is richer than "alpha/beta/production": a JOIN family + negation + test + accumulate + query. The
+> MVP path to a WORKING engine is stones 0–6 (equality joins + TM + query); negation, expression-joins, and
+> accumulate are REAL additional node types layered on (stones 7–9) — additions, NOT deferred naive versions
+> of the core (so "no deferral" holds: each stone ships a complete real node). Each stone's BRIEF points at
+> the matching `CLARA-REFERENCE.md` section + the specific Clara `file:line` + its hazard.
+
+0. **Persistent collections + transient pair (RUST prerequisite).** Expose `im::HashMap`/`im::Vector` as wat
+   values (`:wat::core::PersistentMap`/`PersistentVector`): structural-sharing `assoc`/`get`/`dissoc`/`keys`/
+   `vals`, EDN round-trip, Layer-1 polymorphism with std. PLUS the **transient↔persistent pair**
+   (`to-transient`/`to-persistent!`) — the fire loop's `assoc!` hot path needs the mutable transient
+   (CLARA-REF §5). FM-2-bis: N incremental assocs cheap + EDN round-trip. Language-wide win.
+1. **Node types + network-as-data + compile (wat).** The node records (CLARA-REF §1) + the working-memory
+   record (4 memories: alpha/beta/accum/production, CLARA-REF §5) + compile a rule-set → network with
+   alpha-node + beta-prefix SHARING (CLARA-REF §4) + the EDN/DAG render. No fire yet.
+2. **Alpha activation (wat).** `insert` a typed-record fact → `AlphaNode` (reuse `form::matches?` as the
+   `activation` predicate) → `Element`s → alpha memories.
+3. **The core join — `RootJoinNode` + `HashJoinNode` (wat, THE HEART).** Token(left)/Element(right) two-memory
+   split keyed by `join-bindings`; left/right activate+retract; equality-join unification by map-merge
+   (CLARA-REF §2; hazard #1). Multi-equality-condition rules match end to end.
+4. **`fire-rules` + `ProductionNode` + truth maintenance (wat).** The agenda + fixpoint loop; logical
+   insertion (support = the token `matches` chain); cascade-retract via production-memory (CLARA-REF §3/§9;
+   hazard #6); the frozen WM + the `:wat::rete::Snapshot` state blob.
+5. **`defrule`/`defquery`/`query` + `QueryNode` (wat).** The homoiconic surface; query read-out over the
+   frozen WM (CLARA-REF §6/§8). ← **a working equality-join forward-chaining engine with TM exists here.**
+6. **`TestNode` + `ExpressionJoinNode` (wat).** `(where …)` / cross-binding non-equality (`(> ?a ?b)`) via
+   `join-filter-fn` (CLARA-REF §1).
+7. **Negation — `NegationNode` + `NegationWithJoinFilterNode` (wat).** `:not`; `:exists` = `(:not (:not X))`
+   sugar; the two-sided delta logic (CLARA-REF §1; hazard #2 — the hardest node).
+8. **Accumulate — `AccumulateNode` + `AccumulateWithJoinFilterNode` + accumulators (wat).** count/sum/min/max
+   (+:returns-fact)/average/distinct/all/group-by + `acc/accumulator`; the `retract-fn` TM path + the
+   `::not-reduced` sentinel (CLARA-REF §7; hazards #3/#5).
+9. **Swap `wat-lint` onto the engine** — the rule-of-three consumer; `nested-if-boolean-collapse` lands as a
    rete rule in the migration.
 
 Horizons (separate, on-need): VSA-matched LHS (a second matcher behind the seam); the core.logic relational
