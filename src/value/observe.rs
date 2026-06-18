@@ -261,6 +261,27 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push('}');
             out
         }
+        // PersistentMap: same display as HashMap; prefix with #pm to distinguish.
+        // Arc-278-0a: order is unspecified per HashTrieMap semantics.
+        Value::wat__core__PersistentMap(m) => {
+            let mut out = String::from("#pm{");
+            let mut first = true;
+            for (k, v) in m.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(k, depth + 1));
+                out.push_str(": ");
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push('}');
+            out
+        }
         Value::wat__std__HashSet(s) => {
             let mut out = String::from("#{");
             let mut first = true;

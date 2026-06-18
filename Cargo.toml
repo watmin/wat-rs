@@ -41,7 +41,7 @@ default-members = [
 name = "wat"
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 description = "The wat language — parser, type checker, macro expander, and runtime for the 058 algebra surface."
 repository = "https://github.com/watmin/wat-rs"
 
@@ -59,6 +59,7 @@ tempfile = "3"
 wat-macros = { path = "crates/wat-macros" }
 wat-edn = { path = "crates/wat-edn", features = ["mint"] }
 uuid    = "1"
+rpds    = "1"
 # Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
 # restriction declarations. Stone 1 adds the wiring (RestrictionEntry +
 # inventory::collect! + setup-time iteration); Stones 2-4 mint the

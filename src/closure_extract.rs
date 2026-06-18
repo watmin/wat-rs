@@ -1750,6 +1750,34 @@ fn encode_value_with_path(
             }
         }
 
+        Value::wat__core__PersistentMap(map) => {
+            // Closure-capture round-trip: re-encode a runtime PersistentMap<K,V> Value
+            // back to the corresponding `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`
+            // constructor AST. PersistentMap ctor takes k/v pairs directly (no type header).
+            // Arc-278-0a.
+            let mut out = Vec::with_capacity(map.size() * 2 + 1);
+            out.push(WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()));
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let value_sort_key = |v: &Value| -> u64 {
+                let mut h = DefaultHasher::new();
+                v.hash(&mut h);
+                h.finish()
+            };
+            let mut entries: Vec<(&Value, &Value)> = map.iter().collect();
+            entries.sort_by_key(|(k, _)| value_sort_key(k));
+            for (k, vv) in entries {
+                let sort_key = value_sort_key(k);
+                path.push(format!("{{{:x}}}", sort_key));
+                let kk = encode_value_with_path(k, binding_name, path, state)?;
+                let vv2 = encode_value_with_path(vv, binding_name, path, state)?;
+                path.pop();
+                out.push(kk);
+                out.push(vv2);
+            }
+            Ok(WatAST::List(out, span))
+        }
+
         // ─── non-portable arms ────────────────────────────────────────
         Value::wat__kernel__Sender(_)
         | Value::wat__kernel__Receiver(_)
@@ -1923,6 +1951,7 @@ fn value_static_type_keyword(
         // if one arises, the K/V keywords must be derived here (sample first entry
         // like the encode arm above) or emit via a richer type-tag mechanism.
         Value::wat__std__HashMap(_) => ":wat::core::HashMap".to_string(),
+        Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap".to_string(),
         Value::wat__std__HashSet(_) => ":wat::core::HashSet".to_string(),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through

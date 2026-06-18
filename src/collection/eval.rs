@@ -852,6 +852,321 @@ pub(crate) fn eval_hashmap_values(
     hashmap_values_inner(&container)
 }
 
+// ─── Arc-278-0a — PersistentMap ops (mirror hashmap_* family) ────────────────
+//
+// rpds::HashTrieMapSync<Value, Value> is persistent: every mutating operation returns
+// a NEW map sharing structure with the old (O(log n)); the original is UNCHANGED.
+// No .clone() of map contents needed — that is the whole win over std HashMap.
+
+/// Returns the length of a `Value::wat__core__PersistentMap` as `Value::i64`.
+pub(crate) fn persistentmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentMap(m) => Ok(Value::i64(m.size() as i64)),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentMap/length".into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_length(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/length".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentmap_length_inner(&v)
+}
+
+pub(crate) fn persistentmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentMap(m) => Ok(Value::bool(m.is_empty())),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentMap/empty?".into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_empty_q(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/empty?".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentmap_empty_q_inner(&v)
+}
+
+pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            if !value_is_key_hashable(key) {
+                return Ok(Value::bool(false));
+            }
+            Ok(Value::bool(m.contains_key(key)))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentMap/contains-key?".into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_contains_key_q(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/contains-key?".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let key = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentmap_contains_key_q_inner(&container, &key)
+}
+
+pub(crate) fn persistentmap_get_inner(container: &Value, key: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            if !value_is_key_hashable(key) {
+                return Ok(Value::Option(Arc::new(None)));
+            }
+            match m.get(key) {
+                Some(v) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+                None => Ok(Value::Option(Arc::new(None))),
+            }
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentMap/get".into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_get(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/get".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let key = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentmap_get_inner(&container, &key)
+}
+
+/// `(:wat::core::PersistentMap/assoc pm k v)` — persistent insert.
+/// Returns a NEW PersistentMap with (k → v) added; the original `pm` is UNCHANGED.
+/// This is the structural-sharing win: rpds `.insert(k, v)` is O(log n) with NO clone.
+pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::PersistentMap/assoc";
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            if !value_is_key_hashable(k) {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                    got: Box::new(ValueSnapshot::of(k))
+                } }.into());
+            }
+            // rpds .insert returns a NEW map — no clone of contents. This is the whole point.
+            Ok(Value::wat__core__PersistentMap(m.insert(k.clone(), v.clone())))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_assoc(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 3 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/assoc".into(),
+            expected: 3,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let k = eval_inner(&args[1], env, sym)?.value_owned();
+    let v = eval_inner(&args[2], env, sym)?.value_owned();
+    persistentmap_assoc_inner(&container, &k, &v)
+}
+
+/// `(:wat::core::PersistentMap/dissoc pm k)` — persistent remove.
+/// Returns a NEW PersistentMap with key `k` removed; the original `pm` is UNCHANGED.
+pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::PersistentMap/dissoc";
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            if !value_is_key_hashable(k) {
+                // Nothing to remove — return the map unchanged (same as HashMap arm).
+                return Ok(Value::wat__core__PersistentMap(m.clone()));
+            }
+            Ok(Value::wat__core__PersistentMap(m.remove(k)))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_dissoc(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/dissoc".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let k = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentmap_dissoc_inner(&container, &k)
+}
+
+pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::PersistentMap/keys";
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            let ks: Vec<Value> = m.keys().cloned().collect();
+            Ok(Value::Vec(Arc::new(ks)))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_keys(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/keys".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentmap_keys_inner(&container)
+}
+
+pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::PersistentMap/values";
+    match container {
+        Value::wat__core__PersistentMap(m) => {
+            let vs: Vec<Value> = m.values().cloned().collect();
+            Ok(Value::Vec(Arc::new(vs)))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "PersistentMap<K,V>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentmap_values(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentMap/values".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentmap_values_inner(&container)
+}
+
+/// `(:wat::core::PersistentMap k1 v1 k2 v2 ...)` — constructor.
+/// Takes alternating key/value pairs directly (NO leading K/V type keywords).
+/// Types are inferred from the actual key/value values (checked at check-time by
+/// `infer_persistentmap_constructor`). Uses rpds for structural sharing.
+pub(crate) fn eval_persistentmap_ctor(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if !args.len().is_multiple_of(2) {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::PersistentMap".into(),
+            reason: format!(
+                "arity must be even (alternating key/value pairs); got {}",
+                args.len()
+            )
+        } }.into());
+    }
+    let mut map: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for pair in args.chunks(2) {
+        let k = eval_inner(&pair[0], env, sym)?.value_owned();
+        let v = eval_inner(&pair[1], env, sym)?.value_owned();
+        if !value_is_key_hashable(&k) {
+            return Err(RuntimeError { span: pair[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::PersistentMap".into(),
+                expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                got: Box::new(ValueSnapshot::of(&k))
+            } }.into());
+        }
+        map = map.insert(k, v);
+    }
+    Ok(Value::wat__core__PersistentMap(map))
+}
+
 pub(crate) fn eval_vector_concat(
     args: &[WatAST],
     call_span: &Span,

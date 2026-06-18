@@ -1964,6 +1964,29 @@ fn tagged_to_value(
         })));
     }
 
+    // Arc-278-0a — `#wat.core/PersistentMap {…}` tagged literal → PersistentMap.
+    // Round-trip identity: a tagged form reads back as wat__core__PersistentMap (never
+    // conflated with std HashMap which reads from untagged `{…}`). Body must be a Map.
+    if ns == "wat.core" && name == "PersistentMap" {
+        use wat_edn::Value as Edn;
+        let entries = match body {
+            Edn::Map(e) => e,
+            _ => return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(
+                format!("wat.core/PersistentMap body must be a map, got non-map")
+            ) }),
+        };
+        let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+        for (k, v) in entries {
+            let k_val = edn_to_value_caps(k, types, allow_caps)?;
+            let v_val = edn_to_value_caps(v, types, allow_caps)?;
+            if !crate::runtime::value_is_key_hashable(&k_val) {
+                return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
+            }
+            pm = pm.insert(k_val, v_val);
+        }
+        return Ok(Value::wat__core__PersistentMap(pm));
+    }
+
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
     let types = types.ok_or(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
@@ -2551,6 +2574,17 @@ pub fn value_to_edn_with(
             m.iter()
                 .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
                 .collect(),
+        ),
+        // Arc-278-0a — PersistentMap writes as a TAGGED literal `#wat.core/PersistentMap {…}`
+        // so round-trip IDENTITY is preserved: a std-HashMap `{}` reads back as wat__std__HashMap;
+        // the tagged form reads back as PersistentMap (distinct identity per the DESIGN contract).
+        Value::wat__core__PersistentMap(m) => OwnedValue::Tagged(
+            Tag::ns("wat.core", "PersistentMap"),
+            Box::new(OwnedValue::Map(
+                m.iter()
+                    .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
+                    .collect(),
+            )),
         ),
         Value::wat__std__HashSet(s) => OwnedValue::Set(
             // Stone 216.5b — iterate s.iter() (Values directly, not String keys).

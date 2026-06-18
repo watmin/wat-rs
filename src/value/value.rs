@@ -95,6 +95,11 @@ pub enum Value {
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
     wat__std__HashMap(Arc<HashMap<Value, Value>>),
+    /// A `:wat::core::PersistentMap<K,V>` — rpds `HashTrieMapSync<Value, Value>`.
+    /// Structural sharing: `assoc`/`dissoc` return a NEW map (O(log n)); the original
+    /// is unchanged. The rpds type is already cheap-clone/shared — no `Arc` wrapper
+    /// needed. Stone arc-278-0a.
+    wat__core__PersistentMap(rpds::HashTrieMapSync<Value, Value>),
     /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
@@ -608,6 +613,9 @@ impl PartialEq for Value {
             // std HashMap PartialEq uses Value's PartialEq on both K and V.
             // Reduces to a single native comparison.
             (Value::wat__std__HashMap(a), Value::wat__std__HashMap(b)) => a == b,
+            // PersistentMap: rpds::HashTrieMapSync implements PartialEq — delegate.
+            // Arc-278-0a: structural equality over K/V using Value's PartialEq.
+            (Value::wat__core__PersistentMap(a), Value::wat__core__PersistentMap(b)) => a == b,
             // --- Structurally-equal but NOT atomizable ---
             (Value::u8(a), Value::u8(b)) => a == b,
             (Value::Unit, Value::Unit) => true,
@@ -753,6 +761,21 @@ impl std::hash::Hash for Value {
             // HashMap: sort (key_hash, val_hash) pairs for map semantics (order-independent).
             // Stone 216.5c — iterate m.iter() for (k, v) directly (no canonical-key tuple).
             Value::wat__std__HashMap(m) => {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::Hasher;
+                let mut pair_hashes: Vec<(u64, u64)> = m.iter().map(|(k, v)| {
+                    let mut kh = DefaultHasher::new();
+                    k.hash(&mut kh);
+                    let mut vh = DefaultHasher::new();
+                    v.hash(&mut vh);
+                    (kh.finish(), vh.finish())
+                }).collect();
+                pair_hashes.sort_unstable();
+                pair_hashes.hash(state);
+            }
+            // PersistentMap: order-independent hash — same strategy as HashMap.
+            // Arc-278-0a: sort (key_hash, val_hash) pairs so hash is iteration-order-agnostic.
+            Value::wat__core__PersistentMap(m) => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::Hasher;
                 let mut pair_hashes: Vec<(u64, u64)> = m.iter().map(|(k, v)| {
@@ -1028,6 +1051,7 @@ impl Value {
             Value::wat__kernel__Sender(_) => "wat::kernel::Sender",
             Value::wat__kernel__Receiver(_) => "wat::kernel::Receiver",
             Value::wat__std__HashMap(_) => "wat::core::HashMap",
+            Value::wat__core__PersistentMap(_) => "wat::core::PersistentMap",
             Value::wat__std__HashSet(_) => "wat::core::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
             Value::io__IOReader(_) => "wat::io::IOReader",
@@ -1127,6 +1151,7 @@ impl Value {
             Value::wat__kernel__Sender(_) => self.type_name().to_string(),
             Value::wat__kernel__Receiver(_) => self.type_name().to_string(),
             Value::wat__std__HashMap(_) => self.type_name().to_string(),
+            Value::wat__core__PersistentMap(_) => self.type_name().to_string(),
             Value::wat__std__HashSet(_) => self.type_name().to_string(),
             Value::RustOpaque(_) => self.type_name().to_string(),
             Value::io__IOReader(_) => self.type_name().to_string(),

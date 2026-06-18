@@ -17,7 +17,6 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 278 stone 0a — un-ignore when :wat::core::PersistentMap ships"]
 fn persistent_map_core_behavior() {
     let world = startup_from_source(
         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",

@@ -67,6 +67,10 @@ pub(crate) fn infer_contains(
                 // contains? on HashMap checks the KEY, not the value.
                 targs.first().map(|k| apply_subst(k, subst))
             }
+            // Arc-278-0a — PersistentMap: contains? checks the KEY, same as HashMap.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
+                targs.first().map(|k| apply_subst(k, subst))
+            }
             // Unresolved type variable — e.g., returned by `from-holon` which has a
             // generic return type. Cannot prove non-collection without more context;
             // skip element-type check and let the runtime enforce. The runtime will
@@ -80,7 +84,7 @@ pub(crate) fn infer_contains(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, HashSet<T>, or HashMap<K,V>".into(),
+                    expected: "Vector<T>, HashSet<T>, HashMap<K,V>, or PersistentMap<K,V>".into(),
                     got: format_type(&reduced)
                 } });
                 None
@@ -257,6 +261,12 @@ pub(crate) fn infer_get(
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
             }
+            // Arc-278-0a — PersistentMap: same K→V get semantics as HashMap.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
+                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
+                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
+                Some((key_ty, val_ty))
+            }
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
@@ -264,7 +274,7 @@ pub(crate) fn infer_get(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or HashMap<K,V>".into(),
+                    expected: "Vector<T>, HashMap<K,V>, or PersistentMap<K,V>".into(),
                     got: format_type(&reduced)
                 } });
                 None
@@ -367,6 +377,38 @@ pub(crate) fn infer_assoc(
                     }
                 }
                 // Return type-preserving HashMap<K,V>.
+                let ret_ty = apply_subst(&coll_ty, subst);
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            // Arc-278-0a — PersistentMap<K,V>: same K+V unification as HashMap; returns PersistentMap<K,V>.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
+                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
+                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
+                if let Some(arg1) = arg1_ty {
+                    if unify(&arg1, &key_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&key_ty),
+                            got: format_type(&apply_subst(&arg1, subst))
+                        } });
+                    }
+                }
+                if let Some(arg2) = arg2_ty {
+                    if unify(&arg2, &val_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#3".into(),
+                            expected: format_type(&val_ty),
+                            got: format_type(&apply_subst(&arg2, subst))
+                        } });
+                    }
+                }
+                // Return type-preserving PersistentMap<K,V>.
                 let ret_ty = apply_subst(&coll_ty, subst);
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)

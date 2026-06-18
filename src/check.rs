@@ -1663,11 +1663,12 @@ pub(crate) const BARE_PRIMITIVES: &[(&str, &str)] = &[
 /// rename (the only entry where the FQDN tail differs from the
 /// bare form); the others are pure-FQDN-moves.
 pub(crate) const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
-    ("Option", "wat::core::Option"),    // slice 1e
-    ("Result", "wat::core::Result"),    // slice 1e
-    ("HashMap", "wat::core::HashMap"),  // slice 1e
-    ("HashSet", "wat::core::HashSet"),  // slice 1e
-    ("Vec", "wat::core::Vector"),       // slice 1f — rename + move
+    ("Option", "wat::core::Option"),           // slice 1e
+    ("Result", "wat::core::Result"),           // slice 1e
+    ("HashMap", "wat::core::HashMap"),         // slice 1e
+    ("HashSet", "wat::core::HashSet"),         // slice 1e
+    ("Vec", "wat::core::Vector"),              // slice 1f — rename + move
+    ("PersistentMap", "wat::core::PersistentMap"), // arc-278-0a
 ];
 
 // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
@@ -4194,6 +4195,16 @@ fn infer_list(
             }
             ":wat::core::HashMap" => {
                 let (val, mut errs) = infer_hashmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // Arc-278-0a — PersistentMap constructor: same K/V inference as HashMap;
+            // returns PersistentMap<K,V> instead of HashMap<K,V>.
+            ":wat::core::PersistentMap" => {
+                let (val, mut errs) = infer_persistentmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -13190,6 +13201,70 @@ fn infer_hashmap_constructor(
     }
     let ty = TypeExpr::Parametric {
         head: "wat::core::HashMap".into(),
+        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc-278-0a — Type-check `(:wat::core::PersistentMap k1 v1 k2 v2 ...)`.
+/// Takes alternating key/value pairs directly — NO leading K/V type keywords.
+/// K and V types are inferred from the actual arguments (fresh variables unified
+/// against each key and value respectively). Returns `PersistentMap<K,V>`.
+fn infer_persistentmap_constructor(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // Arity must be even (alternating k/v pairs); zero is valid (empty PersistentMap).
+    if !args.len().is_multiple_of(2) {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+            head: ":wat::core::PersistentMap".into(),
+            reason: format!(
+                "arity must be even (alternating key/value pairs); got {}",
+                args.len()
+            ),
+            remedies: vec![],
+        } });
+        return CheckResult::partial_with(TypeExpr::Parametric {
+            head: "wat::core::PersistentMap".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        }, local_errors);
+    }
+    // K and V are free type variables — inferred from the first pair (if any),
+    // then unified against the rest. An empty ctor produces PersistentMap<fresh_K, fresh_V>.
+    let k_ty = fresh.fresh();
+    let v_ty = fresh.fresh();
+    for (i, chunk) in args.chunks(2).enumerate() {
+        if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: chunk[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::PersistentMap".into(),
+                    param: format!("key #{}", i + 1),
+                    expected: format_type(&apply_subst(&k_ty, subst)),
+                    got: format_type(&apply_subst(&k_arg_ty, subst))
+                } });
+            }
+        }
+        if let Some(v_arg_ty) = chunk
+            .get(1)
+            .and_then(|a| infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
+        {
+            if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: chunk[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::PersistentMap".into(),
+                    param: format!("value #{}", i + 1),
+                    expected: format_type(&apply_subst(&v_ty, subst)),
+                    got: format_type(&apply_subst(&v_arg_ty, subst))
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::PersistentMap".into(),
         args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
