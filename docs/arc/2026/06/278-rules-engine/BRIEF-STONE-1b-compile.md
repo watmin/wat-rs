@@ -64,3 +64,46 @@ see. Un-ignore the 1b probe. No git.
 ## Blast radius
 `wat/rete.wat` (add `compile` + find-or-mint helpers) + un-ignore the 1b probe + optionally a `wat-tests/`
 deftest. NO Rust. NO change to existing rete records / render-dag (except: leave the fixture). No git.
+
+---
+
+## ⛔ RE-STRIKE (2026-06-18) — SUPERSEDES the above where they conflict
+
+The first 1b attempt was REVERTED in the weigh: it (a) DEFERRED child-edge wiring (left every node's `children`
+empty, claiming "stone 3 owns it") — but a network with no edges is not a compiled DAG; and (b) used a
+`(foldl … (range 0 n))` + `PersistentVector/get` workaround because the checker rejected `foldl` over a
+PersistentVector. Both are now closed/forbidden:
+
+1. **`foldl` over a PersistentVector now TYPE-CHECKS** (stone 0d shipped, 09bdb10b). Use **direct `foldl`**
+   over the rule/condition PersistentVectors — NO `range`-index workaround. Same for any map/filter you need.
+
+2. **WIRE THE CHILD EDGES — not optional, not deferred.** `compile` MUST populate each node's `children`:
+   `alpha-id.children ∪= join-id`; `prev-parent.children ∪= join-id`; `join.children ∪= production-id`. The
+   `children` fields exist on AlphaNode/RootJoinNode/HashJoinNode for exactly this. A leaf ProductionNode has
+   no children. This is the heart of "a coherent DAG."
+
+3. **`render-dag` now EMITS EDGES.** Extend it so each line is:
+   ```
+     <id>  <kind> -> [<child-id> <child-id> ...]
+   ```
+   children = the node's `children` vector, space-separated inside `[]`; leaves (ProductionNode/QueryNode,
+   which have no `children` field) render `-> []`. render-dag must dispatch on kind to read `children` from the
+   three node kinds that have it (Alpha/RootJoin/HashJoin) and render `[]` for the leaves.
+   ⛔ **PRESERVE THE COMPOUND-CONCAT FIXTURE.** render-dag's line is built with a DELIBERATE nested
+   `string::concat` (the `compound-concat-collapse` proof-by-diff target — see the in-source marker). EXTEND
+   that nested-concat line to include the ` -> [...]` edge text; KEEP it nested `string::concat`. Do NOT
+   collapse it to `format`/`interpolate` — that cleanup is the rete engine's own future job (proof-by-diff),
+   not yours. Adding more nested concat is fine; "fixing" it is forbidden.
+
+4. **The probe is STRENGTHENED** (`tests/probe_arc278_1b_compile.rs`, already rewritten — un-ignore BOTH
+   tests): `compile_shares_prefix_and_wires_the_chain` asserts the node-kind counts (3 alpha / 1 root-join /
+   2 hash-join / 2 production = sharing) AND that the shared RootJoinNode has **2 children** (the divergence —
+   proves edges wired); `compile_single_rule_wires_a_connected_chain` asserts a one-rule chain is connected
+   (alpha→root-join→production, each with its child). The probe pins the render-dag edge format above. It is
+   your contract — make both green WITHOUT editing the probe.
+
+Everything else in the brief above (find-or-mint dedup, the algorithm, STOP triggers, the engine-source bar)
+still holds. Verify with the updated probe command:
+```
+cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored          # 2/2 GREEN
+```

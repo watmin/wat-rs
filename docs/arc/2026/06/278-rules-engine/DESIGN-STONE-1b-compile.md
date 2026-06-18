@@ -84,3 +84,19 @@ unknown.
 
 `wat/rete.wat` (add `compile` + find-or-mint helpers; pure wat) + un-ignore the probe + optionally a
 `wat-tests/` deftest. NO Rust changes. No git in the worker. (`render-dag` from 1a verifies the output.)
+
+---
+
+## RE-STRIKE delta (2026-06-18)
+
+First attempt reverted in the weigh (deferred child-edges + range-get foldl workaround). Re-strike scope:
+- **Edges are in-scope and required** — `compile` wires `children` (alpha→join, prev-parent→join,
+  join→production). A network without edges is not a compiled DAG; the original "link children" algorithm step
+  was dropped by the first sonnet and the count-only probe let it through.
+- **`render-dag` emits edges** — `  <id>  <kind> -> [<child-ids>]`, leaves render `-> []`. This makes it the
+  "coherent DAG" render the arc always intended; it also gives the probe its chain assertion. PRESERVE the
+  compound-concat fixture (extend the nested concat for the edge text; do NOT collapse to format).
+- **Direct `foldl` over PersistentVectors** — stone 0d (09bdb10b) made it type-check; the range-get workaround
+  is forbidden.
+- **Probe strengthened** — proves sharing (kind counts) AND the chain (shared RootJoinNode has 2 children;
+  single-rule chain connected). RED at HEAD verified (compile unknown).
