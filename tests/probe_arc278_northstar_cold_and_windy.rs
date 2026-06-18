@@ -11,6 +11,10 @@
 //!   - condition = (:FactType <clause>...):
 //!       (?var <- :field)            bind/join  (fresh binds; bound ?var ⇒ cross-fact equality join on the field)
 //!       (:wat::core::<op> a b)      constraint (FQDN value op; operands ∈ {?var, :field, literal}, resolved purely)
+//!   - :then = N inserts, nothing else. Each (:wat::rete::insert <fact>) declares a logical derived fact
+//!     (support = the firing token; auto-retracted if support vanishes); fact args may be pure exprs over the
+//!     bound ?vars. The engine COLLECTS the inserts at fire — pure: no IO, no retract, no insert-unconditional!,
+//!     no bang. A deliberate cut from Clara's general RHS: ours only ever inserts logical facts.
 //!   - lifecycle: collect-rules → compile → insert (value-threaded) → fire-rules (PURE, new frozen session) → query.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
@@ -36,7 +40,7 @@ const WORLD: &str = "\
      (?k   <- :kph)\n\
      (:wat::core::> ?k 30))]\n\
   :then\n\
-  (:weather::ColdAndWindy ?loc))\n\
+  (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
 \n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
