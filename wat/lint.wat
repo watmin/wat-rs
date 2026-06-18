@@ -332,6 +332,22 @@
         false))
     false))
 
+;; is-defmacro-form? — a list whose head is a keyword/symbol with name ":wat::core::defmacro".
+;; Guards ast-name with kw-or-sym? so non-nameable heads don't crash.
+(:wat::core::defn :wat::lint::is-defmacro-form?
+  [form <- :wat::WatAST]
+  -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind form) "list")
+    (:wat::core::let [ch (:wat::core::ast->children form)]
+      (:wat::core::if (:wat::core::empty? ch)
+        false
+        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
+                                   (:wat::core::first ch) "is-defmacro-form?: head")]
+          (:wat::core::if (:wat::lint::kw-or-sym? head)
+            (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
+            false))))
+    false))
+
 ;; concat-arg-counts — count literal and non-literal args in a concat call.
 ;; Returns Tuple(n-lits, n-vals) where n-lits = count of "string" ast-kind args,
 ;; n-vals = count of all other arg kinds.
@@ -375,11 +391,13 @@
 ;; When eligible: fold args in order building:
 ;;   - template  (String): literal args → their inner text; symbol args → "{name}"
 ;;   - kwarg-names (Vector<String>): symbol names, deduped first-seen-order
-;; Emit: new-text = "(:wat::core::format \"<template>\" :a a :b b …)"
+;; head-str = if in-defmacro? ":wat::core::string::interpolate" else ":wat::core::format"
+;; Emit: new-text = "(<head-str> \"<template>\" :a a :b b …)"
 ;; Return: Some(FixEdit start-line start-col end-line end-col new-text)
 ;; extent = ast-span..ast-end-span of the whole concat form (same as ladder fix).
 (:wat::core::defn :wat::lint::concat-format-fix
-  [form <- :wat::WatAST]
+  [form        <- :wat::WatAST
+   in-defmacro? <- :wat::core::bool]
   -> :wat::core::Option<wat::lint::FixEdit>
   (:wat::core::let [args     (:wat::core::drop (:wat::core::ast->children form) 1)
                     ;; ── Step 1: eligibility fold ─────────────────────────────
@@ -433,7 +451,11 @@
                         template   (:wat::core::first build-result)
                         kwarg-names (:wat::core::second build-result)
                         ;; ── Step 3: emit new-text ────────────────────────────
-                        ;; "(:wat::core::format \"<template>\"" + " :nm nm" … + ")"
+                        ;; head-str: interpolate inside a defmacro, format elsewhere
+                        head-str   (:wat::core::if in-defmacro?
+                                     ":wat::core::string::interpolate"
+                                     ":wat::core::format")
+                        ;; "(<head-str> \"<template>\"" + " :nm nm" … + ")"
                         kwargs-text (:wat::core::foldl
                                       (:wat::core::fn [acc <- :wat::core::String
                                                        nm  <- :wat::core::String]
@@ -445,10 +467,11 @@
                                       ""
                                       kwarg-names)
                         new-text   (:wat::core::string::concat
-                                     "(:wat::core::format \""
-                                     (:wat::core::string::concat template
-                                       (:wat::core::string::concat "\""
-                                         (:wat::core::string::concat kwargs-text ")"))))
+                                     (:wat::core::string::concat "(" head-str)
+                                     (:wat::core::string::concat " \""
+                                       (:wat::core::string::concat template
+                                         (:wat::core::string::concat "\""
+                                           (:wat::core::string::concat kwargs-text ")")))))
                         ;; ── Step 4: span from ast-span + ast-end-span of form ─
                         span    (:wat::core::ast-span form)
                         ep      (:wat::core::ast-end-span form)
@@ -471,10 +494,11 @@
 
 ;; make-concat-finding — construct the Finding for a detected concat-abuse.
 (:wat::core::defn :wat::lint::make-concat-finding
-  [form   <- :wat::WatAST
-   file   <- :wat::core::String
-   n-lits <- :wat::core::i64
-   n-vals <- :wat::core::i64]
+  [form         <- :wat::WatAST
+   file         <- :wat::core::String
+   n-lits       <- :wat::core::i64
+   n-vals       <- :wat::core::i64
+   in-defmacro? <- :wat::core::bool]
   -> :wat::lint::Finding
   (:wat::core::let [span (:wat::core::ast-span form)
                     ln   (:wat::core::Option/expect -> :wat::core::i64
@@ -496,13 +520,15 @@
       co
       "warn"
       msg
-      (:wat::lint::concat-format-fix form))))
+      (:wat::lint::concat-format-fix form in-defmacro?))))
 
 ;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
 ;; Detects concat-abuse at the top level OR nested anywhere inside the form.
+;; in-defmacro? tracks whether the current form is nested inside a defmacro body.
 (:wat::core::defn :wat::lint::rule-concat-abuse-form
-  [form <- :wat::WatAST
-   file <- :wat::core::String]
+  [form         <- :wat::WatAST
+   file         <- :wat::core::String
+   in-defmacro? <- :wat::core::bool]
   -> :wat::core::Vector<wat::lint::Finding>
   ;; Check if THIS form is a concat-abuse
   (:wat::core::if (:wat::lint::concat-abuse? form)
@@ -511,17 +537,19 @@
                       n-lits (:wat::core::first counts)
                       n-vals (:wat::core::second counts)]
       (:wat::core::Vector :wat::lint::Finding
-        (:wat::lint::make-concat-finding form file n-lits n-vals)))
+        (:wat::lint::make-concat-finding form file n-lits n-vals in-defmacro?)))
     ;; Not a concat-abuse — recurse into children (if structural)
+    ;; child's in-defmacro? = current in-defmacro? OR (is this form a defmacro?)
     (:wat::core::if (:wat::lint::lint-structural? form)
-      (:wat::core::foldl
-        (:wat::core::fn [acc   <- :wat::core::Vector<wat::lint::Finding>
-                         child <- :wat::WatAST]
-          -> :wat::core::Vector<wat::lint::Finding>
-          (:wat::core::concat acc
-            (:wat::lint::rule-concat-abuse-form child file)))
-        (:wat::core::Vector :wat::lint::Finding)
-        (:wat::core::ast->children form))
+      (:wat::core::let [child-in-defmacro? (:wat::core::or in-defmacro? (:wat::lint::is-defmacro-form? form))]
+        (:wat::core::foldl
+          (:wat::core::fn [acc   <- :wat::core::Vector<wat::lint::Finding>
+                           child <- :wat::WatAST]
+            -> :wat::core::Vector<wat::lint::Finding>
+            (:wat::core::concat acc
+              (:wat::lint::rule-concat-abuse-form child file child-in-defmacro?)))
+          (:wat::core::Vector :wat::lint::Finding)
+          (:wat::core::ast->children form)))
       (:wat::core::Vector :wat::lint::Finding))))
 
 ;; ─── lint-source: run all rules over a Vector<SourceFile> ────────────
@@ -541,7 +569,7 @@
         (:wat::core::concat acc
           (:wat::core::concat
             (:wat::lint::rule-nested-if-=-ladder-form form path)
-            (:wat::lint::rule-concat-abuse-form form path))))
+            (:wat::lint::rule-concat-abuse-form form path false))))
       (:wat::core::Vector :wat::lint::Finding)
       forms)))
 

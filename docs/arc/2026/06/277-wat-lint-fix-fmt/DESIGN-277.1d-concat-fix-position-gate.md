@@ -1,6 +1,6 @@
 # Arc 277.1d — the concat-fix POSITION gate (format at runtime, interpolate in macros)
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc277_1d_concat_fix_position_gate.rs`
+> **STATUS: SHIPPED (2026-06-17).** Weighed on own build + eyeballed: defmacro-body (concat s "::Op") -> (string::interpolate "{s}::Op" :s s); defn-body (concat "x: " a) -> (format "x: {a}" :a a). Gate 1/1, 277.1c 2/0, lib 929/36, deftest 264/1, deporder 0. The sweep is now SAFE. RED probe `tests/probe_arc277_1d_concat_fix_position_gate.rs`
 > (`#[ignore]`'d). Makes the 277.1c-fix concat→format fix position-aware so the SWEEP is safe (the sweep
 > broke the stdlib because `format` is expand-time-illegal). Rides arc 284 (`string::interpolate`).
 

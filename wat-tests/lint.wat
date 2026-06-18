@@ -235,6 +235,30 @@
       (:wat::test::assert-false
         (:wat::core::string::contains? fixed-c "string::concat")))))
 
+;; ─── Case 9: concat-fix position gate — defmacro→interpolate, defn→format ─────
+
+(:wat::test::deftest :wat-tests::lint::concat-fix-position-gate
+  ()
+  ;; A source with BOTH positions:
+  ;;   - a defmacro whose body builds a name via bare-symbol concat (expand-time → interpolate)
+  ;;   - a defn whose body has a bare-symbol concat (runtime → format)
+  ;; lint-fix-file must rewrite the defmacro-body one to string::interpolate and the
+  ;; defn-body one to format; no string::concat survives.
+  (:wat::core::let
+    [src "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::core::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a))"
+     sf  (:wat::source::File "t.wat" src)
+     fixed (:wat::lint::lint-fix-file sf)]
+    (:wat::core::do
+      ;; defmacro-body concat must become interpolate
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed "(:wat::core::string::interpolate \"{s}::Op\" :s s)"))
+      ;; defn-body concat must become format
+      (:wat::test::assert-true
+        (:wat::core::string::contains? fixed "(:wat::core::format \"x: {a}\" :a a)"))
+      ;; no string::concat must survive
+      (:wat::test::assert-false
+        (:wat::core::string::contains? fixed "string::concat")))))
+
 ;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
 
 (:wat::test::deftest :wat-tests::lint::ladder-autofix-rewrites-and-round-trips

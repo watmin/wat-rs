@@ -22,7 +22,6 @@ use wat::runtime::{Environment, Value};
 const SRC: &str = r#"(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::core::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a))"#;
 
 #[test]
-#[ignore = "arc 277.1d — RED until the concat-fix position gate ships; un-ignore on green"]
 fn concat_fix_picks_head_by_position() {
     let prog = format!("(:wat::lint::lint-fix-file (:wat::source::File \"t.wat\" \"{SRC}\"))");
     let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
