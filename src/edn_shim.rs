@@ -3424,4 +3424,29 @@ mod tests {
             other => panic!("expected Value::Result; got {:?}", other),
         }
     }
+
+    // ─── Arc 278 stone 0a — PersistentMap EDN round-trip ───────────────
+
+    #[test]
+    fn persistent_map_edn_round_trip() {
+        // Build a PersistentMap with two entries.
+        let mut m: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+        m = m.insert(Value::String(Arc::new("a".to_string())), Value::i64(1));
+        m = m.insert(Value::String(Arc::new("b".to_string())), Value::i64(2));
+        let pm = Value::wat__core__PersistentMap(m);
+
+        // Serialize → tagged EDN string.
+        let s = value_to_edn_string(&pm);
+
+        // Parse back.
+        let back = edn_string_to_value(&s).expect("round-trip parse");
+
+        // STOP-1 gate: the tag must reconstruct a PersistentMap, not collapse to a std HashMap.
+        assert!(
+            matches!(back, Value::wat__core__PersistentMap(_)),
+            "must round-trip to PersistentMap, not {back:?}"
+        );
+        // Value equality: same keys, same values.
+        assert_eq!(back, pm, "EDN round-trip must preserve the map");
+    }
 }
