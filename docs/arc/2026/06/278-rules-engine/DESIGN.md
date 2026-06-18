@@ -64,6 +64,28 @@ engine; `wat-lint` is its proving ground and first consumer.
 - **No config** (per the toolchain doctrine, arc 277): the engine has one correct behavior; rules are
   data, suppression is a rune, not a knob.
 
+## The output contract — pure facts + name-holes, never faked judgment (builder, 2026-06-17)
+
+The engine is **pure: pure in → pure out, no IO in the reasoning**. The detection conditionals
+(currently `if`/predicate ladders scattered in `wat/lint.wat` — `concat-abuse?`, `concat-head?`,
+the ladder detector, …) all move onto `defrule` LHS; the engine consumes a fact base and produces a
+**map of things to fix** — DATA, not effects. A separate IO layer (`lint-fix-file` / the sweep driver in
+`wat-scripts/fixes/`) applies the map.
+
+The load-bearing rule, surfaced by the arc-277.1c concat→format fix: **a fix that needs a JUDGMENT must
+not fabricate it as a fact.** The concat→format auto-fix can mechanically name a *bare-symbol* slot
+(`count` → `{count}`) — that is a fact. It CANNOT honestly name a *compound* slot (`(i64::to-string n)`)
+— a good name is a judgment. So the engine's map entry for such a fix carries the **decomposition** (the
+template skeleton + the value-ASTs + explicit **name-holes**), NOT a guessed name. The map-consumer
+(a human, or a dedicated naming pass) fills the holes and applies; the engine never emits
+`{arg0}`-style noise dressed as a real name. (This is why arc 277.1c-fix ships bare-symbol-only and
+defers compound naming HERE — the four-questions killed the in-rule heuristic: not Obvious, not Simple,
+and judgment-as-fact violates pure-in→pure-out.)
+
+This shapes the engine's value type: a fix is `{location, kind, data, holes?}` — a hole is an unresolved
+judgment the consumer must supply. A fix with zero holes is auto-applicable; a fix with holes is a
+*proposal* the consumer completes. The engine stays pure either way.
+
 ## Four questions (sketch, to weigh when it opens)
 
 - **Obvious?** A `defrule` reads as `LHS → RHS`; the engine runs rules over facts and fires actions —
