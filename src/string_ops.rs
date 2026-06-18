@@ -507,6 +507,218 @@ pub fn eval_string_join(
     Ok(Value::String(Arc::new(pieces_owned.join(&sep))))
 }
 
+/// Render a `Value` as an unquoted string — the `:wat::core::str` semantics.
+///
+/// `String` → itself (no surrounding quotes), `i64` → decimal digits,
+/// `f64` → decimal text, `bool` → `true`/`false`, `u8` → decimal digits.
+/// Any other variant → `RuntimeError::TypeMismatch`.
+///
+/// Factored from `eval_str` in `runtime.rs` so that `eval_string_interpolate`
+/// can render each kwarg value the same way without a full AST eval round-trip.
+pub fn render_unquoted(v: Value, op: &str, span: &Span) -> Result<String, RuntimeError> {
+    match v {
+        Value::String(s)  => Ok((*s).clone()),
+        Value::i64(n)     => Ok(n.to_string()),
+        Value::f64(f)     => Ok(f.to_string()),
+        Value::bool(b)    => Ok(b.to_string()),
+        Value::u8(n)      => Ok(n.to_string()),
+        other => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: "String | i64 | f64 | bool | u8",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+        } }),
+    }
+}
+
+/// `(:wat::core::string::interpolate tmpl :k1 v1 :k2 v2 …)` → `:String`.
+///
+/// Pure-total runtime interpolation intrinsic. Same `{name}` + trailing `:name val`
+/// kwargs grammar and `{{`/`}}` escape as the `format` macro (arc 279), but
+/// interpolates at CALL time (not expand time) — making it **expand-time-legal**
+/// (usable inside defmacro bodies where `format` is refused by the purity gate).
+///
+/// Strict: every `{name}` must have a matching `:name` kwarg (else RuntimeError);
+/// every `:name` must be consumed (else RuntimeError). Repeated `{name}` against
+/// one `:name` is fine. Lone `{`/`}` in the template is a RuntimeError.
+/// Arc 284.
+pub fn eval_string_interpolate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::string::interpolate";
+
+    // Need at least the template arg.
+    if args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: 0,
+        } });
+    }
+
+    // arg[0]: template — must eval to String.
+    let tmpl = match eval(&args[0], env, sym)?.value_owned() {
+        Value::String(s) => (*s).clone(),
+        other => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "String",
+            got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+        } }),
+    };
+
+    // args[1..]: must be an even count of (keyword, value) pairs.
+    let rest = &args[1..];
+    if rest.len() % 2 != 0 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "trailing kwargs must be :name value pairs — odd count".into(),
+        } });
+    }
+
+    // Build name→rendered map and track which keys were used.
+    let mut kwargs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut i = 0;
+    while i < rest.len() {
+        let key_arg = &rest[i];
+        let val_arg = &rest[i + 1];
+        // Key must be a keyword; eval it to get the keyword value.
+        let key_name = match eval(key_arg, env, sym)?.value_owned() {
+            Value::wat__core__keyword(k) => {
+                // Strip the leading ':' to get the placeholder name.
+                k.strip_prefix(':')
+                    .unwrap_or(k.as_str())
+                    .to_string()
+            }
+            other => return Err(RuntimeError { span: key_arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "keyword (e.g. :name)",
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+            } }),
+        };
+        // Value: eval then render unquoted.
+        let rendered = render_unquoted(eval(val_arg, env, sym)?.value_owned(), OP, &val_arg.span())?;
+        kwargs.insert(key_name, rendered);
+        i += 2;
+    }
+
+    // Parse the template char-by-char (mirrors the format macro's state machine).
+    //   mode: "text" | "name"
+    //   pending: "none" | "open" | "close"
+    let mut result = String::with_capacity(tmpl.len());
+    let chars: Vec<char> = tmpl.chars().collect();
+    let mut idx = 0;
+    let mut mode_name = false; // false = text mode, true = name mode
+    let mut pending_open = false;
+    let mut pending_close = false;
+    let mut name_buf = String::new();
+
+    while idx < chars.len() {
+        let c = chars[idx];
+        if !mode_name {
+            // text mode
+            if pending_open {
+                pending_open = false;
+                if c == '{' {
+                    // {{ → literal {
+                    result.push('{');
+                } else if c == '}' {
+                    // {} → empty placeholder name — error
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "empty placeholder {} in template".into(),
+                    } });
+                } else {
+                    // { followed by name char → enter name mode
+                    mode_name = true;
+                    name_buf.clear();
+                    name_buf.push(c);
+                }
+            } else if pending_close {
+                pending_close = false;
+                if c == '}' {
+                    // }} → literal }
+                    result.push('}');
+                } else {
+                    return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "lone '}' in template — use '}}' for a literal brace".into(),
+                    } });
+                }
+            } else {
+                // no pending
+                if c == '{' {
+                    pending_open = true;
+                } else if c == '}' {
+                    pending_close = true;
+                } else {
+                    result.push(c);
+                }
+            }
+        } else {
+            // name mode
+            if c == '}' {
+                // end of placeholder: look up name_buf in kwargs
+                let name = name_buf.clone();
+                match kwargs.get(&name) {
+                    Some(val) => {
+                        result.push_str(val);
+                        used.insert(name);
+                    }
+                    None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: format!("missing kwarg for placeholder {{{}}}", name),
+                    } }),
+                }
+                mode_name = false;
+                name_buf.clear();
+            } else if c == '{' {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: "'{' inside placeholder name — unclosed '{'?".into(),
+                } });
+            } else {
+                name_buf.push(c);
+            }
+        }
+        idx += 1;
+    }
+
+    // Finalize: check for dangling open/close pending or open name mode.
+    if mode_name {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("unclosed placeholder '{{{}}}'", name_buf),
+        } });
+    }
+    if pending_open {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "lone '{' at end of template — use '{{' for a literal brace".into(),
+        } });
+    }
+    if pending_close {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "lone '}' at end of template — use '}}' for a literal brace".into(),
+        } });
+    }
+
+    // Strict: every kwarg must have been referenced.
+    for key in kwargs.keys() {
+        if !used.contains(key) {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("unused kwarg :{}", key),
+            } });
+        }
+    }
+
+    Ok(Value::String(Arc::new(result)))
+}
+
 /// `(:wat::core::string::concat s1 s2 ... sn)` → `:String`.
 ///
 /// Variadic concatenation. Differs from `join` in that there's no

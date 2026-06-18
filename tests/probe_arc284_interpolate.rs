@@ -17,7 +17,6 @@ use wat::runtime::{Environment, Value};
 
 // Runtime interpolation: named slots, unquoted render (String as itself, i64 as digits), {{ }} escape.
 #[test]
-#[ignore = "arc 284 — RED until string::interpolate ships; un-ignore on green"]
 fn interpolate_runtime_named_unquoted_escaped() {
     let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
         Arc::new(InMemoryLoader::new())).expect("startup");
@@ -49,7 +48,6 @@ const MACRO_PROGRAM: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 284 — RED until string::interpolate ships; un-ignore on green"]
 fn interpolate_is_legal_at_expand_time() {
     let world = startup_from_source(MACRO_PROGRAM, None, Arc::new(InMemoryLoader::new()))
         .expect("a defmacro body using string::interpolate must expand cleanly (the whole point)");

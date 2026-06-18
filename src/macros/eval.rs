@@ -412,6 +412,9 @@ fn is_pure_total(head: &str) -> bool {
 
         // ── String ops (pure) ─────────────────────────────────────────
         | ":wat::core::string::concat"
+        // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
+        // the format macro, but interpolates at call time → expand-time-legal in macro bodies.
+        | ":wat::core::string::interpolate"
         | ":wat::core::String/concat"
         | ":wat::core::string::contains?"
         | ":wat::core::String/contains?"

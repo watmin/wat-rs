@@ -4083,6 +4083,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::string::split" => crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, list_span, env, sym).map_err(Into::into),
+        // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
+        // the format macro, but interpolates at call time → expand-time-legal.
+        ":wat::core::string::interpolate" => crate::string_ops::eval_string_interpolate(args, list_span, env, sym).map_err(Into::into),
 
         // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
         // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),

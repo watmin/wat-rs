@@ -1,6 +1,6 @@
 # Arc 284 — `:wat::core::string::interpolate` — the pure-total interpolation intrinsic
 
-> **STATUS: STRIKE-READY (2026-06-17).** RED probe `tests/probe_arc284_interpolate.rs` (`#[ignore]`'d):
+> **STATUS: SHIPPED (2026-06-17).** Weighed on own build + eyeballed: runtime `(string::interpolate "{a} = {b} ({{esc}})" :a "count" :b 42)` -> `"count = 42 ({esc})"`; EXPAND-TIME (in a defmacro body) `(string::interpolate "{x}::Op::{x}" :x bs)` -> `svc::Op::svc` — the load-bearing property format cannot do. interpolate 2/2, format 3/3 (untouched), lib 929/36, deftest 263/1, deporder 0 — additive. RED probe `tests/probe_arc284_interpolate.rs` (`#[ignore]`'d):
 > undefined at HEAD. intueri-named (`string::interpolate`, `{name}` surface — NOT `#{}`, which would
 > falsely promise inline-eval). The Good-UX cure for expand-time string-building, AND the concat→format
 > sweep's missing target for macro-body concats.

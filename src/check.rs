@@ -4182,6 +4182,16 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 284 — pure-total interpolation intrinsic: arg[0] = String template;
+            // rest = (keyword, any-renderable-value) pairs; returns String.
+            ":wat::core::string::interpolate" => {
+                let (val, mut errs) = infer_string_interpolate(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::core::HashMap" => {
                 let (val, mut errs) = infer_hashmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -13340,6 +13350,79 @@ fn infer_string_concat(
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(string_ty) } else { CheckResult::partial_with(string_ty, local_errors) }
+}
+
+/// Arc 284 — type inference for `:wat::core::string::interpolate`.
+///
+/// `arg[0]` must unify with `String` (the template). The remaining args are
+/// (keyword, value) pairs: keyword slots are validated structurally; value slots
+/// accept ANY str-renderable type (do NOT reject non-String values — the intrinsic
+/// renders them unquoted at runtime). Returns `String`.
+fn infer_string_interpolate(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let string_ty = TypeExpr::Path(":wat::core::String".into());
+    if args.is_empty() {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: ":wat::core::string::interpolate".into(),
+            expected: 1,
+            got: 0,
+        } });
+        return CheckResult::partial_with(string_ty, local_errors);
+    }
+    // arg[0]: template — must unify with String.
+    if let Some(ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        if unify(&ty, &string_ty, subst, env.types()).is_err() {
+            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                callee: ":wat::core::string::interpolate".into(),
+                param: "template".into(),
+                expected: ":wat::core::String".into(),
+                got: format_type(&apply_subst(&ty, subst)),
+            } });
+        }
+    }
+    // args[1..]: (keyword, value) pairs. Validate keyword slots structurally;
+    // value slots accept any renderable type — do NOT reject.
+    let rest = &args[1..];
+    if rest.len() % 2 != 0 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: ":wat::core::string::interpolate".into(),
+            expected: args.len() + 1,
+            got: args.len(),
+        } });
+    } else {
+        let mut i = 0;
+        while i < rest.len() {
+            // Key slot: validate it looks like a keyword at the AST level.
+            match &rest[i] {
+                WatAST::Keyword(_, _) => { /* fine — a literal keyword */ }
+                other => {
+                    // Infer and check for keyword type.
+                    if let Some(ty) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+                        let kw_ty = TypeExpr::Path(":wat::core::keyword".into());
+                        if unify(&ty, &kw_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: ":wat::core::string::interpolate".into(),
+                                param: "kwarg key".into(),
+                                expected: "keyword (e.g. :name)".into(),
+                                got: format_type(&apply_subst(&ty, subst)),
+                            } });
+                        }
+                    }
+                }
+            }
+            // Value slot: infer (for side-effects / error propagation) but do NOT reject any type.
+            infer(&rest[i + 1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            i += 2;
         }
     }
     if local_errors.is_empty() { CheckResult::ok(string_ty) } else { CheckResult::partial_with(string_ty, local_errors) }
