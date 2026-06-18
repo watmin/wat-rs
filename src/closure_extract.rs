@@ -1778,6 +1778,22 @@ fn encode_value_with_path(
             Ok(WatAST::List(out, span))
         }
 
+        Value::wat__core__PersistentVector(pv) => {
+            // Closure-capture round-trip: re-encode a runtime PersistentVector<T> Value
+            // back to the corresponding `(:wat::core::PersistentVector e1 e2 ...)`
+            // constructor AST. PersistentVector ctor takes bare elements in order.
+            // Arc-278-0b.
+            let mut out = Vec::with_capacity(pv.len() + 1);
+            out.push(WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()));
+            for (i, elem) in pv.iter().enumerate() {
+                path.push(format!("[{}]", i));
+                let encoded = encode_value_with_path(elem, binding_name, path, state)?;
+                path.pop();
+                out.push(encoded);
+            }
+            Ok(WatAST::List(out, span))
+        }
+
         // ─── non-portable arms ────────────────────────────────────────
         Value::wat__kernel__Sender(_)
         | Value::wat__kernel__Receiver(_)
@@ -1952,6 +1968,7 @@ fn value_static_type_keyword(
         // like the encode arm above) or emit via a richer type-tag mechanism.
         Value::wat__std__HashMap(_) => ":wat::core::HashMap".to_string(),
         Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap".to_string(),
+        Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector".to_string(),
         Value::wat__std__HashSet(_) => ":wat::core::HashSet".to_string(),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through

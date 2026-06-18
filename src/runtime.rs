@@ -4280,6 +4280,8 @@ fn dispatch_keyword_head_value(
         // bypass the dispatch hop.
         ":wat::core::Vector/length" => crate::collection::eval::eval_vector_length(args, list_span, env, sym),
         ":wat::core::HashMap/length" => crate::collection::eval::eval_hashmap_length(args, list_span, env, sym),
+        // Arc-278-0b — PersistentVector per-type ops.
+        ":wat::core::PersistentVector/length" => crate::collection::eval::eval_persistentvector_length(args, list_span, env, sym),
         // Arc-278-0a — PersistentMap per-type ops.
         ":wat::core::PersistentMap/length" => crate::collection::eval::eval_persistentmap_length(args, list_span, env, sym),
         ":wat::core::HashSet/length" => crate::collection::eval::eval_hashset_length(args, list_span, env, sym),
@@ -4291,22 +4293,27 @@ fn dispatch_keyword_head_value(
         // intercepts the polymorphic surface name first.
         ":wat::core::Vector/empty?" => crate::collection::eval::eval_vector_empty_q(args, list_span, env, sym),
         ":wat::core::HashMap/empty?" => crate::collection::eval::eval_hashmap_empty_q(args, list_span, env, sym),
+        ":wat::core::PersistentVector/empty?" => crate::collection::eval::eval_persistentvector_empty_q(args, list_span, env, sym),
         ":wat::core::PersistentMap/empty?" => crate::collection::eval::eval_persistentmap_empty_q(args, list_span, env, sym),
         ":wat::core::HashSet/empty?" => crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List empty?
         ":wat::core::List/empty?" => crate::collection::eval::eval_list_empty_q(args, list_span, env, sym),
         ":wat::core::Vector/contains?" => crate::collection::eval::eval_vector_contains_q(args, list_span, env, sym),
         ":wat::core::HashMap/contains-key?" => crate::collection::eval::eval_hashmap_contains_key_q(args, list_span, env, sym),
+        ":wat::core::PersistentVector/contains?" => crate::collection::eval::eval_persistentvector_contains_q(args, list_span, env, sym),
         ":wat::core::PersistentMap/contains-key?" => crate::collection::eval::eval_persistentmap_contains_key_q(args, list_span, env, sym),
         ":wat::core::HashSet/contains?" => crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List contains?
         ":wat::core::List/contains?" => crate::collection::eval::eval_list_contains_q(args, list_span, env, sym),
         ":wat::core::Vector/get" => crate::collection::eval::eval_vector_get(args, list_span, env, sym),
         ":wat::core::HashMap/get" => crate::collection::eval::eval_hashmap_get(args, list_span, env, sym),
+        ":wat::core::PersistentVector/get" => crate::collection::eval::eval_persistentvector_get(args, list_span, env, sym),
         ":wat::core::PersistentMap/get" => crate::collection::eval::eval_persistentmap_get(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List get
         ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
         ":wat::core::Vector/conj" => crate::collection::eval::eval_vector_conj(args, list_span, env, sym),
+        // Arc-278-0b — PersistentVector per-type conj.
+        ":wat::core::PersistentVector/conj" => crate::collection::eval::eval_persistentvector_conj(args, list_span, env, sym),
         ":wat::core::HashSet/conj" => crate::collection::eval::eval_hashset_conj(args, list_span, env, sym),
         // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
         ":wat::core::List/conj" => crate::collection::eval::eval_list_conj(args, list_span, env, sym),
@@ -4339,6 +4346,7 @@ fn dispatch_keyword_head_value(
         ":wat::std::list::remove-at" => crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym),
         ":wat::core::HashMap" => crate::collection::eval::eval_hashmap_ctor(args, list_span, env, sym),
         ":wat::core::PersistentMap" => crate::collection::eval::eval_persistentmap_ctor(args, list_span, env, sym),
+        ":wat::core::PersistentVector" => crate::collection::eval::eval_persistentvector_ctor(args, list_span, env, sym),
         ":wat::core::HashSet" => crate::collection::eval::eval_hashset_ctor(args, list_span, env, sym),
         // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
         // are now Dispatches (declared in `wat/core.wat`). The
@@ -6379,6 +6387,7 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__holon__Record { .. } | Value::wat__Record { .. } => ":wat::Record",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
         Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap",
+        Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",
         Value::wat__std__HashSet(_) => ":wat::core::HashSet",
         // Arc 214 Stone 4.6a-i — peer RustOpaques carry their specific type_path
         // (e.g. ":wat::kernel::Thread'" / ":wat::kernel::Process'"); report it
@@ -10869,6 +10878,11 @@ fn eval_positional_accessor(
         Value::wat__core__List(items) => Ok(Value::Option(Arc::new(
             items.iter().nth(index).cloned(),
         ))),
+        // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
+        // Returns Option<T> (None for out-of-bounds), matching Vec behavior.
+        Value::wat__core__PersistentVector(pv) => Ok(Value::Option(Arc::new(
+            pv.get(index).cloned(),
+        ))),
         // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List is a
         // sequence of child forms; positional access returns Option<wat__WatAST>
         // (None for out-of-bounds or non-List form), matching the Vec arm's shape.
@@ -10881,7 +10895,7 @@ fn eval_positional_accessor(
         },
         other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "tuple, Vec, or List",
+            expected: "tuple, Vec, List, or PersistentVector",
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }
@@ -12164,11 +12178,13 @@ fn eval_length(
         Value::Vec(_) => crate::collection::eval::vector_length_inner(&arg_val),
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_length_inner(&arg_val),
         Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_length_inner(&arg_val),
+        // Arc-278-0b — PersistentVector: generic length.
+        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_length_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_length_inner(&arg_val),
         Value::wat__core__List(_) => crate::collection::eval::list_length_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, HashSet<T>, or List<T>",
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -12205,11 +12221,13 @@ fn eval_empty(
         Value::Vec(_) => crate::collection::eval::vector_empty_q_inner(&arg_val),
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
         Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
+        // Arc-278-0b — PersistentVector: generic empty?.
+        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_empty_q_inner(&arg_val),
         Value::wat__core__List(_) => crate::collection::eval::list_empty_q_inner(&arg_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, HashSet<T>, or List<T>",
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -12248,9 +12266,11 @@ fn eval_contains(
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
         // Arc-278-0a — PersistentMap: contains? checks KEY membership (same as HashMap).
         Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_contains_key_q_inner(&arg0_val, &arg1_val),
+        // Arc-278-0b — PersistentVector: contains? checks element membership (same as Vec).
+        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or HashSet<T>",
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -12286,9 +12306,13 @@ fn eval_conj(
     match &arg0_val {
         Value::Vec(_) => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
+        // Arc-278-0b — PersistentVector: generic conj dispatches to persistentvector_conj_inner.
+        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
+        // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
+        Value::wat__core__List(_) => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T> or HashSet<T>",
+            expected: "Vector<T>, HashSet<T>, PersistentVector<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -12326,9 +12350,11 @@ fn eval_get(
         Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_get_inner(&arg0_val, &arg1_val),
         // Arc-278-0a — PersistentMap: generic get dispatches to persistentmap_get_inner.
         Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_get_inner(&arg0_val, &arg1_val),
+        // Arc-278-0b — PersistentVector: generic get dispatches to persistentvector_get_inner.
+        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, or PersistentMap<K,V>",
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }

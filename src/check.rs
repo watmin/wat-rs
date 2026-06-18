@@ -1669,6 +1669,7 @@ pub(crate) const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("HashSet", "wat::core::HashSet"),         // slice 1e
     ("Vec", "wat::core::Vector"),              // slice 1f — rename + move
     ("PersistentMap", "wat::core::PersistentMap"), // arc-278-0a
+    ("PersistentVector", "wat::core::PersistentVector"), // arc-278-0b
 ];
 
 // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
@@ -4205,6 +4206,16 @@ fn infer_list(
             // returns PersistentMap<K,V> instead of HashMap<K,V>.
             ":wat::core::PersistentMap" => {
                 let (val, mut errs) = infer_persistentmap_constructor(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // Arc-278-0b — PersistentVector constructor: infers T from elements;
+            // returns PersistentVector<T>.
+            ":wat::core::PersistentVector" => {
+                let (val, mut errs) = infer_persistentvector_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -13266,6 +13277,41 @@ fn infer_persistentmap_constructor(
     let ty = TypeExpr::Parametric {
         head: "wat::core::PersistentMap".into(),
         args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc-278-0b — Type-check `(:wat::core::PersistentVector e1 e2 ...)`.
+/// Takes bare elements in order — NO leading type keyword.
+/// T is inferred from the first element (if any), then unified against the rest.
+/// An empty ctor produces `PersistentVector<fresh_T>`. Returns `PersistentVector<T>`.
+fn infer_persistentvector_constructor(
+    args: &[WatAST],
+    _head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    // T is a free type variable — inferred from the first element (if any),
+    // then unified against the rest. An empty ctor produces PersistentVector<fresh_T>.
+    let t_ty = fresh.fresh();
+    for (i, arg) in args.iter().enumerate() {
+        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            if unify(&arg_ty, &t_ty, subst, env.types()).is_err() {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::PersistentVector".into(),
+                    param: format!("element #{}", i + 1),
+                    expected: format_type(&apply_subst(&t_ty, subst)),
+                    got: format_type(&apply_subst(&arg_ty, subst))
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::PersistentVector".into(),
+        args: vec![apply_subst(&t_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }

@@ -71,6 +71,10 @@ pub(crate) fn infer_contains(
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
                 targs.first().map(|k| apply_subst(k, subst))
             }
+            // Arc-278-0b — PersistentVector: contains? checks element membership, same as Vector.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
             // Unresolved type variable — e.g., returned by `from-holon` which has a
             // generic return type. Cannot prove non-collection without more context;
             // skip element-type check and let the runtime enforce. The runtime will
@@ -84,7 +88,7 @@ pub(crate) fn infer_contains(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, HashSet<T>, HashMap<K,V>, or PersistentMap<K,V>".into(),
+                    expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>".into(),
                     got: format_type(&reduced)
                 } });
                 None
@@ -161,6 +165,10 @@ pub(crate) fn infer_conj(
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
+            // Arc-278-0b — PersistentVector: conj appends element; returns PersistentVector<T>.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
@@ -168,7 +176,7 @@ pub(crate) fn infer_conj(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or HashSet<T>".into(),
+                    expected: "Vector<T>, HashSet<T>, or PersistentVector<T>".into(),
                     got: format_type(&reduced)
                 } });
                 None
@@ -267,6 +275,14 @@ pub(crate) fn infer_get(
                 let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
                 Some((key_ty, val_ty))
             }
+            // Arc-278-0b — PersistentVector: same i64→Option<T> get semantics as std Vector.
+            // arg1 is the INDEX (i64), independent of the element type T.
+            // Returns Option<T> — None on out-of-bounds, Some(elem) on hit (safe, never raises).
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+                let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                Some((idx_ty, elem_ty))
+            }
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
@@ -274,7 +290,7 @@ pub(crate) fn infer_get(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, HashMap<K,V>, or PersistentMap<K,V>".into(),
+                    expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>".into(),
                     got: format_type(&reduced)
                 } });
                 None

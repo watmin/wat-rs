@@ -282,6 +282,25 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push('}');
             out
         }
+        // PersistentVector: display as #pv[…] to distinguish from std Vec.
+        // Arc-278-0b: elements in insertion order (VectorSync iterates in order).
+        Value::wat__core__PersistentVector(pv) => {
+            let mut out = String::from("#pv[");
+            let mut first = true;
+            for elem in pv.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(elem, depth + 1));
+            }
+            out.push(']');
+            out
+        }
         Value::wat__std__HashSet(s) => {
             let mut out = String::from("#{");
             let mut first = true;

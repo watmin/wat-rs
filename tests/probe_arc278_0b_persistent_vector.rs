@@ -15,7 +15,6 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 278 stone 0b — un-ignore when :wat::core::PersistentVector ships"]
 fn persistent_vector_core_behavior() {
     let world = startup_from_source(
         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
@@ -41,7 +40,7 @@ fn persistent_vector_core_behavior() {
     // 2. get by index
     assert_eq!(
         ev("(:wat::core::PersistentVector/get (:wat::core::PersistentVector 10 20 30) 1)"),
-        Value::i64(20),
+        Value::Option(Arc::new(Some(Value::i64(20)))),
         "get by index"
     );
 
@@ -63,7 +62,7 @@ fn persistent_vector_core_behavior() {
     // 4. LAYER-1 polymorphism — the GENERIC ops dispatch on PersistentVector.
     assert_eq!(
         ev("(:wat::core::get (:wat::core::PersistentVector 10 20 30) 2)"),
-        Value::i64(30),
+        Value::Option(Arc::new(Some(Value::i64(30)))),
         "generic get on a PersistentVector"
     );
     assert_eq!(

@@ -1167,6 +1167,203 @@ pub(crate) fn eval_persistentmap_ctor(
     Ok(Value::wat__core__PersistentMap(map))
 }
 
+// ─── Arc-278-0b — PersistentVector ops (mirror vector_* family) ──────────────
+//
+// rpds::VectorSync<Value> is persistent: push_back returns a NEW vector sharing
+// structure with the old (O(log n)); the original is UNCHANGED.
+// No .clone() of vector contents needed — that is the whole win over std Vec.
+
+/// Returns the length of a `Value::wat__core__PersistentVector` as `Value::i64`.
+pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentVector(pv) => Ok(Value::i64(pv.len() as i64)),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentVector/length".into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentvector_length(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/length".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentvector_length_inner(&v)
+}
+
+pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__core__PersistentVector(pv) => Ok(Value::bool(pv.is_empty())),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentVector/empty?".into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentvector_empty_q(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/empty?".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    persistentvector_empty_q_inner(&v)
+}
+
+pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentVector(pv) => {
+            let found = pv.iter().any(|x| x == item);
+            Ok(Value::bool(found))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentVector/contains?".into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentvector_contains_q(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/contains?".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentvector_contains_q_inner(&container, &item)
+}
+
+/// `(:wat::core::PersistentVector/get pv i)` — index lookup, returns `Option<T>`.
+/// Arc-278-0b: mirrors std `Vector/get` — returns `Some(elem)` on hit, `None` on out-of-bounds.
+/// Safe: never raises on OOB (use `(:wat::core::PersistentVector/contains? pv i)` to guard
+/// before unwrapping if needed, but `None` is the preferred signal).
+pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentVector(pv) => {
+            let i = match index {
+                Value::i64(n) => *n,
+                other => {
+                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                        op: ":wat::core::PersistentVector/get".into(),
+                        expected: "i64 index",
+                        got: Box::new(ValueSnapshot::of(other))
+                    } }.into());
+                }
+            };
+            if i < 0 || (i as usize) >= pv.len() {
+                Ok(Value::Option(Arc::new(None)))
+            } else {
+                Ok(Value::Option(Arc::new(Some(pv.get(i as usize).cloned().unwrap()))))
+            }
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentVector/get".into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentvector_get(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/get".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let index = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentvector_get_inner(&container, &index)
+}
+
+/// `(:wat::core::PersistentVector/conj pv elem)` — persistent append.
+/// Returns a NEW PersistentVector with `elem` appended; the original `pv` is UNCHANGED.
+/// Uses rpds `push_back` — NO clone of the vector contents (structural sharing = the win).
+pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__core__PersistentVector(pv) => {
+            Ok(Value::wat__core__PersistentVector(pv.push_back(item.clone())))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::PersistentVector/conj".into(),
+            expected: "PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+pub(crate) fn eval_persistentvector_conj(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::PersistentVector/conj".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let container = eval_inner(&args[0], env, sym)?.value_owned();
+    let item = eval_inner(&args[1], env, sym)?.value_owned();
+    persistentvector_conj_inner(&container, &item)
+}
+
+/// `(:wat::core::PersistentVector e1 e2 ...)` — constructor.
+/// Takes bare elements in order (NO leading type keyword).
+/// Types are inferred from the actual elements (checked at check-time by
+/// `infer_persistentvector_constructor`). Uses rpds for structural sharing.
+pub(crate) fn eval_persistentvector_ctor(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let _ = call_span; // arity is any (0+ elements)
+    let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    for arg in args {
+        let v = eval_inner(arg, env, sym)?.value_owned();
+        pv = pv.push_back(v);
+    }
+    Ok(Value::wat__core__PersistentVector(pv))
+}
+
 pub(crate) fn eval_vector_concat(
     args: &[WatAST],
     call_span: &Span,
@@ -1257,9 +1454,25 @@ pub(crate) fn eval_rest(
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other_ast.clone()))))
             } }.into()),
         },
+        // Arc-278-0b — PersistentVector: rest returns a new PersistentVector (tail after first element).
+        // Maintains type identity: PersistentVector/rest → PersistentVector (not Vec).
+        Value::wat__core__PersistentVector(pv) => {
+            if pv.is_empty() {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::rest".into(),
+                    reason: "cannot take rest of empty PersistentVector".into()
+                } }.into());
+            }
+            // Build a new PersistentVector by skipping the first element.
+            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for elem in pv.iter().skip(1) {
+                out = out.push_back(elem.clone());
+            }
+            Ok(Value::wat__core__PersistentVector(out))
+        }
         other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::rest".into(),
-            expected: "Vec or List",
+            expected: "Vec, List, or PersistentVector",
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     }

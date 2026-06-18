@@ -1987,6 +1987,25 @@ fn tagged_to_value(
         return Ok(Value::wat__core__PersistentMap(pm));
     }
 
+    // Arc-278-0b — `#wat.core/PersistentVector [...]` tagged literal → PersistentVector.
+    // Round-trip identity: a bare `[…]` reads back as std Vec; the tagged form reads back
+    // as PersistentVector (distinct identity per the DESIGN contract). Body must be a Vector.
+    if ns == "wat.core" && name == "PersistentVector" {
+        use wat_edn::Value as Edn;
+        let items = match body {
+            Edn::Vector(xs) => xs,
+            _ => return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(
+                format!("wat.core/PersistentVector body must be a vector, got non-vector")
+            ) }),
+        };
+        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        for item in items {
+            let val = edn_to_value_caps(item, types, allow_caps)?;
+            pv = pv.push_back(val);
+        }
+        return Ok(Value::wat__core__PersistentVector(pv));
+    }
+
     // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
     let types = types.ok_or(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
@@ -2583,6 +2602,17 @@ pub fn value_to_edn_with(
             Box::new(OwnedValue::Map(
                 m.iter()
                     .map(|(k, v)| (value_to_edn_with(k, types), value_to_edn_with(v, types)))
+                    .collect(),
+            )),
+        ),
+        // Arc-278-0b — PersistentVector writes as a TAGGED literal `#wat.core/PersistentVector [...]`
+        // so round-trip IDENTITY is preserved: a bare `[…]` reads back as wat::Vec (std Vector);
+        // the tagged form reads back as PersistentVector (distinct identity per the DESIGN contract).
+        Value::wat__core__PersistentVector(pv) => OwnedValue::Tagged(
+            Tag::ns("wat.core", "PersistentVector"),
+            Box::new(OwnedValue::Vector(
+                pv.iter()
+                    .map(|x| value_to_edn_with(x, types))
                     .collect(),
             )),
         ),
@@ -3423,6 +3453,32 @@ mod tests {
             },
             other => panic!("expected Value::Result; got {:?}", other),
         }
+    }
+
+    // ─── Arc 278 stone 0b — PersistentVector EDN round-trip ─────────────
+
+    #[test]
+    fn persistent_vector_edn_round_trip() {
+        // Build a PersistentVector with three elements.
+        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        pv = pv.push_back(Value::i64(10));
+        pv = pv.push_back(Value::i64(20));
+        pv = pv.push_back(Value::i64(30));
+        let orig = Value::wat__core__PersistentVector(pv);
+
+        // Serialize → tagged EDN string.
+        let s = value_to_edn_string(&orig);
+
+        // Parse back.
+        let back = edn_string_to_value(&s).expect("round-trip parse");
+
+        // STOP-1 gate: the tag must reconstruct a PersistentVector, not collapse to a std Vec.
+        assert!(
+            matches!(back, Value::wat__core__PersistentVector(_)),
+            "must round-trip to PersistentVector, not {back:?}"
+        );
+        // Value equality: same elements, same order.
+        assert_eq!(back, orig, "EDN round-trip must preserve the vector");
     }
 
     // ─── Arc 278 stone 0a — PersistentMap EDN round-trip ───────────────

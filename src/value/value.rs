@@ -100,6 +100,11 @@ pub enum Value {
     /// is unchanged. The rpds type is already cheap-clone/shared — no `Arc` wrapper
     /// needed. Stone arc-278-0a.
     wat__core__PersistentMap(rpds::HashTrieMapSync<Value, Value>),
+    /// A `:wat::core::PersistentVector<T>` — rpds `VectorSync<Value>`.
+    /// Structural sharing: `conj` (`push_back`) returns a NEW vector (O(log n)); the
+    /// original is unchanged. No `Arc` wrapper needed — rpds is already cheap-clone/shared.
+    /// Stone arc-278-0b.
+    wat__core__PersistentVector(rpds::VectorSync<Value>),
     /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
@@ -616,6 +621,9 @@ impl PartialEq for Value {
             // PersistentMap: rpds::HashTrieMapSync implements PartialEq — delegate.
             // Arc-278-0a: structural equality over K/V using Value's PartialEq.
             (Value::wat__core__PersistentMap(a), Value::wat__core__PersistentMap(b)) => a == b,
+            // PersistentVector: rpds::VectorSync implements PartialEq — delegate.
+            // Arc-278-0b: order-dependent equality (a vector's order is semantic).
+            (Value::wat__core__PersistentVector(a), Value::wat__core__PersistentVector(b)) => a == b,
             // --- Structurally-equal but NOT atomizable ---
             (Value::u8(a), Value::u8(b)) => a == b,
             (Value::Unit, Value::Unit) => true,
@@ -787,6 +795,15 @@ impl std::hash::Hash for Value {
                 }).collect();
                 pair_hashes.sort_unstable();
                 pair_hashes.hash(state);
+            }
+            // PersistentVector: order-DEPENDENT hash — sequence hash over elements in order.
+            // Arc-278-0b: a vector's order is semantic; discriminant already hashed above;
+            // hash each element in order (mirrors std Vec's hash_sequence semantics, but with
+            // its own discriminant so it hashes DISTINCT from Vec / List).
+            Value::wat__core__PersistentVector(v) => {
+                for elem in v.iter() {
+                    elem.hash(state);
+                }
             }
             // --- Structural but NOT atomizable: honest hash impls (STOP-4 surface) ---
             Value::u8(n) => n.hash(state),
@@ -1052,6 +1069,7 @@ impl Value {
             Value::wat__kernel__Receiver(_) => "wat::kernel::Receiver",
             Value::wat__std__HashMap(_) => "wat::core::HashMap",
             Value::wat__core__PersistentMap(_) => "wat::core::PersistentMap",
+            Value::wat__core__PersistentVector(_) => "wat::core::PersistentVector",
             Value::wat__std__HashSet(_) => "wat::core::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
             Value::io__IOReader(_) => "wat::io::IOReader",
@@ -1152,6 +1170,7 @@ impl Value {
             Value::wat__kernel__Receiver(_) => self.type_name().to_string(),
             Value::wat__std__HashMap(_) => self.type_name().to_string(),
             Value::wat__core__PersistentMap(_) => self.type_name().to_string(),
+            Value::wat__core__PersistentVector(_) => self.type_name().to_string(),
             Value::wat__std__HashSet(_) => self.type_name().to_string(),
             Value::RustOpaque(_) => self.type_name().to_string(),
             Value::io__IOReader(_) => self.type_name().to_string(),
