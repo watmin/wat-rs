@@ -7,6 +7,18 @@
 > diverge, the DESIGN wins. Anchors verified against the source by the orchestrator's own grep
 > (node line numbers, Token/Element, protocols, accumulator fields all matched).
 >
+> **Functionality, NOT parity (builder, 2026-06-17).** We reference Clara for the FUNCTIONALITY — what a
+> correct RETE must *do* (semantics + hazards). We are NOT bound to parity with Clara's bugs, bad
+> optimizations, or warts. We **reserve the right to declare a Clara mechanism flawed/suboptimal and do
+> categorically superior.** To keep that honest (not an excuse): **(1) deviate UP, never DOWN** — a
+> deviation must be a genuine improvement, NEVER license to skip the hard part with a naive version (that's
+> the deferral class — forbidden; a worker reaching for a deviation to dodge difficulty must STOP);
+> **(2) ground the flaw** — name the mechanism, why it's worse, the proven-better alternative (no deviating
+> on a guess); **(3) name the deviation** — "we do X where Clara does Y, because Y has flaw Z" (extirpare:
+> don't reproduce a failure class; keeps the prior-art-collision honest). The hazards list below is for
+> getting the SEMANTICS right — it is not a mandate to copy Clara's implementation choices.
+> [[feedback_reference_for_functionality_not_parity_with_flaws]]
+>
 > **Our cuts vs Clara (apply these as you read):** facts are TYPED RECORDS only (no `:fact-type-fn`, no
 > map-facts); RHS is PURE (no side effects — returns data / logical-inserts derived facts); NO
 > `insert-unconditional!`; NO user salience (ordering is structural — see §9); the matcher reuses
