@@ -52,7 +52,6 @@ fn render(prog: &str) -> String {
 }
 
 #[test]
-#[ignore = "arc 278 stone 1b — un-ignore when :wat::rete::compile ships (sharing + wired edges)"]
 fn compile_shares_prefix_and_wires_the_chain() {
     // Two rules; FIRST condition identical (c1), second divergent (c2a vs c2b).
     let prog = "\
@@ -81,7 +80,6 @@ fn compile_shares_prefix_and_wires_the_chain() {
 }
 
 #[test]
-#[ignore = "arc 278 stone 1b — un-ignore when :wat::rete::compile ships"]
 fn compile_single_rule_wires_a_connected_chain() {
     // One single-condition rule → alpha → root-join → production, fully connected.
     let prog = "\

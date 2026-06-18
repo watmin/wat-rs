@@ -45,42 +45,42 @@
 
 ;; Rule — a rule as pure data (not yet compiled into network nodes).
 ;; name: the namespaced rule name.
-;; lhs:  conditions (form::matches?-shaped clauses).
+;; lhs:  conditions (form::matches?-shaped clauses) — PersistentVector<WatAST> so foldl works.
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
 (:wat::Record::def :wat::rete::Rule
   [name <- :wat::core::String
-   lhs  <- :wat::core::PersistentVector
-   rhs  <- :wat::core::PersistentVector])
+   lhs  <- :wat::core::PersistentVector<wat::WatAST>
+   rhs  <- :wat::core::PersistentVector<wat::WatAST>])
 
 ;; ─── the network nodes (MVP set) ────────────────────────────────────────────
 ;; Negation / Test / Accumulate / ExpressionJoin nodes arrive at stones 6–8.
 
 ;; AlphaNode — filters facts by structural tests; fans out to beta joins.
 ;; id:       unique node id (i64).
-;; tests:    PersistentVector of test forms (form::matches? clauses).
-;; children: PersistentVector of child node ids (i64).
+;; tests:    PersistentVector of test forms (form::matches? clauses) — typed for foldl.
+;; children: PersistentVector of child node ids — typed as i64 for foldl.
 (:wat::Record::def :wat::rete::AlphaNode
   [id       <- :wat::core::i64
-   tests    <- :wat::core::PersistentVector
-   children <- :wat::core::PersistentVector])
+   tests    <- :wat::core::PersistentVector<wat::WatAST>
+   children <- :wat::core::PersistentVector<wat::core::i64>])
 
 ;; RootJoinNode — the leftmost beta join (no left memory needed; seeds the token).
 ;; id:           unique node id.
-;; children:     PersistentVector of child node ids.
-;; binding-keys: PersistentVector of variable keys bound at this join.
+;; children:     PersistentVector of child node ids — typed as i64 for foldl.
+;; binding-keys: PersistentVector of variable keys (Strings) bound at this join.
 (:wat::Record::def :wat::rete::RootJoinNode
   [id           <- :wat::core::i64
-   children     <- :wat::core::PersistentVector
-   binding-keys <- :wat::core::PersistentVector])
+   children     <- :wat::core::PersistentVector<wat::core::i64>
+   binding-keys <- :wat::core::PersistentVector<wat::core::String>])
 
 ;; HashJoinNode — a standard two-input beta join node.
 ;; id:           unique node id.
-;; children:     PersistentVector of child node ids.
-;; binding-keys: PersistentVector of join-key variable names.
+;; children:     PersistentVector of child node ids — typed as i64 for foldl.
+;; binding-keys: PersistentVector of join-key variable names (Strings).
 (:wat::Record::def :wat::rete::HashJoinNode
   [id           <- :wat::core::i64
-   children     <- :wat::core::PersistentVector
-   binding-keys <- :wat::core::PersistentVector])
+   children     <- :wat::core::PersistentVector<wat::core::i64>
+   binding-keys <- :wat::core::PersistentVector<wat::core::String>])
 
 ;; ProductionNode — the terminal node; triggers an activation on a full token.
 ;; id:        unique node id.
@@ -92,11 +92,11 @@
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
-;; param-keys: PersistentVector of query parameter variable names.
+;; param-keys: PersistentVector of query parameter variable names (Strings).
 (:wat::Record::def :wat::rete::QueryNode
   [id         <- :wat::core::i64
    query-name <- :wat::core::String
-   param-keys <- :wat::core::PersistentVector])
+   param-keys <- :wat::core::PersistentVector<wat::core::String>])
 
 ;; Node — the sum type over all MVP node records (exact defenum syntax per wat/service.wat).
 ;; Variants wrap their respective record. Used by compile + fire (stones 1b+);
@@ -121,7 +121,7 @@
 ;;   next-id:           the next free node id (i64).
 (:wat::Record::def :wat::rete::Session
   [network           <- :wat::core::PersistentMap
-   rules             <- :wat::core::PersistentVector
+   rules             <- :wat::core::PersistentVector<wat::rete::Rule>
    alpha-memory      <- :wat::core::PersistentMap
    beta-memory       <- :wat::core::PersistentMap
    production-memory <- :wat::core::PersistentMap
@@ -146,12 +146,46 @@
         "node-kind-label: last segment")
       fqdn)))
 
+;; node-children-ids — read the children PersistentVector from a raw node record.
+;; Dispatches on kind label: Alpha/RootJoin/HashJoin have children; leaves return empty.
+;; WHY: record accessors are class-guarded at runtime; dispatch ensures we only call
+;; AlphaNode/children when the node IS an AlphaNode, satisfying the guard.
+(:wat::core::defn :wat::rete::node-children-ids
+  [node <- :wat::Record]
+  -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::let [kind (:wat::rete::node-kind-label node)]
+    (:wat::core::cond
+      ((:wat::core::= kind "AlphaNode")
+       (:wat::rete::AlphaNode/children node))
+      ((:wat::core::= kind "RootJoinNode")
+       (:wat::rete::RootJoinNode/children node))
+      ((:wat::core::= kind "HashJoinNode")
+       (:wat::rete::HashJoinNode/children node))
+      (:else (:wat::core::PersistentVector)))))
+
+;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
+;; WHY: foldl builds space-separated ids so render-dag can emit the edge list inline.
+(:wat::core::defn :wat::rete::children-ids-text
+  [ids <- :wat::core::PersistentVector<wat::core::i64>]
+  -> :wat::core::String
+  (:wat::core::let [inner (:wat::core::foldl
+                             (:wat::core::fn [acc <- :wat::core::String
+                                              id  <- :wat::core::i64]
+                               -> :wat::core::String
+                               (:wat::core::let [id-s (:wat::core::i64::to-string id)]
+                                 (:wat::core::if (:wat::core::= acc "")
+                                   id-s
+                                   (:wat::core::string::interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
+                             ""
+                             ids)]
+    (:wat::core::string::interpolate "[{inner}]" :inner inner)))
+
 ;; render-dag — walk Session.network (id→Node records), emit one readable line
-;; per node: "  <id>  <kind>\n". Returns the whole graph as a String.
+;; per node: "  <id>  <kind> -> [<child-ids>]\n". Returns the whole graph as a String.
 ;;
 ;; Strategy: get keys from the PersistentMap as a Vec<i64>, foldl over them,
-;; for each key fetch the node (Option/expect), derive the kind label, concat
-;; a line. Uses PersistentMap/keys (returns Vec<K>) + foldl + PersistentMap/get.
+;; for each key fetch the node (Option/expect), derive the kind label, emit edges.
+;; Uses PersistentMap/keys (returns Vec<K>) + foldl + PersistentMap/get.
 (:wat::core::defn :wat::rete::render-dag
   [session <- :wat::rete::Session]
   -> :wat::core::String
@@ -161,23 +195,266 @@
       (:wat::core::fn [acc <- :wat::core::String
                        k   <- :wat::core::i64]
         -> :wat::core::String
-        (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
-                                   (:wat::core::PersistentMap/get network k)
-                                   "render-dag: node not found")
-                          kind (:wat::rete::node-kind-label node)
-                          id-s (:wat::core::i64::to-string k)
+        (:wat::core::let [node  (:wat::core::Option/expect -> :wat::Record
+                                    (:wat::core::PersistentMap/get network k)
+                                    "render-dag: node not found")
+                          kind  (:wat::rete::node-kind-label node)
+                          id-s  (:wat::core::i64::to-string k)
+                          edge  (:wat::rete::children-ids-text
+                                   (:wat::rete::node-children-ids node))
                           ;; DELIBERATE proof-by-diff FIXTURE (arc 278): this nested string::concat is
                           ;; below-bar (it should be one `format`), but it is left intentionally — the
                           ;; arc-277 auto-fix is bare-symbol-only and CANNOT reach this COMPOUND/nested
                           ;; case (deferred to RETE). The wat-rete engine's own `compound-concat-collapse`
                           ;; rule will clean it; that diff is the proof the rule works. Do NOT hand-fix.
-                          line (:wat::core::string::concat
-                                  "  "
-                                  (:wat::core::string::concat
-                                    id-s
-                                    (:wat::core::string::concat
-                                      "  "
-                                      (:wat::core::string::concat kind "\n"))))]
+                          line  (:wat::core::string::concat
+                                   "  "
+                                   (:wat::core::string::concat
+                                     id-s
+                                     (:wat::core::string::concat
+                                       "  "
+                                       (:wat::core::string::concat
+                                         kind
+                                         (:wat::core::string::concat
+                                           " -> "
+                                           (:wat::core::string::concat edge "\n"))))))]
           (:wat::core::string::concat acc line)))
       ""
       keys)))
+
+;; ─── compile — rule-set → shared connected network ──────────────────────────
+
+;; CompileState — internal state threaded through compile's rule + condition folds.
+;; network: the id→Node PersistentMap built so far.
+;; next-id: the next free node id.
+;; dedup:   HashMap<String,i64> — maps a structural key to the existing node id;
+;;          avoids rescanning the network to detect shareable nodes.
+;; WHY a record: cleaner than a Tuple at call sites; fields are domain nouns.
+(:wat::Record::def :wat::rete::CompileState
+  [network <- :wat::core::PersistentMap
+   next-id <- :wat::core::i64
+   dedup   <- :wat::core::HashMap<wat::core::String,wat::core::i64>])
+
+;; MintResult — result of find-or-mint: the resolved node id + updated state.
+;; WHY a record: named fields communicate intent at call sites better than positional.
+(:wat::Record::def :wat::rete::MintResult
+  [id    <- :wat::core::i64
+   state <- :wat::rete::CompileState])
+
+;; network-add-child — add child-id to the children of the node at node-id in network.
+;; Returns the updated PersistentMap.
+;; WHY: wiring edges = conj child-id onto the existing children PersistentVector and
+;; re-assoc the node; :wat::Record/assoc does name-based field update on any Record.
+(:wat::core::defn :wat::rete::network-add-child
+  [network  <- :wat::core::PersistentMap
+   node-id  <- :wat::core::i64
+   child-id <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node     (:wat::core::Option/expect -> :wat::Record
+                                  (:wat::core::PersistentMap/get network node-id)
+                                  "network-add-child: node not found")
+                    old-ch   (:wat::rete::node-children-ids node)
+                    new-ch   (:wat::core::PersistentVector/conj old-ch child-id)
+                    new-node (:wat::Record/assoc node :children new-ch)]
+    (:wat::core::PersistentMap/assoc network node-id new-node)))
+
+;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
+;; Dedup key: "alpha:<write-forms cond>".
+;; Returns a MintResult(id, updated-state).
+;; WHY write-forms for key: gives a canonical string from the WatAST form; structural
+;; equality on the form is span-agnostic so identical conditions always produce the same key.
+(:wat::core::defn :wat::rete::find-or-mint-alpha
+  [cond  <- :wat::WatAST
+   state <- :wat::rete::CompileState]
+  -> :wat::rete::MintResult
+  (:wat::core::let [cond-text (:wat::core::write-forms cond)
+                    dkey      (:wat::core::string::interpolate "alpha:{cond-text}" :cond-text cond-text)
+                    network   (:wat::rete::CompileState/network state)
+                    next-id   (:wat::rete::CompileState/next-id state)
+                    dedup     (:wat::rete::CompileState/dedup   state)
+                    found-opt (:wat::core::HashMap/get dedup dkey)]
+    (:wat::core::match found-opt -> :wat::rete::MintResult
+      ((:wat::core::Some existing-id)
+       (:wat::rete::MintResult existing-id state))
+      (:wat::core::None
+       (:wat::core::let [alpha     (:wat::rete::AlphaNode
+                                      next-id
+                                      (:wat::core::PersistentVector cond)
+                                      (:wat::core::PersistentVector))
+                         new-net   (:wat::core::PersistentMap/assoc network next-id alpha)
+                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-state (:wat::rete::CompileState
+                                      new-net
+                                      (:wat::core::i64::+ next-id 1)
+                                      new-dedup)]
+         (:wat::rete::MintResult next-id new-state))))))
+
+;; find-or-mint-root-join — find or mint a RootJoinNode for the first condition.
+;; Dedup key: "rootjoin:<cond-text>".
+;; WHY split from hash-join: if-branching between different record types (RootJoinNode vs
+;; HashJoinNode) cannot be unified by the type checker; two typed fns avoid the mismatch.
+(:wat::core::defn :wat::rete::find-or-mint-root-join
+  [cond  <- :wat::WatAST
+   state <- :wat::rete::CompileState]
+  -> :wat::rete::MintResult
+  (:wat::core::let [cond-text (:wat::core::write-forms cond)
+                    dkey      (:wat::core::string::interpolate "rootjoin:{cond-text}" :cond-text cond-text)
+                    network   (:wat::rete::CompileState/network state)
+                    next-id   (:wat::rete::CompileState/next-id state)
+                    dedup     (:wat::rete::CompileState/dedup   state)
+                    found-opt (:wat::core::HashMap/get dedup dkey)]
+    (:wat::core::match found-opt -> :wat::rete::MintResult
+      ((:wat::core::Some existing-id)
+       (:wat::rete::MintResult existing-id state))
+      (:wat::core::None
+       (:wat::core::let [join-node (:wat::rete::RootJoinNode
+                                      next-id
+                                      (:wat::core::PersistentVector)
+                                      (:wat::core::PersistentVector))
+                         new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
+                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-state (:wat::rete::CompileState
+                                      new-net
+                                      (:wat::core::i64::+ next-id 1)
+                                      new-dedup)]
+         (:wat::rete::MintResult next-id new-state))))))
+
+;; find-or-mint-hash-join — find or mint a HashJoinNode for a non-first condition.
+;; Dedup key: "hashjoin:<parent-id>:<cond-text>" — both condition AND left parent must match.
+(:wat::core::defn :wat::rete::find-or-mint-hash-join
+  [cond      <- :wat::WatAST
+   parent-id <- :wat::core::i64
+   state     <- :wat::rete::CompileState]
+  -> :wat::rete::MintResult
+  (:wat::core::let [cond-text (:wat::core::write-forms cond)
+                    pid-s     (:wat::core::i64::to-string parent-id)
+                    dkey      (:wat::core::string::interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
+                    network   (:wat::rete::CompileState/network state)
+                    next-id   (:wat::rete::CompileState/next-id state)
+                    dedup     (:wat::rete::CompileState/dedup   state)
+                    found-opt (:wat::core::HashMap/get dedup dkey)]
+    (:wat::core::match found-opt -> :wat::rete::MintResult
+      ((:wat::core::Some existing-id)
+       (:wat::rete::MintResult existing-id state))
+      (:wat::core::None
+       (:wat::core::let [join-node (:wat::rete::HashJoinNode
+                                      next-id
+                                      (:wat::core::PersistentVector)
+                                      (:wat::core::PersistentVector))
+                         new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
+                         new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
+                         new-state (:wat::rete::CompileState
+                                      new-net
+                                      (:wat::core::i64::+ next-id 1)
+                                      new-dedup)]
+         (:wat::rete::MintResult next-id new-state))))))
+
+;; compile-condition — fold step: process one condition form in a rule.
+;; acc = (CompileState, i64) where the i64 is the current parent-id (-1 = no parent yet).
+;; WHY -1 sentinel: lets us distinguish first-condition (RootJoinNode) from rest
+;; (HashJoinNode) without an Option; node ids start at 0.
+;; Algorithm per DESIGN-1b:
+;;   1. find-or-mint AlphaNode for cond (alpha sharing)
+;;   2. find-or-mint RootJoinNode or HashJoinNode for (cond, parent-id) (beta-prefix sharing)
+;;   3. wire alpha→join child edge
+;;   4. wire prev-parent→join child edge (if prev-parent >= 0)
+;;   5. return updated state with parent-id = join-id
+(:wat::Record::def :wat::rete::CondFoldAcc
+  [state     <- :wat::rete::CompileState
+   parent-id <- :wat::core::i64])
+
+(:wat::core::defn :wat::rete::compile-condition
+  [acc  <- :wat::rete::CondFoldAcc
+   cond <- :wat::WatAST]
+  -> :wat::rete::CondFoldAcc
+  (:wat::core::let [state0     (:wat::rete::CondFoldAcc/state     acc)
+                    parent-id  (:wat::rete::CondFoldAcc/parent-id acc)
+                    ;; 1. find-or-mint the AlphaNode
+                    alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
+                    alpha-id   (:wat::rete::MintResult/id    alpha-res)
+                    state1     (:wat::rete::MintResult/state alpha-res)
+                    ;; 2. find-or-mint the join node; -1 parent = first condition → RootJoinNode
+                    is-first  (:wat::core::i64::< parent-id 0)
+                    join-res  (:wat::core::if is-first
+                                 (:wat::rete::find-or-mint-root-join cond state1)
+                                 (:wat::rete::find-or-mint-hash-join cond parent-id state1))
+                    join-id    (:wat::rete::MintResult/id    join-res)
+                    state2     (:wat::rete::MintResult/state join-res)
+                    ;; 3. wire alpha → join
+                    net3       (:wat::rete::network-add-child
+                                  (:wat::rete::CompileState/network state2)
+                                  alpha-id
+                                  join-id)
+                    state3     (:wat::rete::CompileState
+                                  net3
+                                  (:wat::rete::CompileState/next-id state2)
+                                  (:wat::rete::CompileState/dedup   state2))
+                    ;; 4. wire prev-parent → join (only if there IS a prev parent)
+                    net4       (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                  (:wat::rete::network-add-child
+                                     (:wat::rete::CompileState/network state3)
+                                     parent-id
+                                     join-id)
+                                  (:wat::rete::CompileState/network state3))
+                    state4     (:wat::rete::CompileState
+                                  net4
+                                  (:wat::rete::CompileState/next-id state3)
+                                  (:wat::rete::CompileState/dedup   state3))]
+    ;; 5. advance parent to join-id for the next condition
+    (:wat::rete::CondFoldAcc state4 join-id)))
+
+;; compile-rule — fold step: process one Rule into the network.
+;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
+;; the ProductionNode as a child of the final join (the "leaf" terminal).
+(:wat::core::defn :wat::rete::compile-rule
+  [state <- :wat::rete::CompileState
+   rule  <- :wat::rete::Rule]
+  -> :wat::rete::CompileState
+  (:wat::core::let [lhs       (:wat::rete::Rule/lhs rule)
+                    rname     (:wat::rete::Rule/name rule)
+                    ;; fold conditions left→right; parent-id starts at -1 (none)
+                    init-acc  (:wat::rete::CondFoldAcc state -1)
+                    final-acc (:wat::core::foldl
+                                  :wat::rete::compile-condition
+                                  init-acc
+                                  lhs)
+                    state2    (:wat::rete::CondFoldAcc/state     final-acc)
+                    final-par (:wat::rete::CondFoldAcc/parent-id final-acc)
+                    ;; mint the ProductionNode (never shared — one per rule)
+                    network2  (:wat::rete::CompileState/network state2)
+                    next-id2  (:wat::rete::CompileState/next-id state2)
+                    prod      (:wat::rete::ProductionNode next-id2 rname)
+                    net3      (:wat::core::PersistentMap/assoc network2 next-id2 prod)
+                    ;; wire final-join → production
+                    net4      (:wat::core::if (:wat::core::i64::>= final-par 0)
+                                  (:wat::rete::network-add-child net3 final-par next-id2)
+                                  net3)
+                    dedup3    (:wat::rete::CompileState/dedup state2)]
+    (:wat::rete::CompileState net4 (:wat::core::i64::+ next-id2 1) dedup3)))
+
+;; compile — turn a PersistentVector of Rules into a Session with the compiled network.
+;; The session constructor for arc 278: (compile rules) → insert → fire → query.
+;; Empty memories and facts; next-id reflects the actual count of minted nodes.
+(:wat::core::defn :wat::rete::compile
+  [rules <- :wat::core::PersistentVector<wat::rete::Rule>]
+  -> :wat::rete::Session
+  (:wat::core::let [init-state (:wat::rete::CompileState
+                                  (:wat::core::PersistentMap)
+                                  0
+                                  (:wat::core::HashMap :wat::core::String :wat::core::i64))
+                    final-state (:wat::core::foldl
+                                    :wat::rete::compile-rule
+                                    init-state
+                                    rules)
+                    network  (:wat::rete::CompileState/network final-state)
+                    next-id  (:wat::rete::CompileState/next-id final-state)
+                    empty-pm (:wat::core::PersistentMap)
+                    empty-pv (:wat::core::PersistentVector)]
+    (:wat::rete::Session
+       network
+       rules
+       empty-pm
+       empty-pm
+       empty-pm
+       empty-pv
+       next-id)))
