@@ -3994,6 +3994,10 @@ fn dispatch_keyword_head_value(
         // Option<PersistentMap<String,Value>>. No Environment, no eval_inner.
         // Bindings keyed by logic-var name string ("?t" → bound value).
         ":wat::rete::alpha-match" => crate::rete::matcher::eval_alpha_match(args, list_span, env, sym),
+        // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
+        // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
+        // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
+        ":wat::rete::eval-insert" => crate::rete::matcher::eval_insert(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),

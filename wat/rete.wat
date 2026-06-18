@@ -118,7 +118,7 @@
 ;;   rules:             PersistentVector of Rule (the rule-set as data).
 ;;   alpha-memory:      node-id → {join-bindings → [Element …]}
 ;;   beta-memory:       node-id → {join-bindings → [Token …]}
-;;   production-memory: node-id → {token → [[facts] …]}  (the TM support store)
+;;   production-memory: node-id → PV<:wat::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
 (:wat::Record::def :wat::rete::Session
@@ -769,9 +769,120 @@
         (:wat::core::None beta-mem))
       beta-mem)))
 
-;; fire-rules — alpha pass → root-join seed → hash-join pass: full multi-condition matching.
+;; ─── production pass (stone 4a) ────────────────────────────────────────────
+
+;; node-parent — reverse-lookup: find the id of the node whose node-children-ids contains child-id.
+;; Returns -1 if no parent is found (e.g. the root of the network).
+;; WHY kind-agnostic via node-children-ids: a ProductionNode's parent is a RootJoinNode (1-condition rule)
+;; OR a HashJoinNode (multi-condition rule); dispatching on node-children-ids covers both without
+;; hard-coding the parent kind. Mirrors alpha-feeding but uses the shared node-children-ids accessor.
+(:wat::core::defn :wat::rete::node-parent
+  [child-id <- :wat::core::i64
+   network  <- :wat::core::PersistentMap]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [found   <- :wat::core::i64
+                     node-id <- :wat::core::i64]
+      -> :wat::core::i64
+      (:wat::core::if (:wat::core::i64::>= found 0)
+        found
+        (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                                   (:wat::core::PersistentMap/get network node-id)
+                                   "node-parent: node not found")]
+          (:wat::core::if (:wat::core::PersistentVector/contains?
+                             (:wat::rete::node-children-ids node)
+                             child-id)
+            node-id
+            -1))))
+    -1
+    (:wat::core::PersistentMap/keys network)))
+
+;; rule-by-name — linear find: given a rule name String, return the matching Rule from rules PV.
+;; WHY foldl carrying Option: PersistentVector has no early-exit find; foldl short-circuits by
+;; passing found values through unchanged (match Some → pass; None → test name; conj on hit).
+;; The caller panics on None (a missing rule = a compile bug).
+(:wat::core::defn :wat::rete::rule-by-name
+  [rules <- :wat::core::PersistentVector<wat::rete::Rule>
+   rname <- :wat::core::String]
+  -> :wat::rete::Rule
+  (:wat::core::Option/expect -> :wat::rete::Rule
+    (:wat::core::foldl
+      (:wat::core::fn [found <- :wat::core::Option<wat::rete::Rule>
+                       rule  <- :wat::rete::Rule]
+        -> :wat::core::Option<wat::rete::Rule>
+        (:wat::core::match found -> :wat::core::Option<wat::rete::Rule>
+          ((:wat::core::Some _) found)
+          (:wat::core::None
+           (:wat::core::if (:wat::core::= (:wat::rete::Rule/name rule) rname)
+             (:wat::core::Some rule)
+             :wat::core::None))))
+      :wat::core::None
+      rules)
+    "rule-by-name: rule not found"))
+
+;; fire-production — fire one ProductionNode: for each token in beta-memory[parent(P)], evaluate
+;; each insert-form in the rule's RHS and conj the derived fact into production-memory[P-id].
+;; WHY read beta-memory[parent]: the ProductionNode itself has no beta-memory slot; the tokens
+;; that reached P are stored at the parent join node (the final join in the chain).
+;; WHY conj-into-prod-mem mirrors append-token: same Some/None branch to avoid untyped-PV hazard.
+(:wat::core::defn :wat::rete::fire-production
+  [prod-id  <- :wat::core::i64
+   network  <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap
+   rules    <- :wat::core::PersistentVector<wat::rete::Rule>
+   prod-mem <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [prod-node  (:wat::core::Option/expect -> :wat::Record
+                                   (:wat::core::PersistentMap/get network prod-id)
+                                   "fire-production: prod node not found")
+                    rname      (:wat::rete::ProductionNode/rule-name prod-node)
+                    parent-id  (:wat::rete::node-parent prod-id network)
+                    rule       (:wat::rete::rule-by-name rules rname)
+                    rhs        (:wat::rete::Rule/rhs rule)]
+    (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+      ((:wat::core::Some tokens)
+       ;; For each token: for each insert-form in rhs: eval-insert → conj into prod-mem[prod-id].
+       (:wat::core::foldl
+         (:wat::core::fn [pm  <- :wat::core::PersistentMap
+                          tok <- :wat::rete::Token]
+           -> :wat::core::PersistentMap
+           (:wat::core::foldl
+             (:wat::core::fn [pm2  <- :wat::core::PersistentMap
+                              form <- :wat::WatAST]
+               -> :wat::core::PersistentMap
+               (:wat::core::let [derived (:wat::rete::eval-insert form (:wat::rete::Token/bindings tok))]
+                 (:wat::core::match (:wat::core::PersistentMap/get pm2 prod-id) -> :wat::core::PersistentMap
+                   ((:wat::core::Some pv)
+                    (:wat::core::PersistentMap/assoc pm2 prod-id
+                      (:wat::core::PersistentVector/conj pv derived)))
+                   (:wat::core::None
+                    (:wat::core::PersistentMap/assoc pm2 prod-id
+                      (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) derived))))))
+             pm
+             rhs))
+         prod-mem
+         tokens))
+      (:wat::core::None prod-mem))))
+
+;; production-pass — fold step: if this node is a ProductionNode, fire it; else pass through.
+;; Mirrors hash-join-pass as a fold step over node-ids; seeds with the existing production-memory.
+(:wat::core::defn :wat::rete::production-pass
+  [network  <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap
+   rules    <- :wat::core::PersistentVector<wat::rete::Rule>
+   prod-mem <- :wat::core::PersistentMap
+   node-id  <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "production-pass: node not found")]
+    (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode")
+      (:wat::rete::fire-production node-id network beta-mem rules prod-mem)
+      prod-mem)))
+
+;; fire-rules — alpha pass → root-join seed → hash-join pass → production pass: full fire cycle.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session.
-;; No production firing / no cascade (stone 4).
+;; Production pass (4a) fires RHS insert-forms into production-memory; no cascade / no TM (4b/4c).
 ;; WHY "fire-rules" and not "run-alpha": the caller-facing name names the intent
 ;; (fire the rule network); stones build up the scope incrementally under this name.
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
@@ -779,6 +890,7 @@
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [network  (:wat::rete::Session/network session)
+                    rules    (:wat::rete::Session/rules   session)
                     facts    (:wat::rete::Session/facts   session)
                     node-ids (:wat::core::PersistentMap/keys network)
                     ;; alpha pass (2b) — populate alpha-memory
@@ -805,12 +917,21 @@
                                      -> :wat::core::PersistentMap
                                      (:wat::rete::hash-join-pass new-amem network acc node-id))
                                    new-bmem
-                                   node-ids)]
+                                   node-ids)
+                    ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
+                    ;; WHY facts unchanged: derived facts go to production-memory only (no re-entry / no cascade; 4b)
+                    new-pmem (:wat::core::foldl
+                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                 node-id <- :wat::core::i64]
+                                  -> :wat::core::PersistentMap
+                                  (:wat::rete::production-pass network joined-bmem rules acc node-id))
+                                (:wat::core::PersistentMap)
+                                node-ids)]
     (:wat::rete::Session
-      (:wat::rete::Session/network           session)
-      (:wat::rete::Session/rules             session)
+      (:wat::rete::Session/network session)
+      (:wat::rete::Session/rules   session)
       new-amem
       joined-bmem
-      (:wat::rete::Session/production-memory session)
+      new-pmem
       facts
-      (:wat::rete::Session/next-id           session))))
+      (:wat::rete::Session/next-id session))))
