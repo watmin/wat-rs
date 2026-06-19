@@ -1045,3 +1045,107 @@
       (:wat::rete::Session/production-memory session)
       new-facts
       (:wat::rete::Session/next-id           session))))
+
+;; ─── query — read derived facts of a type from a fired session ──────────────
+
+;; query-by-type-string — runtime helper: filter production-memory by a colon-free type FQDN.
+;; Flattens all production-node PVs into one PV, then filters by (:wat::core::type f) == ty-str.
+;; Private; called by the `query` macro which resolves the type FQDN string at expand time.
+;; Returns an empty PV if the type was never derived — never raises.
+(:wat::core::defn :wat::rete::query-by-type-string
+  [session <- :wat::rete::Session
+   ty-str  <- :wat::core::String]
+  -> :wat::core::PersistentVector
+  (:wat::core::let [all (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::PersistentVector
+                                            pv  <- :wat::core::PersistentVector]
+                             -> :wat::core::PersistentVector
+                             (:wat::core::foldl
+                               (:wat::core::fn [a <- :wat::core::PersistentVector
+                                                f <- :wat::Record]
+                                 -> :wat::core::PersistentVector
+                                 (:wat::core::PersistentVector/conj a f))
+                               acc
+                               pv))
+                           (:wat::core::PersistentVector)
+                           (:wat::core::PersistentMap/values
+                             (:wat::rete::Session/production-memory session)))]
+    (:wat::core::filter
+      (:wat::core::fn [f <- :wat::Record] -> :wat::core::bool
+        (:wat::core::= (:wat::core::type f) ty-str))
+      all)))
+
+;; query — runtime fn: read derived facts of a type from a fired session.
+;; ty is the type's Record constructor fn: in the types-as-forms surface a bare type name
+;; (:weather::ColdAndWindy) evaluates to that type's CONSTRUCTOR (a fn VALUE, not a keyword —
+;; defined names resolve to their bindings). return-type-of (arc 278 intrinsic) reads the
+;; constructor's declared return type (= the record type) as a colon-free FQDN string, directly
+;; comparable to (:wat::core::type fact). Returns an empty PV if the type was never derived — never raises.
+(:wat::core::defn :wat::rete::query
+  [session <- :wat::rete::Session
+   ty      <- :wat::core::fn]
+  -> :wat::core::PersistentVector
+  (:wat::rete::query-by-type-string session (:wat::runtime::return-type-of ty)))
+
+;; ─── make-rule + defrule ────────────────────────────────────────────────────
+
+;; make-rule — runtime helper: split quoted vector nodes into PVs and build a Rule.
+;; when-ast / then-ast are quoted VECTOR nodes; ast->children yields the per-element WatASTs.
+;; Converts the std Vector from ast->children to a PersistentVector<WatAST> via foldl/conj.
+(:wat::core::defn :wat::rete::make-rule
+  [name     <- :wat::core::String
+   when-ast <- :wat::WatAST
+   then-ast <- :wat::WatAST]
+  -> :wat::rete::Rule
+  (:wat::core::let [lhs-pv (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                                                c   <- :wat::WatAST]
+                                 -> :wat::core::PersistentVector<wat::WatAST>
+                                 (:wat::core::PersistentVector/conj acc c))
+                               (:wat::core::PersistentVector)
+                               (:wat::core::ast->children when-ast))
+                    rhs-pv (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                                                c   <- :wat::WatAST]
+                                 -> :wat::core::PersistentVector<wat::WatAST>
+                                 (:wat::core::PersistentVector/conj acc c))
+                               (:wat::core::PersistentVector)
+                               (:wat::core::ast->children then-ast))]
+    (:wat::rete::Rule name lhs-pv rhs-pv)))
+
+;; defrule — homoiconic rule macro: expand a readable rule form into a zero-arg defn
+;; returning a Rule. The zero-arg fn is the reflection marker for collect-rules (stone 5b).
+;;
+;; Surface:
+;;   (:wat::rete::defrule :weather::cold-and-windy
+;;     :when [<cond1> <cond2> …]
+;;     :then <insert1> <insert2> …)
+;;
+;; Expands to:
+;;   (:wat::core::defn :weather::cold-and-windy [] -> :wat::rete::Rule
+;;     (:wat::rete::make-rule "weather::cold-and-windy"
+;;       (:wat::core::quote [<cond1> <cond2> …])
+;;       (:wat::core::quote [<insert1> <insert2> …])))
+;;
+;; The macro is kept TRIVIAL: it quotes the whole :when vector and splices all :then
+;; forms into a vector literal. make-rule (above) does the per-element split at runtime.
+;; Assumes canonical :when then :then order (STOP if a general parse is needed).
+(:wat::core::defmacro :wat::rete::defrule
+  [name <- :wat::WatAST
+   & rest <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
+                    ;; strip it to get the bare FQDN matching (:wat::core::type fact).
+                    raw-name  (:wat::core::ast-name name)
+                    name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
+                                 (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                                 raw-name)
+                    ;; rest = (:when <when-vec> :then <insert-form> …); canonical order assumed.
+                    when-vec  (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get rest 1)
+                                 "defrule: missing :when conditions vector")
+                    then-forms (:wat::core::drop rest 3)]
+    `(:wat::core::defn ~name [] -> :wat::rete::Rule
+       (:wat::rete::make-rule ~name-str
+         (:wat::core::quote ~when-vec)
+         (:wat::core::quote [~@then-forms])))))
