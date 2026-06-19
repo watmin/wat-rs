@@ -47,16 +47,16 @@ use std::sync::Arc;
 
 /// The type name and ordered field values extracted from whichever record
 /// variant arrived as the fact. Decouples the matcher from the storage variant.
-struct Fact<'a> {
+pub(crate) struct Fact<'a> {
     /// Class FQDN without leading colon, e.g. `"user::Temp"`.
-    class_fqdn: &'a str,
+    pub(crate) class_fqdn: &'a str,
     /// Field values in declaration order.
-    fields: &'a [Value],
+    pub(crate) fields: &'a [Value],
 }
 
 /// Extract a [`Fact`] from either record variant. Returns `None` for
 /// non-record Values (Clara semantics: wrong fact type → no match).
-fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
+pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
     match v {
         Value::wat__Record { class_fqdn, struct_form } => Some(Fact {
             class_fqdn: class_fqdn.as_str(),
@@ -154,7 +154,7 @@ pub(crate) fn eval_alpha_match(
 
 /// The pure core: no `Environment`, no `eval_inner`. Returns the binding map or
 /// `None` (Clara no-error: any mismatch is `None`, never a raise).
-fn alpha_match_inner(
+pub(crate) fn alpha_match_inner(
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
@@ -322,7 +322,7 @@ fn eval_clause(
 ///   is a cross-condition join key, handled by the beta network in stone 3)
 /// - `Keyword(:field)` → the named field of the fact
 /// - Literal → its bare Value
-fn resolve_operand(
+pub(crate) fn resolve_operand(
     operand: &WatAST,
     fact_fields: &[Value],
     field_names: &[String],
@@ -374,6 +374,103 @@ fn resolve_binary_operands(
 
 // ─── Public entry point: RHS insert-form evaluator ───────────────────────────
 
+/// `build_insert_fact` — the pure inner of `eval_insert`.
+///
+/// Given the outer `insert-form` AST (a `(:wat::rete::insert (:RecordType arg…))` list)
+/// and the token `bindings`, validates the form, resolves each fact-arg via `resolve_operand`
+/// (empty fact-fields/names: RHS has no current fact), and builds the `Value::wat__Record`.
+///
+/// Called from `eval_insert` (after arg evaluation) and from the production pass in
+/// `kernel.rs` (which already has the form + bindings and calls this directly).
+///
+/// Raises `RuntimeError` on malformed form or unresolved operand. Never panics.
+pub(crate) fn build_insert_fact(
+    insert_form: &WatAST,
+    bindings: &rpds::HashTrieMapSync<Value, Value>,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::eval-insert";
+
+    // Validate the insert form: must be a List `(:wat::rete::insert <fact-form>)`.
+    let insert_items = match insert_form {
+        WatAST::List(items, _) if !items.is_empty() => items.clone(),
+        _ => {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "List (:wat::rete::insert <fact-form>)",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(insert_form.clone())))),
+            } }.into());
+        }
+    };
+    // Head must be the keyword :wat::rete::insert.
+    let insert_head = match &insert_items[0] {
+        WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => k.as_str(),
+        other => {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "keyword :wat::rete::insert as form head",
+                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
+            } }.into());
+        }
+    };
+    let _ = insert_head; // validated; not used further
+    // Exactly 2 children: the :wat::rete::insert keyword + <fact-form>.
+    if insert_items.len() != 2 {
+        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: insert_items.len(),
+        } }.into());
+    }
+
+    // Extract the fact-form: <fact-form> = (:RecordType arg…) — a List with a keyword head.
+    let fact_form_ast = &insert_items[1];
+    let fact_items = match fact_form_ast {
+        WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
+        _ => {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "fact-form List (:RecordType arg…)",
+                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{fact_form_ast:?}"))))),
+            } }.into());
+        }
+    };
+    // Head of fact-form must be a keyword naming the record type.
+    let type_keyword = match &fact_items[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        other => {
+            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "keyword (record type) as fact-form head",
+                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
+            } }.into());
+        }
+    };
+    // class_fqdn = keyword stripped of leading ':' (mirrors eval_record_of:12798).
+    let class_fqdn = Arc::new(type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string());
+
+    // Resolve each fact-form arg via resolve_operand with empty fact-fields/names.
+    // RHS has no current fact — :field references are malformed; only ?var + literal resolve.
+    // None → unresolved operand → RuntimeError (a malformed rule, not a silent drop).
+    let mut struct_form: Vec<Value> = Vec::with_capacity(fact_items.len().saturating_sub(1));
+    for arg in &fact_items[1..] {
+        match resolve_operand(arg, &[], &[], bindings) {
+            Some(v) => struct_form.push(v),
+            None => {
+                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "resolvable operand (?var or literal) in RHS fact-form",
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                } }.into());
+            }
+        }
+    }
+
+    Ok(Value::wat__Record {
+        class_fqdn,
+        struct_form: Arc::new(struct_form),
+    })
+}
+
 /// `(:wat::rete::eval-insert <insert-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
 /// -> :wat::Record`
 ///
@@ -381,9 +478,7 @@ fn resolve_binary_operands(
 /// eval-insert is `(insert-form, bindings) → fact`. Both sides reuse `resolve_operand`.
 ///
 /// Entry point dispatched by `dispatch_keyword_head_value` in `runtime.rs`.
-/// Evaluates both arguments, validates the insert form, resolves each fact-arg
-/// via `resolve_operand` (empty fact-fields/names: RHS has no current fact),
-/// and returns a `Value::wat__Record`.
+/// Evaluates both arguments, then delegates to `build_insert_fact` for the pure inner.
 ///
 /// Raises `RuntimeError` on arity mismatch, type mismatch, malformed form, or
 /// unresolved operand. Never panics, never silently drops.
@@ -428,85 +523,8 @@ pub(crate) fn eval_insert(
         }
     };
 
-    // Validate the insert form: must be a List `(:wat::rete::insert <fact-form>)`.
-    let insert_items = match &form_ast {
-        WatAST::List(items, _) if !items.is_empty() => items.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "List (:wat::rete::insert <fact-form>)",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(form_ast)))),
-            } }.into());
-        }
-    };
-    // Head must be the keyword :wat::rete::insert.
-    let insert_head = match &insert_items[0] {
-        WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => k.as_str(),
-        other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "keyword :wat::rete::insert as form head",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-            } }.into());
-        }
-    };
-    let _ = insert_head; // validated; not used further
-    // Exactly 2 children: the :wat::rete::insert keyword + <fact-form>.
-    if insert_items.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: insert_items.len(),
-        } }.into());
-    }
-
-    // Extract the fact-form: <fact-form> = (:RecordType arg…) — a List with a keyword head.
-    let fact_form_ast = &insert_items[1];
-    let fact_items = match fact_form_ast {
-        WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
-        _ => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "fact-form List (:RecordType arg…)",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{fact_form_ast:?}"))))),
-            } }.into());
-        }
-    };
-    // Head of fact-form must be a keyword naming the record type.
-    let type_keyword = match &fact_items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        other => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "keyword (record type) as fact-form head",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
-            } }.into());
-        }
-    };
-    // class_fqdn = keyword stripped of leading ':' (mirrors eval_record_of:12798).
-    let class_fqdn = Arc::new(type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string());
-
-    // Resolve each fact-form arg via resolve_operand with empty fact-fields/names.
-    // RHS has no current fact — :field references are malformed; only ?var + literal resolve.
-    // None → unresolved operand → RuntimeError (a malformed rule, not a silent drop).
-    let mut struct_form: Vec<Value> = Vec::with_capacity(fact_items.len().saturating_sub(1));
-    for arg in &fact_items[1..] {
-        match resolve_operand(arg, &[], &[], &bindings) {
-            Some(v) => struct_form.push(v),
-            None => {
-                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "resolvable operand (?var or literal) in RHS fact-form",
-                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
-                } }.into());
-            }
-        }
-    }
-
-    Ok(Value::wat__Record {
-        class_fqdn,
-        struct_form: Arc::new(struct_form),
-    })
+    // Delegate to the pure inner (the production pass calls this directly with the form + bindings).
+    build_insert_fact(&form_ast, &bindings)
 }
 
 // ─── Field read ───────────────────────────────────────────────────────────────
@@ -516,7 +534,7 @@ pub(crate) fn eval_insert(
 /// `struct_form` / `fields` Vec positionally.
 ///
 /// A name not found → `None` (Clara semantics: missing field = no match).
-fn read_fact_field(
+pub(crate) fn read_fact_field(
     fact_fields: &[Value],
     field_names: &[String],
     field_name: &str,

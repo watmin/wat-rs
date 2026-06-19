@@ -18930,6 +18930,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
+    // (:wat::rete::fire-once' <session: :wat::rete::Session>) → :wat::rete::Session
+    // Observationally equivalent to the wat oracle's fire-once: same derived facts.
+    env.register(
+        ":wat::rete::fire-once'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]
