@@ -12,12 +12,22 @@ within [range]" (log the range NOT swept — exigere: no silent "we cover everyt
 categorized: **perf** (iterate, like P6), **capability** (build the stone), or **architectural** (a known named
 boundary).
 
-## The two axes (do NOT conflate)
-**Axis 1 — capability (Clara wins by a feature we have not built).** Confirmed unbuilt (`wat/rete.wat:58`,
-"Negation / Test / Accumulate / ExpressionJoin nodes arrive at stones 6–8"): `:not`, accumulators
-(count/sum/min/max/avg/distinct/grouping + custom `accum` with `retract-fn`), expression-joins (`where`/Test),
-`:exists`. These are NOT benched (we'd error) — they're **feature-deferred (stones 6–8)**, not "slower." P7
-does not chase these; it records them as the capability gap and points at the stones.
+## The two axes (do NOT conflate) — and what "reduced spec set" actually means
+**CORRECTION (builder, 2026-06-19):** "reduced spec set" does NOT mean negation/accumulators are conceded.
+Ground the keep/cut (DESIGN.md:361-383):
+- **DELIBERATELY CUT — the real reduction, by design (we will NEVER have these):** side-effecting/mutating RHS
+  (`insert!`/`retract!`/arbitrary IO), `insert-unconditional!`, the `fire-rules!` bang, salience, arbitrary
+  fact-types (maps-as-facts), Clojure-style destructuring. This is the principled reduction — **pure
+  value-semantics, inserts-only, replay-TM, no firing-order-significance**. It's a *feature*, not a deficiency,
+  and it is what makes our set smaller than Clara's. The matrix does NOT bench these (we reject them on purpose).
+- **KEPT but UNBUILT — in our spec, planned, NOT conceded (`wat/rete.wat:58` stones 6–8):** `:and`/`:or`/`:not`
+  negation, `:test` (expression/cross-condition joins), **accumulators (count/sum/min/max/avg/distinct/
+  grouping + custom `accum` with `retract-fn`, via the `acc/` shorthand IN rule LHS)**, `:exists`. These are
+  DESIGN.md **KEEP** items — future stones, not "Clara wins." Once built they enter the perf grid like any
+  dimension. P7 records them as *planned-unbuilt*, points at the stones — it does not treat them as a Clara
+  superiority cell.
+
+**Axis — perf regime (same workload, who's faster).** The matrix dimensions:
 
 **Axis 2 — perf regime (same workload, who's faster).** The matrix dimensions:
 
