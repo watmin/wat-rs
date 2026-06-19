@@ -984,13 +984,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
 
     // `seen`: every fact ever in the working set. Seed with all input facts.
     // Mirrors `merge-facts`'s `contains?` guard — ensures each derived fact is processed once.
-    let mut seen: Vec<Value> = match &wm.facts {
+    // A HashSet (not Vec) so the membership check is O(1): with N derived facts, a Vec + `.contains`
+    // is O(N) per check = O(N²) total (the fan-out blow-up); the set makes dedup O(N). Order does not
+    // matter — RETE's final fact set is order-independent and the differential gates counts.
+    let mut delta_facts: Vec<Value> = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => vec![],
     };
-
-    // Round 0 delta = all input facts.
-    let mut delta_facts: Vec<Value> = seen.clone();
+    let mut seen: std::collections::HashSet<Value> = delta_facts.iter().cloned().collect();
 
     let node_ids = sorted_node_ids(&wm.network);
 
@@ -1295,7 +1296,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                     let derived = crate::rete::matcher::build_insert_fact(form, &tok_bindings)?;
                     // Dedup + termination guard: only propagate truly new facts.
                     if !seen.contains(&derived) {
-                        seen.push(derived.clone());
+                        seen.insert(derived.clone());
                         wm.production.entry(*node_id).or_default().push(derived.clone());
                         next_delta.push(derived);
                     }

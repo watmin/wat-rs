@@ -1,0 +1,37 @@
+;; matrix dim: SELECTIVITY / FAN-OUT. One join, low selectivity: F Lefts × F Rights per key share the key →
+;; F² joined Pairs per key, K keys → K·F² derived. High F = token explosion (the classic RETE join stress).
+;; stdin = [keys fanout] EDN; stdout = #perf/Result record (println ∀T→EDN). Times native vs wat-spec.
+(:wat::Record::def :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
+(:wat::Record::def :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::Record::def :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::Record::def :perf::FanResult
+  [keys <- :wat::core::i64 fanout <- :wat::core::i64 pairs <- :wat::core::i64 native-ns <- :wat::core::i64])
+
+;; seed Left(k,f)+Right(k,f) for f in 0..fanout, threaded onto session s, for one key k.
+(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
+      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left k f)) (:fan::Right k f)))
+    s
+    (:wat::core::range 0 fanout)))
+
+(:fan::Pair 0 0 0)  ;; touch ctor (unused warning guard; harmless)
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [params (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+                    keys   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get params 0) "[keys fanout]")
+                    fanout (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get params 1) "[keys fanout]")
+                    c1   (:wat::core::quote (:fan::Left  (?k <- :key) (?l <- :lid)))
+                    c2   (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
+                    rhs  (:wat::core::quote (:wat::rete::insert (:fan::Pair ?k ?l ?r)))
+                    rule (:wat::rete::Rule "fan" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs))
+                    s0   (:wat::rete::compile (:wat::core::PersistentVector rule))
+                    staged (:wat::core::foldl
+                              (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
+                                (:fan::seed-key acc k fanout))
+                              s0
+                              (:wat::core::range 0 keys))
+                    n0 (:wat::time::now)  fn (:wat::rete::fire-rules' staged)       n1 (:wat::time::now)
+                    pairs   (:wat::core::length (:wat::rete::query-by-type-string fn "fan::Pair"))
+                    nat-ns  (:wat::core::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
+    (:wat::kernel::println (:perf::FanResult keys fanout pairs nat-ns))))
