@@ -1,11 +1,20 @@
 # Arc 280 — ambient stdio bounded to `EdnRepresentable` (the type makes non-EDN uncompilable)
 
-> **STATUS: STUB — banked, not started (2026-06-17).** Surfaced by the builder mid-arc-277:
+> **STATUS: STUB — banked, not started (2026-06-17).**
+>
+> **⛔ PRIORITY — THE #1 ARC TO OPEN THE MOMENT ARC 278 (RETE) CLOSES.** Builder, 2026-06-19:
+> *"280 is our highest priority after we wrap up rete."* Sequence: finish 278 (P4b delta → P4c retract/TM
+> → P5 wire+bench = rete closes) → **then open this, first.** Re-confirmed live when the deep-cascade perf
+> harness emitted EDN via `println` (∀T) and the builder pushed to make the bound structural: *"how do we
+> choke the stdio services to make you pass an edn-representable?… basically all scalars are EDN (strings,
+> maps, vecs, ints, floats, etc.)."* — i.e. the bound admits every scalar/collection/record and excludes
+> only the non-EDN (`Fn`, opaque handles).
+>
+> Surfaced originally by the builder mid-arc-277:
 > *"get a stub arc wired up that makes the ambient stdio only accept EdnRepresentable inputs and return
 > them."* The intent is already DOCUMENTED ("EDN-only") but NOT type-enforced — close that gap by
 > putting an `EdnRepresentable` bound on the stdio ops' type params, so a non-representable value is
-> **uncompilable**, not a runtime surprise. Do NOT start before the arc-277 toolchain queue is at a
-> natural pause.
+> **uncompilable**, not a runtime surprise.
 
 ## The gap (grounded against HEAD)
 
