@@ -31,3 +31,6 @@ pub(crate) mod matcher;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd
 // zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
 pub(crate) mod collect;
+// Stone P1 (kernel.rs) — WorkingMemory: native mutable mirror of Session + to_transient/to_persistent
+// lossless boundary. Sealed Rust; no wat surface. Fire kernel (P2–P5) mutates this; user calls fire.
+pub(crate) mod kernel;
