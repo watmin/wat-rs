@@ -50,7 +50,7 @@ fn count(setup: &str, ty: &str) -> Value {
 /// Single retract: drop a support → its derived ColdAndWindy is gone. native == wat.
 #[test]
 fn native_retract_drops_consequence_like_wat() {
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules"] {
+    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
         let setup = format!("{RULES}\
            s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
            s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
@@ -65,7 +65,7 @@ fn native_retract_drops_consequence_like_wat() {
 /// Transitive: retract Temp → CW gone → WA (derived from CW) gone too. native == wat.
 #[test]
 fn native_retract_cascades_transitively_like_wat() {
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules"] {
+    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
         let setup = format!("{RULES}\
            s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
            s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
@@ -81,7 +81,7 @@ fn native_retract_cascades_transitively_like_wat() {
 #[test]
 fn native_retract_is_precise_like_wat() {
     let mut results = vec![];
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules"] {
+    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
         let setup = format!("{RULES}\
            s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
            s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\

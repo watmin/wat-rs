@@ -997,13 +997,16 @@
           new-facts
           (:wat::rete::Session/next-id fired))))))
 
-;; fire-rules — public caller-facing wrapper: run fire-fixpoint, then restore Session.facts = input only.
-;; WHY the split: fire-fixpoint accumulates derived facts into Session.facts across rounds so cascades
-;; match (input ∪ derived visible to each round); but the RETURNED Session.facts must hold ONLY the
+;; fire-rules-spec — the wat reference engine (the SPEC / differential oracle). Run fire-fixpoint, then
+;; restore Session.facts = input only. Re-run-from-scratch each call: simple and obviously correct, so it
+;; is the reference the fast native kernel (`fire-rules'`) is differential-tested against. This is NOT the
+;; production verb — the public `fire-rules` (below) dispatches to the native kernel; `fire-rules-spec` is
+;; kept as the executable specification (arc 278 P5 close: wat = spec, Rust = impl).
+;; WHY the facts=input split: fire-fixpoint accumulates derived facts into Session.facts across rounds so
+;; cascades match (input ∪ derived visible to each round); but the RETURNED Session.facts must hold ONLY the
 ;; asserted/input facts (the retractable base). This is the fact-model fix for 4c TM: with facts = input
 ;; only, retract-then-fire recomputes the closure from a smaller input → consequences vanish transitively.
-;; Matching still sees input ∪ derived inside fire-fixpoint, so 4b cascade stays green.
-(:wat::core::defn :wat::rete::fire-rules
+(:wat::core::defn :wat::rete::fire-rules-spec
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [input (:wat::rete::Session/facts session)
@@ -1016,6 +1019,16 @@
       (:wat::rete::Session/production-memory fired)
       input
       (:wat::rete::Session/next-id           fired))))
+
+;; fire-rules — THE PUBLIC PRODUCTION VERB. Delegates to the native Rust delta kernel (`fire-rules'`):
+;; semi-naive incremental activation, keyed joins, transient-during-fire/persistent-at-rest. This is what
+;; `defrule`/`query` users and the north star run. Observationally equivalent to `fire-rules-spec` (proven
+;; by the P4a/deep-cascade/P4c differentials); the native kernel is the fast impl, the spec keeps it honest.
+;; (arc 278 P5: wat orchestrates Rust — the user writes `fire-rules`, the engine is native underneath.)
+(:wat::core::defn :wat::rete::fire-rules
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::rete::fire-rules' session))
 
 ;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.
 ;; Symmetric with insert: the caller re-fires (fire-rules recomputes from the reduced input).

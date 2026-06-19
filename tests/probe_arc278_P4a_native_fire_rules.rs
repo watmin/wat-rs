@@ -53,7 +53,7 @@ fn single_count(wind_loc: &str, fire_verb: &str) -> Value {
 #[test]
 fn native_matches_wat_single_rule_match() {
     let native = single_count("Oslo", ":wat::rete::fire-rules'");
-    let wat = single_count("Oslo", ":wat::rete::fire-rules");
+    let wat = single_count("Oslo", ":wat::rete::fire-rules-spec");
     assert_eq!(native, wat, "native fire-rules' must agree with wat fire-rules (Oslo); {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "the match derives exactly one ColdAndWindy; got {native:?}");
 }
@@ -61,7 +61,7 @@ fn native_matches_wat_single_rule_match() {
 #[test]
 fn native_matches_wat_single_rule_no_match() {
     let native = single_count("Bergen", ":wat::rete::fire-rules'");
-    let wat = single_count("Bergen", ":wat::rete::fire-rules");
+    let wat = single_count("Bergen", ":wat::rete::fire-rules-spec");
     assert_eq!(native, wat, "native must agree with wat on no-join; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(0), "mismatched loc → no derived fact; got {native:?}");
 }
@@ -91,7 +91,7 @@ fn cascade_count(ty: &str, fire_verb: &str) -> Value {
 #[test]
 fn native_matches_wat_cascade_first_rule() {
     let native = cascade_count(":weather::ColdAndWindy", ":wat::rete::fire-rules'");
-    let wat = cascade_count(":weather::ColdAndWindy", ":wat::rete::fire-rules");
+    let wat = cascade_count(":weather::ColdAndWindy", ":wat::rete::fire-rules-spec");
     assert_eq!(native, wat, "native must agree on round-1 derivation; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "ruleA derives one ColdAndWindy; got {native:?}");
 }
@@ -101,7 +101,7 @@ fn native_matches_wat_cascade_second_rule() {
     // The forward-chain canary: WeatherAlert is derived ONLY if the round-1 ColdAndWindy re-entered the
     // network and triggered ruleB. If fire-rules' didn't cascade, native would be 0 while wat is 1.
     let native = cascade_count(":weather::WeatherAlert", ":wat::rete::fire-rules'");
-    let wat = cascade_count(":weather::WeatherAlert", ":wat::rete::fire-rules");
+    let wat = cascade_count(":weather::WeatherAlert", ":wat::rete::fire-rules-spec");
     assert_eq!(native, wat, "native must cascade derived→higher-rule like wat; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "ruleB fires on the DERIVED ColdAndWindy → one WeatherAlert; got {native:?}");
 }

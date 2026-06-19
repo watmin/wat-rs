@@ -58,7 +58,7 @@ fn run_for(n: usize) {
         idx += 1;
     }
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules-spec s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");

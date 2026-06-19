@@ -72,9 +72,9 @@
                     width   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)
                     staged  (:perf::seed-level-0 (:wat::rete::compile rules) width)
-                    ;; time the wat oracle fire-rules (re-run-from-scratch)
+                    ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
-                    fired-w (:wat::rete::fire-rules staged)
+                    fired-w (:wat::rete::fire-rules-spec staged)
                     w1      (:wat::time::now)
                     ;; time the native fire-rules' (P4a cascade fixpoint) on the SAME staged session
                     n0      (:wat::time::now)
