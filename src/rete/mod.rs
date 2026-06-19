@@ -28,3 +28,6 @@
 //!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::Record`.
 
 pub(crate) mod matcher;
+// Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd
+// zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
+pub(crate) mod collect;

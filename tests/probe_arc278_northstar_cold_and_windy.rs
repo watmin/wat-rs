@@ -57,7 +57,6 @@ const RUN: &str = "\
     (:wat::rete::query fired :weather::ColdAndWindy)))";
 
 #[test]
-#[ignore = "arc 278 NORTH STAR — green at the stone-5 milestone (defrule/collect-rules/insert/fire-rules/query)"]
 fn cold_and_windy_fires_and_derives_the_fact() {
     let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("world (records + defrule) should freeze once the rete surface exists");

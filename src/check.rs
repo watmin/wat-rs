@@ -18914,6 +18914,22 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone 5b — collect-rules: reflect a namespace's defrule'd rules.
+    // (:wat::rete::collect-rules <ns: keyword>) → PersistentVector<Rule>. The ns arg is an
+    // ordinary (undefined) keyword value → unifies normally; no infer_list bypass needed.
+    env.register(
+        ":wat::rete::collect-rules".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::keyword".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::PersistentVector".into(),
+                args: vec![TypeExpr::Path(":wat::rete::Rule".into())],
+            },
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]
