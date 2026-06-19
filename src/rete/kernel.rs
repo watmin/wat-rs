@@ -501,6 +501,8 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// Folds element.bindings keys: if a key is also in token.bindings with a DIFFERENT value → false.
 /// A variable only on one side never conflicts.
 /// Mirrors `wat/rete.wat:657-676`.
+/// Retained as the semantic reference; the keyed hash-join (P3) does not call it in the hot path.
+#[allow(dead_code)]
 fn token_element_compatible(
     tok_bindings: &rpds::HashTrieMapSync<Value, Value>,
     el_bindings: &rpds::HashTrieMapSync<Value, Value>,
@@ -570,12 +572,62 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
                 Some(els) => els.clone(),
                 None => continue, // no right-side elements → skip
             };
-            // Cross LEFT (tokens) × RIGHT (elements): compatible pairs → extend_token.
+            // Keyed hash-join: index RIGHT (elements) by join-key-value tuple,
+            // then probe with each LEFT (token). O(N) instead of O(N²).
+            //
+            // Step 1: compute join_keys = sorted shared variable names.
+            // All tokens at a beta node share a binding key-set; all elements at an
+            // alpha share a key-set → the intersection is fixed for this (node, child).
+            // Derive it from one sample each (guards above ensure ≥1 of each).
+            let join_keys: Vec<Value> = {
+                let (_, sample_tok_bindings) = token_matches_bindings(&tokens[0]);
+                let (_, sample_el_bindings) = element_fact_bindings(&elements[0]);
+                let mut keys: Vec<Value> = sample_tok_bindings
+                    .keys()
+                    .filter(|k| sample_el_bindings.get(*k).is_some())
+                    .cloned()
+                    .collect();
+                // Binding keys are Value::String (variable names like "?loc").
+                // Sort by their string content for a stable canonical order.
+                keys.sort_by(|a, b| {
+                    let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
+                    let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+                    a_str.cmp(b_str)
+                });
+                keys
+            };
+
+            // Step 2: index the RIGHT (elements) by join-key-value tuple.
+            // key_tuple(el) = [el.bindings.get(k) for k in join_keys].
+            // Empty join_keys → every element maps to vec![] → one bucket (cartesian).
+            // Every key in join_keys is in the intersection so it must be present in
+            // each element's bindings; .expect() catches any malformed element early.
+            let mut index: HashMap<Vec<Value>, Vec<usize>> = HashMap::new();
+            for (i, el) in elements.iter().enumerate() {
+                let (_, el_bindings) = element_fact_bindings(el);
+                let key: Vec<Value> = join_keys
+                    .iter()
+                    .map(|k| el_bindings.get(k)
+                        .cloned()
+                        .expect("hash_join_pass: join key missing from element bindings"))
+                    .collect();
+                index.entry(key).or_default().push(i);
+            }
+
+            // Step 3: probe with each LEFT (token).
+            // The matching bucket IS the compatible set — no per-pair re-check needed,
+            // because keying on ALL shared vars means bucket == compatible elements.
             for tok in &tokens {
                 let (tok_matches, tok_bindings) = token_matches_bindings(tok);
-                for el in &elements {
-                    let (el_fact, el_bindings) = element_fact_bindings(el);
-                    if token_element_compatible(&tok_bindings, &el_bindings) {
+                let probe_key: Vec<Value> = join_keys
+                    .iter()
+                    .map(|k| tok_bindings.get(k)
+                        .cloned()
+                        .expect("hash_join_pass: join key missing from token bindings"))
+                    .collect();
+                if let Some(bucket) = index.get(&probe_key) {
+                    for &el_idx in bucket {
+                        let (el_fact, el_bindings) = element_fact_bindings(&elements[el_idx]);
                         let new_tok = extend_token(
                             tok_matches.clone(),
                             tok_bindings.clone(),
