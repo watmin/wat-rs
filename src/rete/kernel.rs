@@ -933,6 +933,28 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
     }
 }
 
+// ── key_of helper ────────────────────────────────────────────────────────────
+
+/// Extract a join key tuple from a bindings map given the pre-computed `join_keys` list.
+///
+/// `join_keys` is the sorted list of shared variable names (same tuple `keyed_join` computes).
+/// Returns `Vec<Value>` of the bound values in key order. For empty `join_keys` (cartesian
+/// product case) returns `vec![]` — all tokens/elements share the single empty-key bucket.
+///
+/// Panics if a join key is absent from `bindings` (structurally impossible in a well-formed
+/// rete network; all shared variables must be bound before this node is reached).
+fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -> Vec<Value> {
+    join_keys
+        .iter()
+        .map(|k| {
+            bindings
+                .get(k)
+                .cloned()
+                .unwrap_or_else(|| panic!("key_of: join key {:?} missing from bindings", k))
+        })
+        .collect()
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -948,6 +970,10 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
 ///
 /// Observationally identical to `fire_fixpoint` (re-run): same token multiset produced,
 /// same `wm.production` multiset → identical `query` counts. O(depth²) → linear.
+///
+/// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
+/// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
+/// probe cost per match instead of O(W) rebuild per round per node.
 fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let mut wm = to_transient(session)?;
 
@@ -973,6 +999,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => vec![],
     };
+
+    // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
+    // Keyed by HashJoinNode id J.
+    // left_idx[J]:  key → Vec<Token>   (all left tokens seen so far for J)
+    // right_idx[J]: key → Vec<Element> (all right elements seen so far for J)
+    // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
+    let mut left_idx:  HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
+    let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
+    let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
     loop {
         // Per-round delta sets (new elements/tokens created THIS round).
@@ -1066,12 +1101,21 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         }
 
         // ── 3. Hash-join delta (ascending id — topological). ─────────────────────
-        // For each parent node P with a HashJoinNode child J (feeding alpha A):
-        //   Δbeta[J] = (Δbeta[P] ⋈ all wm.alpha[A]) ∪ (old_left[P] ⋈ Δalpha[A])
-        // where old_left[P] = wm.beta[P] before this round's root-join/hash-join appended.
+        // P6 persistent-index algorithm (DESIGN-STONE-P6, 6-step ordering):
         //
-        // We capture `old_len[P]` at the start of processing P (before we append to wm.beta[J]),
-        // so old_left[P] = wm.beta[P][0..old_len] and Δbeta[P] = wm.beta[P][old_len..] (== d_beta[P]).
+        // For each parent P (Root/HashJoin) with HashJoinNode child J (feeding alpha A):
+        //   dl = d_beta[P]  (Δleft:  tokens new this round at P)
+        //   dr = d_alpha[A] (Δright: elements new this round at A)
+        //
+        //   Step 2: add dr → right_idx[J]   (right_idx now holds ALL right incl. this round's)
+        //   Step 3: term1 = Δleft ⋈ all_right   (probe right_idx[J] with dl)
+        //   Step 4: term2 = old_left ⋈ Δright   (probe left_idx[J] — still OLD — with dr)
+        //   Step 5: add dl → left_idx[J]    (AFTER term2: left_idx now holds ALL left incl. this round's)
+        //   Step 6: new tokens → wm.beta[J] + d_beta[J]
+        //
+        // Invariant: (Δleft×Δright) appears in term1 only (right_idx already has Δright at step 3);
+        //            old_left×Δright appears in term2 only (left_idx lacks Δleft at step 4).
+        //            No double-count, no miss — same semi-naive result as the keyed_join rebuild.
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n.clone(),
@@ -1081,13 +1125,6 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
             if kind != "RootJoinNode" && kind != "HashJoinNode" {
                 continue;
             }
-
-            // Snapshot the split point for old_left vs Δbeta at P, using the current d_beta length.
-            // d_beta[P] are the tokens root-join or prior hash-join steps added THIS round.
-            // old_left[P] = wm.beta[P] \ d_beta[P] = wm.beta[P][0..old_len_p].
-            let wm_beta_p_len = wm.beta.get(node_id).map(|v| v.len()).unwrap_or(0);
-            let d_beta_p_len  = d_beta.get(node_id).map(|v| v.len()).unwrap_or(0);
-            let old_len_p = wm_beta_p_len.saturating_sub(d_beta_p_len);
 
             let child_ids = node_children(&node);
             for child_id in &child_ids {
@@ -1100,26 +1137,109 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 }
                 let alpha_id = alpha_feeding(*child_id, &wm.network);
 
-                // Term 1: Δbeta[P] ⋈ all wm.alpha[A]
-                let delta_left: Vec<Value> = d_beta.get(node_id)
-                    .cloned()
-                    .unwrap_or_default();
-                let all_right: Vec<Value> = wm.alpha.get(&alpha_id)
-                    .cloned()
-                    .unwrap_or_default();
-                let term1 = keyed_join(&delta_left, &all_right, alpha_id);
+                // Step 1: Ensure join_keys[J] is cached.
+                // Compute from a sample token at P and a sample element at A (if both exist).
+                if !join_keys_cache.contains_key(child_id) {
+                    let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
+                    let sample_el  = wm.alpha.get(&alpha_id).and_then(|v| v.first());
+                    match (sample_tok, sample_el) {
+                        (Some(tok), Some(el)) => {
+                            let (_, tok_b) = token_matches_bindings(tok);
+                            let (_, el_b)  = element_fact_bindings(el);
+                            let mut keys: Vec<Value> = tok_b
+                                .keys()
+                                .filter(|k| el_b.get(*k).is_some())
+                                .cloned()
+                                .collect();
+                            keys.sort_by(|a, b| {
+                                let a_str = match a { Value::String(s) => s.as_str(), _ => "" };
+                                let b_str = match b { Value::String(s) => s.as_str(), _ => "" };
+                                a_str.cmp(b_str)
+                            });
+                            join_keys_cache.insert(*child_id, keys);
+                        }
+                        _ => {
+                            // Neither side has data yet — skip this node for this round.
+                            // The join_keys will be computed next round when both sides are populated.
+                            continue;
+                        }
+                    }
+                }
 
-                // Term 2: old_left[P] ⋈ Δalpha[A]
-                let old_left: Vec<Value> = wm.beta.get(node_id)
-                    .map(|v| v[..old_len_p].to_vec())
-                    .unwrap_or_default();
-                let delta_right: Vec<Value> = d_alpha.get(&alpha_id)
-                    .cloned()
-                    .unwrap_or_default();
-                let term2 = keyed_join(&old_left, &delta_right, alpha_id);
+                let jk = join_keys_cache[child_id].clone();
 
-                // Union: both terms contribute new tokens → append to wm.beta[J] + d_beta[J].
-                for new_tok in term1.into_iter().chain(term2.into_iter()) {
+                // Δleft and Δright for this round.
+                let dl: Vec<Value> = d_beta.get(node_id).cloned().unwrap_or_default();
+                let dr: Vec<Value> = d_alpha.get(&alpha_id).cloned().unwrap_or_default();
+
+                // Skip if nothing new on either side.
+                if dl.is_empty() && dr.is_empty() {
+                    continue;
+                }
+
+                // Step 2: add Δright (dr) to right_idx[J] FIRST.
+                {
+                    let ridx = right_idx.entry(*child_id).or_default();
+                    for el in &dr {
+                        let (_, el_b) = element_fact_bindings(el);
+                        let k = key_of(&el_b, &jk);
+                        ridx.entry(k).or_default().push(el.clone());
+                    }
+                }
+
+                // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
+                // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
+                let mut new_tokens: Vec<Value> = Vec::new();
+                if !dl.is_empty() {
+                    if let Some(ridx) = right_idx.get(child_id) {
+                        for tok in &dl {
+                            let (tok_m, tok_b) = token_matches_bindings(tok);
+                            let k = key_of(&tok_b, &jk);
+                            if let Some(bucket) = ridx.get(&k) {
+                                for el in bucket {
+                                    let (el_fact, el_b) = element_fact_bindings(el);
+                                    let new_tok = extend_token(
+                                        tok_m.clone(), tok_b.clone(), el_fact, &el_b, alpha_id,
+                                    );
+                                    new_tokens.push(new_tok);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
+                // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
+                if !dr.is_empty() {
+                    if let Some(lidx) = left_idx.get(child_id) {
+                        for el in &dr {
+                            let (el_fact, el_b) = element_fact_bindings(el);
+                            let k = key_of(&el_b, &jk);
+                            if let Some(bucket) = lidx.get(&k) {
+                                for tok in bucket {
+                                    let (tok_m, tok_b) = token_matches_bindings(tok);
+                                    let new_tok = extend_token(
+                                        tok_m.clone(), tok_b.clone(), el_fact, &el_b, alpha_id,
+                                    );
+                                    new_tokens.push(new_tok);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
+                {
+                    let lidx = left_idx.entry(*child_id).or_default();
+                    for tok in &dl {
+                        let (_, tok_b) = token_matches_bindings(tok);
+                        let k = key_of(&tok_b, &jk);
+                        lidx.entry(k).or_default().push(tok.clone());
+                    }
+                }
+
+                // Step 6: push new tokens to wm.beta[J] and d_beta[J].
+                for new_tok in new_tokens {
                     wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                     d_beta.entry(*child_id).or_default().push(new_tok);
                 }
