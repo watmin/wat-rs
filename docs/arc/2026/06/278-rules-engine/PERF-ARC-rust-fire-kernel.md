@@ -1,8 +1,15 @@
-# PERF ARC — the Rust `fire` kernel (committed, non-optional)
+# The Rust `fire` kernel — arc 278's CLOSING CONDITION (not a new arc)
 
-**Status:** committed architecture decision (2026-06-19), not yet built. Scheduled AFTER the semantic slice
-(4c TM + 5 defrule/query → north-star green) — the wat engine must be a complete, correct oracle before the
-kernel can be differentially tested against it.
+**Status:** committed (2026-06-19). The oracle is complete (north star green, `44ebffca`); the kernel is not
+yet built. **This is the closing condition for arc 278 as a whole** (builder: *"i don't think this is a new arc
+— i think this is the closing condition for the rete arc"*). Arc 278 does NOT close at the green north star —
+it closes when the Rust fire kernel is **differential-tested bit-for-bit against the wat oracle** and **benched
+at or past Clara**. The wat engine had to be a complete, correct oracle first; it is.
+
+**The bar:** exceed Clara/Java. The GC point is real, not a boast — Clara runs on the JVM (stop-the-world GC
+pauses = tail-latency spikes at the worst moment for line-rate packet processing); Rust has no GC (ownership +
+`Arc`, no pauses, cache-dense native structures), so we are *theoretically ahead before optimizing anything*,
+and we get *predictable* (jitter-free) latency by construction. The arc closes when the bench proves it.
 
 ## The bar (builder, 2026-06-19)
 
