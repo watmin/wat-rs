@@ -4404,6 +4404,25 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            ":wat::runtime::return-type-of" => {
+                // Arc 278 — return-type-of: (fn-value :wat::core::fn) -> :wat::core::String.
+                // Same arc-009 "names are values" bypass as signature-of-fn: the fn-value
+                // arg carries a concrete :wat::core::Fn(args)->ret surface (e.g. a record
+                // constructor) that won't unify against the :wat::core::fn umbrella. Infer
+                // for side-effects, do not constrain; the runtime reads Function.ret_type.
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Path(":wat::core::String".into());
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             ":wat::runtime::rename-callable-name" => {
                 // Arc 143 slice 3 — rename-callable-name.
                 // (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
@@ -17673,6 +17692,19 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![fn_ty()],
             ret: TypeExpr::Path(":wat::holon::HolonAST".into()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 278 — `return-type-of` operates on a fn VALUE and returns its declared
+    // return-type FQDN as a colon-free String (the static sibling of `type`).
+    // Same `:wat::core::fn` polymorphic-surface bypass as signature-of-fn (infer_list).
+    env.register(
+        ":wat::runtime::return-type-of".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![fn_ty()],
+            ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );

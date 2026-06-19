@@ -3941,6 +3941,7 @@ fn dispatch_keyword_head_value(
         ":wat::runtime::lookup-define" => eval_lookup_define(args, list_span, env, sym),
         ":wat::runtime::signature-of-defn" => eval_signature_of_defn(args, list_span, env, sym),
         ":wat::runtime::signature-of-fn" => eval_signature_of_fn(args, list_span, env, sym),
+        ":wat::runtime::return-type-of" => eval_return_type_of(args, list_span, env, sym),
         ":wat::runtime::body-of" => eval_body_of(args, list_span, env, sym),
         // Stone 241.7 — metadata-map reflection verb.
         ":wat::runtime::metadata-of" => eval_metadata_of(args, list_span, env, sym),
@@ -9876,6 +9877,62 @@ fn eval_signature_of_fn(
     };
     let ast = function_to_signature_ast(&f);
     Ok(Value::holon__HolonAST(Arc::new(watast_to_holon(&ast))))
+}
+
+/// `(:wat::runtime::return-type-of <fn-value>) -> :wat::core::String`
+///
+/// Arc 278. The STATIC sibling of `(:wat::core::type <value>)`: where `type`
+/// returns a runtime value's declared type FQDN (colon-free), `return-type-of`
+/// returns a fn's DECLARED RETURN type FQDN — colon-free, in the SAME convention,
+/// so the two are directly comparable.
+///
+/// Motivating use (rete `query`): in the types-as-forms surface a bare type name
+/// (`:weather::ColdAndWindy`) evaluates to that type's CONSTRUCTOR fn, whose
+/// `ret_type` IS the record type. So `return-type-of` on the constructor yields
+/// the record's FQDN in ONE step — replacing a 5-step `signature-of-fn` HolonAST
+/// Bundle reflection. General-purpose: works on any fn value.
+///
+/// Reads `Function.ret_type` directly. Path / Parametric return types yield their
+/// (head) FQDN; Tuple / Fn / Var return types have no single nominal name →
+/// `RuntimeError::TypeMismatch` (return-type-of names a nominal type).
+fn eval_return_type_of(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::return-type-of";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let f = match v {
+        Value::wat__core__fn(f) => f,
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::fn value (e.g. a record constructor or an inline fn)",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into());
+        }
+    };
+    // ret_type FQDN, colon-free to match `(:wat::core::type x)`'s convention.
+    let fqdn = match &f.ret_type {
+        crate::types::TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
+        crate::types::TypeExpr::Parametric { head, .. } => head.strip_prefix(':').unwrap_or(head).to_string(),
+        _ => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "a fn with a nominal (Path/Parametric) return type",
+                got: Box::new(ValueSnapshot::of(&Value::wat__core__fn(f.clone())))
+            } }.into());
+        }
+    };
+    Ok(Value::String(Arc::new(fqdn)))
 }
 
 /// `(:wat::runtime::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
