@@ -391,8 +391,10 @@ pub(crate) fn build_insert_fact(
     const OP: &str = ":wat::rete::eval-insert";
 
     // Validate the insert form: must be a List `(:wat::rete::insert <fact-form>)`.
+    // Borrow (do NOT clone) — this runs once per derived fact; cloning the form AST per fact was
+    // pure waste (the fan-out residual). We only read items[0]/[1]/len here.
     let insert_items = match insert_form {
-        WatAST::List(items, _) if !items.is_empty() => items.clone(),
+        WatAST::List(items, _) if !items.is_empty() => items,
         _ => {
             return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
