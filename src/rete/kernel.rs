@@ -1037,6 +1037,20 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         }
     }
 
+    // P8b — reverse-lookups precomputed ONCE (network immutable across rounds): eliminates the
+    // O(nodes²)/round scans that alpha_feeding/node_parent did per (join/production node, round).
+    // feeding_alpha_of[J] = the AlphaNode feeding J; parent_of[C] = C's non-alpha upstream parent.
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parent_of: HashMap<i64, i64> = HashMap::new();
+    for node_id in &node_ids {
+        let node = match get_node(&wm.network, *node_id) { Some(n) => n.clone(), None => continue };
+        let is_alpha = kind_of(&node) == "AlphaNode";
+        for child in node_children(&node) {
+            if is_alpha { feeding_alpha_of.insert(child, *node_id); }
+            else { parent_of.insert(child, *node_id); }
+        }
+    }
+
     loop {
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
@@ -1155,7 +1169,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 if kind_of(&child_node) != "HashJoinNode" {
                     continue;
                 }
-                let alpha_id = alpha_feeding(*child_id, &wm.network);
+                let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
 
                 // Step 1: Ensure join_keys[J] is cached.
                 // Compute from a sample token at P and a sample element at A (if both exist).
@@ -1302,7 +1316,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 _ => continue,
             };
 
-            let parent_id = node_parent(*node_id, &wm.network);
+            let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
             // Fire only on NEW tokens in d_beta[parent].
             let new_tokens = match d_beta.get(&parent_id) {
                 Some(ts) if !ts.is_empty() => ts.clone(),
