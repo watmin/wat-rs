@@ -4004,6 +4004,12 @@ fn dispatch_keyword_head_value(
         // Observationally equivalent to the wat oracle's fire-once: same derived facts.
         // Mutates a native WorkingMemory (sealed; never escapes to wat); returns a frozen Session.
         ":wat::rete::fire-once'" => crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym),
+        // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
+        // (:wat::rete::fire-rules' <session>) → :wat::rete::Session
+        // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
+        // multi-round cascade (derived facts re-enter the network until no new fact is produced).
+        // Returns a Session with facts = input only (derived live in production-memory).
+        ":wat::rete::fire-rules'" => crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym),
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),

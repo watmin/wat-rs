@@ -18943,6 +18943,20 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
+    // (:wat::rete::fire-rules' <session: :wat::rete::Session>) → :wat::rete::Session
+    // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
+    // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
+    env.register(
+        ":wat::rete::fire-rules'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

@@ -736,6 +736,33 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
     Ok(())
 }
 
+// ── Pure single-pass fn (extracted for fixpoint reuse) ───────────────────────
+
+/// Pure single-pass fire: `to_transient` → clear memories → four passes → `to_persistent`.
+///
+/// Extracted from `eval_fire_once_native` so the fixpoint loop (`fire-rules'`) can call
+/// the pass logic directly on an in-hand `Session` value, without re-evaluating an AST
+/// argument on every round. Behavior of `fire-once'` is unchanged — `eval_fire_once_native`
+/// now simply evaluates its AST argument then delegates here.
+///
+/// Mirrors `fire-once` (`wat/rete.wat`): re-run-from-scratch each call (memories cleared).
+pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+    let mut wm = to_transient(session)?;
+
+    // Clear memories — re-run-from-scratch.
+    wm.alpha.clear();
+    wm.beta.clear();
+    wm.production.clear();
+
+    // Four passes (alpha → root-join → hash-join → production).
+    alpha_pass(&mut wm, sym);
+    root_join_pass(&mut wm);
+    hash_join_pass(&mut wm);
+    production_pass(&mut wm)?;
+
+    Ok(to_persistent(wm))
+}
+
 // ── Public entry: native fire-once' ──────────────────────────────────────────
 
 /// `(:wat::rete::fire-once' <session>) -> :wat::rete::Session`
@@ -762,25 +789,166 @@ pub(crate) fn eval_fire_once_native(
         } }.into());
     }
 
+    // Evaluate the session argument, then delegate to the pure single-pass fn.
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    fire_once_session(&session, sym)
+}
+
+// ── Cascade fixpoint helpers (P4a) ───────────────────────────────────────────
+
+/// Flatten `production-memory`'s per-node `PV<Record>` values into one `Vec<Value>`.
+///
+/// `production-memory` is a `PersistentMap<node-id, PV<Record>>`. The outer pass visits
+/// each node's PV; the inner pass collects each Record. Mirrors `collect-derived`
+/// (`wat/rete.wat:940-955`).
+fn collect_derived(production_pm: &Value) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    match production_pm {
+        Value::wat__core__PersistentMap(m) => {
+            for (_k, v) in m.iter() {
+                if let Value::wat__core__PersistentVector(pv) = v {
+                    for fact in pv.iter() {
+                        out.push(fact.clone());
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Fold `derived` facts into the existing `facts` PersistentVector, conj-ing ONLY facts
+/// not already present (structural `==` dedup).
+///
+/// The dedup is the termination guard: if every derived fact is already in `facts`, the
+/// result length equals `facts` length → the fixpoint loop exits. Re-adding a present
+/// fact would grow `facts` every round and spin forever. Mirrors `merge-facts`
+/// (`wat/rete.wat:960-972`).
+fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
+    // Start with a clone of the existing PV.
+    let mut pv: rpds::VectorSync<Value> = match facts_pv {
+        Value::wat__core__PersistentVector(v) => v.clone(),
+        _ => rpds::VectorSync::new_sync(),
+    };
+    for fact in derived {
+        // Conj only if not already present (structural equality).
+        let already = pv.iter().any(|existing| existing == fact);
+        if !already {
+            pv = pv.push_back(fact.clone());
+        }
+    }
+    Value::wat__core__PersistentVector(pv)
+}
+
+/// Rebuild a frozen Session from a fired session, replacing only the `facts` field.
+///
+/// Used in the fixpoint to carry `new_facts` into the next round and in `eval_fire_rules_native`
+/// to restore `facts = input` before returning. Mirrors the Session reconstruction in
+/// `fire-fixpoint` (`wat/rete.wat:991-998`) and `fire-rules` (`wat/rete.wat:1011-1018`).
+fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
+    match fired {
+        Value::wat__Record { class_fqdn, struct_form } => {
+            let sf = struct_form.as_slice();
+            Value::wat__Record {
+                class_fqdn: class_fqdn.clone(),
+                struct_form: Arc::new(vec![
+                    sf[0].clone(), // network
+                    sf[1].clone(), // rules
+                    sf[2].clone(), // alpha-memory
+                    sf[3].clone(), // beta-memory
+                    sf[4].clone(), // production-memory
+                    new_facts,     // facts (replaced)
+                    sf[6].clone(), // next-id
+                ]),
+            }
+        }
+        // Should never happen — callers pass only a Session; pass through unchanged.
+        other => other.clone(),
+    }
+}
+
+/// Read the `facts` field (position 5) from a frozen Session Value.
+fn session_facts(session: &Value) -> Value {
+    match session {
+        Value::wat__Record { struct_form, .. } => struct_form.as_slice()[5].clone(),
+        _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+    }
+}
+
+/// Fixpoint loop: mirrors `fire-fixpoint` (`wat/rete.wat:981-998`).
+///
+/// Each round: `fire_once_session` → `collect_derived` → `merge_facts`. Terminates when
+/// a round adds no new fact (monotone-finite / datalog termination — no arbitrary round cap).
+/// Returns the FINAL fired session (with `facts = full closure`) so the caller can restore
+/// `facts = input` (the `fire-rules` contract).
+fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+    loop {
+        let old_len = match session_facts(&session) {
+            Value::wat__core__PersistentVector(ref pv) => pv.len(),
+            _ => 0,
+        };
+        let fired = fire_once_session(&session, sym)?;
+        let production_pm = match &fired {
+            Value::wat__Record { struct_form, .. } => struct_form.as_slice()[4].clone(),
+            _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+        };
+        let derived = collect_derived(&production_pm);
+        let cur_facts = session_facts(&session);
+        let new_facts = merge_facts(&cur_facts, &derived);
+        let new_len = match &new_facts {
+            Value::wat__core__PersistentVector(ref pv) => pv.len(),
+            _ => 0,
+        };
+        if new_len == old_len {
+            // No new facts: fixpoint reached. Return the fired session.
+            return Ok(fired);
+        }
+        // Loop with session' = fired but facts = new_facts (so next round sees input ∪ derived).
+        // Mirrors fire-fixpoint's recursion (wat/rete.wat:990-998).
+        session = session_with_facts(&fired, new_facts);
+    }
+}
+
+// ── Public entry: native fire-rules' ─────────────────────────────────────────
+
+/// `(:wat::rete::fire-rules' <session>) -> :wat::rete::Session`
+///
+/// Native cascade fixpoint: loops `fire_once_session`, merges derived facts, terminates
+/// on no-new-fact, then restores `facts = input` before returning.
+///
+/// Observationally equivalent to the wat oracle's `fire-rules`:
+/// `query(fire-rules' s, T) ≡ query(fire-rules s, T)` for every type T.
+///
+/// This is P4a (re-run-from-scratch each round). P4b will convert to delta-incremental.
+/// Mirrors `fire-fixpoint` + `fire-rules` (`wat/rete.wat:981-1018`).
+pub(crate) fn eval_fire_rules_native(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::fire-rules'";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        } }.into());
+    }
+
     // Evaluate the session argument.
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
 
-    // Convert to transient (mutable working memory).
-    let mut wm = to_transient(&session)?;
+    // Save the input facts (the retractable base — restored on return, mirrors fire-rules).
+    let input_facts = session_facts(&session);
 
-    // Clear memories — re-run-from-scratch (mirrors fire-once starting with empty PMs).
-    wm.alpha.clear();
-    wm.beta.clear();
-    wm.production.clear();
+    // Run the fixpoint.
+    let fired = fire_fixpoint(session, sym)?;
 
-    // Four passes (alpha → root-join → hash-join → production).
-    alpha_pass(&mut wm, sym);
-    root_join_pass(&mut wm);
-    hash_join_pass(&mut wm);
-    production_pass(&mut wm)?;
-
-    // Freeze and return.
-    Ok(to_persistent(wm))
+    // Restore facts = input only (derived live in production-memory). Mirrors fire-rules
+    // (wat/rete.wat:1006-1018): the returned Session.facts holds ONLY the asserted/input facts.
+    Ok(session_with_facts(&fired, input_facts))
 }
 
 // ─── Round-trip unit tests ────────────────────────────────────────────────────
