@@ -21,7 +21,7 @@
 //! ```
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
@@ -297,12 +297,26 @@ fn get_node<'a>(network: &'a Value, node_id: i64) -> Option<&'a Value> {
 
 // ── Element / Token builders ──────────────────────────────────────────────────
 
+// Group A: constant-string Arcs — hoisted to module-level statics (pointer bump vs alloc per call).
+static ELEMENT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
+static TOKEN_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
+
+#[inline]
+fn element_class_fqdn() -> Arc<String> {
+    ELEMENT_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Element".to_string())).clone()
+}
+
+#[inline]
+fn token_class_fqdn() -> Arc<String> {
+    TOKEN_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Token".to_string())).clone()
+}
+
 /// Build an `Element` record value.
 /// Element: `{ fact: :wat::Record, bindings: :wat::core::PersistentMap }` (positional).
 /// class_fqdn = "wat::rete::Element", struct_form = [fact, bindings_pm].
 fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Value {
     Value::wat__Record {
-        class_fqdn: Arc::new("wat::rete::Element".into()),
+        class_fqdn: element_class_fqdn(),
         struct_form: Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]),
     }
 }
@@ -315,7 +329,7 @@ fn make_token(
     bindings: rpds::HashTrieMapSync<Value, Value>,
 ) -> Value {
     Value::wat__Record {
-        class_fqdn: Arc::new("wat::rete::Token".into()),
+        class_fqdn: token_class_fqdn(),
         struct_form: Arc::new(vec![
             Value::wat__core__PersistentVector(matches),
             Value::wat__core__PersistentMap(bindings),
@@ -324,12 +338,13 @@ fn make_token(
 }
 
 /// Destructure an Element: (fact, bindings). Panics on malformed.
-fn element_fact_bindings(el: &Value) -> (&Value, rpds::HashTrieMapSync<Value, Value>) {
+/// Group C: returns borrows — no clone of the bindings map per match.
+fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
     match el {
         Value::wat__Record { struct_form, .. } => {
             let sf = struct_form.as_slice();
             let bindings = match &sf[1] {
-                Value::wat__core__PersistentMap(m) => m.clone(),
+                Value::wat__core__PersistentMap(m) => m,
                 _ => panic!("element_fact_bindings: bindings must be PersistentMap"),
             };
             (&sf[0], bindings)
@@ -339,16 +354,18 @@ fn element_fact_bindings(el: &Value) -> (&Value, rpds::HashTrieMapSync<Value, Va
 }
 
 /// Destructure a Token: (matches pv, bindings map). Panics on malformed.
-fn token_matches_bindings(tok: &Value) -> (rpds::VectorSync<Value>, rpds::HashTrieMapSync<Value, Value>) {
+/// Group C: returns borrows — callers that only read use the ref directly;
+/// callers that need ownership (extend_token, make_token) clone at the call site.
+fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &rpds::HashTrieMapSync<Value, Value>) {
     match tok {
         Value::wat__Record { struct_form, .. } => {
             let sf = struct_form.as_slice();
             let matches = match &sf[0] {
-                Value::wat__core__PersistentVector(v) => v.clone(),
+                Value::wat__core__PersistentVector(v) => v,
                 _ => panic!("token_matches_bindings: matches must be PersistentVector"),
             };
             let bindings = match &sf[1] {
-                Value::wat__core__PersistentMap(m) => m.clone(),
+                Value::wat__core__PersistentMap(m) => m,
                 _ => panic!("token_matches_bindings: bindings must be PersistentMap"),
             };
             (matches, bindings)
@@ -374,15 +391,17 @@ fn alpha_pass(
     };
 
     for node_id in &node_ids {
+        // Group C: use &Value ref from wm.network; borrow ends after cond_ast extraction (NLL).
+        // wm.alpha mutations below are on a different field — no conflict.
         let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n.clone(),
+            Some(n) => n,
             None => continue,
         };
-        if kind_of(&node) != "AlphaNode" {
+        if kind_of(node) != "AlphaNode" {
             continue;
         }
         // AlphaNode: id(0), tests(1), children(2) — tests[0] is the single condition WatAST.
-        let (_, sf) = node_record(&node).unwrap();
+        let (_, sf) = node_record(node).unwrap();
         let tests_pv = &sf[1]; // PV<WatAST>
         let cond_ast: WatAST = match tests_pv {
             Value::wat__core__PersistentVector(pv) => match pv.first() {
@@ -436,35 +455,41 @@ fn root_join_pass(wm: &mut WorkingMemory) {
     let node_ids = sorted_node_ids(&wm.network);
 
     for node_id in &node_ids {
+        // Group C: use &Value ref from wm.network; borrow ends after node_children (NLL).
         let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n.clone(),
+            Some(n) => n,
             None => continue,
         };
-        if kind_of(&node) != "AlphaNode" {
+        if kind_of(node) != "AlphaNode" {
             continue;
         }
+        let child_ids = node_children(node);
+        // node's last use is node_children above; wm.network borrow ends here (NLL).
+
+        // Group C: borrow elements from wm.alpha — wm.beta mutations below are on a different field.
         let elements = match wm.alpha.get(node_id) {
-            Some(els) => els.clone(),
+            Some(els) => els.as_slice(),
             None => continue, // no elements → skip
         };
 
-        let child_ids = node_children(&node);
         for child_id in &child_ids {
+            // Group C: child_node ref — only used for kind_of; borrow ends before wm.beta mutation.
             let child_node = match get_node(&wm.network, *child_id) {
-                Some(n) => n.clone(),
+                Some(n) => n,
                 None => continue,
             };
-            if kind_of(&child_node) != "RootJoinNode" {
+            if kind_of(child_node) != "RootJoinNode" {
                 continue;
             }
             // Seed one Token per Element into beta[child_id].
-            for el in &elements {
+            for el in elements {
                 let (fact, bindings) = element_fact_bindings(el);
                 // Support entry: Tuple(fact, alpha-id). Mirrors seed-token (wat:544-551).
                 let support = Value::Tuple(Arc::new(vec![fact.clone(), Value::i64(*node_id)]));
                 let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 matches_pv = matches_pv.push_back(support);
-                let tok = make_token(matches_pv, bindings);
+                // make_token needs owned bindings — clone the borrowed ref (Group C: deferred clone).
+                let tok = make_token(matches_pv, bindings.clone());
                 wm.beta.entry(*child_id).or_default().push(tok);
             }
         }
@@ -533,7 +558,11 @@ fn extend_token(
     let new_matches = tok_matches.push_back(support);
     let mut new_bindings = tok_bindings;
     for (k, v) in el_bindings.iter() {
-        new_bindings = new_bindings.insert(k.clone(), v.clone());
+        // Group D: skip keys already present with the same value (shared join-keys are idempotent).
+        // New vars from the element's OWN bindings are always inserted.
+        if new_bindings.get(k) != Some(v) {
+            new_bindings = new_bindings.insert(k.clone(), v.clone());
+        }
     }
     make_token(new_matches, new_bindings)
 }
@@ -617,35 +646,42 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
     let node_ids = sorted_node_ids(&wm.network);
 
     for node_id in &node_ids {
+        // Group C: use &Value ref from wm.network; borrow ends after node_children (NLL).
         let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n.clone(),
+            Some(n) => n,
             None => continue,
         };
-        let kind = kind_of(&node);
+        let kind = kind_of(node);
         if kind != "RootJoinNode" && kind != "HashJoinNode" {
             continue;
         }
+        let child_ids = node_children(node);
+        // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
+
+        // tokens must remain a clone: wm.beta[node_id] is read here, wm.beta[child_id] is
+        // mutated below — Rust cannot prove key disjointness, so the borrow would conflict.
         let tokens = match wm.beta.get(node_id) {
             Some(ts) => ts.clone(),
             None => continue, // no tokens → skip
         };
-        let child_ids = node_children(&node);
         for child_id in &child_ids {
+            // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
             let child_node = match get_node(&wm.network, *child_id) {
-                Some(n) => n.clone(),
+                Some(n) => n,
                 None => continue,
             };
-            if kind_of(&child_node) != "HashJoinNode" {
+            if kind_of(child_node) != "HashJoinNode" {
                 continue;
             }
             // Find the feeding alpha for this HashJoinNode.
             let alpha_id = alpha_feeding(*child_id, &wm.network);
+            // Group C: borrow elements from wm.alpha — wm.beta mutations are on a different field.
             let elements = match wm.alpha.get(&alpha_id) {
-                Some(els) => els.clone(),
+                Some(els) => els.as_slice(),
                 None => continue, // no right-side elements → skip
             };
             // Delegate to the shared keyed_join helper (P3 keyed index+probe).
-            let new_tokens = keyed_join(&tokens, &elements, alpha_id);
+            let new_tokens = keyed_join(&tokens, elements, alpha_id);
             for new_tok in new_tokens {
                 wm.beta.entry(*child_id).or_default().push(new_tok);
             }
@@ -689,15 +725,17 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
     };
 
     for node_id in &node_ids {
+        // Group C: use &Value ref from wm.network; borrow ends after rule_name extraction (NLL).
+        // wm.production mutations below are on a different field — no conflict.
         let node = match get_node(&wm.network, *node_id) {
-            Some(n) => n.clone(),
+            Some(n) => n,
             None => continue,
         };
-        if kind_of(&node) != "ProductionNode" {
+        if kind_of(node) != "ProductionNode" {
             continue;
         }
         // ProductionNode: id(0), rule-name(1)
-        let (_, sf) = node_record(&node).unwrap();
+        let (_, sf) = node_record(node).unwrap();
         let rule_name = match &sf[1] {
             Value::String(s) => s.as_str(),
             _ => continue,
@@ -714,11 +752,11 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
             }
         });
         let rule = match rule {
-            Some(r) => r.clone(),
+            Some(r) => r,
             None => continue, // missing rule = compile bug; skip gracefully
         };
         // Rule: name(0), lhs(1), rhs(2). RHS is PV<WatAST>.
-        let (_, rule_sf) = node_record(&rule).unwrap();
+        let (_, rule_sf) = node_record(rule).unwrap();
         let rhs_forms: Vec<WatAST> = match &rule_sf[2] {
             Value::wat__core__PersistentVector(pv) => pv.iter().filter_map(|v| {
                 match v { Value::wat__WatAST(ast) => Some((**ast).clone()), _ => None }
@@ -734,11 +772,11 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
         };
 
         // For each token × each RHS insert-form → build derived fact → push to production[prod_id].
+        // Group C: tok_bindings is now a borrow — pass directly without the intermediate clone.
         for tok in &tokens {
             let (_, tok_bindings) = token_matches_bindings(tok);
-            let tok_bindings_pm = tok_bindings.clone();
             for form in &rhs_forms {
-                let derived = crate::rete::matcher::build_insert_fact(form, &tok_bindings_pm)?;
+                let derived = crate::rete::matcher::build_insert_fact(form, tok_bindings)?;
                 wm.production.entry(*node_id).or_default().push(derived);
             }
         }
@@ -1017,9 +1055,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
     let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
     let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
     for node_id in &node_ids {
-        let node = match get_node(&wm.network, *node_id) { Some(n) => n.clone(), None => continue };
-        if kind_of(&node) != "AlphaNode" { continue; }
-        let (_, sf) = node_record(&node).unwrap();
+        // Group C: use &Value ref — no clone needed; only reads wm.network here.
+        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+        if kind_of(node) != "AlphaNode" { continue; }
+        let (_, sf) = node_record(node).unwrap();
         let cond_ast: WatAST = match &sf[1] {
             Value::wat__core__PersistentVector(pv) => match pv.first() {
                 Some(Value::wat__WatAST(ast)) => (**ast).clone(),
@@ -1043,11 +1082,32 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parent_of: HashMap<i64, i64> = HashMap::new();
     for node_id in &node_ids {
-        let node = match get_node(&wm.network, *node_id) { Some(n) => n.clone(), None => continue };
-        let is_alpha = kind_of(&node) == "AlphaNode";
-        for child in node_children(&node) {
+        // Group C: use &Value ref — no clone; only reads wm.network here.
+        let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+        let is_alpha = kind_of(node) == "AlphaNode";
+        for child in node_children(node) {
             if is_alpha { feeding_alpha_of.insert(child, *node_id); }
             else { parent_of.insert(child, *node_id); }
+        }
+    }
+
+    // Group B: field_names_cache — hoisted BEFORE the round loop (fact-class → field names).
+    // Computed once per fact-class encountered across ALL rounds; never recomputed in later rounds.
+    let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
+
+    // Group B: rule_rhs_cache — hoisted BEFORE the round loop (rule-name → rhs WatAST forms).
+    // Eliminates the O(rules) linear scan per production node per round.
+    let mut rule_rhs_cache: HashMap<String, Vec<WatAST>> = HashMap::new();
+    for r in &rules {
+        if let Some((_, rsf)) = node_record(r) {
+            let rname = match &rsf[0] { Value::String(s) => s.as_str(), _ => continue };
+            let rhs: Vec<WatAST> = match &rsf[2] {
+                Value::wat__core__PersistentVector(pv) => pv.iter().filter_map(|v| {
+                    match v { Value::wat__WatAST(ast) => Some((**ast).clone()), _ => None }
+                }).collect(),
+                _ => vec![],
+            };
+            rule_rhs_cache.insert(rname.to_string(), rhs);
         }
     }
 
@@ -1072,18 +1132,21 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 None => continue, // no alpha matches this fact's type
             };
 
-            // field_names computed ONCE per fact (was once per (alpha, fact) pair).
-            let type_key = format!(":{}", fact_class);
-            let field_names: Vec<String> = sym
-                .types()
-                .and_then(|t| match t.get(&type_key) {
-                    Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
-                    Some(crate::types::TypeDef::Struct(sd)) => {
-                        Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
-                    }
-                    _ => None,
-                })
-                .unwrap_or_default();
+            // Group B: field_names from cache (fact-class → field names, computed once per class).
+            let field_names: &Vec<String> = field_names_cache
+                .entry(fact_class.to_string())
+                .or_insert_with(|| {
+                    let type_key = format!(":{}", fact_class);
+                    sym.types()
+                        .and_then(|t| match t.get(&type_key) {
+                            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+                            Some(crate::types::TypeDef::Struct(sd)) => {
+                                Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_default()
+                });
 
             for aid in alphas {
                 let cond_ast = match alpha_cond.get(aid) {
@@ -1091,7 +1154,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                     None => continue,
                 };
                 if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
-                    cond_ast, fact_class, fact_fields, &field_names,
+                    cond_ast, fact_class, fact_fields, field_names,
                 ) {
                     let el = make_element(fact.clone(), bindings);
                     wm.alpha.entry(*aid).or_default().push(el.clone());
@@ -1102,32 +1165,39 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
 
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
         for node_id in &node_ids {
+            // Group C: use &Value ref — no clone; kind_of/node_children take &Value.
             let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n.clone(),
+                Some(n) => n,
                 None => continue,
             };
-            if kind_of(&node) != "AlphaNode" {
+            if kind_of(node) != "AlphaNode" {
                 continue;
             }
+            // Group C: borrow new_elements slice — d_alpha is not mutated in step 2.
             let new_elements = match d_alpha.get(node_id) {
-                Some(els) if !els.is_empty() => els.clone(),
+                Some(els) if !els.is_empty() => els.as_slice(),
                 _ => continue,
             };
-            let child_ids = node_children(&node);
+            // Group B: hoist Value::i64(*node_id) out of the per-element inner loop.
+            let alpha_id_val = Value::i64(*node_id);
+            let child_ids = node_children(node);
+            // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
             for child_id in &child_ids {
+                // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
                 let child_node = match get_node(&wm.network, *child_id) {
-                    Some(n) => n.clone(),
+                    Some(n) => n,
                     None => continue,
                 };
-                if kind_of(&child_node) != "RootJoinNode" {
+                if kind_of(child_node) != "RootJoinNode" {
                     continue;
                 }
-                for el in &new_elements {
+                for el in new_elements {
                     let (fact, bindings) = element_fact_bindings(el);
-                    let support = Value::Tuple(Arc::new(vec![fact.clone(), Value::i64(*node_id)]));
+                    let support = Value::Tuple(Arc::new(vec![fact.clone(), alpha_id_val.clone()]));
                     let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                     matches_pv = matches_pv.push_back(support);
-                    let tok = make_token(matches_pv, bindings);
+                    // make_token needs owned bindings — clone the borrowed ref (Group C: deferred clone).
+                    let tok = make_token(matches_pv, bindings.clone());
                     wm.beta.entry(*child_id).or_default().push(tok.clone());
                     d_beta.entry(*child_id).or_default().push(tok);
                 }
@@ -1151,22 +1221,25 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         //            old_left×Δright appears in term2 only (left_idx lacks Δleft at step 4).
         //            No double-count, no miss — same semi-naive result as the keyed_join rebuild.
         for node_id in &node_ids {
+            // Group C: use &Value ref (wm.network borrow) — no clone; kind_of/node_children take &Value.
             let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n.clone(),
+                Some(n) => n,
                 None => continue,
             };
-            let kind = kind_of(&node);
+            let kind = kind_of(node);
             if kind != "RootJoinNode" && kind != "HashJoinNode" {
                 continue;
             }
 
-            let child_ids = node_children(&node);
+            let child_ids = node_children(node);
+            // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
             for child_id in &child_ids {
+                // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
                 let child_node = match get_node(&wm.network, *child_id) {
-                    Some(n) => n.clone(),
+                    Some(n) => n,
                     None => continue,
                 };
-                if kind_of(&child_node) != "HashJoinNode" {
+                if kind_of(child_node) != "HashJoinNode" {
                     continue;
                 }
                 let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
@@ -1200,11 +1273,13 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                     }
                 }
 
-                let jk = join_keys_cache[child_id].clone();
+                // Group C: borrow join_keys (pointer bump) instead of cloning (Vec alloc + copy).
+                let jk: &[Value] = &join_keys_cache[child_id];
 
-                // Δleft and Δright for this round.
-                let dl: Vec<Value> = d_beta.get(node_id).cloned().unwrap_or_default();
-                let dr: Vec<Value> = d_alpha.get(&alpha_id).cloned().unwrap_or_default();
+                // Group C: borrow dl/dr slices — no Vec alloc per node per round.
+                // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
+                let dl: &[Value] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
+                let dr: &[Value] = d_alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or_default();
 
                 // Skip if nothing new on either side.
                 if dl.is_empty() && dr.is_empty() {
@@ -1212,11 +1287,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 }
 
                 // Step 2: add Δright (dr) to right_idx[J] FIRST.
+                // dr is &[Value] — iterate directly (no extra borrow needed).
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
-                    for el in &dr {
+                    for el in dr {
                         let (_, el_b) = element_fact_bindings(el);
-                        let k = key_of(&el_b, &jk);
+                        let k = key_of(el_b, jk);
                         ridx.entry(k).or_default().push(el.clone());
                     }
                 }
@@ -1226,14 +1302,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 let mut new_tokens: Vec<Value> = Vec::new();
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
-                        for tok in &dl {
+                        for tok in dl {
                             let (tok_m, tok_b) = token_matches_bindings(tok);
-                            let k = key_of(&tok_b, &jk);
+                            let k = key_of(tok_b, jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     let (el_fact, el_b) = element_fact_bindings(el);
                                     let new_tok = extend_token(
-                                        tok_m.clone(), tok_b.clone(), el_fact, &el_b, alpha_id,
+                                        tok_m.clone(), tok_b.clone(), el_fact, el_b, alpha_id,
                                     );
                                     new_tokens.push(new_tok);
                                 }
@@ -1246,14 +1322,14 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
-                        for el in &dr {
+                        for el in dr {
                             let (el_fact, el_b) = element_fact_bindings(el);
-                            let k = key_of(&el_b, &jk);
+                            let k = key_of(el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
                                     let (tok_m, tok_b) = token_matches_bindings(tok);
                                     let new_tok = extend_token(
-                                        tok_m.clone(), tok_b.clone(), el_fact, &el_b, alpha_id,
+                                        tok_m.clone(), tok_b.clone(), el_fact, el_b, alpha_id,
                                     );
                                     new_tokens.push(new_tok);
                                 }
@@ -1263,11 +1339,12 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 }
 
                 // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
+                // dl is &[Value] — iterate directly.
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
-                    for tok in &dl {
+                    for tok in dl {
                         let (_, tok_b) = token_matches_bindings(tok);
-                        let k = key_of(&tok_b, &jk);
+                        let k = key_of(tok_b, jk);
                         lidx.entry(k).or_default().push(tok.clone());
                     }
                 }
@@ -1284,49 +1361,35 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         let mut next_delta: Vec<Value> = Vec::new();
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n.clone(),
+                Some(n) => n,
                 None => continue,
             };
-            if kind_of(&node) != "ProductionNode" {
+            if kind_of(node) != "ProductionNode" {
                 continue;
             }
-            let (_, sf) = node_record(&node).unwrap();
+            let (_, sf) = node_record(node).unwrap();
             let rule_name = match &sf[1] {
                 Value::String(s) => s.as_str(),
                 _ => continue,
             };
-            let rule = rules.iter().find(|r| {
-                match node_record(r) {
-                    Some((_, rsf)) => match &rsf[0] {
-                        Value::String(n) => n.as_str() == rule_name,
-                        _ => false,
-                    },
-                    None => false,
-                }
-            });
-            let rule = match rule {
-                Some(r) => r.clone(),
+            // Group B: rule_rhs_cache O(1) lookup replaces O(rules) linear scan per round.
+            let rhs_forms = match rule_rhs_cache.get(rule_name) {
+                Some(forms) => forms,
                 None => continue,
-            };
-            let (_, rule_sf) = node_record(&rule).unwrap();
-            let rhs_forms: Vec<WatAST> = match &rule_sf[2] {
-                Value::wat__core__PersistentVector(pv) => pv.iter().filter_map(|v| {
-                    match v { Value::wat__WatAST(ast) => Some((**ast).clone()), _ => None }
-                }).collect(),
-                _ => continue,
             };
 
             let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
             // Fire only on NEW tokens in d_beta[parent].
             let new_tokens = match d_beta.get(&parent_id) {
-                Some(ts) if !ts.is_empty() => ts.clone(),
+                Some(ts) if !ts.is_empty() => ts,
                 _ => continue,
             };
 
-            for tok in &new_tokens {
+            for tok in new_tokens {
                 let (_, tok_bindings) = token_matches_bindings(tok);
-                for form in &rhs_forms {
-                    let derived = crate::rete::matcher::build_insert_fact(form, &tok_bindings)?;
+                for form in rhs_forms {
+                    // Group C: tok_bindings is now a borrow — pass directly (no intermediate clone).
+                    let derived = crate::rete::matcher::build_insert_fact(form, tok_bindings)?;
                     // Dedup + termination guard: only propagate truly new facts.
                     if !seen.contains(&derived) {
                         seen.insert(derived.clone());
