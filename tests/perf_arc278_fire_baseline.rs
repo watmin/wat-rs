@@ -85,3 +85,51 @@ fn fire_throughput_baseline() {
         run_for(n);
     }
 }
+
+// ─── Native fire-once' join-scaling (the P3 curve-bend measure) ──────────────────
+// N Temps + N Winds at N DISTINCT locations → N same-loc joins out of N×N candidate pairs.
+// The native hash-join cost is the variable: P2 (cross) is O(N²); P3 (keyed) is O(N).
+// Times `(:wat::rete::fire-once' s)` — the per-fact us should stay ~flat under keying, climb under cross.
+fn run_native(n: usize) {
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let mut binds = String::from(
+        "   c1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
+            c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
+            rhs1 (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
+            rule (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+            s0   (:wat::rete::compile (:wat::core::PersistentVector rule))\n",
+    );
+    let mut prev = 0usize;
+    let mut idx = 1usize;
+    for j in 0..n {
+        binds.push_str(&format!("   s{idx} (:wat::rete::insert s{prev} (:weather::Temperature 15 \"loc{j}\"))\n"));
+        prev = idx; idx += 1;
+    }
+    for j in 0..n {
+        binds.push_str(&format!("   s{idx} (:wat::rete::insert s{prev} (:weather::WindSpeed 45 \"loc{j}\"))\n"));
+        prev = idx; idx += 1;
+    }
+    let expr = format!(
+        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-once' s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+           (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
+    );
+    let ast = wat::parse_one!(&expr).expect("parse");
+    let t = Instant::now();
+    let _ = eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("eval raised: {e:?}")).value_owned();
+    let dt = t.elapsed();
+    let facts = 2 * n;
+    eprintln!(
+        "N={n:>4} facts={facts:>5}  fire-once'={:>9.2}ms  {:>8.1}us/fact  ({:>9.0} facts/s)",
+        dt.as_secs_f64() * 1e3, dt.as_secs_f64() * 1e6 / facts as f64, facts as f64 / dt.as_secs_f64()
+    );
+}
+
+#[test]
+#[ignore = "perf — native fire-once' join scaling (P2 cross = O(N²); P3 keyed = O(N)). Run on demand."]
+fn native_fire_once_join_scaling() {
+    eprintln!("--- native fire-once' join scaling (N distinct locs: N joins of N×N candidate pairs) ---");
+    for &n in &[100usize, 200, 400, 800, 1600] {
+        run_native(n);
+    }
+}
