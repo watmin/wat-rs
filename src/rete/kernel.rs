@@ -1010,59 +1010,78 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
     let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
+    // P8 — alpha type-index, built ONCE: fact-type (colon-free) → [AlphaNode id], + cached cond AST.
+    // The alpha-delta then probes only the alphas whose condition type matches the fact's type, instead
+    // of re-matching every delta fact against EVERY AlphaNode (the deep-cascade O(facts × all-alphas)).
+    // Behavior-identical: alpha_match_inner only ever matched when cond_head == fact_class anyway.
+    let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
+    for node_id in &node_ids {
+        let node = match get_node(&wm.network, *node_id) { Some(n) => n.clone(), None => continue };
+        if kind_of(&node) != "AlphaNode" { continue; }
+        let (_, sf) = node_record(&node).unwrap();
+        let cond_ast: WatAST = match &sf[1] {
+            Value::wat__core__PersistentVector(pv) => match pv.first() {
+                Some(Value::wat__WatAST(ast)) => (**ast).clone(),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
+        if let WatAST::List(items, _) = &cond_ast {
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                let ty = k.trim_start_matches(':').to_string();
+                alpha_by_type.entry(ty).or_default().push(*node_id);
+                alpha_cond.insert(*node_id, cond_ast);
+            }
+        }
+    }
+
     loop {
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
         let mut d_beta:  HashMap<i64, Vec<Value>> = HashMap::new();
 
-        // ── 1. Alpha delta: match only delta_facts against each AlphaNode. ──────
-        for node_id in &node_ids {
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n.clone(),
-                None => continue,
-            };
-            if kind_of(&node) != "AlphaNode" {
-                continue;
-            }
-            let (_, sf) = node_record(&node).unwrap();
-            let tests_pv = &sf[1];
-            let cond_ast: WatAST = match tests_pv {
-                Value::wat__core__PersistentVector(pv) => match pv.first() {
-                    Some(Value::wat__WatAST(ast)) => (**ast).clone(),
-                    _ => continue,
-                },
+        // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
+        for fact in &delta_facts {
+            let (fact_class, fact_fields) = match fact {
+                Value::wat__Record { class_fqdn, struct_form } => {
+                    (class_fqdn.as_str(), struct_form.as_slice())
+                }
+                Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
+                    (class_fqdn.as_str(), struct_form.as_slice())
+                }
                 _ => continue,
             };
+            let alphas = match alpha_by_type.get(fact_class) {
+                Some(v) => v,
+                None => continue, // no alpha matches this fact's type
+            };
 
-            for fact in &delta_facts {
-                let (fact_class, fact_fields) = match fact {
-                    Value::wat__Record { class_fqdn, struct_form } => {
-                        (class_fqdn.as_str(), struct_form.as_slice())
+            // field_names computed ONCE per fact (was once per (alpha, fact) pair).
+            let type_key = format!(":{}", fact_class);
+            let field_names: Vec<String> = sym
+                .types()
+                .and_then(|t| match t.get(&type_key) {
+                    Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+                    Some(crate::types::TypeDef::Struct(sd)) => {
+                        Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
                     }
-                    Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
-                        (class_fqdn.as_str(), struct_form.as_slice())
-                    }
-                    _ => continue,
+                    _ => None,
+                })
+                .unwrap_or_default();
+
+            for aid in alphas {
+                let cond_ast = match alpha_cond.get(aid) {
+                    Some(c) => c,
+                    None => continue,
                 };
-
-                let type_key = format!(":{}", fact_class);
-                let field_names: Vec<String> = sym
-                    .types()
-                    .and_then(|t| match t.get(&type_key) {
-                        Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
-                        Some(crate::types::TypeDef::Struct(sd)) => {
-                            Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
-                        }
-                        _ => None,
-                    })
-                    .unwrap_or_default();
-
                 if let Some(bindings) = crate::rete::matcher::alpha_match_inner(
-                    &cond_ast, fact_class, fact_fields, &field_names,
+                    cond_ast, fact_class, fact_fields, &field_names,
                 ) {
                     let el = make_element(fact.clone(), bindings);
-                    wm.alpha.entry(*node_id).or_default().push(el.clone());
-                    d_alpha.entry(*node_id).or_default().push(el);
+                    wm.alpha.entry(*aid).or_default().push(el.clone());
+                    d_alpha.entry(*aid).or_default().push(el);
                 }
             }
         }
