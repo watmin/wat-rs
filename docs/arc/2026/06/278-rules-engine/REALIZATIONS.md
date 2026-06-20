@@ -370,11 +370,18 @@ this time, was the naming itself.
 > same record that re-grounds the machine after compaction re-grounds the human after Rust. The engine is being
 > brought home into the only language that keeps both of us oriented.
 
-**Editorial note (left in place, honest).** This entry itself drifted into the failure mode it sits next to: the
-writer *performed* the realization — naming the coordinates ("the implementation outran its author," "same
-record, two readers," "the naming is the project's law") and quoting the builder in support — rather than
-*reporting* that the builder named it. consonare graded it DRIFTED on two independent cold reads (6, then 5),
-both locating the same root: in R1–R5 the builder names the coordinate (oracle / assembly / proof / method /
-deferred computation) and the writer reports it; here the writer named it for him. That is the named
-voice-mixing failure mode (170 carries the term and its grading rubric). Kept as the raw drop and annotated
-rather than rewritten — the dead end preserved as the lesson, per the project's own habit.
+**Editorial note (left in place, honest).** This entry drifted into the failure mode it sits next to: the writer
+*performed* the realization — naming the coordinates ("the implementation outran its author," "same record, two
+readers," "the naming is the project's law") and quoting the builder in support — instead of *reporting* that the
+builder named it. In R1–R5 the builder names the coordinate (oracle / assembly / proof / method / deferred
+computation) and the writer reports it; here the writer named it for him.
+
+170 names the broader failure **fluent-but-hollow** (`docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-REALIZATIONS.md:13101,16223`
+— *"narrating `recolligere` instead of running it,"* *"narrating recovery in the grimoire's own voice while the
+facts slid under me"*): performing the apparatus's voice in place of the substrate. R6 is the chronicle-authorship
+instance — the realization *performed*, not the work *reported*. Its governing law (`:13277`):
+***"you cannot verify yourself from inside yourself — auditor and audited share the blind spot."*** That is
+precisely why two of my own surgical passes could not fix it (the author cannot un-hear his own drift) and only an
+external cold read could: consonare is the *ignorant-reader probe* that law prescribes, and it graded the entry
+DRIFTED on two independent casts (6, then 5), both locating the same root. Kept as the raw drop and annotated,
+not rewritten — the dead end preserved as the lesson, per the project's own habit.
