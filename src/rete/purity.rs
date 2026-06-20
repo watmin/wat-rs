@@ -154,6 +154,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::Uuid/from-string"
             | ":wat::core::Uuid/to-string"
             | ":wat::core::Uuid/nil"
+            // Higher-order fold combinators — CONDITIONALLY pure∧det: the combinator itself is
+            // referentially transparent + effect-free; its purity/determinism falls out of the
+            // arg-recursion over its fn-argument (classify_expr recurses every arg, incl. the
+            // fn-literal, whose body is classified by the `:wat::core::fn` arm). An impure fn-arg
+            // therefore still fails — conditional purity, not blanket-allow.
+            | ":wat::core::foldl"
+            | ":wat::core::foldr"
+            | ":wat::core::map"
+            | ":wat::core::filter"
+            | ":wat::core::reduce"
     );
     if pure_det {
         Some(OpMeta { pure: true, deterministic: true })
@@ -239,6 +249,19 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
             }
         }
 
+        // `:wat::core::fn` lambda literal — NOT a call. Layout: (fn [params…] -> :ret body…).
+        // The param vector + return-type are not evaluated; only the BODY forms (after the `-> :ret`
+        // ascription) carry effects, so classify exactly those. Mirror the `match`-arm's logic:
+        // locate the top-level `->` symbol, then body = items[i+2..] (skip `->` and :ret).
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn") => {
+            match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
+                Some(i) => items
+                    .get(i + 2..)
+                    .is_some_and(|body| body.iter().all(|e| classify_expr(e, axis, sym, seen))),
+                None => false, // malformed fn (no `->`) → deny
+            }
+        }
+
         // General list: head decision + recurse into args (same axis).
         WatAST::List(items, _) => {
             let head = match items.first() {
@@ -274,9 +297,15 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
     };
     match &func.body {
         FunctionBody::Wat(body_ast) => classify_expr(body_ast.as_ref(), axis, sym, seen),
-        // A native builtin registered in sym.functions is opaque here; it is honored only via
-        // intrinsic_meta (the head_ok path), not as a user fn → deny.
-        FunctionBody::Native => false,
+        // A native builtin registered in sym.functions is opaque — its body cannot be inspected —
+        // so consult the hand-managed intrinsic_meta on the requested axis. This is load-bearing
+        // for the HOF combinators (foldl/map/…): they are native AND registered in sym.functions,
+        // so head_ok reaches classify_fn FIRST (before intrinsic_meta on the Pure/Det fallthrough).
+        // Unproven natives (not in intrinsic_meta) still default-deny.
+        FunctionBody::Native => intrinsic_meta(fqdn).is_some_and(|m| match axis {
+            Axis::Pure => m.pure,
+            Axis::Deterministic => m.deterministic,
+        }),
     }
 }
 
