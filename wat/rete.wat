@@ -111,6 +111,22 @@
    negated-alpha-id <- :wat::core::i64
    children        <- :wat::core::PersistentVector<wat::core::i64>])
 
+;; AccumulateNode — a left-input aggregate join node (stone 8-a): for each parent token,
+;; gathers the token-compatible elements from from-alpha-id's alpha-memory, folds them with
+;; apply-accumulator (over the 8-i acc::* folds), and extends the token with result-var → aggregate.
+;; Pure replay: re-accumulates on every fire (no retract-fn needed).
+;; id:            unique node id.
+;; result-var:    the ?var name (String, WITHOUT the "?" prefix? — stored as full "?n") bound to the aggregate.
+;; acc-form:      the accumulator form (WatAST), e.g. (:wat::rete::acc::count) or (:wat::rete::acc::sum ?v).
+;; from-alpha-id: the AlphaNode id whose alpha-memory holds the :from facts.
+;; children:      PersistentVector of child node ids (ProductionNode, TestNode, NegationNode, etc.).
+(:wat::Record::def :wat::rete::AccumulateNode
+  [id            <- :wat::core::i64
+   result-var    <- :wat::core::String
+   acc-form      <- :wat::WatAST
+   from-alpha-id <- :wat::core::i64
+   children      <- :wat::core::PersistentVector<wat::core::i64>])
+
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
@@ -124,13 +140,14 @@
 ;; Variants wrap their respective record. Used by compile + fire (stones 1b+);
 ;; the Session.network stores raw node records in v1 (the probe hand-builds with raw records).
 (:wat::core::defenum :wat::rete::Node
-  :AlphaNode      [node <- :wat::rete::AlphaNode]
-  :RootJoinNode   [node <- :wat::rete::RootJoinNode]
-  :HashJoinNode   [node <- :wat::rete::HashJoinNode]
-  :ProductionNode [node <- :wat::rete::ProductionNode]
-  :TestNode       [node <- :wat::rete::TestNode]
-  :NegationNode   [node <- :wat::rete::NegationNode]
-  :QueryNode      [node <- :wat::rete::QueryNode])
+  :AlphaNode       [node <- :wat::rete::AlphaNode]
+  :RootJoinNode    [node <- :wat::rete::RootJoinNode]
+  :HashJoinNode    [node <- :wat::rete::HashJoinNode]
+  :ProductionNode  [node <- :wat::rete::ProductionNode]
+  :TestNode        [node <- :wat::rete::TestNode]
+  :NegationNode    [node <- :wat::rete::NegationNode]
+  :AccumulateNode  [node <- :wat::rete::AccumulateNode]
+  :QueryNode       [node <- :wat::rete::QueryNode])
 
 ;; ─── the session (the whole engine state) ───────────────────────────────────
 ;; intueri: NOT WorkingMemory — Session names the whole caller-facing engine state.
@@ -283,6 +300,8 @@
        (:wat::rete::TestNode/children node))
       ((:wat::core::= kind "NegationNode")
        (:wat::rete::NegationNode/children node))
+      ((:wat::core::= kind "AccumulateNode")
+       (:wat::rete::AccumulateNode/children node))
       (:else (:wat::core::PersistentVector)))))
 
 ;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
@@ -500,9 +519,12 @@
                     head      (:wat::core::Option/expect -> :wat::WatAST
                                   (:wat::core::first cond-ch)
                                   "compile-condition: condition form has no head")
-                    head-nm   (:wat::core::ast-name head)
-                    is-where  (:wat::core::= head-nm ":wat::rete::where")
-                    is-not    (:wat::core::= head-nm ":wat::rete::not")]
+                    head-nm        (:wat::core::ast-name head)
+                    is-where       (:wat::core::= head-nm ":wat::rete::where")
+                    is-not         (:wat::core::= head-nm ":wat::rete::not")
+                    ;; Accumulate: detected by a ?-symbol head (head-nm starts with "?")
+                    ;; Collision-free: :where and :not start with ":", ?-vars start with "?" — disjoint.
+                    is-accumulate  (:wat::core::= (:wat::core::string::subs head-nm 0 1) "?")]
     (:wat::core::if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
       (:wat::core::let [expr      (:wat::core::Option/expect -> :wat::WatAST
@@ -574,8 +596,66 @@
                                          (:wat::rete::CompileState/next-id state2)
                                          (:wat::rete::CompileState/dedup   state2))]
           (:wat::rete::CondFoldAcc state3 next-id1))
-        ;; ── alpha+join branch (existing) ────────────────────────────────────────
-        (:wat::core::let [;; 1. find-or-mint the AlphaNode
+        (:wat::core::if is-accumulate
+          ;; ── accumulate branch (8-a) ─────────────────────────────────────────────
+          ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
+          ;; children: [?result-var, <-, acc-form, :from, inner]
+          ;; Guard: a leading accumulate (parent < 0) is unsupported — accumulate needs a left token.
+          (:wat::core::let [_guard       (:wat::core::Option/expect -> :wat::core::nil
+                                             (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                               (:wat::core::Some nil)
+                                               (:wat::core::None))
+                                             "compile-condition: accumulate must follow a binding condition")
+                            ;; result-var: strip the "?" prefix from head-nm to get the var name string
+                            result-var   head-nm
+                            ;; acc-form: items[2]
+                            acc-form     (:wat::core::Option/expect -> :wat::WatAST
+                                             (:wat::core::get cond-ch 2)
+                                             "compile-condition: accumulate missing acc-form")
+                            ;; assert items[3] is :from (structural validation)
+                            from-kw      (:wat::core::Option/expect -> :wat::WatAST
+                                             (:wat::core::get cond-ch 3)
+                                             "compile-condition: accumulate missing :from")
+                            _from-check  (:wat::core::Option/expect -> :wat::core::nil
+                                             (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
+                                               (:wat::core::Some nil)
+                                               (:wat::core::None))
+                                             "compile-condition: accumulate expected :from at position 3")
+                            ;; inner: items[4] — the :from fact-pattern condition
+                            inner        (:wat::core::Option/expect -> :wat::WatAST
+                                             (:wat::core::get cond-ch 4)
+                                             "compile-condition: accumulate missing :from inner condition")
+                            ;; find-or-mint an AlphaNode for the :from inner condition
+                            alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
+                            from-alpha-id (:wat::rete::MintResult/id    alpha-res)
+                            state1       (:wat::rete::MintResult/state alpha-res)
+                            ;; mint the AccumulateNode
+                            network1     (:wat::rete::CompileState/network state1)
+                            next-id1     (:wat::rete::CompileState/next-id state1)
+                            dedup1       (:wat::rete::CompileState/dedup   state1)
+                            acc-node     (:wat::rete::AccumulateNode
+                                             next-id1
+                                             result-var
+                                             acc-form
+                                             from-alpha-id
+                                             (:wat::core::PersistentVector))
+                            net2         (:wat::core::PersistentMap/assoc network1 next-id1 acc-node)
+                            state2       (:wat::rete::CompileState
+                                            net2
+                                            (:wat::core::i64::+ next-id1 1)
+                                            dedup1)
+                            ;; wire parent → accumulate
+                            net3         (:wat::rete::network-add-child
+                                             (:wat::rete::CompileState/network state2)
+                                             parent-id
+                                             next-id1)
+                            state3       (:wat::rete::CompileState
+                                            net3
+                                            (:wat::rete::CompileState/next-id state2)
+                                            (:wat::rete::CompileState/dedup   state2))]
+            (:wat::rete::CondFoldAcc state3 next-id1))
+          ;; ── alpha+join branch (existing) ────────────────────────────────────────
+          (:wat::core::let [;; 1. find-or-mint the AlphaNode
                         alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
                         alpha-id   (:wat::rete::MintResult/id    alpha-res)
                         state1     (:wat::rete::MintResult/state alpha-res)
@@ -607,7 +687,7 @@
                                       (:wat::rete::CompileState/next-id state3)
                                       (:wat::rete::CompileState/dedup   state3))]
         ;; 5. advance parent to join-id for the next condition
-        (:wat::rete::CondFoldAcc state4 join-id))))))
+        (:wat::rete::CondFoldAcc state4 join-id)))))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -1222,6 +1302,17 @@
                                      (:wat::rete::hash-join-pass new-amem network acc node-id))
                                    new-bmem
                                    node-ids)
+                    ;; accumulate pass (8-a) — for each AccumulateNode, gather compatible :from elements,
+                    ;; fold with apply-accumulator, extend token with result-var → aggregate.
+                    ;; WHY before filter-pass: a :where on ?result reads the extended binding.
+                    ;; WHY pass new-amem: the gather reads alpha-memory[from-alpha-id].
+                    acc-bmem (:wat::core::foldl
+                                (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                 node-id <- :wat::core::i64]
+                                  -> :wat::core::PersistentMap
+                                  (:wat::rete::accumulate-pass network new-amem acc node-id))
+                                joined-bmem
+                                node-ids)
                     ;; filter pass (7-a, unified) — filter tokens through TestNodes + NegationNodes.
                     ;; Dispatches by kind: TestNode → eval-test; NegationNode → negation (zero-compatible).
                     ;; WHY after joins: filter nodes read their parent's beta slot (join nodes come first by ID).
@@ -1231,7 +1322,7 @@
                                                      node-id <- :wat::core::i64]
                                       -> :wat::core::PersistentMap
                                       (:wat::rete::filter-pass network new-amem acc node-id))
-                                    joined-bmem
+                                    acc-bmem
                                     node-ids)
                     ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
                     new-pmem (:wat::core::foldl
@@ -1638,3 +1729,181 @@
         (:wat::core::PersistentMap/assoc acc k (:wat::core::PersistentVector/conj pv fact))))
     (:wat::core::PersistentMap)
     els))
+
+;; ─── the accumulate dispatch (Stone 8-a) ────────────────────────────────────
+;;
+;; WHY there is no single `apply-accumulator -> Option<Value>` fn: the wat type system has INVARIANT
+;; parametric types — `Option<i64>` is NOT a subtype of `Option<Value>` even though i64 <: Value
+;; (STONE-Value's `is_subtype` root rule fires only for `sup == ":wat::core::Value"` Path-to-Path, NOT
+;; for `Option<T>` covariance). So the dispatch is inlined per-fold in accumulate-pass-for-token, where
+;; each fold's concrete return type is handled directly: bare folds (count/sum/distinct/all/group-by)
+;; assoc their result into the token's bindings; Option folds (min/max/mean) match inline (None → drop).
+
+;; accumulate-pass-for-token — apply the acc-form over gathered elements for ONE token.
+;; Returns the updated beta-mem: extends the token with result-var → aggregate if the
+;; accumulator produces a value, or leaves beta-mem unchanged (drop) if it produces None
+;; (empty min/max/mean).
+;;
+;; DESIGN: Each branch calls a specific acc::* fold and handles that fold's return type
+;; directly. Bare folds (count/sum/distinct/all/group-by) always produce a value → assoc
+;; into bindings. Option folds (min/max/mean) produce Option<i64> → match on that, then
+;; assoc or drop. The PersistentMap/assoc on the BARE bindings PM accepts any value
+;; (i64/PV/PM) via STONE-Value UP (i64 <: Value, PV <: Value, PM <: Value).
+(:wat::core::defn :wat::rete::accumulate-pass-for-token
+  [acc-form   <- :wat::WatAST
+   gathered   <- :wat::core::PersistentVector<wat::rete::Element>
+   result-var <- :wat::core::String
+   tok        <- :wat::rete::Token
+   node-id    <- :wat::core::i64
+   bm         <- :wat::core::PersistentMap]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [acc-ch (:wat::core::ast->children acc-form)
+                    acc-hd (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::first acc-ch)
+                               "accumulate-pass-for-token: acc-form has no head")
+                    acc-nm (:wat::core::ast-name acc-hd)
+                    ;; helper: extend tok's bindings with result-var → v, append to bm at node-id
+                    ;; (inlined below per case to keep each branch's v-type concrete)
+                    tok-binds (:wat::rete::Token/bindings tok)
+                    tok-matches (:wat::rete::Token/matches tok)]
+    (:wat::core::cond
+      ;; count — bare i64 result (always); assoc directly
+      ((:wat::core::= acc-nm ":wat::rete::acc::count")
+       (:wat::core::let [v   (:wat::rete::acc::count gathered)
+                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk)))
+      ;; sum — bare i64 result (always); assoc directly
+      ((:wat::core::= acc-nm ":wat::rete::acc::sum")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: sum missing ?var"))
+                         v   (:wat::rete::acc::sum var gathered)
+                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk)))
+      ;; min — Option<i64>; Some → assoc, None → drop
+      ((:wat::core::= acc-nm ":wat::rete::acc::min")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: min missing ?var"))]
+         (:wat::core::match (:wat::rete::acc::min var gathered) -> :wat::core::PersistentMap
+           ((:wat::core::Some v)
+            (:wat::rete::append-token bm node-id
+              (:wat::rete::Token tok-matches
+                (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+           (:wat::core::None bm))))
+      ;; max — Option<i64>; Some → assoc, None → drop
+      ((:wat::core::= acc-nm ":wat::rete::acc::max")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: max missing ?var"))]
+         (:wat::core::match (:wat::rete::acc::max var gathered) -> :wat::core::PersistentMap
+           ((:wat::core::Some v)
+            (:wat::rete::append-token bm node-id
+              (:wat::rete::Token tok-matches
+                (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+           (:wat::core::None bm))))
+      ;; mean — Option<i64>; Some → assoc, None → drop
+      ((:wat::core::= acc-nm ":wat::rete::acc::mean")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: mean missing ?var"))]
+         (:wat::core::match (:wat::rete::acc::mean var gathered) -> :wat::core::PersistentMap
+           ((:wat::core::Some v)
+            (:wat::rete::append-token bm node-id
+              (:wat::rete::Token tok-matches
+                (:wat::core::PersistentMap/assoc tok-binds result-var v))))
+           (:wat::core::None bm))))
+      ;; distinct — bare PV result (always; empty → []); assoc directly
+      ((:wat::core::= acc-nm ":wat::rete::acc::distinct")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: distinct missing ?var"))
+                         v   (:wat::rete::acc::distinct var gathered)
+                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk)))
+      ;; all — bare PV<Record> result (always; empty → []); assoc directly
+      ((:wat::core::= acc-nm ":wat::rete::acc::all")
+       (:wat::core::let [v   (:wat::rete::acc::all gathered)
+                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk)))
+      ;; group-by — bare PM result (always; empty → {}); assoc directly
+      ((:wat::core::= acc-nm ":wat::rete::acc::group-by")
+       (:wat::core::let [var (:wat::core::ast-name
+                               (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::get acc-ch 1)
+                                 "accumulate-pass-for-token: group-by missing ?var"))
+                         v   (:wat::rete::acc::group-by var gathered)
+                         nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk)))
+      ;; unknown — raise
+      (:else (:wat::core::Option/expect -> :wat::core::PersistentMap
+               :wat::core::None
+               "accumulate-pass-for-token: unknown accumulator")))))
+
+;; ─── accumulate-pass (Stone 8-a) ────────────────────────────────────────────
+;;
+;; Fold step: for each AccumulateNode, for each token in beta-memory[parent],
+;; gather token-compatible elements from alpha-memory[from-alpha-id], call
+;; accumulate-pass-for-token (which dispatches over acc-form and handles each
+;; fold's specific return type), and append the extended token (or drop it for
+;; empty min/max/mean) into beta-memory[acc-node-id].
+;; Runs AFTER hash-join-pass and BEFORE filter-pass (so a :where on ?result sees the binding).
+;;
+;; STOP-3 resolution: apply-accumulator cannot return Option<Value> because the wat type system
+;; has invariant parametric types — Option<i64> is not Option<Value>. The dispatch is inlined
+;; in accumulate-pass-for-token where each fold's specific return type is handled directly.
+(:wat::core::defn :wat::rete::accumulate-pass
+  [network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap
+   node-id   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "accumulate-pass: node not found")
+                    kind (:wat::rete::node-kind-label node)]
+    (:wat::core::if (:wat::core::= kind "AccumulateNode")
+      (:wat::core::let [result-var    (:wat::rete::AccumulateNode/result-var    node)
+                        acc-form      (:wat::rete::AccumulateNode/acc-form      node)
+                        from-alpha-id (:wat::rete::AccumulateNode/from-alpha-id node)
+                        parent-id     (:wat::rete::node-parent node-id network)
+                        ;; gather all :from elements from alpha-memory (may be empty PV)
+                        from-els      (:wat::core::match
+                                         (:wat::core::PersistentMap/get alpha-mem from-alpha-id)
+                                         -> :wat::core::PersistentVector<wat::rete::Element>
+                                       ((:wat::core::Some pv) pv)
+                                       (:wat::core::None (:wat::core::PersistentVector)))]
+        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+          ((:wat::core::Some tokens)
+           ;; For each parent token: filter from-els to compatible ones, then dispatch to
+           ;; accumulate-pass-for-token which handles the per-fold type inline.
+           (:wat::core::foldl
+             (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                              tok <- :wat::rete::Token]
+               -> :wat::core::PersistentMap
+               (:wat::core::let [;; gather token-compatible :from elements (shared ?var agreement)
+                                 gathered (:wat::core::foldl
+                                             (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Element>
+                                                              el  <- :wat::rete::Element]
+                                               -> :wat::core::PersistentVector<wat::rete::Element>
+                                               (:wat::core::if (:wat::rete::token-element-compatible? tok el)
+                                                 (:wat::core::PersistentVector/conj acc el)
+                                                 acc))
+                                             (:wat::core::PersistentVector)
+                                             from-els)]
+                 (:wat::rete::accumulate-pass-for-token
+                    acc-form gathered result-var tok node-id bm)))
+             beta-mem
+             tokens))
+          (:wat::core::None beta-mem)))
+      beta-mem)))
