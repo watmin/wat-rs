@@ -19013,6 +19013,20 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 Stone 6b-i — eval-test: the runtime evaluator for where/:test predicates.
+    // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
+    env.register(
+        ":wat::rete::eval-test".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::WatAST".into()),
+                TypeExpr::Path(":wat::core::PersistentMap".into()),
+            ],
+            ret: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

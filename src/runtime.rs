@@ -4026,6 +4026,9 @@ fn dispatch_keyword_head_value(
         // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
         ":wat::rete::deterministic?" => crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym),
+        // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
+        // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
+        ":wat::rete::eval-test" => crate::rete::matcher::eval_test(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),

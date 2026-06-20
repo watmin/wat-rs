@@ -39,7 +39,7 @@
 
 use crate::ast::WatAST;
 use crate::form_match::keyword_payload;
-use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
+use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
 use crate::span::Span;
 use std::sync::Arc;
 
@@ -852,4 +852,98 @@ pub(crate) fn eval_step_payload(
             Value::wat__core__PersistentVector(constraints_pv),     // constraints: PV<WatAST>
         ]),
     })
+}
+
+// ─── Arc 278 Stone 6b-i: eval-test ────────────────────────────────────────────
+
+/// `(:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool`
+///
+/// Evaluates a boolean predicate expression against a token's merged bindings
+/// (`?var → value`). Builds a CHILD `Environment` binding each `?var` to its
+/// value, then calls `eval_inner(expr, &test_env, sym)`. The result MUST be
+/// `Value::bool` — a `where` clause is a predicate; any other result is a
+/// `TypeMismatch`.
+///
+/// Because the 6a fence (pure ∧ deterministic) proves safety at compile time,
+/// no runtime purity mode is needed here.
+pub(crate) fn eval_test(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::eval-test";
+
+    // Arity: exactly 2 args.
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        }
+        .into());
+    }
+
+    // Arg 0: evaluate → must be Value::wat__WatAST (a quoted expr from :wat::core::quote).
+    let expr_val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let expr_ast = match expr_val {
+        Value::wat__WatAST(ref a) => (**a).clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
+    // Arg 1: evaluate → must be Value::wat__core__PersistentMap.
+    let bindings_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let map = match bindings_val {
+        Value::wat__core__PersistentMap(ref m) => m.clone(),
+        other => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::PersistentMap (the token's merged bindings)",
+                    got: Box::new(ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
+    // Build a CHILD Environment binding each ?var → value.
+    // Keys are Value::String("?x"); env_key for a bare ?x symbol is "?x" directly.
+    let mut b = env.child();
+    for (k, v) in map.iter() {
+        let name = match k {
+            Value::String(s) => s.as_str().to_string(),
+            _ => continue, // non-string key: skip (should not occur in a well-formed bindings map)
+        };
+        b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
+    }
+    let test_env = b.build();
+
+    // Evaluate the predicate expr in the test env; result MUST be bool.
+    match crate::runtime::eval_inner(&expr_ast, &test_env, sym)?.value_owned() {
+        Value::bool(x) => Ok(Value::bool(x)),
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::bool (a where predicate must return bool)",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }
+        .into()),
+    }
 }
