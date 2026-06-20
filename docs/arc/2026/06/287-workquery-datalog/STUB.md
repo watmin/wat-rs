@@ -60,6 +60,28 @@ and 287 must add:
 - **Good UX?** SQL-avoidant declarative queries in wat — the "ruby of sorts / pry-gdb over a frozen db" UX arc
   093 wanted, now first-class.
 
+## The query loop (rete IS the evaluator — grounded 2026-06-19)
+A WorkQuery runs ON the rete engine, no separate datalog runtime:
+1. **ingest** — `insert` a page of records (from the index narrow) as facts into a Session (working memory).
+2. **query** — a rule: LHS = constraints (+ joins via stone-3b hash-join), RHS = `(insert (Result …))`. `fire-rules`.
+   Recursive/transitive queries fall out of the P4b fixpoint.
+3. **collect** — `query-by-type Result` → the answer set.
+"Shoot a page of data into WM, run the constraints, query what fell out." The joins are 3b; recursion is P4b.
+
+## Remote managed-DB service (later — substrate already exists)
+The two-phase model is **DDB's own**: `KeyConditionExpression` (index, server-narrows) + `FilterExpression`
+(post-narrow filter) ≡ our **SQLite/index narrow + rete-rule filter**. That makes a *remote managed query DB*
+a real, near-term-possible composition — and the service substrate is already built:
+- **store**: sqlite `ReadHandle` (arc 093) or a wat-native index.
+- **engine**: arc 278 rete (this).
+- **service + wire**: `defservice` (actor/gen_server), peers, UDS + the **rendezvous capability** (arc 272),
+  **SO_PEERCRED** capability gating, **EdnRepresentable** wire (arc 280). A remote caller sends
+  `{key-conditions, rules}` as EDN; the service narrows + rete-filters; returns records as EDN.
+- **the bigger face**: the SAME service = the DDoS/anomaly engine — ingest + rete exact-match **∪ VSA
+  similarity-match** (the designed matcher seam, DESIGN.md:52) → "what's anomalous," answered over the wire at
+  line rate. The holonic endgame: rules at the line, exact ∪ similar, capability-secure, remote.
+- NOT a now-thing; a real later-arc. Depends on 287 (the query surface) + 280 (the wire) + 278 (the engine).
+
 ## Relations
 - Builds on arc 278 (the rete kernel — the join/fixpoint/matcher it reuses).
 - Supersedes/revisits arc 093 (`:wat::telemetry::WorkQuery`) + arc 098 (`:wat::form::matches?`).
