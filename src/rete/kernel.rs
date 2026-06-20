@@ -442,6 +442,7 @@ fn node_children(node: &Value) -> Vec<i64> {
         "AlphaNode"    => &sf[2], // AlphaNode: id(0), tests(1), children(2)
         "RootJoinNode" => &sf[1], // RootJoinNode: id(0), children(1), binding-keys(2)
         "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
+        "TestNode"     => &sf[2], // TestNode: id(0), expr(1), children(2)
         _ => return vec![],       // ProductionNode / QueryNode: no children
     };
     match pv {
@@ -1532,6 +1533,43 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 for new_tok in new_tokens {
                     wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                     d_beta.entry(*child_id).or_default().push(new_tok);
+                }
+            }
+        }
+
+        // ── 3.5 Test-pass (6b-ii-b): filter TestNode tokens (where conditions). ────
+        // For each TestNode, filter the NEW tokens at its parent (from d_beta) through
+        // eval_test_core(expr, tok.bindings). Passing tokens are pushed to wm.beta[test_id]
+        // (cumulative) and d_beta[test_id] (new-this-round, consumed by production in step 4).
+        // WHY d_beta[parent] not wm.beta[parent]: mirrors the hash-join delta (step 3) — only
+        // tokens that are NEW this round propagate through the test filter this round. This is
+        // correct because parent_of[production] = test_node_id and production fires on
+        // d_beta[parent] (step 4), which only sees tokens pushed in THIS round.
+        // WHY parent_of lookup: parent_of is pre-computed (before the loop) from node_children,
+        // which now includes TestNode (6b-ii-b fix to node_children). parent_of[test_id] is the
+        // HashJoin/RootJoin whose joined tokens feed the test.
+        for node_id in &node_ids {
+            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+            if kind_of(node) != "TestNode" { continue; }
+            let (_, sf) = node_record(node).expect("test-pass: TestNode must be a Record");
+            // TestNode struct_form: id(0), expr(1), children(2).
+            let expr: WatAST = match &sf[1] {
+                Value::wat__WatAST(ast) => (**ast).clone(),
+                _ => continue, // malformed TestNode: skip
+            };
+            let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
+            if parent_id < 0 { continue; }
+            // Clone the new-this-round tokens at parent to avoid a simultaneous borrow conflict
+            // (reading d_beta[parent_id] while writing d_beta[*node_id] — different keys, but
+            // Rust requires the borrow to end before the mutable entry borrow begins).
+            let new_tokens: Vec<Token> = match d_beta.get(&parent_id) {
+                Some(ts) if !ts.is_empty() => ts.clone(),
+                _ => continue,
+            };
+            for tok in new_tokens {
+                if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
+                    wm.beta.entry(*node_id).or_default().push(tok.clone());
+                    d_beta.entry(*node_id).or_default().push(tok);
                 }
             }
         }

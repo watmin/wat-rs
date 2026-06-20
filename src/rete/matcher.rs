@@ -856,13 +856,57 @@ pub(crate) fn eval_step_payload(
 
 // ─── Arc 278 Stone 6b-i: eval-test ────────────────────────────────────────────
 
+/// Core evaluator for a `where` predicate — callable directly from the native kernel
+/// without going through the `eval-test` dispatch wrapper.
+///
+/// Builds a CHILD `Environment` from `bindings` (keys are `Value::String("?x")`),
+/// evaluates `expr` in it, and requires `Value::bool`. Called by:
+/// - `eval_test` (the dispatch wrapper for the `(:wat::rete::eval-test …)` surface), and
+/// - `fire_fixpoint_delta`'s test-pass (stone 6b-ii-b), which already holds a
+///   native `rpds::HashTrieMapSync<Value,Value>` and a `WatAST` from the TestNode.
+///
+/// A fresh `env` (typically `&Environment::new()`) should be passed — the only names
+/// a `where` expression may reference are its `?vars` (from `bindings`) and
+/// `sym`'s registered user functions.
+pub(crate) fn eval_test_core(
+    expr: &WatAST,
+    bindings: &rpds::HashTrieMapSync<Value, Value>,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<bool, EvalBreak> {
+    const OP: &str = ":wat::rete::eval-test";
+
+    // Build a CHILD Environment binding each ?var → value.
+    let mut b = env.child();
+    for (k, v) in bindings.iter() {
+        let name = match k {
+            Value::String(s) => s.as_str().to_string(),
+            _ => continue, // non-string key: skip (should not occur in well-formed bindings)
+        };
+        b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
+    }
+    let test_env = b.build();
+
+    // Evaluate the predicate expr in the test env; result MUST be bool.
+    match crate::runtime::eval_inner(expr, &test_env, sym)?.value_owned() {
+        Value::bool(x) => Ok(x),
+        other => Err(RuntimeError {
+            span: expr.span().clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::bool (a where predicate must return bool)",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        }
+        .into()),
+    }
+}
+
 /// `(:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool`
 ///
-/// Evaluates a boolean predicate expression against a token's merged bindings
-/// (`?var → value`). Builds a CHILD `Environment` binding each `?var` to its
-/// value, then calls `eval_inner(expr, &test_env, sym)`. The result MUST be
-/// `Value::bool` — a `where` clause is a predicate; any other result is a
-/// `TypeMismatch`.
+/// Dispatch wrapper: evaluates the two args, extracts the `WatAST` and `PersistentMap`,
+/// then delegates to `eval_test_core`. No behavior change from the previous monolithic
+/// implementation — the core extraction is a refactor only.
 ///
 /// Because the 6a fence (pure ∧ deterministic) proves safety at compile time,
 /// no runtime purity mode is needed here.
@@ -921,29 +965,6 @@ pub(crate) fn eval_test(
         }
     };
 
-    // Build a CHILD Environment binding each ?var → value.
-    // Keys are Value::String("?x"); env_key for a bare ?x symbol is "?x" directly.
-    let mut b = env.child();
-    for (k, v) in map.iter() {
-        let name = match k {
-            Value::String(s) => s.as_str().to_string(),
-            _ => continue, // non-string key: skip (should not occur in a well-formed bindings map)
-        };
-        b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
-    }
-    let test_env = b.build();
-
-    // Evaluate the predicate expr in the test env; result MUST be bool.
-    match crate::runtime::eval_inner(&expr_ast, &test_env, sym)?.value_owned() {
-        Value::bool(x) => Ok(Value::bool(x)),
-        other => Err(RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: ":wat::core::bool (a where predicate must return bool)",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        }
-        .into()),
-    }
+    // Delegate to the core evaluator (a fresh env: where sees only ?vars + sym's user fns).
+    Ok(Value::bool(eval_test_core(&expr_ast, &map, env, sym)?))
 }
