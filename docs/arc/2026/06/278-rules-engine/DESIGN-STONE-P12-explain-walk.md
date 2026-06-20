@@ -54,6 +54,27 @@ substitute the token's `bindings` (`?t → -5`) into them → render. So `:met` 
 for the *negative* view — "which gate would have fired but didn't" — which needs the full rule structure to know
 what *should* have matched. Different stone.)
 
+## The principle — diagnostics are OPT-IN, and it costs nothing (R5 applied to the why-tree)
+Explainability defaults **off**. The default `fire-rules'` is the line-rate path (clears beta, no provenance
+index); `fire-rules-explain` is a separate mode you opt into. This is not a perf compromise — it is the
+strongest possible design, justified by purity:
+
+- The snapshot is `{facts, rules}` — a thunk; firing forces it (R5).
+- The engine is **pure**: same `{facts, rules}` → the same derivation, deterministically.
+- Therefore the **why-tree is itself a pure function of `{facts, rules}`** — a deferred computation exactly like
+  the derived facts. The provenance carries zero information not already in the inputs.
+- So retaining the support chain at fire time is **redundant for storage** (the identical R5 argument that drops
+  derived facts from the blob). You can always re-force it.
+
+**Consequence:** you never trade explainability for speed, because explainability is not *stored*, it is
+*recomputed* — and the recompute is free (P11-fast) and **faithful** (purity guarantees the re-fire reproduces
+the exact derivation the fast path performed and discarded). The operator decides at triage time: pull the
+stored `{facts, rules}`, `fire-rules-explain`, walk the tree — bit-identical to what prod did. This is the AWS
+S3-triage workflow made principled, and the inverse of Clara's heavyweight durability blob: Clara had to *store*
+provenance because its impure RHS could not re-derive (R5); we do not store it because we can re-derive it,
+identically. Default opt-**out**, justified by: *the explanation is never lost, only deferred — and forcing it is
+cheap and exact.*
+
 ## The contract (decisions)
 
 ### Decision A — the walk lives in WAT (builder-readable), over an explain-mode-exposed graph
