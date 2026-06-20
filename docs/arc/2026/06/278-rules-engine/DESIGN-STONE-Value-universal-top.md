@@ -24,14 +24,31 @@ This generalizes the proven record-top: `:wat::Record` is "any record" (`check.r
 
 ## The change (small, by design)
 
-1. **Register** `:wat::core::Value` as a core type — `register_builtin_types` (`types.rs:280`).
-2. **Root rule** in `is_subtype` (`types.rs:3142`), at the top before the parents-walk:
-   `if sup == ":wat::core::Value" { return true }`. Now `is_subtype(anything, Value) → true`; the directional
-   `assignable` does the rest (up accepted, down rejected) with no new variance code.
-3. **Re-type the engine bindings** — close the seam where it already bites:
-   `Token.bindings` / `Element.bindings`: `:wat::core::PersistentMap` → `:wat::core::PersistentMap<:wat::core::String, :wat::core::Value>`
-   (`rete.wat:30,37`). Previously bare/untracked; now principled. (alpha-match's native `HashTrieMapSync<Value,Value>`
-   already IS this; we're only naming it at the wat type level.)
+**The whole change is ONE root rule.** Grounded by the RED probe's HEAD error (2026-06-19): a record field
+typed `:wat::core::Value` is *already accepted* as an opaque type Path — the field annotation is legal at HEAD.
+The probe's WIDEN case fails with `TypeMismatch { expected: ":wat::core::Value", got: ":wat::core::i64" }` at the
+**constructor-arg boundary** — i.e. `assignable(i64, Value) → is_subtype(i64, Value)=false → unify(i64,Value)
+fail`. So the *only* missing piece is the up-direction in `is_subtype`.
+
+1. **Root rule** in `is_subtype` (`types.rs:3142`), at the top right after the reflexive `sub == sup` check,
+   before the parents-walk: `if sup == ":wat::core::Value" { return true }`. Now `is_subtype(anything, Value) →
+   true`; the directional `assignable` (`check.rs:13962`) does the rest — up accepted (root rule), down rejected
+   (sup ≠ Value → no rule → parents-walk → false → `unify` fail), with **no new variance code**.
+
+### Dropped from the original plan (grounded reversals — four-questions on changes to what exists)
+- **NO registration.** The original "register `:wat::core::Value` via `register_builtin_types`" is *cut*. Primitives
+  (`i64`/`String`) are NOT in `register_builtin_types` — they are recognized structurally, not via a registry entry;
+  `Value` (a top, no constructor, no fields) follows that precedent. There is no opaque-top `TypeDef` variant —
+  `TypeDef::Struct` would wrongly synthesize a `Value/new` constructor (Value must be **un-constructible**). The HEAD
+  error proves an unregistered `Value`-as-Path is already accepted in annotations, so registration buys nothing the
+  probe needs. (If a future diagnostic must *enumerate* valid types and include `Value` — e.g. a "did-you-mean" —
+  that is a named follow-on, `exigere`. Not speculative now.)
+- **NO `check.rs` edit.** Build-step #1 is VERIFIED: `assignable` (`check.rs:13962`) checks `is_subtype` first, then
+  falls to `unify`. The down-rejection is already free. The stone touches `check.rs` not at all.
+- **Bindings re-type → P12.** `Token.bindings` / `Element.bindings` → `PersistentMap<wat::core::String,
+  wat::core::Value>` (`rete.wat:30,37`) moves to **P12 (EXPLAIN)**, where `bound` is actually consumed and the
+  change is differential-gated against the oracle. Landing it here would touch the engine oracle for no consumer
+  yet. (`Simple?` — keep the type-system stone atomic; apply it where it's used.)
 
 ## Narrowing surface — scoped
 - **Display needs no downcast.** `println` / value→EDN is ∀T; rendering a `Value` (a `bound` entry) works
@@ -49,10 +66,15 @@ narrowed back to a specific type ASAP. Widening to `Value` to dodge typing a *kn
 flag stray `Value` is a later hygiene item, noted not built.)
 
 ## Blast radius
-`src/types.rs` (root rule + registration), `src/check.rs` (VERIFY field/arg acceptance routes through
-`assignable`, not raw symmetric `unify` — the down-rejection depends on it; this is build-step #1), `wat/rete.wat`
-(Token/Element bindings re-type). The RED probe. **NOT** EXPLAIN's records (P12), **NOT** the revive door, **NOT**
-a general downcast op, **NOT** a `Value` defenum (rejected — subtype-top, no wrapping).
+`src/types.rs` **only** — the one root rule in `is_subtype`. The RED probe (`tests/probe_arc278_value_universal_top.rs`,
+un-ignore the 3 disconfirm asserts). **NOT** `src/check.rs` (already correct — build-step #1 verified), **NOT**
+`wat/rete.wat` (re-type → P12), **NOT** registration (cut — see above), **NOT** EXPLAIN's records (P12), **NOT** the
+revive door, **NOT** a general downcast op, **NOT** a `Value` defenum (rejected — subtype-top, no wrapping).
+
+⛔ **Megafile note:** `src/types.rs` (162 KB) is one of the DEFERRED megafiles — a forced-minimal touch only (one
+root rule; `is_subtype` lives here, nowhere else to put it). **NO vigilia** on it (vigilia ward passes are for the
+carved homes `src/<ns>/` only; the megafiles await the tool-driven carve). The gate is the probe + the four floors +
+the rete differential, not a ward pass.
 
 ## Build-step #1 (verify before building): confirm the down-rejection holds
 Read where record-field and fn-arg checking call acceptance. If they go through `assignable` (directional) → the
