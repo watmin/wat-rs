@@ -63,13 +63,17 @@ gap. Shipping TestNode is deviate-UP (the general, hard part); the fusion is the
   against a bindings `PersistentMap` via a built child env. No compile changes (no entanglement with
   `compile-condition`). Independently testable: call `eval-test` directly with a quoted expr + a
   `PersistentMap` of `?var → value`.
-- **6b-ii — TestNode network integration + the compile fence.** The `:wat::rete::TestNode` record +
-  `compile-condition` branch (a `where` form → mint a TestNode wired to the current parent; parent
-  becomes the TestNode) + **the pure∧det fence** (where `compile-condition` learns `where`, it rejects an
-  expr failing `pure? ∧ deterministic?` — the fence lives WITH the recognition) + the fire pass in BOTH
-  the wat oracle (`rete.wat`) and the native kernel (`kernel.rs`) applying `eval-test` to filter tokens +
-  the **differential** (native derived facts == oracle). North-star: cold-and-windy + `(where (> ?c
-  -50))` → still fires; `(where (> ?c 100))` → does not.
+- **6b-ii-a — TestNode in the ORACLE + the compile fence.** The `:wat::rete::TestNode` record (`[id expr
+  children]`) + `Node` defenum variant + `compile-condition` top-branch (a `(where expr)` cond → **fence**
+  `pure? ∧ deterministic?` (raise on fail) → mint a TestNode wired parent→test, advance parent=test-id) +
+  a **test-pass** in `fire-once` (between hash-join and production: for each TestNode, filter
+  `beta-memory[parent]` by `eval-test(expr, token.bindings)` into `beta-memory[test-id]`). Probed via the
+  oracle (`fire-rules-spec`): `(where (> ?c 0))` passes Temp(5) / blocks Temp(-5); a user-fn predicate
+  passes; an impure `where` fails to compile.
+- **6b-ii-b — TestNode in the NATIVE kernel + the differential.** The `kernel.rs` test-pass (the same
+  filter over the native `WorkingMemory`) so `fire-rules'` honors TestNode + the **differential** probe
+  (native derived facts == oracle, with a `where` in the rule). North-star: cold-and-windy + `(where (> ?c
+  -50))` fires / `(where (> ?c 100))` does not, native==oracle.
 
 ## Out of scope = rejected
 
