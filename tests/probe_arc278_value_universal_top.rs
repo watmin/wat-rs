@@ -64,7 +64,6 @@ fn typechecks(src: &str) -> Result<(), String> {
 
 /// UP is free: every type <: Value. RED at HEAD (Value unregistered → false).
 #[test]
-#[ignore = "RED until STONE-Value lands — un-ignore on completion (the disconfirm)"]
 fn up_i64_is_subtype_of_value() {
     let env = TypeEnv::with_builtins();
     assert!(
@@ -75,7 +74,6 @@ fn up_i64_is_subtype_of_value() {
 
 /// UP is free for String too — Value is the top of ALL types, not just numerics. RED at HEAD.
 #[test]
-#[ignore = "RED until STONE-Value lands — un-ignore on completion (the disconfirm)"]
 fn up_string_is_subtype_of_value() {
     let env = TypeEnv::with_builtins();
     assert!(
@@ -113,7 +111,6 @@ fn down_value_is_not_subtype_of_string() {
 /// constructor boundary (which routes through `assignable` → `is_subtype(_, Value) = true`). RED at HEAD
 /// (the type `:wat::core::Value` is unknown → check error).
 #[test]
-#[ignore = "RED until STONE-Value lands — un-ignore on completion (the disconfirm)"]
 fn widen_record_value_field_accepts_i64_and_string() {
     let src = "\
 (:wat::Record::def :my::Box [slot <- :wat::core::Value])\n\

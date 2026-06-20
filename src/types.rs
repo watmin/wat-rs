@@ -3143,6 +3143,15 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     if sub == sup {
         return true; // reflexive
     }
+    // Arc 278 Stone-Value — :wat::core::Value is the universal subtype-top: every type
+    // <: Value. UP is free (this rule); DOWN stays checked — for any specific `sup ≠ Value`
+    // this rule is skipped, the parents-walk finds no edge, and `assignable`'s (check.rs:13962)
+    // fall-through `unify(Value, T)` fails. No registration: Value is recognized as an opaque
+    // Path already; a TypeDef::Struct would wrongly synthesize a constructor (Value is
+    // un-constructible). Naming the top of the lattice the directional `assignable` already built.
+    if sup == ":wat::core::Value" {
+        return true;
+    }
     let mut visited = std::collections::HashSet::new();
     let mut stack: Vec<String> = if let Some(parents) = env.subtype_parents(sub) {
         parents.to_vec()
