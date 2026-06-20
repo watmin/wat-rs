@@ -501,7 +501,7 @@
 ;; returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it
 ;; or fail." Sugar over `Option/expect (Vector/get …)`, but with the total promise.
 (:wat::core::defn :wat::core::nth<T> [v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
-  (:wat::core::Option/expect -> :T (:wat::core::Vector/get v i) "nth: index out of range"))
+  (:wat::core::Option/expect -> :T (:wat::core::get v i) "nth: index out of range"))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
 ;;
