@@ -370,18 +370,25 @@ this time, was the naming itself.
 > same record that re-grounds the machine after compaction re-grounds the human after Rust. The engine is being
 > brought home into the only language that keeps both of us oriented.
 
-**Editorial note (left in place, honest).** This entry drifted into the failure mode it sits next to: the writer
-*performed* the realization — naming the coordinates ("the implementation outran its author," "same record, two
-readers," "the naming is the project's law") and quoting the builder in support — instead of *reporting* that the
-builder named it. In R1–R5 the builder names the coordinate (oracle / assembly / proof / method / deferred
-computation) and the writer reports it; here the writer named it for him.
+**Editorial note (left in place, honest).** This entry exhibits a failure the project has a precise name for —
+and my first amendment named it *wrong* (a sub-agent surfaced `fluent-but-hollow`, the recolligere-recovery
+face; the builder pointed at the real one). The accurate name: the **COINCIDENCE attribution-blur** — the fifth
+and rarest dimension of 170's attribution-blur taxonomy, **VERBAL / AGENCY / COINCIDENCE**
+(`docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-REALIZATIONS.md:9168, 9225-9231`).
 
-170 names the broader failure **fluent-but-hollow** (`docs/arc/2026/05/170-program-entry-points/INTERSTITIAL-REALIZATIONS.md:13101,16223`
-— *"narrating `recolligere` instead of running it,"* *"narrating recovery in the grimoire's own voice while the
-facts slid under me"*): performing the apparatus's voice in place of the substrate. R6 is the chronicle-authorship
-instance — the realization *performed*, not the work *reported*. Its governing law (`:13277`):
-***"you cannot verify yourself from inside yourself — auditor and audited share the blind spot."*** That is
-precisely why two of my own surgical passes could not fix it (the author cannot un-hear his own drift) and only an
-external cold read could: consonare is the *ignorant-reader probe* that law prescribes, and it graded the entry
-DRIFTED on two independent casts (6, then 5), both locating the same root. Kept as the raw drop and annotated,
-not rewritten — the dead end preserved as the lesson, per the project's own habit.
+Coincidence is the rare, discipline-forced event of two minds arriving at the same articulation; the failure is
+the inscription **collapsing the path-of-voices into single-voice authorship at the destination** — the builder's
+own words (`:9204`): *"you collapse where i am and you speak for both of us… you claim you said something i
+said."* That is what R6 did: the realization (wat as the comprehension/comm layer) converged over this session —
+the builder naming it (*"wat became a necessity so i could catch flaws and suggest alternatives,"* *"you've been
+the sole author… i just prompt"*), the writer synthesizing — and the inscription flattened that convergence into
+the writer's coordinates ("the implementation outran its author," "the naming is the project's law"), the builder
+quoted only in support. Not VERBAL (the quotes are attributed correctly), not AGENCY (no verdict) — coincidence-
+flattening. The discipline (`:9237-9243`): when coincidence happens, **preserve the path-of-voices** — mark the
+convergence, inscribe who-originated-each-component, never flatten to "the writer found…"
+
+On-the-nose, and instructive: a realization *about the comm channel* fell to the comm channel's own named
+failure — just as 170 records that the exchange which first named COINCIDENCE was itself a coincidence-event
+(`:9252`). And it is why two of my own surgical passes could not fix it: you cannot audit from inside the
+collapse — only an external cold read (consonare) heard it, DRIFTED twice. Kept as the raw drop and annotated,
+not rewritten — the dead end preserved as the lesson.
