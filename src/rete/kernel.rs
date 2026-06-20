@@ -444,6 +444,7 @@ fn node_children(node: &Value) -> Vec<i64> {
         "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
         "TestNode"      => &sf[2], // TestNode:      id(0), expr(1), children(2)
         "NegationNode"  => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
+        "ExistsNode"    => &sf[2], // ExistsNode:    id(0), exists-alpha-id(1), children(2)
         // AccumulateNode: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4)
         "AccumulateNode" => &sf[4],
         _ => return vec![],        // ProductionNode / QueryNode: no children
@@ -1739,7 +1740,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
             let kind = kind_of(node);
-            if kind != "TestNode" && kind != "NegationNode" { continue; }
+            if kind != "TestNode" && kind != "NegationNode" && kind != "ExistsNode" { continue; }
             let (_, sf) = node_record(node).expect("filter-pass: node must be a Record");
             let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
             if parent_id < 0 { continue; }
@@ -1763,28 +1764,32 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     }
                 }
             } else {
-                // NegationNode struct_form: id(0), negated-alpha-id(1), children(2).
-                // Pass the token iff NO element in wm.alpha[neg_alpha_id] is compatible.
-                // The absence check is against the FULL cumulative wm.alpha (not a delta):
-                // the alpha pass (step 1) populated it before this filter-pass, so it is
-                // complete for base-fact negation (the v1 scope).
-                let neg_alpha_id: i64 = match &sf[1] {
+                // NegationNode / ExistsNode struct_form: id(0), <kind>-alpha-id(1), children(2).
+                // Same gather (token_element_compatible over wm.alpha[alpha_id]); the verdict
+                // inverts by kind: NegationNode passes iff ZERO compatible, ExistsNode passes
+                // iff ≥1 compatible. The check is against the FULL cumulative wm.alpha (not a
+                // delta): the alpha pass (step 1) populated it before this filter-pass, so it is
+                // complete for base-fact filtering (the v1 scope). ExistsNode binds nothing and
+                // passes the token at most ONCE (no multiplicity — the difference from a join).
+                let is_exists = kind == "ExistsNode";
+                let alpha_id: i64 = match &sf[1] {
                     Value::i64(n) => *n,
-                    _ => continue, // malformed NegationNode: skip
+                    _ => continue, // malformed Negation/Exists node: skip
                 };
-                // Snapshot the full elements at neg_alpha_id (empty vec if none inserted this fire).
-                let neg_elements: Vec<Value> = match wm.alpha.get(&neg_alpha_id) {
+                // Snapshot the full elements at alpha_id (empty vec if none inserted this fire).
+                let filter_elements: Vec<Value> = match wm.alpha.get(&alpha_id) {
                     Some(els) => els.clone(),
                     None => vec![],
                 };
                 for tok in new_tokens {
                     // any-compatible? = true iff any element's bindings agree with token's bindings.
-                    let any_compat = neg_elements.iter().any(|el| {
+                    let any_compat = filter_elements.iter().any(|el| {
                         let (_, el_b) = element_fact_bindings(el);
                         token_element_compatible(&tok.bindings, el_b)
                     });
-                    // Pass iff NOT any-compat (hash-join inverted: zero compatible ⇒ pass).
-                    if !any_compat {
+                    // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
+                    let pass = if is_exists { any_compat } else { !any_compat };
+                    if pass {
                         wm.beta.entry(*node_id).or_default().push(tok.clone());
                         d_beta.entry(*node_id).or_default().push(tok);
                     }

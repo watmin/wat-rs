@@ -111,6 +111,20 @@
    negated-alpha-id <- :wat::core::i64
    children        <- :wat::core::PersistentVector<wat::core::i64>])
 
+;; ExistsNode — a left-only filter node (stone 7-exists): the NegationNode sibling with its
+;; filter predicate INVERTED. Passes a token iff ≥1 element in the inner alpha-memory is
+;; compatible with the token's bindings (negation: ZERO; exists: ≥1). Binds NOTHING, fires the
+;; token EXACTLY ONCE regardless of how many match (no multiplicity — the difference from a join).
+;; Same shape as NegationNode; additive (NegationNode is untouched). Pure replay dissolves any
+;; delta concern (the inner alpha-memory is fixed within a fire), exactly as :not.
+;; id:           unique node id.
+;; exists-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check presence against.
+;; children:     PersistentVector of child node ids (ProductionNode or further filter nodes).
+(:wat::Record::def :wat::rete::ExistsNode
+  [id              <- :wat::core::i64
+   exists-alpha-id  <- :wat::core::i64
+   children        <- :wat::core::PersistentVector<wat::core::i64>])
+
 ;; AccumulateNode — a left-input aggregate join node (stone 8-a): for each parent token,
 ;; gathers the token-compatible elements from from-alpha-id's alpha-memory, folds them with
 ;; apply-accumulator (over the 8-i acc::* folds), and extends the token with result-var → aggregate.
@@ -146,6 +160,7 @@
   :ProductionNode  [node <- :wat::rete::ProductionNode]
   :TestNode        [node <- :wat::rete::TestNode]
   :NegationNode    [node <- :wat::rete::NegationNode]
+  :ExistsNode      [node <- :wat::rete::ExistsNode]
   :AccumulateNode  [node <- :wat::rete::AccumulateNode]
   :QueryNode       [node <- :wat::rete::QueryNode])
 
@@ -300,6 +315,8 @@
        (:wat::rete::TestNode/children node))
       ((:wat::core::= kind "NegationNode")
        (:wat::rete::NegationNode/children node))
+      ((:wat::core::= kind "ExistsNode")
+       (:wat::rete::ExistsNode/children node))
       ((:wat::core::= kind "AccumulateNode")
        (:wat::rete::AccumulateNode/children node))
       (:else (:wat::core::PersistentVector)))))
@@ -522,6 +539,7 @@
                     head-nm        (:wat::core::ast-name head)
                     is-where       (:wat::core::= head-nm ":wat::rete::where")
                     is-not         (:wat::core::= head-nm ":wat::rete::not")
+                    is-exists      (:wat::core::= head-nm ":wat::rete::exists")
                     ;; Accumulate: detected by a ?-symbol head (head-nm starts with "?")
                     ;; Collision-free: :where and :not start with ":", ?-vars start with "?" — disjoint.
                     is-accumulate  (:wat::core::= (:wat::core::string::subs head-nm 0 1) "?")]
@@ -596,6 +614,43 @@
                                          (:wat::rete::CompileState/next-id state2)
                                          (:wat::rete::CompileState/dedup   state2))]
           (:wat::rete::CondFoldAcc state3 next-id1))
+        (:wat::core::if is-exists
+          ;; ── :exists branch (7-exists) ────────────────────────────────────────────
+          ;; The :not branch, IDENTICAL, except it mints an ExistsNode instead of a NegationNode.
+          ;; Guard: a leading :exists (parent < 0) is unsupported — raise at compile time.
+          (:wat::core::let [_guard       (:wat::core::Option/expect -> :wat::core::nil
+                                            (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                              (:wat::core::Some nil)
+                                              (:wat::core::None))
+                                            "compile-condition: exists must follow a binding condition")
+                            ;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
+                            inner        (:wat::core::Option/expect -> :wat::WatAST
+                                            (:wat::core::second cond-ch)
+                                            "compile-condition: :exists missing inner condition")
+                            ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
+                            alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
+                            ex-alpha-id  (:wat::rete::MintResult/id    alpha-res)
+                            state1       (:wat::rete::MintResult/state alpha-res)
+                            ;; mint the ExistsNode
+                            network1     (:wat::rete::CompileState/network state1)
+                            next-id1     (:wat::rete::CompileState/next-id state1)
+                            dedup1       (:wat::rete::CompileState/dedup   state1)
+                            ex-node      (:wat::rete::ExistsNode next-id1 ex-alpha-id (:wat::core::PersistentVector))
+                            net2         (:wat::core::PersistentMap/assoc network1 next-id1 ex-node)
+                            state2       (:wat::rete::CompileState
+                                           net2
+                                           (:wat::core::i64::+ next-id1 1)
+                                           dedup1)
+                            ;; wire parent → exists
+                            net3         (:wat::rete::network-add-child
+                                            (:wat::rete::CompileState/network state2)
+                                            parent-id
+                                            next-id1)
+                            state3       (:wat::rete::CompileState
+                                           net3
+                                           (:wat::rete::CompileState/next-id state2)
+                                           (:wat::rete::CompileState/dedup   state2))]
+            (:wat::rete::CondFoldAcc state3 next-id1))
         (:wat::core::if is-accumulate
           ;; ── accumulate branch (8-a) ─────────────────────────────────────────────
           ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
@@ -687,7 +742,7 @@
                                       (:wat::rete::CompileState/next-id state3)
                                       (:wat::rete::CompileState/dedup   state3))]
         ;; 5. advance parent to join-id for the next condition
-        (:wat::rete::CondFoldAcc state4 join-id)))))))
+        (:wat::rete::CondFoldAcc state4 join-id))))))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -1242,6 +1297,40 @@
                                                (:wat::core::None false))]
                   ;; pass iff NOT any-compat (hash-join inverted: zero compatible ⇒ pass)
                   (:wat::core::if (:wat::core::not any-compat)
+                    (:wat::rete::append-token bm node-id tok)
+                    bm)))
+              beta-mem
+              tokens))
+           (:wat::core::None beta-mem))))
+      ((:wat::core::= kind "ExistsNode")
+       ;; exists filter: the NegationNode arm with the verdict FLIPPED. Pass the un-extended
+       ;; token iff ≥1 compatible element exists. Same gather; pass iff any-compat (vs negation's
+       ;; (not any-compat)). Binds nothing; passes the token once (no multiplicity).
+       (:wat::core::let [ex-alpha-id (:wat::rete::ExistsNode/exists-alpha-id node)
+                         parent-id   (:wat::rete::node-parent node-id network)]
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+           ((:wat::core::Some tokens)
+            (:wat::core::foldl
+              (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                               tok <- :wat::rete::Token]
+                -> :wat::core::PersistentMap
+                ;; pass the token iff ≥1 element in alpha-memory[ex-alpha-id] is compatible.
+                (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem ex-alpha-id)
+                                  ;; any-compatible? = foldl over elements, short-circuit on first match
+                                  any-compat (:wat::core::match els-opt -> :wat::core::bool
+                                               ((:wat::core::Some els)
+                                                (:wat::core::foldl
+                                                  (:wat::core::fn [found <- :wat::core::bool
+                                                                   el    <- :wat::rete::Element]
+                                                    -> :wat::core::bool
+                                                    (:wat::core::if found
+                                                      true
+                                                      (:wat::rete::token-element-compatible? tok el)))
+                                                  false
+                                                  els))
+                                               (:wat::core::None false))]
+                  ;; pass iff any-compat (the flip: ≥1 compatible ⇒ pass)
+                  (:wat::core::if any-compat
                     (:wat::rete::append-token bm node-id tok)
                     bm)))
               beta-mem
