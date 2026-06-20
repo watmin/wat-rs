@@ -205,11 +205,34 @@ infra needs **all three boundaries**:
 - **Resource isolation** — a **fuel / instruction budget + memory quota** on every user fn. ***Not built —
   REQUIRED before any untrusted multi-tenant execution.***
 
-### Decision (2026-06-20): fuel is a substrate requirement, imposed now
-Solve the loop limitation eBPF-style: **every user-supplied fn runs under an instruction/step budget** and
-must contend with a reasonable fuel ceiling (abort on exhaustion). **Imposed on our own tooling NOW** — all
-fenced user fns (`where`/`:test`/custom accumulators) run fueled at the substrate level — **so the remote
-deployment inherits it for free** (the "perpetually distant" pattern: build the constraint into the substrate;
-the distant deployment gets it by construction). Natural home: a **stepped evaluator** (CEK-style; the fuel is
-a per-step budget decremented to zero → abort). This makes the purity fence + fuel together our *verifier*,
-closing the eBPF gap.
+### Decision (2026-06-20): STATIC totality fence — eBPF's road, not runtime fuel
+Resource-safety is a **compile-time / at-registration guarantee**, not a runtime abort. Solve it eBPF-style:
+**restrict user fns to a total (bounded) fragment and reject the rest at registration.** A static
+instruction-count guarantee for *arbitrary* fns is impossible (= the halting problem); eBPF doesn't solve
+halting, it **rejects what it can't prove terminates** — so do we.
+
+- **`total?` = a THIRD axis on the 6a fence** (`pure? ∧ deterministic? ∧ total?`), same structural walk. 6a's
+  transitive walk is *already cycle-safe* (tracks `seen` to not loop the checker on recursion); `pure?`/`det?`
+  *tolerate* recursion, **`total?` flips it: cycle detected (recursion) → REJECT.** The recursion detector
+  already exists. If wat's only iteration is bounded combinators (`map`/`foldl`/`range` over finite
+  collections — `for` killed arc 249, threading is map-based; CONFIRM no `while`/unbounded-loop primitive),
+  bounded iteration is bounded by construction → nothing else to reject. So `total?` is nearly free given 6a.
+- **Imposed on our own tooling NOW** (all fenced user fns: `where`/`:test`/custom accumulators) → the remote
+  deployment inherits it for free (the "perpetually distant" pattern). Filters/accumulators are *naturally*
+  total (bounded folds over the finite gather) — the restriction costs users ~nothing, and it's the
+  project's ethos (make the illegal state *uncompilable*, not caught at runtime). **Warrant: a whole rete
+  already shipped in eBPF's bounded fragment at XDP line-rate — the bounded road is proven sufficient for
+  rules.**
+- **Guarantee + the one knob:** `total?` ⇒ termination + cost **O(gather-size)**. eBPF's bound is a *constant*
+  (loops bounded by a constant); ours is bounded by N (the gather). For a hard *constant* ceiling, also **cap
+  the gather size** per accumulate. O(N)-over-finite-N is already a real bound; the cap is the DoS backstop
+  for a huge-but-finite fold (add if/when a workload needs it).
+- **Dynamic / runtime fuel: REJECTED (not deferred).** It only buys running a Turing-complete user language
+  with a runtime abort — no use case here (filters/accumulators are bounded by nature), and real costs
+  (partial work on abort, head-of-line block until fuel drains, fuzzier reasoning, worse failure mode).
+  Zero gain, real problems.
+- **CEK is orthogonal** — it remains for its own job (stack-safety + hibernation, arc 261), NOT mandated for
+  resource-safety. The earlier "fuel needs a stepped/CEK evaluator" framing was wrong; the static fence needs
+  no evaluator change at all.
+
+So the *verifier* = the 6a fence with the `total?` axis (+ optional gather cap), all at registration.
