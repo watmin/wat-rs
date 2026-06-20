@@ -2675,7 +2675,10 @@ pub fn value_to_edn_with(
         ),
 
         // ── Opaque substrate handles — type-tagged nil ───────────
-        Value::wat__WatAST(_) => opaque_nil("wat-edn.opaque", "WatAST"),
+        // A WatAST is a parsed form — by definition an EDN value (watast_to_edn/edn_to_watast
+        // are a total bijection). Render it faithfully as its form (legible + recoverable);
+        // opaque-nil was a lie. Round-trip-as-WatAST is type-directed (from-edn :T / the typed slot).
+        Value::wat__WatAST(a) => crate::wat_edn_bridge::watast_to_edn(a.as_ref()),
         Value::wat__core__fn(_) => opaque_nil("wat-edn.opaque", "fn"),
         Value::wat__kernel__Sender(_) => opaque_nil("wat-edn.opaque", "Sender"),
         Value::wat__kernel__Receiver(_) => opaque_nil("wat-edn.opaque", "Receiver"),
@@ -3479,6 +3482,23 @@ mod tests {
         );
         // Value equality: same elements, same order.
         assert_eq!(back, orig, "EDN round-trip must preserve the vector");
+    }
+
+    // ─── WatAST renders as its form, not opaque-nil ────────────────────
+    // A WatAST is, by definition, an EDN form — `watast_to_edn`/`edn_to_watast` are a total
+    // bijection (a parsed s-expr IS edn). Rendering it as opaque-nil is lossy and unintuitive.
+    // RED before the fix (renders `#wat-edn.opaque/WatAST nil`); GREEN after (renders the form).
+    #[test]
+    fn watast_renders_as_its_form_not_opaque_nil() {
+        let forms = crate::parser::parse_all_with_file("(:wat::core::< -5 0)", "<watast-render-probe>")
+            .expect("parse the form");
+        let ast = forms.into_iter().next().expect("one form");
+        let v = Value::wat__WatAST(Arc::new(ast));
+        let s = value_to_edn_string(&v);
+        assert!(
+            !s.contains("opaque") && s.contains("-5"),
+            "a WatAST must render as its form (with operands), not opaque-nil; got: {s}"
+        );
     }
 
     // ─── Arc 278 stone 0a — PersistentMap EDN round-trip ───────────────
