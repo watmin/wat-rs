@@ -38,6 +38,17 @@ honest capability gap vs Clara.
 `kernel.rs` grew big across P4–P11 (+ P11 unused-import warnings). A vigilia ward pass before declaring 278
 closed.
 
+### ⑥ persistent rete Session in a process — the engine's first serious *service* app (now-buildable)
+A `defservice` whose state IS a `Session`: iterative `insert` / `fire-rules` / `retract` / `query` / `explain`
+messages over a LIVE working memory held in a process, proven over process/UDS. Proves **continuity** (the
+gen_server threads `Session → Session'` across requests — pure engine within a fire, stateful actor across them)
+and **retraction** live (`retract` + re-fire = pure replay; TM falls out — the hard textbook part, trivial by
+purity). It's a deductive db (insert=write, retract=delete, query=read, fire-rules=infer). Zero new substrate —
+composition of the engine + `defservice` + spawn; a probe spawns it and does iterative work (insert→fire→query→
+retract→re-fire→query) observing the WM evolve. **NO HTTPS / TCP+TLS** (dropped — not mapped). v1 = pure replay;
+a hot WM is where incremental insert (P4b delta) + incremental TM (the support-store cascade cut from the pure
+oracle) would eventually earn their place. (Reclaimed from a too-greedily-created arc into this backlog.)
+
 ## 278 close condition
 perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + ④ stones 6–8) + ⑤ vigilia → **THEN arc
 280** (stdio bound to EdnRepresentable — the stamped #1 next arc; do not open before 278 closes).
