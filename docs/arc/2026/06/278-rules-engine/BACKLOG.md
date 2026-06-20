@@ -24,6 +24,19 @@ for real" and "Horizon" are NOT in any phase.
 *The accumulator-completion cluster — all ride stone 8's machinery. Worked in tractability order: capability
 first, ergonomics last. **This entire phase must complete before ② Perf begins.***
 
+**Coherence prerequisites (surfaced 2026-06-20 while de-risking returns-the-fact):**
+- ✅ **seq/collection container drift — DONE** (`75356ecc`). The checker false-rejected `first`/`second`/
+  `third`/`rest` on PersistentVector + WatAST and `conj` on List (one-sided changes across arcs 220/249/
+  278-0b — runtime built, `check.rs` half skipped under the misread megafile guard). All false-REJECT, fixed
+  checker-side; `tests/probe_seq_container_parity.rs` pins checker≡runtime. This was the likely cause of prior
+  unexplained sonnet thrash (the checker's error message lied about the accepted set).
+- **QUEUED follow-on (not deferred-vaguely) — structural single-source-of-truth for the container set.** Route
+  the positional/rest/conj checker arms through one shared element-extractor (extend `extract_seq_elem`,
+  collection/infer.rs:500, today only `{Vector, PersistentVector}`; Tuple handled explicitly) so a new container
+  repr added once reaches all consumers and a one-sided arm becomes UNREPRESENTABLE (top of the extirpare
+  ladder). Genuine design (per-op-family container subsets differ; Tuple is heterogeneous) → its own DESIGN +
+  strike. The drift probe guards the class in the interim. See `DESIGN-STONE-seq-container-drift.md` "Out of scope".
+
 1. **Custom accumulators** — let the accumulator slot take *any* user-supplied `pure ∧ deterministic ∧ total`
    fold fn over the gathered set, not just the 8 built-ins. **This is the percentiles / stddev / top-k
    unlock** — the thing we argued we need for the anomaly domain. One strike: generalize the accumulate
