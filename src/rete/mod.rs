@@ -34,3 +34,6 @@ pub(crate) mod collect;
 // Stone P1 (kernel.rs) — WorkingMemory: native mutable mirror of Session + to_transient/to_persistent
 // lossless boundary. Sealed Rust; no wat surface. Fire kernel (P2–P5) mutates this; user calls fire.
 pub(crate) mod kernel;
+// Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
+// cycle-safe) + eval_pure_predicate (the :wat::rete::pure? primitive entry point).
+pub(crate) mod purity;

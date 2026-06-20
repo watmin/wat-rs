@@ -18990,6 +18990,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone 6a — purity classifier predicate.
+    // (:wat::rete::pure? <expr: :wat::WatAST>) -> :wat::core::bool
+    // Default-deny: proven-pure intrinsic or transitive user fn; everything else rejected.
+    env.register(
+        ":wat::rete::pure?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

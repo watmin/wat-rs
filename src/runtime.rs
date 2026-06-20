@@ -4018,6 +4018,12 @@ fn dispatch_keyword_head_value(
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
         ":wat::rete::step-payload'" => crate::rete::matcher::eval_step_payload(args, list_span, env, sym),
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
+        // Arc 278 Stone 6a — purity classifier predicate.
+        // (:wat::rete::pure? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
+        // Default-deny: a head is pure only if proven pure (known-pure intrinsic or a user fn
+        // whose body is transitively pure). "Pure" = deterministic fn of facts (no effects, no
+        // non-determinism). Uuid/v4 is impure; Uuid/v5/nil/from-string/to-string are pure.
+        ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
@@ -22516,7 +22522,7 @@ fn step_list(
 /// Effectful-op classifier. Anything under `:wat::kernel::*`,
 /// `:wat::io::*`, or the eval/load family is rejected in step mode —
 /// the consumer falls back to `:wat::eval-ast!` for those sub-forms.
-fn is_effectful_op(head: &str) -> bool {
+pub(crate) fn is_effectful_op(head: &str) -> bool {
     head.starts_with(":wat::kernel::")
         || head.starts_with(":wat::io::")
         || head.starts_with(":wat::eval-")
