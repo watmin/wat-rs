@@ -61,7 +61,6 @@ fn run_with_explained(body: &str) -> Value {
 /// 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 /// fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
 #[test]
-#[ignore = "RED until P12a lands — un-ignore on completion (the disconfirm)"]
 fn fire_rules_explain_preserves_the_closure() {
     let n = run_with_explained(
         "(:wat::core::length\n\
@@ -71,7 +70,6 @@ fn fire_rules_explain_preserves_the_closure() {
 
 /// 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
 #[test]
-#[ignore = "RED until P12a lands — un-ignore on completion (the disconfirm)"]
 fn support_index_has_an_entry_per_derived_fact() {
     let n = run_with_explained(
         "(:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))");
@@ -82,7 +80,6 @@ fn support_index_has_an_entry_per_derived_fact() {
 /// lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
 /// has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
 #[test]
-#[ignore = "RED until P12a lands — un-ignore on completion (the disconfirm)"]
 fn support_tokens_carry_their_full_chains() {
     let n = run_with_explained(
         "(:wat::core::foldl\n\

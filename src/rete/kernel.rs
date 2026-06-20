@@ -476,8 +476,11 @@ fn get_node<'a>(network: &'a Value, node_id: i64) -> Option<&'a Value> {
 // ── Element / Token builders ──────────────────────────────────────────────────
 
 // Group A: constant-string Arcs — hoisted to module-level statics (pointer bump vs alloc per call).
-static ELEMENT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
-static TOKEN_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
+static ELEMENT_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
+static TOKEN_CLASS_FQDN:     OnceLock<Arc<String>> = OnceLock::new();
+// P12a — explain substrate.
+static SUPPORT_CLASS_FQDN:   OnceLock<Arc<String>> = OnceLock::new();
+static EXPLAINED_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
 
 #[inline]
 fn element_class_fqdn() -> Arc<String> {
@@ -487,6 +490,16 @@ fn element_class_fqdn() -> Arc<String> {
 #[inline]
 fn token_class_fqdn() -> Arc<String> {
     TOKEN_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Token".to_string())).clone()
+}
+
+#[inline]
+fn support_class_fqdn() -> Arc<String> {
+    SUPPORT_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Support".to_string())).clone()
+}
+
+#[inline]
+fn explained_class_fqdn() -> Arc<String> {
+    EXPLAINED_CLASS_FQDN.get_or_init(|| Arc::new("wat::rete::Explained".to_string())).clone()
 }
 
 /// Build an `Element` record value.
@@ -1188,7 +1201,7 @@ fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -
 /// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
 /// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
 /// probe cost per match instead of O(W) rebuild per round per node.
-fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&mut HashMap<Value, (String, Token)>>) -> Result<Value, EvalBreak> {
     let mut wm = to_transient(session)?;
 
     // Start with empty memories (staged session may carry stale state from prior calls).
@@ -1557,6 +1570,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                     let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
                     // Dedup + termination guard: only propagate truly new facts.
                     if !seen.contains(&derived) {
+                        // P12a: record the support index (first-producer-wins; or_insert_with).
+                        if let Some(ref mut idx) = support {
+                            idx.entry(derived.clone()).or_insert_with(|| (rule_name.to_string(), tok.clone()));
+                        }
                         seen.insert(derived.clone());
                         wm.production.entry(*node_id).or_default().push(derived.clone());
                         next_delta.push(derived);
@@ -1612,7 +1629,67 @@ pub(crate) fn eval_fire_rules_native(
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
 
     // P4b: run the semi-naive delta fixpoint (input_facts restore is done inside).
-    fire_fixpoint_delta(&session, sym)
+    // Pass None — the fast path records no support index (zero behavior change).
+    fire_fixpoint_delta(&session, sym, None)
+}
+
+// ── Public entry: native fire-rules-explain' ─────────────────────────────────
+
+/// `(:wat::rete::fire-rules-explain' <session>) -> :wat::rete::Explained`
+///
+/// P12a: OPT-IN diagnostic fire. Runs the EXACT same delta fixpoint as `fire-rules'` but
+/// additionally records, for each derived fact, the token that produced it (and the rule name).
+/// Returns `Explained { session, support }` — `session` is the same frozen Session the fast path
+/// produces; `support` is a `PersistentMap<derived-fact, Support>`.
+///
+/// The fast `fire-rules'` / `fire-rules-spec` are byte-for-byte behaviorally identical — this is
+/// purely additive (the `None`-param path is unchanged; the `Some`-param path adds provenance).
+pub(crate) fn eval_fire_rules_explain(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::fire-rules-explain'";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        } }.into());
+    }
+
+    // Evaluate the session argument (mirrors eval_fire_rules_native).
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+
+    // Run the fixpoint with the support index recording enabled.
+    let mut idx: HashMap<Value, (String, Token)> = HashMap::new();
+    let session_out = fire_fixpoint_delta(&session, sym, Some(&mut idx))?;
+
+    // Build the support PersistentMap: derived-fact → Support{rule, token_value}.
+    let mut support_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for (derived_fact, (rule_name, tok)) in idx {
+        let token_value = native_token_to_value(tok);
+        let support_value = Value::wat__Record {
+            class_fqdn: support_class_fqdn(),
+            struct_form: Arc::new(vec![
+                Value::String(Arc::new(rule_name)),
+                token_value,
+            ]),
+        };
+        support_pm = support_pm.insert(derived_fact, support_value);
+    }
+
+    // Build Explained { session, support }.
+    let explained = Value::wat__Record {
+        class_fqdn: explained_class_fqdn(),
+        struct_form: Arc::new(vec![
+            session_out,
+            Value::wat__core__PersistentMap(support_pm),
+        ]),
+    };
+
+    Ok(explained)
 }
 
 // ─── Round-trip unit tests ────────────────────────────────────────────────────

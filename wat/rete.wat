@@ -130,6 +130,24 @@
    facts             <- :wat::core::PersistentVector
    next-id           <- :wat::core::i64])
 
+;; ─── P12a: explain substrate ────────────────────────────────────────────────
+
+;; Support — the producing support record for one derived fact.
+;;   rule:  the rule name that derived the fact (for Why.rule in P12b).
+;;   token: the producing Token; token.matches = the support chain (for :via in P12b).
+;; EPHEMERAL — carried only in Explained; never serialized / from-edn.
+(:wat::Record::def :wat::rete::Support
+  [rule  <- :wat::core::String
+   token <- :wat::rete::Token])
+
+;; Explained — the opt-in diagnostic result of fire-rules-explain.
+;;   session: the same frozen Session the fast path produces (same closure, same derived facts).
+;;   support: PersistentMap<derived-fact, Support> — the provenance index.
+;; EPHEMERAL — re-derived per explain; never serialized.
+(:wat::Record::def :wat::rete::Explained
+  [session <- :wat::rete::Session
+   support <- :wat::core::PersistentMap])
+
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 
 ;; node-kind-label — derive a short readable label from a raw node record's
@@ -1029,6 +1047,15 @@
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::rete::fire-rules' session))
+
+;; fire-rules-explain — OPT-IN diagnostic fire; same closure as fire-rules but also records the
+;; support index (derived-fact → Support{rule, token}). Returns Explained{session, support}.
+;; EPHEMERAL result — never serialized. Delegates to the native Rust explain entry.
+;; (arc 278 P12a: purely additive — the fast fire-rules' / fire-rules path is byte-identical.)
+(:wat::core::defn :wat::rete::fire-rules-explain
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Explained
+  (:wat::rete::fire-rules-explain' session))
 
 ;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.
 ;; Symmetric with insert: the caller re-fires (fire-rules recomputes from the reduced input).

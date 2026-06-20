@@ -18957,6 +18957,19 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
+    // (:wat::rete::fire-rules-explain' <session: :wat::rete::Session>) → :wat::rete::Explained
+    // EPHEMERAL result — re-derived per explain; never serialized.
+    env.register(
+        ":wat::rete::fire-rules-explain'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Explained".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

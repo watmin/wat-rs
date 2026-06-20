@@ -4010,6 +4010,9 @@ fn dispatch_keyword_head_value(
         // multi-round cascade (derived facts re-enter the network until no new fact is produced).
         // Returns a Session with facts = input only (derived live in production-memory).
         ":wat::rete::fire-rules'" => crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym),
+        // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
+        // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
+        ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
