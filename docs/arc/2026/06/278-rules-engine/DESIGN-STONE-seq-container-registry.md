@@ -36,17 +36,25 @@ A new home `src/collection/seq_container.rs` owns:
    Both `match` exhaustively on the representation; adding a `Value` variant or `TypeExpr` head a container can
    take forces a compile error here until handled.
 
-3. **A capability table** — per `SeqContainer`, the capabilities it actually supports (GROUNDED in the runtime's
-   real arms; the strike verifies each against `runtime.rs`/`collection/eval.rs`):
+3. **A capability table — THREE states per cell** (the `✗`-conflation was a flaw; a cell is one of):
+   - **✓ Supported** — built, both sides.
+   - **○ Gap** — the container's nature PERMITS it, the runtime arm was never built. *Incompleteness, fillable* —
+     after the registry, flipping `○→✓` is one capability flag + one element-iterate impl, both sides, drift-free.
+   - **∅ N/A** — the container's NATURE forbids it (not a gap; never to be filled).
 
-   | container | Indexable (first/2nd/3rd/nth/get) | Tail (rest) | Append (conj) | Mappable (map/filter/fold/…) |
+   GROUNDED in the runtime's real arms (the strike verifies each against `runtime.rs`/`collection/eval.rs`):
+
+   | container | Indexable | Tail (rest) | Append (conj) | Mappable |
    |---|---|---|---|---|
-   | Vector | ✓ | ✓ | ✓ | ✓ |
-   | PersistentVector | ✓ | ✓ | ✓ | ✓ |
-   | List | ✓ | ✓ | ✓ | ✗ (runtime maps only Vec/PV) |
-   | Tuple | ✓ | ✗ | ✗ | ✗ |
-   | WatAstList | ✓ | ✓ | ✗ | ✗ |
-   | HashSet | ✗ | ✗ | ✓ | ✗ |
+   | Vector / PersistentVector | ✓ | ✓ | ✓ | ✓ |
+   | List | ✓ | ✓ | ✓ | ○ gap (runtime maps only Vec/PV) |
+   | Tuple | ✓ | ∅ N/A (heterogeneous: arity-type change) | ∅ N/A | ∅ N/A (one `f` can't map mixed types) |
+   | WatAstList | ✓ | ✓ | ○ gap | ○ gap |
+   | HashSet | ∅ N/A (unordered: no "first") | ∅ N/A | ✓ | ○ gap (set→set sensible) |
+
+   THIS stone is behavior-preserving: it encodes the table AS-IS (drift dead). The `○ gap` cells are the
+   self-documenting worklist for the *incompleteness* annihilation (the immediate follow-on the registry makes
+   trivial — e.g. "List mappable" becomes a one-liner). The `∅ N/A` cells stay forever.
 
 4. **Per-capability element + reconstruction helpers**, both representations:
    - `elem_type(&self, &TypeExpr) -> TypeExpr` / `elem_values(&self, &Value) -> Vec<Value>` (extraction).
@@ -65,11 +73,33 @@ new container = one new `enum` variant → exhaustiveness errors in `of_type`, `
 table until all are filled → it is impossible to teach the runtime a container without the checker (and vice
 versa). That is the rung-3 guarantee.
 
+## The narrow waist — why this is about EVOLUTION, not just drift
+PV and PersistentMap were never planned; they were **shimmed in at O(ops)** — one hand-written arm bolted onto
+every collection op (~16), on BOTH sides, by hand. That O(ops)-per-new-type cost IS the process that drifted and
+bit us (someone bolted the runtime arm, forgot the checker twin). The registry's real purpose is to make adding
+the *next* primitive type **O(1)**: the registry is the **narrow waist** of an hourglass —
+
+```
+  first second third rest conj nth get map filter fold reverse take drop ...   ← OPS (many; written ONCE)
+                \            \         |        /          /
+                 ╲─────────── Container protocol (the waist) ──────────╱        ← ONE thin interface
+                /          /        |         \            \
+          Vector   List   PersistentVector   Tuple   WatAstList   HashSet   <FutureType>   ← TYPES (each impl'd ONCE)
+```
+
+Ops are generic over the waist; a new primitive type implements the waist **once** and every op lights up — both
+checker and runtime, drift-free by construction. (This is the same hourglass as wat's `defprotocol` Seq/Map —
+arc 285, STUBBED; this Rust-internal waist is the impl-level substrate that wat-level protocol can later ground
+on. We own the source, so the waist is a closed enum edited in one home — no open-plugin machinery needed; "add a
+primitive type" = "edit one file".)
+
 ## The contract decision (pinned)
-> The accepted-container set of every sequence op is **computed from `SeqContainer`'s capability table**,
-> consulted by BOTH the checker (`of_type`) and the runtime (`of_value`) — never hand-listed per op per side.
-> The per-op RETURN SHAPE (accessor → `Option<elem>`; rest/conj → same-container; map → same-container/new-elem)
-> stays in the op, but is built from the registry's `elem_*`/`reconstruct_*` primitives, not from bespoke arms.
+> **Ops never `match` on which container it is.** Each op is written generically against the container protocol —
+> `capabilities()`, `elements(value)`, `reconstruct(items)`, `elem_type(typeexpr)`, `reconstruct_type(elem)` —
+> and asks only "do you have capability C?". The accepted-container set is therefore DERIVED from the one
+> capability table, identical on both sides (checker `of_type`, runtime `of_value`). A new container = one impl
+> at the waist (one home file); the op layer never moves. Matching on a specific container *inside an op* is the
+> anti-pattern this stone exists to delete — it reintroduces O(ops) coupling and the drift class.
 
 ## Scope — ANNIHILATE the whole positional/sequence family (one stone, no staging)
 A staged "migrate the drift-5 now, the rest later" leaves the class ALIVE in the unmigrated ops — that is
