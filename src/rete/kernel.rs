@@ -444,6 +444,8 @@ fn node_children(node: &Value) -> Vec<i64> {
         "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
         "TestNode"      => &sf[2], // TestNode:      id(0), expr(1), children(2)
         "NegationNode"  => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
+        // AccumulateNode: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4)
+        "AccumulateNode" => &sf[4],
         _ => return vec![],        // ProductionNode / QueryNode: no children
     };
     match pv {
@@ -1184,6 +1186,133 @@ fn key_of(bindings: &rpds::HashTrieMapSync<Value, Value>, join_keys: &[Value]) -
         .collect()
 }
 
+// ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
+
+/// Read an element's bound `?var` value as an i64 (the value-folds' arg).
+/// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
+/// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
+fn acc_var_i64(el: &Value, var: &Value) -> i64 {
+    let (_, bindings) = element_fact_bindings(el);
+    match bindings.get(var) {
+        Some(Value::i64(n)) => *n,
+        Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
+        None => panic!("accumulate: var {var:?} unbound in element bindings"),
+    }
+}
+
+/// Compute the aggregate `Value` for an `acc-form` over the gathered elements.
+///
+/// Mirrors `accumulate-pass-for-token` (`wat/rete.wat:1752`) per-fold:
+/// - count/sum/distinct/all/group-by → always `Some(value)` (empty → 0 / [] / {}).
+/// - min/max/mean → `Some` only when non-empty; empty → `None` (drop the token).
+///
+/// `acc_form` is the `acc-form` WatAST (a `List`); its head keyword selects the fold,
+/// `items[1]`'s symbol name is the `?var` for the value-folds. `var_key` is built once
+/// from `items[1]` by the caller (only the value-folds use it).
+fn accumulate_value(acc_form: &WatAST, gathered: &[&Value]) -> Option<Value> {
+    // Head keyword name (e.g. ":wat::rete::acc::count").
+    let items = match acc_form {
+        WatAST::List(items, _) => items.as_slice(),
+        _ => return None,
+    };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        Some(WatAST::Symbol(s, _)) => s.as_str(),
+        _ => return None,
+    };
+    // The ?var symbol name (value-folds), built as the binding key Value::String("?v").
+    let var_key = || -> Value {
+        let name = match items.get(1) {
+            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
+            Some(WatAST::Keyword(k, _)) => k.as_str().to_string(),
+            _ => panic!("accumulate: value-fold {head} missing ?var arg"),
+        };
+        Value::String(Arc::new(name))
+    };
+
+    match head {
+        ":wat::rete::acc::count" => Some(Value::i64(gathered.len() as i64)),
+        ":wat::rete::acc::sum" => {
+            let var = var_key();
+            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, &var)).sum();
+            Some(Value::i64(s))
+        }
+        ":wat::rete::acc::min" => {
+            let var = var_key();
+            // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
+            let mut acc: Option<i64> = None;
+            for el in gathered {
+                let v = acc_var_i64(el, &var);
+                acc = Some(match acc {
+                    Some(cur) => if v < cur { v } else { cur },
+                    None => v,
+                });
+            }
+            acc.map(Value::i64)
+        }
+        ":wat::rete::acc::max" => {
+            let var = var_key();
+            let mut acc: Option<i64> = None;
+            for el in gathered {
+                let v = acc_var_i64(el, &var);
+                acc = Some(match acc {
+                    Some(cur) => if v > cur { v } else { cur },
+                    None => v,
+                });
+            }
+            acc.map(Value::i64)
+        }
+        ":wat::rete::acc::mean" => {
+            // Composition: (/ sum count). Empty (count 0) → None.
+            let var = var_key();
+            let n = gathered.len() as i64;
+            if n == 0 {
+                None
+            } else {
+                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, &var)).sum();
+                Some(Value::i64(s / n))
+            }
+        }
+        ":wat::rete::acc::distinct" => {
+            // Dedup the ?var values, preserving first-seen (insertion) order. Empty → [].
+            let var = var_key();
+            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for el in gathered {
+                let v = Value::i64(acc_var_i64(el, &var));
+                if !pv.iter().any(|x| *x == v) {
+                    pv = pv.push_back(v);
+                }
+            }
+            Some(Value::wat__core__PersistentVector(pv))
+        }
+        ":wat::rete::acc::all" => {
+            // PV of each element's fact, in gather order. Empty → [].
+            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for el in gathered {
+                let (fact, _) = element_fact_bindings(el);
+                pv = pv.push_back(fact.clone());
+            }
+            Some(Value::wat__core__PersistentVector(pv))
+        }
+        ":wat::rete::acc::group-by" => {
+            // PM: ?var value (i64) → PV<fact>, conj in gather order. Empty → {}.
+            let var = var_key();
+            let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+            for el in gathered {
+                let (fact, _) = element_fact_bindings(el);
+                let k = Value::i64(acc_var_i64(el, &var));
+                let pv = match pm.get(&k) {
+                    Some(Value::wat__core__PersistentVector(existing)) => existing.clone(),
+                    _ => rpds::VectorSync::new_sync(),
+                };
+                pm = pm.insert(k, Value::wat__core__PersistentVector(pv.push_back(fact.clone())));
+            }
+            Some(Value::wat__core__PersistentMap(pm))
+        }
+        other => panic!("accumulate: unknown accumulator {other}"),
+    }
+}
+
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
@@ -1534,6 +1663,65 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 for new_tok in new_tokens {
                     wm.beta.entry(*child_id).or_default().push(new_tok.clone());
                     d_beta.entry(*child_id).or_default().push(new_tok);
+                }
+            }
+        }
+
+        // ── 3.25 Accumulate-pass (8-b): dispatch AccumulateNode. ────────────────
+        // For each AccumulateNode (topological = ascending id order): for each NEW token
+        // at the parent (d_beta[parent]), gather the token-compatible elements from the
+        // FULL cumulative wm.alpha[from_alpha_id] (the aggregate needs all matching facts,
+        // like 7-b negation), compute the aggregate in Rust (mirroring the wat acc::* folds),
+        // and — if a value — extend the token with result-var → aggregate and push to
+        // wm.beta[acc] (cumulative) + d_beta[acc] (new-this-round, consumed downstream).
+        // min/max/mean on an empty gather → no value → drop the token.
+        // Runs BEFORE the filter-pass so a :where on the result-var sees the binding.
+        for node_id in &node_ids {
+            let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
+            if kind_of(node) != "AccumulateNode" { continue; }
+            // AccumulateNode struct_form: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4).
+            let (_, sf) = node_record(node).expect("accumulate-pass: node must be a Record");
+            let result_var = match &sf[1] {
+                Value::String(s) => Value::String(s.clone()),
+                _ => continue, // malformed: skip
+            };
+            let acc_form: WatAST = match &sf[2] {
+                Value::wat__WatAST(ast) => (**ast).clone(),
+                _ => continue, // malformed: skip
+            };
+            let from_alpha_id: i64 = match &sf[3] {
+                Value::i64(n) => *n,
+                _ => continue, // malformed: skip
+            };
+            let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
+            if parent_id < 0 { continue; }
+            // NEW tokens at the parent (clone to avoid the d_beta read/write borrow conflict).
+            let new_tokens: Vec<Token> = match d_beta.get(&parent_id) {
+                Some(ts) if !ts.is_empty() => ts.clone(),
+                _ => continue,
+            };
+            // Snapshot the FULL cumulative :from elements (empty vec if none — count/sum/etc.
+            // still emit their identity on empty, so we iterate parent tokens regardless).
+            let from_elements: Vec<Value> = match wm.alpha.get(&from_alpha_id) {
+                Some(els) => els.clone(),
+                None => vec![],
+            };
+            for tok in new_tokens {
+                // Gather the token-compatible :from elements (shared ?var agreement), in
+                // alpha-memory insertion order (matches the wat foldl over from-els).
+                let gathered: Vec<&Value> = from_elements
+                    .iter()
+                    .filter(|el| {
+                        let (_, el_b) = element_fact_bindings(el);
+                        token_element_compatible(&tok.bindings, el_b)
+                    })
+                    .collect();
+                if let Some(aggregate) = accumulate_value(&acc_form, &gathered) {
+                    // Extend the token: same matches; bindings + {result-var → aggregate}.
+                    let new_bindings = tok.bindings.insert(result_var.clone(), aggregate);
+                    let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };
+                    wm.beta.entry(*node_id).or_default().push(new_tok.clone());
+                    d_beta.entry(*node_id).or_default().push(new_tok);
                 }
             }
         }
