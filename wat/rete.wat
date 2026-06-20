@@ -100,6 +100,17 @@
    expr     <- :wat::WatAST
    children <- :wat::core::PersistentVector<wat::core::i64>])
 
+;; NegationNode — a left-only filter node (stone 7-a): passes a token iff ZERO elements in the
+;; negated alpha-memory are compatible with the token's bindings. Hash-join inverted: pure replay
+;; dissolves the two-sided delta (the negated alpha-memory is fixed within a fire).
+;; id:              unique node id.
+;; negated-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check absence against.
+;; children:        PersistentVector of child node ids (ProductionNode or further filter nodes).
+(:wat::Record::def :wat::rete::NegationNode
+  [id              <- :wat::core::i64
+   negated-alpha-id <- :wat::core::i64
+   children        <- :wat::core::PersistentVector<wat::core::i64>])
+
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
@@ -118,6 +129,7 @@
   :HashJoinNode   [node <- :wat::rete::HashJoinNode]
   :ProductionNode [node <- :wat::rete::ProductionNode]
   :TestNode       [node <- :wat::rete::TestNode]
+  :NegationNode   [node <- :wat::rete::NegationNode]
   :QueryNode      [node <- :wat::rete::QueryNode])
 
 ;; ─── the session (the whole engine state) ───────────────────────────────────
@@ -269,6 +281,8 @@
        (:wat::rete::HashJoinNode/children node))
       ((:wat::core::= kind "TestNode")
        (:wat::rete::TestNode/children node))
+      ((:wat::core::= kind "NegationNode")
+       (:wat::rete::NegationNode/children node))
       (:else (:wat::core::PersistentVector)))))
 
 ;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
@@ -487,7 +501,8 @@
                                   (:wat::core::first cond-ch)
                                   "compile-condition: condition form has no head")
                     head-nm   (:wat::core::ast-name head)
-                    is-where  (:wat::core::= head-nm ":wat::rete::where")]
+                    is-where  (:wat::core::= head-nm ":wat::rete::where")
+                    is-not    (:wat::core::= head-nm ":wat::rete::not")]
     (:wat::core::if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
       (:wat::core::let [expr      (:wat::core::Option/expect -> :wat::WatAST
@@ -523,8 +538,44 @@
                                      (:wat::rete::CompileState/next-id state1)
                                      (:wat::rete::CompileState/dedup   state1))]
         (:wat::rete::CondFoldAcc state2 next-id0))
-      ;; ── alpha+join branch (existing) ────────────────────────────────────────
-      (:wat::core::let [;; 1. find-or-mint the AlphaNode
+      (:wat::core::if is-not
+        ;; ── :not branch (7-a) ───────────────────────────────────────────────────
+        ;; Guard: a leading :not (parent < 0) is banked — raise at compile time.
+        (:wat::core::let [_guard      (:wat::core::Option/expect -> :wat::core::nil
+                                          (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                            (:wat::core::Some nil)
+                                            (:wat::core::None))
+                                          "compile-condition: negation must follow a binding condition")
+                          ;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
+                          inner       (:wat::core::Option/expect -> :wat::WatAST
+                                          (:wat::core::second cond-ch)
+                                          "compile-condition: :not missing inner condition")
+                          ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
+                          alpha-res   (:wat::rete::find-or-mint-alpha inner state0)
+                          neg-alpha-id (:wat::rete::MintResult/id    alpha-res)
+                          state1      (:wat::rete::MintResult/state alpha-res)
+                          ;; mint the NegationNode
+                          network1    (:wat::rete::CompileState/network state1)
+                          next-id1    (:wat::rete::CompileState/next-id state1)
+                          dedup1      (:wat::rete::CompileState/dedup   state1)
+                          neg-node    (:wat::rete::NegationNode next-id1 neg-alpha-id (:wat::core::PersistentVector))
+                          net2        (:wat::core::PersistentMap/assoc network1 next-id1 neg-node)
+                          state2      (:wat::rete::CompileState
+                                         net2
+                                         (:wat::core::i64::+ next-id1 1)
+                                         dedup1)
+                          ;; wire parent → negation
+                          net3        (:wat::rete::network-add-child
+                                          (:wat::rete::CompileState/network state2)
+                                          parent-id
+                                          next-id1)
+                          state3      (:wat::rete::CompileState
+                                         net3
+                                         (:wat::rete::CompileState/next-id state2)
+                                         (:wat::rete::CompileState/dedup   state2))]
+          (:wat::rete::CondFoldAcc state3 next-id1))
+        ;; ── alpha+join branch (existing) ────────────────────────────────────────
+        (:wat::core::let [;; 1. find-or-mint the AlphaNode
                         alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
                         alpha-id   (:wat::rete::MintResult/id    alpha-res)
                         state1     (:wat::rete::MintResult/state alpha-res)
@@ -556,7 +607,7 @@
                                       (:wat::rete::CompileState/next-id state3)
                                       (:wat::rete::CompileState/dedup   state3))]
         ;; 5. advance parent to join-id for the next condition
-        (:wat::rete::CondFoldAcc state4 join-id)))))
+        (:wat::rete::CondFoldAcc state4 join-id))))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -1047,6 +1098,77 @@
           (:wat::core::None beta-mem)))
       beta-mem)))
 
+;; filter-pass — unified fold step (7-a): replaces the standalone test-pass.
+;; Dispatches by node kind:
+;;   TestNode     → eval-test filter (same as the old test-pass).
+;;   NegationNode → negation filter: pass the un-extended token iff ZERO elements in
+;;                  alpha-memory[negated-alpha-id] are token-element-compatible? with the token.
+;; alpha-mem is threaded in (the negation filter needs it); TestNode ignores it.
+;; WHY unified fold: any interleaving of :where/:not in a condition chain is correct because
+;; the fold processes node-ids in topological (ascending) order — each filter reads its
+;; parent's beta slot, already populated earlier in the same fold.
+(:wat::core::defn :wat::rete::filter-pass
+  [network   <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap
+   node-id   <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "filter-pass: node not found")
+                    kind (:wat::rete::node-kind-label node)]
+    (:wat::core::cond
+      ((:wat::core::= kind "TestNode")
+       ;; eval-test filter: keep token iff expr evaluates true under token's bindings.
+       (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
+                         parent-id (:wat::rete::node-parent node-id network)]
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+           ((:wat::core::Some tokens)
+            (:wat::core::foldl
+              (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                               tok <- :wat::rete::Token]
+                -> :wat::core::PersistentMap
+                (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
+                  (:wat::rete::append-token bm node-id tok)
+                  bm))
+              beta-mem
+              tokens))
+           (:wat::core::None beta-mem))))
+      ((:wat::core::= kind "NegationNode")
+       ;; negation filter: pass the un-extended token iff ZERO compatible elements exist.
+       ;; Reuse token-element-compatible? (the join's shared-var agreement check) inverted.
+       (:wat::core::let [neg-alpha-id (:wat::rete::NegationNode/negated-alpha-id node)
+                         parent-id    (:wat::rete::node-parent node-id network)]
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+           ((:wat::core::Some tokens)
+            (:wat::core::foldl
+              (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                               tok <- :wat::rete::Token]
+                -> :wat::core::PersistentMap
+                ;; pass the token iff no element in alpha-memory[neg-alpha-id] is compatible.
+                (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem neg-alpha-id)
+                                  ;; any-compatible? = foldl over elements, short-circuit on first match
+                                  any-compat (:wat::core::match els-opt -> :wat::core::bool
+                                               ((:wat::core::Some els)
+                                                (:wat::core::foldl
+                                                  (:wat::core::fn [found <- :wat::core::bool
+                                                                   el    <- :wat::rete::Element]
+                                                    -> :wat::core::bool
+                                                    (:wat::core::if found
+                                                      true
+                                                      (:wat::rete::token-element-compatible? tok el)))
+                                                  false
+                                                  els))
+                                               (:wat::core::None false))]
+                  ;; pass iff NOT any-compat (hash-join inverted: zero compatible ⇒ pass)
+                  (:wat::core::if (:wat::core::not any-compat)
+                    (:wat::rete::append-token bm node-id tok)
+                    bm)))
+              beta-mem
+              tokens))
+           (:wat::core::None beta-mem))))
+      (:else beta-mem))))
+
 ;; production-pass — fold step: if this node is a ProductionNode, fire it; else pass through.
 ;; Mirrors hash-join-pass as a fold step over node-ids; seeds with the existing production-memory.
 (:wat::core::defn :wat::rete::production-pass
@@ -1100,28 +1222,30 @@
                                      (:wat::rete::hash-join-pass new-amem network acc node-id))
                                    new-bmem
                                    node-ids)
-                    ;; test pass (6b-ii-a) — filter tokens through TestNodes (where conditions)
-                    ;; WHY after joins: tests filter already-joined tokens; join IDs < test IDs by construction.
-                    tested-bmem (:wat::core::foldl
-                                   (:wat::core::fn [acc     <- :wat::core::PersistentMap
-                                                    node-id <- :wat::core::i64]
-                                     -> :wat::core::PersistentMap
-                                     (:wat::rete::test-pass network acc node-id))
-                                   joined-bmem
-                                   node-ids)
+                    ;; filter pass (7-a, unified) — filter tokens through TestNodes + NegationNodes.
+                    ;; Dispatches by kind: TestNode → eval-test; NegationNode → negation (zero-compatible).
+                    ;; WHY after joins: filter nodes read their parent's beta slot (join nodes come first by ID).
+                    ;; WHY pass new-amem: NegationNode filter needs alpha-memory to check absent facts.
+                    filtered-bmem (:wat::core::foldl
+                                    (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                     node-id <- :wat::core::i64]
+                                      -> :wat::core::PersistentMap
+                                      (:wat::rete::filter-pass network new-amem acc node-id))
+                                    joined-bmem
+                                    node-ids)
                     ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
                     new-pmem (:wat::core::foldl
                                 (:wat::core::fn [acc     <- :wat::core::PersistentMap
                                                  node-id <- :wat::core::i64]
                                   -> :wat::core::PersistentMap
-                                  (:wat::rete::production-pass network tested-bmem rules acc node-id))
+                                  (:wat::rete::production-pass network filtered-bmem rules acc node-id))
                                 (:wat::core::PersistentMap)
                                 node-ids)]
     (:wat::rete::Session
       (:wat::rete::Session/network session)
       (:wat::rete::Session/rules   session)
       new-amem
-      tested-bmem
+      filtered-bmem
       new-pmem
       facts
       (:wat::rete::Session/next-id session))))
