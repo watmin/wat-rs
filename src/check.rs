@@ -5330,6 +5330,20 @@ fn infer_list(
                                 args: vec![apply_subst(&inner, subst)],
                             }
                         }
+                        // PersistentVector<T> → PersistentVector<T>: identity preserved;
+                        // runtime returns a new PersistentVector from a PersistentVector.
+                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::PersistentVector" => {
+                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
+                            TypeExpr::Parametric {
+                                head: "wat::core::PersistentVector".into(),
+                                args: vec![apply_subst(&inner, subst)],
+                            }
+                        }
+                        // WatAST::List (arc-249 form-values) → WatAST: identity preserved;
+                        // runtime returns a WatAST::List from a WatAST::List.
+                        TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                            TypeExpr::Path(":wat::WatAST".into())
+                        }
                         TypeExpr::Var(_) => {
                             // Unresolved — return Vec<fresh> to match the TypeScheme fallback.
                             let t = fresh.fresh();
@@ -5339,7 +5353,7 @@ fn infer_list(
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
-                                expected: "Vec<T> or List<T>".into(),
+                                expected: "Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
@@ -10058,11 +10072,34 @@ fn infer_positional_accessor(
                     return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
                 }
             }
+            // PersistentVector<T>: mirrors Vec<T> arm — return Option<T>;
+            // runtime handles Value::wat__core__PersistentVector in eval_positional_accessor.
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+                if let Some(inner) = targs.first() {
+                    let result_ty = TypeExpr::Parametric {
+                        head: "wat::core::Option".into(),
+                        args: vec![apply_subst(inner, subst)],
+                    };
+                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+                } else {
+                    // HARVEST (236.2): silent-by-intent — PersistentVector type has no inner; polymorphic.
+                    return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
+                }
+            }
+            // WatAST::List (arc-249 form-values): return Option<:wat::WatAST>;
+            // runtime returns Option<wat__WatAST> for a List form (runtime.rs:10987).
+            TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                let result_ty = TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                };
+                return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
+            }
             _ => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "tuple, Vec<T>, or List<T>".into(),
+                    expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }

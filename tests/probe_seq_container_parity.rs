@@ -85,9 +85,10 @@ fn rest_on_persistent_vector() {
 
 #[test]
 fn conj_on_list() {
+    // `:wat::core::List/of` is the List constructor (variadic, no type keyword; check.rs:4073).
     let defn = "(:wat::core::defn :p::f [] -> :wat::core::i64 \
                 (:wat::core::length \
-                  (:wat::core::conj (:wat::core::List :wat::core::i64 1 2) 3)))";
+                  (:wat::core::conj (:wat::core::List/of 1 2) 3)))";
     expect_i64(defn, "(:p::f)", 3);
 }
 

@@ -169,6 +169,11 @@ pub(crate) fn infer_conj(
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
                 targs.first().map(|t| apply_subst(t, subst))
             }
+            // List<T>: conj appends element; returns List<T>; runtime dispatches
+            // Value::wat__core__List → list_conj_inner (runtime.rs:12410).
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
@@ -176,7 +181,7 @@ pub(crate) fn infer_conj(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, HashSet<T>, or PersistentVector<T>".into(),
+                    expected: "Vector<T>, HashSet<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 } });
                 None
