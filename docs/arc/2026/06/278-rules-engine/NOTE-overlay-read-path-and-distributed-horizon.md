@@ -174,3 +174,42 @@ behind the same interface**. Nothing above is scheduled; the four properties are
 ### Second offering (own future arc): datalog-as-a-service
 Arc 287 (WorkQuery v2) — a Datalog query surface over the same rete kernel ("query = a transient rule; rete
 *is* semi-naive datalog"). One kernel, two services. Tracked there, not here.
+
+---
+
+## Part 5 — the product thesis: eBPF for application rules (+ the three-boundary safety model)
+
+Because registered filter/accumulator fns are **pure ∧ deterministic ∧ typed** (the 6a fence), users can
+register their *own* rules and fold fns on a session and the service just runs them — **users program their
+own network/anomaly policy, with their data, on our compute.** This is structurally **eBPF**: a user supplies
+a program, a **verifier proves it safe**, and the trusted context runs untrusted code at line rate. eBPF's
+verifier ⇒ our **purity fence**; the kernel ⇒ our **rete engine**. holon's origin (line-rate anomaly
+detection) and rules-engine-as-a-service are the *same machine*: customers bring policy (their p99/stddev
+thresholds, their custom folds), ship data as facts, the engine runs their logic correctly at scale.
+
+### ⛔ The resource-safety caveat (load-bearing — do NOT ship without it)
+**Purity buys EFFECT-safety for free (no IO, no exfiltration, no mutation, no ambient reads) — the scary part.
+It buys ZERO resource-safety.** A pure, deterministic fn can still:
+- **loop forever** (purity says nothing about termination — the halting problem),
+- **allocate enormous memory**,
+- **be arbitrarily expensive** (O(n³)+).
+
+On the single-threaded-per-core model, one tenant's unbounded fn **blocks the whole core's loop** — a
+trivial multi-tenant DoS. eBPF is instructive *exactly here*: its verifier is **stricter** than ours — it
+*also* proves **termination (bounded loops) + memory bounds**, which our purity fence does not. **The gap
+between our fence and eBPF's verifier IS the resource-safety requirement.** Running strangers' code on shared
+infra needs **all three boundaries**:
+- **Effect isolation** — the purity fence (`is_pure_expr`). *Built.*
+- **Data isolation** — capability/keyspace scoping (a tenant fn sees only its session's facts;
+  `SO_PEERCRED` + arc-272 capability + `:restricted-to`). *Designed.*
+- **Resource isolation** — a **fuel / instruction budget + memory quota** on every user fn. ***Not built —
+  REQUIRED before any untrusted multi-tenant execution.***
+
+### Decision (2026-06-20): fuel is a substrate requirement, imposed now
+Solve the loop limitation eBPF-style: **every user-supplied fn runs under an instruction/step budget** and
+must contend with a reasonable fuel ceiling (abort on exhaustion). **Imposed on our own tooling NOW** — all
+fenced user fns (`where`/`:test`/custom accumulators) run fueled at the substrate level — **so the remote
+deployment inherits it for free** (the "perpetually distant" pattern: build the constraint into the substrate;
+the distant deployment gets it by construction). Natural home: a **stepped evaluator** (CEK-style; the fuel is
+a per-step budget decremented to zero → abort). This makes the purity fence + fuel together our *verifier*,
+closing the eBPF gap.
