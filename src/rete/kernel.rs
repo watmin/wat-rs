@@ -442,8 +442,9 @@ fn node_children(node: &Value) -> Vec<i64> {
         "AlphaNode"    => &sf[2], // AlphaNode: id(0), tests(1), children(2)
         "RootJoinNode" => &sf[1], // RootJoinNode: id(0), children(1), binding-keys(2)
         "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
-        "TestNode"     => &sf[2], // TestNode: id(0), expr(1), children(2)
-        _ => return vec![],       // ProductionNode / QueryNode: no children
+        "TestNode"      => &sf[2], // TestNode:      id(0), expr(1), children(2)
+        "NegationNode"  => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
+        _ => return vec![],        // ProductionNode / QueryNode: no children
     };
     match pv {
         Value::wat__core__PersistentVector(v) => v.iter().filter_map(|x| {
@@ -719,7 +720,7 @@ fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
 /// A variable only on one side never conflicts.
 /// Mirrors `wat/rete.wat:657-676`.
 /// Retained as the semantic reference; the keyed hash-join (P3) does not call it in the hot path.
-#[allow(dead_code)]
+/// Called by the NegationNode filter (7-b) to check absence against the full alpha-memory.
 fn token_element_compatible(
     tok_bindings: &rpds::HashTrieMapSync<Value, Value>,
     el_bindings: &rpds::HashTrieMapSync<Value, Value>,
@@ -1537,26 +1538,21 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
             }
         }
 
-        // ── 3.5 Test-pass (6b-ii-b): filter TestNode tokens (where conditions). ────
-        // For each TestNode, filter the NEW tokens at its parent (from d_beta) through
-        // eval_test_core(expr, tok.bindings). Passing tokens are pushed to wm.beta[test_id]
-        // (cumulative) and d_beta[test_id] (new-this-round, consumed by production in step 4).
-        // WHY d_beta[parent] not wm.beta[parent]: mirrors the hash-join delta (step 3) — only
-        // tokens that are NEW this round propagate through the test filter this round. This is
-        // correct because parent_of[production] = test_node_id and production fires on
-        // d_beta[parent] (step 4), which only sees tokens pushed in THIS round.
-        // WHY parent_of lookup: parent_of is pre-computed (before the loop) from node_children,
-        // which now includes TestNode (6b-ii-b fix to node_children). parent_of[test_id] is the
-        // HashJoin/RootJoin whose joined tokens feed the test.
+        // ── 3.5 Filter-pass (7-a unified): dispatch TestNode + NegationNode. ─────
+        // For each TestNode or NegationNode (in topological = ascending id order):
+        //   TestNode     → eval-test filter: pass the token iff expr evaluates true.
+        //   NegationNode → negation filter: pass the un-extended token iff ZERO elements in
+        //                  wm.alpha[neg_alpha_id] (the FULL cumulative alpha-memory) are
+        //                  token-element-compatible with the token's bindings.
+        // New tokens still come from d_beta[parent] (the delta); only the absence check
+        // for NegationNode reads the full wm.alpha (populated in step 1 before this pass).
+        // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
+        // (new-this-round, consumed by production in step 4).
         for node_id in &node_ids {
             let node = match get_node(&wm.network, *node_id) { Some(n) => n, None => continue };
-            if kind_of(node) != "TestNode" { continue; }
-            let (_, sf) = node_record(node).expect("test-pass: TestNode must be a Record");
-            // TestNode struct_form: id(0), expr(1), children(2).
-            let expr: WatAST = match &sf[1] {
-                Value::wat__WatAST(ast) => (**ast).clone(),
-                _ => continue, // malformed TestNode: skip
-            };
+            let kind = kind_of(node);
+            if kind != "TestNode" && kind != "NegationNode" { continue; }
+            let (_, sf) = node_record(node).expect("filter-pass: node must be a Record");
             let parent_id = parent_of.get(node_id).copied().unwrap_or(-1);
             if parent_id < 0 { continue; }
             // Clone the new-this-round tokens at parent to avoid a simultaneous borrow conflict
@@ -1566,10 +1562,44 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                 Some(ts) if !ts.is_empty() => ts.clone(),
                 _ => continue,
             };
-            for tok in new_tokens {
-                if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
-                    wm.beta.entry(*node_id).or_default().push(tok.clone());
-                    d_beta.entry(*node_id).or_default().push(tok);
+            if kind == "TestNode" {
+                // TestNode struct_form: id(0), expr(1), children(2).
+                let expr: WatAST = match &sf[1] {
+                    Value::wat__WatAST(ast) => (**ast).clone(),
+                    _ => continue, // malformed TestNode: skip
+                };
+                for tok in new_tokens {
+                    if crate::rete::matcher::eval_test_core(&expr, &tok.bindings, &crate::runtime::Environment::new(), sym)? {
+                        wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        d_beta.entry(*node_id).or_default().push(tok);
+                    }
+                }
+            } else {
+                // NegationNode struct_form: id(0), negated-alpha-id(1), children(2).
+                // Pass the token iff NO element in wm.alpha[neg_alpha_id] is compatible.
+                // The absence check is against the FULL cumulative wm.alpha (not a delta):
+                // the alpha pass (step 1) populated it before this filter-pass, so it is
+                // complete for base-fact negation (the v1 scope).
+                let neg_alpha_id: i64 = match &sf[1] {
+                    Value::i64(n) => *n,
+                    _ => continue, // malformed NegationNode: skip
+                };
+                // Snapshot the full elements at neg_alpha_id (empty vec if none inserted this fire).
+                let neg_elements: Vec<Value> = match wm.alpha.get(&neg_alpha_id) {
+                    Some(els) => els.clone(),
+                    None => vec![],
+                };
+                for tok in new_tokens {
+                    // any-compatible? = true iff any element's bindings agree with token's bindings.
+                    let any_compat = neg_elements.iter().any(|el| {
+                        let (_, el_b) = element_fact_bindings(el);
+                        token_element_compatible(&tok.bindings, el_b)
+                    });
+                    // Pass iff NOT any-compat (hash-join inverted: zero compatible ⇒ pass).
+                    if !any_compat {
+                        wm.beta.entry(*node_id).or_default().push(tok.clone());
+                        d_beta.entry(*node_id).or_default().push(tok);
+                    }
                 }
             }
         }
