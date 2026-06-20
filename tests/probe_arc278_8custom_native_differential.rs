@@ -1,0 +1,118 @@
+//! Arc 278 — Stone 8-custom: custom accumulators (any pure∧det user fold fn over the gather) + the DIFFERENTIAL.
+//! The accumulator slot accepts a USER fn head (not just the 8 built-ins): `(?r <- (:my-fold ?v) :from (…))`
+//! gathers the `?v` values into a `PV<T>` and applies `my-fold : (PV<T>) -> R`. RED at HEAD (the non-built-in
+//! head hits `accumulate_value`'s `other` arm → "unknown accumulator" panic → fire errors). GREEN when 8-custom
+//! generalizes the dispatch (known head → built-in fast-path; else eval the user fn over the gather) + adds the
+//! compile fence (reject impure/non-det folds). Contract: DESIGN-STONE-8-custom.md.
+//!
+//! `fire-rules` = native; `fire-rules-spec` = the wat oracle. For a custom-fold rule the two MUST agree.
+//!
+//! Run: cargo test --release -p wat --test probe_arc278_8custom_native_differential
+
+use std::sync::Arc;
+use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::load::InMemoryLoader;
+use wat::runtime::{Environment, Value};
+
+/// World with a PURE custom fold (`sum-of-squares`) + a rule using it as an accumulator, gated by `gate`.
+fn world(gate: &str) -> String {
+    format!(
+        "(:wat::Record::def :w::Station [location <- :wat::core::String])\n\
+         (:wat::Record::def :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+         (:wat::Record::def :w::Flagged [location <- :wat::core::String])\n\
+         \n\
+         ;; a PURE∧DET custom fold: sum of squares of the gathered values\n\
+         (:wat::core::defn :w::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
+           (:wat::core::foldl\n\
+             (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
+               (:wat::core::i64::+ acc (:wat::core::i64::* x x)))\n\
+             0 xs))\n\
+         \n\
+         (:wat::rete::defrule :w::flag\n\
+           :when\n\
+           [(:w::Station (?loc <- :location))\n\
+            (?s <- (:w::sum-of-squares ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))\n\
+            (:wat::rete::where {gate})]\n\
+           :then\n\
+           (:wat::rete::insert (:w::Flagged ?loc)))\n\
+         \n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
+    )
+}
+
+fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, String> {
+    let reading_inserts: String = readings
+        .iter()
+        .map(|v| format!("             session (:wat::rete::insert session (:w::Reading \"Oslo\" {v}))\n"))
+        .collect();
+    let run = format!(
+        "(:wat::core::length\n\
+          (:wat::core::let\n\
+            [rules   (:wat::rete::collect-rules :w)\n\
+             session (:wat::rete::compile rules)\n\
+             session (:wat::rete::insert session (:w::Station \"Oslo\"))\n\
+{reading_inserts}\
+             fired   (:wat::rete::{fire_fn} session)]\n\
+            (:wat::rete::query fired :w::Flagged)))"
+    );
+    let w = startup_from_source(&world(gate), Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+        .map_err(|e| format!("startup: {e:?}"))?;
+    let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
+    match eval_in_frozen(&ast, &w, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned() {
+        Value::i64(n) => Ok(n),
+        other => Err(format!("expected i64; got {other:?}")),
+    }
+}
+
+/// native == oracle == expect, for the given gate + readings.
+fn diff(gate: &str, readings: &[i64], expect: i64) {
+    let native = flagged_count("fire-rules", gate, readings).expect("native");
+    let oracle = flagged_count("fire-rules-spec", gate, readings).expect("oracle");
+    assert_eq!(native, oracle, "native==oracle (gate={gate}); native={native} oracle={oracle}");
+    assert_eq!(native, expect, "value (native); got {native} want {expect}");
+}
+
+/// 1 — DIFFERENTIAL: sum-of-squares([1,2,3]) = 14; gate `= 14` → both fire (1).
+#[test]
+fn differential_custom_fold() {
+    diff("(:wat::core::= ?s 14)", &[1, 2, 3], 1);
+}
+
+/// 2 — DIFFERENTIAL: the fold's value is EXACTLY 14, not something else; gate `= 99` → both 0.
+#[test]
+fn differential_custom_fold_value() {
+    diff("(:wat::core::= ?s 99)", &[1, 2, 3], 0);
+}
+
+/// 3 — DIFFERENTIAL empty: sum-of-squares([]) = 0 (the fn handles empty); gate `= 0` → both fire (1).
+///     v1 contract: a custom fold is `(PV<T>) -> R` and always emits (the fn handles the empty gather).
+#[test]
+fn differential_custom_empty() {
+    diff("(:wat::core::= ?s 0)", &[], 1);
+}
+
+/// 4 — the compile FENCE rejects an IMPURE custom fold (calls println). The rule must fail to compile.
+#[test]
+fn fence_rejects_impure_fold() {
+    let src = "(:wat::Record::def :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+         (:wat::Record::def :w::Flagged [location <- :wat::core::String])\n\
+         ;; an IMPURE fold — side-effects (println) → must be rejected by the pure∧det fence\n\
+         (:wat::core::defn :w::bad-fold [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
+           (:wat::core::do\n\
+             (:wat::kernel::println \"side effect\")\n\
+             (:wat::core::length xs)))\n\
+         (:wat::rete::defrule :w::bad\n\
+           :when\n\
+           [(:w::Reading (?loc <- :location) (?v <- :value))\n\
+            (?s <- (:w::bad-fold ?v) :from (:w::Reading (?loc2 <- :location) (?v2 <- :value)))]\n\
+           :then\n\
+           (:wat::rete::insert (:w::Flagged ?loc)))\n\
+         (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+    let w = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
+        .expect("world should freeze (the impure fold is defined; the rule using it is the violation)");
+    // Compiling the rule must RAISE (the accumulate-branch fences the user fold pure∧det).
+    let run = "(:wat::core::let [rules (:wat::rete::collect-rules :w)] (:wat::rete::compile rules))";
+    let ast = wat::parse_one!(run).expect("parse");
+    let res = eval_in_frozen(&ast, &w, &Environment::new());
+    assert!(res.is_err(), "impure custom fold must be rejected at compile; got Ok");
+}
