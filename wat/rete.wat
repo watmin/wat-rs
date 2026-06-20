@@ -91,6 +91,15 @@
   [id        <- :wat::core::i64
    rule-name <- :wat::core::String])
 
+;; TestNode — a left-only filter node (stone 6b-ii-a): keeps a token iff eval-test(expr, bindings) is true.
+;; id:       unique node id.
+;; expr:     the pure∧deterministic WatAST predicate (stored as a value; fence checked at compile).
+;; children: PersistentVector of child node ids (ProductionNode or further TestNodes).
+(:wat::Record::def :wat::rete::TestNode
+  [id       <- :wat::core::i64
+   expr     <- :wat::WatAST
+   children <- :wat::core::PersistentVector<wat::core::i64>])
+
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
@@ -108,6 +117,7 @@
   :RootJoinNode   [node <- :wat::rete::RootJoinNode]
   :HashJoinNode   [node <- :wat::rete::HashJoinNode]
   :ProductionNode [node <- :wat::rete::ProductionNode]
+  :TestNode       [node <- :wat::rete::TestNode]
   :QueryNode      [node <- :wat::rete::QueryNode])
 
 ;; ─── the session (the whole engine state) ───────────────────────────────────
@@ -257,6 +267,8 @@
        (:wat::rete::RootJoinNode/children node))
       ((:wat::core::= kind "HashJoinNode")
        (:wat::rete::HashJoinNode/children node))
+      ((:wat::core::= kind "TestNode")
+       (:wat::rete::TestNode/children node))
       (:else (:wat::core::PersistentVector)))))
 
 ;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
@@ -449,7 +461,10 @@
 ;; acc = (CompileState, i64) where the i64 is the current parent-id (-1 = no parent yet).
 ;; WHY -1 sentinel: lets us distinguish first-condition (RootJoinNode) from rest
 ;; (HashJoinNode) without an Option; node ids start at 0.
-;; Algorithm per DESIGN-1b:
+;; Algorithm per DESIGN-1b (and 6b-ii-a extension):
+;;   TOP branch — if cond is (:wat::rete::where <expr>): fence pure∧det, mint TestNode,
+;;     wire parent→test (parent must exist: a where is never the first condition).
+;;   ELSE branch — existing alpha+join path:
 ;;   1. find-or-mint AlphaNode for cond (alpha sharing)
 ;;   2. find-or-mint RootJoinNode or HashJoinNode for (cond, parent-id) (beta-prefix sharing)
 ;;   3. wire alpha→join child edge
@@ -463,41 +478,85 @@
   [acc  <- :wat::rete::CondFoldAcc
    cond <- :wat::WatAST]
   -> :wat::rete::CondFoldAcc
-  (:wat::core::let [state0     (:wat::rete::CondFoldAcc/state     acc)
-                    parent-id  (:wat::rete::CondFoldAcc/parent-id acc)
-                    ;; 1. find-or-mint the AlphaNode
-                    alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
-                    alpha-id   (:wat::rete::MintResult/id    alpha-res)
-                    state1     (:wat::rete::MintResult/state alpha-res)
-                    ;; 2. find-or-mint the join node; -1 parent = first condition → RootJoinNode
-                    is-first  (:wat::core::i64::< parent-id 0)
-                    join-res  (:wat::core::if is-first
-                                 (:wat::rete::find-or-mint-root-join cond state1)
-                                 (:wat::rete::find-or-mint-hash-join cond parent-id state1))
-                    join-id    (:wat::rete::MintResult/id    join-res)
-                    state2     (:wat::rete::MintResult/state join-res)
-                    ;; 3. wire alpha → join
-                    net3       (:wat::rete::network-add-child
-                                  (:wat::rete::CompileState/network state2)
-                                  alpha-id
-                                  join-id)
-                    state3     (:wat::rete::CompileState
-                                  net3
-                                  (:wat::rete::CompileState/next-id state2)
-                                  (:wat::rete::CompileState/dedup   state2))
-                    ;; 4. wire prev-parent → join (only if there IS a prev parent)
-                    net4       (:wat::core::if (:wat::core::i64::>= parent-id 0)
-                                  (:wat::rete::network-add-child
-                                     (:wat::rete::CompileState/network state3)
-                                     parent-id
-                                     join-id)
-                                  (:wat::rete::CompileState/network state3))
-                    state4     (:wat::rete::CompileState
-                                  net4
-                                  (:wat::rete::CompileState/next-id state3)
-                                  (:wat::rete::CompileState/dedup   state3))]
-    ;; 5. advance parent to join-id for the next condition
-    (:wat::rete::CondFoldAcc state4 join-id)))
+  (:wat::core::let [state0    (:wat::rete::CondFoldAcc/state     acc)
+                    parent-id (:wat::rete::CondFoldAcc/parent-id acc)
+                    ;; TOP: detect (:wat::rete::where <expr>) form
+                    ;; All conditions are non-empty list forms with a keyword head; Option/expect is safe.
+                    cond-ch   (:wat::core::ast->children cond)
+                    head      (:wat::core::Option/expect -> :wat::WatAST
+                                  (:wat::core::first cond-ch)
+                                  "compile-condition: condition form has no head")
+                    head-nm   (:wat::core::ast-name head)
+                    is-where  (:wat::core::= head-nm ":wat::rete::where")]
+    (:wat::core::if is-where
+      ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
+      (:wat::core::let [expr      (:wat::core::Option/expect -> :wat::WatAST
+                                      (:wat::core::second cond-ch)
+                                      "compile-condition: where missing expr")
+                        ;; fence: pure ∧ deterministic — raise at compile if false
+                        is-pure   (:wat::rete::pure? expr)
+                        is-det    (:wat::rete::deterministic? expr)
+                        _fence    (:wat::core::Option/expect -> :wat::core::nil
+                                      (:wat::core::if (:wat::core::and is-pure is-det)
+                                        (:wat::core::Some nil)
+                                        (:wat::core::None))
+                                      "compile-condition: where expr must be pure and deterministic")
+                        ;; mint the TestNode
+                        network0  (:wat::rete::CompileState/network state0)
+                        next-id0  (:wat::rete::CompileState/next-id state0)
+                        dedup0    (:wat::rete::CompileState/dedup   state0)
+                        test-node (:wat::rete::TestNode next-id0 expr (:wat::core::PersistentVector))
+                        net1      (:wat::core::PersistentMap/assoc network0 next-id0 test-node)
+                        state1    (:wat::rete::CompileState
+                                     net1
+                                     (:wat::core::i64::+ next-id0 1)
+                                     dedup0)
+                        ;; wire parent → test (a where always has a prior join parent)
+                        net2      (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                     (:wat::rete::network-add-child
+                                        (:wat::rete::CompileState/network state1)
+                                        parent-id
+                                        next-id0)
+                                     (:wat::rete::CompileState/network state1))
+                        state2    (:wat::rete::CompileState
+                                     net2
+                                     (:wat::rete::CompileState/next-id state1)
+                                     (:wat::rete::CompileState/dedup   state1))]
+        (:wat::rete::CondFoldAcc state2 next-id0))
+      ;; ── alpha+join branch (existing) ────────────────────────────────────────
+      (:wat::core::let [;; 1. find-or-mint the AlphaNode
+                        alpha-res  (:wat::rete::find-or-mint-alpha cond state0)
+                        alpha-id   (:wat::rete::MintResult/id    alpha-res)
+                        state1     (:wat::rete::MintResult/state alpha-res)
+                        ;; 2. find-or-mint the join node; -1 parent = first condition → RootJoinNode
+                        is-first  (:wat::core::i64::< parent-id 0)
+                        join-res  (:wat::core::if is-first
+                                     (:wat::rete::find-or-mint-root-join cond state1)
+                                     (:wat::rete::find-or-mint-hash-join cond parent-id state1))
+                        join-id    (:wat::rete::MintResult/id    join-res)
+                        state2     (:wat::rete::MintResult/state join-res)
+                        ;; 3. wire alpha → join
+                        net3       (:wat::rete::network-add-child
+                                      (:wat::rete::CompileState/network state2)
+                                      alpha-id
+                                      join-id)
+                        state3     (:wat::rete::CompileState
+                                      net3
+                                      (:wat::rete::CompileState/next-id state2)
+                                      (:wat::rete::CompileState/dedup   state2))
+                        ;; 4. wire prev-parent → join (only if there IS a prev parent)
+                        net4       (:wat::core::if (:wat::core::i64::>= parent-id 0)
+                                      (:wat::rete::network-add-child
+                                         (:wat::rete::CompileState/network state3)
+                                         parent-id
+                                         join-id)
+                                      (:wat::rete::CompileState/network state3))
+                        state4     (:wat::rete::CompileState
+                                      net4
+                                      (:wat::rete::CompileState/next-id state3)
+                                      (:wat::rete::CompileState/dedup   state3))]
+        ;; 5. advance parent to join-id for the next condition
+        (:wat::rete::CondFoldAcc state4 join-id)))))
 
 ;; compile-rule — fold step: process one Rule into the network.
 ;; WHY: folds over the rule's lhs conditions with compile-condition, then mints
@@ -958,6 +1017,36 @@
          tokens))
       (:wat::core::None prod-mem))))
 
+;; test-pass — fold step (6b-ii-a): for each TestNode, filter beta-memory[parent] by eval-test(expr, bindings)
+;; into beta-memory[test-id]. Runs AFTER hash-join-pass and BEFORE production-pass.
+;; WHY topological: compile assigns IDs in order (join < test), so ascending node-id order is safe.
+;; WHY node-parent: mirrors fire-production's parent lookup; a TestNode's parent is a join node
+;; (RootJoin or HashJoin) whose tokens are already in beta-memory from the join passes.
+(:wat::core::defn :wat::rete::test-pass
+  [network  <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap
+   node-id  <- :wat::core::i64]
+  -> :wat::core::PersistentMap
+  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+                             (:wat::core::PersistentMap/get network node-id)
+                             "test-pass: node not found")]
+    (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "TestNode")
+      (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
+                        parent-id (:wat::rete::node-parent node-id network)]
+        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+          ((:wat::core::Some tokens)
+           (:wat::core::foldl
+             (:wat::core::fn [bm  <- :wat::core::PersistentMap
+                              tok <- :wat::rete::Token]
+               -> :wat::core::PersistentMap
+               (:wat::core::if (:wat::rete::eval-test expr (:wat::rete::Token/bindings tok))
+                 (:wat::rete::append-token bm node-id tok)
+                 bm))
+             beta-mem
+             tokens))
+          (:wat::core::None beta-mem)))
+      beta-mem)))
+
 ;; production-pass — fold step: if this node is a ProductionNode, fire it; else pass through.
 ;; Mirrors hash-join-pass as a fold step over node-ids; seeds with the existing production-memory.
 (:wat::core::defn :wat::rete::production-pass
@@ -1011,19 +1100,28 @@
                                      (:wat::rete::hash-join-pass new-amem network acc node-id))
                                    new-bmem
                                    node-ids)
+                    ;; test pass (6b-ii-a) — filter tokens through TestNodes (where conditions)
+                    ;; WHY after joins: tests filter already-joined tokens; join IDs < test IDs by construction.
+                    tested-bmem (:wat::core::foldl
+                                   (:wat::core::fn [acc     <- :wat::core::PersistentMap
+                                                    node-id <- :wat::core::i64]
+                                     -> :wat::core::PersistentMap
+                                     (:wat::rete::test-pass network acc node-id))
+                                   joined-bmem
+                                   node-ids)
                     ;; production pass (4a) — fire each ProductionNode's RHS into production-memory
                     new-pmem (:wat::core::foldl
                                 (:wat::core::fn [acc     <- :wat::core::PersistentMap
                                                  node-id <- :wat::core::i64]
                                   -> :wat::core::PersistentMap
-                                  (:wat::rete::production-pass network joined-bmem rules acc node-id))
+                                  (:wat::rete::production-pass network tested-bmem rules acc node-id))
                                 (:wat::core::PersistentMap)
                                 node-ids)]
     (:wat::rete::Session
       (:wat::rete::Session/network session)
       (:wat::rete::Session/rules   session)
       new-amem
-      joined-bmem
+      tested-bmem
       new-pmem
       facts
       (:wat::rete::Session/next-id session))))
