@@ -27,6 +27,25 @@ use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 
+// ─── Native token (P11) ───────────────────────────────────────────────────────
+
+/// A cheap native token — the property-graph node for a rule's support chain.
+///
+/// `matches` = the condition-labeled edges of the support graph: each `(fact, alpha_id)` pair
+/// records which fact satisfied which alpha gate, giving "how did this derived fact get produced."
+/// `bindings` stays `rpds::HashTrieMapSync` so `production_pass` → `build_insert_fact` reads it
+/// directly (no `matcher.rs` change, no per-firing conversion).
+///
+/// Replaces the per-token `Value::wat__Record` + `VectorSync<Tuple>` allocation chain (~6 allocs
+/// per token) with a single struct holding a plain `Vec` push + an rpds map fold.
+#[derive(Clone)]
+pub(crate) struct Token {
+    /// The condition-labeled edges: (supporting fact, alpha_id that accepted it).
+    pub(crate) matches:  Vec<(Value, i64)>,
+    /// Bound variables accumulated across matched conditions. Stays rpds — matcher reads it directly.
+    pub(crate) bindings: rpds::HashTrieMapSync<Value, Value>,
+}
+
 /// The mutable mirror of a `:wat::rete::Session` — used during the fire pass (P2–P5).
 ///
 /// The three memory maps (`alpha`, `beta`, `production`) are hot, mutated-during-fire
@@ -40,8 +59,8 @@ pub(crate) struct WorkingMemory {
     pub(crate) rules:      Value,
     /// Mutable mirror of `alpha-memory`  (node-id → [Element]).
     pub(crate) alpha:      HashMap<i64, Vec<Value>>,
-    /// Mutable mirror of `beta-memory`   (node-id → [Token]).
-    pub(crate) beta:       HashMap<i64, Vec<Value>>,
+    /// Mutable mirror of `beta-memory`   (node-id → [native Token]).
+    pub(crate) beta:       HashMap<i64, Vec<Token>>,
     /// Mutable mirror of `production-memory` (node-id → [Record]).
     pub(crate) production: HashMap<i64, Vec<Value>>,
     /// Passthrough — the asserted fact PersistentVector.
@@ -123,6 +142,165 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
     Value::wat__core__PersistentMap(pm)
 }
 
+/// Decode a Value Token Record → native `Token` (lossless).
+///
+/// Value Token Record shape (from `make_token` / `wat::rete::Token`):
+///   struct_form[0] = `PV<Tuple(fact, i64)>`  — the matches
+///   struct_form[1] = `PM`                     — the bindings
+///
+/// Each `Tuple` is `Value::Tuple(Arc<Vec<Value>>)` with two elements: `[fact, Value::i64(alpha_id)]`.
+fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
+    const OP: &str = ":wat::rete::to_transient (beta decode)";
+    let struct_form = match tok {
+        Value::wat__Record { struct_form, .. } => struct_form.as_slice(),
+        other => return Err(RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Token (a wat::Record)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }.into()),
+    };
+    // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
+    let matches_vec = match &struct_form[0] {
+        Value::wat__core__PersistentVector(pv) => {
+            let mut out: Vec<(Value, i64)> = Vec::with_capacity(pv.len());
+            for entry in pv.iter() {
+                match entry {
+                    Value::Tuple(elems) => {
+                        let es = elems.as_slice();
+                        let alpha_id = match &es[1] {
+                            Value::i64(n) => *n,
+                            other => return Err(RuntimeError {
+                                span: Span::unknown(),
+                                kind: RuntimeErrorKind::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "match alpha-id :wat::core::i64",
+                                    got: Box::new(ValueSnapshot::of(other)),
+                                },
+                            }.into()),
+                        };
+                        out.push((es[0].clone(), alpha_id));
+                    }
+                    other => return Err(RuntimeError {
+                        span: Span::unknown(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: "match entry :wat::core::Tuple",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    }.into()),
+                }
+            }
+            out
+        }
+        other => return Err(RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "token matches :wat::core::PersistentVector",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }.into()),
+    };
+    // Decode bindings: PM → HashTrieMapSync
+    let bindings = match &struct_form[1] {
+        Value::wat__core__PersistentMap(m) => m.clone(),
+        other => return Err(RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "token bindings :wat::core::PersistentMap",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }.into()),
+    };
+    Ok(Token { matches: matches_vec, bindings })
+}
+
+/// Encode a native `Token` → Value Token Record (lossless round-trip with `value_token_to_native`).
+///
+/// Produces the same shape `make_token` did: `struct_form = [PV<Tuple(fact,i64)>, PM bindings]`.
+fn native_token_to_value(tok: Token) -> Value {
+    let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    for (fact, alpha_id) in tok.matches {
+        let tuple = Value::Tuple(Arc::new(vec![fact, Value::i64(alpha_id)]));
+        matches_pv = matches_pv.push_back(tuple);
+    }
+    Value::wat__Record {
+        class_fqdn: token_class_fqdn(),
+        struct_form: Arc::new(vec![
+            Value::wat__core__PersistentVector(matches_pv),
+            Value::wat__core__PersistentMap(tok.bindings),
+        ]),
+    }
+}
+
+/// Decode a `beta-memory` PersistentMap (node-id → PV<Token Record>) into native tokens.
+///
+/// Each node's PV contains `Value Token Records`; each is decoded to a native `Token`.
+fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, EvalBreak> {
+    match pm {
+        Value::wat__core__PersistentMap(m) => {
+            let mut out: HashMap<i64, Vec<Token>> = HashMap::with_capacity(m.size());
+            for (k, v) in m.iter() {
+                let node_id = match k {
+                    Value::i64(n) => *n,
+                    other => return Err(RuntimeError {
+                        span: Span::unknown(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: "node-id key :wat::core::i64",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    }.into()),
+                };
+                let tokens = match v {
+                    Value::wat__core__PersistentVector(pv) => {
+                        let mut ts: Vec<Token> = Vec::with_capacity(pv.len());
+                        for tv in pv.iter() {
+                            ts.push(value_token_to_native(tv)?);
+                        }
+                        ts
+                    }
+                    other => return Err(RuntimeError {
+                        span: Span::unknown(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: op.into(),
+                            expected: "beta-memory value :wat::core::PersistentVector",
+                            got: Box::new(ValueSnapshot::of(other)),
+                        },
+                    }.into()),
+                };
+                out.insert(node_id, tokens);
+            }
+            Ok(out)
+        }
+        other => Err(RuntimeError {
+            span: Span::unknown(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::PersistentMap (beta-memory)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }.into()),
+    }
+}
+
+/// Encode a native beta map (`HashMap<i64, Vec<Token>>`) back to a Value PersistentMap.
+fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
+    let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for (node_id, tokens) in beta {
+        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        for tok in tokens {
+            pv = pv.push_back(native_token_to_value(tok));
+        }
+        pm = pm.insert(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
+    }
+    Value::wat__core__PersistentMap(pm)
+}
+
 // ─── Public boundary ──────────────────────────────────────────────────────────
 
 /// Convert a frozen `:wat::rete::Session` `Value` into a mutable `WorkingMemory`.
@@ -189,7 +367,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     };
 
     let alpha      = pm_to_hashmap(OP, alpha_pm)?;
-    let beta       = pm_to_hashmap(OP, beta_pm)?;
+    let beta       = pm_to_beta(OP, beta_pm)?;
     let production = pm_to_hashmap(OP, prod_pm)?;
 
     Ok(WorkingMemory { network, rules, alpha, beta, production, facts, next_id })
@@ -204,7 +382,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
 pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     let alpha_pm   = hashmap_to_pm(wm.alpha);
-    let beta_pm    = hashmap_to_pm(wm.beta);
+    let beta_pm    = beta_to_pm(wm.beta);
     let prod_pm    = hashmap_to_pm(wm.production);
 
     Value::wat__Record {
@@ -321,9 +499,10 @@ fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> V
     }
 }
 
-/// Build a `Token` record value.
+/// Build a `Token` record value (retained for documentation; superseded by native `Token` in P11).
 /// Token: `{ matches: PV<Tuple>, bindings: PersistentMap }` (positional).
 /// class_fqdn = "wat::rete::Token", struct_form = [matches_pv, bindings_pm].
+#[allow(dead_code)]
 fn make_token(
     matches: rpds::VectorSync<Value>,
     bindings: rpds::HashTrieMapSync<Value, Value>,
@@ -353,9 +532,9 @@ fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, V
     }
 }
 
-/// Destructure a Token: (matches pv, bindings map). Panics on malformed.
-/// Group C: returns borrows — callers that only read use the ref directly;
-/// callers that need ownership (extend_token, make_token) clone at the call site.
+/// Destructure a Value Token Record: (matches pv, bindings map). Panics on malformed.
+/// Retained for documentation; superseded by native `Token` field access in P11.
+#[allow(dead_code)]
 fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &rpds::HashTrieMapSync<Value, Value>) {
     match tok {
         Value::wat__Record { struct_form, .. } => {
@@ -481,15 +660,14 @@ fn root_join_pass(wm: &mut WorkingMemory) {
             if kind_of(child_node) != "RootJoinNode" {
                 continue;
             }
-            // Seed one Token per Element into beta[child_id].
+            // Seed one native Token per Element into beta[child_id].
             for el in elements {
                 let (fact, bindings) = element_fact_bindings(el);
-                // Support entry: Tuple(fact, alpha-id). Mirrors seed-token (wat:544-551).
-                let support = Value::Tuple(Arc::new(vec![fact.clone(), Value::i64(*node_id)]));
-                let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                matches_pv = matches_pv.push_back(support);
-                // make_token needs owned bindings — clone the borrowed ref (Group C: deferred clone).
-                let tok = make_token(matches_pv, bindings.clone());
+                // Support edge: (fact, alpha-id). Mirrors seed-token (wat:544-551).
+                let tok = Token {
+                    matches:  vec![(fact.clone(), *node_id)],
+                    bindings: bindings.clone(),
+                };
                 wm.beta.entry(*child_id).or_default().push(tok);
             }
         }
@@ -543,20 +721,21 @@ fn token_element_compatible(
     true
 }
 
-/// `extend-token` — merge an Element's fact and bindings into a Token.
-/// matches: conj `Tuple(element.fact, alpha-id)`.
+/// `extend-token` — merge an Element's fact and bindings into a native `Token`.
+/// matches: push `(el_fact, alpha_id)` onto a cloned Vec.
 /// bindings: fold element.bindings into token.bindings (assoc each; shared vars are idempotent).
 /// Mirrors `wat/rete.wat:682-702`.
 fn extend_token(
-    tok_matches: rpds::VectorSync<Value>,
-    tok_bindings: rpds::HashTrieMapSync<Value, Value>,
+    tok: &Token,
     el_fact: &Value,
     el_bindings: &rpds::HashTrieMapSync<Value, Value>,
     alpha_id: i64,
-) -> Value {
-    let support = Value::Tuple(Arc::new(vec![el_fact.clone(), Value::i64(alpha_id)]));
-    let new_matches = tok_matches.push_back(support);
-    let mut new_bindings = tok_bindings;
+) -> Token {
+    // Clone the matches Vec and push the new edge.
+    let mut new_matches = tok.matches.clone();
+    new_matches.push((el_fact.clone(), alpha_id));
+    // Fold element bindings into a clone of token bindings (idempotent skip for shared join-keys).
+    let mut new_bindings = tok.bindings.clone();
     for (k, v) in el_bindings.iter() {
         // Group D: skip keys already present with the same value (shared join-keys are idempotent).
         // New vars from the element's OWN bindings are always inserted.
@@ -564,25 +743,26 @@ fn extend_token(
             new_bindings = new_bindings.insert(k.clone(), v.clone());
         }
     }
-    make_token(new_matches, new_bindings)
+    Token { matches: new_matches, bindings: new_bindings }
 }
 
 /// Keyed hash-join helper (P3 — shared by batch `hash_join_pass` and delta `fire_fixpoint_delta`).
 ///
-/// Joins `left_tokens` against `right_elements` using the keyed index-and-probe strategy.
-/// Returns the new extended tokens produced by the join. If either slice is empty, returns
-/// an empty Vec (no join possible). `alpha_id` is recorded in each new token's support tuple.
+/// Joins `left_tokens` (native `Token`) against `right_elements` (Value Element Records) using the
+/// keyed index-and-probe strategy. Returns the new extended tokens produced by the join. If either
+/// slice is empty, returns an empty Vec (no join possible). `alpha_id` is recorded in each new
+/// token's matches vec.
 ///
 /// The join_keys (sorted intersection of token/element binding keys) are derived from the
 /// first element of each slice — callers must guarantee both slices are non-empty.
-fn keyed_join(left_tokens: &[Value], right_elements: &[Value], alpha_id: i64) -> Vec<Value> {
+fn keyed_join(left_tokens: &[Token], right_elements: &[Value], alpha_id: i64) -> Vec<Token> {
     if left_tokens.is_empty() || right_elements.is_empty() {
         return vec![];
     }
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
     let join_keys: Vec<Value> = {
-        let (_, sample_tok_bindings) = token_matches_bindings(&left_tokens[0]);
+        let sample_tok_bindings = &left_tokens[0].bindings;
         let (_, sample_el_bindings) = element_fact_bindings(&right_elements[0]);
         let mut keys: Vec<Value> = sample_tok_bindings
             .keys()
@@ -613,25 +793,18 @@ fn keyed_join(left_tokens: &[Value], right_elements: &[Value], alpha_id: i64) ->
     }
 
     // Step 3: probe with each LEFT (token).
-    let mut out: Vec<Value> = Vec::new();
+    let mut out: Vec<Token> = Vec::new();
     for tok in left_tokens {
-        let (tok_matches, tok_bindings) = token_matches_bindings(tok);
         let probe_key: Vec<Value> = join_keys
             .iter()
-            .map(|k| tok_bindings.get(k)
+            .map(|k| tok.bindings.get(k)
                 .cloned()
                 .expect("keyed_join: join key missing from token bindings"))
             .collect();
         if let Some(bucket) = index.get(&probe_key) {
             for &el_idx in bucket {
                 let (el_fact, el_bindings) = element_fact_bindings(&right_elements[el_idx]);
-                let new_tok = extend_token(
-                    tok_matches.clone(),
-                    tok_bindings.clone(),
-                    el_fact,
-                    &el_bindings,
-                    alpha_id,
-                );
+                let new_tok = extend_token(tok, el_fact, el_bindings, alpha_id);
                 out.push(new_tok);
             }
         }
@@ -660,7 +833,8 @@ fn hash_join_pass(wm: &mut WorkingMemory) {
 
         // tokens must remain a clone: wm.beta[node_id] is read here, wm.beta[child_id] is
         // mutated below — Rust cannot prove key disjointness, so the borrow would conflict.
-        let tokens = match wm.beta.get(node_id) {
+        // With native Token the clone copies the Vec<Token> (cheap Vec of structs).
+        let tokens: Vec<Token> = match wm.beta.get(node_id) {
             Some(ts) => ts.clone(),
             None => continue, // no tokens → skip
         };
@@ -772,11 +946,10 @@ fn production_pass(wm: &mut WorkingMemory) -> Result<(), EvalBreak> {
         };
 
         // For each token × each RHS insert-form → build derived fact → push to production[prod_id].
-        // Group C: tok_bindings is now a borrow — pass directly without the intermediate clone.
+        // tok.bindings is a native rpds map — pass directly (no intermediate clone).
         for tok in &tokens {
-            let (_, tok_bindings) = token_matches_bindings(tok);
             for form in &rhs_forms {
-                let derived = crate::rete::matcher::build_insert_fact(form, tok_bindings)?;
+                let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
                 wm.production.entry(*node_id).or_default().push(derived);
             }
         }
@@ -808,6 +981,9 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     hash_join_pass(&mut wm);
     production_pass(&mut wm)?;
 
+    // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
+    // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
+    wm.beta.clear();
     Ok(to_persistent(wm))
 }
 
@@ -1044,7 +1220,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
     // left_idx[J]:  key → Vec<Token>   (all left tokens seen so far for J)
     // right_idx[J]: key → Vec<Element> (all right elements seen so far for J)
     // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
-    let mut left_idx:  HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
+    let mut left_idx:  HashMap<i64, HashMap<Vec<Value>, Vec<Token>>> = HashMap::new();
     let mut right_idx: HashMap<i64, HashMap<Vec<Value>, Vec<Value>>> = HashMap::new();
     let mut join_keys_cache: HashMap<i64, Vec<Value>> = HashMap::new();
 
@@ -1114,7 +1290,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
     loop {
         // Per-round delta sets (new elements/tokens created THIS round).
         let mut d_alpha: HashMap<i64, Vec<Value>> = HashMap::new();
-        let mut d_beta:  HashMap<i64, Vec<Value>> = HashMap::new();
+        let mut d_beta:  HashMap<i64, Vec<Token>> = HashMap::new();
 
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
         for fact in &delta_facts {
@@ -1178,8 +1354,6 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 Some(els) if !els.is_empty() => els.as_slice(),
                 _ => continue,
             };
-            // Group B: hoist Value::i64(*node_id) out of the per-element inner loop.
-            let alpha_id_val = Value::i64(*node_id);
             let child_ids = node_children(node);
             // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
             for child_id in &child_ids {
@@ -1193,11 +1367,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 }
                 for el in new_elements {
                     let (fact, bindings) = element_fact_bindings(el);
-                    let support = Value::Tuple(Arc::new(vec![fact.clone(), alpha_id_val.clone()]));
-                    let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                    matches_pv = matches_pv.push_back(support);
-                    // make_token needs owned bindings — clone the borrowed ref (Group C: deferred clone).
-                    let tok = make_token(matches_pv, bindings.clone());
+                    // Seed native Token: one matches edge (fact, alpha_id).
+                    let tok = Token {
+                        matches:  vec![(fact.clone(), *node_id)],
+                        bindings: bindings.clone(),
+                    };
                     wm.beta.entry(*child_id).or_default().push(tok.clone());
                     d_beta.entry(*child_id).or_default().push(tok);
                 }
@@ -1251,9 +1425,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                     let sample_el  = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
-                            let (_, tok_b) = token_matches_bindings(tok);
-                            let (_, el_b)  = element_fact_bindings(el);
-                            let mut keys: Vec<Value> = tok_b
+                            let (_, el_b) = element_fact_bindings(el);
+                            let mut keys: Vec<Value> = tok.bindings
                                 .keys()
                                 .filter(|k| el_b.get(*k).is_some())
                                 .cloned()
@@ -1278,7 +1451,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
 
                 // Group C: borrow dl/dr slices — no Vec alloc per node per round.
                 // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
-                let dl: &[Value] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
+                let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
                 let dr: &[Value] = d_alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or_default();
 
                 // Skip if nothing new on either side.
@@ -1299,18 +1472,15 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
 
                 // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
                 // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
-                let mut new_tokens: Vec<Value> = Vec::new();
+                let mut new_tokens: Vec<Token> = Vec::new();
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in dl {
-                            let (tok_m, tok_b) = token_matches_bindings(tok);
-                            let k = key_of(tok_b, jk);
+                            let k = key_of(&tok.bindings, jk);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     let (el_fact, el_b) = element_fact_bindings(el);
-                                    let new_tok = extend_token(
-                                        tok_m.clone(), tok_b.clone(), el_fact, el_b, alpha_id,
-                                    );
+                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
                                     new_tokens.push(new_tok);
                                 }
                             }
@@ -1327,10 +1497,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                             let k = key_of(el_b, jk);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
-                                    let (tok_m, tok_b) = token_matches_bindings(tok);
-                                    let new_tok = extend_token(
-                                        tok_m.clone(), tok_b.clone(), el_fact, el_b, alpha_id,
-                                    );
+                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
                                     new_tokens.push(new_tok);
                                 }
                             }
@@ -1339,12 +1506,11 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
                 }
 
                 // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
-                // dl is &[Value] — iterate directly.
+                // dl is &[Token] — iterate directly.
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
-                        let (_, tok_b) = token_matches_bindings(tok);
-                        let k = key_of(tok_b, jk);
+                        let k = key_of(&tok.bindings, jk);
                         lidx.entry(k).or_default().push(tok.clone());
                     }
                 }
@@ -1386,10 +1552,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
             };
 
             for tok in new_tokens {
-                let (_, tok_bindings) = token_matches_bindings(tok);
                 for form in rhs_forms {
-                    // Group C: tok_bindings is now a borrow — pass directly (no intermediate clone).
-                    let derived = crate::rete::matcher::build_insert_fact(form, tok_bindings)?;
+                    // tok.bindings is native rpds — pass directly (no intermediate clone).
+                    let derived = crate::rete::matcher::build_insert_fact(form, &tok.bindings)?;
                     // Dedup + termination guard: only propagate truly new facts.
                     if !seen.contains(&derived) {
                         seen.insert(derived.clone());
@@ -1407,6 +1572,9 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable) -> Result<Value, Eval
         delta_facts = next_delta;
     }
 
+    // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
+    // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
+    wm.beta.clear();
     // Return persistent session with facts = input (fire-rules contract).
     // The input facts are already in wm.facts (never modified during delta fire).
     let input_facts = wm.facts.clone();
@@ -1537,5 +1705,478 @@ mod tests {
         };
         let result = to_transient(&wrong);
         assert!(result.is_err(), "to_transient on a non-Session record must return Err");
+    }
+
+    /// P11 guiding-light probe: the native `Token`'s `matches` vec carries the expected
+    /// `(fact, alpha_id)` condition-labeled edges for a production-reaching token.
+    ///
+    /// A 2-condition (Temperature ∧ WindSpeed) rule produces tokens with exactly 2 edges:
+    ///   matches[0] = (Temperature_fact, alpha_id_of_Temperature_node)
+    ///   matches[1] = (WindSpeed_fact,   alpha_id_of_WindSpeed_node)
+    ///
+    /// Proves the cheap native repr keeps the support chain walkable (the guiding-light invariant).
+    /// Runs the four passes directly — NOT via `fire_once_session` (which clears beta before freeze).
+    #[test]
+    fn guiding_light_matches_carry_support_chain() {
+        use super::{
+            alpha_pass, root_join_pass, hash_join_pass, production_pass,
+            sorted_node_ids, get_node, kind_of,
+        };
+        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::load::InMemoryLoader;
+        use crate::runtime::Environment;
+
+        // Build the frozen world and compile + insert facts.
+        let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let parse_and_eval = |src: &str| -> Value {
+            let ast = crate::parse_one!(src).expect("parse");
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+                .value_owned()
+        };
+
+        // Build a compiled session with two matching facts inserted.
+        let session_with_facts = parse_and_eval(
+            "(:wat::core::let \
+               [rules (:wat::rete::collect-rules :weather)\
+                s0    (:wat::rete::compile rules)\
+                s1    (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
+                s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))]\
+              s2)"
+        );
+
+        // Convert to a native WorkingMemory (empty memories — pre-fire).
+        let mut wm = to_transient(&session_with_facts)
+            .expect("to_transient should succeed");
+
+        // Clear memories (re-run-from-scratch, same as fire_once_session).
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+
+        // Run the four passes (but do NOT call fire_once_session — that clears beta before returning).
+        let sym = world.symbols();
+        alpha_pass(&mut wm, sym);
+        root_join_pass(&mut wm);
+        hash_join_pass(&mut wm);
+        production_pass(&mut wm).expect("production_pass should succeed");
+
+        // Find the HashJoinNode (the parent of the ProductionNode) in the network.
+        // A production-reaching token lives in beta[hash_join_node_id].
+        let node_ids = sorted_node_ids(&wm.network);
+        let hash_join_id = node_ids.iter().find(|&&id| {
+            get_node(&wm.network, id)
+                .map(|n| kind_of(n) == "HashJoinNode")
+                .unwrap_or(false)
+        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+
+        // Collect the alpha node ids for membership checks.
+        let alpha_ids_in_network: std::collections::HashSet<i64> = node_ids.iter().filter(|&&id| {
+            get_node(&wm.network, id)
+                .map(|n| kind_of(n) == "AlphaNode")
+                .unwrap_or(false)
+        }).copied().collect();
+
+        // Retrieve the tokens at the HashJoinNode.
+        let tokens = wm.beta.get(&hash_join_id)
+            .expect("beta[hash_join_id] must be non-empty after the four passes");
+
+        assert!(!tokens.is_empty(), "at least one production-reaching token must exist");
+
+        // Each token must carry exactly 2 edges (one per condition: Temperature + WindSpeed).
+        for tok in tokens {
+            assert_eq!(
+                tok.matches.len(), 2,
+                "a 2-condition rule token must carry exactly 2 (fact, alpha_id) edges; got: {:?}",
+                tok.matches.iter().map(|(_, aid)| aid).collect::<Vec<_>>()
+            );
+
+            // Both alpha_ids must reference actual AlphaNode ids in the network.
+            for (fact, alpha_id) in &tok.matches {
+                assert!(
+                    alpha_ids_in_network.contains(alpha_id),
+                    "alpha_id {alpha_id} in matches must be an AlphaNode id in the network; \
+                     known alpha ids: {alpha_ids_in_network:?}"
+                );
+                // The fact must be a Record (Temperature or WindSpeed).
+                match fact {
+                    Value::wat__Record { class_fqdn, .. } => {
+                        let cls = class_fqdn.as_str();
+                        assert!(
+                            cls == "weather::Temperature" || cls == "weather::WindSpeed",
+                            "supporting fact must be Temperature or WindSpeed; got: {cls}"
+                        );
+                    }
+                    other => panic!("matches fact must be a wat::Record; got: {other:?}"),
+                }
+            }
+
+            // The two edges must reference DIFFERENT alpha nodes (each condition is distinct).
+            let (_, alpha0) = &tok.matches[0];
+            let (_, alpha1) = &tok.matches[1];
+            assert_ne!(alpha0, alpha1, "the two edges must reference different alpha node ids");
+
+            // The two facts must be of DIFFERENT types (Temperature != WindSpeed).
+            let class0 = match &tok.matches[0].0 {
+                Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str().to_string(),
+                _ => panic!("fact[0] must be a Record"),
+            };
+            let class1 = match &tok.matches[1].0 {
+                Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str().to_string(),
+                _ => panic!("fact[1] must be a Record"),
+            };
+            assert_ne!(class0, class1, "the two supporting facts must be of different types");
+        }
+    }
+
+    // ─── P11 relocation: 3a / 3b coverage — beta is ephemeral, inspect via passes ───────────────
+    //
+    // The integration tests probe_arc278_3a_root_join and probe_arc278_3b_hash_join formerly read
+    // `Session/beta-memory` from a FIRED Session. P11 clears `wm.beta` before freeze so the frozen
+    // Session carries an empty beta-memory. The join-correctness invariants are preserved HERE:
+    // we run the passes directly and inspect the NATIVE wm.beta before it would be cleared.
+    //
+    // These tests are the authority for:
+    //   3a: RootJoinNode seeds exactly 1 Token per matching Element (bindings + support carried).
+    //   3b: HashJoinNode yields the exact compatible-cross cardinality (1, 0, or 2 for 2×2).
+
+    /// P11/3a — `root_join_seeds_one_token_per_element`:
+    ///
+    /// 1-condition rule `(:user::Temp (?t <- :value) (:wat::core::> ?t 20))`.
+    /// After alpha+root-join passes with one matching fact inserted (Temp 25):
+    ///   (1) exactly one beta node (the RootJoinNode) is populated,
+    ///   (2) it holds exactly one Token,
+    ///   (3) that Token's matches vec has length 1,
+    ///   (4) that Token's bindings carry ?t == 25.
+    ///
+    /// Mirrors the 3a integration test assertions, relocated into the kernel's #[cfg(test)] module
+    /// so they survive P11's `wm.beta.clear()` at freeze. Coverage for:
+    ///   tests/probe_arc278_3a_root_join.rs::root_join_populates_one_beta_node
+    ///   tests/probe_arc278_3a_root_join.rs::root_join_seeds_one_token
+    ///   tests/probe_arc278_3a_root_join.rs::seeded_token_carries_bindings_and_support
+    #[test]
+    fn root_join_seeds_one_token_per_element() {
+        use super::{
+            alpha_pass, root_join_pass,
+            sorted_node_ids, get_node, kind_of,
+        };
+        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::load::InMemoryLoader;
+        use crate::runtime::Environment;
+
+        // 1-condition world: only the Temp record type + main fn (no defrule).
+        const TEMP_WORLD: &str = "\
+(:wat::Record::def :user::Temp [value <- :wat::core::i64])\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+        let world = startup_from_source(TEMP_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let parse_and_eval = |src: &str| -> Value {
+            let ast = crate::parse_one!(src).expect("parse");
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+                .value_owned()
+        };
+
+        // Build a compiled session with one matching Temp fact. Mirrors the 3a integration setup:
+        // a raw Rule with a single condition + empty RHS, compiled and one fact inserted.
+        let session = parse_and_eval(
+            "(:wat::core::let \
+               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
+                rule  (:wat::rete::Rule \"r\" (:wat::core::PersistentVector cond) (:wat::core::PersistentVector))\
+                sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+                sess1 (:wat::rete::insert sess0 (:user::Temp 25))]\
+              sess1)"
+        );
+
+        let mut wm = to_transient(&session).expect("to_transient should succeed");
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+
+        let sym = world.symbols();
+        alpha_pass(&mut wm, sym);
+        root_join_pass(&mut wm);
+        // (no hash-join needed: single-condition rule has no HashJoinNode)
+
+        // (1) Exactly one beta node (the RootJoinNode) is seeded.
+        assert_eq!(
+            wm.beta.len(), 1,
+            "root_join_seeds_one_token_per_element (3a): exactly 1 beta node seeded; got {}",
+            wm.beta.len()
+        );
+
+        // (2) That node holds exactly one Token.
+        let (root_join_id, tokens) = wm.beta.iter().next()
+            .expect("beta must have exactly one entry");
+        assert_eq!(
+            tokens.len(), 1,
+            "root_join_seeds_one_token_per_element (3a): one Element → one Token; got {}",
+            tokens.len()
+        );
+        let _ = root_join_id; // node-id is dynamic; we just need the count
+
+        // (3) Token's matches vec has exactly 1 edge (the one supporting fact).
+        let tok = &tokens[0];
+        assert_eq!(
+            tok.matches.len(), 1,
+            "root_join_seeds_one_token_per_element (3a): Token's support chain has 1 entry; got {}",
+            tok.matches.len()
+        );
+
+        // (4) Token carries ?t = 25 in its bindings.
+        let qt_key = Value::String(Arc::new("?t".to_string()));
+        let qt_val = tok.bindings.get(&qt_key).cloned();
+        assert_eq!(
+            qt_val,
+            Some(Value::i64(25)),
+            "root_join_seeds_one_token_per_element (3a): Token must carry ?t=25; got {:?}",
+            qt_val
+        );
+    }
+
+    /// P11/3b — `hash_join_produces_one_token_on_same_loc`:
+    ///
+    /// 2-condition rule joining on `?loc`. Temperature(Oslo)+WindSpeed(Oslo) → exactly 1 joined Token
+    /// at the HashJoinNode. The joined Token unifies all three variables: ?t=15, ?w=45, ?loc="Oslo".
+    ///
+    /// Mirrors:
+    ///   tests/probe_arc278_3b_hash_join.rs::join_produces_one_token_on_matching_loc
+    ///   tests/probe_arc278_3b_hash_join.rs::joined_token_unifies_both_conditions
+    #[test]
+    fn hash_join_produces_one_token_on_same_loc() {
+        use super::{
+            alpha_pass, root_join_pass, hash_join_pass,
+            sorted_node_ids, get_node, kind_of,
+        };
+        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::load::InMemoryLoader;
+        use crate::runtime::Environment;
+
+        // 2-condition world: Temperature + WindSpeed (no defrule — raw Rule).
+        const JOIN_WORLD: &str = "\
+(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let parse_and_eval = |src: &str| -> Value {
+            let ast = crate::parse_one!(src).expect("parse");
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+                .value_owned()
+        };
+
+        // Same location → should produce 1 joined token.
+        let session = parse_and_eval(
+            "(:wat::core::let \
+               [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
+                c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+                rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+                sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
+                sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"Oslo\"))]\
+              sess2)"
+        );
+
+        let mut wm = to_transient(&session).expect("to_transient should succeed");
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+
+        let sym = world.symbols();
+        alpha_pass(&mut wm, sym);
+        root_join_pass(&mut wm);
+        hash_join_pass(&mut wm);
+
+        // Find the HashJoinNode.
+        let node_ids = sorted_node_ids(&wm.network);
+        let hash_join_id = node_ids.iter().find(|&&id| {
+            get_node(&wm.network, id)
+                .map(|n| kind_of(n) == "HashJoinNode")
+                .unwrap_or(false)
+        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+
+        let tokens = wm.beta.get(&hash_join_id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+
+        // join_produces_one_token_on_matching_loc: same loc → exactly 1 joined Token.
+        assert_eq!(
+            tokens.len(), 1,
+            "hash_join_produces_one_token_on_same_loc (3b): Oslo+Oslo → 1 joined Token; got {}",
+            tokens.len()
+        );
+
+        // joined_token_unifies_both_conditions: ?t=15, ?w=45, ?loc="Oslo".
+        let tok = &tokens[0];
+        let qt = tok.bindings.get(&Value::String(Arc::new("?t".to_string()))).cloned();
+        let qw = tok.bindings.get(&Value::String(Arc::new("?w".to_string()))).cloned();
+        let ql = tok.bindings.get(&Value::String(Arc::new("?loc".to_string()))).cloned();
+        assert_eq!(qt, Some(Value::i64(15)),
+            "hash_join_produces_one_token_on_same_loc (3b): ?t must be 15; got {:?}", qt);
+        assert_eq!(qw, Some(Value::i64(45)),
+            "hash_join_produces_one_token_on_same_loc (3b): ?w must be 45; got {:?}", qw);
+        assert_eq!(ql, Some(Value::String(Arc::new("Oslo".to_string()))),
+            "hash_join_produces_one_token_on_same_loc (3b): ?loc must be \"Oslo\"; got {:?}", ql);
+    }
+
+    /// P11/3b — `hash_join_drops_on_mismatched_loc`:
+    ///
+    /// Temperature(Oslo) + WindSpeed(Bergen) → no joined Token at the HashJoinNode
+    /// (the ?loc join key disagrees: "Oslo" != "Bergen").
+    ///
+    /// Mirrors:
+    ///   tests/probe_arc278_3b_hash_join.rs::join_drops_on_mismatched_loc
+    #[test]
+    fn hash_join_drops_on_mismatched_loc() {
+        use super::{
+            alpha_pass, root_join_pass, hash_join_pass,
+            sorted_node_ids, get_node, kind_of,
+        };
+        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::load::InMemoryLoader;
+        use crate::runtime::Environment;
+
+        const JOIN_WORLD: &str = "\
+(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let parse_and_eval = |src: &str| -> Value {
+            let ast = crate::parse_one!(src).expect("parse");
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+                .value_owned()
+        };
+
+        // Different locations → no joined tokens.
+        let session = parse_and_eval(
+            "(:wat::core::let \
+               [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
+                c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+                rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+                sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
+                sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"Bergen\"))]\
+              sess2)"
+        );
+
+        let mut wm = to_transient(&session).expect("to_transient should succeed");
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+
+        let sym = world.symbols();
+        alpha_pass(&mut wm, sym);
+        root_join_pass(&mut wm);
+        hash_join_pass(&mut wm);
+
+        // Find the HashJoinNode.
+        let node_ids = sorted_node_ids(&wm.network);
+        let hash_join_id = node_ids.iter().find(|&&id| {
+            get_node(&wm.network, id)
+                .map(|n| kind_of(n) == "HashJoinNode")
+                .unwrap_or(false)
+        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+
+        let token_count = wm.beta.get(&hash_join_id).map(Vec::len).unwrap_or(0);
+
+        assert_eq!(
+            token_count, 0,
+            "hash_join_drops_on_mismatched_loc (3b): Oslo+Bergen → 0 joined Tokens; got {}",
+            token_count
+        );
+    }
+
+    /// P11/3b — `hash_join_no_cross_loc_leakage` (N×M probe):
+    ///
+    /// 2 Temperatures × 2 WindSpeeds across 2 locations (Oslo + Bergen).
+    /// The HashJoinNode must produce EXACTLY 2 joined Tokens (Oslo×Oslo and Bergen×Bergen),
+    /// NOT 4 (a naive cross-product that ignores ?loc) and NOT 0 (a broken compatibility check).
+    ///
+    /// This is the definitive proof that the keyed hash-join has no cross-product leakage.
+    ///
+    /// Mirrors:
+    ///   tests/probe_arc278_3b_hash_join.rs::join_no_cross_loc_leakage
+    #[test]
+    fn hash_join_no_cross_loc_leakage() {
+        use super::{
+            alpha_pass, root_join_pass, hash_join_pass,
+            sorted_node_ids, get_node, kind_of,
+        };
+        use crate::freeze::{startup_from_source, eval_in_frozen};
+        use crate::load::InMemoryLoader;
+        use crate::runtime::Environment;
+
+        const JOIN_WORLD: &str = "\
+(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+
+        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze");
+        let parse_and_eval = |src: &str| -> Value {
+            let ast = crate::parse_one!(src).expect("parse");
+            eval_in_frozen(&ast, &world, &Environment::new())
+                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+                .value_owned()
+        };
+
+        // 2 Temps (Oslo 15, Bergen 10) × 2 Winds (Oslo 45, Bergen 50): same-loc joins only.
+        let session = parse_and_eval(
+            "(:wat::core::let \
+               [c1 (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
+                c2 (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
+                rule (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
+                s1 (:wat::rete::insert s0 (:user::Temperature 15 \"Oslo\"))\
+                s2 (:wat::rete::insert s1 (:user::Temperature 10 \"Bergen\"))\
+                s3 (:wat::rete::insert s2 (:user::WindSpeed 45 \"Oslo\"))\
+                s4 (:wat::rete::insert s3 (:user::WindSpeed 50 \"Bergen\"))]\
+              s4)"
+        );
+
+        let mut wm = to_transient(&session).expect("to_transient should succeed");
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+
+        let sym = world.symbols();
+        alpha_pass(&mut wm, sym);
+        root_join_pass(&mut wm);
+        hash_join_pass(&mut wm);
+
+        // Find the HashJoinNode.
+        let node_ids = sorted_node_ids(&wm.network);
+        let hash_join_id = node_ids.iter().find(|&&id| {
+            get_node(&wm.network, id)
+                .map(|n| kind_of(n) == "HashJoinNode")
+                .unwrap_or(false)
+        }).copied().expect("network must contain a HashJoinNode for the 2-condition rule");
+
+        let token_count = wm.beta.get(&hash_join_id).map(Vec::len).unwrap_or(0);
+
+        assert_eq!(
+            token_count, 2,
+            "hash_join_no_cross_loc_leakage (3b): 2×2 same-loc → exactly 2 joined Tokens (not 4, not 0); got {}",
+            token_count
+        );
+
+        // Verify the two tokens are the correct same-loc pairs (Oslo×Oslo, Bergen×Bergen).
+        let tokens = wm.beta.get(&hash_join_id).expect("beta[hash_join_id] must be non-empty");
+        let locs: std::collections::HashSet<String> = tokens.iter().map(|tok| {
+            match tok.bindings.get(&Value::String(Arc::new("?loc".to_string()))) {
+                Some(Value::String(s)) => s.as_str().to_string(),
+                _ => panic!("joined token must have ?loc bound to a String"),
+            }
+        }).collect();
+        assert!(locs.contains("Oslo"),   "joined tokens must include an Oslo pair");
+        assert!(locs.contains("Bergen"), "joined tokens must include a Bergen pair");
+        assert_eq!(locs.len(), 2,        "exactly 2 distinct locations, no duplicates");
     }
 }

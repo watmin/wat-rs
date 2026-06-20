@@ -58,13 +58,23 @@ fn ev(expr: &str) -> Value {
         .value_owned()
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_produces_one_token_on_same_loc
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_drops_on_mismatched_loc
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_no_cross_loc_leakage
 #[test]
+#[ignore]
 fn join_produces_one_token_on_matching_loc() {
     let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length htoks))", setup("Oslo")));
     assert_eq!(got, Value::i64(1), "Temp+Wind at the same loc → one joined Token; got {got:?}");
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_produces_one_token_on_same_loc
 #[test]
+#[ignore]
 fn joined_token_unifies_both_conditions() {
     let s = setup("Oslo");
     let binds = format!("(:wat::core::let [{s} \
@@ -78,7 +88,11 @@ fn joined_token_unifies_both_conditions() {
         Value::Option(Arc::new(Some(Value::String(Arc::new("Oslo".to_string()))))), "?loc unified");
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_drops_on_mismatched_loc
 #[test]
+#[ignore]
 fn join_drops_on_mismatched_loc() {
     let got = ev(&format!("(:wat::core::let [{}] (:wat::core::length htoks))", setup("Bergen")));
     assert_eq!(got, Value::i64(0), "Temp(Oslo)+Wind(Bergen) → no joined Token; got {got:?}");
@@ -110,7 +124,11 @@ const SETUP_2X2: &str = "\
             ((:wat::core::Some pv) pv) \
             (:wat::core::None (:wat::core::PersistentVector)))";
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::hash_join_no_cross_loc_leakage
 #[test]
+#[ignore]
 fn join_no_cross_loc_leakage() {
     let got = ev(&format!("(:wat::core::let [{SETUP_2X2}] (:wat::core::length htoks))"));
     assert_eq!(got, Value::i64(2), "2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins (not 4, not 0); got {got:?}");

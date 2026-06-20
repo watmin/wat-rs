@@ -45,7 +45,11 @@ fn ev(expr: &str) -> Value {
         .value_owned()
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::root_join_seeds_one_token_per_element
 #[test]
+#[ignore]
 fn root_join_populates_one_beta_node() {
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}] (:wat::core::length (:wat::core::PersistentMap/keys bmem)))"
@@ -53,7 +57,11 @@ fn root_join_populates_one_beta_node() {
     assert_eq!(got, Value::i64(1), "exactly one beta node (the RootJoinNode) seeded; got {got:?}");
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::root_join_seeds_one_token_per_element
 #[test]
+#[ignore]
 fn root_join_seeds_one_token() {
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}{TOK}] (:wat::core::length toks))"
@@ -61,7 +69,11 @@ fn root_join_seeds_one_token() {
     assert_eq!(got, Value::i64(1), "one Element → one seeded Token; got {got:?}");
 }
 
+// P11: beta is ephemeral by design; a fired Session no longer retains beta-memory — provenance
+// regenerates on re-fire. Join-correctness coverage relocated to:
+//   src/rete/kernel.rs #[cfg(test)]::root_join_seeds_one_token_per_element
 #[test]
+#[ignore]
 fn seeded_token_carries_bindings_and_support() {
     let binds = ev(&format!(
         "(:wat::core::let [{SETUP}{TOK} binds (:wat::rete::Token/bindings tok)] \
