@@ -48,6 +48,12 @@ composition of the engine + `defservice` + spawn; a probe spawns it and does ite
 retract→re-fire→query) observing the WM evolve. **NO HTTPS / TCP+TLS** (dropped — not mapped). v1 = pure replay;
 a hot WM is where incremental insert (P4b delta) + incremental TM (the support-store cascade cut from the pure
 oracle) would eventually earn their place. (Reclaimed from a too-greedily-created arc into this backlog.)
+- **Read path = copy-on-write overlay** (the "Iron Man builds the armor in the cave, cave untouched" model):
+  `query` reads through the immutable base; `:what-if`/`:try-rules` fire over a structurally-shared snapshot,
+  read the derivation, discard the overlay — base byte-identical, near-free (persistence). Snapshot isolation,
+  no MVCC, no locks. Folds into ⑥'s DESIGN-STONE when drawn. Full model + the **distributed-service HORIZON**
+  (a NOT-NOW ddb-style leader/replica design + the evolvability constraint it puts on ⑥):
+  `NOTE-overlay-read-path-and-distributed-horizon.md`.
 
 ## 278 close condition
 perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + ④ stones 6–8) + ⑤ vigilia → **THEN arc
