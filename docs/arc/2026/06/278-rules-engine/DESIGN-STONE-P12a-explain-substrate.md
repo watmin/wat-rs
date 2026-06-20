@@ -28,25 +28,48 @@ nothing on the hot path and is re-derivable from the stored `{facts, rules}` on 
   explain mode.
 
 ### support shape (the index)
-`support` maps a **derived fact → its producing `(rule-name, Token)`**. The Token already carries
-`matches = PV<(fact, alpha_id)>` (the condition-edges = the support chain) + `bindings`. v1: **first producing
-token wins** (a fact derived two ways → the first; multi-derivation fan-in is a named follow-on, per the P12
-DESIGN). Concretely the value is a 2-tuple `(rule-name-String, Token)` so P12b's walk reads both the rule (for
-`Why.rule`) and the chain (for `:via` recursion).
+`support` maps a **derived fact → its producing support**, where the value is a typed record (NOT a bare tuple
+— no-magic, named accessors P12b reads):
 
-## The seam (rooms — exact, already grounded)
-1. **`production_pass` (`src/rete/kernel.rs:952`)** — the recording point. It already holds `tok` (the producing
-   token, with `matches`) AND `rule_name` (line 913) exactly where it builds `derived` and pushes the fact
-   (`:953`). The explain variant additionally records `derived → (rule_name, tok)` into the index. The data is
-   already in hand — the fast path simply discards it.
-2. **The beta-clear (`kernel.rs:986` `fire_once_session`, `:1577` `fire_fixpoint_delta`)** — the fast path
-   clears beta at freeze (the P11 line-rate win). `fire-rules-explain` runs the **same fixpoint without that
-   final clear** + threads the index. The fast path's two clears stay exactly as they are.
-3. **`to_persistent` / freeze** — `Explained` is built at the end of the explain fire: `{session: <frozen
-   Session, same as fast path>, support: <the index as a wat PersistentMap value>}`.
-4. **Native entry + registration** — `eval_fire_rules_explain` registered as `:wat::rete::fire-rules-explain`
-   (mirror the `fire-rules'` registration: runtime dispatch arm + check TypeScheme `Session -> Explained` + mod
-   note). `Explained` registered as a builtin Record type (mirrors the other rete records in `rete.wat`).
+```clojure
+(:wat::Record::def :wat::rete::Support
+  [rule  <- :wat::core::String       ;; the rule that derived the fact → Why.rule (P12b)
+   token <- :wat::rete::Token])      ;; the producing token; token.matches = the support chain → :via (P12b)
+```
+
+So `support : PersistentMap<derived-fact, Support>`. The Token already carries `matches = PV<(fact, alpha_id)>`
+(the condition-edges = the support chain) + `bindings`. v1: **first producing token wins** (a fact derived two
+ways → the first; multi-derivation fan-in is a named follow-on, per the P12 DESIGN). `Support/rule` feeds
+`Why.rule`; `Support/token` → `Token/matches` feeds the `:via` recursion.
+
+## The seam (rooms — exact, grounded; corrected from production_pass)
+The public `fire-rules'` runs `fire_fixpoint_delta` (the P4b delta engine), NOT `fire_once_session`/
+`production_pass`. So the index-recording seam is **inside `fire_fixpoint_delta`'s production-delta loop**, where
+the public path actually derives facts.
+
+1. **`fire_fixpoint_delta` production-delta `if !seen` branch (`src/rete/kernel.rs` ~:1556)** — the recording
+   point. The loop fires production nodes on NEW tokens (`d_beta[parent]`); for each `(tok, form)` it builds
+   `derived = build_insert_fact(form, &tok.bindings)` and, **`if !seen.contains(&derived)`**, pushes it. That
+   `if !seen` branch is exactly where to also record `derived → Support{rule_name, tok.clone()}` — and
+   `if !seen` gives **first-producer-wins for free** (v1 semantics). `rule_name` and `tok` are both in scope.
+2. **No beta retention needed.** The index **clones the producing token** (with its `matches` chain), so it is
+   self-contained: the wat walk reads the index (`fact → Support`), and `token.matches` names the supporting
+   facts; a supporting fact that is itself a key in the index → recurse; absent → base/leaf. Nothing reads
+   beta. **The `:1577` beta-clear stays exactly as-is** — the fast path is byte-identical. (This corrects the
+   P12 DESIGN's "retains beta": the index, not beta, carries the provenance.)
+3. **One engine, two modes (build-step #1 → confirmed cheap):** add an optional
+   `support: Option<&mut HashMap<Value, (String, Token)>>` param to `fire_fixpoint_delta`. Fast path
+   (`eval_fire_rules_native`) passes `None` → zero behavior change. Explain path passes `Some(&mut idx)` and at
+   the `if !seen` branch does `idx.entry(derived.clone()).or_insert((rule_name.to_string(), tok.clone()))`. NO
+   fork of the 380-line engine → no differential-drift hazard.
+4. **`Explained` build** — explain entry calls `fire_fixpoint_delta(&session, sym, Some(&mut idx))`, then builds
+   `Explained { session: to_persistent(...) (same frozen Session as fast path), support: <idx → wat
+   PersistentMap<fact, Support>> }`.
+5. **Native entry + registration** — `eval_fire_rules_explain` (kernel.rs, beside `eval_fire_rules_native`
+   :1596) registered as `:wat::rete::fire-rules-explain` at `src/runtime.rs:4012` (the dispatch arm beside
+   `":wat::rete::fire-rules'"`) + the check TypeScheme (grep the `fire-rules'` scheme in `src/check.rs`,
+   mirror it `Session -> Explained`). `Explained` + `Support` registered as builtin Record types (or defined in
+   `rete.wat` as Records like the other rete records — prefer the wat Record def, sibling of `Session`).
 
 ## Blast radius (bounded)
 - `src/rete/kernel.rs` — an explain-mode fixpoint (reuse `fire_fixpoint_delta`'s body; parameterize the
