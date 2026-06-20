@@ -55,16 +55,16 @@ fn is_some_i64(v: &Value, n: i64) -> bool {
     matches!(v, Value::Option(o) if matches!(&**o, Some(Value::i64(m)) if *m == n))
 }
 
-/// count → Some(3).
+/// count → BARE 3 (length is always concrete; never Option).
 #[test]
 fn count_folds() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::count els)").unwrap(), 3), "count = 3");
+    assert!(matches!(run("(:wat::rete::acc::count els)").unwrap(), Value::i64(3)), "count = 3 (bare)");
 }
 
-/// sum ?bytes → Some(600).
+/// sum ?bytes → BARE 600 (empty sum = 0; never Option).
 #[test]
 fn sum_folds() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::sum \"?bytes\" els)").unwrap(), 600), "sum = 600");
+    assert!(matches!(run("(:wat::rete::acc::sum \"?bytes\" els)").unwrap(), Value::i64(600)), "sum = 600 (bare)");
 }
 
 /// min ?bytes → Some(100).
@@ -85,31 +85,31 @@ fn mean_is_sum_over_count() {
     assert!(is_some_i64(&run("(:wat::rete::acc::mean \"?bytes\" els)").unwrap(), 200), "mean = 600/3 = 200");
 }
 
-/// distinct ?port → Some(vec) of length 2 (80, 443 — the duplicate 80 collapses).
+/// distinct ?port → BARE vec of length 2 (80, 443 — the duplicate 80 collapses).
 #[test]
 fn distinct_folds() {
-    let v = run("(:wat::core::length (:wat::core::Option/expect -> :wat::core::PersistentVector<wat::core::i64> (:wat::rete::acc::distinct \"?port\" els) \"distinct\"))").unwrap();
+    let v = run("(:wat::core::length (:wat::rete::acc::distinct \"?port\" els))").unwrap();
     assert!(matches!(v, Value::i64(2)), "distinct ports = 2; got {v:?}");
 }
 
-/// all → Some(vec) of length 3 (the gathered facts).
+/// all → BARE vec of length 3 (the gathered facts).
 #[test]
 fn all_folds() {
-    let v = run("(:wat::core::length (:wat::core::Option/expect -> :wat::core::PersistentVector<wat::Record> (:wat::rete::acc::all els) \"all\"))").unwrap();
+    let v = run("(:wat::core::length (:wat::rete::acc::all els))").unwrap();
     assert!(matches!(v, Value::i64(3)), "all facts = 3; got {v:?}");
 }
 
-/// group-by ?port → Some(map) with 2 keys (80 → [a,c], 443 → [b]).
+/// group-by ?port → BARE map with 2 keys (80 → [a,c], 443 → [b]).
 #[test]
 fn group_by_folds() {
-    let v = run("(:wat::core::PersistentMap/length (:wat::core::Option/expect -> :wat::core::PersistentMap (:wat::rete::acc::group-by \"?port\" els) \"group-by\"))").unwrap();
+    let v = run("(:wat::core::PersistentMap/length (:wat::rete::acc::group-by \"?port\" els))").unwrap();
     assert!(matches!(v, Value::i64(2)), "group-by → 2 keys; got {v:?}");
 }
 
-/// EMPTY: count over an empty set → Some(0) (count emits its identity).
+/// EMPTY: count over an empty set → BARE 0 (count always concrete — never None).
 #[test]
 fn count_empty_is_zero() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::count empty)").unwrap(), 0), "count [] = Some(0)");
+    assert!(matches!(run("(:wat::rete::acc::count empty)").unwrap(), Value::i64(0)), "count [] = 0 (bare)");
 }
 
 /// EMPTY: min over an empty set → None (no token — there is no minimum of nothing).
