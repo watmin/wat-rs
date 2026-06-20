@@ -667,6 +667,30 @@
                             acc-form     (:wat::core::Option/expect -> :wat::WatAST
                                              (:wat::core::get cond-ch 2)
                                              "compile-condition: accumulate missing acc-form")
+                            ;; 8-custom FENCE: the acc-form head selects the fold. A built-in
+                            ;; head (:wat::rete::acc::*) is trusted (skip the fence). Any other
+                            ;; head is a USER fold fn → assert it is pure∧det (the same 6a fence
+                            ;; `where` uses), else raise at compile. Build a synthetic call
+                            ;; `(<acc-hd> __acc__)` and run pure?/deterministic? on it — head_ok
+                            ;; classifies the user fn transitively (purity.rs:classify_fn).
+                            acc-ch       (:wat::core::ast->children acc-form)
+                            acc-hd       (:wat::core::Option/expect -> :wat::WatAST
+                                             (:wat::core::first acc-ch)
+                                             "compile-condition: accumulate acc-form has no head")
+                            acc-hd-nm    (:wat::core::ast-name acc-hd)
+                            is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
+                            fence-call   (:wat::core::quasiquote
+                                            ((:wat::core::unquote acc-hd) __acc__))
+                            _acc-fence   (:wat::core::Option/expect -> :wat::core::nil
+                                             (:wat::core::if is-builtin
+                                               (:wat::core::Some nil)
+                                               (:wat::core::if
+                                                 (:wat::core::and
+                                                   (:wat::rete::pure? fence-call)
+                                                   (:wat::rete::deterministic? fence-call))
+                                                 (:wat::core::Some nil)
+                                                 (:wat::core::None)))
+                                             "compile-condition: custom accumulator must be pure and deterministic")
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect -> :wat::WatAST
                                              (:wat::core::get cond-ch 3)
@@ -1819,6 +1843,25 @@
     (:wat::core::PersistentMap)
     els))
 
+;; acc::gather-vals (8-custom) — gather bindings[var] into a Vector<i64> in gather order
+;; (NO dedup; the custom fold fn sees every value). A `Vector` (not PV) so it splices via
+;; `~@` into the synthetic call AST (`unquote-splicing` flattens a Value::Vec element-wise).
+;; This is the oracle mirror of the native `other` arm's PV gather.
+(:wat::core::defn :wat::rete::acc::gather-vals
+  [var <- :wat::core::String
+   els <- :wat::core::PersistentVector<wat::rete::Element>]
+  -> :wat::core::Vector<wat::core::i64>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>
+                     e   <- :wat::rete::Element]
+      -> :wat::core::Vector<wat::core::i64>
+      (:wat::core::Vector/conj acc
+        (:wat::core::Option/expect -> :wat::core::i64
+          (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
+          "acc: var unbound")))
+    (:wat::core::Vector :wat::core::i64)
+    els))
+
 ;; ─── the accumulate dispatch (Stone 8-a) ────────────────────────────────────
 ;;
 ;; WHY there is no single `apply-accumulator -> Option<Value>` fn: the wat type system has INVARIANT
@@ -1934,10 +1977,27 @@
                          nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
                          ntk (:wat::rete::Token tok-matches nb)]
          (:wat::rete::append-token bm node-id ntk)))
-      ;; unknown — raise
-      (:else (:wat::core::Option/expect -> :wat::core::PersistentMap
-               :wat::core::None
-               "accumulate-pass-for-token: unknown accumulator")))))
+      ;; 8-custom — a non-built-in head is a USER fold fn. Gather the ?var values into a
+      ;; Vector<i64>, build the call `(user-fn (:wat::core::PersistentVector v0 v1 …))`
+      ;; via quasiquote (~acc-hd splices the head; ~@vals splices the literal values into a
+      ;; PV constructor), then eval-ast! it. The result (any Value) assocs into the binding.
+      ;; The compile fence (compile-condition) has already proven the fn is pure∧det.
+      (:else
+       (:wat::core::let [var  (:wat::core::ast-name
+                                (:wat::core::Option/expect -> :wat::WatAST
+                                  (:wat::core::get acc-ch 1)
+                                  "accumulate-pass-for-token: custom fold missing ?var"))
+                         vals (:wat::rete::acc::gather-vals var gathered)
+                         call (:wat::core::quasiquote
+                                ((:wat::core::unquote acc-hd)
+                                 (:wat::core::PersistentVector
+                                   (:wat::core::unquote-splicing vals))))
+                         v    (:wat::core::Result/expect -> :wat::core::Value
+                                (:wat::eval-ast! call)
+                                "accumulate-pass-for-token: custom fold eval failed")
+                         nb   (:wat::core::PersistentMap/assoc tok-binds result-var v)
+                         ntk  (:wat::rete::Token tok-matches nb)]
+         (:wat::rete::append-token bm node-id ntk))))))
 
 ;; ─── accumulate-pass (Stone 8-a) ────────────────────────────────────────────
 ;;

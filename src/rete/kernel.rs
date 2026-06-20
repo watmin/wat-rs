@@ -1210,16 +1210,25 @@ fn acc_var_i64(el: &Value, var: &Value) -> i64 {
 /// `acc_form` is the `acc-form` WatAST (a `List`); its head keyword selects the fold,
 /// `items[1]`'s symbol name is the `?var` for the value-folds. `var_key` is built once
 /// from `items[1]` by the caller (only the value-folds use it).
-fn accumulate_value(acc_form: &WatAST, gathered: &[&Value]) -> Option<Value> {
+///
+/// 8-custom: a head that is NOT one of the 8 built-ins (`:wat::rete::acc::*`) is a USER
+/// fold fn name. The `other` arm gathers the `?var` values into a `PV<i64>` and evaluates
+/// `(user-fn <PV>)` via the proven `eval_test_core` mechanism (a child env binds a synthetic
+/// `__acc__` var → the PV, then `eval_inner`s the call). `sym` carries the registered fns;
+/// the fence at compile time (`compile-condition`) has already proven the fn is pure∧det.
+///
+/// Returns `Ok(Some(value))` on a produced aggregate, `Ok(None)` to drop the token (empty
+/// min/max/mean), `Err` if a custom fn's evaluation breaks.
+fn accumulate_value(acc_form: &WatAST, gathered: &[&Value], sym: &SymbolTable) -> Result<Option<Value>, EvalBreak> {
     // Head keyword name (e.g. ":wat::rete::acc::count").
     let items = match acc_form {
         WatAST::List(items, _) => items.as_slice(),
-        _ => return None,
+        _ => return Ok(None),
     };
     let head = match items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         Some(WatAST::Symbol(s, _)) => s.as_str(),
-        _ => return None,
+        _ => return Ok(None),
     };
     // The ?var symbol name (value-folds), built as the binding key Value::String("?v").
     let var_key = || -> Value {
@@ -1231,7 +1240,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Value]) -> Option<Value> {
         Value::String(Arc::new(name))
     };
 
-    match head {
+    Ok(match head {
         ":wat::rete::acc::count" => Some(Value::i64(gathered.len() as i64)),
         ":wat::rete::acc::sum" => {
             let var = var_key();
@@ -1310,8 +1319,49 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Value]) -> Option<Value> {
             }
             Some(Value::wat__core__PersistentMap(pm))
         }
-        other => panic!("accumulate: unknown accumulator {other}"),
-    }
+        // 8-custom: the head is a USER fold fn name. Gather the ?var values into a PV<i64>,
+        // then eval `(user-fn __acc__)` with `__acc__` bound to the PV — the proven
+        // `eval_test_core` mechanism (matcher.rs:871), here yielding any Value (not just bool).
+        user_fn => {
+            let var = var_key();
+            // Gather the bound ?var values into a PV<i64>, in gather order (no dedup —
+            // mirrors the oracle's acc::gather-vals; the fold fn sees every value).
+            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            for el in gathered {
+                pv = pv.push_back(Value::i64(acc_var_i64(el, &var)));
+            }
+            let gathered_pv = Value::wat__core__PersistentVector(pv);
+
+            // Build the call AST `(user-fn __acc__)` once, head spelled exactly as it appeared.
+            let span = match acc_form {
+                WatAST::List(_, s) => s.clone(),
+                _ => Span::unknown(),
+            };
+            let head_ast = match items.first() {
+                Some(WatAST::Keyword(k, s)) => WatAST::Keyword(k.clone(), s.clone()),
+                Some(WatAST::Symbol(s, sp)) => WatAST::Symbol(s.clone(), sp.clone()),
+                // unreachable: `head` was extracted from items.first() as Keyword/Symbol above.
+                _ => return Ok(None),
+            };
+            let acc_var_name = "__acc__".to_string();
+            let call = WatAST::List(
+                vec![
+                    head_ast,
+                    WatAST::Symbol(crate::scope::Identifier::bare(acc_var_name.clone()), span.clone()),
+                ],
+                span,
+            );
+
+            // Child env binding the synthetic var → the gathered PV; eval the call.
+            let base = crate::runtime::Environment::new();
+            let env = base
+                .child()
+                .bind_unknown_span(acc_var_name, crate::runtime::TrackedValue::from(gathered_pv))
+                .build();
+            let _ = user_fn; // head name already embedded in `call`
+            Some(crate::runtime::eval_inner(&call, &env, sym)?.value_owned())
+        }
+    })
 }
 
 // ── P4b: delta-incremental fixpoint ──────────────────────────────────────────
@@ -1717,7 +1767,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                         token_element_compatible(&tok.bindings, el_b)
                     })
                     .collect();
-                if let Some(aggregate) = accumulate_value(&acc_form, &gathered) {
+                if let Some(aggregate) = accumulate_value(&acc_form, &gathered, sym)? {
                     // Extend the token: same matches; bindings + {result-var → aggregate}.
                     let new_bindings = tok.bindings.insert(result_var.clone(), aggregate);
                     let new_tok = Token { matches: tok.matches.clone(), bindings: new_bindings };

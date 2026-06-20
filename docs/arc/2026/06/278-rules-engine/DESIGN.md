@@ -395,10 +395,12 @@ Clara's *source* (`clara-rules/src/.../{dsl,compiler,engine,accumulators}`), the
 - **DECIDED 2026-06-20 — `:or` is NOT a form.** Expressed structurally (derived facts / multiple rules);
   Clara's `:or`→DNF is a compile sugar we don't need (forward-chaining gives disjunction via a shared derived
   fact, which also yields better provenance). Supersedes the table's "Boolean … `:or` … KEEP".
-- **DECIDED 2026-06-20 — custom accumulators WILL ship** as any **pure ∧ deterministic ∧ total** fold fn over
-  the gather, gated by the 6a fence + the `total?` axis (the 8 built-ins become its standard library). Was
-  banked `8-custom`; now a planned stone. `:returns-fact` (`8-returns-fact`) + field-sugar (`8-field-sugar`)
-  remain banked.
+- **278 accumulator capability = the 8 built-ins, DONE.** Custom accumulators are **NOT a 278-close
+  requirement** and **not on the lint-rule path** — they are a decided-as-a-capability item for the
+  **rules-as-a-service / anomaly horizon** (user-registered stddev/p99/top-k folds, Thread B). *When* that use
+  case is built: any **pure ∧ deterministic ∧ total** fold fn over the gather, 6a + `total?` fenced (the 8
+  built-ins become its standard library). Until then it stays banked (`8-custom`), with `:returns-fact`
+  (`8-returns-fact`) + field-sugar (`8-field-sugar`).
 - **CUT (unchanged, deliberate):** `insert-unconditional!`, user salience (order is structural),
   arbitrary fact-types / maps-as-facts, Clojure destructuring, side-effecting/`retract!` RHS,
   `retract-fn` (pure replay dissolves it), listeners/callbacks.
