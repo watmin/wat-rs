@@ -567,3 +567,289 @@ fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         _ => None,
     }
 }
+
+// ─── P12c: step-payload ───────────────────────────────────────────────────────
+
+/// Convert a resolved primitive `Value` to a literal `WatAST` node.
+///
+/// Used when rebuilding substituted constraint forms: each resolved operand
+/// (always a primitive at this point) must be expressed as a literal AST node
+/// so the resulting `(:op a' b')` list prints as `(:wat::core::< -5 0)` (the
+/// substituted form — not the unsubstituted `(:wat::core::< ?c 0)`).
+///
+/// Panics/returns None for non-primitive values (should not occur in a
+/// well-formed rete condition's operand position).
+fn value_to_ast_literal(v: Value) -> Option<WatAST> {
+    match v {
+        Value::i64(n) => Some(WatAST::IntLit(n, Span::unknown())),
+        Value::f64(x) => Some(WatAST::FloatLit(x, Span::unknown())),
+        Value::bool(b) => Some(WatAST::BoolLit(b, Span::unknown())),
+        Value::String(s) => Some(WatAST::StringLit((*s).clone(), Span::unknown())),
+        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), Span::unknown())),
+        Value::Unit => Some(WatAST::NilLit(Span::unknown())),
+        _ => None,
+    }
+}
+
+/// `(:wat::rete::step-payload' session alpha-id bindings sfact supporting) -> :wat::rete::DerivationStep`
+///
+/// Arc 278 Stone P12c — the explain payload builder. Given one (sfact, alpha-id) match edge
+/// from a Token's matches chain, builds the full `DerivationStep` payload:
+///
+/// - **pattern**: the matched condition's fact-type FQDN (AlphaNode tests[0] head keyword).
+/// - **bindings** (per-step): the binder-clause vars that THIS condition bound, projected
+///   from the token's accumulated bindings.
+/// - **constraints**: the rule's satisfied predicates with bound values substituted:
+///   `(:wat::core::< -5 0)` from `(:wat::core::< ?c 0)` with `?c=-5`.
+///
+/// **Faithfulness by construction**: both `resolve_operand` and the clause classifier are
+/// REUSED directly from matcher.rs (this file) — they are the same paths that fired during
+/// `alpha_match_inner`. The substituted constraint values cannot drift from what actually
+/// matched.
+///
+/// Arguments:
+///   - `session`    — `:wat::rete::Session` (carries `network` at struct_form[0])
+///   - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
+///   - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
+///   - `sfact`      — `:wat::Record` (the supporting fact for this edge)
+///   - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
+///
+/// Returns a `:wat::rete::DerivationStep` record.
+pub(crate) fn eval_step_payload(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::step-payload'";
+
+    if args.len() != 5 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 5,
+            got: args.len(),
+        } }.into());
+    }
+
+    // ── Evaluate all 5 arguments ──────────────────────────────────────────────
+    let session_val  = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let alpha_id_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let bindings_val = crate::runtime::eval_inner(&args[2], env, sym)?.value_owned();
+    let sfact_val    = crate::runtime::eval_inner(&args[3], env, sym)?.value_owned();
+    let supporting   = crate::runtime::eval_inner(&args[4], env, sym)?.value_owned();
+
+    // ── Extract alpha_id ──────────────────────────────────────────────────────
+    let alpha_id = match alpha_id_val {
+        Value::i64(n) => n,
+        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::core::i64 (alpha-id)",
+            got: Box::new(ValueSnapshot::of(&other)),
+        } }.into()),
+    };
+
+    // ── Extract the token bindings ────────────────────────────────────────────
+    let token_bindings: rpds::HashTrieMapSync<Value, Value> = match bindings_val {
+        Value::wat__core__PersistentMap(ref m) => m.clone(),
+        other => return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::core::PersistentMap (token bindings)",
+            got: Box::new(ValueSnapshot::of(&other)),
+        } }.into()),
+    };
+
+    // ── Extract the supporting fact (sfact) + its field names ────────────────
+    let sfact = match fact_from_value(&sfact_val) {
+        Some(f) => f,
+        None => return Err(RuntimeError { span: args[3].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record (supporting fact)",
+            got: Box::new(ValueSnapshot::of(&sfact_val)),
+        } }.into()),
+    };
+    let type_key = format!(":{}", sfact.class_fqdn);
+    let sfact_field_names: Vec<String> = sym
+        .types()
+        .and_then(|t| match t.get(&type_key) {
+            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+            Some(crate::types::TypeDef::Struct(sd)) => {
+                Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
+            }
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // ── Get Session.network (struct_form[0]) + look up AlphaNode ─────────────
+    let network = match &session_val {
+        Value::wat__Record { struct_form, .. } => struct_form.get(0).cloned(),
+        _ => None,
+    };
+    let network = match network {
+        Some(n) => n,
+        None => return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::rete::Session (record with network at field 0)",
+            got: Box::new(ValueSnapshot::of(&session_val)),
+        } }.into()),
+    };
+
+    // Reuse kernel's get_node to look up the AlphaNode by id.
+    let alpha_node_val = match &network {
+        Value::wat__core__PersistentMap(m) => m.get(&Value::i64(alpha_id)).cloned(),
+        _ => None,
+    };
+    let alpha_node_val = match alpha_node_val {
+        Some(n) => n,
+        None => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "AlphaNode in network",
+            got: Box::new(ValueSnapshot::of(&Value::i64(alpha_id))),
+        } }.into()),
+    };
+
+    // ── Extract AlphaNode.tests[0] — the full condition WatAST ───────────────
+    // AlphaNode struct_form: [id(0), tests(1), children(2)].
+    // tests is PV<WatAST>; tests[0] is `(:FactType clause…)`.
+    let cond_ast: WatAST = match &alpha_node_val {
+        Value::wat__Record { struct_form, .. } => {
+            match struct_form.get(1) {
+                Some(Value::wat__core__PersistentVector(pv)) => {
+                    match pv.first() {
+                        Some(Value::wat__WatAST(ast)) => (**ast).clone(),
+                        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: ":wat::WatAST in AlphaNode.tests[0]",
+                            got: Box::new(ValueSnapshot::of(other.unwrap_or(&Value::Unit))),
+                        } }.into()),
+                    }
+                }
+                other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "PersistentVector at AlphaNode.tests (struct_form[1])",
+                    got: Box::new(ValueSnapshot::of(other.unwrap_or(&Value::Unit))),
+                } }.into()),
+            }
+        }
+        other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::rete::AlphaNode (record)",
+            got: Box::new(ValueSnapshot::of(other)),
+        } }.into()),
+    };
+
+    // ── Classify the condition's clauses (REUSE the matcher's classifier) ─────
+    // cond_ast = (:FactType clause…); items[0] = the head keyword (type FQDN).
+    // items[1..] = the clauses — binders `(?v <- :field)` and constraints `(:op a b)`.
+    let (cond_head, clauses) = match &cond_ast {
+        WatAST::List(items, _) if !items.is_empty() => {
+            let head = match &items[0] {
+                WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+                other => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "keyword head in condition form",
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
+                } }.into()),
+            };
+            (head, items[1..].to_vec())
+        }
+        _ => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "List (condition form) in AlphaNode.tests[0]",
+            got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(cond_ast)))),
+        } }.into()),
+    };
+
+    // pattern = the type FQDN (head keyword without leading ':').
+    let pattern = cond_head;
+
+    // ── Walk clauses: classify + build constraints + collect binder var names ─
+    // Reuse the matcher's OWN classifier (same shape checks as alpha_match_inner).
+    // Binder: (?v <- :field) — collect ?v name.
+    // Constraint: (:op a b) — resolve operands via resolve_operand, rebuild as WatAST.
+    let mut binder_vars: Vec<String> = Vec::new();
+    let mut constraints_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+
+    for clause in &clauses {
+        let items = match clause {
+            WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
+            _ => continue, // non-list clause: skip (not a recognised shape)
+        };
+
+        match &items[0] {
+            // ── Binder clause: (?v <- :field) ────────────────────────────────
+            // REUSES the matcher's binder classification: Symbol(?v), arrow, Keyword(:field).
+            WatAST::Symbol(head_ident, _) => {
+                let var_name = head_ident.as_str();
+                if !var_name.starts_with('?') { continue; }
+                if items.len() != 3 { continue; }
+                let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
+                if !is_arrow { continue; }
+                // Third element must be a field keyword — confirmed it's a binder.
+                if keyword_payload(&items[2]).is_none() { continue; }
+                binder_vars.push(var_name.to_string());
+            }
+
+            // ── Constraint clause: (:op a b) ─────────────────────────────────
+            // REUSES resolve_operand for each operand — the same resolver that fired.
+            // Rebuilds (:op a' b') as a WatAST with the resolved literal nodes.
+            WatAST::Keyword(head_kw, _) => {
+                let op_str = head_kw.as_str();
+                // Only the comparison operators (not combinators/where).
+                match op_str {
+                    ":wat::core::=" | ":wat::core::not=" |
+                    ":wat::core::<" | ":wat::core::>" |
+                    ":wat::core::<=" | ":wat::core::>=" => {}
+                    _ => continue, // combinators/where: skip for now
+                }
+                if items.len() != 3 { continue; }
+                // resolve_operand REUSED directly — the same call the match used.
+                let a_val = resolve_operand(&items[1], sfact.fields, &sfact_field_names, &token_bindings);
+                let b_val = resolve_operand(&items[2], sfact.fields, &sfact_field_names, &token_bindings);
+                let (Some(a_val), Some(b_val)) = (a_val, b_val) else { continue; };
+                let (Some(a_ast), Some(b_ast)) = (value_to_ast_literal(a_val), value_to_ast_literal(b_val)) else { continue; };
+                // Rebuild (:op a' b') as a WatAST — the substituted constraint form.
+                let substituted = WatAST::List(
+                    vec![
+                        WatAST::Keyword(op_str.to_string(), Span::unknown()),
+                        a_ast,
+                        b_ast,
+                    ],
+                    Span::unknown(),
+                );
+                constraints_pv = constraints_pv.push_back(Value::wat__WatAST(Arc::new(substituted)));
+            }
+
+            _ => continue, // non-symbol/non-keyword head: skip
+        }
+    }
+
+    // ── Per-step bindings: project token bindings to binder_vars only ─────────
+    let mut step_bindings_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
+    for var_name in &binder_vars {
+        let key = Value::String(Arc::new(var_name.clone()));
+        if let Some(v) = token_bindings.get(&key) {
+            step_bindings_pm = step_bindings_pm.insert(key, v.clone());
+        }
+    }
+
+    // ── Build DerivationStep record ───────────────────────────────────────────
+    // Field order (declaration order in rete.wat):
+    //   supporting(0) <- :wat::rete::DerivationNode
+    //   pattern(1)    <- :wat::core::String
+    //   bindings(2)   <- :wat::core::PersistentMap<String, Value>
+    //   constraints(3)<- :wat::core::PersistentVector<WatAST>
+    static STEP_CLASS_FQDN: std::sync::OnceLock<Arc<String>> = std::sync::OnceLock::new();
+    let step_class = STEP_CLASS_FQDN
+        .get_or_init(|| Arc::new("wat::rete::DerivationStep".to_string()))
+        .clone();
+
+    Ok(Value::wat__Record {
+        class_fqdn: step_class,
+        struct_form: Arc::new(vec![
+            supporting,                                              // supporting: DerivationNode
+            Value::String(Arc::new(pattern)),                       // pattern: String (FQDN)
+            Value::wat__core__PersistentMap(step_bindings_pm),      // bindings: PM<String, Value>
+            Value::wat__core__PersistentVector(constraints_pv),     // constraints: PV<WatAST>
+        ]),
+    })
+}

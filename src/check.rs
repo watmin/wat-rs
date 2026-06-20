@@ -18970,6 +18970,26 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // Arc 278 Stone P12c — per-edge explain payload builder.
+    // (:wat::rete::step-payload' session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
+    // Reuses resolve_operand + the clause classifier from matcher.rs (faithful by construction).
+    // EPHEMERAL — called from the explain walk in rete.wat; never serialized.
+    env.register(
+        ":wat::rete::step-payload'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::rete::Session".into()),
+                TypeExpr::Path(":wat::core::i64".into()),
+                TypeExpr::Path(":wat::core::PersistentMap".into()),
+                TypeExpr::Path(":wat::Record".into()),
+                TypeExpr::Path(":wat::rete::DerivationNode".into()),
+            ],
+            ret: TypeExpr::Path(":wat::rete::DerivationStep".into()),
+            rest_param_type: None,
+        },
+    );
 }
 
 #[cfg(test)]

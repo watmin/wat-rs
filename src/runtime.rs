@@ -4013,6 +4013,10 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
         // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
         ":wat::rete::fire-rules-explain'" => crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym),
+        // Arc 278 Stone P12c — per-edge explain payload builder.
+        // (:wat::rete::step-payload' session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
+        // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
+        ":wat::rete::step-payload'" => crate::rete::matcher::eval_step_payload(args, list_span, env, sym),
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
@@ -10960,7 +10964,9 @@ fn eval_positional_accessor(
             items.iter().nth(index).cloned(),
         ))),
         // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
-        // Returns Option<T> (None for out-of-bounds), matching Vec behavior.
+        // Returns Option<T> (None for out-of-bounds), matching Vec/List behavior.
+        // (`first`/`second`/`third` are the SAFE Option accessors across all sequences;
+        //  `nth` is the get-or-raise positional accessor.)
         Value::wat__core__PersistentVector(pv) => Ok(Value::Option(Arc::new(
             pv.get(index).cloned(),
         ))),

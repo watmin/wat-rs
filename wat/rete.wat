@@ -148,25 +148,52 @@
   [session <- :wat::rete::Session
    support <- :wat::core::PersistentMap])
 
-;; ─── P12b: derivation-tree record + explain walk ────────────────────────────
+;; ─── P12b+P12c: derivation-tree records + explain walk ─────────────────────
 
-;; DerivationNode — one node in the provenance tree. Self-recursive: via holds child nodes.
-;; (Named per intueri: Why* → Derivation* — domain-precise for RETE; the operator reads a
-;;  derivation, not a "why".) P12c adds the per-edge payload (DerivationStep: pattern,
-;;  bindings, constraints) — for now via holds child DerivationNodes directly.
+;; DerivationNode — one node in the provenance tree. P12c: adds rule (Option<String>)
+;; and changes via to PV<DerivationStep> (the edge payload from P12c).
 ;;   fact: the derived (or base) fact this node represents.
-;;   via:  the child nodes — one per supporting fact.
+;;   rule: Some(rule-name) for a derived fact; None for a base/asserted leaf.
+;;   via:  the supporting edges — one DerivationStep per supporting fact.
 ;;         Empty (length 0) ⟺ base/asserted fact (the leaf).
-;;         Non-empty ⟺ derived fact (each child explains one supporting input).
+;;         Non-empty ⟺ derived fact (each step explains one supporting input).
 ;; EPHEMERAL — produced by explain; never serialized.
 (:wat::Record::def :wat::rete::DerivationNode
   [fact <- :wat::Record
-   via  <- :wat::core::PersistentVector<wat::rete::DerivationNode>])
+   rule <- :wat::core::Option<wat::core::String>
+   via  <- :wat::core::PersistentVector<wat::rete::DerivationStep>])
+
+;; DerivationStep — one edge in the provenance tree. Carries the payload that
+;; makes the derivation readable without knowing the rule.
+;;   supporting:  the supporting fact's own DerivationNode (recurse; leaf = empty via).
+;;   pattern:     the matched condition's fact-type FQDN (e.g. "weather::Temperature").
+;;   bindings:    per-step bound vars: only the variables this condition bound.
+;;   constraints: the rule's satisfied predicates with bound values substituted.
+;;                Rendered as WatAST, e.g. (:wat::core::< -5 0) from (:wat::core::< ?c 0) with ?c=-5.
+;; EPHEMERAL — produced by explain; never serialized.
+(:wat::Record::def :wat::rete::DerivationStep
+  [supporting  <- :wat::rete::DerivationNode
+   pattern     <- :wat::core::String
+   bindings    <- :wat::core::PersistentMap<wat::core::String,wat::core::Value>
+   constraints <- :wat::core::PersistentVector<wat::WatAST>])
+
+;; step-payload — build a complete DerivationStep for one (sfact, alpha-id) match edge.
+;; Calls the Rust step-payload' primitive which reuses resolve_operand + the clause classifier
+;; from matcher.rs (faithful by construction: same resolver as what fired).
+;; The supporting node (explain's recursion) is passed in; step-payload' builds the full record.
+(:wat::core::defn :wat::rete::step-payload
+  [session        <- :wat::rete::Session
+   alpha-id       <- :wat::core::i64
+   bindings       <- :wat::core::PersistentMap
+   sfact          <- :wat::Record
+   supporting     <- :wat::rete::DerivationNode]
+  -> :wat::rete::DerivationStep
+  (:wat::rete::step-payload' session alpha-id bindings sfact supporting))
 
 ;; explain — recursive derivation-tree walk over an Explained support index.
-;; For a derived fact (present in Explained/support), returns DerivationNode{fact, via} where via
-;; is the list of child nodes — one per entry in the producing Token's matches chain.
-;; For a base fact (absent from the index), returns DerivationNode{fact, via=[]} (the leaf).
+;; For a derived fact (present in Explained/support), returns DerivationNode{fact, rule, via} where
+;; via is the list of DerivationStep edges — one per entry in the producing Token's matches chain.
+;; For a base fact (absent from the index), returns DerivationNode{fact, rule=None, via=[]} (leaf).
 ;; Termination: the support DAG is acyclic (fixpoint round structure); base facts are not
 ;; in the support map → the None branch is the leaf, so recursion always terminates.
 (:wat::core::defn :wat::rete::explain
@@ -178,18 +205,24 @@
     (:wat::core::match sv-opt -> :wat::rete::DerivationNode
       ((:wat::core::Some sv)
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
-       ;; matches is PersistentVector<(wat::Record, wat::core::i64)>; first of each tuple is the fact.
-       (:wat::core::let [tok     (:wat::rete::Support/token sv)
-                         matches (:wat::rete::Token/matches tok)
-                         via     (:wat::core::map
+       ;; matches is PersistentVector<(wat::Record, wat::core::i64)>; each tuple is (sfact, alpha-id).
+       (:wat::core::let [tok      (:wat::rete::Support/token sv)
+                         matches  (:wat::rete::Token/matches tok)
+                         bindings (:wat::rete::Token/bindings tok)
+                         rule     (:wat::rete::Support/rule sv)
+                         session  (:wat::rete::Explained/session ex)
+                         via      (:wat::core::map
                                     (:wat::core::fn [m <- :(wat::Record,wat::core::i64)]
-                                      -> :wat::rete::DerivationNode
-                                      (:wat::rete::explain ex (:wat::core::first m)))
+                                      -> :wat::rete::DerivationStep
+                                      (:wat::core::let [sfact    (:wat::core::first m)
+                                                        alpha-id (:wat::core::second m)]
+                                        (:wat::rete::step-payload session alpha-id bindings sfact
+                                          (:wat::rete::explain ex sfact))))
                                     matches)]
-         (:wat::rete::DerivationNode fact via)))
+         (:wat::rete::DerivationNode fact (:wat::core::Some rule) via)))
       (:wat::core::None
-       ;; base/asserted fact — leaf node, via is empty.
-       (:wat::rete::DerivationNode fact (:wat::core::PersistentVector))))))
+       ;; base/asserted fact — leaf node, rule=None, via is empty.
+       (:wat::rete::DerivationNode fact :wat::core::None (:wat::core::PersistentVector))))))
 
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 
