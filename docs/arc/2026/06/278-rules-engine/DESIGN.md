@@ -382,6 +382,34 @@ decides each as we go.
 | `:exists` | **KEEP as sugar (decided)** | `:not` is the primitive (negative-join node); `:exists` ≡ `(:not (:not X))` — existential, fires once if ≥1, binds nothing, no multiplicity; free, zero extra engine machinery |
 | Destructuring in conditions | **CUT Clojure-style — we already have ours (decided)** | wat's `(= ?var :field)` in `form::matches?` IS field-extraction/destructuring (binds field→`?var` into scope); Clojure nested-map destructuring would be a competing idiom — not the right fit |
 
+## Keep/cut inventory — current status (2026-06-20, post capability tier + Clara-source audit)
+
+The table above is the 2026-06-17 snapshot. After the capability tier shipped and a fresh audit against
+Clara's *source* (`clara-rules/src/.../{dsl,compiler,engine,accumulators}`), the live status:
+
+- **HAVE (shipped):** `defrule`, `query` (reads production-memory directly — no QueryNode needed), `insert`,
+  `retract`, `fire-rules`, fact conditions + constraints + var bindings, `:and` (implicit), **`:test`/`where`**
+  (TestNode, 6), **`:not`** (NegationNode, 7), **`:exists`** (ExistsNode, 7-exists), **8 accumulators**
+  (count/sum/min/max/mean/distinct/all/group-by — 1:1 with Clara's set; `average`=`mean`, `grouping-by`=
+  `group-by`), truth maintenance, rules-as-data, inspect/explain (P12), durability snapshot.
+- **DECIDED 2026-06-20 — `:or` is NOT a form.** Expressed structurally (derived facts / multiple rules);
+  Clara's `:or`→DNF is a compile sugar we don't need (forward-chaining gives disjunction via a shared derived
+  fact, which also yields better provenance). Supersedes the table's "Boolean … `:or` … KEEP".
+- **DECIDED 2026-06-20 — custom accumulators WILL ship** as any **pure ∧ deterministic ∧ total** fold fn over
+  the gather, gated by the 6a fence + the `total?` axis (the 8 built-ins become its standard library). Was
+  banked `8-custom`; now a planned stone. `:returns-fact` (`8-returns-fact`) + field-sugar (`8-field-sugar`)
+  remain banked.
+- **CUT (unchanged, deliberate):** `insert-unconditional!`, user salience (order is structural),
+  arbitrary fact-types / maps-as-facts, Clojure destructuring, side-effecting/`retract!` RHS,
+  `retract-fn` (pure replay dissolves it), listeners/callbacks.
+- **N/A by architecture:** Clara's `NegationWithJoinFilterNode` / `AccumulateWithJoinFilterNode` /
+  internal-salience-for-extracted-subrules — we don't extract sub-rules (inline filter nodes), so these
+  Clara mechanisms are unneeded; our single Negation/Accumulate node + structural fixpoint ordering covers them.
+- **Dead code (→ ⑤ purgare):** the `QueryNode` record + `:QueryNode` enum variant are defined but never
+  minted or executed (query reads production-memory directly). The grimoire/vigilia (⑤) should purge them.
+- **No accidental gaps:** every Clara feature is HAVE / CUT(cited) / banked(named) / decided / N/A. The
+  reduced spec is entirely deliberate.
+
 ## Conflict resolution / firing order — STRUCTURAL, not a knob (decided 2026-06-17)
 
 **No salience.** The builder (5+ yrs of Clara) never reached for it, and it is the wrong model: a global
