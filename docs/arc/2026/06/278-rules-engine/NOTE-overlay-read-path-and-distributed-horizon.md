@@ -236,3 +236,33 @@ halting, it **rejects what it can't prove terminates** — so do we.
   no evaluator change at all.
 
 So the *verifier* = the 6a fence with the `total?` axis (+ optional gather cap), all at registration.
+
+### Edge-hardening (HORIZON — the standard multi-tenant checklist; NOT near-term)
+The fire/compute threat is closed (metered fire + `total?` + add-and-fire transaction). An adversarial sweep
+of a malicious *local* user (⇒ covers all remote) leaves **5 edge mitigations — all known-problem /
+known-solution, all at the surfaces *around* the fire, none novel.** They matter **only for untrusted
+multi-tenant** (the distributed-service future), **not** for the near-term engine or the lint-rule first-app.
+Recorded so the threat model is complete; **not promoted to current work.**
+1. **Fact/field SIZE cap** — the closure-cap counts tokens, not bytes; one huge fact (a 1 GB string) blows
+   memory at low count. Per-fact/field byte limit (cf. DDB 400 KB/item). *Data layer.*
+2. **Per-tenant rate limit + fair scheduling** — the metered fire bounds each request, not the *rate*; a
+   tenant sending bounded-but-constant add-and-fires monopolizes the single thread. *Scheduling layer.*
+   (Inversion: **harder locally** [shared proc] than remotely [router shards tenants] — solving local
+   over-solves remote.)
+3. **Connection caps + I/O read timeouts** — slow-loris / fd exhaustion (`mora`: time via the wire).
+   *Transport layer.*
+4. **Verifier cost bound** — a giant rule set / deeply-nested AST attacks the fence itself; AST-size /
+   rule-count caps at registration (eBPF's verifier has explicit complexity limits). *Verifier layer.*
+5. **Hash-flooding resistance** — attacker-crafted colliding join keys degrade the keyed join within budget;
+   seeded/SipHash for attacker-controlled keys. *(Verify: does `rpds` `_sync` map use a seeded hasher?)*
+   *Algorithmic-complexity layer.*
+- **(persistent-only, out of ephemeral scope):** per-tenant **storage quota** (valid large batches fill
+  disk on the LMDB backend; ephemeral dies with the proc).
+
+**Add-and-fire = the transactional write contract:** `add-and-fire(mutations)` applies the batch (inserts +
+retracts) as a candidate overlay on the committed session, fires it metered, then **commits on success /
+discards on ResourceExceeded** — so a malicious batch *never commits* (the committed state is always
+last-good; the fire is the gate; rollback is free via value-semantics). Batch size = a **performance** knob
+(~1k default, tunable; our per-fact cost is an append, not DDB's cross-partition write); the metered fire is
+the **safety** floor, independent of batch size. Reads (query/what-if) stay on committed snapshots. This is
+LMDB's read-txn + write-txn model, and ⑥'s write interface.
