@@ -3,7 +3,23 @@
 The guiding light. Operator diagnostic, non-negotiable: given a derived fact, render the **why-tree** back to the
 input facts — through which rule, which gates, which supporting facts — recursively. Prove it **in wat**.
 
-## The worked surface (LOCK THIS FIRST, four-questioned, before internals)
+## ⚠ NAMING — BLESSED by intueri (cast a82b86, 2026-06-19); the worked surface below is PRE-RENAME
+intueri graded the original `Why*` model and recommended the `Derivation*` family + transparent field names.
+**Adopt these** (P12b's `Why` is already renamed → `DerivationNode`; the rest land in P12c when the fields are
+built). The worked-surface block BELOW still shows the OLD names (`#rete/Why`, `:via`, `:met`, `gate`, `bound`) —
+read it for STRUCTURE only; the names are superseded by this table:
+
+| old (worked surface below) | BLESSED (use this) | why (intueri) |
+|---|---|---|
+| `Why` (node) | **`DerivationNode`** | "Derivation is domain-precise to RETE; not a 'why'" |
+| `WhyEdge` (the via entry / edge) | **`DerivationStep`** | "one step in the proof chain" (P12c) |
+| `WhyGraph` (future flat DAG) | **`DerivationGraph`** | systematic `Derivation*` family |
+| `:met` ⚠ | **`:constraints`** | *Level-1 LIE, worst offender* — "`met` is a past participle, says nothing; these are the satisfied constraint predicates" |
+| `gate` | **`:pattern`** | "what was matched, not engine jargon" |
+| `bound` | **`:bindings`** | unification-standard |
+| `from` / `to` (edge dirs) | **`:supporting` / `:derived`** | the actual roles, not directions |
+
+## The worked surface (STRUCTURE reference — names superseded by the table above; four-questioned)
 
 ```clojure
 ;; rule:  :when [(:weather::Temperature (?t <- :celsius) (:wat::core::< ?t 0))

@@ -84,7 +84,7 @@ fn run(compute_src: &str) -> Value {
 fn explain_cold_and_windy_reaches_its_two_inputs() {
     let n = run("\
 (:wat::core::length\n\
-  (:wat::rete::Why/via\n\
+  (:wat::rete::DerivationNode/via\n\
     (:wat::core::let\n\
       [rules   (:wat::rete::collect-rules :weather)\n\
        session (:wat::rete::compile rules)\n\
@@ -103,7 +103,7 @@ fn explain_cold_and_windy_reaches_its_two_inputs() {
 fn explain_weather_alert_has_one_derived_support() {
     let n = run("\
 (:wat::core::length\n\
-  (:wat::rete::Why/via\n\
+  (:wat::rete::DerivationNode/via\n\
     (:wat::core::let\n\
       [rules   (:wat::rete::collect-rules :weather)\n\
        session (:wat::rete::compile rules)\n\

@@ -148,31 +148,34 @@
   [session <- :wat::rete::Session
    support <- :wat::core::PersistentMap])
 
-;; ─── P12b: why-tree record + explain walk ───────────────────────────────────
+;; ─── P12b: derivation-tree record + explain walk ────────────────────────────
 
-;; Why — one node in the provenance tree. Self-recursive: via holds child Why nodes.
+;; DerivationNode — one node in the provenance tree. Self-recursive: via holds child nodes.
+;; (Named per intueri: Why* → Derivation* — domain-precise for RETE; the operator reads a
+;;  derivation, not a "why".) P12c adds the per-edge payload (DerivationStep: pattern,
+;;  bindings, constraints) — for now via holds child DerivationNodes directly.
 ;;   fact: the derived (or base) fact this node represents.
-;;   via:  the child Why nodes — one per supporting fact.
+;;   via:  the child nodes — one per supporting fact.
 ;;         Empty (length 0) ⟺ base/asserted fact (the leaf).
 ;;         Non-empty ⟺ derived fact (each child explains one supporting input).
 ;; EPHEMERAL — produced by explain; never serialized.
-(:wat::Record::def :wat::rete::Why
+(:wat::Record::def :wat::rete::DerivationNode
   [fact <- :wat::Record
-   via  <- :wat::core::PersistentVector<wat::rete::Why>])
+   via  <- :wat::core::PersistentVector<wat::rete::DerivationNode>])
 
-;; explain — recursive why-tree walk over an Explained support index.
-;; For a derived fact (present in Explained/support), returns Why{fact, via} where via is the
-;; list of child Why nodes — one per entry in the producing Token's matches chain.
-;; For a base fact (absent from the index), returns Why{fact, via=[]} (the leaf).
+;; explain — recursive derivation-tree walk over an Explained support index.
+;; For a derived fact (present in Explained/support), returns DerivationNode{fact, via} where via
+;; is the list of child nodes — one per entry in the producing Token's matches chain.
+;; For a base fact (absent from the index), returns DerivationNode{fact, via=[]} (the leaf).
 ;; Termination: the support DAG is acyclic (fixpoint round structure); base facts are not
 ;; in the support map → the None branch is the leaf, so recursion always terminates.
 (:wat::core::defn :wat::rete::explain
   [ex   <- :wat::rete::Explained
    fact <- :wat::Record]
-  -> :wat::rete::Why
+  -> :wat::rete::DerivationNode
   (:wat::core::let [support (:wat::rete::Explained/support ex)
                     sv-opt  (:wat::core::PersistentMap/get support fact)]
-    (:wat::core::match sv-opt -> :wat::rete::Why
+    (:wat::core::match sv-opt -> :wat::rete::DerivationNode
       ((:wat::core::Some sv)
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
        ;; matches is PersistentVector<(wat::Record, wat::core::i64)>; first of each tuple is the fact.
@@ -180,13 +183,13 @@
                          matches (:wat::rete::Token/matches tok)
                          via     (:wat::core::map
                                     (:wat::core::fn [m <- :(wat::Record,wat::core::i64)]
-                                      -> :wat::rete::Why
+                                      -> :wat::rete::DerivationNode
                                       (:wat::rete::explain ex (:wat::core::first m)))
                                     matches)]
-         (:wat::rete::Why fact via)))
+         (:wat::rete::DerivationNode fact via)))
       (:wat::core::None
        ;; base/asserted fact — leaf node, via is empty.
-       (:wat::rete::Why fact (:wat::core::PersistentVector))))))
+       (:wat::rete::DerivationNode fact (:wat::core::PersistentVector))))))
 
 ;; ─── render-dag ─────────────────────────────────────────────────────────────
 
