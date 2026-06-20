@@ -4,15 +4,25 @@ The single source for "what's left and in what order." Real names, not codenames
 is · how tractable · status · old codename (so prior notes still map). Supersedes the scattered "banked `8-x`"
 notes across DESIGN-STONE-* — if it's not here, it's not queued.
 
-**Worked top-to-bottom in tractability order. Capability before measurement before the final ward.**
-278's *close* needs only the **Perf measurement + the grimoire ward** (§2). Everything in §1 is cheap,
-genuinely wanted capability-completion (the anomaly domain) that we're choosing to finish first so the ward
-sees final code. §3 is honestly-hard and stays deferred. §4 is the payoff after close.
+**THE ORDER IS FIXED — not reorderable:**
+
+> ## ①  FEATURE PARITY  →  ②  FEATURE PERFORMANCE SUPERIORITY  →  ③  GRIMOIRE
+
+1. **FEATURE PARITY** = implement *every feature we've chosen to ship* (our chosen set, complete — NOT
+   full-Clara-parity; we deliberately cut things). This is the pending queue below (§1).
+2. **FEATURE PERFORMANCE SUPERIORITY** = only once the feature set is *complete*, measure it and beat Clara
+   across it (§2). **Perf is NOT next** — you cannot measure or optimize a feature set that is still growing.
+3. **GRIMOIRE** = the `kernel.rs` vigilia ward, **last**, on *final* code (§3) — you cannot ward code that is
+   still changing.
+
+278 closes at the end of ③. Within Phase ① work in tractability order. §4 is the payoff after close; "Deferred
+for real" and "Horizon" are NOT in any phase.
 
 ---
 
-## §1 — Cheap capability completion (the accumulator cluster — all ride stone 8's machinery)
-*Build these first, in this order: capability, then ergonomics.*
+## ①  FEATURE PARITY — the features we've chosen to implement (the pending queue)
+*The accumulator-completion cluster — all ride stone 8's machinery. Worked in tractability order: capability
+first, ergonomics last. **This entire phase must complete before ② Perf begins.***
 
 1. **Custom accumulators** — let the accumulator slot take *any* user-supplied `pure ∧ deterministic ∧ total`
    fold fn over the gathered set, not just the 8 built-ins. **This is the percentiles / stddev / top-k
@@ -34,23 +44,31 @@ sees final code. §3 is honestly-hard and stays deferred. §4 is the payoff afte
 
 ---
 
-## §2 — The 278 close path (the only items the close actually requires)
+## ②  FEATURE PERFORMANCE SUPERIORITY — only after ① is COMPLETE
 
-5. **Rule-count / shared-prefix perf measurement vs Clara** — the last unmeasured Clara cell. (Beta/join-
-   prefix sharing is already BUILT — `rete.wat:481`; this MEASURES that it holds at high rule count + probes
-   the syntactic-vs-semantic-sharing nuance. DESIGN: `DESIGN-STONE-P7b-rulecount-sharing.md`.) Harness =
-   sonnet; the grid run = orchestrator-only. *(codename `②`)* — measurement, not a build.
+*You cannot measure or optimize a feature set that is still growing. ① must be done first.*
 
-6. **`kernel.rs` grimoire / vigilia — the final-code ward.** Cast LAST, on final code (so it must follow §1).
-   Includes the dead-code purge below. *(codename `⑤`)* — the "beat the shit out of it" pass.
+5. **Rule-count / shared-prefix perf measurement vs Clara** — the last unmeasured Clara cell, **plus**
+   re-confirm we beat Clara across the now-complete feature set (we added where/:not/:exists/accumulators
+   since the last measurement). Beta/join-prefix sharing is already BUILT (`rete.wat:481`); this MEASURES it
+   holds at high rule count + probes the syntactic-vs-semantic-sharing nuance. DESIGN:
+   `DESIGN-STONE-P7b-rulecount-sharing.md`. Harness = sonnet; the grid run = orchestrator-only. Any cell where
+   we don't yet win → an iterate-stone (still inside this phase, until we're superior). *(codename `②`)*
+
+## ③  GRIMOIRE — last, on FINAL code
+
+*You cannot ward code that is still changing. ① and ② must be done first.*
+
+6. **`kernel.rs` grimoire / vigilia — the final-code ward.** The "beat the shit out of it" pass. Includes the
+   dead-code purge below. *(codename `⑤`)*
    - **6a. Remove the dead `QueryNode`** — the `QueryNode` record + `:QueryNode` enum variant are defined but
      never minted or executed (query reads production-memory directly). The vigilia's purgare ward catches it.
 
-→ **278 CLOSES** here (perf done + measured, capability complete, code warded).
+→ **278 CLOSES** here (features complete → measured-superior → code warded).
 
 ---
 
-## §3 — Deferred for real (NOT cheap — honest reasons, not near-term)
+## Deferred for real — NOT in any phase (NOT cheap — honest reasons, not near-term)
 
 - **Negation / exists over *derived* facts (stratified)** — our `:not`/`:exists` are complete for *base*
   facts; negating a *derived* fact needs **stratification** (only evaluate the negation once its negated input
@@ -68,7 +86,7 @@ sees final code. §3 is honestly-hard and stays deferred. §4 is the payoff afte
 
 ---
 
-## §4 — The payoff (after 278 closes)
+## The payoff — after 278 closes (NOT in any phase)
 - **The reborn linter — lint rules as rete rules.** The engine's first serious app and the *why* of arc 278:
   rewrite the linter's if/cond rules as maintainable rete rules. The capability (where/:not/:exists/
   accumulators) is already enough; this is the application build.
