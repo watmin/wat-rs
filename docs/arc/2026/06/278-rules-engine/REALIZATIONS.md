@@ -558,7 +558,10 @@ field:
 - The **reactor** is the part already invented: lockstep, blocking, size-1 channels — request→reply
   rendezvous with real backpressure, the systolic-array model, not callback-hell async (arc 214 / C0b:
   `select'` multiplexes N peers, `poll'` is the event form, over UDS/sockets). A *fundamentally different*
-  reactor; "better" because the concurrency model is honest about backpressure by construction.
+  reactor; "better" because the concurrency model is honest about backpressure by construction. And the
+  wake substrate underneath is already **`io_uring`** (`io-uring = "0.7"`; `src/comms/process.rs` —
+  *"cross-process comms via io_uring + anonymous pipes"*, multi-arm submission on `[data_fd,
+  broadcast_fd]`) — the project moved `poll → io_uring` and **skipped `epoll` entirely**.
 - The **actor / persistent-state** layer is `defservice` (a gen_server: `handle(msg, state) → (reply,
   state')`), and the **persistent working-memory-as-a-service** is already on the board (NEXT-ANGLES ⑥) —
   a live rete `Session` held in a process, exactly the shape a stateful request handler wants.
