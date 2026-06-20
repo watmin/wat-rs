@@ -81,7 +81,6 @@ fn run(compute_src: &str) -> Value {
 /// `cold-and-windy` from `Temperature` ⋈ `WindSpeed`; its why-tree's `:via` has exactly those two supporting
 /// facts → length 2. Pins: `fire-rules-explain` (opt-in mode), `explain`, `Why/via`.
 #[test]
-#[ignore = "RED until P12 EXPLAIN lands — un-ignore on completion (the disconfirm)"]
 fn explain_cold_and_windy_reaches_its_two_inputs() {
     let n = run("\
 (:wat::core::length\n\
@@ -101,7 +100,6 @@ fn explain_cold_and_windy_reaches_its_two_inputs() {
 /// nested `:why` (the tree recurses). Length 1 at the top proves the cascade is walkable; the recursion to
 /// inputs is the LEVEL-1 tree hanging under that single via-entry. Pins: explain over a cascade-derived fact.
 #[test]
-#[ignore = "RED until P12 EXPLAIN lands — un-ignore on completion (the disconfirm)"]
 fn explain_weather_alert_has_one_derived_support() {
     let n = run("\
 (:wat::core::length\n\
