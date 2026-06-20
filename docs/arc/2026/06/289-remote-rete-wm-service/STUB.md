@@ -21,6 +21,24 @@ managed, live inference endpoint other services talk to.
 - **EXPLAIN over the wire** = arc 278 P12: a caller can ask "why did this derive" and get the `DerivationNode`
   tree back (opt-in, re-derived from the stored `{facts, rules}`).
 
+## Continuity + retraction (the two parts that feel hard — both already solved/built)
+- **Continuity = the actor holding the `Session` as state.** The gen_server loop `handle(msg, state) →
+  (reply, state')`; the `Session` IS the state, threaded forward each request (`insert`→Session', `fire`→
+  Session'', `query`→read). The engine is PURE within a fire; the service is STATEFUL across fires — they
+  coexist because statefulness lives in the actor's `state`, not the engine. Nothing new to invent: it's
+  `defservice` threading `Session → Session'`.
+- **Retraction = ALREADY BUILT (arc 278, oracle 4c + native P4c).** `retract` = remove-the-fact + re-fire;
+  because `fire-rules` is **pure replay**, consequences vanish transitively + precisely with NO support-graph
+  bookkeeping. The hardest thing in textbook RETE (TM / justification graph / Clara's hazard #1) **falls out of
+  purity**. In the service it's just a `retract` message → new facts → re-fire.
+- **It's a DEDUCTIVE db**: INSERT=`insert`, DELETE=`retract`, SELECT=`query`, materialize/trigger-cascade=
+  `fire-rules`. The differentiator from a passive store: it INFERS (rules derive new facts on fire).
+- **The one real perf choice**: v1 = **pure replay** (re-fire from facts each time — correct, simple,
+  retraction free). A HOT persistent WM eventually wants **incremental** insert (P4b delta) + **incremental TM**
+  (the support-store cascade). The breadcrumb named exactly this: the support-store cascade *"earns its place
+  ONLY in a future persistent/streaming engine where memories live across fires."* **This service IS that
+  engine** — it's where the incremental TM cut from the pure oracle returns as the perf path.
+
 ## The one genuine gap: the HTTPS / TCP+TLS transport
 Today comms is **UDS** (+ the arc-272 rendezvous capability, SO_PEERCRED gating). HTTPS = TCP + TLS — a NEW
 transport leg. Work: a TCP listener + TLS + HTTP framing on the comms trait (the `EdnRepresentable` Peer
