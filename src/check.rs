@@ -18991,11 +18991,21 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone 6a — purity classifier predicate.
-    // (:wat::rete::pure? <expr: :wat::WatAST>) -> :wat::core::bool
-    // Default-deny: proven-pure intrinsic or transitive user fn; everything else rejected.
+    // Arc 278 Stone 6a — the rete condition fence: two orthogonal predicates (pure ∧ deterministic).
+    // (:wat::rete::pure? <expr: :wat::WatAST>) -> :wat::core::bool          — effect-free?
+    // (:wat::rete::deterministic? <expr: :wat::WatAST>) -> :wat::core::bool — referentially transparent?
+    // Default-deny: proven by intrinsic metadata or transitive user fn; everything else rejected.
     env.register(
         ":wat::rete::pure?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::bool".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::rete::deterministic?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],

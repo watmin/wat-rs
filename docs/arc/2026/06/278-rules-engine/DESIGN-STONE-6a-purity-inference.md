@@ -1,6 +1,14 @@
 # DESIGN — Stone 6a: purity inference (the shared fence for the capability tier)
 
-**Status:** STRIKE-READY (draw)
+**Status:** SHIPPED (two-axis). See the addendum below — the single `pure?` of the first draft split
+into TWO orthogonal predicates, `pure?` (effect-free) + `deterministic?` (referentially transparent),
+because `Uuid/v4` is pure-but-random. The rete condition fence is `(and (pure? f) (deterministic? f))`.
+The per-op metadata is a hand-managed map (v1 projection of arc 255 — see
+`docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`).
+Sections below describe the original single-classifier draft; the two-axis split supersedes the
+"non-deterministic intrinsic set inside the purity check" framing (that was the muddle).
+
+**Status (original draft):** STRIKE-READY (draw)
 **Depends on:** nothing new (reads `is_effectful_op`, the symbol table)
 **Consumed by:** 6b (`where`/`:test`), 7 (negation conditions), 8 (accumulator `reduce`/`combine`/`init`/`retract`/`convert` fns). Built first — the block-and-build dependency of the whole capability tier.
 

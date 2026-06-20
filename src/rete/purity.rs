@@ -1,21 +1,34 @@
-//! Arc 278 Stone 6a — purity classifier: `is_pure_expr` / `is_pure_fn`.
+//! Arc 278 Stone 6a — the rete condition fence: TWO orthogonal classifiers, `pure?` + `deterministic?`.
 //!
-//! Default-deny: a head is pure ONLY if it can be *proven* pure — a known-pure
-//! intrinsic, or a user fn whose body is transitively pure. Anything unproven is
-//! rejected. "Pure" = a deterministic function of the facts; impurity has two
-//! sources: (1) effects (IO/spawn/mutation — `is_effectful_op`) and
-//! (2) non-determinism (randomness — `:wat::core::Uuid/v4`).
+//! A rete condition (a `where`/`:test` predicate, an accumulator fn) must be a **deterministic,
+//! effect-free function of the facts**. Those are two INDEPENDENT properties:
 //!
-//! ## Entry point
+//! - **pure** — effect-free: no IO/mutation/spawn (seed: the negation of `is_effectful_op`).
+//! - **deterministic** — referentially transparent: same inputs → same output (no randomness/clock).
 //!
-//! `(:wat::rete::pure? <quoted-expr>) -> :bool`
+//! They are genuinely orthogonal. `:wat::core::Uuid/v4` does no IO and mutates nothing → it is PURE,
+//! yet it is random → NON-deterministic. The exposed rete check is therefore `(and (pure? f)
+//! (deterministic? f))`; each axis is its own predicate.
+//!
+//! ## Default-deny, and the hand-managed metadata map
+//!
+//! Both classifiers are DEFAULT-DENY: a head's property holds only if PROVEN (a known intrinsic whose
+//! metadata declares it, or a user fn whose body transitively holds it); anything unproven is rejected.
+//! The per-op metadata is a small HAND-MANAGED map (`intrinsic_meta`) — the explicit v1 projection of
+//! the queryable registry that arc 255 will eventually own (see
+//! `docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`). When
+//! 255 lands, delete this map and have the predicates query `metadata-of` instead.
+//!
+//! ## Entry points
+//!
+//! `(:wat::rete::pure? <quoted-expr>) -> :bool` · `(:wat::rete::deterministic? <quoted-expr>) -> :bool`
 //! Dispatched from `runtime.rs` beside the sibling rete primitives.
 //!
 //! ## Cycle handling
 //!
-//! `is_pure_fn` threads a `seen: &mut HashSet<String>` of fqdns mid-evaluation.
-//! A back-edge to an fqdn already in `seen` contributes no new impurity (purity
-//! fixpoint: assume-pure on the cycle, falsify on any concrete impure leaf).
+//! `classify_fn` threads a `seen: &mut HashSet<String>` of fqdns mid-evaluation. A back-edge to an fqdn
+//! already in `seen` returns `true` (purity/determinism fixpoint: the cycle contributes no new
+//! violation; the property is falsified only by a concrete violating leaf, which short-circuits up).
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -26,37 +39,41 @@ use crate::span::Span;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-// ─── Non-determinism seed ─────────────────────────────────────────────────────
+// ─── The two axes ─────────────────────────────────────────────────────────────
 
-/// ONLY `:wat::core::Uuid/v4` is random (non-deterministic).
-/// `Uuid/v5` (SHA1 of namespace+name), `Uuid/from-string`, `Uuid/to-string`,
-/// and `Uuid/nil` are all deterministic ⇒ pure; they belong on the allow-list.
-fn is_nondeterministic(head: &str) -> bool {
-    matches!(head, ":wat::core::Uuid/v4")
+/// The property being classified. The structural walk is shared; only the per-head leaf decision
+/// (`head_ok`) differs by axis.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    /// Effect-free: no IO/mutation/spawn.
+    Pure,
+    /// Referentially transparent: same inputs → same output.
+    Deterministic,
 }
 
-// ─── Pure-intrinsic allow-list ────────────────────────────────────────────────
+// ─── The hand-managed per-op metadata map (v1 projection of arc 255) ───────────
 
-/// Default-deny allow-list: a head is a known-pure intrinsic only if it appears
-/// here. Enumerated from `dispatch_keyword_head_value` in `runtime.rs`.
-///
-/// Categories included:
-/// - Pure namespace prefixes: `:wat::core::string::`, `:wat::core::regex::`.
-/// - Pure `:wat::core::` ops: arithmetic, comparison, boolean, collection
-///   readers/predicates, type predicates, and the deterministic Uuid ops.
-/// - Pure control-flow forms: `if`, `let`, `do`, `match`, `cond`, `when` —
-///   these recurse into their sub-forms element-wise.
-/// - `quote` and `quasiquote` are handled separately (data, not calls).
-fn is_pure_intrinsic(head: &str) -> bool {
-    // Pure namespace prefixes — every op in these namespaces is pure.
-    if head.starts_with(":wat::core::string::") {
-        return true;
+/// Declared properties of a known intrinsic. The single hand source of truth until arc 255 lifts it
+/// to a queryable registry. DEFAULT-DENY: a head NOT covered here returns `None` ⇒ neither property.
+#[derive(Clone, Copy)]
+struct OpMeta {
+    pure: bool,
+    deterministic: bool,
+}
+
+/// The hand-managed map (enumerated from `dispatch_keyword_head_value` in `runtime.rs`).
+/// Almost every pure op is also deterministic; `Uuid/v4` is the lone pure-but-non-deterministic op.
+fn intrinsic_meta(head: &str) -> Option<OpMeta> {
+    // Pure but NON-deterministic: random.
+    if head == ":wat::core::Uuid/v4" {
+        return Some(OpMeta { pure: true, deterministic: false });
     }
-    if head.starts_with(":wat::core::regex::") {
-        return true;
+    // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
+    if head.starts_with(":wat::core::string::") || head.starts_with(":wat::core::regex::") {
+        return Some(OpMeta { pure: true, deterministic: true });
     }
-    // Explicit pure `:wat::core::` operations.
-    matches!(
+    // Pure ∧ deterministic explicit `:wat::core::` ops.
+    let pure_det = matches!(
         head,
         // Arithmetic
         ":wat::core::+"
@@ -88,18 +105,13 @@ fn is_pure_intrinsic(head: &str) -> bool {
             | ":wat::core::not"
             | ":wat::core::and"
             | ":wat::core::or"
-            // Control flow whose sub-items are ALL plain exprs (or symbol/expr binding
-            // vectors) — safe to recurse element-wise.
+            // Control flow whose sub-items are ALL plain exprs (or symbol/expr binding vectors)
+            // — safe to recurse element-wise. (`cond`/`match` are handled with dedicated
+            // clause-aware arms in classify_expr, NOT here, because their clauses are not calls.)
             | ":wat::core::if"
             | ":wat::core::let"
             | ":wat::core::do"
             | ":wat::core::when"
-            // NOTE: `match`/`cond` are deterministic+pure control flow but their CLAUSE
-            // sub-structure is not all-expr (a clause `(pattern body)` / `(test body)` has a
-            // list as its head, which the element-wise walk would misclassify as impure).
-            // Default-deny them until a clause-aware walk is added (6a follow-on, on a real
-            // consumer need) — the safe direction: a `where` using them errors loudly rather
-            // than the allow-list lying about handling them.
             // Collection/map/vector readers and predicates
             | ":wat::core::get"
             | ":wat::core::length"
@@ -137,25 +149,49 @@ fn is_pure_intrinsic(head: &str) -> bool {
             | ":wat::core::HashMap/dissoc"
             | ":wat::core::HashMap/keys"
             | ":wat::core::HashMap/values"
-            // Deterministic Uuid ops (v5 = SHA1-based, from-string, to-string, nil are deterministic)
+            // Deterministic Uuid ops (v5 = SHA1(ns,name); from-string/to-string/nil)
             | ":wat::core::Uuid/v5"
             | ":wat::core::Uuid/from-string"
             | ":wat::core::Uuid/to-string"
             | ":wat::core::Uuid/nil"
-    )
+    );
+    if pure_det {
+        Some(OpMeta { pure: true, deterministic: true })
+    } else {
+        None
+    }
 }
 
-// ─── Core classifier ──────────────────────────────────────────────────────────
+// ─── Per-head leaf decision ─────────────────────────────────────────────────────
 
-/// Recursively classify an AST node as pure.
-///
-/// - Literals / keywords / symbols (incl. `?vars`) → pure (data, not a call).
-/// - `quote`/`quasiquote` sub-forms → pure (data; do NOT recurse as calls).
-/// - List with a keyword/symbol head H: apply the per-head decision.
-/// - Vectors / maps / sets → recurse element-wise.
-pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+/// Does `head` satisfy `axis`? User fns recurse transitively; intrinsics consult `intrinsic_meta`;
+/// unknown heads default-deny.
+fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+    // User-defined fn → transitive check of its body on the SAME axis.
+    if sym.functions.contains_key(head) {
+        return classify_fn(head, axis, sym, seen);
+    }
+    match axis {
+        // Pure: effectful namespaces are an explicit deny; otherwise the metadata must declare pure.
+        Axis::Pure => {
+            if crate::runtime::is_effectful_op(head) {
+                return false;
+            }
+            intrinsic_meta(head).is_some_and(|m| m.pure)
+        }
+        // Deterministic: the metadata must declare deterministic (effectful/unknown ⇒ None ⇒ deny,
+        // which is correct — IO and unknown ops are not referentially transparent).
+        Axis::Deterministic => intrinsic_meta(head).is_some_and(|m| m.deterministic),
+    }
+}
+
+// ─── Shared structural walk (parameterized by axis) ─────────────────────────────
+
+/// Recursively classify an AST node against `axis`. The structure (quote-as-data, clause-aware
+/// `cond`/`match`, element-wise vectors/maps/sets) is identical for both axes; only `head_ok` differs.
+fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
     match ast {
-        // Non-list forms are pure data.
+        // Non-list forms are pure, deterministic data.
         WatAST::IntLit(_, _)
         | WatAST::FloatLit(_, _)
         | WatAST::BoolLit(_, _)
@@ -164,132 +200,117 @@ pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable, seen: &mut HashSet<S
         | WatAST::Keyword(_, _)
         | WatAST::Symbol(_, _) => true,
 
-        // quote / quasiquote sub-forms are DATA — pure (do not recurse into them as calls).
+        // quote / quasiquote sub-forms are DATA — do not recurse into them as calls.
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote") => {
             true
         }
 
-        // General list: extract head and apply per-head decision.
-        WatAST::List(items, _) => {
-            let head = match items.first() {
-                // Empty list — pure (no head).
-                None => return true,
-                Some(WatAST::Keyword(k, _)) => k.as_str(),
-                Some(WatAST::Symbol(id, _)) => id.as_str(),
-                // Non-keyword/symbol head — treat as unknown → DENY.
-                _ => return false,
-            };
-
-            // Step 1: effectful namespace seed.
-            if crate::runtime::is_effectful_op(head) {
-                return false;
-            }
-
-            // Step 2: non-deterministic intrinsics.
-            if is_nondeterministic(head) {
-                return false;
-            }
-
-            // Step 3: user-defined function → transitive check.
-            if sym.functions.contains_key(head) {
-                if !is_pure_fn(head, sym, seen) {
-                    return false;
-                }
-                // Also recurse into the args (the call-site sub-expressions).
-                return items[1..].iter().all(|a| is_pure_expr(a, sym, seen));
-            }
-
-            // Step 4: known-pure intrinsic → recurse into args.
-            if is_pure_intrinsic(head) {
-                return items[1..].iter().all(|a| is_pure_expr(a, sym, seen));
-            }
-
-            // Step 5: unknown head → DEFAULT-DENY.
-            false
+        // `cond` — clause-aware: (cond (test body…) …). A clause is NOT a call; every element
+        // (test AND body forms) is an expression that must satisfy the axis. (cond ≡ chained `if`.)
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::cond") => {
+            items[1..].iter().all(|clause| match clause {
+                WatAST::List(parts, _) => parts.iter().all(|e| classify_expr(e, axis, sym, seen)),
+                _ => false, // malformed clause → deny
+            })
         }
 
-        // Vectors → recurse element-wise.
-        WatAST::Vector(elems, _) => elems.iter().all(|e| is_pure_expr(e, sym, seen)),
+        // `match` — clause-aware: (match scrut -> :T (pattern body…) …). The scrutinee and every arm
+        // BODY must satisfy the axis; the PATTERN is structural (destructures/binds, never calls — wat
+        // match has no guards) and the return-type form is not evaluated. So: skip the pattern (arm
+        // element 0), check the body (arm elements 1..).
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::match") => {
+            let scrut_ok = items.get(1).is_some_and(|s| classify_expr(s, axis, sym, seen));
+            // Arms follow the `->` <type> ascription. Locate `->` to skip scrutinee + return type.
+            match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
+                // items[i+1] = return-type form (not evaluated); items[i+2..] = arms.
+                Some(i) => {
+                    scrut_ok
+                        && items.get(i + 2..).is_some_and(|arms| {
+                            arms.iter().all(|arm| match arm {
+                                // skip pattern (element 0); check body forms (1..).
+                                WatAST::List(parts, _) => {
+                                    parts.iter().skip(1).all(|e| classify_expr(e, axis, sym, seen))
+                                }
+                                _ => false, // malformed arm → deny
+                            })
+                        })
+                }
+                None => false, // malformed match (no `->`) → deny
+            }
+        }
 
-        // Maps → recurse element-wise over key-value pairs.
+        // General list: head decision + recurse into args (same axis).
+        WatAST::List(items, _) => {
+            let head = match items.first() {
+                None => return true, // empty list — no call
+                Some(WatAST::Keyword(k, _)) => k.as_str(),
+                Some(WatAST::Symbol(id, _)) => id.as_str(),
+                _ => return false, // non-keyword/symbol head — unknown → deny
+            };
+            head_ok(head, axis, sym, seen)
+                && items[1..].iter().all(|a| classify_expr(a, axis, sym, seen))
+        }
+
+        // Vectors / maps / sets → recurse element-wise.
+        WatAST::Vector(elems, _) => elems.iter().all(|e| classify_expr(e, axis, sym, seen)),
         WatAST::Map(pairs, _) => pairs
             .iter()
-            .all(|(k, v)| is_pure_expr(k, sym, seen) && is_pure_expr(v, sym, seen)),
-
-        // Sets → recurse element-wise.
-        WatAST::Set(elems, _) => elems.iter().all(|e| is_pure_expr(e, sym, seen)),
+            .all(|(k, v)| classify_expr(k, axis, sym, seen) && classify_expr(v, axis, sym, seen)),
+        WatAST::Set(elems, _) => elems.iter().all(|e| classify_expr(e, axis, sym, seen)),
     }
 }
 
-/// Classify a named user fn as pure by inspecting its body transitively.
-///
-/// `seen` is threaded to detect cycles; a back-edge (fqdn already in `seen`)
-/// returns `true` (assume-pure: the cycle contributes no new impurity; the
-/// purity fixpoint is falsified only if a concrete impure leaf is found).
-pub(crate) fn is_pure_fn(fqdn: &str, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
-    // Back-edge: no new impurity from the recursive call.
+/// Classify a named user fn against `axis` by inspecting its body transitively. `seen` detects cycles;
+/// a back-edge (fqdn already in `seen`) returns `true` (fixpoint: the cycle adds no new violation).
+fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
     if seen.contains(fqdn) {
-        return true;
+        return true; // back-edge — no new violation from the recursive call
     }
     seen.insert(fqdn.to_string());
 
     let func = match sym.functions.get(fqdn) {
         Some(f) => Arc::clone(f),
-        // Name not in functions — unknown → DENY.
-        None => return false,
+        None => return false, // name not registered → deny
     };
-
     match &func.body {
-        FunctionBody::Wat(body_ast) => is_pure_expr(body_ast.as_ref(), sym, seen),
-        // Native builtins registered in sym.functions are handled as pure
-        // only if they also appear on is_pure_intrinsic; reaching here means
-        // the fn is registered as Native without an intrinsic entry → DENY.
+        FunctionBody::Wat(body_ast) => classify_expr(body_ast.as_ref(), axis, sym, seen),
+        // A native builtin registered in sym.functions is opaque here; it is honored only via
+        // intrinsic_meta (the head_ok path), not as a user fn → deny.
         FunctionBody::Native => false,
     }
 }
 
-// ─── Public 2-arg wrappers (for callers that don't thread `seen`) ─────────────
+// ─── Public axis classifiers (fresh `seen` per call) — also for stone 6b+ ──────
 
-/// Classify an AST node as pure, seeding a fresh `seen` set.
-/// Called by `eval_pure_predicate` and available to stone 6b+.
-pub(crate) fn is_pure_expr_top(ast: &WatAST, sym: &SymbolTable) -> bool {
-    is_pure_expr(ast, sym, &mut HashSet::new())
+/// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).
+pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
+    classify_expr(ast, Axis::Pure, sym, &mut HashSet::new())
 }
 
-/// Classify a named user fn as pure, seeding a fresh `seen` set.
-/// Stone 6b+ will call this from the rule-compiler.
-#[allow(dead_code)]
-pub(crate) fn is_pure_fn_top(fqdn: &str, sym: &SymbolTable) -> bool {
-    is_pure_fn(fqdn, sym, &mut HashSet::new())
+/// Is `ast` referentially transparent (same inputs → same output)? `:wat::core::Uuid/v4` is NOT.
+pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
+    classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new())
 }
 
-// ─── WAT surface: `(:wat::rete::pure? <quoted-expr>) -> :bool` ───────────────
+// ─── WAT surfaces ───────────────────────────────────────────────────────────────
 
-/// Entry point dispatched by `runtime.rs` beside the sibling rete primitives.
-///
-/// Arity 1. Evaluates `args[0]` → expects `Value::wat__WatAST(a)` (the result
-/// of a `quote` in the caller). Returns `Value::bool(is_pure_expr_top(a))`.
-/// Pattern copied from `eval_alpha_match` in `matcher.rs`.
-pub(crate) fn eval_pure_predicate(
+/// Shared body for the two single-arg WatAST predicates: arity 1, eval `args[0]` to a quoted
+/// `WatAST`, apply `classify`. Pattern copied from `eval_alpha_match` in `matcher.rs`.
+fn eval_axis_predicate(
+    op: &'static str,
+    classify: fn(&WatAST, &SymbolTable) -> bool,
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::pure?";
     if args.len() != 1 {
         return Err(RuntimeError {
             span: list_span.clone(),
-            kind: RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
+            kind: RuntimeErrorKind::ArityMismatch { op: op.into(), expected: 1, got: args.len() },
         }
         .into());
     }
-
-    // Evaluate args[0] → must be Value::wat__WatAST (the quoted expr).
     let val = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let ast = match val {
         Value::wat__WatAST(ref a) => (**a).clone(),
@@ -297,7 +318,7 @@ pub(crate) fn eval_pure_predicate(
             return Err(RuntimeError {
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
+                    op: op.into(),
                     expected: ":wat::WatAST (a quoted expr from :wat::core::quote)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -305,6 +326,25 @@ pub(crate) fn eval_pure_predicate(
             .into());
         }
     };
+    Ok(Value::bool(classify(&ast, sym)))
+}
 
-    Ok(Value::bool(is_pure_expr_top(&ast, sym)))
+/// `(:wat::rete::pure? <quoted-expr>) -> :bool` — effect-free?
+pub(crate) fn eval_pure_predicate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_axis_predicate(":wat::rete::pure?", is_pure_expr, args, list_span, env, sym)
+}
+
+/// `(:wat::rete::deterministic? <quoted-expr>) -> :bool` — referentially transparent?
+pub(crate) fn eval_deterministic_predicate(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_axis_predicate(":wat::rete::deterministic?", is_deterministic_expr, args, list_span, env, sym)
 }

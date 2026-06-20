@@ -4018,12 +4018,14 @@ fn dispatch_keyword_head_value(
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
         ":wat::rete::step-payload'" => crate::rete::matcher::eval_step_payload(args, list_span, env, sym),
         ":wat::rete::collect-rules" => crate::rete::collect::eval_collect_rules(args, list_span, env, sym),
-        // Arc 278 Stone 6a — purity classifier predicate.
+        // Arc 278 Stone 6a — the rete condition fence: two orthogonal classifiers, each default-deny
+        // + transitive over user-fn bodies. A rete condition must be (pure AND deterministic).
+        //   pure?          = effect-free (no IO/mutation). Uuid/v4 IS pure (does no IO).
+        //   deterministic? = same inputs → same output. Uuid/v4 is NOT (random); Uuid/v5 IS.
         // (:wat::rete::pure? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
-        // Default-deny: a head is pure only if proven pure (known-pure intrinsic or a user fn
-        // whose body is transitively pure). "Pure" = deterministic fn of facts (no effects, no
-        // non-determinism). Uuid/v4 is impure; Uuid/v5/nil/from-string/to-string are pure.
+        // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
+        ":wat::rete::deterministic?" => crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, list_span, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),

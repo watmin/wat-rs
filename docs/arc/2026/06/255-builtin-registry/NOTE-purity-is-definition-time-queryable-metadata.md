@@ -44,3 +44,33 @@ guessed/implicit purity model.
 (Companion requirement, captured in arc 277 + 278: the detection rule also needs to know whether the
 form under inspection is ITSELF in an expand-time position — "am I inside a defmacro body?" — which is
 the context half; this note is the callable-class half. Both are needed to gate a macro-introducing fix.)
+
+---
+
+## UPDATE 2026-06-20 (arc 278 stone 6a) — purity is TWO orthogonal properties: pure AND deterministic
+
+The rete capability tier (stone 6a — the `where`/`:test`/accumulator fence) became the **live consumer**
+this note predicted, and it surfaced that the metadatum is not one bit but **two orthogonal ones**:
+
+- **`pure`** — effect-free (no IO/mutation/spawn). Seed: the *negation* of `is_effectful_op`
+  (`runtime.rs`) — `:wat::kernel::`/`:wat::io::`/`:wat::eval-`/`:wat::load`/`:wat::config::`.
+- **`deterministic`** — referentially transparent, same inputs → same output (no randomness/clock/entropy).
+
+They are genuinely independent. **`:wat::core::Uuid/v4` is the proof: it does no IO and mutates nothing
+→ PURE — yet it is random → NON-deterministic.** (`Uuid/v5` = SHA1(ns,name) is pure ∧ deterministic; a
+hypothetical `clock/now` would be pure ∧ non-deterministic; `io::read` is impure ∧ non-deterministic.) A
+rete *condition* must be a deterministic, effect-free function of the facts → it requires **both**; the
+exposed check is `(and (pure? f) (deterministic? f))`. Collapsing them into one "pure" bit (a first 6a
+draft did, by jamming `Uuid/v4` into a "non-deterministic" set *inside* the purity check) is the muddle
+this update corrects.
+
+So `(metadata-of :wat::core::X)` must carry **`{:kind, :pure, :deterministic, :expand-time-legal, …}`** —
+`:deterministic` is the sibling property the original note didn't name.
+
+**Status / what 278 ships (NOT 255):** 255 (re-lift ~454 builtins into a registry) is **NOT ready** —
+builder's call, 2026-06-20, too big to detour into mid-278. To ship rete, stone 6a carries a small
+**hand-managed metadata map** in `src/rete/purity.rs` (`{pure, deterministic}` per op, default-deny,
+transitive over user-fn bodies) exposing `:wat::rete::pure?` + `:wat::rete::deterministic?`. **This hand
+list IS the "parallel hand-list" this note warns against — accepted as the explicit v1 projection.** When
+255 lands, the map becomes a *projection* of the registry (delete the hand list; the rete predicates query
+`metadata-of`), exactly as prescribed above. The hand list points here in-code for discoverability.
