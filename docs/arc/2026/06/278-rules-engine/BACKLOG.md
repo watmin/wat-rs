@@ -1,9 +1,20 @@
 # Arc 278 — explicit work queue (real names, tractability-ordered)
 
-## ⛔ CURRENT STATE — read first (breadcrumb, 2026-06-20; replace in place)
+## ⛔ CURRENT STATE — read first (breadcrumb, 2026-06-21; replace in place)
 
-**Active campaign: COLLECTION COMPLETION.** Building rete exposed a sloppy collection surface; we are filling it
-to sane (every cell `done`/`N/A`) before resuming rete. **Spec + grid: `docs/COLLECTION-CAPABILITIES.md`.**
+**⛔ 278 IS PARKED — PIVOTED TO ARC 255 (builtin registry). See `docs/arc/2026/06/255-builtin-registry/DESIGN.md`.**
+Building the collection campaign surfaced a **catastrophic checker-soundness hole**: the resolver
+blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`) and the checker punts via a permissive
+`Infer` fallback — so a typo'd/retired/nonexistent builtin (`:wat::core::nonexistent-xyz?`) type-checks
+clean and only dies at runtime. Builder verdict: annihilation. **255 closes it** (builtins become
+first-class `sym`-registered, reflectable, with a forced minimum-baseline + adjacent per-def-kind record),
+**and is the vehicle to carve `runtime.rs`'s ~483 dispatch arms into namespaced homes.** 255 UNLOCKS 278's
+continuity — the `List?`→`ast-list?`/`list?` split, retirement-loud-at-resolve, the container-predicate
+family, and the collection HOF fills (1c WatAstList / 1d HashSet) all resume on the sound substrate.
+
+**COLLECTION CAMPAIGN (parked mid-flight — resume after 255):** lookup/size done both families; seq HOFs:
+1a (cap split `5ac9abdb`) + 1b (List `751d131d`) DONE; **remaining 1c (WatAstList HOFs+conj), 1d (HashSet
+map/filter/fold), then map-iteration, index-assoc, set algebra.** Spec/grid: `docs/COLLECTION-CAPABILITIES.md`.
 Ethos: the substrate forces our hand — no deferral, satisfy forcing-signals by USE not `#[allow]`/`pub`
 (memory `feedback_substrate_forces_idealized_state`).
 

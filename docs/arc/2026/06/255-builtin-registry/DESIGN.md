@@ -223,3 +223,163 @@ via the metadata map) + the provenance tags. *Migrating* existing string-match
 classification sites to tag-queries is a capability 255 unlocks, **harvested
 incrementally** (each its own small stone), NOT an all-at-once sweep inside 255.
 Mechanism now; harvest forever.
+
+---
+
+## ARC 255 PROMOTED TO ACTIVE — the catastrophic instance, grounded (2026-06-21)
+
+Building rete + the collection campaign re-surfaced this as a **live catastrophic
+hole**, not a latent asymmetry. Grounded this session (no speculation):
+
+- `(:wat::core::nonexistent-xyz? 5)` in a typed body **type-checks clean** and only
+  fails at runtime *if that branch executes*. A typo'd / retired / nonexistent
+  builtin head escapes BOTH static layers.
+- **The double-punt** (both layers say "not my job"):
+  - resolve — `is_resolvable_call_head` → `is_reserved_prefix(head)` returns true for
+    ANY `:wat::*` leaf (walk.rs:189 / reserved.rs:34). Comment admits it:
+    *"leaf-level validation is the type checker's concern."*
+  - check — no scheme for the unregistered head → permissive `Infer` fallback
+    (check.rs:9923 *"may be a primitive / future slice / driver"*).
+- Scope: every `:wat::*` builtin namespace (confirmed `:wat::io::bogus` passes too),
+  NOT core-only. Unknown **user** fns ARE caught (resolve), so the hole is the
+  builtin open-set specifically.
+- Exit codes are correct (valid→0, runtime panic→1, MainSig→4) — an earlier
+  "exit 0" reading was a measurement error (`$?` through a pipe). No exit-code bug.
+
+**Builder verdict: annihilation. Any flaw is catastrophic; the forward-compat
+justification is rejected outright (never agreed to).**
+
+### Expressing "correct": list now, query later (builder)
+
+> *"how we express correct is an impl detail — right now it's a list, later it's a query."*
+
+The invariant is the same in both: **every `:wat::*` call head must resolve to a real
+builtin (or a registered user form / macro / protocol method); unknown → a resolve-time
+error carrying retirement + near-match remedies.** The blanket-accept is DELETED.
+
+- **Runtime reflection cannot derive the set today** — every reflection verb
+  (`metadata-of`, `signature-of-fn`, `lookup-define`, …) queries a GIVEN name; none
+  enumerates the builtins, because builtins aren't registered as data. That
+  enumeration capability IS this arc's payload. So the *query* expression must wait
+  on registration; the *list* expression ships now.
+
+### Decision (2026-06-21): go STRAIGHT to 255.1 — no throwaway 255.0 list
+
+A standalone hand-list (255.0) was considered and **rejected**: it touches the exact
+resolver/dispatch seam 255.1 rebuilds, then gets deleted — doing the dangerous part twice.
+The hole is dev-time (corpus green, nothing in production), so there is no pressure for an
+interim band-aid; 255.1 *is* the safe close. **278 is PARKED; 255 is active and unlocks
+278's continuity** (the `List?`→`ast-list?`/`list?` split, retirement-loud-at-resolve, the
+container-predicate family, the collection HOF fills all fall out of a sound registry).
+
+### 255 IS ALSO THE MEGAFILE CARVE (builder, 2026-06-21)
+
+> *"when we build 255 we rip out as much shit from the megafiles as we can to
+> `src/<namespace>/<scope>.rs` — we've been attacking those huge files strategically to
+> make the migration more tractable later."*
+
+255 dissolves `runtime.rs`'s central dispatch (`dispatch_keyword_head` +
+`dispatch_keyword_head_value`, ~483 arms). The "one source" declaration for each builtin
+lives in its **namespaced home**; each home exposes `register_builtins(&mut …)` that
+declares its builtins (name → handler, arity, meta) into `sym`; `runtime.rs` becomes an
+assembler that calls each home's registration. The central `match` shrinks toward nothing.
+Most homes exist (`collection/`, `channel/`, `process/`, `check/`, `types/`, `comms/`,
+`function/`, `services/`) — builtins rejoin them; scalar/arith families (`core::i64`,
+`core::f64`, `core::Bytes`, `core::String`, …) get new homes. Soundness fix + carve, one motion.
+
+### THE REFLECTION SURFACE (builder co-design, 2026-06-21) — nothing like it exists today
+
+Confirmed by grounding: there is **zero namespace introspection** today (no `names-in`/
+`ns-names` verb, no rust fn lists names under a prefix, `sym` exposes no iteration). 255
+builds it from the registry. The model is `ls` + `stat`:
+
+- **A namespace has TWO discrete, non-recursive observables** (dir = subdirs + files):
+  1. **child namespaces** — `(child-namespaces :wat::core)` → next-segment children, deduped (`i64 f64 Bytes …`)
+  2. **names** — `(names :wat::core)` → leaf callables directly at this level (`map first conj …`)
+  (Non-recursive by contract; the caller recurses if it wants. Verb names TBD at build.)
+- **Interrogate a name** — `(metadata-of :wat::core::map)` → the per-name map (below). "Is it
+  a func / macro / pure / …" is reading `:kind`/`:pure`/etc. off that map.
+
+### THE PER-NAME OBSERVABLE MAP (retained from the METADATA CONTRACT + purity NOTE above)
+
+`(metadata-of <fqdn>)` — same query from wat AND rust, always a map, never `None` for a
+registered name, all **auto-derived at registration** (can't lie):
+- baseline: `:defined-in` (`:wat`|`:rust`) · `:layer` (`:substrate`|`:userland`) · `:name` · `:arity`
+- callable-class (TWO orthogonal purity bits, per the NOTE): `:kind` (`macro`|`fn`|`intrinsic`)
+  · `:pure` · `:deterministic` · `:expand-time-legal`
+- extensible classification tags (Lisp plist): `:tier`, `:kind :arithmetic`, `:service?`, …
+- optional richer rust reflection: `:rust-handler`, source location.
+
+**Absorbs the live stopgap:** `src/rete/purity.rs` (111-line hand-maintained
+`{pure,deterministic}` map exposing `:wat::rete::pure?`/`deterministic?`) is the "parallel
+hand-list" the NOTE warns of; when 255 lands it becomes a *projection* of the registry —
+delete the hand list, the rete predicates query `metadata-of`.
+
+### Build shape
+
+- **Hand-authored seam + first home (reference template):** `FunctionBody::{Wat,Native}`;
+  the one-source per-home registration declaration; the resolver rewrite (delete
+  `is_reserved_prefix → true`; resolve through `sym`/registry membership + retirement/
+  near-match remedy); the perf path (phf / generated dispatch from the one source).
+- **Delegated per-home carving repeats:** one home per strike, sonnet under the template,
+  each weighed against the full corpus.
+- **Completeness gate = the full wat corpus + test cascade** (substrate-as-teacher): any real
+  head missing the registry → resolve rejects real code → red → register it. Plus the 254.R
+  undefined-builtin probe, the `metadata-of`-answers-for-a-builtin probe, the namespace-query
+  probes, and the hot-path benchmark (no regression).
+
+---
+
+## THE RECORD ARCHITECTURE (builder co-design, 2026-06-21) — forced minimum ⊕ adjacent per-def-kind
+
+The question that pins the contract: *"what's the record who describes the feature set
+some name must satisfy — a name cannot be registered if it doesn't have what it must."*
+
+Answer: **a forced minimum baseline ⊕ an adjacent per-def-kind record** (wat's own ADT —
+sum + product — applied to wat's own symbol table; "like program-envs": a required core
+with adjacent typed extensions).
+
+**Grounding (2026-06-21):** the per-def-kind records ALREADY exist — `Function`
+(env.rs:35), `StructDef`/`EnumDef`/`RecordDef` (types.rs), `ProtocolDef` (value.rs:461),
+`MacroDef` (macros/registry.rs:9). `FunctionBody::{Wat,Native}` ALREADY exists
+(env.rs:22, "255.1a") — `Native` is a unit marker, never yet constructed (255.1b begins
+construction + registration). What is MISSING is the forced minimum that binds them
+(`Function.name` is `Option`; no arity/kind/pure/determinism/expand-time contract).
+
+### 1. The minimum baseline — the contract (can't register without it)
+
+Every registered name carries, REQUIRED: `:name` · `:arity` · `:defined-in` · `:layer` ·
+`:kind` · `:pure` · `:deterministic` · `:expand-time-legal`. Forced by the type:
+- required fields (non-`Option`), **enum-typed not bool** (`Purity::Pure|Effectful`, not a
+  fat-fingerable `true`), **no `Default`** → struct-literal completeness makes "register
+  without answering each" a COMPILE ERROR (the exact forcing as an exhaustive match).
+- provenance (`:defined-in`/`:layer`) is AUTO-DERIVED at the registration site (can't lie);
+  the per-name facts (arity/kind/pure/determinism/expand-time) MUST be supplied.
+
+### 2. The per-def-kind record — adjacent, the form's user-expressable surface
+
+A SUM over def-kinds, each variant its existing record: `Function` (defn/fn) · `StructDef`
+· `EnumDef` · `RecordDef` · `ProtocolDef` · `MacroDef` · **`NativeBuiltin`** (NEW, rust
+builtins). Each carries what THAT def form lets a user express (`defstruct` →
+`:restricted-to`/`:field-metadata`; `defprotocol` → method sigs; native → handler).
+Exhaustive sum → a new def form = a new variant = compile error until handled. The
+baseline is the shared product; the kind-record is the discriminated payload.
+
+### 3. Query surface = baseline ⊕ kind-record projection
+
+`(metadata-of <name>)` = baseline (always) ⊕ the kind's reflectable fields. Namespace
+introspection (`child-namespaces` + `names`, non-recursive) walks the registry; per-name
+interrogation reads the map.
+
+### 4. rete / macro-gate / checker → CONSUMERS (builder: "rete just calls this instead")
+
+Because `:pure`/`:deterministic`/`:expand-time-legal` live in the baseline, the three
+scattered hand-lists collapse into ONE truth:
+- `src/rete/purity.rs` (379 lines, `:wat::rete::pure?`/`deterministic?`) — DELETES; the
+  rete predicates query the baseline.
+- `macros::is_pure_total` (eval.rs:344, the macro-expand allow-list) — DELETES; queries
+  `:expand-time-legal`.
+- `runtime::is_effectful_op` (runtime.rs:22731) — becomes the registration-time DERIVER
+  that POPULATES `:pure` (then the field is the single truth).
+Any rete check that is really "a property of a name" relocates into the baseline; rete
+reads it. (NOTE-purity already prescribed the projection; this extends it to all three.)
