@@ -5,10 +5,11 @@
 //! Mirrors `:wat::stdlib::sources` (io.rs:1454): return plain Vectors, let
 //! wat wrap. The wat verifier (`verify-examples`, iv-b2-b) `eval-ast!`s them.
 //!
-//! Tuple shape per element:
-//!   `[fqdn, expr, expected, run, pure, deterministic]`
-//! — `fqdn` a keyword, `expr`/`expected` quoted forms (`Value::wat__WatAST`),
-//!   `expected` nil for a markerless `@example-norun`, `run`/`pure`/`det` bools.
+//! Record shape per element: a `:wat::intrinsic::Example` `Value::Struct` with
+//! fields `[fqdn, expr, expected, run, pure, deterministic]` (declaration order)
+//! — `fqdn` a keyword, `expr` a quoted `Value::wat__WatAST`, `expected` a
+//! `Value::Option<Value::wat__WatAST>` (None for markerless/`@example-norun`),
+//! `run`/`pure`/`det` bools.
 //!
 //! This read satisfies iv-b1's `#[expect(dead_code)]` on
 //! `IntrinsicEntry.examples` and `ExampleSubmission` — both removed in
@@ -20,20 +21,21 @@ use wat_macros::wat_intrinsic;
 
 use crate::parser::parse_one_with_file;
 use crate::span::Span;
-use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
 
 /// Walk the intrinsic registry and return every registered intrinsic's
-/// carried `@example`s as a `Vector` of `[fqdn, expr, expected, run, pure, det]`
-/// tuples — the iv-b2-a reflection seam. The wat verifier (`verify-examples`,
-/// iv-b2-b) iterates this to run or skip each example.
+/// carried `@example`s as a `Vector` of `:wat::intrinsic::Example` records —
+/// the iv-b2-a reflection seam. The wat verifier (`verify-examples`, iv-b2-b)
+/// iterates this to run or skip each example.
 ///
-/// Each element is a six-element heterogeneous Vector:
-/// - index 0 `fqdn`: the intrinsic's FQDN as a keyword
-/// - index 1 `expr`: the example expression, parsed into a quoted form
-/// - index 2 `expected`: the `#=>` value, parsed; nil for `@example-norun`
-/// - index 3 `run`: bool — true for `@example`, false for `@example-norun`
-/// - index 4 `pure`: bool — derived from `is_effectful_op`
-/// - index 5 `deterministic`: bool — derived from pure ∧ ∉ NONDETERMINISTIC
+/// Each element is a `:wat::intrinsic::Example` `Value::Struct` with fields
+/// (declaration order):
+/// - `fqdn`: the intrinsic's FQDN as a keyword
+/// - `expr`: the example expression, parsed into a quoted form (`Value::wat__WatAST`)
+/// - `expected`: `Value::Option` — `Some(WatAST)` when `#=>` is present + runnable, else `None`
+/// - `run`: bool — true for `@example`, false for `@example-norun`
+/// - `pure`: bool — derived from `is_effectful_op`
+/// - `deterministic`: bool — derived from pure ∧ ∉ NONDETERMINISTIC
 ///
 /// A parse failure of an example string is a loud seam error (acceptable —
 /// a malformed example is a real defect; the macro enforced the doc SHAPE,
@@ -75,9 +77,10 @@ pub(crate) fn eval_intrinsic_examples(
 
             // Parse `expected` only when this is a runnable example (`run=true`).
             // For `@example-norun`, the `#=>` text may be pseudo-code (human
-            // doc only, not wat syntax) — the verifier skips it, so yield nil.
-            // Nil is also yielded for a markerless `@example-norun` (None).
-            let expected_q = if ex.run {
+            // doc only, not wat syntax) — the verifier skips it, so yield None.
+            // None is also yielded for a markerless `@example-norun` (None).
+            // Field type is Option<:wat::WatAST> → Value::Option.
+            let expected_field = if ex.run {
                 match ex.expected {
                     Some(s) => {
                         let expected_ast =
@@ -93,24 +96,27 @@ pub(crate) fn eval_intrinsic_examples(
                                     },
                                 },
                             )?;
-                        Value::wat__WatAST(Arc::new(expected_ast))
+                        Value::Option(Arc::new(Some(Value::wat__WatAST(Arc::new(expected_ast)))))
                     }
-                    None => Value::Unit,
+                    None => Value::Option(Arc::new(None)),
                 }
             } else {
-                // @example-norun: expected is human-doc pseudo-code, not wat; yield nil.
-                Value::Unit
+                // @example-norun: expected is human-doc pseudo-code, not wat; yield None.
+                Value::Option(Arc::new(None))
             };
 
-            let tuple = Value::Vec(Arc::new(vec![
-                fqdn_kw.clone(),
-                expr_q,
-                expected_q,
-                Value::bool(ex.run),
-                Value::bool(pure),
-                Value::bool(det),
-            ]));
-            tuples.push(tuple);
+            let record = Value::Struct(Arc::new(StructValue {
+                type_name: ":wat::intrinsic::Example".to_string(),
+                fields: vec![
+                    fqdn_kw.clone(),
+                    expr_q,
+                    expected_field,
+                    Value::bool(ex.run),
+                    Value::bool(pure),
+                    Value::bool(det),
+                ],
+            }));
+            tuples.push(record);
         }
     }
 

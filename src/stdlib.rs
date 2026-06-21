@@ -269,6 +269,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/source.wat",
         source: include_str!("../wat/source.wat"),
     },
+    // Arc 255 Stone iv-b2-a — :wat::intrinsic::Example record (fqdn/expr/expected/run/pure/det).
+    // The typed element returned by the `:wat::intrinsic::examples` reflection seam; records (not
+    // heterogeneous tuples) so `verify-examples` (iv-b2-b) can pass typed `expr`/`expected` to
+    // `:wat::eval-ast!` without a down-cast. No eval-deps beyond Record.wat + builtins.
+    // Loads after source.wat (same deps; ordered here for locality with other type-only files).
+    WatSource {
+        path: "wat/doctest.wat",
+        source: include_str!("../wat/doctest.wat"),
+    },
     // Arc 275 Stone 275.1 — :wat::deporder:: — the stdlib load-order analyzer.
     // A pure-wat tool: given an ordered list of SourceFile{path,source} pairs,
     // parses each file's top-level forms, builds a symbol→(file,kind) map,

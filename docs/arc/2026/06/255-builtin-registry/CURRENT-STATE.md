@@ -41,6 +41,18 @@ runtime. Double-punt. Builder: annihilation.
   now lives in ONE place). Probe green; nursery 899/4 (4 pre-existing); lib 953/36/1; build clean.
   `args`/`deprecated`/`see` expects retained (readers land later). DESIGN-STONE-255.1b-iv-b2.
 
+- **255.1b-iv-b2-a.2** — RECORDS REWORK (firewall cure; R3 / Song #100): the heterogeneous tuple seam
+  couldn't be typed-consumed (R7's unidirectional `Value` forbids the down-cast into typed `eval-ast!`),
+  so the seam now returns `Vector<:wat::intrinsic::Example>` records — `:wat::Record::def` in new
+  `wat/doctest.wat`; `reflect.rs` builds `Value::Struct(StructValue)`; `check.rs` scheme `() →
+  Vector<:wat::intrinsic::Example>` (mirrors `stdlib::sources`). Probe green; nursery 899/4; lib 953/36/1.
+- **STACK RUNG made durable** (`.cargo/config.toml` `RUST_MIN_STACK = "8388608"`, `821621bc`): the 2→8 MiB
+  rung was decided earlier but never committed (env-only) → raw `cargo test` hit a FALSE stack overflow in
+  `deporder`/`verify-stdlib` (deep wat-EVAL recursion, not infinite — passes at 8 MiB). Now durable for all
+  cargo invocations. **Durable fix = arc 261 (stack-safe eval).** NOTE: for *pure* stack-safety, `stacker`
+  (segmented stack) is ≈free; full CEK costs real heap-alloc/cycles but unlocks TCO + first-class
+  continuations + pausable eval — decide which 261 is before building.
+
 ## NEXT — 255.1b-iv-b2-b (the wat verifier `verify-examples`) + iv-c (enum flip)
 - **iv-b2-b** — R2's fulfillment: `wat/doctest.wat` `verify-examples` (`deporder`/`verify-stdlib`
   shape) — foldl over `(:wat::intrinsic::examples)`: for `run=true`, `(:wat::eval-ast! expr)` ==

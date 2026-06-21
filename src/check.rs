@@ -14688,6 +14688,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 255 Stone iv-b2-a — `:wat::intrinsic::examples` : () → Vector<:wat::intrinsic::Example>
+    // Returns each registered intrinsic's carried @example/@example-norun as Example records.
+    // Zero params; records (not heterogeneous tuples) so verify-examples can field-access typed values.
+    env.register(
+        ":wat::intrinsic::examples".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::intrinsic::Example".into())],
+            },
+            rest_param_type: None,
+        },
+    );
 
     // :wat::kernel::run-sandboxed (string entry) and
     // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
