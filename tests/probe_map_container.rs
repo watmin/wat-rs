@@ -169,6 +169,116 @@ fn holonic_record_assoc_field_updated() {
     }
 }
 
+// ── Record get ────────────────────────────────────────────────────────────────
+
+#[test]
+fn record_get_existing_field_returns_some() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Sensor [id <- :wat::core::i64  label <- :wat::core::String])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
+          (:wat::core::let
+            [s (:probe::rgal::Sensor 42 "temp")]
+            (:wat::core::get s :id)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::Option(inner)) => match inner.as_ref() {
+            Some(Value::i64(42)) => {}
+            other => panic!("record get :id expected Some(i64(42)), got {other:?}"),
+        },
+        Ok(other) => panic!("record get :id expected Option, got {other:?}"),
+        Err(e) => panic!("record get :id failed: {e}"),
+    }
+}
+
+#[test]
+fn record_get_missing_field_returns_none() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Sensor2 [id <- :wat::core::i64])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
+          (:wat::core::let
+            [s (:probe::rgal::Sensor2 7)]
+            (:wat::core::get s :no-such-field)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::Option(inner)) => match inner.as_ref() {
+            None => {}
+            other => panic!("record get missing field expected None, got {other:?}"),
+        },
+        Ok(other) => panic!("record get missing field expected Option, got {other:?}"),
+        Err(e) => panic!("record get missing field failed: {e}"),
+    }
+}
+
+// ── Record contains? ──────────────────────────────────────────────────────────
+
+#[test]
+fn record_contains_existing_field_true() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Node [x <- :wat::core::i64  y <- :wat::core::i64])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> :wat::core::bool
+          (:wat::core::let
+            [n (:probe::rgal::Node 1 2)]
+            (:wat::core::contains? n :x)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::bool(true)) => {}
+        Ok(other) => panic!("record contains? :x expected true, got {other:?}"),
+        Err(e) => panic!("record contains? existing field failed: {e}"),
+    }
+}
+
+#[test]
+fn record_contains_missing_field_false() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Node2 [x <- :wat::core::i64])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> :wat::core::bool
+          (:wat::core::let
+            [n (:probe::rgal::Node2 5)]
+            (:wat::core::contains? n :z)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::bool(false)) => {}
+        Ok(other) => panic!("record contains? :z (missing) expected false, got {other:?}"),
+        Err(e) => panic!("record contains? missing field failed: {e}"),
+    }
+}
+
+// ── Record length ─────────────────────────────────────────────────────────────
+
+#[test]
+fn record_length_field_count() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Triple [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> :wat::core::i64
+          (:wat::core::let
+            [t (:probe::rgal::Triple 1 2 3)]
+            (:wat::core::length t)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::i64(3)) => {}
+        Ok(other) => panic!("record length expected 3, got {other:?}"),
+        Err(e) => panic!("record length failed: {e}"),
+    }
+}
+
+// ── Record empty? ─────────────────────────────────────────────────────────────
+
+#[test]
+fn record_empty_q_nonempty_false() {
+    let preamble = r#"(:wat::Record::def :probe::rgal::Pair [a <- :wat::core::i64  b <- :wat::core::i64])"#;
+    let defn = r#"
+        (:wat::core::defn :p::f [] -> :wat::core::bool
+          (:wat::core::let
+            [p (:probe::rgal::Pair 10 20)]
+            (:wat::core::empty? p)))
+    "#;
+    match eval_probe(preamble, defn, "(:p::f)") {
+        Ok(Value::bool(false)) => {}
+        Ok(other) => panic!("record empty? on Pair expected false, got {other:?}"),
+        Err(e) => panic!("record empty? failed: {e}"),
+    }
+}
+
 // ── non-keyed value → TypeMismatch ────────────────────────────────────────────
 
 #[test]

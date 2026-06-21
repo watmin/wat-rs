@@ -1195,6 +1195,143 @@ pub(crate) fn eval_persistentmap_ctor(
     Ok(Value::wat__core__PersistentMap(map))
 }
 
+// ─── Arc-278-A2 — Record ops (get/contains?/length/empty?) ─────────────────
+
+/// Arc-278-A2 — `record_get_inner`: keyword-keyed lookup on a Record.
+///
+/// Resolves the keyword key to a field index via `RecordDef.field_names`;
+/// returns `Some(struct_form[idx])` if the field exists, `None` if the keyword
+/// is not a declared field (not an error — same Option<V> contract as HashMap/get).
+/// Accepts BOTH `Value::wat__Record` and `Value::wat__holon__Record`.
+pub(crate) fn record_get_inner(
+    record: &Value,
+    key: &Value,
+    span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::Record/get";
+    // Extract class_fqdn and struct_form from BOTH record variants.
+    let (class_fqdn, struct_form) = match record {
+        Value::wat__Record { class_fqdn, struct_form } => (class_fqdn.clone(), struct_form.clone()),
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => (class_fqdn.clone(), struct_form.clone()),
+        other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record instance",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    };
+    // Extract the bare field name from the keyword (strip leading colon).
+    let key_name = match key {
+        Value::wat__core__keyword(k) => {
+            let s = k.as_ref().as_str();
+            s.strip_prefix(':').unwrap_or(s).to_string()
+        }
+        other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::core::keyword field name",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    };
+    // Resolve field index via RecordDef.
+    let type_key = format!(":{}", class_fqdn);
+    let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: "record get requires the type registry".into()
+    } })?;
+    let record_def = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Record(rd)) => rd,
+        _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
+        } }.into()),
+    };
+    match record_def.field_names.iter().position(|n| n == &key_name) {
+        Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(struct_form[idx].clone())))),
+        None => Ok(Value::Option(std::sync::Arc::new(None))),
+    }
+}
+
+/// Arc-278-A2 — `record_contains_field_q_inner`: field existence test on a Record.
+///
+/// Returns `true` iff `key` (a keyword) names a declared field of the record's class.
+/// Missing-from-struct_form is impossible (schema == struct_form shape by construction);
+/// the check is purely "is this keyword a declared field name?".
+pub(crate) fn record_contains_field_q_inner(
+    record: &Value,
+    key: &Value,
+    span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::Record/contains?";
+    let class_fqdn = match record {
+        Value::wat__Record { class_fqdn, .. } => class_fqdn.clone(),
+        Value::wat__holon__Record { class_fqdn, .. } => class_fqdn.clone(),
+        other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record instance",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    };
+    let key_name = match key {
+        Value::wat__core__keyword(k) => {
+            let s = k.as_ref().as_str();
+            s.strip_prefix(':').unwrap_or(s).to_string()
+        }
+        other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::core::keyword field name",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    };
+    let type_key = format!(":{}", class_fqdn);
+    let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: "record contains? requires the type registry".into()
+    } })?;
+    let record_def = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Record(rd)) => rd,
+        _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
+        } }.into()),
+    };
+    Ok(Value::bool(record_def.field_names.iter().any(|n| n == &key_name)))
+}
+
+/// Arc-278-A2 — `record_length_inner`: field count of a Record.
+///
+/// Returns the number of declared fields (= `struct_form.len()` = `RecordDef.field_names.len()`).
+/// Does NOT need the type registry — `struct_form` length IS the field count.
+pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::Record/length";
+    match record {
+        Value::wat__Record { struct_form, .. } => Ok(Value::i64(struct_form.len() as i64)),
+        Value::wat__holon__Record { struct_form, .. } => Ok(Value::i64(struct_form.len() as i64)),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record instance",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// Arc-278-A2 — `record_empty_q_inner`: zero-field check on a Record.
+///
+/// Returns `true` iff the record has no declared fields.
+/// Does NOT need the type registry — `struct_form.is_empty()` is the source of truth.
+pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::Record/empty?";
+    match record {
+        Value::wat__Record { struct_form, .. } => Ok(Value::bool(struct_form.is_empty())),
+        Value::wat__holon__Record { struct_form, .. } => Ok(Value::bool(struct_form.is_empty())),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::Record instance",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
 // ─── Arc-278-0b — PersistentVector ops (mirror vector_* family) ──────────────
 //
 // rpds::VectorSync<Value> is persistent: push_back returns a NEW vector sharing

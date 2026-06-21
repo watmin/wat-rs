@@ -33,13 +33,13 @@
 //! methods are now consumed by real op guards in `runtime.rs`; drift is
 //! unrepresentable.
 //!
-//! # Capability matrix (current truth; `○ gap` = fillable but not yet built)
+//! # Capability matrix (current truth; all gaps filled as of strike A2)
 //!
 //! | member        | can_assoc | keyed_lookup (get) | has_key | measurable | ordered |
 //! |---------------|-----------|--------------------|---------|------------|---------|
 //! | HashMap       | ✓         | ✓                  | ✓       | ✓          | ∅       |
 //! | PersistentMap | ✓         | ✓                  | ✓       | ✓          | ∅       |
-//! | Record        | ✓         | ○ gap              | ○ gap   | ○ gap      | ✓       |
+//! | Record        | ✓         | ✓                  | ✓       | ✓          | ✓       |
 //!
 //! `Record` is ordered (declaration order; `struct_form` is a `Vec<Value>`).
 //! That is a real property with no op consumer yet; promoted to an `ordered()`
@@ -136,34 +136,34 @@ impl MapContainer {
 
     /// `get` — keyed value lookup by key.
     ///
-    /// `false` for Record: get-by-keyword is not yet built (○ gap; strike 6+).
+    /// `true` for Record: filled by `record_get_inner` (strike A2).
     pub(crate) fn keyed_lookup(self) -> bool {
         match self {
             MapContainer::HashMap => true,
             MapContainer::PersistentMap => true,
-            MapContainer::Record => false, // ○ gap: get-by-keyword not yet built (strike 6+)
+            MapContainer::Record => true, // ✓ filled: record_get_inner (strike A2)
         }
     }
 
     /// `contains?` / `contains-key?` — membership test by key.
     ///
-    /// `false` for Record: field-existence test is not yet built (○ gap; strike 6+).
+    /// `true` for Record: filled by `record_contains_field_q_inner` (strike A2).
     pub(crate) fn has_key(self) -> bool {
         match self {
             MapContainer::HashMap => true,
             MapContainer::PersistentMap => true,
-            MapContainer::Record => false, // ○ gap
+            MapContainer::Record => true, // ✓ filled: record_contains_field_q_inner (strike A2)
         }
     }
 
     /// `length` / `empty?` — element count.
     ///
-    /// `false` for Record: field-count op is not yet built (○ gap; strike 6+).
+    /// `true` for Record: filled by `record_length_inner` / `record_empty_q_inner` (strike A2).
     pub(crate) fn measurable(self) -> bool {
         match self {
             MapContainer::HashMap => true,
             MapContainer::PersistentMap => true,
-            MapContainer::Record => false, // ○ gap
+            MapContainer::Record => true, // ✓ filled: record_length_inner / record_empty_q_inner (strike A2)
         }
     }
 }
@@ -200,7 +200,7 @@ mod capability_tests {
         assert!(MapContainer::Record.can_assoc());
     }
 
-    // ── keyed_lookup (get): HashMap + PersistentMap ✓; Record ○ gap ──────────
+    // ── keyed_lookup (get): all three ✓ (Record filled in strike A2) ──────────
 
     #[test]
     fn keyed_lookup_hashmap() {
@@ -213,11 +213,11 @@ mod capability_tests {
     }
 
     #[test]
-    fn keyed_lookup_record_gap() {
-        assert!(!MapContainer::Record.keyed_lookup());
+    fn keyed_lookup_record() {
+        assert!(MapContainer::Record.keyed_lookup());
     }
 
-    // ── has_key (contains?): HashMap + PersistentMap ✓; Record ○ gap ─────────
+    // ── has_key (contains?): all three ✓ (Record filled in strike A2) ─────────
 
     #[test]
     fn has_key_hashmap() {
@@ -230,11 +230,11 @@ mod capability_tests {
     }
 
     #[test]
-    fn has_key_record_gap() {
-        assert!(!MapContainer::Record.has_key());
+    fn has_key_record() {
+        assert!(MapContainer::Record.has_key());
     }
 
-    // ── measurable (length/empty?): HashMap + PersistentMap ✓; Record ○ gap ──
+    // ── measurable (length/empty?): all three ✓ (Record filled in strike A2) ──
 
     #[test]
     fn measurable_hashmap() {
@@ -247,7 +247,7 @@ mod capability_tests {
     }
 
     #[test]
-    fn measurable_record_gap() {
-        assert!(!MapContainer::Record.measurable());
+    fn measurable_record() {
+        assert!(MapContainer::Record.measurable());
     }
 }

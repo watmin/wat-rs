@@ -12342,8 +12342,8 @@ fn eval_length(
         Some(m) if m.measurable() => return match m {
             MapContainer::HashMap => crate::collection::eval::hashmap_length_inner(&arg_val),
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_length_inner(&arg_val),
-            // measurable() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
-            MapContainer::Record => unreachable!("measurable() gate excludes Record (○ gap until strike A2)"),
+            // Arc-278-A2 — Record: length = field count (struct_form.len()), no registry needed.
+            MapContainer::Record => crate::collection::eval::record_length_inner(&arg_val),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12402,8 +12402,8 @@ fn eval_empty(
         Some(m) if m.measurable() => return match m {
             MapContainer::HashMap => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
-            // measurable() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
-            MapContainer::Record => unreachable!("measurable() gate excludes Record (○ gap until strike A2)"),
+            // Arc-278-A2 — Record: empty? = struct_form.is_empty(), no registry needed.
+            MapContainer::Record => crate::collection::eval::record_empty_q_inner(&arg_val),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12463,8 +12463,8 @@ fn eval_contains(
             MapContainer::HashMap => crate::collection::eval::hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
             // Arc-278-0a — PersistentMap: contains? checks KEY membership (same as HashMap).
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_contains_key_q_inner(&arg0_val, &arg1_val),
-            // has_key() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
-            MapContainer::Record => unreachable!("has_key() gate excludes Record (○ gap until strike A2)"),
+            // Arc-278-A2 — Record: contains? tests field existence by keyword name.
+            MapContainer::Record => crate::collection::eval::record_contains_field_q_inner(&arg0_val, &arg1_val, list_span, sym),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12577,8 +12577,8 @@ fn eval_get(
             MapContainer::HashMap => crate::collection::eval::hashmap_get_inner(&arg0_val, &arg1_val),
             // Arc-278-0a — PersistentMap: generic get dispatches to persistentmap_get_inner.
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_get_inner(&arg0_val, &arg1_val),
-            // keyed_lookup() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
-            MapContainer::Record => unreachable!("keyed_lookup() gate excludes Record (○ gap until strike A2)"),
+            // Arc-278-A2 — Record: get by keyword resolves field index via RecordDef.
+            MapContainer::Record => crate::collection::eval::record_get_inner(&arg0_val, &arg1_val, list_span, sym),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),

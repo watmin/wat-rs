@@ -85,13 +85,21 @@ pub(crate) fn infer_contains(
             // Var arm that cites this comment as the policy source.
             TypeExpr::Var(_) => None,
             _ => {
-                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: OP.into(),
-                    param: "#1".into(),
-                    expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>".into(),
-                    got: format_type(&reduced)
-                } });
-                None
+                // Arc-278-A2 — Check if this is a Record subtype before rejecting.
+                // Record subtypes come as TypeExpr::Path classified by MapContainer::of_type.
+                use crate::collection::map_container::MapContainer;
+                if MapContainer::of_type(&reduced, env.types()) == Some(MapContainer::Record) {
+                    // Record: contains? tests field existence by keyword name. Arg1 must be a keyword.
+                    Some(TypeExpr::Path(":wat::core::keyword".into()))
+                } else {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#1".into(),
+                        expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or :wat::Record".into(),
+                        got: format_type(&reduced)
+                    } });
+                    None
+                }
             }
         };
 
@@ -302,13 +310,24 @@ pub(crate) fn infer_get(
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
             _ => {
-                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: OP.into(),
-                    param: "#1".into(),
-                    expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>".into(),
-                    got: format_type(&reduced)
-                } });
-                None
+                // Arc-278-A2 — Check if this is a Record subtype before rejecting.
+                // Record subtypes come as TypeExpr::Path classified by MapContainer::of_type.
+                use crate::collection::map_container::MapContainer;
+                if MapContainer::of_type(&reduced, env.types()) == Some(MapContainer::Record) {
+                    // Record: key is keyword; return element is :wat::core::Value (universal top).
+                    // Precise per-field-type projection on a literal keyword is a future refinement.
+                    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+                    let val_ty = TypeExpr::Path(":wat::core::Value".into());
+                    Some((keyword_ty, val_ty))
+                } else {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#1".into(),
+                        expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or :wat::Record".into(),
+                        got: format_type(&reduced)
+                    } });
+                    None
+                }
             }
         };
 
