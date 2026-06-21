@@ -30,12 +30,39 @@ first, ergonomics last. **This entire phase must complete before ② Perf begins
   278-0b — runtime built, `check.rs` half skipped under the misread megafile guard). All false-REJECT, fixed
   checker-side; `tests/probe_seq_container_parity.rs` pins checker≡runtime. This was the likely cause of prior
   unexplained sonnet thrash (the checker's error message lied about the accepted set).
-- **QUEUED follow-on (not deferred-vaguely) — structural single-source-of-truth for the container set.** Route
-  the positional/rest/conj checker arms through one shared element-extractor (extend `extract_seq_elem`,
-  collection/infer.rs:500, today only `{Vector, PersistentVector}`; Tuple handled explicitly) so a new container
-  repr added once reaches all consumers and a one-sided arm becomes UNREPRESENTABLE (top of the extirpare
-  ladder). Genuine design (per-op-family container subsets differ; Tuple is heterogeneous) → its own DESIGN +
-  strike. The drift probe guards the class in the interim. See `DESIGN-STONE-seq-container-drift.md` "Out of scope".
+- ✅ **seq-container registry strikes 1-3 — DONE.** The narrow-waist home `src/collection/seq_container.rs`:
+  `enum SeqContainer {Vector,List,PersistentVector,Tuple,WatAstList,HashSet}` + `of_type`/`of_value` classifiers
+  + capability methods (`indexable`/`has_tail`/`has_append`/`mappable`). Strike 1 routed positional accessors
+  (`5da88139`); strike 2 `rest`+`conj` (`21543cef`); strike 3 the HOF family (`534171ea`). `first`/`rest`/
+  `conj`/`map`/`filter`/`fold`/… now derive their accepted set from one capability table, both sides.
+
+- **THE NARROW WAIST IS NOT DONE — the guarantee is incomplete.** The goal (R14 / builder): *the next primitive
+  we introduce isn't allowed a partial/wrong impl* — drift **unrepresentable**, not merely caught. Two holes,
+  both grounded 2026-06-20, mean a new container can still be added half-wrong with NO compile error:
+  - **Coverage hole.** `get`/`contains?`/`length`/`empty?` do NOT route through the waist, and there is **no
+    MapContainer registry at all**. A new seq container is silently absent from these four (no compile error;
+    `length`/`empty?` are `∀T` at the checker so they even type-check); a new MAP type (the persistent-map that
+    started this) has zero structural forcing.
+  - **Depth hole.** Even the *routed* ops use a unit enum + an inner `match &Value { … _ => unreachable!() }`
+    (`runtime.rs:11012, 11015, 12454`). Adding a variant forces classification + capability declaration but
+    **NOT the inner behavior arm** — a `has_append`-true variant with no inner arm compiles clean and panics at
+    runtime. `conj` itself can be given a partial impl today. The waist forces "is-it / what-can-it-do," not
+    "do-it"; the last mile is a runtime `unreachable!`, not a compile error.
+
+  **Decomposition (dependency order; the guarantee holds only when all three land):**
+  - [ ] **Strike 4 — depth fix (NEXT, foundational).** Make the seq dispatch compiler-forced: inner dispatch
+    exhaustive over the `SeqContainer` enum (no `_`/`unreachable!`) — classification carries the data, or the
+    `match` is over the enum. Retrofit the already-green routed ops (`first`/`rest`/`conj`/HOF). Turns "drift
+    caught" into "drift unrepresentable." This is the pattern strikes 5+6 inherit, so it lands first, proven on
+    known-green code.
+  - [ ] **Strike 5 — coverage, seq half.** Route the seq arms of `get`/`contains?`/`length`/`empty?` through the
+    strengthened waist.
+  - [ ] **Strike 6 — MapContainer.** Mint the sibling keyed registry for `{HashMap, PersistentMap, Record}`
+    (same data-carrying + exhaustive pattern); route the map arms of the four mixed ops + `assoc` through it.
+  - **End state:** adding any container (seq or map) lights up compile errors at classification + capability +
+    every op's exhaustive arm → a partial impl cannot be written. The `tests/probe_seq_container_parity.rs` drift
+    probe guards the class in the interim. Supersedes the old "extend `extract_seq_elem`" framing (too narrow —
+    it addressed only the checker element-type, not the depth hole or the map family).
 
 1. **Custom accumulators** — let the accumulator slot take *any* user-supplied `pure ∧ deterministic ∧ total`
    fold fn over the gathered set, not just the 8 built-ins. **This is the percentiles / stddev / top-k
