@@ -1,8 +1,12 @@
-//! Wat-surface verbs — the five `:wat::kernel::` stdio primitives.
+//! Wat-surface verbs — the four `:wat::kernel::` stdio print primitives + readln prime.
 //!
-//! `eval_kernel_println` / `eval_kernel_pprintln` / `eval_kernel_eprintln` / `eval_kernel_epprintln` / `eval_kernel_readln`
+//! `eval_kernel_println` / `eval_kernel_pprintln` / `eval_kernel_eprintln` / `eval_kernel_epprintln`
 //! moved verbatim from `src/thread_io.rs` (Stone 8.2w). See the
 //! module-level docs on `src/services/mod.rs` for contracts and history.
+//!
+//! Arc 255 — `eval_kernel_readln_prime` is the kernel-restricted positional prime (`readln'`).
+//! The user-facing `readln` defmacro expands to `readln'` which is the sole entry point that
+//! actually sends the `StdInService::Req` (carrying an optional caller-supplied cap).
 
 use std::sync::Arc;
 
@@ -224,97 +228,117 @@ pub fn eval_kernel_epprintln(
     })
 }
 
-/// `(:wat::kernel::readln -> :T)` → `:T`. Arc 170 slice 1f-ι.
+/// `(:wat::kernel::readln' <cap-i64> -> :T)`.
 ///
-/// Polymorphic in `T` via the call-site `-> :T` annotation (mirror
-/// pattern of `:wat::core::Option/expect` / `:wat::core::Result/expect`
-/// / `:wat::core::if`). Steps:
-///   1. Read the call-site's `-> :T` annotation (head-position
-///      arrow + type keyword; args = `[Symbol("->"), Keyword(":T")]`).
-///   2. Build a `StdInService::Req {thread-id}` struct Value; send it
-///      on the universe-resident StdInService peer's input channel via
-///      `sym.runtime_services().stdin_ctrl`.
-///   3. Block on `stdin_reply_rx` for `Ok(line)` or surface errors.
-///   4. Parse the line via `wat_edn::parse_owned`.
-///   5. Coerce the parsed EDN to a wat `Value` of the declared `T`
-///      via [`crate::edn_shim::edn_to_typed_value`]. On mismatch,
-///      surfaces [`RuntimeError::EdnCoerceMismatch`].
+/// The kernel-restricted positional prime that the `readln` defmacro expands to.
+/// Arc 255 escape-hatch: the cap is ALWAYS explicit — there is no Rust default.
+/// The `readln` macro injects `:wat::kernel::MAX-READLN-BYTES` as the cap when
+/// no `:max-buffer-bytes` kwarg is supplied; the default lives in exactly one
+/// place (the wat def).
 ///
-/// Arc 214 Stone 8.2 — replaced the old StdInServiceEvent::Read bridge
-/// path with direct Req → service peer mini-TCP (mirrors println/eprintln).
+/// Shape:
+///   `(readln' <i64> -> :T)`   — cap = <i64> (positive bytes, always explicit)
 ///
-/// The EDN-only stdio contract (locked 2026-05-10):
-/// ```text
-/// server: (:wat::kernel::println 42)                    → emits  42 (EDN i64)
-/// reader: (:wat::kernel::readln -> :wat::core::i64)     → returns 42 (i64)
+/// Builds a `StdInService::Req {thread-id, max-buffer-bytes}` carrying the cap,
+/// sends it on the universe-resident StdInService channel, blocks on the reply,
+/// parses the returned EDN line, and coerces it to `T`.
 ///
-/// server: (:wat::kernel::println "foo")                 → emits  "foo" (EDN String, quoted)
-/// reader: (:wat::kernel::readln -> :wat::core::String)  → returns "foo" (String)
-/// ```
-///
-/// `T` is any wat type with EDN encoding/decoding: primitives, tuples,
-/// Vector, Option, Result, user structs/enums, and
-/// `:wat::holon::HolonAST` (when the caller explicitly wants raw AST
-/// form). See the coercion table in
-/// [`crate::edn_shim::edn_to_typed_value`].
-pub fn eval_kernel_readln(
+/// `readln'` is the internal positional prime for the `readln` defmacro. It is
+/// intentionally NOT `#[restricted_to]` because the `readln` macro expands to
+/// it inside user function bodies (macro expansion happens before the
+/// `walk_for_restricted_call` walker runs, so the expanded call would appear as
+/// a direct user call and the restriction would always fire). The restriction is
+/// conventional: users should write `readln`, not `readln'`. A user writing
+/// `readln'` directly is handled by the `infer_kernel_readln_prime` check arm
+/// (well-formed calls type-check fine; malformed calls get shape errors).
+pub fn eval_kernel_readln_prime(
     args: &[WatAST],
     list_span: &Span,
-    _env: &Environment,
+    env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::readln";
-    // Annotation shape: `(readln -> :T)` → args = [Symbol("->"), Keyword(":T")].
-    if args.len() != 2 {
+    const OP: &str = ":wat::kernel::readln'";
+    use crate::runtime::eval;
+
+    // Shape: exactly 3 args `[cap -> :T]`. The cap is always explicit;
+    // the `readln` macro injects MAX-READLN-BYTES when no kwarg is supplied.
+    if args.len() != 3 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
-                "expected (:wat::kernel::readln -> :T) — 2 args (arrow + type keyword); got {}",
-                args.len()
-            )
+                "expected ({} <cap-i64> -> :T) — exactly 3 args; got {}",
+                OP, args.len()
+            ),
         } });
     }
-    match &args[0] {
+
+    // Evaluate the cap arg.
+    let cap = match eval(&args[0], env, sym)?.value_owned() {
+        Value::i64(n) if n > 0 => n as usize,
+        Value::i64(n) => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("max-buffer-bytes must be a positive i64; got {}", n),
+            } });
+        }
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "i64 cap (max-buffer-bytes)",
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+            } });
+        }
+    };
+    let arrow_idx = 1;
+    let ty_idx = 2;
+
+    // Parse `->` symbol.
+    match &args[arrow_idx] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
             return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
-                    "expected `->` as the first argument; (:wat::kernel::readln -> :T); got {}",
-                    other.variant_name()
-                )
+                    "expected `->` before the return type keyword; ({} -> :T); got {}",
+                    OP, other.variant_name()
+                ),
             } });
         }
     }
-    let target_ty = match &args[1] {
+
+    // Parse the return type keyword `:T`.
+    let target_ty = match &args[ty_idx] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span: args[ty_idx].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e)
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
                 } });
             }
         },
         other => {
             return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: "expected type keyword after `->`".into()
+                reason: "expected type keyword after `->`".into(),
             } });
         }
     };
-    // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
-    // so no clone of the sender lives in the ThreadIO struct.
+
+    // Access the service channel via sym.runtime_services().
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
         span: list_span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
     })?;
+
     with_thread_io(OP, list_span, |io| {
-        // Build StdInService::Req {thread-id} as a Value::Struct.
+        // Build StdInService::Req {thread-id, max-buffer-bytes} as a Value::Struct.
+        // Field order mirrors the defstruct: [thread-id, max-buffer-bytes].
         let req = Value::Struct(Arc::new(StructValue {
             type_name: ":wat::kernel::services::StdInService::Req".into(),
             fields: vec![
                 Value::i64(io.thread_id),
+                Value::i64(cap as i64),
             ],
         }));
         services
@@ -323,12 +347,6 @@ pub fn eval_kernel_readln(
             .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
                 op: OP.into()
             } })?;
-        // Block on the reply. Ok(Ok(line)) = line read successfully.
-        // Ok(Err(msg)) = handle error (should not happen for stdin unless
-        //   the handle implementation itself fails — surface as MalformedForm).
-        // Err(_) = the loop disconnected — EOF cascade arrived (assertion-failed!
-        //   panicked the stdin loop through apply_function; the reply registry
-        //   dropped; this recv returns Err → ChannelDisconnected).
         let line = match io.stdin_reply_rx.recv() {
             Ok(Ok(line)) => line,
             Ok(Err(msg)) => {

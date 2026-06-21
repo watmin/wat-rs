@@ -38,7 +38,13 @@ fn freeze_skeleton() -> wat::freeze::FrozenWorld {
 
 // ─── H1: field-order gate ─────────────────────────────────────────────────────
 
-/// StdInService::Req field[0] must be "thread-id" (no line field).
+/// StdInService::Req field[0] must be "thread-id" and field[1] must be
+/// "max-buffer-bytes" (Arc 255 escape-hatch: carries the caller's cap from
+/// readln' → Req → handle → IOReader/read-frame).
+///
+/// The peer's positional extraction (peer.rs field[0]) and freeze.rs's
+/// 2-field Req build are ONE contract with this defstruct; a reorder must
+/// be a red build, never a silent mis-route.
 #[test]
 fn h1_stdin_req_field_order() {
     let world = freeze_skeleton();
@@ -52,14 +58,20 @@ fn h1_stdin_req_field_order() {
         other => panic!("StdInService::Req must be a Struct TypeDef; got {:?}", other),
     };
     assert_eq!(
-        fields.len(), 1,
-        "StdInService::Req must have exactly 1 field (thread-id); got {:?}",
+        fields.len(), 2,
+        "StdInService::Req must have exactly 2 fields (thread-id, max-buffer-bytes); got {:?}",
         fields.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>()
     );
     assert_eq!(
         fields[0].0, "thread-id",
         "StdInService::Req field[0] must be 'thread-id' — \
          the peer's positional extraction (peer.rs field[0]) and this defstruct are ONE contract; \
+         a reorder must be a red build, never a silent mis-route"
+    );
+    assert_eq!(
+        fields[1].0, "max-buffer-bytes",
+        "StdInService::Req field[1] must be 'max-buffer-bytes' (Arc 255: caller cap) — \
+         peer.rs field[0] = thread-id; readln'/eval_kernel_readln build fields in this order; \
          a reorder must be a red build, never a silent mis-route"
     );
 }

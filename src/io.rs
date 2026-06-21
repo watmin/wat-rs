@@ -864,12 +864,17 @@ pub fn eval_ioreader_read_line(
 }
 
 /// `(:wat::io::IOReader/read-frame <reader>)` → `:Option<String>`.
+/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)` → `:Option<String>`.
 ///
 /// Accumulates physical lines from `reader` (via `read_line`) until the
 /// buffer forms a complete EDN value, then returns
 /// `Some(trimmed-frame-string)`.  Returns `None` on clean EOF (no bytes
 /// consumed). Surfaces a `RuntimeError` if the frame is `Truncated`
 /// (EOF mid-frame) or `Malformed` (syntax error in the accumulated buffer).
+///
+/// Optional second argument: explicit max-bytes cap (i64). When absent the
+/// cap defaults to `DEFAULT_MAX_FRAME_BYTES` (512 KiB). The 2-arg form is
+/// used by `StdInService/handle` when `readln'` passes a caller-supplied cap.
 ///
 /// Consumes `crate::edn_shim::read_framed_edn` — the live wire-protocol
 /// accumulator.
@@ -880,10 +885,47 @@ pub fn eval_ioreader_read_frame(
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-frame";
-    arity(op, args, 1, list_span)?;
+    if args.is_empty() || args.len() > 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "expected 1 or 2 args (reader [max-bytes]); got {}",
+                    args.len()
+                ),
+            },
+        });
+    }
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     use crate::edn_shim::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
-    match read_framed_edn(|span| reader.read_line(span), list_span.clone(), DEFAULT_MAX_FRAME_BYTES)? {
+    let cap: usize = if args.len() == 2 {
+        match eval(&args[1], env, sym)?.value_owned() {
+            Value::i64(n) if n > 0 => n as usize,
+            Value::i64(n) => {
+                return Err(RuntimeError {
+                    span: args[1].span().clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: op.into(),
+                        reason: format!("max-bytes must be positive; got {}", n),
+                    },
+                });
+            }
+            other => {
+                return Err(RuntimeError {
+                    span: args[1].span().clone(),
+                    kind: RuntimeErrorKind::TypeMismatch {
+                        op: op.into(),
+                        expected: "i64 max-bytes",
+                        got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                    },
+                });
+            }
+        }
+    } else {
+        DEFAULT_MAX_FRAME_BYTES
+    };
+    match read_framed_edn(|span| reader.read_line(span), list_span.clone(), cap)? {
         FramedRead::Frame(buf) => {
             // Trim the trailing newline that read_framed_edn appends.
             let s = buf.trim_end_matches('\n').to_string();

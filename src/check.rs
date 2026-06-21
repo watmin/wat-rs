@@ -4027,12 +4027,31 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 170 slice 1f-ι — readln is polymorphic via the
-            // call-site `-> :T` annotation. Mirror of option::expect /
-            // result::expect's head-position arrow shape.
-            ":wat::kernel::readln" => {
-                let (val, mut errs) = infer_kernel_readln(
-                    ":wat::kernel::readln",
+            // Arc 255 escape-hatch — readln' is the kernel-restricted positional
+            // prime that readln (defmacro) expands to.
+            // Shape: `(readln' <cap-i64> -> :T)` — cap always explicit.
+            // The `readln` macro injects :wat::kernel::MAX-READLN-BYTES when no
+            // :max-buffer-bytes kwarg is supplied; no Rust default in readln'.
+            // The checker runs against the EXPANDED form (macros expand before check),
+            // so this arm fires when the readln macro emits a readln' call.
+            ":wat::kernel::readln'" => {
+                let (val, mut errs) = infer_kernel_readln_prime(
+                    head_span, args, env, locals, fresh, subst,
+                ).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            // :wat::io::IOReader/read-frame accepts 1 arg (reader) or 2 args
+            // (reader, max-bytes :i64). The optional second arg flows from
+            // StdInService/handle when readln' supplies a caller cap.
+            // The 2-arg special-case check lives here; the scheme in
+            // register_io_scheme handles the 1-arg (default) path via normal
+            // dispatch, but we intercept both here for uniform handling.
+            ":wat::io::IOReader/read-frame" => {
+                let (val, mut errs) = infer_ioreader_read_frame(
                     head_span, args, env, locals, fresh, subst,
                 ).into_parts();
                 local_errors.append(&mut errs);
@@ -9308,88 +9327,128 @@ fn infer_result_expect(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(:wat::kernel::readln -> :T)` — polymorphic stdin read per arc 170
-/// slice 1f-ι. Mirrors the `-> :T` head-position annotation pattern
-/// established by `option::expect` / `result::expect`. The substrate
-/// reads a single EDN line from the calling thread's per-thread
-/// StdInService routing and coerces the parsed EDN to a runtime
-/// `Value` of type `T` via `edn_to_typed_value` (see
-/// `src/edn_shim.rs`).
+/// `(:wat::kernel::readln' <cap-i64> -> :T)`.
+///
+/// The kernel-restricted positional prime that the `readln` defmacro expands to.
+/// Shape: exactly 3 args `[<i64> -> :T]` (cap always explicit — no Rust default).
+/// The `readln` macro injects `:wat::kernel::MAX-READLN-BYTES` when no kwarg.
+/// The checker sees the EXPANDED form after macro expansion.
 ///
 /// Type rules:
-/// 1. Exactly two arguments (`->`, type). MalformedForm otherwise.
-/// 2. `args[0]` is the symbol `->`.
-/// 3. `args[1]` is the declared return type `:T` (parsed via
-///    `parse_type_expr`).
-///
-/// On success the call's type is `T`. `T` may be any wat type with an
-/// EDN encoding (primitives, tuples, Vector, Option, Result, user
-/// structs/enums, HolonAST); function types and unresolved variables
-/// surface as runtime `EdnCoerceMismatch` at the read site (not at
-/// type-check time — the substrate is permissive here, matching the
-/// trust-the-caller discipline of `:wat::edn::read` / `:wat::eval-ast!`).
-fn infer_kernel_readln(
-    callee: &str,
+/// 1. args.len() is exactly 3. MalformedForm otherwise.
+/// 2. args[0] is the cap (i64 expr — checked for side-effects only).
+/// 3. args[1] is `->`.
+/// 4. args[2] is `:T`.
+/// 5. Return type is `T`.
+fn infer_kernel_readln_prime(
     head_span: &Span,
     args: &[WatAST],
-    _env: &CheckEnv,
-    _locals: &HashMap<String, TypeExpr>,
-    _fresh: &mut InferCtx,
-    _subst: &mut Subst,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::readln'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 2 {
+    if args.len() != 3 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-            head: callee.into(),
+            head: OP.into(),
             reason: format!(
-                "expected ({} -> :T) — 2 args (arrow + type keyword); got {}",
-                callee,
-                args.len()
+                "expected ({} <cap-i64> -> :T) — exactly 3 args; got {}",
+                OP, args.len()
             ),
             remedies: vec![],
         } });
-        // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    match &args[0] {
+    let (arrow_idx, ty_idx) = (1, 2);
+    // Type-check the cap arg (i64) for side-effects/errors.
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    match &args[arrow_idx] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
-                reason: format!(
-                    "expected `->` as the first argument; ({} -> :T)",
-                    callee
-                ),
+            local_errors.push(CheckError { span: args[arrow_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("expected `->` before the return type; ({} -> :T)", OP),
                 remedies: vec![],
             } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
     }
-    let declared_ty = match &args[1] {
+    let declared_ty = match &args[ty_idx] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: callee.into(),
+                local_errors.push(CheckError { span: args[ty_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: OP.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                     remedies: vec![],
                 } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
                 return CheckResult::errs(local_errors);
             }
         },
         _ => {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
+            local_errors.push(CheckError { span: args[ty_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
+                head: OP.into(),
                 reason: "expected type keyword after `->`".into(),
                 remedies: vec![],
             } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
             return CheckResult::errs(local_errors);
         }
     };
-    CheckResult::ok(declared_ty)
+    if local_errors.is_empty() {
+        CheckResult::ok(declared_ty)
+    } else {
+        CheckResult::partial_with(declared_ty, local_errors)
+    }
+}
+
+/// `(:wat::io::IOReader/read-frame <reader>)` or
+/// `(:wat::io::IOReader/read-frame <reader> <max-bytes :i64>)`.
+///
+/// 1-arg form: uses DEFAULT_MAX_FRAME_BYTES cap (backward-compatible with
+/// existing callers / probe tests).
+/// 2-arg form: uses the supplied i64 cap, forwarded from StdInService/handle
+/// when a caller-supplied cap flows through readln' → StdInService::Req.
+///
+/// Return type: `:Option<String>` in both cases.
+fn infer_ioreader_read_frame(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::io::IOReader/read-frame";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.is_empty() || args.len() > 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "expected 1 or 2 args (reader [max-bytes :i64]); got {}",
+                args.len()
+            ),
+            remedies: vec![],
+        } });
+        return CheckResult::errs(local_errors);
+    }
+    // Check reader arg (arg 0).
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // If 2-arg form, check the cap arg (arg 1) for side-effects.
+    if args.len() == 2 {
+        let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    }
+    // Return type is always Option<String>.
+    let opt_str = TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![TypeExpr::Path(":wat::core::String".into())],
+    };
+    if local_errors.is_empty() {
+        CheckResult::ok(opt_str)
+    } else {
+        CheckResult::partial_with(opt_str, local_errors)
+    }
 }
 
 // ─── Arc 232 Stone 232.0 — :wat::core::apply ────────────────────────────────
@@ -17299,15 +17358,10 @@ fn register_builtins(env: &mut CheckEnv) {
     //   :wat::kernel::pprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN)
     //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil
     //   :wat::kernel::epprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN to stderr)
-    //   :wat::kernel::readln   : ∀T. () -> :T   (polymorphic via
-    //                                            call-site -> :T;
-    //                                            see infer_kernel_readln)
     //
     // The `T -> nil` shape mirrors `:wat::edn::write` (any-T input)
     // composed with the unit/nil return that the mini-TCP ack
-    // collapses to. `readln`'s scheme is a vestigial registration;
-    // the call-form dispatch (see infer_list / readln arm) overrides
-    // it by reading the call-site's `-> :T` annotation.
+    // collapses to.
     for op in [":wat::kernel::println", ":wat::kernel::pprintln", ":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
         env.register(
             op.into(),
@@ -17319,8 +17373,14 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // Arc 255 — readln' is the kernel-restricted positional prime.
+    // Type-checking is handled by the infer_kernel_readln_prime special-case arm
+    // in infer_list. This vestigial registration makes the binding visible to
+    // tools that enumerate known symbols (metadata-of, etc.). The scheme params
+    // are intentionally minimal; the real shape is `([cap-i64]? -> :T) -> :T`
+    // which is not expressible in the fixed-arity TypeScheme.
     env.register(
-        ":wat::kernel::readln".into(),
+        ":wat::kernel::readln'".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![],

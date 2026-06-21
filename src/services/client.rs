@@ -80,7 +80,7 @@ pub struct ThreadIO {
     // ── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ────────────
     //
     // Mirrors the write pair: the Req send goes via
-    // sym.runtime_services().stdin_ctrl in eval_kernel_readln.
+    // sym.runtime_services().stdin_ctrl in eval_kernel_readln_prime.
     //
     /// Block here for the StdInService's reply of "here is the line" routed
     /// back from the peer's reply registry. Populated by Register at
@@ -156,7 +156,7 @@ where
 pub struct RuntimeServices {
     /// Arc 214 Stone 8.2 — the universe-resident StdInService read peer's
     /// input channel. Register/Deregister/Req flow through it.
-    /// NOT cloned into ThreadIO — eval_kernel_readln accesses this via
+    /// NOT cloned into ThreadIO — eval_kernel_readln_prime accesses this via
     /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
     pub stdin_ctrl: ServiceInputSender<String>,
     /// Arc 214 Stone 8.1 — the universe-resident StdOutService write peer's

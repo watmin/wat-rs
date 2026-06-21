@@ -907,7 +907,11 @@ fn startup_from_forms_post_config(
             if let crate::ast::WatAST::List(items, _) = form {
                 matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _))
                     if matches!(k.as_str(),
-                        ":wat::core::defclause" | ":wat::core::defprotocol" | ":wat::core::extend-type"))
+                        ":wat::core::defclause" | ":wat::core::defprotocol" | ":wat::core::extend-type"
+                        // Arc 255 escape-hatch — scalar stdlib `def` forms (e.g. MAX-READLN-BYTES)
+                        // must reach runtime_def_values so the `readln` macro's expanded
+                        // `readln'` call can evaluate the keyword to its i64 value.
+                        | ":wat::core::def"))
             } else {
                 false
             }

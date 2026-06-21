@@ -675,6 +675,43 @@ pub fn register_stdlib_runtime_defs(
                 let (canonical_key, ed) = parse_extend_type_form(form)?;
                 sym.runtime_def_values.insert(canonical_key, Value::wat__core__extend_def(ed));
             }
+            // Arc 255 escape-hatch — scalar stdlib `def` forms (e.g. MAX-READLN-BYTES).
+            // Fn-shape defs are pre-registered in sym.functions by register_stdlib_defines;
+            // SCALAR defs (non-fn values like i64 constants) are NOT registered there.
+            // Without this arm, evaluating the keyword at runtime falls through to a bare
+            // keyword value (runtime_def_values miss → no sym.get hit → keyword literal).
+            // Mirror of the `:wat::core::def` arm in register_runtime_defs_form with a
+            // fresh Environment (no let-bindings at stdlib top level).
+            ":wat::core::def" => {
+                let def_items = match form {
+                    crate::ast::WatAST::List(it, _) => it,
+                    _ => continue,
+                };
+                if def_items.len() != 3 && def_items.len() != 4 {
+                    continue; // malformed; check already caught it
+                }
+                let name = match &def_items[1] {
+                    WatAST::Keyword(k, _) => k.clone(),
+                    _ => continue,
+                };
+                // If 4 items, def_items[2] is metadata-map and def_items[3] is expr.
+                // If 3 items, def_items[2] is the expr directly.
+                let expr = if def_items.len() == 4 { &def_items[3] } else { &def_items[2] };
+                // Skip fn-shape defs — they were already registered in sym.functions
+                // by register_stdlib_defines (try_parse_fn_shape_def). Only register
+                // non-fn (scalar) defs here to avoid duplicate/clobber.
+                let sym_ref: &SymbolTable = sym;
+                let env = Environment::new();
+                match eval_inner(expr, &env, sym_ref) {
+                    Ok(tv) => {
+                        let value = tv.value_owned();
+                        if !matches!(value, Value::wat__core__fn(_)) {
+                            sym.runtime_def_values.insert(name, value);
+                        }
+                    }
+                    Err(_) => continue, // stdlib def eval failed; check pass caught it
+                }
+            }
             _ => continue,
         }
     }
@@ -4622,7 +4659,10 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::pprintln" => crate::services::eval_kernel_pprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::epprintln" => crate::services::eval_kernel_epprintln(args, list_span, env, sym).map_err(Into::into),
-        ":wat::kernel::readln" => crate::services::eval_kernel_readln(args, list_span, env, sym).map_err(Into::into),
+        // Arc 255 escape-hatch — readln' is the kernel-restricted positional prime
+        // that the readln defmacro expands to. The macro forwards the `-> :T`
+        // annotation intact; the prime carries an optional leading cap (i64).
+        ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
         // Arc 170 slice 3 Gap B — explicit EOF on send side without
         // dropping the Sender Value. Idempotent. Returns nil.
