@@ -132,18 +132,218 @@ pub enum DocError {
 /// required directives (prose, `@added`, `@ret`, and ≥1 `@example`/`@example-norun`).
 ///
 /// Does NOT check `@arg` against any signature — that is [`check_args`].
-pub fn parse(_raw: &str) -> Result<DocComment, DocError> {
-    // STRIKE 255.1b-iv-a: the executor fills this per the grammar above and the
-    // unit tests below (which are the spec). RED at skeleton.
-    todo!("wat-doc::parse — fill per the grammar + the #[cfg(test)] spec")
+pub fn parse(raw: &str) -> Result<DocComment, DocError> {
+    let recognized = &[
+        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
+    ];
+
+    // Split into prose lines and directive lines at the first recognized @-directive.
+    let lines: Vec<&str> = raw.lines().collect();
+    let first_directive = lines.iter().position(|l| {
+        let token = l.split_whitespace().next().unwrap_or("");
+        token.starts_with('@') && recognized.contains(&token)
+    });
+
+    // Prose = everything before the first directive line, trimmed of surrounding blanks.
+    let prose_end = first_directive.unwrap_or(lines.len());
+    let prose = trim_blank_lines(&lines[..prose_end]).join("\n");
+    if prose.is_empty() {
+        return Err(DocError::MissingProse);
+    }
+
+    // Walk directive lines.
+    let mut added: Option<String> = None;
+    let mut args: Vec<DocArg> = Vec::new();
+    let mut ret: Option<String> = None;
+    let mut examples: Vec<DocExample> = Vec::new();
+    let mut deprecated: Option<Deprecation> = None;
+    let mut see: Vec<String> = Vec::new();
+
+    let directive_lines = match first_directive {
+        Some(i) => &lines[i..],
+        None => &[][..],
+    };
+
+    for &line in directive_lines {
+        let trimmed = line.trim_start();
+        let tag = trimmed.split_whitespace().next().unwrap_or("");
+
+        if !tag.starts_with('@') {
+            // Non-directive lines after the first directive (e.g. blank lines) — skip.
+            continue;
+        }
+
+        if !recognized.contains(&tag) {
+            return Err(DocError::UnknownDirective { tag: tag.to_string() });
+        }
+
+        // Payload = everything after the tag, leading whitespace stripped.
+        let payload = trimmed[tag.len()..].trim_start();
+
+        match tag {
+            "@added" => {
+                if added.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@added".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@added".into(),
+                        why: "version string is empty",
+                    });
+                }
+                added = Some(payload.to_string());
+            }
+            "@arg" => {
+                let mut tokens = payload.splitn(2, char::is_whitespace);
+                let raw_name = tokens.next().unwrap_or("");
+                if raw_name.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "name is missing",
+                    });
+                }
+                // If the name token ends with `:`, the `: ` separator was attached
+                // to the name (e.g. `b: desc`). Strip the trailing `:`.
+                let (name, rest_raw) = if let Some(stripped) = raw_name.strip_suffix(':') {
+                    let rest = tokens.next().unwrap_or("").trim_start();
+                    (stripped.to_string(), rest)
+                } else {
+                    let rest = tokens.next().unwrap_or("").trim_start();
+                    (raw_name.to_string(), rest)
+                };
+                let desc = strip_sep(rest_raw).trim().to_string();
+                if desc.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "description is empty",
+                    });
+                }
+                args.push(DocArg { name, desc });
+            }
+            "@ret" => {
+                if ret.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@ret".into() });
+                }
+                let desc = strip_sep(payload).trim().to_string();
+                if desc.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "description is empty",
+                    });
+                }
+                ret = Some(desc);
+            }
+            "@example" => {
+                let rest = payload;
+                match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, right)) => {
+                        let expr = left.trim().to_string();
+                        let expected = right.trim().to_string();
+                        examples.push(DocExample {
+                            expr,
+                            expected: Some(expected),
+                            run: true,
+                        });
+                    }
+                    None => {
+                        // Check if #=> appears at end with no trailing content.
+                        if let Some(left) = rest.strip_suffix("#=>") {
+                            let expr = left.trim().to_string();
+                            examples.push(DocExample {
+                                expr,
+                                expected: Some(String::new()),
+                                run: true,
+                            });
+                        } else {
+                            return Err(DocError::ExampleMissingMarker {
+                                expr: rest.trim().to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+            "@example-norun" => {
+                let rest = payload;
+                let (expr, expected) =
+                    if let Some((left, right)) = rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                        (left.trim().to_string(), Some(right.trim().to_string()))
+                    } else {
+                        (rest.trim().to_string(), None)
+                    };
+                examples.push(DocExample { expr, expected, run: false });
+            }
+            "@deprecated" => {
+                if deprecated.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@deprecated".into() });
+                }
+                let mut tokens = payload.splitn(2, char::is_whitespace);
+                let since = tokens.next().unwrap_or("").to_string();
+                let use_instead = tokens.next().unwrap_or("").trim_start().to_string();
+                deprecated = Some(Deprecation { since, use_instead });
+            }
+            "@see" => {
+                see.push(payload.to_string());
+            }
+            _ => unreachable!("recognized set is exhaustive"),
+        }
+    }
+
+    // Enforce required directives.
+    let added = added.ok_or(DocError::MissingAdded)?;
+    let ret = ret.ok_or(DocError::MissingRet)?;
+    if examples.is_empty() {
+        return Err(DocError::MissingExample);
+    }
+
+    Ok(DocComment { prose, added, args, ret, examples, deprecated, see })
+}
+
+/// Strip ONE leading separator (` — `, ` -- `, ` - `, `: `) from a directive
+/// payload remainder, returning the rest. Separators are matched when followed
+/// by whitespace or end-of-string.
+fn strip_sep(s: &str) -> &str {
+    // Em-dash form: ` — ` or `— ` at start; also bare `—` followed by space/end.
+    for sep in &["— ", "-- ", "- ", ": "] {
+        if let Some(rest) = s.strip_prefix(sep) {
+            return rest;
+        }
+    }
+    // Bare separator with no trailing space (end of string).
+    for sep in &["—", "--", "-", ":"] {
+        if s == *sep {
+            return "";
+        }
+    }
+    s
+}
+
+/// Trim leading and trailing blank (empty/whitespace-only) lines from a slice.
+fn trim_blank_lines<'a>(lines: &'a [&'a str]) -> &'a [&'a str] {
+    let start = lines.iter().position(|l| !l.trim().is_empty()).unwrap_or(lines.len());
+    let end = lines.iter().rposition(|l| !l.trim().is_empty()).map(|i| i + 1).unwrap_or(0);
+    if start >= end { &[] } else { &lines[start..end] }
 }
 
 /// The `@arg`⇄signature mutual check: the documented args must match `params`
 /// (the wat-arg names, in order) by count and name. A 0-param intrinsic must
 /// document 0 args. This is what makes "`@arg` required ×params" true.
-pub fn check_args(_doc: &DocComment, _params: &[&str]) -> Result<(), DocError> {
-    // STRIKE 255.1b-iv-a: fill per the spec below. RED at skeleton.
-    todo!("wat-doc::check_args — count+name agreement vs supplied params")
+pub fn check_args(doc: &DocComment, params: &[&str]) -> Result<(), DocError> {
+    if doc.args.len() != params.len() {
+        return Err(DocError::ArgCountMismatch {
+            documented: doc.args.len(),
+            signature: params.len(),
+        });
+    }
+    for (i, (arg, &param)) in doc.args.iter().zip(params.iter()).enumerate() {
+        if arg.name != param {
+            return Err(DocError::ArgNameMismatch {
+                position: i,
+                documented: arg.name.clone(),
+                signature: param.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
