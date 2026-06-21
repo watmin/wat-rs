@@ -67,15 +67,20 @@ perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + �
   Principle: `get` asks "is there one?", `first/second/third` assert "give me the one." Precise spec +
   equivalences: `DESIGN-STONE-first-bare-accessors.md` § Downstream lint rule. `fix-wat` autofix; build after
   the first-bare cascade closes; flip to rete with the rest.
-- **`(comment ...)` form — the dual of `(quote ...)`** (SUPERSEDES the metadata-rune idea below). `quote` lifts
-  a form INTO the program (→ AST value); `comment` lifts it OUT (→ `nil`, body parsed-but-dropped, never
-  type-checked) yet leaves it in the SOURCE AST for "parsers who care" (lint/fmt/doc-gen). Impl: macro
-  `(:wat::core::comment & body) → nil`. One homoiconic mechanism serving BOTH rich-comments (kept-code/prose as
-  data) AND **lint suppression**: `(comment :wat-lint.disable [rule])` beside a LIVE form — the linter (source-AST
-  walker, `deporder.wat`) reads the directive; the code still runs, only the lint is suppressed. Caveat: body must
-  be lex/parse-valid s-exprs (like Clojure's `comment`); `;;` stays for free text (Clojure's `;` vs `(comment)`
-  split). OPEN: suppression scope — next-sibling / enclosing-form / bracketed-region (the one real decision).
-  ~~(superseded) lint suppression via point-in-code metadata rune `{:wat-lint.disable [...]}`.~~
+- **lint suppression = mirror the proven `wat-test` sibling-annotation pattern (no new substrate).** Precedent:
+  `wat/test.wat:407-427` — `:wat::test::ignore` / `:should-panic` / `:time-limit` are **no-op typed defns**
+  (`String -> nil`, type-check but runtime-irrelevant) placed as a **sibling preceding** the target; the tooling
+  (proc-macro scanner) reads them; *"attaches to the IMMEDIATELY NEXT [form]; intervening non-annotation forms
+  clear the pending annotation."* Lint suppression reuses this exactly: a no-op `(:wat::lint::disable :rule)` /
+  `(:wat::lint::ignore "reason")` annotation, sibling before the LIVE form, read by the linter's source-AST walk
+  (`deporder.wat` — same walker shape as the test scanner). The code runs; only the lint is suppressed. **Scope
+  answered by precedent: next-form, intervening-clears.** Supersedes the metadata-rune idea (`{:wat-lint.disable}`).
+- **`(comment ...)` form — the dual of `(quote ...)`** (SEPARATE idea; NOT the suppression vehicle — the
+  annotation above covers that). `quote` lifts a form INTO the program (→ AST value); `comment` lifts it OUT
+  (→ `nil`, body parsed-but-dropped, never type-checked) yet leaves it in the SOURCE AST for parsers who care.
+  The GENERAL homoiconic rich-comment: arbitrary dropped forms / kept-code-as-data. Impl: macro
+  `(:wat::core::comment & body) → nil`. Caveat: body must be lex/parse-valid s-exprs (Clojure's `;` vs `(comment)`
+  split; `;;` stays for free text). Decide on rich-comment merits, independent of suppression.
 - tail-latency / GC-jitter measurement vs Clara (structural claim; lower priority).
 - **The reborn linter** (lint rules as rete rules) — the engine's first serious app; the *why* of arc-278.
   The accumulating rule roster above (quote-sugar, accessor-idiom, positional-construction, nested-if-ladder,
