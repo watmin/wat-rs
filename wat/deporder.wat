@@ -99,8 +99,7 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::empty? ch)
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                  (:wat::core::first ch) "def-form?: head")]
+        (:wat::core::let [head (:wat::core::first ch)]
           (:wat::deporder::is-def-head? (:wat::core::ast-name head)))))
     false))
 
@@ -110,9 +109,7 @@
   [form <- :wat::WatAST]
   -> :wat::core::String
   (:wat::core::let [ch   (:wat::core::ast->children form)
-                    name-node (:wat::core::Option/expect -> :wat::WatAST
-                                (:wat::core::first (:wat::core::drop ch 1))
-                                "defined-name: no child[1]")]
+                    name-node (:wat::core::first (:wat::core::drop ch 1))]
     (:wat::core::ast-name name-node)))
 
 ;; ─── Keyword reference collector ──────────────────────────────────────
@@ -148,8 +145,7 @@
                       head-refs (:wat::core::if (:wat::core::empty? ch)
                                   (:wat::core::Vector :wat::core::String)
                                   (:wat::deporder::collect-kwds
-                                    (:wat::core::Option/expect -> :wat::WatAST
-                                      (:wat::core::first ch) "head")))
+                                    (:wat::core::first ch)))
                       ;; skip child[1] (the defined name); collect from child[2..] (the body)
                       body-ch (:wat::core::drop ch 2)
                       body-refs (:wat::core::foldl
@@ -179,9 +175,7 @@
         (:wat::core::if (:wat::deporder::def-form? form)
           (:wat::core::let [dname (:wat::deporder::defined-name form)
                             head-nm (:wat::core::ast-name
-                                      (:wat::core::Option/expect -> :wat::WatAST
-                                        (:wat::core::first (:wat::core::ast->children form))
-                                        "build-file-syms: head"))
+                                      (:wat::core::first (:wat::core::ast->children form)))
                             kind  (:wat::deporder::def-head-kind head-nm)]
             (:wat::core::HashMap/assoc m dname (:wat::deporder::SymDef path kind)))
           m))

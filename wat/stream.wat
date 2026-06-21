@@ -320,10 +320,9 @@
     ;; caller to exit.
     (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::nil>
       (:wat::core::Some nil)
-      ;; Vec is non-empty (just checked); first returns Some<U> via
-      ;; arc 047. The :None arm is unreachable but the type checker
-      ;; demands totality.
-      (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
+      ;; Vec is non-empty (just checked); use get for the Option-returning safe path.
+      ;; (arc-278: first is now bare-raising; get is the Option path.)
+      (:wat::core::match (:wat::core::get items 0) -> :wat::core::Option<wat::core::nil>
         ((:wat::core::Some item)
           (:wat::core::let
             [rest-items (:wat::core::rest items)]
@@ -580,9 +579,9 @@
           (:wat::stream::flat-map-worker in out f (f v)))
         ((:wat::core::Ok :wat::core::None) nil)
         ((:wat::core::Err _died) nil))
-      ;; pending is non-empty; first returns Some<U> via arc 047.
-      ;; :None arm is unreachable but type-required.
-      (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
+      ;; pending is non-empty; use get for the Option-returning safe path.
+      ;; (arc-278: first is now bare-raising; get is the Option path.)
+      (:wat::core::match (:wat::core::get pending 0) -> :wat::core::nil
         ((:wat::core::Some item)
           (:wat::core::let
             [rest-items (:wat::core::rest pending)]

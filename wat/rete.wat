@@ -533,9 +533,7 @@
                     ;; TOP: detect (:wat::rete::where <expr>) form
                     ;; All conditions are non-empty list forms with a keyword head; Option/expect is safe.
                     cond-ch   (:wat::core::ast->children cond)
-                    head      (:wat::core::Option/expect -> :wat::WatAST
-                                  (:wat::core::first cond-ch)
-                                  "compile-condition: condition form has no head")
+                    head      (:wat::core::first cond-ch)
                     head-nm        (:wat::core::ast-name head)
                     is-where       (:wat::core::= head-nm ":wat::rete::where")
                     is-not         (:wat::core::= head-nm ":wat::rete::not")
@@ -545,9 +543,7 @@
                     is-accumulate  (:wat::core::= (:wat::core::string::subs head-nm 0 1) "?")]
     (:wat::core::if is-where
       ;; ── where branch (6b-ii-a) ──────────────────────────────────────────────
-      (:wat::core::let [expr      (:wat::core::Option/expect -> :wat::WatAST
-                                      (:wat::core::second cond-ch)
-                                      "compile-condition: where missing expr")
+      (:wat::core::let [expr      (:wat::core::second cond-ch)
                         ;; fence: pure ∧ deterministic — raise at compile if false
                         is-pure   (:wat::rete::pure? expr)
                         is-det    (:wat::rete::deterministic? expr)
@@ -587,9 +583,7 @@
                                             (:wat::core::None))
                                           "compile-condition: negation must follow a binding condition")
                           ;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
-                          inner       (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::second cond-ch)
-                                          "compile-condition: :not missing inner condition")
+                          inner       (:wat::core::second cond-ch)
                           ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                           alpha-res   (:wat::rete::find-or-mint-alpha inner state0)
                           neg-alpha-id (:wat::rete::MintResult/id    alpha-res)
@@ -624,9 +618,7 @@
                                               (:wat::core::None))
                                             "compile-condition: exists must follow a binding condition")
                             ;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
-                            inner        (:wat::core::Option/expect -> :wat::WatAST
-                                            (:wat::core::second cond-ch)
-                                            "compile-condition: :exists missing inner condition")
+                            inner        (:wat::core::second cond-ch)
                             ;; find-or-mint an AlphaNode for <inner> (so alpha pass populates it)
                             alpha-res    (:wat::rete::find-or-mint-alpha inner state0)
                             ex-alpha-id  (:wat::rete::MintResult/id    alpha-res)
@@ -674,9 +666,7 @@
                             ;; `(<acc-hd> __acc__)` and run pure?/deterministic? on it — head_ok
                             ;; classifies the user fn transitively (purity.rs:classify_fn).
                             acc-ch       (:wat::core::ast->children acc-form)
-                            acc-hd       (:wat::core::Option/expect -> :wat::WatAST
-                                             (:wat::core::first acc-ch)
-                                             "compile-condition: accumulate acc-form has no head")
+                            acc-hd       (:wat::core::first acc-ch)
                             acc-hd-nm    (:wat::core::ast-name acc-hd)
                             is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
@@ -1890,9 +1880,7 @@
    bm         <- :wat::core::PersistentMap]
   -> :wat::core::PersistentMap
   (:wat::core::let [acc-ch (:wat::core::ast->children acc-form)
-                    acc-hd (:wat::core::Option/expect -> :wat::WatAST
-                               (:wat::core::first acc-ch)
-                               "accumulate-pass-for-token: acc-form has no head")
+                    acc-hd (:wat::core::first acc-ch)
                     acc-nm (:wat::core::ast-name acc-hd)
                     ;; helper: extend tok's bindings with result-var → v, append to bm at node-id
                     ;; (inlined below per case to keep each branch's v-type concrete)

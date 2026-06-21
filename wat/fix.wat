@@ -32,8 +32,8 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first ch) "head")
-                          c2   (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first (:wat::core::drop ch 2)) "c2")]
+        (:wat::core::let [head (:wat::core::first ch)
+                          c2   (:wat::core::first (:wat::core::drop ch 2))]
           (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
               (:wat::core::= (:wat::core::ast-name c2) "->")
@@ -84,7 +84,7 @@
 (:wat::core::defn :wat::fix::fix-seq [items <- :wat::core::Vector<wat::WatAST> prev-arrow? <- :wat::core::bool] -> :wat::core::Vector<wat::WatAST>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::WatAST)
-    (:wat::core::let [h   (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first items) "fix-seq: head")
+    (:wat::core::let [h   (:wat::core::first items)
                       tl  (:wat::core::rest items)
                       out (:wat::core::if (:wat::core::if prev-arrow? (:wat::core::= (:wat::core::ast-kind h) "keyword") false)
                             (:wat::core::keyword/to-type-form h)
@@ -130,9 +130,7 @@
   -> :wat::core::i64
   (:wat::core::if (:wat::core::= n 1)
     0
-    (:wat::core::let [fst (:wat::core::Option/expect -> :wat::core::String
-                              (:wat::core::first lines)
-                              "fix-text-line-start: no line")]
+    (:wat::core::let [fst (:wat::core::first lines)]
       (:wat::core::+ (:wat::core::string::length fst)
         (:wat::core::+ 1
           (:wat::fix::fix-text-line-start
@@ -245,9 +243,7 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
-                             (:wat::core::first items)
-                             "fix-text-seq-edits: empty")
+    (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
         (:wat::fix::fix-text-node-edits h prev-arrow? lines)
@@ -264,18 +260,10 @@
   (:wat::core::if (:wat::fix::annotated-if? node)
     ;; strip-if: manually process children to emit deletions for -> and :T
     (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::let [head     (:wat::core::Option/expect -> :wat::WatAST
-                                     (:wat::core::first ch)
-                                     "fix-text-struct-edits: head")
-                        c1       (:wat::core::Option/expect -> :wat::WatAST
-                                     (:wat::core::first (:wat::core::rest ch))
-                                     "fix-text-struct-edits: cond")
-                        c2       (:wat::core::Option/expect -> :wat::WatAST
-                                     (:wat::core::first (:wat::core::drop ch 2))
-                                     "fix-text-struct-edits: arrow")
-                        c3       (:wat::core::Option/expect -> :wat::WatAST
-                                     (:wat::core::first (:wat::core::drop ch 3))
-                                     "fix-text-struct-edits: type")
+      (:wat::core::let [head     (:wat::core::first ch)
+                        c1       (:wat::core::first (:wat::core::rest ch))
+                        c2       (:wat::core::first (:wat::core::drop ch 2))
+                        c3       (:wat::core::first (:wat::core::drop ch 3))
                         branches (:wat::core::drop ch 4)]
         ;; edits in ascending text order: head, cond, arrow-del, type-del, branches
         (:wat::core::concat
@@ -298,9 +286,7 @@
   -> :wat::core::String
   (:wat::core::if (:wat::core::empty? edits)
     src
-    (:wat::core::let [edit     (:wat::core::Option/expect -> :(wat::core::i64,wat::core::i64,wat::core::String)
-                                   (:wat::core::first edits)
-                                   "fix-text-apply: edit")
+    (:wat::core::let [edit     (:wat::core::first edits)
                       off      (:wat::core::first edit)
                       old-len  (:wat::core::second edit)
                       new-text (:wat::core::third edit)
@@ -359,9 +345,7 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first ch)
-                                   "defmacro?: head")]
+        (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
             (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
             false))))
@@ -379,9 +363,7 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
-                             (:wat::core::first items)
-                             "argspec-type-edits-walk: head")
+    (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)
                       ;; is this token a type-slot?
                       is-type-slot? (:wat::core::if prev-arrow?
@@ -417,9 +399,7 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
-                             (:wat::core::first items)
-                             "rettype-edit-walk: head")
+    (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)
                       ;; is this the return-type keyword slot?
                       is-rettype? (:wat::core::if prev-right-arrow?
@@ -445,14 +425,10 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::let [ch     (:wat::core::ast->children form)
                     ;; ch[2]: if it's a vector, argvec is here (6-item); else ch[3] (7-item)
-                    c2     (:wat::core::Option/expect -> :wat::WatAST
-                               (:wat::core::first (:wat::core::drop ch 2))
-                               "defmacro-edits: ch[2]")
+                    c2     (:wat::core::first (:wat::core::drop ch 2))
                     argvec (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "vector")
                               c2
-                              (:wat::core::Option/expect -> :wat::WatAST
-                                (:wat::core::first (:wat::core::drop ch 3))
-                                "defmacro-edits: ch[3]"))
+                              (:wat::core::first (:wat::core::drop ch 3)))
                     argvec-children (:wat::core::ast->children argvec)
                     ;; collect argvec type edits
                     av-edits   (:wat::fix::argspec-type-edits-walk argvec-children false false lines)
@@ -485,9 +461,7 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::let [form (:wat::core::Option/expect -> :wat::WatAST
-                               (:wat::core::first forms)
-                               "macro-param-edits: form")
+    (:wat::core::let [form (:wat::core::first forms)
                       rest-forms (:wat::core::rest forms)]
       (:wat::core::concat (:wat::fix::collect-defmacro-edits-deep form lines)
         (:wat::fix::macro-param-edits rest-forms lines)))))
@@ -607,9 +581,7 @@
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::let [h  (:wat::core::Option/expect -> :wat::WatAST
-                             (:wat::core::first items)
-                             "rename-prefix-edits-walk: head")
+    (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
         (:wat::fix::rename-prefix-edits h old-prefix new-prefix lines)

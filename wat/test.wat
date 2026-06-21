@@ -703,7 +703,7 @@
 ;; one caller, test-layer scope — :wat::test::* is the right home.
 ;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
-  (:wat::core::match (:wat::core::first chain)
+  (:wat::core::match (:wat::core::get chain 0)
       -> :wat::kernel::Failure
       ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
       (:wat::core::None
@@ -921,9 +921,7 @@
       nil
       (:wat::core::let
         [item
-          (:wat::core::Option/expect -> :I
-            (:wat::core::first inputs)
-            "run-hermetic-send-inputs: first of non-empty vector was None (substrate bug)")
+          (:wat::core::first inputs)
          rest (:wat::core::rest inputs)
          _
           (:wat::core::Result/expect -> :wat::core::nil

@@ -62,6 +62,13 @@ perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + �
 ## Banked / lower priority
 - quote → `'` / `` ` `` lint rule (traditional now → flip to a rete rule once the engine closes); shares its
   sugaring pretty-printer with the structured→surface renderer (③).
+- **accessor-idiom lint rule** (born from the first-bare cut): PROMOTE `(nth xs 0)` / `(Option/expect (get xs 0) m)`
+  → `(first xs)` (1→`second`, 2→`third`); GUARD: `(match (get xs 0) Some/None)` STAYS `get` (empty-handling).
+  Principle: `get` asks "is there one?", `first/second/third` assert "give me the one." Precise spec +
+  equivalences: `DESIGN-STONE-first-bare-accessors.md` § Downstream lint rule. `fix-wat` autofix; build after
+  the first-bare cascade closes; flip to rete with the rest.
 - lint suppression via point-in-code metadata rune `{:wat-lint.disable [...]}`.
 - tail-latency / GC-jitter measurement vs Clara (structural claim; lower priority).
 - **The reborn linter** (lint rules as rete rules) — the engine's first serious app; the *why* of arc-278.
+  The accumulating rule roster above (quote-sugar, accessor-idiom, positional-construction, nested-if-ladder,
+  concat-abuse) is the first cohort to flip from if/cond wat to rete rules once the engine closes.

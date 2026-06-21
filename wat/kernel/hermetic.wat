@@ -55,7 +55,7 @@
 ;; source. Duplicate definition intentionally avoided: only hermetic.wat
 ;; defines it (sandbox.wat is not loaded in the kernel path).
 (:wat::core::defn :wat::kernel::failure-from-process-died [chain <- :wat::core::Vector<wat::kernel::ProcessDiedError>] -> :wat::kernel::Failure
-  (:wat::core::match (:wat::core::first chain)
+  (:wat::core::match (:wat::core::get chain 0)
       -> :wat::kernel::Failure
       ((:wat::core::Some err) (:wat::kernel::ProcessDiedError/to-failure err))
       (:wat::core::None

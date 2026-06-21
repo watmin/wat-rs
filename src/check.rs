@@ -10044,55 +10044,40 @@ fn infer_positional_accessor(
                     return CheckResult::partial_with(fresh.fresh(), local_errors);
                 }
             }
-            // Vec<T>: return Option<T> (arc 047 — empty/short is a
-            // runtime fact, signature surfaces it honestly).
+            // Vec<T>: return bare T (arc-278 flip; was Option<T>).
+            // Empty/short is a runtime raise; get is the safe Option path.
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
                 if let Some(inner) = targs.first() {
-                    let result_ty = TypeExpr::Parametric {
-                        head: "wat::core::Option".into(),
-                        args: vec![apply_subst(inner, subst)],
-                    };
+                    let result_ty = apply_subst(inner, subst);
                     return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
                 } else {
                     // HARVEST (236.2): silent-by-intent — Vector type has no inner; polymorphic.
                     return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
                 }
             }
-            // List<T>: mirrors Vec<T> arm — return Option<T>; runtime
-            // already handles Value::wat__core__List in eval_positional_accessor.
+            // List<T>: bare T (arc-278 flip; was Option<T>).
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
                 if let Some(inner) = targs.first() {
-                    let result_ty = TypeExpr::Parametric {
-                        head: "wat::core::Option".into(),
-                        args: vec![apply_subst(inner, subst)],
-                    };
+                    let result_ty = apply_subst(inner, subst);
                     return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
                 } else {
                     // HARVEST (236.2): silent-by-intent — List type has no inner; polymorphic.
                     return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
                 }
             }
-            // PersistentVector<T>: mirrors Vec<T> arm — return Option<T>;
-            // runtime handles Value::wat__core__PersistentVector in eval_positional_accessor.
+            // PersistentVector<T>: bare T (arc-278 flip; was Option<T>).
             TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
                 if let Some(inner) = targs.first() {
-                    let result_ty = TypeExpr::Parametric {
-                        head: "wat::core::Option".into(),
-                        args: vec![apply_subst(inner, subst)],
-                    };
+                    let result_ty = apply_subst(inner, subst);
                     return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
                 } else {
                     // HARVEST (236.2): silent-by-intent — PersistentVector type has no inner; polymorphic.
                     return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
                 }
             }
-            // WatAST::List (arc-249 form-values): return Option<:wat::WatAST>;
-            // runtime returns Option<wat__WatAST> for a List form (runtime.rs:10987).
+            // WatAST::List (arc-249 form-values): return bare :wat::WatAST (arc-278 flip; was Option).
             TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                let result_ty = TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
-                };
+                let result_ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
             _ => {

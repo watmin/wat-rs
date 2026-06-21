@@ -121,8 +121,7 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first ch) "if-head?: head")]
+        (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
             false))))
@@ -138,10 +137,8 @@
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
         ""
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first ch) "eq-sym-name: head")
-                          c1   (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first (:wat::core::drop ch 1)) "eq-sym-name: c1")]
+        (:wat::core::let [head (:wat::core::first ch)
+                          c1   (:wat::core::first (:wat::core::drop ch 1))]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::=")
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind c1) "symbol")
@@ -159,8 +156,7 @@
   (:wat::core::let [ch (:wat::core::ast->children node)]
     (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
       ""
-      (:wat::core::let [c2 (:wat::core::Option/expect -> :wat::WatAST
-                               (:wat::core::first (:wat::core::drop ch 2)) "eq-lit-text: c2")]
+      (:wat::core::let [c2 (:wat::core::first (:wat::core::drop ch 2))]
         (:wat::lint::node-write c2)))))
 
 ;; collect-ladder-lits — walk an if-eq-true chain over VAR, collecting
@@ -184,12 +180,9 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 4)
         (:wat::core::Vector :wat::core::String)
-        (:wat::core::let [cond (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first (:wat::core::drop ch 1)) "collect-ladder-lits: cond")
-                          then (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first (:wat::core::drop ch 2)) "collect-ladder-lits: then")
-                          else-node (:wat::core::Option/expect -> :wat::WatAST
-                                        (:wat::core::first (:wat::core::drop ch 3)) "collect-ladder-lits: else")]
+        (:wat::core::let [cond (:wat::core::first (:wat::core::drop ch 1))
+                          then (:wat::core::first (:wat::core::drop ch 2))
+                          else-node (:wat::core::first (:wat::core::drop ch 3))]
           ;; cond must be (= VAR LIT)
           (:wat::core::let [this-var (:wat::lint::eq-sym-name cond)]
             (:wat::core::if (:wat::core::= this-var "")
@@ -231,8 +224,7 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 2)
         ""
-        (:wat::core::let [cond (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first (:wat::core::drop ch 1)) "ladder-var-name: cond")]
+        (:wat::core::let [cond (:wat::core::first (:wat::core::drop ch 1))]
           (:wat::lint::eq-sym-name cond))))
     ""))
 
@@ -320,9 +312,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [children (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::i64::>= (:wat::core::length children) 1)
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                  (:wat::core::first children)
-                                  "concat-head?: first child")]
+        (:wat::core::let [head (:wat::core::first children)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::let [n (:wat::core::ast-name head)]
               (:wat::core::if (:wat::core::= n ":wat::core::string::concat")
@@ -341,8 +331,7 @@
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::empty? ch)
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST
-                                   (:wat::core::first ch) "is-defmacro-form?: head")]
+        (:wat::core::let [head (:wat::core::first ch)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::= (:wat::core::ast-name head) ":wat::core::defmacro")
             false))))

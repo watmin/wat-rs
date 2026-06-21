@@ -10968,28 +10968,46 @@ fn eval_positional_accessor(
                 )
             } })
         }),
-        Value::Vec(items) => Ok(Value::Option(Arc::new(items.get(index).cloned()))),
+        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+        Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
+            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("{op}: sequence has {} element(s); no element at index {index}", items.len())
+            } })
+        }),
         // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
-        // Returns Option<T> (None for out-of-bounds), matching Vec behavior.
-        Value::wat__core__List(items) => Ok(Value::Option(Arc::new(
-            items.iter().nth(index).cloned(),
-        ))),
+        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+        Value::wat__core__List(items) => items.iter().nth(index).cloned().ok_or_else(|| {
+            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+            } })
+        }),
         // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
-        // Returns Option<T> (None for out-of-bounds), matching Vec/List behavior.
-        // (`first`/`second`/`third` are the SAFE Option accessors across all sequences;
-        //  `nth` is the get-or-raise positional accessor.)
-        Value::wat__core__PersistentVector(pv) => Ok(Value::Option(Arc::new(
-            pv.get(index).cloned(),
-        ))),
+        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+        Value::wat__core__PersistentVector(pv) => pv.get(index).cloned().ok_or_else(|| {
+            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+            } })
+        }),
         // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List is a
-        // sequence of child forms; positional access returns Option<wat__WatAST>
-        // (None for out-of-bounds or non-List form), matching the Vec arm's shape.
+        // sequence of child forms; positional access returns bare wat__WatAST.
+        // Arc-278 flip: bare T, raise on out-of-range or non-List form (was Option).
         Value::wat__WatAST(ast) => match &*ast {
-            WatAST::List(children, _) => Ok(Value::Option(Arc::new(
-                children.get(index).cloned().map(|c| Value::wat__WatAST(Arc::new(c))),
-            ))),
-            // A non-List form has no positional children — None (matches Vec out-of-bounds shape).
-            _ => Ok(Value::Option(Arc::new(None))),
+            WatAST::List(children, _) => children.get(index)
+                .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
+                .ok_or_else(|| {
+                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: op.into(),
+                        reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
+                    } })
+                }),
+            // A non-List form has no positional children — raise (matches Vec out-of-bounds shape).
+            _ => Err(EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("{op}: WatAST is not a List form; cannot take positional child")
+            } })),
         },
         other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),

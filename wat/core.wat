@@ -205,9 +205,7 @@
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, quasiquotes only at branch tails.
   (:wat::core::let
-    [params-vec   (:wat::core::Option/expect -> :wat::WatAST
-                    (:wat::core::first rest)
-                    "defn: rest is empty — no params vec")
+    [params-vec   (:wat::core::first rest)
      params-ch    (:wat::core::ast->children params-vec)
      params-len   (:wat::core::length params-ch)
      ;; Detect `& [...]` tail: params-len >= 2 AND second-to-last is a Symbol named "&"
@@ -344,7 +342,7 @@
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
        (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST>
-          `(~(:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first step) "-> step has no head") ~a ~@(:wat::core::rest step))
+          `(~(:wat::core::first step) ~a ~@(:wat::core::rest step))
           `(~step ~a)))
     acc
     steps))
@@ -397,31 +395,26 @@
     ;; near-theoretical slip if every arm body was itself a keyword. macro-error returns Err
     ;; directly — the macro engine wraps it into a catchable MacroError without panic or noise.
     (:wat::core::macro-error "cond: non-exhaustive — needs a terminal :else arm")
-    (:wat::core::if (:wat::core::List? (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first clauses) "cond: non-exhaustive — needs a terminal :else"))
+    (:wat::core::if (:wat::core::List? (:wat::core::first clauses))
       ;; First clause is a List — bare form: (cond (test body) … (:else body))
-      (:wat::core::let [arm  (:wat::core::Option/expect -> :wat::holon::HolonAST
-                                (:wat::core::first clauses) "cond: empty clause list")
-                        head (:wat::core::Option/expect -> :wat::holon::HolonAST
-                                (:wat::core::first arm) "cond: arm has no head")]
+      (:wat::core::let [arm  (:wat::core::first clauses)
+                        head (:wat::core::first arm)]
         (:wat::core::if (:wat::core::List? head)
           ;; test arm — head is a sub-list like (= 1 2): (if head body (cond rest…))
           `(:wat::core::if
               ~head
-              ~(:wat::core::Option/expect -> :wat::holon::HolonAST
-                  (:wat::core::second arm) "cond: arm has no body")
+              ~(:wat::core::second arm)
               (:wat::core::cond ~@(:wat::core::rest clauses)))
           ;; non-List head — detect :else by structural comparison with the :else keyword form.
-          ;; (first `(:else)) returns Option<WatAST>; Option/expect unwraps to WatAST::Keyword(":else").
+          ;; (first `(:else)) returns bare WatAST::Keyword(":else") after arc-278 flip.
           ;; = on two Value::wat__WatAST nodes uses structural PartialEq (safe for any variant pair).
-          (:wat::core::if (:wat::core::= head (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::first `(:else)) "cond: internal: :else form is empty"))
+          (:wat::core::if (:wat::core::= head (:wat::core::first `(:else)))
             ;; :else terminal arm — emit body unconditionally
-            (:wat::core::Option/expect -> :wat::holon::HolonAST
-              (:wat::core::second arm) "cond: :else arm has no body")
+            (:wat::core::second arm)
             ;; other non-List head — treat as test arm (v1 fallback for malformed input)
             `(:wat::core::if
                 ~head
-                ~(:wat::core::Option/expect -> :wat::holon::HolonAST
-                    (:wat::core::second arm) "cond: arm has no body")
+                ~(:wat::core::second arm)
                 (:wat::core::cond ~@(:wat::core::rest clauses))))))
       ;; First clause is NOT a List (it is the -> symbol) — annotated form.
       ;; Strip -> and :T (first two elements) and re-expand as bare cond.
@@ -789,14 +782,12 @@
                           ;; text segment → String literal AST node
                           (:wat::core::Tuple
                             (:wat::core::conj ps2
-                              (:wat::core::Option/expect -> :wat::WatAST
-                                (:wat::core::first
-                                  (:wat::core::ast->children
-                                    (:wat::core::read-string
-                                      (:wat::core::string::concat
-                                        "\""
-                                        (:wat::core::string::concat pay "\"")))))
-                                "format: str-node: text segment"))
+                              (:wat::core::first
+                                (:wat::core::ast->children
+                                  (:wat::core::read-string
+                                    (:wat::core::string::concat
+                                      "\""
+                                      (:wat::core::string::concat pay "\""))))))
                             used2)
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
                           (:wat::core::let
@@ -849,7 +840,5 @@
       (:wat::core::if
         (:wat::core::= (:wat::core::length pieces) 1)
         -> :wat::WatAST
-        (:wat::core::Option/expect -> :wat::WatAST
-          (:wat::core::first pieces)
-          "format: single-piece")
+        (:wat::core::first pieces)
         `(:wat::core::string::concat ~@pieces)))))

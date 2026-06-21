@@ -45,29 +45,26 @@ fn expect_true(defn: &str, call: &str) {
     }
 }
 
-// ── first/second/third on PersistentVector → Option<T> (strong value asserts; the rete-relevant repr) ──
+// ── first/second/third on PersistentVector → bare T (arc-278 flip; raising on out-of-range) ──
 
 #[test]
 fn first_on_persistent_vector() {
     let defn = "(:wat::core::defn :p::f [] -> :wat::core::i64 \
-                (:wat::core::Option/expect -> :wat::core::i64 \
-                  (:wat::core::first (:wat::core::PersistentVector 10 20 30)) \"empty\"))";
+                (:wat::core::first (:wat::core::PersistentVector 10 20 30)))";
     expect_i64(defn, "(:p::f)", 10);
 }
 
 #[test]
 fn second_on_persistent_vector() {
     let defn = "(:wat::core::defn :p::f [] -> :wat::core::i64 \
-                (:wat::core::Option/expect -> :wat::core::i64 \
-                  (:wat::core::second (:wat::core::PersistentVector 10 20 30)) \"empty\"))";
+                (:wat::core::second (:wat::core::PersistentVector 10 20 30)))";
     expect_i64(defn, "(:p::f)", 20);
 }
 
 #[test]
 fn third_on_persistent_vector() {
     let defn = "(:wat::core::defn :p::f [] -> :wat::core::i64 \
-                (:wat::core::Option/expect -> :wat::core::i64 \
-                  (:wat::core::third (:wat::core::PersistentVector 10 20 30)) \"empty\"))";
+                (:wat::core::third (:wat::core::PersistentVector 10 20 30)))";
     expect_i64(defn, "(:p::f)", 30);
 }
 
@@ -93,14 +90,19 @@ fn conj_on_list() {
 }
 
 // ── WatAST::List (arc-249 form-values): first/rest must type-check + run (compiles-and-runs asserts) ──
+// arc-278: first on WatAST is now bare-raising (returns :wat::WatAST directly).
 
 #[test]
 fn first_on_watast_list() {
-    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
-                (:wat::core::match (:wat::core::first (:wat::core::quote (a b c))) -> :wat::core::bool \
-                  ((:wat::core::Some _) true) \
-                  (:wat::core::None false)))";
-    expect_true(defn, "(:p::f)");
+    // Verify that (first <WatAST List>) type-checks (returns bare :wat::WatAST) and runs.
+    // The result is a WatAST node; we assert the eval succeeds and produces a WatAST value.
+    let defn = "(:wat::core::defn :p::f [] -> :wat::WatAST \
+                (:wat::core::first (:wat::core::quote (a b c))))";
+    match eval_probe(defn, "(:p::f)") {
+        Ok(Value::wat__WatAST(_)) => {}
+        Ok(other) => panic!("expected WatAST; got {other:?}"),
+        Err(e) => panic!("checker≡runtime drift (should type-check + run): {e}"),
+    }
 }
 
 #[test]
