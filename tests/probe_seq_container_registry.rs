@@ -109,3 +109,176 @@ fn third_vector() {
 fn first_hashset_rejected() {
     expect_rejected(&first_i64("(:wat::core::HashSet :wat::core::i64 10 20 30)"), "(:p::f)");
 }
+
+// ── seq-1b additions: measurable (length/empty?) ──────────────────────────────
+
+// Helper: build a defn whose body is `(op ctor)` returning i64.
+fn len_defn(op: &str, ctor: &str) -> String {
+    format!(
+        "(:wat::core::defn :p::f [] -> :wat::core::i64 ({op} {ctor}))"
+    )
+}
+
+// Helper: build a defn whose body is `(op ctor)` returning bool.
+fn empty_defn(op: &str, ctor: &str) -> String {
+    format!(
+        "(:wat::core::defn :p::f [] -> :wat::core::bool ({op} {ctor}))"
+    )
+}
+
+fn expect_bool(defn: &str, call: &str, want: bool) {
+    match eval_probe(defn, call) {
+        Ok(Value::bool(b)) => assert_eq!(b, want, "expected bool({want}); got bool({b})"),
+        Ok(other) => panic!("expected bool({want}); got {other:?}"),
+        Err(e) => panic!("should type-check + run: {e}"),
+    }
+}
+
+#[test]
+fn tuple_length() {
+    expect_i64(&len_defn(":wat::core::length", "(:wat::core::Tuple 10 20 30)"), "(:p::f)", 3);
+}
+
+#[test]
+fn tuple_empty_q_false() {
+    expect_bool(&empty_defn(":wat::core::empty?", "(:wat::core::Tuple 10 20 30)"), "(:p::f)", false);
+}
+
+#[test]
+fn tuple_empty_q_single() {
+    // Tuples must have at least one element (empty Tuple is rejected by the checker).
+    // Verify a single-element Tuple is also non-empty.
+    expect_bool(&empty_defn(":wat::core::empty?", "(:wat::core::Tuple 42)"), "(:p::f)", false);
+}
+
+#[test]
+fn watastlist_length() {
+    // `(:wat::core::quote (a b c))` produces a WatAST::List with 3 children.
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::i64 \
+                (:wat::core::length (:wat::core::quote (a b c))))";
+    expect_i64(defn, "(:p::f)", 3);
+}
+
+#[test]
+fn watastlist_empty_q_false() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::empty? (:wat::core::quote (a b c))))";
+    match eval_probe(defn, "(:p::f)") {
+        Ok(Value::bool(false)) => {}
+        other => panic!("expected bool(false); got {other:?}"),
+    }
+}
+
+// ── seq-1b additions: searchable (contains?) ──────────────────────────────────
+
+#[test]
+fn list_contains_q_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::List/of 10 20 30) 20))";
+    expect_bool(defn, "(:p::f)", true);
+}
+
+#[test]
+fn list_contains_q_not_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::List/of 10 20 30) 99))";
+    expect_bool(defn, "(:p::f)", false);
+}
+
+#[test]
+fn tuple_contains_q_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::Tuple 10 20 30) 20))";
+    expect_bool(defn, "(:p::f)", true);
+}
+
+#[test]
+fn tuple_contains_q_not_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::Tuple 10 20 30) 99))";
+    expect_bool(defn, "(:p::f)", false);
+}
+
+#[test]
+fn watastlist_contains_q_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::quote (a b c)) \
+                  (:wat::core::first (:wat::core::quote (a b c)))))";
+    expect_bool(defn, "(:p::f)", true);
+}
+
+#[test]
+fn watastlist_contains_q_not_found() {
+    // `a` and `x` are different symbols so not-found.
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::bool \
+                (:wat::core::contains? (:wat::core::quote (a b c)) \
+                  (:wat::core::first (:wat::core::quote (x y z)))))";
+    expect_bool(defn, "(:p::f)", false);
+}
+
+// ── seq-1b additions: gettable (get → Option) ─────────────────────────────────
+
+fn expect_option_i64(defn: &str, call: &str, want: Option<i64>) {
+    match eval_probe(defn, call) {
+        Ok(Value::Option(inner)) => match (inner.as_ref(), want) {
+            (Some(Value::i64(n)), Some(w)) => assert_eq!(*n, w, "Option<i64>: got {n} want {w}"),
+            (None, None) => {}
+            (got, _) => panic!("expected Option<i64>({want:?}); got {got:?}"),
+        },
+        Ok(other) => panic!("expected Option; got {other:?}"),
+        Err(e) => panic!("should type-check + run: {e}"),
+    }
+}
+
+#[test]
+fn list_get_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::core::i64> \
+                (:wat::core::get (:wat::core::List/of 10 20 30) 1))";
+    expect_option_i64(defn, "(:p::f)", Some(20));
+}
+
+#[test]
+fn list_get_out_of_bounds() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::core::i64> \
+                (:wat::core::get (:wat::core::List/of 10 20 30) 99))";
+    expect_option_i64(defn, "(:p::f)", None);
+}
+
+#[test]
+fn watastlist_get_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::WatAST> \
+                (:wat::core::get (:wat::core::quote (a b c)) 1))";
+    match eval_probe(defn, "(:p::f)") {
+        Ok(Value::Option(inner)) => match inner.as_ref() {
+            Some(Value::wat__WatAST(_)) => {}
+            other => panic!("expected Option<Some(WatAST)>; got {other:?}"),
+        },
+        Ok(other) => panic!("expected Option<WatAST>; got {other:?}"),
+        Err(e) => panic!("watastlist get should run: {e}"),
+    }
+}
+
+#[test]
+fn watastlist_get_out_of_bounds() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::WatAST> \
+                (:wat::core::get (:wat::core::quote (a b c)) 99))";
+    match eval_probe(defn, "(:p::f)") {
+        Ok(Value::Option(inner)) => assert!(inner.is_none(), "expected None; got {inner:?}"),
+        Ok(other) => panic!("expected Option<None>; got {other:?}"),
+        Err(e) => panic!("watastlist get oob should run: {e}"),
+    }
+}
+
+#[test]
+fn hashset_get_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::core::i64> \
+                (:wat::core::get (:wat::core::HashSet :wat::core::i64 10 20 30) 20))";
+    expect_option_i64(defn, "(:p::f)", Some(20));
+}
+
+#[test]
+fn hashset_get_not_found() {
+    let defn = "(:wat::core::defn :p::f [] -> :wat::core::Option<wat::core::i64> \
+                (:wat::core::get (:wat::core::HashSet :wat::core::i64 10 20 30) 99))";
+    expect_option_i64(defn, "(:p::f)", None);
+}

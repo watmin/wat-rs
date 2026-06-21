@@ -32,14 +32,14 @@
 //!
 //! # Capability matrix (current runtime truth; `○ gap` = fillable but not yet)
 //!
-//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable |
-//! |--------------------|-----------|-------------|---------------|----------|
-//! | Vector             | ✓         | ✓           | ✓             | ✓        |
-//! | PersistentVector   | ✓         | ✓           | ✓             | ✓        |
-//! | List               | ✓         | ✓           | ✓             | ○ gap    |
-//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A   |
-//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap    |
-//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap    |
+//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable | Measurable | Searchable | Gettable |
+//! |--------------------|-----------|-------------|---------------|----------|------------|------------|----------|
+//! | Vector             | ✓         | ✓           | ✓             | ✓        | ✓          | ✓          | ✓        |
+//! | PersistentVector   | ✓         | ✓           | ✓             | ✓        | ✓          | ✓          | ✓        |
+//! | List               | ✓         | ✓           | ✓             | ○ gap    | ✓          | ✓          | ✓        |
+//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A   | ✓          | ✓          | ∅ N/A   |
+//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap    | ✓          | ✓          | ✓        |
+//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap    | ✓          | ✓          | ✓        |
 
 use crate::types::TypeExpr;
 use crate::value::Value;
@@ -209,61 +209,58 @@ impl SeqContainer {
     /// `length` / `empty?` — element count.
     ///
     /// Grounded against the `None =>` arms in `eval_length` and `eval_empty`
-    /// (runtime.rs): `Vec`, `PV`, `HashSet`, `List` each have inner helpers
-    /// called there today. `Tuple` and `WatAstList` fall through to the
-    /// TypeMismatch error — ○ gap (filled in seq-1b).
+    /// (runtime.rs): `Vec`, `PV`, `HashSet`, `List`, `Tuple`, and `WatAstList`
+    /// each have inner helpers called there (seq-1b filled).
     pub(crate) fn measurable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
             SeqContainer::PersistentVector => true,
             SeqContainer::HashSet => true,
             SeqContainer::List => true,
-            // ○ gap — no length/empty? arm in runtime today; filled in seq-1b
-            SeqContainer::Tuple => false,
-            // ○ gap — no length/empty? arm in runtime today; filled in seq-1b
-            SeqContainer::WatAstList => false,
+            // seq-1b — filled
+            SeqContainer::Tuple => true,
+            // seq-1b — filled
+            SeqContainer::WatAstList => true,
         }
     }
 
     /// `contains?` — element membership.
     ///
     /// Grounded against the `None =>` arms in `eval_contains` (runtime.rs):
-    /// `Vec`, `HashSet`, `PV` each have inner helpers called there today.
-    /// `List` helper `list_contains_q_inner` exists but is not wired — ○ gap
-    /// (wired in seq-1b). `Tuple` and `WatAstList` — ○ gap (seq-1b).
+    /// `Vec`, `HashSet`, `PV`, `List`, `Tuple`, and `WatAstList` each have
+    /// inner helpers called there (seq-1b filled).
     pub(crate) fn searchable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
             SeqContainer::PersistentVector => true,
             SeqContainer::HashSet => true,
-            // ○ gap — list_contains_q_inner exists; wired in seq-1b
-            SeqContainer::List => false,
-            // ○ gap — filled in seq-1b
-            SeqContainer::Tuple => false,
-            // ○ gap — filled in seq-1b
-            SeqContainer::WatAstList => false,
+            // seq-1b — wired
+            SeqContainer::List => true,
+            // seq-1b — filled
+            SeqContainer::Tuple => true,
+            // seq-1b — filled
+            SeqContainer::WatAstList => true,
         }
     }
 
     /// `get` — index-based element lookup returning `Option`.
     ///
     /// Grounded against the `None =>` arms in `eval_get` (runtime.rs):
-    /// `Vec` and `PV` have inner helpers called there today. `List` helper
-    /// `list_get_inner` exists but is not wired — ○ gap (wired in seq-1b).
-    /// `WatAstList` and `HashSet` — ○ gap (seq-1b). `Tuple` is a heterogeneous
-    /// product: runtime-index cannot be typed (→ `Option<Value>`, lossy) and
-    /// static positional access already exists (first/second/third, destructure)
+    /// `Vec`, `PV`, `List`, `WatAstList`, and `HashSet` each have inner helpers
+    /// called there (seq-1b filled). `Tuple` is a heterogeneous product:
+    /// runtime-index cannot be typed (→ `Option<Value>`, lossy) and static
+    /// positional access already exists (first/second/third, destructure)
     /// — ∅ N/A, never to be filled.
     pub(crate) fn gettable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
             SeqContainer::PersistentVector => true,
-            // ○ gap — list_get_inner exists; wired in seq-1b
-            SeqContainer::List => false,
-            // ○ gap — filled in seq-1b
-            SeqContainer::WatAstList => false,
-            // ○ gap — membership-as-lookup; filled in seq-1b
-            SeqContainer::HashSet => false,
+            // seq-1b — wired
+            SeqContainer::List => true,
+            // seq-1b — filled
+            SeqContainer::WatAstList => true,
+            // seq-1b — membership-as-lookup; filled
+            SeqContainer::HashSet => true,
             // ∅ N/A — heterogeneous product; runtime-index can't be typed;
             // use first/second/third or destructure for static access
             SeqContainer::Tuple => false,

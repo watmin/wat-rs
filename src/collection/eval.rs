@@ -1804,3 +1804,168 @@ pub(crate) fn eval_hashset_ctor(
     }
     Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
+
+// ─── Arc-278-seq-1b — Tuple/WatAstList/HashSet helpers ─────────────────────────────────────
+
+/// seq-1b — `Tuple/length`: returns the element count of a `Value::Tuple`.
+pub(crate) fn tuple_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::Tuple(xs) => Ok(Value::i64(xs.len() as i64)),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::Tuple/length".into(),
+            expected: "Tuple",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `Tuple/empty?`: returns true iff the tuple has zero elements.
+pub(crate) fn tuple_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::Tuple(xs) => Ok(Value::bool(xs.is_empty())),
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::Tuple/empty?".into(),
+            expected: "Tuple",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `WatAstList/length`: returns the child-form count of a `WatAST::List`.
+pub(crate) fn watastlist_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::List(children, _) => Ok(Value::i64(children.len() as i64)),
+            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/length".into(),
+                expected: "WatAST::List",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
+            } }.into()),
+        },
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::WatAST::List/length".into(),
+            expected: "WatAST",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `WatAstList/empty?`: returns true iff the WatAST::List has zero children.
+pub(crate) fn watastlist_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v {
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::List(children, _) => Ok(Value::bool(children.is_empty())),
+            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/empty?".into(),
+                expected: "WatAST::List",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
+            } }.into()),
+        },
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::WatAST::List/empty?".into(),
+            expected: "WatAST",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `Tuple/contains?`: linear scan over a Tuple's elements using PartialEq.
+/// Tuple is heterogeneous so any Value is a valid element candidate.
+pub(crate) fn tuple_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::Tuple(xs) => {
+            let found = xs.iter().any(|x| x == item);
+            Ok(Value::bool(found))
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::Tuple/contains?".into(),
+            expected: "Tuple",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `WatAstList/contains?`: scan children of a WatAST::List; wraps each child as
+/// `Value::wat__WatAST` for comparison with `item`.
+pub(crate) fn watastlist_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::List(children, _) => {
+                let found = children.iter().any(|c| {
+                    Value::wat__WatAST(Arc::new(c.clone())) == *item
+                });
+                Ok(Value::bool(found))
+            }
+            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/contains?".into(),
+                expected: "WatAST::List",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
+            } }.into()),
+        },
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::WatAST::List/contains?".into(),
+            expected: "WatAST",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `WatAstList/get`: index-based child-form lookup. Returns `Option<WatAST>`.
+/// Out-of-bounds or negative index → `None`; in-bounds → `Some(child wrapped as Value::wat__WatAST)`.
+pub(crate) fn watastlist_get_inner(container: &Value, index: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::List(children, _) => {
+                let i = match index {
+                    Value::i64(n) => *n,
+                    other => {
+                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::WatAST::List/get".into(),
+                            expected: "i64 index",
+                            got: Box::new(ValueSnapshot::of(other))
+                        } }.into());
+                    }
+                };
+                if i < 0 || (i as usize) >= children.len() {
+                    Ok(Value::Option(Arc::new(None)))
+                } else {
+                    Ok(Value::Option(Arc::new(Some(
+                        Value::wat__WatAST(Arc::new(children[i as usize].clone()))
+                    ))))
+                }
+            }
+            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::WatAST::List/get".into(),
+                expected: "WatAST::List",
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
+            } }.into()),
+        },
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::WatAST::List/get".into(),
+            expected: "WatAST",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}
+
+/// seq-1b — `HashSet/get`: membership-as-lookup. If `item` is in the set, returns `Some(item)`;
+/// otherwise `None`. Unhashable items always return `None` (they can never be inserted).
+pub(crate) fn hashset_get_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    match container {
+        Value::wat__std__HashSet(s) => {
+            if !value_is_set_hashable(item) {
+                return Ok(Value::Option(Arc::new(None)));
+            }
+            if s.contains(item) {
+                Ok(Value::Option(Arc::new(Some(item.clone()))))
+            } else {
+                Ok(Value::Option(Arc::new(None)))
+            }
+        }
+        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::HashSet/get".into(),
+            expected: "HashSet<T>",
+            got: Box::new(ValueSnapshot::of(other))
+        } }.into()),
+    }
+}

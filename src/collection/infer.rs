@@ -84,6 +84,23 @@ pub(crate) fn infer_contains(
             // infer_conj / infer_get / infer_assoc). Each sibling carries a matching
             // Var arm that cites this comment as the policy source.
             TypeExpr::Var(_) => None,
+            // seq-1b — List: element membership, same scan as Vector
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+                targs.first().map(|t| apply_subst(t, subst))
+            }
+            // seq-1b — Tuple: scan over Value; element check uses PartialEq
+            // Tuple is heterogeneous so we accept any Value as the element — no unification
+            // to enforce (heterogeneous). Return None so the unify block is skipped.
+            TypeExpr::Tuple(_) => {
+                // Tuple contains? is valid but the elem type is Value (top); no unification
+                // to enforce (heterogeneous). Return None so the unify block is skipped.
+                None
+            }
+            // seq-1b — WatAstList: element membership (child form scan)
+            TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                // WatAstList: contains? compares a WatAST child; arg1 must be :wat::WatAST
+                Some(TypeExpr::Path(":wat::WatAST".into()))
+            }
             _ => {
                 // Arc-278-A2 — Check if this is a Record subtype before rejecting.
                 // Record subtypes come as TypeExpr::Path classified by MapContainer::of_type.
@@ -95,7 +112,7 @@ pub(crate) fn infer_contains(
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "#1".into(),
-                        expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or :wat::Record".into(),
+                        expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, Tuple, WatAstList, or :wat::Record".into(),
                         got: format_type(&reduced)
                     } });
                     None
@@ -309,6 +326,23 @@ pub(crate) fn infer_get(
             // Unresolved type variable — defers to the runtime backstop by design,
             // uniformly across the four collection intrinsics (see infer_contains).
             TypeExpr::Var(_) => None,
+            // seq-1b — List: index i64 → Option<T>
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
+                let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                Some((idx_ty, elem_ty))
+            }
+            // seq-1b — WatAstList: index i64 → Option<WatAST>
+            TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                let elem_ty = TypeExpr::Path(":wat::WatAST".into());
+                let idx_ty = TypeExpr::Path(":wat::core::i64".into());
+                Some((idx_ty, elem_ty))
+            }
+            // seq-1b — HashSet: element membership-as-lookup; arg1 is T, return Option<T>
+            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
+                let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+                Some((elem_ty.clone(), elem_ty))
+            }
             _ => {
                 // Arc-278-A2 — Check if this is a Record subtype before rejecting.
                 // Record subtypes come as TypeExpr::Path classified by MapContainer::of_type.
@@ -323,7 +357,7 @@ pub(crate) fn infer_get(
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "#1".into(),
-                        expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or :wat::Record".into(),
+                        expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, WatAstList, HashSet<T>, or :wat::Record".into(),
                         got: format_type(&reduced)
                     } });
                     None

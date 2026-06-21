@@ -12363,9 +12363,9 @@ fn eval_length(
             SeqContainer::PersistentVector => crate::collection::eval::persistentvector_length_inner(&arg_val),
             SeqContainer::HashSet => crate::collection::eval::hashset_length_inner(&arg_val),
             SeqContainer::List => crate::collection::eval::list_length_inner(&arg_val),
-            // measurable() gate excludes these — genuinely dead; filled in seq-1b
-            SeqContainer::Tuple | SeqContainer::WatAstList =>
-                unreachable!("measurable() gate excludes Tuple/WatAstList (○ gap until seq-1b)"),
+            // seq-1b — filled
+            SeqContainer::Tuple => crate::collection::eval::tuple_length_inner(&arg_val),
+            SeqContainer::WatAstList => crate::collection::eval::watastlist_length_inner(&arg_val),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12437,9 +12437,9 @@ fn eval_empty(
             SeqContainer::PersistentVector => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
             SeqContainer::HashSet => crate::collection::eval::hashset_empty_q_inner(&arg_val),
             SeqContainer::List => crate::collection::eval::list_empty_q_inner(&arg_val),
-            // measurable() gate excludes these — genuinely dead; filled in seq-1b
-            SeqContainer::Tuple | SeqContainer::WatAstList =>
-                unreachable!("measurable() gate excludes Tuple/WatAstList (○ gap until seq-1b)"),
+            // seq-1b — filled
+            SeqContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
+            SeqContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12511,9 +12511,10 @@ fn eval_contains(
             SeqContainer::Vector => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
             SeqContainer::HashSet => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
             SeqContainer::PersistentVector => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
-            // searchable() gate excludes these — genuinely dead; filled in seq-1b
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList =>
-                unreachable!("searchable() gate excludes List/Tuple/WatAstList (○ gap until seq-1b)"),
+            // seq-1b — filled
+            SeqContainer::List => crate::collection::eval::list_contains_q_inner(&arg0_val, &arg1_val),
+            SeqContainer::Tuple => crate::collection::eval::tuple_contains_q_inner(&arg0_val, &arg1_val),
+            SeqContainer::WatAstList => crate::collection::eval::watastlist_contains_q_inner(&arg0_val, &arg1_val),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12638,10 +12639,12 @@ fn eval_get(
         Some(c) if c.gettable() => match c {
             SeqContainer::Vector => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
             SeqContainer::PersistentVector => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
-            // gettable() gate excludes these — genuinely dead; filled in seq-1b
-            // (Tuple: ∅ N/A — heterogeneous product, never fillable)
-            SeqContainer::List | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Tuple =>
-                unreachable!("gettable() gate excludes List/WatAstList/HashSet/Tuple (○ gap until seq-1b / ∅ N/A)"),
+            // seq-1b — filled
+            SeqContainer::List => crate::collection::eval::list_get_inner(&arg0_val, &arg1_val),
+            SeqContainer::WatAstList => crate::collection::eval::watastlist_get_inner(&arg0_val, &arg1_val),
+            SeqContainer::HashSet => crate::collection::eval::hashset_get_inner(&arg0_val, &arg1_val),
+            // ∅ N/A — Tuple: heterogeneous product; runtime-index cannot be typed
+            SeqContainer::Tuple => unreachable!("gettable() gate excludes Tuple (∅ N/A — heterogeneous product)"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
