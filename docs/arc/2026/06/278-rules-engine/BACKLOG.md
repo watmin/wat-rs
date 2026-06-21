@@ -15,13 +15,15 @@ a pub-leak + debug_assert-shadows — were caught in the weigh and fixed to genu
 **✅ A2 DONE** (`361788a1`): Record get/has?/len/empty? via the class schema; map family fully registry-routed
 (lookup/size/assoc for HashMap/PersistentMap/Record). Floor lib 953/36/1.
 
-**Build order (then resume rete):** **SEQ WAIST (NEXT)** — route the seq arms of get/contains?/length/empty?
-through `SeqContainer` (add `measurable`/`searchable`/`gettable` capabilities; today's seq arms are inline in the
-`None =>` branch); wire List/get + List/contains? (helpers exist); fill Tuple/len+empty?, WatAstList/len+empty?+
-get+has?; then the seq HOF fills (List/WatAstList/HashSet map+filter+fold, List/WatAstList reverse/take/drop/concat),
-map/filter/fold over maps→Vec, and index-assoc on Vector/PV/WatAstList. → **set algebra**
-(union/intersection/difference) → collections sane → resume the accumulator cluster (§1) = custom-accumulators →
-returns-the-fact → field-sugar → acc/-alias.
+**✅ seq-1a DONE** (`76ebd62c`): seq arms of get/contains?/length/empty? routed through `SeqContainer` (added
+measurable/searchable/gettable, current-truth ○gaps). Both waists now route the four mixed ops. Floor 953/36.
+
+**Build order (then resume rete):** **seq-1b (NEXT)** — fill the seq lookup/size ○gaps: flip caps true + build/
+wire helpers + route the gate arms + checker arms: Tuple len/empty?+has?, WatAstList len/empty?+get+has?,
+List get+has? (wire existing `list_get_inner`/`list_contains_q_inner`), HashSet get (membership-as-lookup). →
+**seq HOF fills** (List/WatAstList/HashSet map+filter+fold, List/WatAstList reverse/take/drop/concat) →
+**map/filter/fold over maps→Vec** → **index-assoc** (Vector/PV/WatAstList) → **set algebra**
+(union/intersection/difference) → collections sane → resume the accumulator cluster (§1).
 
 > ⛔ **You are a NEW instance.** You did not live the above; it's a cache. Run **recolligere** against the disk
 > before acting: `git status` + `git log --oneline -15` + read `docs/COLLECTION-CAPABILITIES.md` (the grid is the
