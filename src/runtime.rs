@@ -4533,8 +4533,8 @@ fn dispatch_keyword_head_value(
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
         // Arc 255 — registered builtins: look up and dispatch through the registry.
         // Currently covers core::Bytes (to-hex, from-hex); more homes accrete in later strikes.
-        h if crate::registry::registry().lookup(h).is_some() => {
-            let handler = crate::registry::registry().lookup(h).unwrap();
+        h if crate::intrinsic::registry().lookup(h).is_some() => {
+            let handler = crate::intrinsic::registry().lookup(h).unwrap();
             handler(args, list_span, env, sym)
         }
         ":wat::core::show" => eval_show(args, list_span, env, sym),

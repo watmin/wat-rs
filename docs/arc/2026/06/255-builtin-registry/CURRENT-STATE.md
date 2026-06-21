@@ -19,7 +19,8 @@ defaults; fix-wat for rare breaks)**. Registry IS `sym`. Full spec: DESIGN.md LO
 
 ## Strike sequence (re-sequenced 2026-06-21 — registry-infra first; EVERYTHING below is IN 255, nothing left behind)
 - **255.1b-i (DONE) — registry infra + FIRST home (`core::Bytes`), ZERO behavior.**
-  `src/registry/{mod,bytes}.rs`: `NativeHandler` type + `BuiltinRegistry` (`name → handler`)
+  `src/intrinsic/{mod,bytes}.rs` (renamed from provisional `src/registry/` per intueri →
+  `intrinsic`): `NativeHandler` type + `IntrinsicRegistry` (`name → handler`)
   + `registry()` (OnceLock); 2 Bytes dispatch arms route through `registry().lookup(head)`
   (consumes the registry → no dead_code); `eval_bytes_*` → `pub(crate)`. Floor 953/36/1,
   warnings 26, zero behavior change, registry `pub(crate)`.
@@ -31,11 +32,48 @@ defaults; fix-wat for rare breaks)**. Registry IS `sym`. Full spec: DESIGN.md LO
   macro-gate strike, all→reflection (255.2). Each field lands WITH its reader — never dead,
   never silenced. (If the builder later wants the full baseline DATA recorded now and accepts
   loud dead_code as tracked forcing-signals, that's a floor-raise call — flagged, not taken.)
-- **255.1b-ii… — per-home registration + carve repeats (shadowdancers).** Each home:
-  register its builtins (baseline + handler) + route its dispatch arms through the registry,
-  carving them out of runtime.rs's central match (the megafile dissolves). One home/strike,
-  weighed against the corpus. Scalar/arith homes (`core::i64`/`f64`) gated on the hot-path
-  bench (phf/generated dispatch if a HashMap lookup regresses).
+- **255.1b-ii (DESIGN LOCKED 2026-06-21) — the `#[wat_intrinsic]` macro + co-located carve.**
+  Builder co-design, all four-questioned. The registration is a **co-located preamble: an
+  attribute proc-macro directly above each handler, in the handler's HOME** (not a separate
+  central list — separate fails Obvious/Simple/Honest/UX for LLM maintainers: two sites = the
+  one-sided-change drift class we keep hitting). Shape:
+  ```rust
+  #[wat_intrinsic(":wat::core::Bytes::to-hex")]   // ← preamble = JUST the name
+  pub(crate) fn bytes_to_hex(s: &WatAST, env: &Environment, sym: &SymbolTable, span: &Span)
+      -> Result<Value, EvalBreak> { /* no args.len() check, no args[0] — macro guarantees arity */ }
+  ```
+  **NAME-ONLY preamble. Anti-drift ladder (drift impossible by construction, not by test):**
+  - **name** — declared ONCE (the FQDN); the handler ident is compiler-checked to exist. No name drift.
+  - **arity** — SNIFFED from the fixed-arg signature (count `&WatAST` params ⇒ Exact(N); trailing
+    `&[WatAST]` ⇒ Variadic/AtLeast). The macro generates the slice-unpacking dispatch shim + the
+    arity check; the handler DELETES its own `args.len()`/`args[i]` (typed fixed params). Arity =
+    compiler-counted, un-typo-able.
+  - **purity / determinism / expand-time** — DERIVED (purity from namespace via the is_effectful_op
+    deriver; determinism = pure ∧ ∉ small named nondeterministic-set; expand from purity). NOT
+    declared → can't drift.
+  - **backstop test** — a registry-consistency unit test: **migration-parity** (registry keyset ==
+    exactly the old dispatch match's heads — no typo/omission/extra), **arity-boundary fuzz**
+    (call each with N±1 → reject), derived-purity sanity. The test is the LAST rung; derive/bind/
+    compiler-count do most of the work.
+  - **the macro is a PROC-macro** (syn/quote — reads the fn signature). Heavy, but written ONCE;
+    the maintainer surface is just `#[wat_intrinsic(":name")] fn …`. We build mutexes as a macro
+    (defservice) — this is well within our macro prowess (builder).
+  - **NAME DECIDED (intueri, cast af3b038e): `#[wat_intrinsic(":name")]`.** Grounded: `intrinsic`
+    is wat's settled word for "Rust callable behind a `:wat::` FQDN" (runtime.rs:23931; the
+    CLAUSE-vs-INTRINSIC partition; reflects as `:kind intrinsic`); `builtin` = the registry/container
+    word (broader — keep for the registry/membership layer); `primitive` = overloaded (rejected);
+    `wat_` prefix disambiguates Rust's own compiler-`#[intrinsic]`. **The word PROPAGATED (DONE):
+    home `src/intrinsic/`, type `IntrinsicRegistry` — renamed from provisional `src/registry/`,
+    floor 953/36/1.**
+  - **carve**: each home strike moves handlers from runtime.rs into the home + re-signatures to
+    fixed-args + adds `#[wat_intrinsic]`; the old dispatch arm is deleted (registry route catches it).
+    Bytes is the reference template. Then per-home repeats (shadowdancers, weighed).
+  - **option B confirmed**: full baseline queryable early — `metadata-of`-over-the-registry built
+    alongside so the derived metadata is READ (no dead_code), queryability online from the start.
+
+- **255.1b-iii… — per-home carve repeats (shadowdancers).** Each home under the `#[wat_intrinsic]`
+  template; one home/strike, weighed against the corpus. Scalar/arith homes (`core::i64`/`f64`)
+  gated on the hot-path bench (phf/generated dispatch if a HashMap lookup regresses).
 - **255.1b-RESOLVE — the hole closes.** Once all builtins are registered: resolver rewrite —
   DELETE `is_reserved_prefix → true` blanket-accept; `:wat::*` head → registry/sym membership;
   unknown → UnresolvedReference + retirement/near-match remedy. GATE: 254.R undefined-builtin

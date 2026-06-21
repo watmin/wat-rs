@@ -1,5 +1,8 @@
-//! Builtin registry — arc 255. The single home where Rust builtins become
-//! registered, queryable entities.
+//! Intrinsic registry — arc 255. The home where wat **intrinsics** (callables
+//! implemented in Rust, exposed under a `:wat::…` FQDN — `runtime.rs:23931`:
+//! "intrinsics are custom Rust by definition") become registered, queryable
+//! entities. The `#[wat_intrinsic]` preamble (255.1b-ii) lives over each handler
+//! in this home.
 //!
 //! ## Accretion discipline (satisfy a forcing-signal by USE, never silence it)
 //!
@@ -8,9 +11,8 @@
 //! model defines (`arity`, `purity`, `determinism`, `expand_time`) is NOT stored
 //! yet — it has no reader. Each baseline field is added in the SAME strike that
 //! builds its reader, so it is never dead-code and never `#[allow]`/`pub`-leaked:
-//!   - `arity`        → the dispatch-time arity-check strike
-//!   - `purity` / `determinism` → the rete/`pure?`/`deterministic?` consumer strike
-//!   - `expand_time`  → the macro-expand-gate strike
+//!   - `arity`        → sniffed from the `#[wat_intrinsic]` fixed-arg signature
+//!   - `purity` / `determinism` → derived (namespace deriver + nondeterministic-set)
 //!   - all of them    → the reflection strike (255.2, `metadata-of`)
 //! The end-state baseline is complete; the build accretes it consumer-by-consumer.
 //! (Earlier draft stored the fields unread and made the module `pub` to hide the
@@ -25,32 +27,32 @@ pub(crate) type NativeHandler =
 
 /// `name → handler`. Built once at startup; consulted by runtime dispatch.
 /// Grows into the full baseline ⊕ per-kind record as readers land (see module doc).
-pub(crate) struct BuiltinRegistry {
+pub(crate) struct IntrinsicRegistry {
     handlers: std::collections::HashMap<&'static str, NativeHandler>,
 }
 
-impl BuiltinRegistry {
-    fn new() -> Self { BuiltinRegistry { handlers: std::collections::HashMap::new() } }
+impl IntrinsicRegistry {
+    fn new() -> Self { IntrinsicRegistry { handlers: std::collections::HashMap::new() } }
 
-    /// Register a builtin head → its native handler. Duplicate registration is a
+    /// Register an intrinsic head → its native handler. Duplicate registration is a
     /// programmer error (two homes claiming the same FQDN).
     pub(crate) fn register(&mut self, name: &'static str, handler: NativeHandler) {
-        debug_assert!(!self.handlers.contains_key(name), "duplicate builtin registration: {name}");
+        debug_assert!(!self.handlers.contains_key(name), "duplicate intrinsic registration: {name}");
         self.handlers.insert(name, handler);
     }
 
-    /// Look up a builtin's handler by FQDN head. `None` = not a registered builtin.
+    /// Look up an intrinsic's handler by FQDN head. `None` = not a registered intrinsic.
     pub(crate) fn lookup(&self, name: &str) -> Option<NativeHandler> {
         self.handlers.get(name).copied()
     }
 }
 
-/// The process-wide builtin registry, built once on first access.
-pub(crate) fn registry() -> &'static BuiltinRegistry {
-    static REGISTRY: std::sync::OnceLock<BuiltinRegistry> = std::sync::OnceLock::new();
+/// The process-wide intrinsic registry, built once on first access.
+pub(crate) fn registry() -> &'static IntrinsicRegistry {
+    static REGISTRY: std::sync::OnceLock<IntrinsicRegistry> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
-        let mut r = BuiltinRegistry::new();
-        crate::registry::bytes::register(&mut r); // each home contributes; more homes accrete
+        let mut r = IntrinsicRegistry::new();
+        crate::intrinsic::bytes::register(&mut r); // each home contributes; more homes accrete
         r
     })
 }
