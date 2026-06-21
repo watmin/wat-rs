@@ -1361,6 +1361,18 @@ fn edn_to_typed_value_inner(
                 Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
                 other => Err(mismatch(target, other)),
             },
+            // Universal top (arc 278 R7): UP is free — ANY EDN value IS a
+            // `:wat::core::Value`. Decode structurally via the untyped bridge
+            // (no concrete-type coercion), so a heterogeneous value (e.g. the
+            // `metadata-of` map) reads back. This makes `Value` SYMMETRIC: it is
+            // `EdnRepresentable` (write side) and now an EDN coerce target (read
+            // side) — closing the write-but-not-read asymmetry. `edn_to_value`
+            // honours `types` so `#ns/Variant` enum tags rebuild as `Value::Enum`.
+            ":wat::core::Value" => edn_to_value(edn, types).map_err(|e| EdnCoerceError {
+                expected: ":wat::core::Value".into(),
+                got: format!("{e}"),
+                path: String::new(),
+            }),
             ":wat::holon::HolonAST" => {
                 // Tagged round-trip OR natural-form lift to a leaf —
                 // mirrors `edn_shim`'s two-mode reader.
