@@ -32,6 +32,39 @@ kill — is flagged as **its own future stone** (derive determinism structurally
 - Template: `:wat::stdlib::sources` (io.rs:1454, a Rust seam returning plain `Vector`s) → `verify-stdlib`
   (wat wraps into records + verifies). Mirror exactly.
 
+## ⛔ CORRECTION (the firewall, 2026-06-21) — tuples → RECORDS
+
+The iv-b2-a seam below was first built returning **heterogeneous tuples**
+(`Vector<Vector<:wat::core::Value>>`). **The firewall caught it** (R3 / Song #100): a `Vector` is
+homogeneous, so every element types as the universal top `:wat::core::Value`, and `:wat::eval-ast!` is a
+typed intrinsic wanting `:wat::WatAST` — passing the universal top is a DOWN-cast, which R7's `Value`
+makes *checked, not free*. The typed `verify-examples` cannot consume tuples. **The cure is records.**
+The text below is amended; the shipped tuple seam (`b5a01041`) is reworked to this.
+
+- **A `:wat::intrinsic::Example` record** carries the heterogeneity with per-field TYPES:
+  ```
+  (defrecord :wat::intrinsic::Example
+    [fqdn          <- :wat::core::keyword
+     expr          <- :wat::WatAST
+     expected      <- :wat::core::Option<:wat::WatAST>
+     run           <- :wat::core::bool
+     pure          <- :wat::core::bool
+     deterministic <- :wat::core::bool])
+  ```
+  (exact `defrecord` surface per the wat record idiom — match `:wat::source::File` in deporder). Lives in
+  the new `wat/doctest.wat` (loaded before the seam is first CALLED — it's a runtime construction, so
+  load-order only needs the type present at call time, not at seam-registration time).
+- **The seam returns `Vector<:wat::intrinsic::Example>`** — Rust builds each `Example` record VALUE
+  (arc-234 record-construction machinery / `reconstruct_record`), NOT a tuple. `expr`/`expected` parsed
+  to `Value::wat__WatAST`; `expected` = `:None` for markerless/`@example-norun`.
+- **The seam gets a type scheme** in `check.rs` (mirror `:wat::stdlib::sources` at `check.rs:14673`):
+  `() → :wat::core::Vector<:wat::intrinsic::Example>`. So `verify-examples` type-checks WITHOUT the
+  permissive hole — `(:expr ex)` is typed `:wat::WatAST` → passes `eval-ast!` clean, no down-cast.
+- **The probe asserts record fields**, not tuple indices: `(:fqdn ex)` == `:wat::core::Bytes::to-hex`,
+  `(:run ex)` == true.
+
+Everything below that says "tuple `[fqdn, expr, …]`" now means **the `Example` record's fields**.
+
 ## iv-b2-a — the reflection seam `:wat::intrinsic::examples` (Rust)
 
 A new intrinsic (home: `src/intrinsic/`, exposed via the runtime dispatch like `stdlib::sources`).
