@@ -39,7 +39,7 @@ the HOF cells, index-`assoc`, and set algebra.)*
 |------------------|------|------|-------|-------|-------|--------|-------|-------|-------|-------|
 | Vector           | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
 | PersistentVector | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
-| List             | done | done | done  | BUILD | BUILD | BUILD  | done  | done  | done  | N/A ᵃ |
+| List             | done | done | done  | done  | done  | done   | done  | done  | done  | N/A ᵃ |
 | Tuple            | done | N/A ᵇ| N/A ᶜ | N/A ᵈ | N/A ᵈ | N/A ᶜ  | N/A ᵉ | done  | done  | N/A ᵉ |
 | WatAstList       | done | done | BUILD | BUILD | BUILD | BUILD  | done  | done  | done  | BUILD |
 | HashSet          | N/A ᶠ| N/A ᶠ| done  | BUILD²| N/A ᵍ | N/A ʰ  | done³ | done  | done  | N/A ⁱ |

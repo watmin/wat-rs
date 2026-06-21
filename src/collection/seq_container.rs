@@ -36,7 +36,7 @@
 //! |--------------------|-----------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
 //! | Vector             | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
 //! | PersistentVector   | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
-//! | List               | ✓         | ✓           | ✓             | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
+//! | List               | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
 //! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
 //! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
 //! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
@@ -195,8 +195,7 @@ impl SeqContainer {
         match self {
             SeqContainer::Vector => true,
             SeqContainer::PersistentVector => true,
-            // List: runtime maps only Vec/PV today → ○ gap (false until filled)
-            SeqContainer::List => false,
+            SeqContainer::List => true,
             // Tuple: one fn can't map mixed types → ∅ N/A
             SeqContainer::Tuple => false,
             // WatAstList: ○ gap
@@ -215,8 +214,7 @@ impl SeqContainer {
         match self {
             SeqContainer::Vector => true,
             SeqContainer::PersistentVector => true,
-            // ○ gap — runtime arms not yet built for these (filled in later strikes)
-            SeqContainer::List => false,
+            SeqContainer::List => true,
             SeqContainer::WatAstList => false,
             // ∅ N/A — Tuple fixed-arity heterogeneous; HashSet unordered
             SeqContainer::Tuple => false,

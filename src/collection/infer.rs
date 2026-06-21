@@ -598,6 +598,11 @@ fn extract_seq_elem(
         }
         (SeqContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
         (SeqContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
+        (SeqContainer::List, TypeExpr::Parametric { args: targs, .. }) => {
+            let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
+            Some(("wat::core::List", elem_ty))
+        }
+        (SeqContainer::List, TypeExpr::Path(_)) => Some(("wat::core::List", fresh.fresh())),
         // No other containers pass the cap gate today.
         _ => None,
     }
@@ -672,7 +677,7 @@ pub(crate) fn infer_map(
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -738,7 +743,7 @@ pub(crate) fn infer_filter(
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -818,7 +823,7 @@ pub(crate) fn infer_foldl(
                 local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#3".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -897,7 +902,7 @@ pub(crate) fn infer_foldr(
                 local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#3".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -945,7 +950,7 @@ pub(crate) fn infer_reverse(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -1007,7 +1012,7 @@ pub(crate) fn infer_take(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -1069,7 +1074,7 @@ pub(crate) fn infer_drop(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -1142,7 +1147,7 @@ pub(crate) fn infer_concat(
                             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: OP.into(),
                                 param: "#2".into(),
-                                expected: "Vector<T> or PersistentVector<T>".into(),
+                                expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                                 got: format_type(&b_reduced)
                             }});
                         }
@@ -1161,7 +1166,7 @@ pub(crate) fn infer_concat(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T> or PersistentVector<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
                     got: format_type(&a_reduced)
                 }});
             }

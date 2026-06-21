@@ -59,13 +59,18 @@ pub(crate) fn eval_vec_reverse(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = v else { unreachable!("of_value⇒List") };
+                let out: std::collections::LinkedList<Value> = xs.iter().rev().cloned().collect();
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&v))
         } }.into()),
     }
@@ -134,13 +139,19 @@ pub(crate) fn eval_vec_take(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+                let out: std::collections::LinkedList<Value> = xs.iter().take(cap).cloned().collect();
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::take".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
@@ -183,13 +194,19 @@ pub(crate) fn eval_vec_drop(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+                let out: std::collections::LinkedList<Value> = xs.iter().skip(skip).cloned().collect();
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::drop".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
@@ -347,13 +364,21 @@ pub(crate) fn eval_vec_map(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let mut out = std::collections::LinkedList::new();
+                for x in xs.iter() {
+                    out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+                }
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::map".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
@@ -409,13 +434,20 @@ pub(crate) fn eval_vec_foldl(
                 }
                 Ok(acc)
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                for x in xs.iter() {
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
+            }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldl".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
@@ -472,13 +504,21 @@ pub(crate) fn eval_vec_foldr(
                 }
                 Ok(acc)
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let elems: Vec<&Value> = xs.iter().collect();
+                for x in elems.into_iter().rev() {
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
+            }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldr".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
@@ -554,13 +594,31 @@ pub(crate) fn eval_vec_filter(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
+            SeqContainer::List => {
+                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
+                let mut out = std::collections::LinkedList::new();
+                for x in xs.iter() {
+                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
+                        Value::bool(true) => out.push_back(x.clone()),
+                        Value::bool(false) => {}
+                        other => {
+                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::core::filter".into(),
+                                expected: "bool",
+                                got: Box::new(ValueSnapshot::of(&other))
+                            } }.into());
+                        }
+                    }
+                }
+                Ok(Value::wat__core__List(Arc::new(out)))
+            }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::filter".into(),
-            expected: "wat::core::Vector or wat::core::PersistentVector",
+            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
             got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }

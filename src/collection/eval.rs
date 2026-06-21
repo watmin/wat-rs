@@ -787,15 +787,27 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             }
                             Ok(Value::wat__core__PersistentVector(out))
                         }
+                        SeqContainer::List => {
+                            let Value::wat__core__List(l) = left else { unreachable!("of_value⇒List") };
+                            let Value::wat__core__List(r) = right else { unreachable!("of_value⇒List") };
+                            let mut out = std::collections::LinkedList::new();
+                            for elem in l.iter() {
+                                out.push_back(elem.clone());
+                            }
+                            for elem in r.iter() {
+                                out.push_back(elem.clone());
+                            }
+                            Ok(Value::wat__core__List(Arc::new(out)))
+                        }
                         // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-                        SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                            unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
+                        SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                            unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
                     }
                 }
                 // Right side is a different (or non-ordered) container kind.
                 _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Vec<T> or PersistentVector<T> (same kind as left)",
+                    expected: "Vec<T>, PersistentVector<T>, or List<T> (same kind as left)",
                     got: Box::new(ValueSnapshot::of(right))
                 } }.into()),
             }
@@ -803,7 +815,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
         // Left side is not an ordered container.
         _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vec<T> or PersistentVector<T>",
+            expected: "Vec<T>, PersistentVector<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(left))
         } }.into()),
     }
