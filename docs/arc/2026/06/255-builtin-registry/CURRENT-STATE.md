@@ -53,13 +53,16 @@ runtime. Double-punt. Builder: annihilation.
   (segmented stack) is ≈free; full CEK costs real heap-alloc/cycles but unlocks TCO + first-class
   continuations + pausable eval — decide which 261 is before building.
 
-## NEXT — 255.1b-iv-b2-b (the wat verifier `verify-examples`) + iv-c (enum flip)
-- **iv-b2-b** — R2's fulfillment: `wat/doctest.wat` `verify-examples` (`deporder`/`verify-stdlib`
-  shape) — foldl over `(:wat::intrinsic::examples)`: for `run=true`, `(:wat::eval-ast! expr)` ==
-  `(:wat::eval-ast! expected)` (the doctest) + cross-check `pure ∧ deterministic`; skip `run=false`.
-  Returns failures (empty = green); a Rust gate test (mirror deporder's) asserts empty. Wire
-  `doctest.wat` into STDLIB_FILES + load order (deporder gate). When `(verify-examples)` runs green,
-  **R2's PREQUEL earns its "and it landed" close.** (is_effectful_op change DROPPED — grounded, see DESIGN.)
+- **255.1b-iv-b2-b** — DONE (`ecdb42e1`): `wat/doctest.wat` `verify-examples` runs the doctests in wat —
+  folds `(:wat::intrinsic::examples)`, `eval-ast!`s each `run=true` example, asserts `== #=>`, cross-checks
+  `pure ∧ det`, skips `run=false`; 0 failures. **wat verifies wat — R2 FULFILLED.** ALSO corrected a2.2's
+  representation: **EDN-able data → `Value::wat__Record`, NOT `Value::Struct`** (builder doctrine; the
+  sonnet built Struct → named accessors broke → positional hacks; fixed at root → named accessors work).
+  `Example.expected` field `Option<wat::WatAST>` (inner colon dropped). Caught + fixed iv-b1's non-runnable
+  `to-hex` @example (the doctest's whole purpose). nursery 900/4; lib 953/36/1; load-order gate green.
+  Memory: `feedback_wat_record_for_edn_struct_for_non_edn`.
+
+## NEXT — 255.1b-iv-c (enum flip) — the last iv-b/c piece before show-source/RESOLVE
 - **iv-c** — enum flip: `Kind`/`DefinedIn`/`Layer` enums; `metadata-of` emits enum values (§5).
 THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
 @example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole

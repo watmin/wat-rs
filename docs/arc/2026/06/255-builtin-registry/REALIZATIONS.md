@@ -323,6 +323,15 @@ that standing authorship and marked as such.*
 > built every file builds the thing that proves them too. This is the prequel: the coordinate is seen, the
 > machinery is grounded, the kill is next.
 
+> **FULFILLED 2026-06-21 (`ecdb42e1`).** The prequel earned its close: `(:wat::doctest::verify-examples)`
+> runs green — it folds the `:wat::intrinsic::examples` seam, `eval-ast!`s each `run=true` example, asserts
+> `== #=>`, cross-checks `pure ∧ deterministic`, skips `@example-norun`, returns 0 failures. **wat verifies
+> wat.** The path was longer than the prequel knew: R3's firewall forced records over tuples, then the
+> records had to be `wat__Record` not `Value::Struct` (the EDN-record doctrine) for the named accessors to
+> work — but the one-liner `(verify-examples) ≈ (verify (stdlib-sources))` is real and executing. The
+> surface that masks the depth, made to run. (And it caught a real bug on its first execution: iv-b1's
+> `to-hex` `@example` was non-runnable — the doctest's whole purpose, proven the moment it ran.)
+
 ## R3 — the firewall caught the apparatus: the unidirectional `Value`, built for rete, refused a wrong design two arcs later
 
 > **Song #100 — *Silence* (A Day To Remember), inscribed 2026-06-21 —**
