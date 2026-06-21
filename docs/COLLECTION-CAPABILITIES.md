@@ -32,16 +32,18 @@ Op groups: **pos** = first/second/third · **rest** · **conj** · **map** = map
 reverse/take/drop (order-dependent) · **concat** · **get** · **has?** = contains? · **len** = length/empty? ·
 **assoc** = assoc-by-index
 
+*(lookup/size — get/has?/len — DONE for all containers, both families, as of HEAD `7550310f`. Remaining `BUILD`:
+the HOF cells, index-`assoc`, and set algebra.)*
+
 | container        | pos  | rest | conj  | map   | ord   | concat | get   | has?  | len   | assoc |
 |------------------|------|------|-------|-------|-------|--------|-------|-------|-------|-------|
 | Vector           | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
 | PersistentVector | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
-| List             | done | done | done  | BUILD | BUILD | BUILD  | BUILD¹| BUILD¹| done  | N/A ᵃ |
-| Tuple            | done | N/A ᵇ| N/A ᶜ | N/A ᵈ | N/A ᵈ | N/A ᶜ  | N/A ᵉ | BUILD | BUILD | N/A ᵉ |
-| WatAstList       | done | done | BUILD | BUILD | BUILD | BUILD  | BUILD | BUILD | BUILD | BUILD |
-| HashSet          | N/A ᶠ| N/A ᶠ| done  | BUILD²| N/A ᵍ | N/A ʰ  | BUILD³| done  | done  | N/A ⁱ |
+| List             | done | done | done  | BUILD | BUILD | BUILD  | done  | done  | done  | N/A ᵃ |
+| Tuple            | done | N/A ᵇ| N/A ᶜ | N/A ᵈ | N/A ᵈ | N/A ᶜ  | N/A ᵉ | done  | done  | N/A ᵉ |
+| WatAstList       | done | done | BUILD | BUILD | BUILD | BUILD  | done  | done  | done  | BUILD |
+| HashSet          | N/A ᶠ| N/A ᶠ| done  | BUILD²| N/A ᵍ | N/A ʰ  | done³ | done  | done  | N/A ⁱ |
 
-¹ List get/has? — `list_get_inner`/`list_contains_q_inner` already exist; `BUILD` = wire them through the registry.
 ² HashSet/map = set→set (deduped, unordered); `foldl/foldr` fold in unspecified order (flag at build).
 ³ HashSet/get = membership-as-lookup (`Some(x)` if present) — uniform with `get` across keyed containers; under
   value-semantics returns no *new* info vs `has?`, kept for uniformity (Clojure's canonicalization needs ref identity).
@@ -61,10 +63,9 @@ seq-join; set-combine is `union` (see set algebra) · ⁱ not key→value (use c
 | PersistentMap | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
 | Record        | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
 
-\* Record/assoc = field update (flavor-preserving) — `done` once the strike-5 pub-leak fix lands.
+Record/assoc = field update (flavor-preserving) — done (A2 `361788a1`).
 ⁴ map/filter/fold over a *finite* map iterate `[k v]` entries → **Vec** (eager; no lazy-seq needed). Return swaps
-  Vec→lazy-seq when lazy-seqs land. (Record get/has?/len flip the `keyed_lookup`/`has_key`/`measurable` capability
-  cells `false→true`.)
+  Vec→lazy-seq when lazy-seqs land. (Still `BUILD` — part of the HOF/map-iteration work.)
 ⁵ first/rest/positional — maps are unordered; no positions. (Clojure's seqable-as-entries waits on lazy-seq.)
 
 ## Set algebra — NEW verbs (BUILD)
@@ -86,20 +87,20 @@ back to the rete items. DECIDE bucket is **empty** — all rulings made below.
 
 ## The BUILD queue (in dependency order; each green before the next, continuous — no parking)
 
-1. **Map waist complete** — revert the strike-5 pub-leak (`MapContainer` → `pub(crate)`, drop the `lib.rs`
-   re-export, black-box probe) + route `get`/`contains?`/`length`/`empty?` map arms through `MapContainer` +
-   **fill Record get/has?/len** + **map/filter/fold over HashMap/PersistentMap/Record → Vec** (eager map-iteration;
-   becomes seq-returning when lazy-seqs land). Consumes `keyed_lookup`/`has_key`/`measurable` (dead_code → gone by
-   use).
-2. **Seq waist complete** — route `get`/`contains?`/`length`/`empty?` seq arms through `SeqContainer`; wire
-   **List/get + List/has?** (helpers exist); fill **Tuple/len+empty?, WatAstList/len+empty?**; fill the seq HOFs:
-   **List/map+filter+fold+reverse+take+drop+concat, WatAstList/map+conj+ord+concat, HashSet/map+filter+fold
-   (set→set)**; **contains? on Tuple + WatAstList** (element membership).
-3. **Index ops** — **assoc-by-index on Vector/PV/WatAstList**; **get-by-index on WatAstList**. (Tuple excluded — N/A.)
-4. **Set algebra (new verbs)** — **`union`, `intersection`, `difference`** on HashSet. The set-combine family
-   (Ruby `Set#merge`, Clojure `clojure.set/*`). A set without its algebra is itself a gap.
-5. **HashSet/get** — membership-as-lookup (`get(set,x) → Some(x)|None`), uniform with `get` across all keyed
-   containers (sets are element→element maps).
+- ✅ **DONE — lookup/size, both families** (commits `f4beda7d`→`7550310f`): `assoc` + get/contains?/length/empty?
+  route through MapContainer (HashMap/PersistentMap/Record) AND SeqContainer (all six seq types) via genuine
+  capability gates; Record get/has?/len via schema; List/get+has? wired; Tuple/len+has?; WatAstList/len+get+has?;
+  HashSet/get (membership). Floor lib 953/36/1, warnings 26.
+
+REMAINING:
+1. **Seq HOF fills (NEXT)** — flip `mappable` for List/WatAstList/HashSet; build/route map+filter+foldl+foldr for
+   List, WatAstList, HashSet(set→set, unspecified fold order); reverse/take/drop/concat for List + WatAstList;
+   **WatAstList/conj**. (Tuple HOFs = ∅N/A.)
+2. **map/filter/fold over maps → Vec** — eager `[k v]` entry-iteration (HashMap/PersistentMap/Record); no lazy-seq.
+3. **Index-assoc** — `assoc`-by-index on Vector/PV/WatAstList (homogeneous, bounds-checked). (Tuple/List = N/A;
+   WatAstList/get-by-index already DONE in seq-1b.)
+4. **Set algebra (new verbs)** — `union`, `intersection`, `difference` on HashSet (Ruby `Set#merge` / Clojure
+   `clojure.set/*`). A set without its algebra is itself a gap.
 
 ## Rulings (DECIDE resolved 2026-06-20, four-questioned against the ADT + wat's choices, not stale rosetta)
 
