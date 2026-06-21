@@ -12,13 +12,16 @@ get/contains?/length/empty? via the Form-1 capability gate (`Some(m) if m.CAP()`
 Record gated to N/A pending A2. Floor 953/36/1, `MapContainer` `pub(crate)`. (Two silence-the-signal cheats —
 a pub-leak + debug_assert-shadows — were caught in the weigh and fixed to genuine gates.)
 
-**Build order (then resume rete):** **A2 (NEXT)** — Record get/has?/len: build `record_get_inner`(by keyword) /
-`record_contains_field` / `record_length`/`empty?` via the class schema (`record_assoc_inner` runtime.rs:13315 is
-the model; `RecordDef.field_names` types.rs:203), flip Record's keyed_lookup/has_key/measurable cells `false→true`,
-route Record through the gates (runtime + checker `infer_get`/`infer_contains`). Then **seq waist** (route seq
-arms + fill List/WatAstList/HashSet HOFs + Tuple/WatAstList has?/len + index-assoc on Vector/PV/WatAstList) →
-**set algebra** (union/intersection/difference) → collections sane → resume the accumulator cluster (§1) =
-custom-accumulators → returns-the-fact → field-sugar → acc/-alias.
+**✅ A2 DONE** (`361788a1`): Record get/has?/len/empty? via the class schema; map family fully registry-routed
+(lookup/size/assoc for HashMap/PersistentMap/Record). Floor lib 953/36/1.
+
+**Build order (then resume rete):** **SEQ WAIST (NEXT)** — route the seq arms of get/contains?/length/empty?
+through `SeqContainer` (add `measurable`/`searchable`/`gettable` capabilities; today's seq arms are inline in the
+`None =>` branch); wire List/get + List/contains? (helpers exist); fill Tuple/len+empty?, WatAstList/len+empty?+
+get+has?; then the seq HOF fills (List/WatAstList/HashSet map+filter+fold, List/WatAstList reverse/take/drop/concat),
+map/filter/fold over maps→Vec, and index-assoc on Vector/PV/WatAstList. → **set algebra**
+(union/intersection/difference) → collections sane → resume the accumulator cluster (§1) = custom-accumulators →
+returns-the-fact → field-sugar → acc/-alias.
 
 > ⛔ **You are a NEW instance.** You did not live the above; it's a cache. Run **recolligere** against the disk
 > before acting: `git status` + `git log --oneline -15` + read `docs/COLLECTION-CAPABILITIES.md` (the grid is the

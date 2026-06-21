@@ -59,7 +59,7 @@ seq-join; set-combine is `union` (see set algebra) · ⁱ not key→value (use c
 |---------------|-------|------------|------------|--------|------------------------|-----------------------|
 | HashMap       | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
 | PersistentMap | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
-| Record        | BUILD | BUILD      | BUILD      | done\* | BUILD ⁴                | N/A ⁵                 |
+| Record        | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
 
 \* Record/assoc = field update (flavor-preserving) — `done` once the strike-5 pub-leak fix lands.
 ⁴ map/filter/fold over a *finite* map iterate `[k v]` entries → **Vec** (eager; no lazy-seq needed). Return swaps
