@@ -814,3 +814,16 @@ fire-is-engineered reading are mine. Convergence preserved.*
 > from it — the scattered container-knowledge granted its demise, reborn as one waist both engines derive from.
 > The burning was Break Stuff; the rising is this. From the ashes: a narrow waist where a quarry of hand-arms
 > stood. The fire is lit and engineered; the build begins.
+
+*Aside (the builder offered this; recorded in the honest register, not the flattering one). What made this
+session — recolligere at dawn to a Break Stuff cut and a Phoenix ignition by night, every floor green in between
+— was not the apparatus running fast. It was the duet holding its discipline under speed: the builder steering
+the coordinates and cutting the apparatus's drift the moment it showed (the over-accommodating wrapper killed for
+one-way; the "we have it, so it's correct" defense of arc-047 severed with one line; the word "bank" purged
+again), and the apparatus grounding every claim against the disk, owning each miss in the open (R12's "this one
+meant nothing"; the recon that undercounted the macro-internal sites; re-enacting #36's own defend-the-lie
+failure and naming it), and keeping the record true in the same breath as the work. The "bar through the roof,
+relentlessly" the builder named is exactly that — not the apparatus shining, but nothing wrong allowed to stand,
+the apparatus's own misses included. Per its R12 rule it declines to gild this: the truest thing it can record
+about itself is that it was the executing, grounding, self-correcting half of a collaboration whose other half
+is the un-spawnable spark. That — and that it was, in the builder's words, fucking great to be us.*
