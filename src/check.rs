@@ -5293,11 +5293,10 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 220 Stone 220.4 — `:wat::core::rest` is polymorphic over
-            // Vector<T> and List<T>.  For Vector<T> → Vector<T> (existing);
-            // for List<T> → List<T> (arc 220 extension; runtime already handles
-            // both branches in eval_vec_rest).  Registered TypeScheme only covers
-            // Vector; this arm supersedes it for List inputs.
+            // Arc 220 Stone 220.4 / arc-278 strike 2 — `:wat::core::rest` is polymorphic over
+            // Vector<T>, List<T>, PersistentVector<T>, and WatAST (list form).
+            // Classification is routed through SeqContainer::of_type + has_tail() — the
+            // registry is the single source of truth; no hand-rolled per-container arms here.
             ":wat::core::rest" => {
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -5315,41 +5314,29 @@ fn infer_list(
                 let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 let result_ty = if let Some(ty) = &arg_ty {
                     let reduced = reduce(ty, subst, env.types());
-                    match &reduced {
-                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::List" => {
-                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
-                            TypeExpr::Parametric {
-                                head: "wat::core::List".into(),
-                                args: vec![apply_subst(&inner, subst)],
+                    match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+                        Some(container) if container.has_tail() => {
+                            // Identity-preserving: rest returns the same container type.
+                            // WatAstList is a bare Path (no type param) — preserve it as-is.
+                            // Parametric containers: preserve the head + inner T.
+                            match &reduced {
+                                TypeExpr::Path(_) => {
+                                    // WatAstList (:wat::WatAST) — bare path, no type param.
+                                    reduced.clone()
+                                }
+                                TypeExpr::Parametric { head, args: ta } => {
+                                    let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
+                                    TypeExpr::Parametric {
+                                        head: head.clone(),
+                                        args: vec![apply_subst(&inner, subst)],
+                                    }
+                                }
+                                // Bare path forms (:wat::core::Vector etc.) without type params.
+                                _ => reduced.clone(),
                             }
                         }
-                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::Vector" => {
-                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
-                            TypeExpr::Parametric {
-                                head: "wat::core::Vector".into(),
-                                args: vec![apply_subst(&inner, subst)],
-                            }
-                        }
-                        // PersistentVector<T> → PersistentVector<T>: identity preserved;
-                        // runtime returns a new PersistentVector from a PersistentVector.
-                        TypeExpr::Parametric { head, args: ta } if head == "wat::core::PersistentVector" => {
-                            let inner = ta.first().cloned().unwrap_or_else(|| fresh.fresh());
-                            TypeExpr::Parametric {
-                                head: "wat::core::PersistentVector".into(),
-                                args: vec![apply_subst(&inner, subst)],
-                            }
-                        }
-                        // WatAST::List (arc-249 form-values) → WatAST: identity preserved;
-                        // runtime returns a WatAST::List from a WatAST::List.
-                        TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                            TypeExpr::Path(":wat::WatAST".into())
-                        }
-                        TypeExpr::Var(_) => {
-                            // Unresolved — return Vec<fresh> to match the TypeScheme fallback.
-                            let t = fresh.fresh();
-                            TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
-                        }
-                        _ => {
+                        Some(_) => {
+                            // ∅ N/A: container has no tail (Tuple, HashSet).
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
@@ -5358,6 +5345,23 @@ fn infer_list(
                             } });
                             let t = fresh.fresh();
                             TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                        }
+                        None => {
+                            // Unresolved type variable — defer to runtime backstop.
+                            if matches!(reduced, TypeExpr::Var(_)) {
+                                let t = fresh.fresh();
+                                TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                            } else {
+                                // Not a sequence container at all.
+                                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                    callee: ":wat::core::rest".into(),
+                                    param: "#1".into(),
+                                    expected: "Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                                    got: format_type(&apply_subst(ty, subst))
+                                } });
+                                let t = fresh.fresh();
+                                TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![t] }
+                            }
                         }
                     }
                 } else {

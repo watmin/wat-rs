@@ -1420,71 +1420,93 @@ pub(crate) fn eval_rest(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Vec(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty Vec".into()
-                } }.into());
-            }
-            let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
-        // Maintains type identity: List/rest → List (not Vec).
-        Value::wat__core__List(xs) => {
-            if xs.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty List".into()
-                } }.into());
-            }
-            let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
-            Ok(Value::wat__core__List(Arc::new(out)))
-        }
-        // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List/rest →
-        // a new WatAST::List of the tail. Maintains form identity (List/rest → List),
-        // mirroring the wat__core__List arm above. Empty form → MalformedForm;
-        // non-List form → TypeMismatch.
-        Value::wat__WatAST(ast) => match &*ast {
-            WatAST::List(children, span) => {
-                if children.is_empty() {
-                    return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::rest".into(),
-                        reason: "cannot take rest of empty form".into()
-                    } }.into());
+    // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_tail()).
+    // The registry is the single source of truth; dispatch arms below are per-container
+    // implementation only — no classification logic lives here.
+    match crate::collection::seq_container::SeqContainer::of_value(&v) {
+        Some(container) if container.has_tail() => {
+            // Dispatch: each has_tail container computes its tail.
+            // Identity-preserving: rest(Container<T>) → Container<T>.
+            match v {
+                Value::Vec(xs) => {
+                    if xs.is_empty() {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: ":wat::core::rest".into(),
+                            reason: "cannot take rest of empty Vec".into()
+                        } }.into());
+                    }
+                    let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
+                    Ok(Value::Vec(Arc::new(out)))
                 }
-                let tail: Vec<WatAST> = children.iter().skip(1).cloned().collect();
-                Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
+                // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
+                // Maintains type identity: List/rest → List (not Vec).
+                Value::wat__core__List(xs) => {
+                    if xs.is_empty() {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: ":wat::core::rest".into(),
+                            reason: "cannot take rest of empty List".into()
+                        } }.into());
+                    }
+                    let out: std::collections::LinkedList<Value> = xs.iter().skip(1).cloned().collect();
+                    Ok(Value::wat__core__List(Arc::new(out)))
+                }
+                // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List/rest →
+                // a new WatAST::List of the tail. Maintains form identity (List/rest → List),
+                // mirroring the wat__core__List arm above. Empty form → MalformedForm;
+                // of_value guarantees this is a WatAST::List so non-List branch is unreachable.
+                Value::wat__WatAST(ast) => match &*ast {
+                    WatAST::List(children, span) => {
+                        if children.is_empty() {
+                            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                                head: ":wat::core::rest".into(),
+                                reason: "cannot take rest of empty form".into()
+                            } }.into());
+                        }
+                        let tail: Vec<WatAST> = children.iter().skip(1).cloned().collect();
+                        Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
+                    }
+                    // Unreachable: of_value only returns WatAstList for List forms.
+                    _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
+                },
+                // Arc-278-0b — PersistentVector: rest returns a new PersistentVector (tail after first element).
+                // Maintains type identity: PersistentVector/rest → PersistentVector (not Vec).
+                Value::wat__core__PersistentVector(pv) => {
+                    if pv.is_empty() {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: ":wat::core::rest".into(),
+                            reason: "cannot take rest of empty PersistentVector".into()
+                        } }.into());
+                    }
+                    // Build a new PersistentVector by skipping the first element.
+                    let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                    for elem in pv.iter().skip(1) {
+                        out = out.push_back(elem.clone());
+                    }
+                    Ok(Value::wat__core__PersistentVector(out))
+                }
+                // Unreachable: only has_tail containers reach this arm.
+                _ => unreachable!("SeqContainer::of_value classified a non-matching value as has_tail"),
             }
-            other_ast => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        }
+        // ∅ N/A: container has no tail (Tuple, HashSet — nature forbids it).
+        Some(_) => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::rest".into(),
+            expected: "Vec, List, PersistentVector, or list form",
+            got: Box::new(ValueSnapshot::of(&v))
+        } }.into()),
+        // Not a sequence container (or WatAST non-List form — preserve that specific error).
+        None => match v {
+            Value::wat__WatAST(ast) => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::rest".into(),
                 expected: "Vec, List, or list form",
-                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other_ast.clone()))))
+                got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(ast)))
             } }.into()),
-        },
-        // Arc-278-0b — PersistentVector: rest returns a new PersistentVector (tail after first element).
-        // Maintains type identity: PersistentVector/rest → PersistentVector (not Vec).
-        Value::wat__core__PersistentVector(pv) => {
-            if pv.is_empty() {
-                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::rest".into(),
-                    reason: "cannot take rest of empty PersistentVector".into()
-                } }.into());
-            }
-            // Build a new PersistentVector by skipping the first element.
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for elem in pv.iter().skip(1) {
-                out = out.push_back(elem.clone());
-            }
-            Ok(Value::wat__core__PersistentVector(out))
+            other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: ":wat::core::rest".into(),
+                expected: "Vec, List, or PersistentVector",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
         }
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::rest".into(),
-            expected: "Vec, List, or PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
     }
 }
 

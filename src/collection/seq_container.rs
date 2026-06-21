@@ -155,8 +155,7 @@ impl SeqContainer {
 
     /// `rest` — return all but the first element.
     ///
-    /// Stubbed for later strikes (Tail capability migration).
-    #[allow(dead_code)]
+    /// Un-stubbed: strike 2 migrates `rest` classification through this gate.
     pub(crate) fn has_tail(self) -> bool {
         match self {
             SeqContainer::Vector => true,
@@ -172,8 +171,7 @@ impl SeqContainer {
 
     /// `conj` — append an element.
     ///
-    /// Stubbed for later strikes (Append capability migration).
-    #[allow(dead_code)]
+    /// Un-stubbed: strike 2 migrates `conj` classification through this gate.
     pub(crate) fn has_append(self) -> bool {
         match self {
             SeqContainer::Vector => true,

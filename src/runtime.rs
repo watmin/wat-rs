@@ -12439,17 +12439,26 @@ fn eval_conj(
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
-    match &arg0_val {
-        Value::Vec(_) => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
-        // Arc-278-0b — PersistentVector: generic conj dispatches to persistentvector_conj_inner.
-        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
-        // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
-        Value::wat__core__List(_) => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_append()).
+    // The registry is the single source of truth; per-type inner helpers below do the work.
+    match crate::collection::seq_container::SeqContainer::of_value(&arg0_val) {
+        Some(container) if container.has_append() => {
+            match &arg0_val {
+                Value::Vec(_) => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
+                Value::wat__std__HashSet(_) => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
+                // Arc-278-0b — PersistentVector: generic conj dispatches to persistentvector_conj_inner.
+                Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
+                // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
+                Value::wat__core__List(_) => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
+                // Unreachable: only has_append containers reach this arm.
+                _ => unreachable!("SeqContainer::of_value classified a non-matching value as has_append"),
+            }
+        }
+        // ∅ N/A or ○ gap: container has no append capability (Tuple, WatAstList — nature forbids / gap).
+        Some(_) | None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashSet<T>, PersistentVector<T>, or List<T>",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg0_val))
         } }.into()),
     }
 }

@@ -156,28 +156,22 @@ pub(crate) fn infer_conj(
 
     if let Some(coll_ty) = arg0_ty {
         let reduced = reduce(&coll_ty, subst, env.types());
-        // Extract the expected element type from the collection shape.
-        // Two arms only — HashMap is assoc's territory.
-        let elem_ty_opt: Option<TypeExpr> = match &reduced {
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
-                targs.first().map(|t| apply_subst(t, subst))
+        // Extract the expected element type from the collection shape via the registry.
+        // SeqContainer::of_type + has_append() is the single source of truth — no
+        // hand-rolled per-container arms here. HashMap is assoc's territory (not a SeqContainer).
+        let elem_ty_opt: Option<TypeExpr> = match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+            Some(container) if container.has_append() => {
+                // All has_append containers are parametric with element type T as first arg.
+                match &reduced {
+                    TypeExpr::Parametric { args: targs, .. } => {
+                        targs.first().map(|t| apply_subst(t, subst))
+                    }
+                    // Bare path form without type param — no element type available.
+                    _ => None,
+                }
             }
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashSet" => {
-                targs.first().map(|t| apply_subst(t, subst))
-            }
-            // Arc-278-0b — PersistentVector: conj appends element; returns PersistentVector<T>.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
-                targs.first().map(|t| apply_subst(t, subst))
-            }
-            // List<T>: conj appends element; returns List<T>; runtime dispatches
-            // Value::wat__core__List → list_conj_inner (runtime.rs:12410).
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
-                targs.first().map(|t| apply_subst(t, subst))
-            }
-            // Unresolved type variable — defers to the runtime backstop by design,
-            // uniformly across the four collection intrinsics (see infer_contains).
-            TypeExpr::Var(_) => None,
-            _ => {
+            // ∅ N/A: container exists but does not support append (Tuple, WatAstList).
+            Some(_) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
@@ -185,6 +179,22 @@ pub(crate) fn infer_conj(
                     got: format_type(&reduced)
                 } });
                 None
+            }
+            // Not a sequence container at all (or unresolved type variable).
+            None => {
+                if matches!(reduced, TypeExpr::Var(_)) {
+                    // Unresolved type variable — defer to the runtime backstop by design,
+                    // uniformly across the four collection intrinsics (see infer_contains).
+                    None
+                } else {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#1".into(),
+                        expected: "Vector<T>, HashSet<T>, PersistentVector<T>, or List<T>".into(),
+                        got: format_type(&reduced)
+                    } });
+                    None
+                }
             }
         };
 
