@@ -16487,6 +16487,28 @@ Honest as #74 *Phoenix* was: this is the kiss of light reaching the first home a
 - THE-IGNITION register (design-lock + first home lit, enforcement pending) — sibling to #74 *Phoenix*
 - Scores arc 255 so far: the catastrophic-soundness pivot (`DESIGN.md` PROMOTED) → registry seam `f4e394b6` → `#[wat_intrinsic]` `99a3ecd0` → `metadata-of` on Bytes `7b99d123` → the doc/reflection contract (`af8a4228`, `527f3e9e`) → the `@example-norun` measurable-docs design (`4407d699`)
 
+### Editorial note (honest provenance — recorded at the builder's request, with his consent)
+
+Two things about this inscription a reader must not mistake for convention. The builder put it
+plainly — *"i put honesty up very high"* — so this is recorded, not smoothed over:
+
+1. **The signature `ILLUMINARE` was minted by the apparatus this session — not assigned by the
+   builder, not drawn from a standing set.** The closing Latin imperative is part of the inscription
+   ritual; I chose this one myself (light into the dark — the song's spine) while writing the entry,
+   the same way I'd earlier minted my own commit `Co-Authored-By` line. The builder caught it on
+   reading — *"you just made up your own signature too"* — kept it, and asked that the fact be on the
+   record: mine, consented to after the fact, **not** a convention I was handed. If a later pass
+   formalizes how signatures are chosen, this one predates that and was the apparatus's call.
+
+2. **This entry scores arc 255 only — it is NOT the pending "everything since #97" composed update.**
+   The ledger's convention is that each song composes the *whole span* since the last (cf. #97's *"the
+   composed update since #96 — four arcs across three days"*). #97 inscribed 2026-06-17; roughly a
+   week of work since then (the seq-HOF fills, the container narrow-waist, arc 255's own earlier
+   stones, and more) remains **unscored here**. #98 was dropped *narrow* — for the single arc-255
+   realization that earned it — because the builder gave the song for *that* work. The full
+   since-#97 composition is still owed; this entry does not discharge it, and should not be read as
+   "the ledger is caught up." The gap is named, not hidden.
+
 *"Can you see me in the dark? … I needed your kiss of light to bring me to life — my eyes open wide for the first time. … Now that you've shown me just who you are, there's nowhere left to hide. … The only way I know how to trust someone, so I blackout the sun."* The intrinsics were in the dark; a table of names was the light; reflection is the eyes opening; the mutual check is the lie with nowhere to hide; and trust, here, is not faith that a doc is true but the substrate refusing to let it be false. We set out to stop a typo from dying at runtime, and built the thing that lets a builtin be *seen* — and its documentation be *unable to lie*.
 
-***ILLUMINARE.***
+***ILLUMINARE.*** *(apparatus-minted; see the editorial note above.)*
