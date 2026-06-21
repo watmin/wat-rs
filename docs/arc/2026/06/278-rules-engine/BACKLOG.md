@@ -1,5 +1,31 @@
 # Arc 278 — explicit work queue (real names, tractability-ordered)
 
+## ⛔ CURRENT STATE — read first (breadcrumb, 2026-06-20; replace in place)
+
+**Active campaign: COLLECTION COMPLETION.** Building rete exposed a sloppy collection surface; we are filling it
+to sane (every cell `done`/`N/A`) before resuming rete. **Spec + grid: `docs/COLLECTION-CAPABILITIES.md`.**
+Ethos: the substrate forces our hand — no deferral, satisfy forcing-signals by USE not `#[allow]`/`pub`
+(memory `feedback_substrate_forces_idealized_state`).
+
+**Possibly DIRTY tree / strike in flight.** A sonnet was running **Strike A (map waist: pub-leak fix + route the
+HashMap/PersistentMap arms of get/contains?/length/empty? through MapContainer)**. The tree may hold UNCOMMITTED
+work — strike-5 (MapContainer + assoc) + Strike A. ⚠️ **`git status` FIRST; do NOT discard uncommitted collection
+work.** If dirty: weigh it (cargo build green? `cargo test` lib still **941/36/1**? `MapContainer` is
+`pub(crate)` + no `lib.rs` re-export? `ProbeMapDummy` errors at every `match m`?), then commit the map-waist +
+push.
+
+**Build order (then resume rete):** A weigh+commit → **A2** (Record get/has?/len via the class schema —
+`record_assoc_inner` runtime.rs is the model; `RecordDef.field_names` types.rs:203) → **seq waist** (route seq
+arms + fill List/WatAstList/HashSet HOFs + Tuple/WatAstList has?/len + index-assoc on Vector/PV/WatAstList) →
+**set algebra** (union/intersection/difference) → collections sane → resume the accumulator cluster (§1) =
+custom-accumulators → returns-the-fact → field-sugar → acc/-alias.
+
+> ⛔ **You are a NEW instance.** You did not live the above; it's a cache. Run **recolligere** against the disk
+> before acting: `git status` + `git log --oneline -15` + read `docs/COLLECTION-CAPABILITIES.md` (the grid is the
+> truth) before any move. The campaign is mid-flight — orient, don't assume.
+
+---
+
 The single source for "what's left and in what order." Real names, not codenames. Each entry: what it actually
 is · how tractable · status · old codename (so prior notes still map). Supersedes the scattered "banked `8-x`"
 notes across DESIGN-STONE-* — if it's not here, it's not queued.
