@@ -27,9 +27,89 @@
 //! references one — SELF-RETIRING, compiler-enforced removal, not a comment-clause
 //! the next hand might forget (arc 277's expect-dead idea, applied to the live
 //! instance). When iv-b2 reads these, the compiler tells us to take the `#[expect]`s off.
+use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{Environment, SymbolTable, Value, EvalBreak};
+use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
+
+// ─── Arc 255.1b-iv-c: Closed-domain enum mirrors ─────────────────────────────
+// Three Rust enums that mirror the three `defenum`s in `wat/runtime-meta.wat`.
+// Each carries a `to_enum_value()` method that builds the corresponding
+// `Value::Enum` so the derivation site in `eval_metadata_of` (runtime.rs
+// ~10119-10122) is typo-proof at the call site.
+//
+// Invariant: the `type_path` and `variant_name` strings here MUST match the
+// `defenum` declarations in `wat/runtime-meta.wat` EXACTLY (checked by the
+// iv-c nursery probe).
+
+/// Kind — what kind of callable is this?
+/// Mirrors `(:wat::core::defenum :wat::runtime::Kind :Macro :Fn :Intrinsic)`.
+pub(crate) enum Kind {
+    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
+    Macro,
+    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
+    Fn,
+    Intrinsic,
+}
+
+impl Kind {
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            Kind::Macro => "Macro",
+            Kind::Fn => "Fn",
+            Kind::Intrinsic => "Intrinsic",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Kind".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
+
+/// DefinedIn — implementation language.
+/// Mirrors `(:wat::core::defenum :wat::runtime::DefinedIn :Wat :Rust)`.
+pub(crate) enum DefinedIn {
+    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
+    Wat,
+    Rust,
+}
+
+impl DefinedIn {
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            DefinedIn::Wat => "Wat",
+            DefinedIn::Rust => "Rust",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::DefinedIn".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
+
+/// Layer — where in the system stack does this live?
+/// Mirrors `(:wat::core::defenum :wat::runtime::Layer :Substrate :Userland)`.
+pub(crate) enum Layer {
+    Substrate,
+    #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
+    Userland,
+}
+
+impl Layer {
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            Layer::Substrate => "Substrate",
+            Layer::Userland => "Userland",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Layer".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
 
 /// The native dispatch handler — matches the eval-fn signature exactly.
 pub(crate) type NativeHandler =

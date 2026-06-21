@@ -10097,7 +10097,9 @@ fn eval_metadata_of(
     };
     // Arc 255.1b-iii — the intrinsic branch. If `name` is a registered Rust
     // intrinsic, answer `metadata-of` with the SAME shape as the user path:
-    // `Some(HashMap<keyword, HolonAST>)`, carrying the auto-derived baseline.
+    // `Some(HashMap<keyword, Value>)`, carrying the auto-derived baseline.
+    // Arc 255.1b-iv-c: all values are PLAIN wat Values (not holon-AST-wrapped);
+    // the three closed-domain fields use Value::Enum (Kind/DefinedIn/Layer).
     // Seamless reflection parity — a `:wat::core::Bytes::to-hex` reflects like
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
@@ -10108,29 +10110,30 @@ fn eval_metadata_of(
 
         let mut map: std::collections::HashMap<Value, Value> =
             std::collections::HashMap::with_capacity(8);
-        let mut put = |key: &str, val: HolonAST| {
+        // iv-c: put inserts PLAIN values (no HolonAST wrapping).
+        let mut put = |key: &str, val: Value| {
             map.insert(
                 Value::wat__core__keyword(Arc::new(key.to_string())),
-                Value::holon__HolonAST(Arc::new(val)),
+                val,
             );
         };
-        // :name is the fqdn as a keyword leaf (HolonAST::keyword strips the
-        // leading colon — mirrors how WatAST::Keyword lowers in watast_to_holon).
-        put(":name", HolonAST::keyword(entry.name));
-        put(":kind", HolonAST::keyword(":intrinsic"));
-        put(":defined-in", HolonAST::keyword(":rust"));
-        put(":layer", HolonAST::keyword(":substrate"));
-        put(":arity", HolonAST::i64(entry.arity as i64));
-        put(":pure", HolonAST::bool_(pure));
-        put(":deterministic", HolonAST::bool_(deterministic));
+        // :name — the FQDN as a plain keyword value.
+        put(":name", Value::wat__core__keyword(Arc::new(entry.name.to_string())));
+        // :kind / :defined-in / :layer — closed-domain Value::Enum (iv-c §5).
+        put(":kind", crate::intrinsic::Kind::Intrinsic.to_enum_value());
+        put(":defined-in", crate::intrinsic::DefinedIn::Rust.to_enum_value());
+        put(":layer", crate::intrinsic::Layer::Substrate.to_enum_value());
+        put(":arity", Value::i64(entry.arity as i64));
+        put(":pure", Value::bool(pure));
+        put(":deterministic", Value::bool(deterministic));
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
         // :added — the @added version string.
         // :ret — the @ret description.
         // (Vector-valued keys :args/:examples/:see are CARRIED on the entry
         //  but rendered by the iv-b2 verifier seam, not here — scope cut.)
-        put(":doc", HolonAST::string(entry.prose));
-        put(":added", HolonAST::string(entry.added));
-        put(":ret", HolonAST::string(entry.ret));
+        put(":doc", Value::String(Arc::new(entry.prose.to_string())));
+        put(":added", Value::String(Arc::new(entry.added.to_string())));
+        put(":ret", Value::String(Arc::new(entry.ret.to_string())));
         return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
     }
     match sym.binding_metadata.get(&name) {

@@ -21,7 +21,6 @@
 //! enriches these to assert the baseline KEYS, not just Some).
 
 use std::sync::Arc;
-use holon::HolonAST;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -98,46 +97,52 @@ fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> Optio
     map.get(&Value::wat__core__keyword(Arc::new(key.to_string())))
 }
 
-/// Read a keyword baseline value's content (without the leading colon, matching
-/// `HolonAST::keyword`'s storage), or panic if it's not a keyword HolonAST.
+/// Read a keyword baseline value's content (without the leading colon).
+/// Arc 255.1b-iv-c: values are now plain `Value::wat__core__keyword` (not HolonAST-wrapped).
 fn keyword_content(v: &Value) -> String {
     match v {
-        Value::holon__HolonAST(h) => h
-            .as_keyword()
-            .unwrap_or_else(|| panic!("expected keyword HolonAST; got {:?}", h))
-            .to_string(),
-        other => panic!("expected holon__HolonAST; got {:?}", other),
+        Value::wat__core__keyword(s) => {
+            // The keyword is stored with the leading colon; strip it to match
+            // the pre-iv-c HolonAST::keyword storage (no leading colon).
+            s.strip_prefix(':').unwrap_or(s.as_str()).to_string()
+        }
+        other => panic!("expected plain keyword Value; got {:?}", other),
     }
 }
 
 /// Read an i64 baseline value, or panic.
+/// Arc 255.1b-iv-c: values are now plain `Value::i64` (not HolonAST-wrapped).
 fn i64_val(v: &Value) -> i64 {
     match v {
-        Value::holon__HolonAST(h) => h
-            .as_i64()
-            .unwrap_or_else(|| panic!("expected i64 HolonAST; got {:?}", h)),
-        other => panic!("expected holon__HolonAST; got {:?}", other),
+        Value::i64(n) => *n,
+        other => panic!("expected plain i64 Value; got {:?}", other),
     }
 }
 
 /// Read a bool baseline value, or panic.
+/// Arc 255.1b-iv-c: values are now plain `Value::bool` (not HolonAST-wrapped).
 fn bool_val(v: &Value) -> bool {
     match v {
-        Value::holon__HolonAST(h) => h
-            .as_bool()
-            .unwrap_or_else(|| panic!("expected bool HolonAST; got {:?}", h)),
-        other => panic!("expected holon__HolonAST; got {:?}", other),
+        Value::bool(b) => *b,
+        other => panic!("expected plain bool Value; got {:?}", other),
     }
 }
 
 /// Read a string baseline value, or panic.
+/// Arc 255.1b-iv-c: values are now plain `Value::String` (not HolonAST-wrapped).
 fn string_val(v: &Value) -> String {
     match v {
-        Value::holon__HolonAST(h) => h
-            .as_string()
-            .unwrap_or_else(|| panic!("expected string HolonAST; got {:?}", h))
-            .to_string(),
-        other => panic!("expected holon__HolonAST; got {:?}", other),
+        Value::String(s) => s.as_ref().clone(),
+        other => panic!("expected plain String Value; got {:?}", other),
+    }
+}
+
+/// Read a closed-domain enum's variant name from a `Value::Enum`, or panic.
+/// Arc 255.1b-iv-c: :kind/:defined-in/:layer are now `Value::Enum` unit variants.
+fn enum_variant(v: &Value) -> String {
+    match v {
+        Value::Enum(ev) => ev.variant_name.clone(),
+        other => panic!("expected Value::Enum; got {:?}", other),
     }
 }
 
@@ -145,9 +150,10 @@ fn string_val(v: &Value) -> String {
 fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
     let map = metadata_of_map(":wat::core::Bytes::to-hex");
 
-    assert_eq!(keyword_content(get(&map, ":kind").expect(":kind present")), "intrinsic");
-    assert_eq!(keyword_content(get(&map, ":defined-in").expect(":defined-in present")), "rust");
-    assert_eq!(keyword_content(get(&map, ":layer").expect(":layer present")), "substrate");
+    // iv-c: :kind/:defined-in/:layer are now Value::Enum unit variants.
+    assert_eq!(enum_variant(get(&map, ":kind").expect(":kind present")), "Intrinsic");
+    assert_eq!(enum_variant(get(&map, ":defined-in").expect(":defined-in present")), "Rust");
+    assert_eq!(enum_variant(get(&map, ":layer").expect(":layer present")), "Substrate");
     assert_eq!(i64_val(get(&map, ":arity").expect(":arity present")), 1);
     assert!(bool_val(get(&map, ":pure").expect(":pure present")), "to-hex is pure");
     assert!(
@@ -171,9 +177,10 @@ fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
 fn metadata_of_answers_for_bytes_from_hex_intrinsic() {
     let map = metadata_of_map(":wat::core::Bytes::from-hex");
 
-    assert_eq!(keyword_content(get(&map, ":kind").expect(":kind present")), "intrinsic");
-    assert_eq!(keyword_content(get(&map, ":defined-in").expect(":defined-in present")), "rust");
-    assert_eq!(keyword_content(get(&map, ":layer").expect(":layer present")), "substrate");
+    // iv-c: :kind/:defined-in/:layer are now Value::Enum unit variants.
+    assert_eq!(enum_variant(get(&map, ":kind").expect(":kind present")), "Intrinsic");
+    assert_eq!(enum_variant(get(&map, ":defined-in").expect(":defined-in present")), "Rust");
+    assert_eq!(enum_variant(get(&map, ":layer").expect(":layer present")), "Substrate");
     assert_eq!(i64_val(get(&map, ":arity").expect(":arity present")), 1);
     assert!(bool_val(get(&map, ":pure").expect(":pure present")), "from-hex is pure");
     assert!(
@@ -204,20 +211,13 @@ fn dump_bytes_to_hex_metadata() {
     println!("metadata-of(:wat::core::Bytes::to-hex) =>");
     for k in &keys {
         let v = get(&map, k).unwrap();
+        // iv-c: values are now plain wat Values (not HolonAST-wrapped).
         let rendered = match v {
-            Value::holon__HolonAST(h) => {
-                if let Some(kw) = h.as_keyword() {
-                    format!(":{}", kw)
-                } else if let Some(n) = h.as_i64() {
-                    n.to_string()
-                } else if let Some(b) = h.as_bool() {
-                    b.to_string()
-                } else if let Some(s) = h.as_string() {
-                    format!("{:?}", s)
-                } else {
-                    format!("{:?}", h)
-                }
-            }
+            Value::wat__core__keyword(s) => s.as_ref().clone(),
+            Value::i64(n) => n.to_string(),
+            Value::bool(b) => b.to_string(),
+            Value::String(s) => format!("{:?}", s.as_ref()),
+            Value::Enum(ev) => format!("{}::{}", ev.type_path, ev.variant_name),
             other => format!("{:?}", other),
         };
         println!("  {} => {}", k, rendered);

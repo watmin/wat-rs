@@ -5,10 +5,10 @@
 //! Mirrors `:wat::stdlib::sources` (io.rs:1454): return plain Vectors, let
 //! wat wrap. The wat verifier (`verify-examples`, iv-b2-b) `eval-ast!`s them.
 //!
-//! Record shape per element: a `:wat::intrinsic::Example` `Value::Struct` with
-//! fields `[fqdn, expr, expected, run, pure, deterministic]` (declaration order)
-//! — `fqdn` a keyword, `expr` a quoted `Value::wat__WatAST`, `expected` a
-//! `Value::Option<Value::wat__WatAST>` (None for markerless/`@example-norun`),
+//! Record shape per element: a `:wat::intrinsic::Example` `Value::wat__Record`
+//! with fields `[fqdn, expr, expected, run, pure, deterministic]` (declaration
+//! order) — `fqdn` a keyword, `expr` a quoted `Value::wat__WatAST`, `expected`
+//! a `Value::Option<Value::wat__WatAST>` (None for markerless/`@example-norun`),
 //! `run`/`pure`/`det` bools.
 //!
 //! This read satisfies iv-b1's `#[expect(dead_code)]` on
@@ -28,7 +28,7 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// the iv-b2-a reflection seam. The wat verifier (`verify-examples`, iv-b2-b)
 /// iterates this to run or skip each example.
 ///
-/// Each element is a `:wat::intrinsic::Example` `Value::Struct` with fields
+/// Each element is a `:wat::intrinsic::Example` `Value::wat__Record` with fields
 /// (declaration order):
 /// - `fqdn`: the intrinsic's FQDN as a keyword
 /// - `expr`: the example expression, parsed into a quoted form (`Value::wat__WatAST`)
@@ -42,7 +42,7 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// not that `expr` parses as wat).
 ///
 /// @added 1.0.0
-/// @ret a Vector of [fqdn, expr, expected, run, pure, deterministic] tuples, one per @example/@example-norun across all registered intrinsics
+/// @ret a Vector of [fqdn, expr, expected, run, pure, deterministic] records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
 pub(crate) fn eval_intrinsic_examples(

@@ -40,6 +40,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
+    // Arc 255.1b-iv-c — closed-domain enum types for the metadata-of reflection
+    // surface: Kind / DefinedIn / Layer. No eval-deps beyond :wat::core::defenum
+    // (a builtin), so it may load immediately after core.wat.
+    WatSource {
+        path: "wat/runtime-meta.wat",
+        source: include_str!("../wat/runtime-meta.wat"),
+    },
     WatSource {
         path: "wat/holon/Amplify.wat",
         source: include_str!("../wat/holon/Amplify.wat"),
