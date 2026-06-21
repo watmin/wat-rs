@@ -383,3 +383,102 @@ scattered hand-lists collapse into ONE truth:
   that POPULATES `:pure` (then the field is the single truth).
 Any rete check that is really "a property of a name" relocates into the baseline; rete
 reads it. (NOTE-purity already prescribed the projection; this extends it to all three.)
+
+---
+
+# ═══ LOCKED RECORD MODEL (2026-06-21) — read THIS; the sections above are the derivation ═══
+
+The whole registry entry, settled with the builder across a long co-design. A registered
+name = **baseline ⊕ per-kind `*Def` ⊕ per-kind `*Meta`**, riding name-keyed in `sym`.
+wat's own ADT (sum + product) applied to wat's own symbol table; shaped like `program::Env`
+(`wat.*` platform fields + `user.*` extension, `EmptyEnv`-defaulted).
+
+## Layer 1 — BASELINE: "the platform guarantees these" (always concrete, never wrapped)
+
+The forced minimum on EVERY registered name, platform-derived: `name` · `arity` · `kind`
+· `pure` · `deterministic` · `expand_time_legal` · `defined_in` · `layer`. Forced by the
+type: required fields, **enum-typed not bool** (`Purity::Pure|Effectful`, no fat-fingerable
+`true`), **no `Default`** → struct-literal completeness = compile error if any is unanswered
+(same forcing as an exhaustive match). Provenance (`defined_in`/`layer`) AUTO-DERIVED at the
+registration site (a wat form can't claim `:rust`; the tag can't lie). The platform KNOWS
+these — they are never "unspecified," never `MetaField`-wrapped.
+
+## Layer 2 — per-kind `*Def`: the STRUCTURAL definition (uniform `*Def` family)
+
+What the def IS. A SUM, exhaustive (new def form → new variant → compile error):
+`DefDetail { Fn(FnDef), Struct(StructDef), Enum(EnumDef), Record(RecordDef),
+Protocol(ProtocolDef), Macro(MacroDef), Native(NativeBuiltin) }`.
+
+**The `FnDef` split (the builder's "one is not like the others" catch):** today `Function`
+is the loner — `name: Option`, `closed_env` — because it conflates the DEFINITION with the
+runtime closure VALUE. Split it:
+- **`FnDef`** — a true `*Def` sibling: the SIGNATURE (`name` required, `type_params`,
+  `params`, `param_types`, `ret_type`, `rest_param`). Registered. What the registry holds.
+- **`Function`** — purely the runtime closure value (`body` + `closed_env`, + link to its
+  `FnDef` or inline sig for anon). Nameless-capable, **metadata-free, UNREGISTERED**. Anon
+  `fn` = this and nothing else. (~31 construction sites, 7 anon — bounded.)
+
+## Layer 3 — per-kind `*Meta`: the USER-supplied metadata (closed schema, forced-match sum)
+
+Metadata is a property of the **`def`** (the binding), NOT the value: `(def name {meta} val)`;
+`defn` = `def` + a fn-value → inherits; **anon `fn` has no def → no metadata** (already true:
+`binding_metadata` is name-keyed). NO free-form map (that's the open-set/string-shape rot 255
+kills). Instead: a **closed wat record schema per def kind** — `DefnMeta`, `DefenumMeta`,
+`DefMeta`, … — declaring EXACTLY what that kind can express. `:doc` is the one `*Meta` field
+common to every kind.
+
+- **Construction:** the `{:kw val …}` at a def site is kwargs → a macro (kwargs is ALWAYS a
+  macro) → constructs the kind's `*Meta` record. Supply ANY valid subset; a key NOT in the
+  schema is REJECTED (closedness = the one hard rigidity, on the key-set not the count).
+- **Optionality via a NAMED forced-match sum, NOT `Option`:** each optional field is
+  `MetaField<T> = Unspecified | Specified(T)` — a domesticated, named sum. Digging in = a
+  forced **match** (`Specified(v)` → use `v`; `Unspecified` → handle absence). NO `unwrap`,
+  NO `Some`/`None` soup, reflection renders it honestly. A field with genuinely >2 states
+  gets its OWN named enum (`Deprecation = Deprecated(reason) | NotDeprecated | Unspecified`)
+  — the third state NAMED in the domain, never an `Option` wrapper. `:doc` = `MetaField<String>`
+  (`Unspecified` → "undocumented" on display). (Rejected: `"N/A"`-string sentinels = the
+  sentinel-as-truth smell; rejected: raw `Option<T>` = gross/unwrap-culture.)
+- **Evolution (relaxed by default):** a new `*Meta` field ships with `Unspecified` as its
+  default → every old form hydrates it on load, stays compliant, ZERO migration. **fix-wat
+  (shipped IN CORE)** is the escape hatch ONLY for the rare field with no honest default
+  (or a rename/removal): the version bump carries its fixer, the substrate-as-teacher cascade
+  points every violating site at it. Rigid on the schema, relaxed on supply, evolvable.
+
+## The registry IS `sym` (seamless — can't tell builtin from user form)
+
+`sym` maps `name → {baseline ⊕ DefDetail ⊕ *Meta}`. `resolve` = `sym` membership (the
+`is_reserved_prefix → true` **blanket-accept DELETED**; unknown `:wat::*` leaf → an
+UnresolvedReference carrying retirement + near-match remedies). `FunctionBody::{Wat,Native}`
+already exists (255.1a, env.rs:22); `Native` carries the builtin handler.
+
+## Reflection surface (NEW — nothing exists today)
+
+- **namespace = two non-recursive observables** (`ls`): `child-namespaces` (next-segment
+  children, deduped) + `names` (leaf callables at this level).
+- **per-name interrogation** (`stat`): `metadata-of` → baseline ⊕ `*Meta` projection.
+  "is it a fn/macro/pure" = reading `:kind`/`:pure`.
+
+## Consumers collapse (the three hand-lists become projections)
+
+`src/rete/purity.rs` (379 lines, `:wat::rete::pure?`/`deterministic?`) DELETES → queries the
+baseline. `macros::is_pure_total` (eval.rs:344) DELETES → queries `:expand-time-legal`.
+`runtime::is_effectful_op` (runtime.rs:22731) becomes the registration-time DERIVER that
+POPULATES `:pure`. rete/macro-gate/checker all QUERY the registry; "rete just calls this."
+
+## Strike decomposition (hand-author the seam + first home; delegate per-home repeats)
+
+- **255.1b-i** — type scaffold: `Arity`, `Purity`/`Determinism`/`ExpandTime`/`DefKind` enums,
+  `MetaField<T>`, the baseline `Registration`, `FnDef`, `DefDetail`, `NativeBuiltin`. Wire the
+  baseline onto ONE path so it's not dead_code. Floor held.
+- **255.1b-ii** — the `FnDef` split (Function-value vs FnDef-definition); ~31 sites.
+- **255.1b-iii** — register builtins into `sym` from their HOMES (FIRST home = small/pure
+  reference template, e.g. `core::Bytes`); construct `Native`; carve those arms out of
+  runtime.rs.
+- **255.1b-iv** — resolver rewrite: delete the blanket-accept; `sym` membership + remedies.
+  GATE: the 254.R undefined-builtin probe goes green; full corpus green (cascade reveals any
+  unregistered real head → register it). Bench: no hot-path regression.
+- **255.1c…** — per-home carving repeats (delegated sonnets, weighed against corpus).
+- **255.2** — reflection verbs (`child-namespaces`/`names`/`metadata-of` over the registry).
+- **255.3** — consumers collapse (rete/purity + macros::is_pure_total delete; is_effectful_op
+  → deriver).
+- **255.N** — INSCRIPTION; the asymmetry annihilated; builtins first-class.
