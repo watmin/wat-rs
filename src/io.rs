@@ -882,8 +882,8 @@ pub fn eval_ioreader_read_frame(
     let op = ":wat::io::IOReader/read-frame";
     arity(op, args, 1, list_span)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
-    use crate::edn_shim::{read_framed_edn, FramedRead};
-    match read_framed_edn(|span| reader.read_line(span), list_span.clone())? {
+    use crate::edn_shim::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
+    match read_framed_edn(|span| reader.read_line(span), list_span.clone(), DEFAULT_MAX_FRAME_BYTES)? {
         FramedRead::Frame(buf) => {
             // Trim the trailing newline that read_framed_edn appends.
             let s = buf.trim_end_matches('\n').to_string();
@@ -905,6 +905,16 @@ pub fn eval_ioreader_read_frame(
             kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("malformed EDN frame: {}", msg),
+            },
+        }),
+        FramedRead::TooLarge(n) => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "EDN frame exceeded {} bytes without completing — message too large or never terminated",
+                    n
+                ),
             },
         }),
     }

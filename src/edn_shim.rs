@@ -998,6 +998,15 @@ pub fn edn_frame_status(s: &str) -> EdnFrameStatus {
     }
 }
 
+/// Maximum accumulated bytes for a single EDN value-frame.
+///
+/// Bounds the in-memory accumulation inside `read_framed_edn` (and the
+/// inline accumulator in `channel/transfer.rs`) for a single logical value.
+/// A sender that never closes a value (`{` forever, or a broken/malicious
+/// peer) would otherwise grow the buffer until OOM; this cap terminates
+/// accumulation and surfaces `FramedRead::TooLarge` instead.
+pub const DEFAULT_MAX_FRAME_BYTES: usize = 512 * 1024; // 512 KiB
+
 /// The result of a single `read_framed_edn` call.
 #[derive(Debug)]
 pub enum FramedRead {
@@ -1009,6 +1018,10 @@ pub enum FramedRead {
     Truncated(String),
     /// The accumulated buffer is a genuine syntax error (not incomplete).
     Malformed(String),
+    /// The accumulated buffer exceeded `max_bytes` without completing a
+    /// value. The `usize` is the byte count at the point of rejection.
+    /// Indicates a broken or malicious peer that never terminates its frame.
+    TooLarge(usize),
 }
 
 /// Accumulate physical lines from `next_line` until the buffer forms a
@@ -1027,7 +1040,13 @@ pub enum FramedRead {
 /// STOP-trigger-safe: returns `Malformed` (not `Frame`) when the buffer
 /// would parse as MULTIPLE values (anti-smuggling is enforced by
 /// `parse_owned`/`parse_top` which requires EOF after the first value).
-pub fn read_framed_edn<F>(mut next_line: F, span: Span) -> Result<FramedRead, RuntimeError>
+///
+/// The `max_bytes` parameter caps total accumulated bytes before a
+/// `FramedRead::TooLarge` is returned, defending against a peer that
+/// sends an open-ended frame (`{` forever) that would otherwise exhaust
+/// memory. The size check fires BEFORE `edn_frame_status` — cheaper and
+/// bounds even buffers that would parse.
+pub fn read_framed_edn<F>(mut next_line: F, span: Span, max_bytes: usize) -> Result<FramedRead, RuntimeError>
 where
     F: FnMut(Span) -> Result<Option<String>, RuntimeError>,
 {
@@ -1037,6 +1056,9 @@ where
             Ok(Some(line)) => {
                 buf.push_str(&line);
                 buf.push('\n');
+                if buf.len() > max_bytes {
+                    return Ok(FramedRead::TooLarge(buf.len()));
+                }
                 match edn_frame_status(&buf) {
                     EdnFrameStatus::Complete => return Ok(FramedRead::Frame(buf)),
                     EdnFrameStatus::Incomplete => continue,

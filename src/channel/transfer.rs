@@ -255,6 +255,17 @@ pub fn typed_recv(
                         // the accumulated buffer is valid multi-line EDN.
                         buf.push_str(&line);
                         buf.push('\n');
+                        // Bounded-buffer safety cap: reject frames that grow
+                        // without bound (broken/malicious peer). Check BEFORE
+                        // edn_frame_status — cheaper, and catches even buffers
+                        // that would parse. Uses the same constant as
+                        // read_framed_edn for consistent behaviour.
+                        if buf.len() > crate::edn_shim::DEFAULT_MAX_FRAME_BYTES {
+                            return RecvOutcome::DecodeError(format!(
+                                "EDN frame exceeded {} bytes without completing — message too large or never terminated",
+                                buf.len()
+                            ));
+                        }
                         use crate::edn_shim::EdnFrameStatus;
                         match crate::edn_shim::edn_frame_status(&buf) {
                             EdnFrameStatus::Incomplete => continue,

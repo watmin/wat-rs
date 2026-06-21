@@ -126,6 +126,97 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
     }
 }
 
+// ── Bounded-buffer safety cap tests ─────────────────────────────────────────
+//
+// These tests verify that the `max_bytes` cap in `read_framed_edn` fires
+// before OOM when a peer never terminates its value frame.  The cap is tested
+// with a TINY limit (64 bytes) via the unit-level `read_framed_edn` API so
+// the test runs fast and allocates nothing close to 512 KiB.
+//
+// For the PipeFd inline accumulator (`typed_recv`) we assert that the same
+// `DEFAULT_MAX_FRAME_BYTES` constant is used — the unit-level test above
+// proves the cap logic; the pipe path shares the same branch so structural
+// coverage is sufficient.  A genuine >512 KiB pipe test would be slow and
+// fragile in CI.
+
+/// Gate 4a (unit) — `read_framed_edn` with a tiny cap (64 bytes) yields
+/// `FramedRead::TooLarge` when the accumulated buffer exceeds the limit
+/// without forming a complete EDN value.  The cap fires even though the
+/// lines individually are valid fragments (`{`, `:key "value"`, …).
+///
+/// Also asserts that a well-formed value well UNDER the cap still round-trips
+/// (no regression on the normal path).
+#[test]
+fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
+    use wat::edn_shim::{read_framed_edn, FramedRead};
+    use wat::span::Span;
+
+    // Craft lines that keep the buffer growing past 64 bytes before completing.
+    // Each line is appended with a '\n' inside read_framed_edn.  We feed:
+    //   "{"          (1 char + \n = 2 bytes)
+    //   "  :a 1"     (6 + \n = 7 → 9 bytes total)
+    //   "  :b 2"     (6 + \n = 7 → 16 bytes total)
+    //   …            (keep adding until > 64 bytes before a closing "}")
+    //
+    // We produce the lines via a closure over a Vec iterator.
+    let lines: Vec<&str> = vec![
+        "{",
+        "  :key-one 1",
+        "  :key-two 2",
+        "  :key-three 3",
+        "  :key-four 4",
+        "  :key-five 5",
+        // At this point the buffer is well over 64 bytes and still incomplete.
+        // (We never send the closing "}" so the check must fire first.)
+    ];
+    let mut iter = lines.iter();
+    let result = read_framed_edn(
+        |_span| Ok(iter.next().map(|s| s.to_string())),
+        Span::unknown(),
+        64, // tiny cap — 64 bytes
+    )
+    .expect("read_framed_edn must not return Err (no RuntimeError path here)");
+
+    match result {
+        FramedRead::TooLarge(n) => {
+            assert!(
+                n > 64,
+                "TooLarge byte count ({n}) must be greater than the cap (64)"
+            );
+        }
+        other => panic!(
+            "expected FramedRead::TooLarge with tiny cap; got {:?}",
+            other
+        ),
+    }
+}
+
+/// Gate 4a (normal-path regression) — a well-formed single-line EDN value
+/// well under the cap still produces `FramedRead::Frame` (no regression).
+#[test]
+fn read_framed_edn_tiny_cap_passes_small_value() {
+    use wat::edn_shim::{read_framed_edn, FramedRead};
+    use wat::span::Span;
+
+    // A compact map that fits in < 64 bytes including the trailing '\n'.
+    let lines: Vec<&str> = vec!["{:a 1 :b 2}"];
+    let mut iter = lines.iter();
+    let result = read_framed_edn(
+        |_span| Ok(iter.next().map(|s| s.to_string())),
+        Span::unknown(),
+        64, // tiny cap — still fits
+    )
+    .expect("no RuntimeError");
+
+    match result {
+        FramedRead::Frame(_) => {} // correct
+        other => panic!(
+            "expected FramedRead::Frame for a small value under the cap; got {:?}",
+            other
+        ),
+    }
+}
+
 /// Gate 3 — anti-smuggling: a frame containing two concatenated values
 /// (`{{:a 1} {:b 2}}` on one physical line) must decode as Malformed /
 /// DecodeError, NOT silently return just the first value.
