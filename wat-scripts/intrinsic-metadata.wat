@@ -14,4 +14,4 @@
       (:wat::kernel::eprintln
         "intrinsic-metadata: no metadata for :wat::intrinsic::examples"))
     ((:wat::core::Some meta)
-      (:wat::kernel::println meta))))
+      (:wat::kernel::pprintln meta))))

@@ -4618,6 +4618,7 @@ fn dispatch_keyword_head_value(
         // the wat-side service implementations + orchestrator;
         // these primitives are the substrate surface users call.
         ":wat::kernel::println" => crate::services::eval_kernel_println(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::pprintln" => crate::services::eval_kernel_pprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::readln" => crate::services::eval_kernel_readln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),

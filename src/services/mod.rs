@@ -97,7 +97,7 @@ pub use client::{
     // Arc 209 C0b.3a-0 — process child self-peer (owner-link).
     SelfPeerGuard, install_self_peer, current_self_peer,
 };
-pub use verbs::{eval_kernel_println, eval_kernel_eprintln, eval_kernel_readln};
+pub use verbs::{eval_kernel_println, eval_kernel_pprintln, eval_kernel_eprintln, eval_kernel_readln};
 
 // with_thread_io is pub(crate) in client — verbs.rs imports it from here.
 pub(crate) use client::with_thread_io;

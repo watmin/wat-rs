@@ -1,6 +1,6 @@
-//! Wat-surface verbs — the three `:wat::kernel::` stdio primitives.
+//! Wat-surface verbs — the four `:wat::kernel::` stdio primitives.
 //!
-//! `eval_kernel_println` / `eval_kernel_eprintln` / `eval_kernel_readln`
+//! `eval_kernel_println` / `eval_kernel_pprintln` / `eval_kernel_eprintln` / `eval_kernel_readln`
 //! moved verbatim from `src/thread_io.rs` (Stone 8.2w). See the
 //! module-level docs on `src/services/mod.rs` for contracts and history.
 
@@ -66,6 +66,53 @@ pub fn eval_kernel_println(
             Ok(Ok(())) => Ok(Value::Unit),
             // The service processed the Req but the write FAILED — surface it
             // (uniform with src/io.rs's IOWriter write-failure convention).
+            Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("stdout write failed: {}", msg),
+            } }),
+            Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } }),
+        }
+    })
+}
+
+/// `(:wat::kernel::pprintln v)` → `:wat::core::nil`. Serialize `v`
+/// to pretty-printed (multi-line indented) EDN via `wat_edn::write_pretty`;
+/// build a `StdOutService::Req {thread-id, line}` struct Value; send it on
+/// the universe-resident StdOutService peer's input channel; block on
+/// `stdout_reply_rx` for the ack; return `Value::Unit`.
+///
+/// Identical to `eval_kernel_println` except uses `wat_edn::write_pretty`
+/// instead of `wat_edn::write`. This is Clojure's `pprint` lineage — the
+/// VALUE is encoded (no string-quoting problem), the output spans multiple
+/// indented lines for collections and tagged values.
+///
+/// Same ambient stdout service path, same `∀T. T -> :wat::core::nil` type.
+pub fn eval_kernel_pprintln(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::pprintln";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let line = wat_edn::write_pretty(&edn);
+    let services = sym.runtime_services().ok_or_else(|| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
+    })?;
+    with_thread_io(OP, list_span, |io| {
+        let req = build_write_req(":wat::kernel::services::StdOutService::Req", io.thread_id, line);
+        services
+            .stdout_ctrl
+            .send(ServiceMsg::Req(req))
+            .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
+        match io.stdout_reply_rx.recv() {
+            Ok(Ok(())) => Ok(Value::Unit),
             Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("stdout write failed: {}", msg),
