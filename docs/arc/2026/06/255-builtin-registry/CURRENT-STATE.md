@@ -15,7 +15,9 @@ Resolver blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`, walk
 punts via permissive `Infer` (check.rs:9923) → a typo'd builtin type-checks clean, dies only at
 runtime. Double-punt. Builder: annihilation.
 
-## DONE (committed, pushed; floor lib 953/36/1, warnings 25; last HEAD 41954a33)
+## DONE (committed, pushed; floor lib 953/36/1, nursery 900/4 [the 4 are pre-existing 255.1b-RESOLVE probes]; last HEAD ec51385d)
+## Realizations this session: R1–R4 (255 REALIZATIONS.md) / Songs #98–#101 — doc-that-cannot-lie ·
+## self-hosting-verifier · the-firewall-caught-the-apparatus · CEK-is-far-closer. Read them for the full telling.
 - **255.1b-i** — `src/intrinsic/` registry seam (`name→handler`, OnceLock), Bytes routed. (renamed
   from provisional `src/registry/` per intueri → `intrinsic`.)
 - **255.1b-ii** — `#[wat_intrinsic(":fqdn")]` proc-macro (`crates/wat-macros/src/wat_intrinsic.rs`):
@@ -63,7 +65,26 @@ runtime. Double-punt. Builder: annihilation.
   Memory: `feedback_wat_record_for_edn_struct_for_non_edn`.
 
 ## NEXT — 255.1b-iv-c (enum flip) — the last iv-b/c piece before show-source/RESOLVE
-- **iv-c** — enum flip: `Kind`/`DefinedIn`/`Layer` enums; `metadata-of` emits enum values (§5).
+- **iv-c** — enum flip (§5): closed-domain metadata VALUES (`:kind`/`:defined-in`/`:layer`) → enums,
+  not ad-hoc keywords. Mechanism GROUNDED: a wat `defenum` per domain (unit variants, form
+  `:wat::runtime::Kind::{Macro,Fn,Intrinsic}` like `:wat::service::Outcome::Reply`, registered in
+  `sym.unit_variants`) + a Rust enum mirror (`Kind`/`DefinedIn`/`Layer` — compiler-checked derivation;
+  resurrects the 255.1b-i-trimmed enums); `metadata-of` intrinsic branch (runtime.rs ~10120) emits the
+  enum instead of `HolonAST::keyword(":intrinsic")`.
+  - **GROUND IT FIRST (builder ask, compaction-interrupted): see the real map as EDN before deciding.**
+    Dogfood a `wat-scripts/*.wat` (run via the wat CLI), NOT a Rust throwaway:
+    `(:wat::io::println (:wat::edn::write-pretty (:wat::runtime::metadata-of :wat::intrinsic::examples)))`
+  - **DECISION PENDING (surface choice):** how the enum rides in the metadata map —
+    (a) `HolonAST::keyword(":wat::runtime::Kind::Intrinsic")` (uniform map, weak typo-proofing) vs
+    **(b) RECOMMENDED `Value::Enum(Kind::Intrinsic)`** directly (real enum → exhaustive match → strong;
+    heterogeneous map; aligns w/ the EDN-record doctrine). VERIFY a `Value::Enum` rides the HashMap+`get`.
+  - Scope: INTRINSIC branch; user-form `metadata-of` enum-`:kind` parity = flagged follow-on.
+
+## PARKED (not arc-255): a test busy-spin DoS (builder's box)
+One proc, N threads slamming CPU = a busy-poll loop (`mora` violation) in the reactor/comms layer
+(arc 209/214), NOT a recursion bomb (those abort fast), NOT the 8 MiB rung. Could not reproduce
+in-sandbox (nursery ~35s @ both 2 & 8 MiB). Chase with a REAL repro: the proc name from `top -H` /
+`ps -T -p <pid>` + the exact command. Pre-existing; chase later.
 THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
 @example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole
 closes) → 255.2 (type-sig → `@arg`/`@ret` type-check; the wiki generator) → 255.1c FnDef split →
@@ -83,6 +104,17 @@ index-assoc, set algebra. Grid: `docs/COLLECTION-CAPABILITIES.md`.
   re-run the floor, ProbeDummy the forcing. Trust neither the report nor the diagnostics.
 - **Satisfy a forcing-signal by USE (build the reader), not by removal** (memory update this session).
 - **Don't launder my analysis as the builder's words** — attribute mine as mine, cite theirs.
+- **wat-record for EDN-able data; `Value::Struct` only for non-EDN payloads** (memory
+  `feedback_wat_record_for_edn_struct_for_non_edn`) — a Rust seam returning a record builds
+  `Value::wat__Record` (else named accessors break → positional hacks). EDN-able = serializable = R4's
+  hibernation/CEK future. Cost a full a2.2→iv-b2-b rework this session.
+- **Mark apparatus-minted ritual provenance** (memory `feedback_mark_apparatus_minted_provenance`) — a
+  self-chosen signature / co-author line / convention records its provenance, not read as builder-handed.
+- **`#[expect(dead_code)]` (not `#[allow]`) for transient dead** — self-retiring, compiler-enforced
+  removal when the reader lands; but a `#[cfg(test)]` read trips it (gotcha, arc 277 note).
+- **STACK:** `.cargo/config.toml` commits `RUST_MIN_STACK=8 MiB` (was env-only → false overflows in
+  sandboxes/sonnets/CI). Durable fix = arc 261 (stack-safe eval): **261 = CEK** (capabilities — TCO +
+  green threads + hibernation, R4) vs `stacker` (safety-only, ≈free); decide which before building.
 
 > ⛔ **You are a NEW instance.** You did NOT live the long arc-255 design session above — it's a
 > cache in a familiar voice. recolligere BEFORE moving: read the two DESIGN docs + `git log
