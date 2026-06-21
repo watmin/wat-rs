@@ -756,11 +756,11 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
 pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Vector/concat";
     use crate::collection::seq_container::SeqContainer;
-    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + ordered()).
     // Same-kind constraint preserved: Vec+Vec or PersistentVector+PersistentVector only.
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
     match SeqContainer::of_value(left) {
-        Some(left_container) if left_container.mappable() => {
+        Some(left_container) if left_container.ordered() => {
             // Right side must be the same container kind.
             match SeqContainer::of_value(right) {
                 Some(right_container) if right_container == left_container => {
@@ -787,12 +787,12 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             }
                             Ok(Value::wat__core__PersistentVector(out))
                         }
-                        // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+                        // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
                         SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                            unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+                            unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
                     }
                 }
-                // Right side is a different (or non-mappable) container kind.
+                // Right side is a different (or non-ordered) container kind.
                 _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<T> or PersistentVector<T> (same kind as left)",
@@ -800,7 +800,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                 } }.into()),
             }
         }
-        // Left side is not a mappable container.
+        // Left side is not an ordered container.
         _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vec<T> or PersistentVector<T>",

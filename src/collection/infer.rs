@@ -548,20 +548,25 @@ pub(crate) fn infer_assoc(
 // Common shape: extract the collection arg's parametric element type, accept
 // the two container heads, emit a teaching TypeMismatch for anything else.
 
-/// Extract `(container_head, elem_ty)` from a reduced TypeExpr that is a
-/// `mappable` container (currently Vector or PersistentVector).
+/// Extract `(container_head, elem_ty)` from a reduced TypeExpr that satisfies the
+/// caller-supplied capability gate.
 ///
 /// Arc-278 strike 3 — classification now delegates to the registry:
-/// `SeqContainer::of_type` classifies the shape, `mappable()` gates on
-/// the HOF-capable subset. Adding a new mappable container = one change to
+/// `SeqContainer::of_type` classifies the shape, the `cap` gate selects the
+/// capability-capable subset. Adding a new container = one change to
 /// `seq_container.rs`; this function needs no edit.
 ///
+/// `cap` is the capability predicate to apply:
+/// - Pass `SeqContainer::mappable` for map/filter/foldl/foldr (order-agnostic element transform).
+/// - Pass `SeqContainer::ordered` for reverse/take/drop/concat (order-dependent sequence ops).
+///
 /// Returns `None` for a `Var` (caller defers to the runtime backstop) or for
-/// any shape the registry doesn't classify as mappable (caller emits TypeMismatch).
+/// any shape the registry doesn't classify as passing `cap` (caller emits TypeMismatch).
 fn extract_seq_elem(
     reduced: &TypeExpr,
     subst: &mut Subst,
     fresh: &mut InferCtx,
+    cap: fn(crate::collection::seq_container::SeqContainer) -> bool,
 ) -> Option<(&'static str, TypeExpr)> {
     use crate::collection::seq_container::SeqContainer;
 
@@ -572,7 +577,7 @@ fn extract_seq_elem(
     }
 
     let container = SeqContainer::of_type(reduced)?;
-    if !container.mappable() {
+    if !cap(container) {
         return None;
     }
 
@@ -593,7 +598,7 @@ fn extract_seq_elem(
         }
         (SeqContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
         (SeqContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
-        // No other mappable containers today; SeqContainer::mappable() gates the rest to false.
+        // No other containers pass the cap gate today.
         _ => None,
     }
 }
@@ -633,7 +638,7 @@ pub(crate) fn infer_map(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
             Some((coll_head, elem_ty)) => {
                 // Unify arg[0] against fn(T)->U; U is the fresh output element type.
                 let u_var = fresh.fresh();
@@ -703,7 +708,7 @@ pub(crate) fn infer_filter(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
             Some((coll_head, elem_ty)) => {
                 // Predicate must be fn(T)->bool.
                 let expected_pred_ty = TypeExpr::Fn {
@@ -770,7 +775,7 @@ pub(crate) fn infer_foldl(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
             Some((_coll_head, elem_ty)) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
@@ -850,7 +855,7 @@ pub(crate) fn infer_foldr(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
             Some((_coll_head, elem_ty)) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
@@ -925,7 +930,7 @@ pub(crate) fn infer_reverse(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // C<T> → C<T>: return the same container type unchanged.
                 let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
@@ -976,7 +981,7 @@ pub(crate) fn infer_take(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
@@ -1038,7 +1043,7 @@ pub(crate) fn infer_drop(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
@@ -1105,12 +1110,12 @@ pub(crate) fn infer_concat(
 
     if let Some(a_ty) = a_ty_opt {
         let a_reduced = reduce(&a_ty, subst, env.types());
-        match extract_seq_elem(&a_reduced, subst, fresh) {
+        match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
             Some((coll_head_a, elem_ty_a)) => {
                 // arg[1] must be the same container kind with the same element type.
                 if let Some(b_ty) = b_ty_opt {
                     let b_reduced = reduce(&b_ty, subst, env.types());
-                    match extract_seq_elem(&b_reduced, subst, fresh) {
+                    match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
                         Some((coll_head_b, elem_ty_b)) => {
                             // Same-kind check: Vector+PersistentVector is a TypeMismatch.
                             if coll_head_a != coll_head_b {

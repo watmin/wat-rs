@@ -40,11 +40,11 @@ pub(crate) fn eval_vec_reverse(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + ordered()).
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
     use crate::collection::seq_container::SeqContainer;
     match SeqContainer::of_value(&v) {
-        Some(container) if container.mappable() => match container {
+        Some(container) if container.ordered() => match container {
             SeqContainer::Vector => {
                 let Value::Vec(xs) = v else { unreachable!("of_value⇒Vector") };
                 let mut out = (*xs).clone();
@@ -59,9 +59,9 @@ pub(crate) fn eval_vec_reverse(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
             SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
@@ -114,11 +114,11 @@ pub(crate) fn eval_vec_take(
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
-    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + ordered()).
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
     use crate::collection::seq_container::SeqContainer;
     match SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
+        Some(container) if container.ordered() => match container {
             SeqContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
@@ -134,9 +134,9 @@ pub(crate) fn eval_vec_take(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
             SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::take".into(),
@@ -163,11 +163,11 @@ pub(crate) fn eval_vec_drop(
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
-    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + ordered()).
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
     use crate::collection::seq_container::SeqContainer;
     match SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
+        Some(container) if container.ordered() => match container {
             SeqContainer::Vector => {
                 let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
@@ -183,9 +183,9 @@ pub(crate) fn eval_vec_drop(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
             SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
+                unreachable!("ordered() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::drop".into(),

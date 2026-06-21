@@ -32,14 +32,14 @@
 //!
 //! # Capability matrix (current runtime truth; `○ gap` = fillable but not yet)
 //!
-//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable | Measurable | Searchable | Gettable |
-//! |--------------------|-----------|-------------|---------------|----------|------------|------------|----------|
-//! | Vector             | ✓         | ✓           | ✓             | ✓        | ✓          | ✓          | ✓        |
-//! | PersistentVector   | ✓         | ✓           | ✓             | ✓        | ✓          | ✓          | ✓        |
-//! | List               | ✓         | ✓           | ✓             | ○ gap    | ✓          | ✓          | ✓        |
-//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A   | ✓          | ✓          | ∅ N/A   |
-//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap    | ✓          | ✓          | ✓        |
-//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap    | ✓          | ✓          | ✓        |
+//! | container          | Indexable | Tail (rest) | Append (conj) | Mappable (map/filter/foldl/foldr) | Ordered (reverse/take/drop/concat) | Measurable | Searchable | Gettable |
+//! |--------------------|-----------|-------------|---------------|-----------------------------------|------------------------------------|------------|------------|----------|
+//! | Vector             | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | PersistentVector   | ✓         | ✓           | ✓             | ✓                                 | ✓                                  | ✓          | ✓          | ✓        |
+//! | List               | ✓         | ✓           | ✓             | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
+//! | Tuple              | ✓         | ∅ N/A       | ∅ N/A         | ∅ N/A                            | ∅ N/A                             | ✓          | ✓          | ∅ N/A   |
+//! | WatAstList         | ✓         | ✓           | ○ gap         | ○ gap                             | ○ gap                              | ✓          | ✓          | ✓        |
+//! | HashSet            | ∅ N/A     | ∅ N/A       | ✓             | ○ gap                             | ∅ N/A                             | ✓          | ✓          | ✓        |
 
 use crate::types::TypeExpr;
 use crate::value::Value;
@@ -185,12 +185,12 @@ impl SeqContainer {
         }
     }
 
-    /// `map`/`filter`/`foldl`/`foldr`/`reverse`/`take`/`drop`/`concat` — element-wise transformation.
+    /// `map`/`filter`/`foldl`/`foldr` — order-agnostic element transform.
     ///
     /// Un-stubbed: strike 3 migrates HOF classification through this gate.
     /// `true` for Vector and PersistentVector — the only containers the HOF
     /// runtime arms support today (verified against transform.rs eval_vec_map/
-    /// filter/foldl/foldr/reverse/take/drop and eval.rs vector_concat_inner).
+    /// filter/foldl/foldr).
     pub(crate) fn mappable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
@@ -202,6 +202,24 @@ impl SeqContainer {
             // WatAstList: ○ gap
             SeqContainer::WatAstList => false,
             // HashSet → set: ○ gap (sensible but not yet built)
+            SeqContainer::HashSet => false,
+        }
+    }
+
+    /// `reverse`/`take`/`drop`/`concat` — order-dependent sequence ops.
+    ///
+    /// `true` for ordered, homogeneous, variable-length sequences. `false` for
+    /// HashSet (unordered — no defined element order to slice or join) and Tuple
+    /// (fixed-arity heterogeneous product). Same nature predicate for all four ops.
+    pub(crate) fn ordered(self) -> bool {
+        match self {
+            SeqContainer::Vector => true,
+            SeqContainer::PersistentVector => true,
+            // ○ gap — runtime arms not yet built for these (filled in later strikes)
+            SeqContainer::List => false,
+            SeqContainer::WatAstList => false,
+            // ∅ N/A — Tuple fixed-arity heterogeneous; HashSet unordered
+            SeqContainer::Tuple => false,
             SeqContainer::HashSet => false,
         }
     }
