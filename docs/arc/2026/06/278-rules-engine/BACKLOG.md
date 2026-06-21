@@ -50,7 +50,7 @@ first, ergonomics last. **This entire phase must complete before ② Perf begins
     "do-it"; the last mile is a runtime `unreachable!`, not a compile error.
 
   **Decomposition (dependency order; the guarantee holds only when all three land):**
-  - [x] **Strike 4 — depth fix — DONE** (`284e35e5`, 2026-06-20). Inner dispatch now `match container` over the
+  - [x] **Strike 4 — depth fix — DONE** (`c70b2733`, 2026-06-20). Inner dispatch now `match container` over the
     closed `SeqContainer` enum, exhaustive, no `_` (Form 1: explicit named-helper arms, decided over Form 2 after
     an architecture audit — Pattern A confirmed, traits/`defprotocol` rejected for these type-projective
     intrinsics). 11 dispatch sites retrofitted (runtime.rs ×2, eval.rs ×2, transform.rs ×7). Proven: adding a
