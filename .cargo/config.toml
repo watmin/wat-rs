@@ -1,0 +1,19 @@
+# Minimum stack size for spawned threads (including libtest's test threads).
+#
+# The wat evaluator is recursive — one Rust `eval` frame per nested wat form —
+# and is NOT yet stack-safe (arc 261, eval-stack-safety / CEK, is a STUB). Deep
+# wat computations overflow the small default thread stack: notably `deporder` /
+# `:wat::deporder::verify-stdlib` traversing the whole stdlib dependency graph,
+# which blows the ~2 MiB default test-thread stack.
+#
+# The 2 MiB -> 8 MiB rung was decided earlier but never committed — it lived only
+# in a shell env, so raw `cargo test` (sandboxes, shadowdancers, CI) hit a false
+# stack overflow that "worked on my machine" only because of an uncommitted env.
+# This makes the rung durable: every `cargo build`/`test`/`run` invocation gets it.
+#
+# 8 MiB is empirically sufficient today (deporder/verify-stdlib pass at 8; the
+# default 2 MiB overflows). It will creep as the stdlib grows. The durable fix is
+# arc 261 (a stack-safe CEK evaluator — heap continuations so eval depth never
+# touches the OS stack), which retires this stopgap and the rung debate entirely.
+[env]
+RUST_MIN_STACK = "8388608"  # 8 MiB
