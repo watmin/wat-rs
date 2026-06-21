@@ -12352,16 +12352,30 @@ fn eval_length(
         } }.into()),
         None => {}
     }
-    match &arg_val {
-        Value::Vec(_) => crate::collection::eval::vector_length_inner(&arg_val),
-        // Arc-278-0b — PersistentVector: generic length.
-        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_length_inner(&arg_val),
-        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_length_inner(&arg_val),
-        Value::wat__core__List(_) => crate::collection::eval::list_length_inner(&arg_val),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    // Arc-278 seq-1a — seq-family arms route through SeqContainer (measurable capability).
+    // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
+    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // forces this arm to be updated before the code compiles.
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&arg_val) {
+        Some(c) if c.measurable() => match c {
+            SeqContainer::Vector => crate::collection::eval::vector_length_inner(&arg_val),
+            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_length_inner(&arg_val),
+            SeqContainer::HashSet => crate::collection::eval::hashset_length_inner(&arg_val),
+            SeqContainer::List => crate::collection::eval::list_length_inner(&arg_val),
+            // measurable() gate excludes these — genuinely dead; filled in seq-1b
+            SeqContainer::Tuple | SeqContainer::WatAstList =>
+                unreachable!("measurable() gate excludes Tuple/WatAstList (○ gap until seq-1b)"),
+        },
+        Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        } }.into()),
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            got: Box::new(ValueSnapshot::of(&arg_val))
         } }.into()),
     }
 }
@@ -12412,16 +12426,30 @@ fn eval_empty(
         } }.into()),
         None => {}
     }
-    match &arg_val {
-        Value::Vec(_) => crate::collection::eval::vector_empty_q_inner(&arg_val),
-        // Arc-278-0b — PersistentVector: generic empty?.
-        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
-        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_empty_q_inner(&arg_val),
-        Value::wat__core__List(_) => crate::collection::eval::list_empty_q_inner(&arg_val),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    // Arc-278 seq-1a — seq-family arms route through SeqContainer (measurable capability).
+    // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
+    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // forces this arm to be updated before the code compiles.
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&arg_val) {
+        Some(c) if c.measurable() => match c {
+            SeqContainer::Vector => crate::collection::eval::vector_empty_q_inner(&arg_val),
+            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
+            SeqContainer::HashSet => crate::collection::eval::hashset_empty_q_inner(&arg_val),
+            SeqContainer::List => crate::collection::eval::list_empty_q_inner(&arg_val),
+            // measurable() gate excludes these — genuinely dead; filled in seq-1b
+            SeqContainer::Tuple | SeqContainer::WatAstList =>
+                unreachable!("measurable() gate excludes Tuple/WatAstList (○ gap until seq-1b)"),
+        },
+        Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        } }.into()),
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            got: Box::new(ValueSnapshot::of(&arg_val))
         } }.into()),
     }
 }
@@ -12473,15 +12501,29 @@ fn eval_contains(
         } }.into()),
         None => {}
     }
-    match &arg0_val {
-        Value::Vec(_) => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashSet(_) => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
-        // Arc-278-0b — PersistentVector: contains? checks element membership (same as Vec).
-        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    // Arc-278 seq-1a — seq-family arms route through SeqContainer (searchable capability).
+    // The capability DRIVES the accepted set: the `if c.searchable()` guard is the genuine gate.
+    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // forces this arm to be updated before the code compiles.
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&arg0_val) {
+        Some(c) if c.searchable() => match c {
+            SeqContainer::Vector => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
+            SeqContainer::HashSet => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
+            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
+            // searchable() gate excludes these — genuinely dead; filled in seq-1b
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList =>
+                unreachable!("searchable() gate excludes List/Tuple/WatAstList (○ gap until seq-1b)"),
+        },
+        Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg0_val))
+        } }.into()),
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
+            got: Box::new(ValueSnapshot::of(&arg0_val))
         } }.into()),
     }
 }
@@ -12587,14 +12629,29 @@ fn eval_get(
         } }.into()),
         None => {}
     }
-    match &arg0_val {
-        Value::Vec(_) => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
-        // Arc-278-0b — PersistentVector: generic get dispatches to persistentvector_get_inner.
-        Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    // Arc-278 seq-1a — seq-family arms route through SeqContainer (gettable capability).
+    // The capability DRIVES the accepted set: the `if c.gettable()` guard is the genuine gate.
+    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // forces this arm to be updated before the code compiles.
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&arg0_val) {
+        Some(c) if c.gettable() => match c {
+            SeqContainer::Vector => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
+            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
+            // gettable() gate excludes these — genuinely dead; filled in seq-1b
+            // (Tuple: ∅ N/A — heterogeneous product, never fillable)
+            SeqContainer::List | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Tuple =>
+                unreachable!("gettable() gate excludes List/WatAstList/HashSet/Tuple (○ gap until seq-1b / ∅ N/A)"),
+        },
+        Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg0_val))
+        } }.into()),
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(&arg0_val))
         } }.into()),
     }
 }
