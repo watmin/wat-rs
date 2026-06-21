@@ -8,6 +8,9 @@
     "allow": [
       "Bash(cargo *)",
       "Bash(rustc *)",
+      "Bash(./target/release/wat *)",
+      "Bash(target/release/wat *)",
+      "Bash(./target/debug/wat *)",
       "Bash(git *)",
       "Bash(grep *)",
       "Bash(rg *)",
