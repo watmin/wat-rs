@@ -75,6 +75,23 @@ Gross counts (real affected set ≤ these; the cascade gives the exact number): 
 `(first <empty seq>)` → **raises**; across Vector/List/PV. RED at HEAD (first returns Option → using it bare is a
 type error). GREEN after the flip. Tuple-first bare still works (regression guard).
 
+## Downstream lint rule (queued — born from this cut; arc-277 fix-wat territory)
+The flip makes `first`/`second`/`third` and `get 0/1/2`+assert *exactly* equivalent, which creates a clean
+idiom-enforcement rule (spotted watching the cascade do its inverse). **Build after first-bare lands.**
+
+PROMOTE → the bare named accessor (both sides bare-raise; exact equivalence):
+- `(:wat::core::nth xs 0)` → `(:wat::core::first xs)`   (`1`→`second`, `2`→`third`)
+- `(:wat::core::Option/expect -> T (:wat::core::get xs 0) "…")` → `(:wat::core::first xs)`  (`1`/`2` likewise)
+
+GUARD (the non-rule — must NOT fire here, or it changes behavior):
+- `(:wat::core::match (:wat::core::get xs 0) ((Some v) …) (None …))` STAYS `get` — legitimate empty-handling;
+  rewriting to `first` would raise and delete the `None` branch.
+
+The principle the rule enforces: **`get` asks "is there one?" (Option); `first`/`second`/`third` assert "give me
+the one" (bare, raise).** The lint fires only when a `get`/`nth` result is *asserted present* (Option/expect, or
+a literal 0/1/2 index on `nth`), never when it is *matched for emptiness*. A `fix-wat` autofix; keeps the corpus
+on the idiom side of the contract this cut establishes.
+
 ## Done = green (flip-core)
 `probe_first_bare_accessors` green; the 2 core probes updated + green; `cargo build --release` clean. (The wider
 suite goes red until the cascade sweep — that is the sweep's worklist, tracked, not a regression.)
