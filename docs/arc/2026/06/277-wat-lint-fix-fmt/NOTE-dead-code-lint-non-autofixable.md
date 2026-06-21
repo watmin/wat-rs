@@ -70,7 +70,29 @@ instant iv-b2's `verify-examples` seam reads them. Gotcha learned: do NOT let a 
 an `#[expect(dead_code)]` field — that counts as a use and trips the expectation under `cargo test`; the
 real runtime reader (iv-b2) is what should retire it, so the premature in-src confirmation test was removed.
 
+## The wat-side surface = a test-attribute-family annotation (builder, 2026-06-21)
+`expect-dead` is NOT a bespoke linter construct — it is a **new member of the wat test-attribute
+family**, exactly like `:ignore` and `:time-limit` (arc 122/123, `wat/test.wat:407-448`). Those are
+**sibling-form annotations** preceding a `deftest`: each is registered as a no-op `String -> :nil` defn
+(so the source type-checks) and the `wat::test!` proc-macro/scanner recognizes the form and emits the
+matching Rust attribute on the generated code:
+- `(:wat::test::ignore "reason")` → `#[ignore = "reason"]`
+- `(:wat::test::should-panic "substr")` → `#[should_panic(expected = "substr")]`
+- `(:wat::test::time-limit "100ms")` → the timeout wrapper
+
+`expect-dead` joins them with the SAME mechanism: a sibling-form annotation that maps to Rust's
+**`#[expect(dead_code)]`** — `ignore`→`#[ignore]` is the precedent, `expect-dead`→`#[expect(dead_code)]`
+is the new pair. So the build is: (1) register the no-op typed annotation form (e.g.
+`(:wat::test::expect-dead "removed when X reads it")`), (2) extend the `wat::test!` scanner to recognize
+it and emit `#[expect(dead_code)]` on the generated `#[test] fn`. Minimal — it rides the arc-122/123
+attribute substrate, not a new linter pass.
+
+(The raise-on-use enforcement for a pure-wat form with no Rust backing — should one ever need it — is
+the registry+call-graph lint above; but for the test-attribute case, Rust's `#[expect]` does the work,
+exactly as `#[ignore]` does for `:ignore`.)
+
 ## Scope marker
-Wat-side: a queued lint rule (`expect-dead`, raise-on-use), built on the same 255-registry + call-graph
-machinery as the plain dead-code lint above. Rust-side: `#[expect(dead_code)]` — adopted for transient
-allows, complete. The live instance (iv-b1's carry fields) self-retires when iv-b2 reads it.
+Wat-side: `expect-dead` = a queued **test-attribute-family** annotation (arc 122/123 mechanism) that
+emits `#[expect(dead_code)]`, sibling to `:ignore`/`:time-limit`. The report-only dead-code LINT (top of
+this note) is the separate registry+call-graph rule. Rust-side: `#[expect(dead_code)]` — adopted for
+transient allows, complete. The live instance (iv-b1's carry fields) self-retires when iv-b2 reads it.
