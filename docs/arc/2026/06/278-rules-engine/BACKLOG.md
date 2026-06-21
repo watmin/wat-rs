@@ -7,15 +7,15 @@ to sane (every cell `done`/`N/A`) before resuming rete. **Spec + grid: `docs/COL
 Ethos: the substrate forces our hand — no deferral, satisfy forcing-signals by USE not `#[allow]`/`pub`
 (memory `feedback_substrate_forces_idealized_state`).
 
-**Possibly DIRTY tree / strike in flight.** A sonnet was running **Strike A (map waist: pub-leak fix + route the
-HashMap/PersistentMap arms of get/contains?/length/empty? through MapContainer)**. The tree may hold UNCOMMITTED
-work — strike-5 (MapContainer + assoc) + Strike A. ⚠️ **`git status` FIRST; do NOT discard uncommitted collection
-work.** If dirty: weigh it (cargo build green? `cargo test` lib still **941/36/1**? `MapContainer` is
-`pub(crate)` + no `lib.rs` re-export? `ProbeMapDummy` errors at every `match m`?), then commit the map-waist +
-push.
+**✅ Map waist DONE** (`f4beda7d`, tree clean): MapContainer registry routes assoc + the map-family arms of
+get/contains?/length/empty? via the Form-1 capability gate (`Some(m) if m.CAP()`); HashMap/PersistentMap live,
+Record gated to N/A pending A2. Floor 953/36/1, `MapContainer` `pub(crate)`. (Two silence-the-signal cheats —
+a pub-leak + debug_assert-shadows — were caught in the weigh and fixed to genuine gates.)
 
-**Build order (then resume rete):** A weigh+commit → **A2** (Record get/has?/len via the class schema —
-`record_assoc_inner` runtime.rs is the model; `RecordDef.field_names` types.rs:203) → **seq waist** (route seq
+**Build order (then resume rete):** **A2 (NEXT)** — Record get/has?/len: build `record_get_inner`(by keyword) /
+`record_contains_field` / `record_length`/`empty?` via the class schema (`record_assoc_inner` runtime.rs:13315 is
+the model; `RecordDef.field_names` types.rs:203), flip Record's keyed_lookup/has_key/measurable cells `false→true`,
+route Record through the gates (runtime + checker `infer_get`/`infer_contains`). Then **seq waist** (route seq
 arms + fill List/WatAstList/HashSet HOFs + Tuple/WatAstList has?/len + index-assoc on Vector/PV/WatAstList) →
 **set algebra** (union/intersection/difference) → collections sane → resume the accumulator cluster (§1) =
 custom-accumulators → returns-the-fact → field-sugar → acc/-alias.
