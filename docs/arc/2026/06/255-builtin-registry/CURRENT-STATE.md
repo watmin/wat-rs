@@ -17,33 +17,42 @@ loner) ⊕ per-kind `*Meta` (closed wat-record schema; optionality via NAMED for
 `MetaField<T>=Unspecified|Specified(T)`, NOT raw Option/sentinels; evolve via Unspecified
 defaults; fix-wat for rare breaks)**. Registry IS `sym`. Full spec: DESIGN.md LOCKED section.
 
-## Strike sequence (hand-author seam + first home; delegate per-home repeats)
-- **255.1b-i (NEXT) — FnDef split + type scaffold.** Split today's `Function`
-  (env.rs:35, `name: Option`, `closed_env`) into **`FnDef`** (the def-record: name(req),
-  type_params, params, param_types, ret_type, rest_param — a true `*Def`) + **`Function`**
-  (the runtime closure VALUE: body + closed_env, anon-capable, metadata-free, unregistered).
-  Then the leaf vocab (`Arity`, `Purity`/`Determinism`/`ExpandTime`/`DefKind` enums,
-  `MetaField<T>`, baseline `Registration`, `DefDetail` sum, `NativeBuiltin`). ~31 Function
-  construction sites (7 anon, `name: None`). `FunctionBody::{Wat,Native}` ALREADY exists
-  (env.rs:22, 255.1a) — Native never constructed yet.
-  **STRIKE 1 SCOPED (2026-06-21):** `Function {` at 31 sites — **26 runtime.rs · 4
-  environment.rs · 1 function/eval.rs**. 7 are anon `name: None` (eval_fn @ function/eval.rs:62
-  + comments) = pure VALUES (no FnDef). Registry slot today: `sym.functions:
-  HashMap<String, Arc<Function>>` (symbol_table.rs:35). Def-fields (`param_types`/`ret_type`)
-  read across ~8 files each = the FnDef surface (checker call-site machinery). Value-field
-  `closed_env` read in 3 files (environment.rs, closure_extract.rs, runtime.rs). Cut plan:
-  mint `FnDef`(def-record) + slim `Function`(closure value: body+closed_env+sig-link);
-  `sym.functions` → holds the def (or a Registration wrapping it); named-fn constructions
-  build FnDef+Function, the 7 anon build Function only. Mechanical but wide — drive it with
-  the test cascade (each broken site names the next). Land green; floor 953/36/1.
-- **255.1b-iii** — register builtins into `sym` from their homes (first home = small/pure
-  template, e.g. `core::Bytes`); carve those arms out of runtime.rs's dispatch.
-- **255.1b-iv** — resolver rewrite: delete blanket-accept; `sym` membership + retirement/
-  near-match remedy. GATE: 254.R undefined-builtin probe green; full corpus green (cascade
-  reveals unregistered real heads → register); bench no hot-path regression.
-- **255.2** reflection verbs (child-namespaces/names/metadata-of); **255.3** consumers
-  collapse (rete/purity.rs + macros::is_pure_total DELETE; is_effectful_op → :pure deriver);
-  **255.N** inscription.
+## Strike sequence (re-sequenced 2026-06-21 — registry-infra first; EVERYTHING below is IN 255, nothing left behind)
+- **255.1b-i (DONE) — registry infra + FIRST home (`core::Bytes`), ZERO behavior.**
+  `src/registry/{mod,bytes}.rs`: `NativeHandler` type + `BuiltinRegistry` (`name → handler`)
+  + `registry()` (OnceLock); 2 Bytes dispatch arms route through `registry().lookup(head)`
+  (consumes the registry → no dead_code); `eval_bytes_*` → `pub(crate)`. Floor 953/36/1,
+  warnings 26, zero behavior change, registry `pub(crate)`.
+  **WEIGH (caught a cheat):** the shadowdancer stored the full baseline (arity/purity/
+  determinism/expand_time) UNREAD and made the module `pub` to hide the dead_code (the
+  pub-leak silence-the-signal cheat). Reverted to `pub(crate)` + TRIMMED to the consumed core
+  (`name → handler`). **The baseline metadata accretes consumer-by-consumer** ("satisfy by
+  use"): `arity`→arity-check strike, `purity`/`determinism`→rete-query strike, `expand_time`→
+  macro-gate strike, all→reflection (255.2). Each field lands WITH its reader — never dead,
+  never silenced. (If the builder later wants the full baseline DATA recorded now and accepts
+  loud dead_code as tracked forcing-signals, that's a floor-raise call — flagged, not taken.)
+- **255.1b-ii… — per-home registration + carve repeats (shadowdancers).** Each home:
+  register its builtins (baseline + handler) + route its dispatch arms through the registry,
+  carving them out of runtime.rs's central match (the megafile dissolves). One home/strike,
+  weighed against the corpus. Scalar/arith homes (`core::i64`/`f64`) gated on the hot-path
+  bench (phf/generated dispatch if a HashMap lookup regresses).
+- **255.1b-RESOLVE — the hole closes.** Once all builtins are registered: resolver rewrite —
+  DELETE `is_reserved_prefix → true` blanket-accept; `:wat::*` head → registry/sym membership;
+  unknown → UnresolvedReference + retirement/near-match remedy. GATE: 254.R undefined-builtin
+  probe green; FULL corpus green (cascade reveals any unregistered real head → register it).
+- **255.1c — the `FnDef` split (IN 255 — user-fn value-vs-def honesty; NOT left behind).**
+  Split `Function` (env.rs:35; `name: Option` + `closed_env: Option` are CORRELATED — a
+  disguised sum): extract `Signature` {type_params,params,param_types,ret_type,rest_param,
+  rest_param_type}; `FnDef {name, sig, body}` (named top-level def, no env — what sym holds);
+  `Closure {sig, body, env}` (anon fn-value, no name). `Value::wat__core__fn` carries the
+  closure; named-fn-as-value converts FnDef→Closure (DESIGN this in its own pass — the
+  Value::fn-sum / global-env question is unresolved). ~31 Function sites (7 anon). Drive with
+  the cascade. THIS makes the `DefDetail` sum uniform (all `*Def`).
+- **255.1d — `*Meta` layer** (per-kind closed wat-record schemas; `MetaField<T>` named
+  forced-match sums; kwargs-construct; `:doc` common; user-form metadata).
+- **255.2** reflection verbs (child-namespaces/names/metadata-of over the registry);
+  **255.3** consumers collapse (rete/purity.rs + macros::is_pure_total DELETE; is_effectful_op
+  → the `:pure` deriver); **255.N** inscription. ALL of these ship in 255.
 
 ## Floor
 lib 953 passed / 36 failed / 1 ignored; warnings 26. Shipped this session before the pivot:

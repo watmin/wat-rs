@@ -4531,8 +4531,12 @@ fn dispatch_keyword_head_value(
         ":wat::holon::encode" => eval_holon_encode(args, list_span, env, sym),
         ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, list_span, env, sym),
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
-        ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, list_span, env, sym),
-        ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, list_span, env, sym),
+        // Arc 255 — registered builtins: look up and dispatch through the registry.
+        // Currently covers core::Bytes (to-hex, from-hex); more homes accrete in later strikes.
+        h if crate::registry::registry().lookup(h).is_some() => {
+            let handler = crate::registry::registry().lookup(h).unwrap();
+            handler(args, list_span, env, sym)
+        }
         ":wat::core::show" => eval_show(args, list_span, env, sym),
         // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
         // which wraps strings in `"..."`, `str` renders values as format fills them.
@@ -17051,7 +17055,7 @@ fn eval_holon_bytes_vector(
 /// `(:wat::core::Bytes::to-hex bs)` → `:String` (arc 063).
 /// Emit lowercase hex, no separators. Deterministic: same Bytes
 /// always produce the same String.
-fn eval_bytes_to_hex(
+pub(crate) fn eval_bytes_to_hex(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -17114,7 +17118,7 @@ const NIBBLE: [char; 16] = [
 ///
 /// Same `:None`-on-structural-failure posture as arc 056's
 /// `from-iso8601` and arc 061's `bytes-vector`.
-fn eval_bytes_from_hex(
+pub(crate) fn eval_bytes_from_hex(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
