@@ -2,6 +2,7 @@
 members = [
     ".",
     "crates/wat-macros",
+    "crates/wat-doc",
     "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-holon-lru",
@@ -24,6 +25,7 @@ members = [
 default-members = [
     ".",
     "crates/wat-macros",
+    "crates/wat-doc",
     "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-holon-lru",

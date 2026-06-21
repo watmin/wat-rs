@@ -1,0 +1,9 @@
+[package]
+name = "wat-doc"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Shared prose+@tag doc-comment parser for wat-rs. One parser depended on by both wat-macros (proc-macro, intrinsics) AND wat (runtime/checker, wat forms) — so the intrinsic and wat-form doc contracts cannot drift. Parity by construction (arc 255)."
+repository = "https://github.com/watmin/wat-rs"
+
+[dependencies]
