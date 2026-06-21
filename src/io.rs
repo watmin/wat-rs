@@ -863,6 +863,53 @@ pub fn eval_ioreader_read_line(
     )))
 }
 
+/// `(:wat::io::IOReader/read-frame <reader>)` → `:Option<String>`.
+///
+/// Accumulates physical lines from `reader` (via `read_line`) until the
+/// buffer forms a complete EDN value, then returns
+/// `Some(trimmed-frame-string)`.  Returns `None` on clean EOF (no bytes
+/// consumed). Surfaces a `RuntimeError` if the frame is `Truncated`
+/// (EOF mid-frame) or `Malformed` (syntax error in the accumulated buffer).
+///
+/// Consumes `crate::edn_shim::read_framed_edn` — the live wire-protocol
+/// accumulator.
+pub fn eval_ioreader_read_frame(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/read-frame";
+    arity(op, args, 1, list_span)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    use crate::edn_shim::{read_framed_edn, FramedRead};
+    match read_framed_edn(|span| reader.read_line(span), list_span.clone())? {
+        FramedRead::Frame(buf) => {
+            // Trim the trailing newline that read_framed_edn appends.
+            let s = buf.trim_end_matches('\n').to_string();
+            Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(s))))))
+        }
+        FramedRead::Eof => Ok(Value::Option(Arc::new(None))),
+        FramedRead::Truncated(partial) => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "EOF arrived mid-frame (truncated): {:?}",
+                    partial
+                ),
+            },
+        }),
+        FramedRead::Malformed(msg) => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("malformed EDN frame: {}", msg),
+            },
+        }),
+    }
+}
+
 /// `(:wat::io::IOReader/rewind <reader>)` → `:()`.
 pub fn eval_ioreader_rewind(
     args: &[WatAST],

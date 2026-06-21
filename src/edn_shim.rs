@@ -965,6 +965,95 @@ fn read_edn_caps(
     edn_to_value_caps(&edn, types, allow_caps)
 }
 
+// ─── EDN value-framing (pipe wire protocol) ─────────────────────────────────
+
+/// Status of a string with respect to forming a complete EDN value.
+///
+/// Used by `read_framed_edn` to drive line accumulation: read physical
+/// lines until `edn_frame_status` reports `Complete`, surface `Malformed`
+/// immediately.
+#[derive(Debug, PartialEq)]
+pub enum EdnFrameStatus {
+    /// The buffer contains exactly one complete EDN value — no more input needed.
+    Complete,
+    /// The buffer is cut off mid-value — read another line and retry.
+    Incomplete,
+    /// The buffer contains a genuine syntax error. `String` is the message.
+    Malformed(String),
+}
+
+/// Classify a string with respect to forming a complete EDN value.
+///
+/// Calls `wat_edn::parse_owned(s)` directly (NOT through `read_edn`, which
+/// stringifies the error kind — we need the structured kind to call
+/// `is_incomplete()`):
+/// - `Ok(_)` → `Complete` (the parser accepted and required EOF)
+/// - `Err(e)` where `e.is_incomplete()` → `Incomplete`
+/// - `Err(e)` otherwise → `Malformed(format!("{e}"))`
+pub fn edn_frame_status(s: &str) -> EdnFrameStatus {
+    match wat_edn::parse_owned(s) {
+        Ok(_) => EdnFrameStatus::Complete,
+        Err(e) if e.is_incomplete() => EdnFrameStatus::Incomplete,
+        Err(e) => EdnFrameStatus::Malformed(format!("{e}")),
+    }
+}
+
+/// The result of a single `read_framed_edn` call.
+#[derive(Debug)]
+pub enum FramedRead {
+    /// A complete EDN frame (the accumulated buffer, `\n`-terminated).
+    Frame(String),
+    /// Clean EOF before any bytes were read — the writer closed normally.
+    Eof,
+    /// EOF arrived mid-frame — the writer died while sending a value.
+    Truncated(String),
+    /// The accumulated buffer is a genuine syntax error (not incomplete).
+    Malformed(String),
+}
+
+/// Accumulate physical lines from `next_line` until the buffer forms a
+/// complete EDN value, then return it as a `FramedRead::Frame`.
+///
+/// Each call to `next_line(span)` must return:
+/// - `Ok(Some(line))` — one line WITHOUT its trailing `\n`
+/// - `Ok(None)` — EOF
+/// - `Err(e)` — a read error (treated as EOF / disconnect)
+///
+/// The accumulator re-adds `\n` (which `read_line` strips) before testing
+/// the buffer with `edn_frame_status`. This is correct because the EDN
+/// lexer skips whitespace including `\n`, and the parser already handles
+/// multi-line strings.
+///
+/// STOP-trigger-safe: returns `Malformed` (not `Frame`) when the buffer
+/// would parse as MULTIPLE values (anti-smuggling is enforced by
+/// `parse_owned`/`parse_top` which requires EOF after the first value).
+pub fn read_framed_edn<F>(mut next_line: F, span: Span) -> Result<FramedRead, RuntimeError>
+where
+    F: FnMut(Span) -> Result<Option<String>, RuntimeError>,
+{
+    let mut buf = String::new();
+    loop {
+        match next_line(span.clone()) {
+            Ok(Some(line)) => {
+                buf.push_str(&line);
+                buf.push('\n');
+                match edn_frame_status(&buf) {
+                    EdnFrameStatus::Complete => return Ok(FramedRead::Frame(buf)),
+                    EdnFrameStatus::Incomplete => continue,
+                    EdnFrameStatus::Malformed(msg) => return Ok(FramedRead::Malformed(msg)),
+                }
+            }
+            Ok(None) | Err(_) => {
+                if buf.is_empty() {
+                    return Ok(FramedRead::Eof);
+                } else {
+                    return Ok(FramedRead::Truncated(buf));
+                }
+            }
+        }
+    }
+}
+
 /// Bridge a parsed `wat_edn::OwnedValue` to a runtime [`Value`],
 /// using `types` to interpret `#ns/Name` tags. Most consumers
 /// want [`read_edn`] (parse + bridge in one call); reach for

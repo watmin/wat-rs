@@ -14480,6 +14480,15 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
+        ":wat::io::IOReader/read-frame".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty()],
+            ret: opt_string_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
         ":wat::io::IOReader/rewind".to_string(),
         TypeScheme {
             type_params: vec![],
@@ -17289,6 +17298,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //   :wat::kernel::println  : ∀T. T -> :wat::core::nil
     //   :wat::kernel::pprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN)
     //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil
+    //   :wat::kernel::epprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN to stderr)
     //   :wat::kernel::readln   : ∀T. () -> :T   (polymorphic via
     //                                            call-site -> :T;
     //                                            see infer_kernel_readln)
@@ -17298,7 +17308,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // collapses to. `readln`'s scheme is a vestigial registration;
     // the call-form dispatch (see infer_list / readln arm) overrides
     // it by reading the call-site's `-> :T` annotation.
-    for op in [":wat::kernel::println", ":wat::kernel::pprintln", ":wat::kernel::eprintln"] {
+    for op in [":wat::kernel::println", ":wat::kernel::pprintln", ":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
         env.register(
             op.into(),
             TypeScheme {

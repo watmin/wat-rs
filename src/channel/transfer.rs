@@ -169,66 +169,113 @@ pub fn typed_recv(
         }
         ReceiverInner::PipeFd(reader) => {
             // Phase 2 — multiplex on shutdown via OS-level poll.
-            // If reader exposes a pollable FD AND the substrate's shutdown
-            // broadcast is initialized, poll both; otherwise fall back to
-            // bare read_line (non-FD-backed reader, or pre-init bootstrap).
+            // Value-framing upgrade: accumulate physical lines until the
+            // buffer forms a complete EDN value (edn_frame_status Complete).
+            // The poll/shutdown multiplex fires around EACH read_line so
+            // shutdown responsiveness is preserved between lines of a
+            // multi-line frame (Slice B discipline — shutdown wins ties).
             let pipe_fd_opt = reader.as_raw_fd_for_poll();
             let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
                 std::sync::atomic::Ordering::SeqCst,
             );
-            if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
-                loop {
-                    let mut fds = [
-                        libc::pollfd {
-                            fd: pfd,
-                            events: libc::POLLIN | libc::POLLHUP,
-                            revents: 0,
-                        },
-                        libc::pollfd {
-                            fd: broadcast_fd,
-                            events: libc::POLLHUP,
-                            revents: 0,
-                        },
-                    ];
-                    let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
-                    if n < 0 {
-                        // EINTR → retry; other errors fall through to read_line.
-                        let err = std::io::Error::last_os_error();
-                        if err.kind() == std::io::ErrorKind::Interrupted {
+
+            // Inner helper: poll-then-read one physical line.
+            // Returns Ok(Some(line)) | Ok(None) for EOF | Err for shutdown.
+            // Using a named enum avoids closure escape problems with
+            // RecvOutcome::Shutdown.
+            enum LineResult {
+                Line(String),
+                Eof,
+                Shutdown,
+                Disconnected,
+            }
+            let read_one_line = || -> LineResult {
+                if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
+                    loop {
+                        let mut fds = [
+                            libc::pollfd {
+                                fd: pfd,
+                                events: libc::POLLIN | libc::POLLHUP,
+                                revents: 0,
+                            },
+                            libc::pollfd {
+                                fd: broadcast_fd,
+                                events: libc::POLLHUP,
+                                revents: 0,
+                            },
+                        ];
+                        let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                        if n < 0 {
+                            // EINTR → retry; other errors fall through to read_line.
+                            let err = std::io::Error::last_os_error();
+                            if err.kind() == std::io::ErrorKind::Interrupted {
+                                continue;
+                            }
+                            break; // non-EINTR error — proceed to read_line
+                        }
+                        if n == 0 {
+                            // timeout=-1 should never produce n=0; defensively retry.
                             continue;
                         }
-                        break;
-                    }
-                    if n == 0 {
-                        // timeout=-1 should never produce n=0; defensively retry.
-                        continue;
-                    }
-                    // Shutdown wins ties per Slice B discipline — process is
-                    // going down; honest reporting.
-                    if fds[1].revents != 0 {
-                        return RecvOutcome::Shutdown;
-                    }
-                    if fds[0].revents != 0 {
-                        break;
+                        // Shutdown wins ties per Slice B discipline.
+                        if fds[1].revents != 0 {
+                            return LineResult::Shutdown;
+                        }
+                        if fds[0].revents != 0 {
+                            break;
+                        }
                     }
                 }
-            }
-            // Pipe is ready (or no multiplex possible). Read.
-            match reader.read_line(span) {
-                Ok(Some(line)) => {
-                    let trimmed = line.trim_end_matches('\n');
-                    match crate::edn_shim::read_edn(trimmed, types) {
-                        Ok(v) => RecvOutcome::Value(v),
-                        Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
+                // Pipe is ready (or no multiplex). Read one physical line.
+                match reader.read_line(span.clone()) {
+                    Ok(Some(line)) => LineResult::Line(line),
+                    Ok(None) => LineResult::Eof,
+                    Err(_) => LineResult::Disconnected,
+                }
+            };
+
+            // Accumulate lines until the buffer is a complete EDN value.
+            let mut buf = String::new();
+            loop {
+                match read_one_line() {
+                    LineResult::Shutdown => return RecvOutcome::Shutdown,
+                    LineResult::Disconnected => return RecvOutcome::Disconnected,
+                    LineResult::Eof => {
+                        if buf.is_empty() {
+                            return RecvOutcome::Disconnected;
+                        }
+                        // Truncated frame — writer died mid-value.
+                        return RecvOutcome::DecodeError(format!(
+                            "EOF mid-frame (truncated EDN value): {:?}",
+                            buf
+                        ));
+                    }
+                    LineResult::Line(line) => {
+                        // read_line strips the trailing '\n'; re-add it so
+                        // the accumulated buffer is valid multi-line EDN.
+                        buf.push_str(&line);
+                        buf.push('\n');
+                        use crate::edn_shim::EdnFrameStatus;
+                        match crate::edn_shim::edn_frame_status(&buf) {
+                            EdnFrameStatus::Incomplete => continue,
+                            EdnFrameStatus::Complete => {
+                                // Trim trailing newline for read_edn (which
+                                // also handles multi-line strings just fine).
+                                let trimmed = buf.trim_end_matches('\n');
+                                return match crate::edn_shim::read_edn(trimmed, types) {
+                                    Ok(v) => RecvOutcome::Value(v),
+                                    Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
+                                };
+                            }
+                            EdnFrameStatus::Malformed(msg) => {
+                                return RecvOutcome::DecodeError(format!(
+                                    "malformed EDN frame: {}",
+                                    msg
+                                ));
+                            }
+                        }
                     }
                 }
-                Ok(None) => RecvOutcome::Disconnected,
-                // A read error (kernel-level, not EOF) is also a
-                // disconnect from the wat-level POV — there's nothing
-                // useful for the caller to do beyond bail. Caller can
-                // distinguish if it cares by inspecting the IOReader
-                // directly.
-                Err(_) => RecvOutcome::Disconnected,
             }
         }
     }

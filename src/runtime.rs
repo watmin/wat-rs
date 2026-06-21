@@ -4412,6 +4412,7 @@ fn dispatch_keyword_head_value(
         ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/read-all-string" => crate::io::eval_ioreader_read_all_string(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym, list_span).map_err(Into::into),
+        ":wat::io::IOReader/read-frame" => crate::io::eval_ioreader_read_frame(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym, list_span).map_err(Into::into),
         ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, list_span, env, sym).map_err(Into::into),
         ":wat::io::IOWriter/open-file" => crate::io::eval_iowriter_open_file(args, list_span, env, sym).map_err(Into::into),
@@ -4620,6 +4621,7 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::println" => crate::services::eval_kernel_println(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::pprintln" => crate::services::eval_kernel_pprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
+        ":wat::kernel::epprintln" => crate::services::eval_kernel_epprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::readln" => crate::services::eval_kernel_readln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
         // Arc 170 slice 3 Gap B — explicit EOF on send side without

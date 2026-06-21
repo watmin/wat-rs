@@ -59,7 +59,7 @@
   [req <- :wat::kernel::services::StdInService::Req
    in  <- :wat::io::IOReader]
    -> :wat::kernel::services::StdInService::Rep
-  (:wat::core::match (:wat::io::IOReader/read-line in)
+  (:wat::core::match (:wat::io::IOReader/read-frame in)
       -> :wat::kernel::services::StdInService::Rep
     ((:wat::core::Some line)
       (:wat::kernel::services::StdInService::Rep/new

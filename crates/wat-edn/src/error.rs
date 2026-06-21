@@ -68,8 +68,34 @@ impl std::fmt::Display for ErrorKind {
     }
 }
 
+impl ErrorKind {
+    /// True for error kinds that indicate the input is *incomplete* —
+    /// the parser ran out of input mid-value. Callers that accumulate
+    /// lines (e.g. the pipe value-framing reader) use this to distinguish
+    /// "read more lines" from a genuine syntax error.
+    pub fn is_incomplete(&self) -> bool {
+        matches!(
+            self,
+            ErrorKind::UnexpectedEof
+                | ErrorKind::UnclosedString
+                | ErrorKind::UnclosedList
+                | ErrorKind::UnclosedVector
+                | ErrorKind::UnclosedMap
+                | ErrorKind::UnclosedSet
+        )
+    }
+}
+
 impl Error {
     pub(crate) fn at(pos: usize, kind: ErrorKind) -> Self {
         Error::Parse { pos, kind }
+    }
+
+    /// Delegates to `ErrorKind::is_incomplete`. Convenience so callers
+    /// holding an `Error` (not just a `kind`) can check without destructuring.
+    pub fn is_incomplete(&self) -> bool {
+        match self {
+            Error::Parse { kind, .. } => kind.is_incomplete(),
+        }
     }
 }

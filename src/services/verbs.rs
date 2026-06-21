@@ -1,6 +1,6 @@
-//! Wat-surface verbs — the four `:wat::kernel::` stdio primitives.
+//! Wat-surface verbs — the five `:wat::kernel::` stdio primitives.
 //!
-//! `eval_kernel_println` / `eval_kernel_pprintln` / `eval_kernel_eprintln` / `eval_kernel_readln`
+//! `eval_kernel_println` / `eval_kernel_pprintln` / `eval_kernel_eprintln` / `eval_kernel_epprintln` / `eval_kernel_readln`
 //! moved verbatim from `src/thread_io.rs` (Stone 8.2w). See the
 //! module-level docs on `src/services/mod.rs` for contracts and history.
 
@@ -167,6 +167,52 @@ pub fn eval_kernel_eprintln(
             Ok(Ok(())) => Ok(Value::Unit),
             // The service processed the Req but the write FAILED — surface it
             // (uniform with src/io.rs's IOWriter write-failure convention).
+            Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("stderr write failed: {}", msg),
+            } }),
+            Err(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } }),
+        }
+    })
+}
+
+/// `(:wat::kernel::epprintln v)` → `:wat::core::nil`. Serialize `v`
+/// to pretty-printed (multi-line indented) EDN via `wat_edn::write_pretty`;
+/// build a `StdErrService::Req {thread-id, line}` struct Value; send it on
+/// the universe-resident StdErrService peer's input channel; block on
+/// `stderr_reply_rx` for the ack; return `Value::Unit`.
+///
+/// Identical to `eval_kernel_eprintln` except uses `wat_edn::write_pretty`
+/// instead of `wat_edn::write`. Mirrors the `pprintln`/`println` split,
+/// but routed to stderr (fd 2) instead of stdout.
+///
+/// Same ambient stderr service path, same `∀T. T -> :wat::core::nil` type.
+pub fn eval_kernel_epprintln(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::epprintln";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let line = wat_edn::write_pretty(&edn);
+    let services = sym.runtime_services().ok_or_else(|| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
+    })?;
+    with_thread_io(OP, list_span, |io| {
+        let req = build_write_req(":wat::kernel::services::StdErrService::Req", io.thread_id, line);
+        services
+            .stderr_ctrl
+            .send(ServiceMsg::Req(req))
+            .map_err(|_| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
+                op: OP.into()
+            } })?;
+        match io.stderr_reply_rx.recv() {
+            Ok(Ok(())) => Ok(Value::Unit),
             Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("stderr write failed: {}", msg),
