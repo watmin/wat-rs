@@ -56,10 +56,16 @@ first, ergonomics last. **This entire phase must complete before ② Perf begins
     intrinsics). 11 dispatch sites retrofitted (runtime.rs ×2, eval.rs ×2, transform.rs ×7). Proven: adding a
     throwaway enum variant now errors at all 11 dispatch sites + 4 capability methods (was: 4 only). Floor held
     941/36, warnings 26, behavior byte-identical. Strikes 5+6 inherit this pattern.
-  - [ ] **Strike 5 — coverage, seq half (NEXT).** Route the seq arms of `get`/`contains?`/`length`/`empty?`
-    through the strengthened waist (same exhaustive-`match container` pattern as strike 4).
-  - [ ] **Strike 6 — MapContainer.** Mint the sibling keyed registry for `{HashMap, PersistentMap, Record}`
-    (same data-carrying + exhaustive pattern); route the map arms of the four mixed ops + `assoc` through it.
+  - [ ] **Strike 5 — MapContainer registry (NEXT).** Mint the sibling keyed registry for
+    `{HashMap, PersistentMap, Record}` mirroring `SeqContainer` (exhaustive enum + `of_type`/`of_value`
+    classifiers + capability methods + strike-4 exhaustive `match container` dispatch). Route the map-only op
+    `assoc` through it. Standalone, independently green — the missing dependency the mixed-op routing needs.
+  - [ ] **Strike 6 — route the mixed ops through BOTH waists.** `get`/`contains?`/`length`/`empty?` route their
+    seq arms through `SeqContainer` and their map arms through `MapContainer` in ONE pass — symmetric, exhaustive
+    on both sides, each op touched once. Closes the coverage hole; the guarantee then holds for seq AND map.
+  - *(Reordered 2026-06-20, was: seq-half-then-MapContainer. Four-questions: building MapContainer first lets the
+    mixed ops route both halves in one pass — no asymmetric seq-routed/map-hand-rolled interim, each mixed op
+    edited once not twice. The mixed ops have no live drift today, so the interim order is a free choice.)*
   - **End state:** adding any container (seq or map) lights up compile errors at classification + capability +
     every op's exhaustive arm → a partial impl cannot be written. The `tests/probe_seq_container_parity.rs` drift
     probe guards the class in the interim. Supersedes the old "extend `extract_seq_elem`" framing (too narrow —
