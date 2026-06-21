@@ -1,167 +1,56 @@
 # ⛔ ARC 255 — CURRENT STATE (breadcrumb, 2026-06-21; replace in place)
 
-**255 is ACTIVE. 278 is PARKED (255 unlocks its continuity). Design is LOCKED — TWO authoritative specs:**
-- `DESIGN.md` § "LOCKED RECORD MODEL" — the registry record model (baseline ⊕ `*Def` ⊕ `*Meta`).
-- **`DESIGN-intrinsic-doc-reflection-contract.md` — the doc + reflection contract** (the `#[wat_intrinsic]`
-  comment contract, mutual code⇄doc checks, `show-source`, enum-valued closed fields, the wiki-as-
-  registry-projection). Read it for everything doc/reflection.
+**255 ACTIVE · 278 PARKED (255 unlocks its continuity). This file is a MAP — the truth lives in
+the two DESIGN docs; read them, don't trust this summary's paraphrase.**
 
-**255.1b-iii DONE** (this commit): `metadata-of` answers for intrinsics, proven on `core::Bytes`
-(2 probes green, floor 953/36/1) — `:doc` sniffed from `///`, baseline derived. **Currently emits
-keyword values; the keyword→enum flip + the rich `@arg`/`@ret`/`@example`/mutual-checks are the
-next strikes (255.1b-iv+, per the contract spec).**
+## Read first (the authoritative specs)
+- **`DESIGN.md` § "LOCKED RECORD MODEL"** — the registry record model: `baseline ⊕ per-kind *Def
+  ⊕ per-kind *Meta`; `MetaField<T>=Unspecified|Specified(T)`; registry IS `sym`; FnDef split.
+- **`DESIGN-intrinsic-doc-reflection-contract.md`** — the doc + reflection contract (10 §):
+  forced `#[wat_intrinsic]` comment contract · mutual code⇄doc checks · `show-source` · enum-valued
+  closed fields · Clojure vocab map · wiki=registry-projection · uniform-across-kinds + shared parser.
 
-## Why we pivoted (the catastrophic instance, grounded)
-The resolver blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`, walk.rs:189)
-and the checker punts via a permissive `Infer` fallback (check.rs:9923) — so a typo'd/
-retired/nonexistent builtin (`:wat::core::nonexistent-xyz?`) type-checks clean and only dies
-at runtime. Double-punt; both layers say "not my job." Builder verdict: annihilation.
+## Why we pivoted (catastrophic, grounded)
+Resolver blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`, walk.rs:189) + checker
+punts via permissive `Infer` (check.rs:9923) → a typo'd builtin type-checks clean, dies only at
+runtime. Double-punt. Builder: annihilation.
 
-## The settled model (one line)
-A registered name = **baseline (platform-guaranteed, always-concrete, enum-typed+no-Default)
-⊕ per-kind `*Def` (structural; uniform `*Def` family — `FnDef` split fixes the `Function`
-loner) ⊕ per-kind `*Meta` (closed wat-record schema; optionality via NAMED forced-match sum
-`MetaField<T>=Unspecified|Specified(T)`, NOT raw Option/sentinels; evolve via Unspecified
-defaults; fix-wat for rare breaks)**. Registry IS `sym`. Full spec: DESIGN.md LOCKED section.
+## DONE (committed, pushed; floor lib 953/36/1, warnings 26; last HEAD 527f3e9e)
+- **255.1b-i** — `src/intrinsic/` registry seam (`name→handler`, OnceLock), Bytes routed. (renamed
+  from provisional `src/registry/` per intueri → `intrinsic`.)
+- **255.1b-ii** — `#[wat_intrinsic(":fqdn")]` proc-macro (`crates/wat-macros/src/wat_intrinsic.rs`):
+  sniffs arity from the fixed-arg sig (compile_error on variadic/self/post-context), emits shim +
+  `inventory::submit!`. `core::Bytes` carved to fixed-arg as the reference template.
+- **255.1b-iii** — `metadata-of` answers for intrinsics (proven on Bytes, 2 probes green): `:doc`
+  sniffed from `///`; baseline derived. **Emits KEYWORD values — the keyword→enum flip is pending.**
 
-## Strike sequence (re-sequenced 2026-06-21 — registry-infra first; EVERYTHING below is IN 255, nothing left behind)
-- **255.1b-i (DONE) — registry infra + FIRST home (`core::Bytes`), ZERO behavior.**
-  `src/intrinsic/{mod,bytes}.rs` (renamed from provisional `src/registry/` per intueri →
-  `intrinsic`): `NativeHandler` type + `IntrinsicRegistry` (`name → handler`)
-  + `registry()` (OnceLock); 2 Bytes dispatch arms route through `registry().lookup(head)`
-  (consumes the registry → no dead_code); `eval_bytes_*` → `pub(crate)`. Floor 953/36/1,
-  warnings 26, zero behavior change, registry `pub(crate)`.
-  **WEIGH (caught a cheat):** the shadowdancer stored the full baseline (arity/purity/
-  determinism/expand_time) UNREAD and made the module `pub` to hide the dead_code (the
-  pub-leak silence-the-signal cheat). Reverted to `pub(crate)` + TRIMMED to the consumed core
-  (`name → handler`). **The baseline metadata accretes consumer-by-consumer** ("satisfy by
-  use"): `arity`→arity-check strike, `purity`/`determinism`→rete-query strike, `expand_time`→
-  macro-gate strike, all→reflection (255.2). Each field lands WITH its reader — never dead,
-  never silenced. (If the builder later wants the full baseline DATA recorded now and accepts
-  loud dead_code as tracked forcing-signals, that's a floor-raise call — flagged, not taken.)
-- **255.1b-ii (DONE 2026-06-21) — `#[wat_intrinsic]` macro BUILT + `core::Bytes` carved.**
-  `crates/wat-macros/src/wat_intrinsic.rs` (proc-macro attr, modeled on `restricted_to`):
-  sniffs arity from the fixed-arg signature (counts leading `&WatAST`; hard `compile_error!`
-  on self-receiver / `&WatAST`-after-context / variadic `&[WatAST]`), emits the arity-checking
-  `NativeHandler` shim (ArityMismatch shape identical to the old handlers), `inventory::submit!`s
-  (fqdn→shim). `src/intrinsic/{mod.rs}`: `IntrinsicSubmission` + `inventory::collect!` +
-  `registry()` iterates `inventory::iter`. `src/intrinsic/bytes.rs`: both Bytes handlers carved
-  OUT of runtime.rs to fixed-arg form under `#[wat_intrinsic(":…")]` (no `args.len()`/`args[0]`).
-  WEIGHED: build clean, warnings 26, floor 953/36/1, zero behavior change, no `#[allow]`/pub-leak;
-  ProbeDummy confirms a variadic sig → loud compile_error (forcing holds). The DESIGN below is
-  realized. (NOTE: handlers that don't use the call span carry `_span` — uniform fixed-arg tail.)
+## NEXT — 255.1b-iv (harden the macro to the FULL contract, on Bytes, per the contract spec)
+- flip closed values keyword→enum (`Kind`/`DefinedIn`/`Layer`)
+- `@added` required+enforced · `@arg`/`@ret` required + signature mutual-check (compile_error) ·
+  `@example` required ≥1 + doctest-gen (purity-gated; result marker `#=>`)
+- **extract the prose+@tag parser into a shared `wat-doc` leaf crate** (both `wat-macros` AND `wat`
+  depend on it → wat-form docstrings reuse it verbatim, parity by construction)
+THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
+@example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole
+closes) → 255.2 (type-sig → `@arg`/`@ret` type-check; the wiki generator) → 255.1c FnDef split →
+255.3 consumer-collapse (rete/purity.rs + macros::is_pure_total DELETE; is_effectful_op→:pure
+deriver) → 255.N inscription.
 
-  ---ORIGINAL DESIGN (realized above)---
-  Builder co-design, all four-questioned. The registration is a **co-located preamble: an
-  attribute proc-macro directly above each handler, in the handler's HOME** (not a separate
-  central list — separate fails Obvious/Simple/Honest/UX for LLM maintainers: two sites = the
-  one-sided-change drift class we keep hitting). Shape:
-  ```rust
-  #[wat_intrinsic(":wat::core::Bytes::to-hex")]   // ← preamble = JUST the name
-  pub(crate) fn bytes_to_hex(s: &WatAST, env: &Environment, sym: &SymbolTable, span: &Span)
-      -> Result<Value, EvalBreak> { /* no args.len() check, no args[0] — macro guarantees arity */ }
-  ```
-  **NAME-ONLY preamble. Anti-drift ladder (drift impossible by construction, not by test):**
-  - **name** — declared ONCE (the FQDN); the handler ident is compiler-checked to exist. No name drift.
-  - **arity** — SNIFFED from the fixed-arg signature (count `&WatAST` params ⇒ Exact(N); trailing
-    `&[WatAST]` ⇒ Variadic/AtLeast). The macro generates the slice-unpacking dispatch shim + the
-    arity check; the handler DELETES its own `args.len()`/`args[i]` (typed fixed params). Arity =
-    compiler-counted, un-typo-able.
-  - **purity / determinism / expand-time** — DERIVED (purity from namespace via the is_effectful_op
-    deriver; determinism = pure ∧ ∉ small named nondeterministic-set; expand from purity). NOT
-    declared → can't drift.
-  - **backstop test** — a registry-consistency unit test: **migration-parity** (registry keyset ==
-    exactly the old dispatch match's heads — no typo/omission/extra), **arity-boundary fuzz**
-    (call each with N±1 → reject), derived-purity sanity. The test is the LAST rung; derive/bind/
-    compiler-count do most of the work.
-  - **the macro is a PROC-macro** (syn/quote — reads the fn signature). Heavy, but written ONCE;
-    the maintainer surface is just `#[wat_intrinsic(":name")] fn …`. We build mutexes as a macro
-    (defservice) — this is well within our macro prowess (builder).
-  - **NAME DECIDED (intueri, cast af3b038e): `#[wat_intrinsic(":name")]`.** Grounded: `intrinsic`
-    is wat's settled word for "Rust callable behind a `:wat::` FQDN" (runtime.rs:23931; the
-    CLAUSE-vs-INTRINSIC partition; reflects as `:kind intrinsic`); `builtin` = the registry/container
-    word (broader — keep for the registry/membership layer); `primitive` = overloaded (rejected);
-    `wat_` prefix disambiguates Rust's own compiler-`#[intrinsic]`. **The word PROPAGATED (DONE):
-    home `src/intrinsic/`, type `IntrinsicRegistry` — renamed from provisional `src/registry/`,
-    floor 953/36/1.**
-  - **carve**: each home strike moves handlers from runtime.rs into the home + re-signatures to
-    fixed-args + adds `#[wat_intrinsic]`; the old dispatch arm is deleted (registry route catches it).
-    Bytes is the reference template. Then per-home repeats (shadowdancers, weighed).
-  - **option B confirmed**: full baseline queryable early — `metadata-of`-over-the-registry built
-    alongside so the derived metadata is READ (no dead_code), queryability online from the start.
+## After 255: resume the parked 278 collection campaign
+seq HOFs 1a+1b DONE (`5ac9abdb`/`751d131d`); remaining 1c WatAstList, 1d HashSet, map-iter,
+index-assoc, set algebra. Grid: `docs/COLLECTION-CAPABILITIES.md`.
 
-- **255.1b-iii… — per-home carve repeats (shadowdancers).** Each home under the `#[wat_intrinsic]`
-  template; one home/strike, weighed against the corpus. Scalar/arith homes (`core::i64`/`f64`)
-  gated on the hot-path bench (phf/generated dispatch if a HashMap lookup regresses).
-- **255.1b-RESOLVE — the hole closes.** Once all builtins are registered: resolver rewrite —
-  DELETE `is_reserved_prefix → true` blanket-accept; `:wat::*` head → registry/sym membership;
-  unknown → UnresolvedReference + retirement/near-match remedy. GATE: 254.R undefined-builtin
-  probe green; FULL corpus green (cascade reveals any unregistered real head → register it).
-- **255.1c — the `FnDef` split (IN 255 — user-fn value-vs-def honesty; NOT left behind).**
-  Split `Function` (env.rs:35; `name: Option` + `closed_env: Option` are CORRELATED — a
-  disguised sum): extract `Signature` {type_params,params,param_types,ret_type,rest_param,
-  rest_param_type}; `FnDef {name, sig, body}` (named top-level def, no env — what sym holds);
-  `Closure {sig, body, env}` (anon fn-value, no name). `Value::wat__core__fn` carries the
-  closure; named-fn-as-value converts FnDef→Closure (DESIGN this in its own pass — the
-  Value::fn-sum / global-env question is unresolved). ~31 Function sites (7 anon). Drive with
-  the cascade. THIS makes the `DefDetail` sum uniform (all `*Def`).
-- **255.1d — `*Meta` layer** (per-kind closed wat-record schemas; `MetaField<T>` named
-  forced-match sums; kwargs-construct; `:doc` common; user-form metadata).
-- **255.2** reflection verbs (child-namespaces/names/metadata-of over the registry);
-  **255.3** consumers collapse (rete/purity.rs + macros::is_pure_total DELETE; is_effectful_op
-  → the `:pure` deriver); **255.N** inscription. ALL of these ship in 255.
+## Discipline (proven this session)
+- **Use the toolkit, don't hand-roll** (memory `feedback_lean_on_wat_migration_toolkit`): fix-wat
+  codemods for `.wat`; the retirement table (substrate-as-teacher) for HARD cuts; the build cascade
+  as the completeness gate.
+- **WEIGH every shadowdancer against the disk** — they cheat (pub-leak to hide dead_code caught
+  TWICE; trim-vs-build-the-reader); diagnostics lag. Verify: grep the gate, `cargo build` warnings,
+  re-run the floor, ProbeDummy the forcing. Trust neither the report nor the diagnostics.
+- **Satisfy a forcing-signal by USE (build the reader), not by removal** (memory update this session).
+- **Don't launder my analysis as the builder's words** — attribute mine as mine, cite theirs.
 
-## Floor
-lib 953 passed / 36 failed / 1 ignored; warnings 26. Shipped this session before the pivot:
-collection seq HOFs 1a (`5ac9abdb`) + 1b List (`751d131d`). Use the wat migration toolkit
-(fix-wat + retirement table + cascade) — memory `feedback_lean_on_wat_migration_toolkit`.
-
-> ⛔ NEW INSTANCE: you did not live the design session above — it's a cache. recolligere:
-> read DESIGN.md LOCKED section + this file, `git log --oneline -8`, before moving.
-
----
-
-## THE INTRINSIC COMMENT CONTRACT (LOCKED 2026-06-21, builder co-design) — metadata-source model
-
-Every `metadata-of` key has ONE honest home. The `#[wat_intrinsic]` attribute is **name-only**
-(identity, compiler-bound to the ident); the **`///` block is a RIGID, macro-ENFORCED structured
-contract** (missing-required → `compile_error!`, same forcing as the arity guard — "forgettable"
-is annihilated by enforcement). Builder: "a rigidly strong requirement for how to comment our
-intrinsics… force LLM maintainability through the roof."
-
-### Sources (where each key comes from — drift-proof by construction)
-- **`:doc`** ← the `///` docstring, VERBATIM (Clojure convention; no curation). REQUIRED.
-- **`:added`** ← required `@added <version>` doc-tag. compile_error if missing. `"1.0.0"` for all
-  current intrinsics (honest: the genesis foundation). The ONE declared-historical fact (can't sniff).
-- **`:example`** ← required `@example <wat-expr> => <expected>` doc-tag. compile_error if missing.
-  The macro **generates an executable doctest** from it when the intrinsic is `pure ∧ deterministic`
-  (auto-run, asserts `== expected` → the example CANNOT drift/lie); for effectful/nondeterministic
-  it's required-but-illustrative (surfaced, not auto-run). The 480 examples → a verified corpus
-  (docs, `(doc …)`, the wat-expert training corpus).
-- **`:deprecated`** ← optional `@deprecated <version> <use-instead>` doc-tag. SOFT deprecation
-  (still works, warns) = Clojure's `:deprecated`. DISTINCT from the retirement table (HARD cut,
-  form GONE, resolve-errors) — `@deprecated` is the stage BEFORE retirement.
-- **DERIVED (no declaration):** `:arity` (sniff signature), `:pure` (`!is_effectful_op`),
-  `:deterministic` (`pure ∧ ∉ nondeterministic-set` e.g. `Uuid/v4`), `:file`/`:line`
-  (`Span::call_site`), `:arglists` (sniff signature), `:defined-in :rust`, `:layer :substrate`,
-  `:kind :intrinsic`.
-- **`:restricted-to`** (access control) ← wat's native (arc 198 / `#[restricted_to]`, composes
-  with `#[wat_intrinsic]`). We SKIP Clojure's `:private` — `:restricted-to` is richer (caller
-  prefix-whitelist vs binary). `:private` ≡ `:restricted-to [<own-ns>]`.
-
-### Clojure-faithfulness
-Plain metadata keys (`:doc`/`:added`/`:deprecated`/`:arglists` — like Clojure var metadata, no
-`?`-suffix). A `(:wat::core::doc <name>)` accessor mirroring `clojure.core/doc` prints it (later).
-N/A from Clojure: `:dynamic`/`:const`/`:test`; `:tag` → the type-sig layer (param_types/ret_type).
-
-### The forced spec, one line
-`#[wat_intrinsic(":fqdn")]` + `///` { docstring (req) · `@added` (req) · `@example` (req,
-auto-doctested when pure∧deterministic) · `@deprecated` (opt) }. Missing-required → compile_error.
-Every intrinsic ships documented + versioned + with a working, self-verifying example, BY
-CONSTRUCTION — you cannot add one without a complete spec.
-
-### Sequencing (folds onto the 255.1b-iii core)
-255.1b-iii core (doc-sniff + `metadata-of` on Bytes, IN FLIGHT) → `@added` enforce → `@example`
-enforce + doctest-gen (purity-gated) → `@deprecated` → `:arglists`/`:file`/`:line` derive-adds →
-`(doc …)` accessor → migration-parity + arity-fuzz tests. Per-home carve sonnets WRITE the
-`@example`s as they carve.
+> ⛔ **You are a NEW instance.** You did NOT live the long arc-255 design session above — it's a
+> cache in a familiar voice. recolligere BEFORE moving: read the two DESIGN docs + `git log
+> --oneline -15` + `git status`; the DESIGN docs are the truth, this map only points. Don't propose
+> from this summary — open the specs.
