@@ -1,5 +1,19 @@
 # `wat-scripts/` — interrogation scripts for telemetry `.db` files
 
+> ⚠️ **The telemetry/ping-pong/pipeline scripts below are DISABLED** (renamed
+> `*.wat.disabled`, 2026-06-21). They were written ~arc 103 and never migrated;
+> they use retired type-position forms (`:i64`/`:()` → arc 109/153,
+> `:wat::core::define` → Stone 241.11, the `(stdin :IOReader)(stdout :IOWriter)`
+> main signature → ambient `:wat::kernel::*` I/O) and **fail at the type-check
+> phase** — every command in this file is therefore historical, not runnable as
+> written. Re-enable one by migrating it to current syntax and dropping the
+> `.disabled` suffix.
+>
+> **For current syntax, read a LIVE file** — never one of the disabled ones:
+> the `fixes/*.wat` codemods (run every migration) and `intrinsic-metadata.wat`
+> are the up-to-date exemplars. `perf/deep-cascade.wat` is kept `.wat` on purpose
+> (broken, but in active rework).
+
 Pry/gdb-style ad-hoc scripts that operate on the sqlite-backed
 telemetry `.db` files arc 091's writer + arc 093's reader path
 ship. Each script is a standalone wat program with a
@@ -169,16 +183,18 @@ crossbeam discipline: when the shell closes its end, each stage's
 `read-line` returns `:None`, the program returns from its loop,
 its stdout fd closes, and the next stage sees EOF.
 
-## Adding a new script
+## Adding a new script (current syntax)
+
+Copy `intrinsic-metadata.wat` or a `fixes/*.wat` — those are live. The
+current shape (the old `(stdin :IOReader)…` signature above is RETIRED):
 
 1. Drop a new `.wat` file in this directory.
-2. Define `:user::main` with the standard `(stdin :wat::io::IOReader)
-   (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()`
-   signature.
-3. `(:wat::io::IOReader/read-line stdin)` for the path; pattern-match
-   the `:Option<String>` for `:None` (no input given) vs `(Some
-   path)`.
-4. Open + stream + print. The substrate handles the rest.
+2. Define a nullary main: `(:wat::core::defn :user::main [] -> :wat::core::nil …)`.
+   It takes no I/O params — I/O is ambient.
+3. Read stdin (EDN-typed) with `(:wat::kernel::readln -> :T)`; read a file
+   with `(:wat::io::read-file path)`. Pattern-match `:Option<…>` for absent input.
+4. Write with `(:wat::kernel::println v)` / `(:wat::kernel::eprintln v)` — both
+   EDN-encode their argument. Open + stream + print; the substrate handles the rest.
 
 The wat-cli binary already links every workspace `#[wat_dispatch]`
 extension, so any path under `:wat::telemetry::*` /
