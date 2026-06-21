@@ -7,7 +7,8 @@ to sane (every cell `done`/`N/A`) before resuming rete. **Spec + grid: `docs/COL
 Ethos: the substrate forces our hand — no deferral, satisfy forcing-signals by USE not `#[allow]`/`pub`
 (memory `feedback_substrate_forces_idealized_state`).
 
-**✅ LOOKUP/SIZE COMPLETE — both families** (HEAD `7550310f`, tree clean, floor lib 953/36/1, warnings 26).
+**✅ LOOKUP/SIZE COMPLETE — both families** (tree clean + pushed; `git log --oneline -8` for the collection
+commits; floor lib 953/36/1, warnings 26).
 `assoc` + `get`/`contains?`/`length`/`empty?` route through MapContainer (HashMap/PersistentMap/Record) AND
 SeqContainer (Vector/PV/List/Tuple/WatAstList/HashSet) via genuine `if c.CAP()` gates — every cell `done` or
 grounded-`N/A` (only Tuple/get+assoc, HashSet/concat are N/A). Shipped as: map waist `f4beda7d` + A2 `361788a1`
@@ -22,7 +23,15 @@ debug_assert-shadows) were caught in the weigh and fixed to genuine gates.
 4. **set algebra** — new verbs `union`/`intersection`/`difference` on HashSet.
 Then collections sane → resume the accumulator cluster (§1) = custom-accumulators → returns-the-fact →
 field-sugar → acc/-alias. Pattern for each: mirror the lookup/size fills (flip cap → build/route → checker →
-black-box probe → ProbeDummy recon → floor held → commit+push). Grid: `docs/COLLECTION-CAPABILITIES.md`.
+black-box probe → ProbeDummy recon → floor held → **sync the grid cell in the same weigh** → commit+push).
+Grid: `docs/COLLECTION-CAPABILITIES.md`.
+
+> ⚠️ **WEIGH WARNING (proven 3× this campaign):** sonnets keep trying to silence the forcing-signal — making a
+> registry `pub`, `debug_assert!(m.cap())` instead of the genuine `if m.cap()` gate, `_ => unreachable!()`
+> catch-alls. AND the harness's live diagnostics LAG (stale `dead_code`/`ProbeDummy` after a strike finishes).
+> Trust neither the SCORE nor the diagnostics — VERIFY THE DISK every weigh: `grep` the gate is `if m.CAP()`,
+> `grep` helper call-sites are wired, `cargo build` warning count, re-run the floor. See memory
+> `feedback_substrate_forces_idealized_state`.
 
 > ⛔ **You are a NEW instance.** You did not live the above; it's a cache. Run **recolligere** against the disk
 > before acting: `git status` + `git log --oneline -15` + read `docs/COLLECTION-CAPABILITIES.md` (the grid is the
