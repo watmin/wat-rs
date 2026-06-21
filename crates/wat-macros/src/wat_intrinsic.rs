@@ -1,16 +1,21 @@
-//! Codegen for `#[wat_intrinsic("<fqdn>")]` — arc 255.1b-ii.
+//! Codegen for `#[wat_intrinsic("<fqdn>")]` — arc 255.1b-ii / iv-b1.
 //!
 //! Applied to a handler fn written with a **fixed-arg signature**: the wat
 //! args as individual `&WatAST` params, followed by the context tail
 //! (`env: &Environment, sym: &SymbolTable, span: &Span`). The attribute:
 //!
-//!   1. **Sniffs arity** — counts the leading `&WatAST` params (those BEFORE
-//!      the context tail). N such params ⇒ `Exact(N)`. (This strike only
+//!   1. **Sniffs args** — collects the leading `&WatAST` param idents (those
+//!      BEFORE the context tail). N such params ⇒ `Exact(N)`. (This strike only
 //!      needs Exact-N; a trailing `&[WatAST]` slice would be Variadic, but
 //!      core::Bytes is Exact(1) twice, so a shape we can't classify is a
 //!      hard compile_error! rather than a silent guess.)
 //!
-//!   2. **Emits a dispatch shim** with the canonical `NativeHandler`
+//!   2. **Parses the `///` block** via `wat_doc::parse`, enforcing the full
+//!      doc contract at expand time (`compile_error!` on any `DocError`).
+//!      Then runs `wat_doc::check_args` to verify `@arg` names match the
+//!      handler's parameter idents.
+//!
+//!   3. **Emits a dispatch shim** with the canonical `NativeHandler`
 //!      signature `fn(&[WatAST], &Span, &Environment, &SymbolTable)
 //!      -> Result<Value, EvalBreak>`. The shim checks `args.len() == N`
 //!      (returning the SAME `RuntimeErrorKind::ArityMismatch` shape the
@@ -18,15 +23,22 @@
 //!      `got` = args.len(), span = the list_span), then calls the fixed-arg
 //!      fn with `&args[0], …, env, sym, span`.
 //!
-//!   3. **Registers** the (fqdn → shim) into the `IntrinsicRegistry` via
-//!      `inventory::submit!` of an `IntrinsicSubmission`. `registry()` builds
-//!      itself by iterating `inventory::iter::<IntrinsicSubmission>`.
+//!   4. **Registers** the (fqdn → shim) into the `IntrinsicRegistry` via
+//!      `inventory::submit!` of an `IntrinsicSubmission`, carrying the full
+//!      structured doc (prose/added/args/ret/examples/deprecated/see) as
+//!      `'static` literals.
 //!
 //! Example:
 //! ```ignore
+//! /// Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.
+//! ///
+//! /// @added 1.0.0
+//! /// @arg bs — the bytes to encode
+//! /// @ret the lowercase hex string, two chars per byte, no separators
+//! /// @example (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16)) #=> "ff0010"
 //! #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 //! pub(crate) fn bytes_to_hex(
-//!     s: &WatAST,
+//!     bs: &WatAST,
 //!     env: &Environment,
 //!     sym: &SymbolTable,
 //!     span: &Span,
@@ -35,14 +47,14 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Type};
+use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Pat, Type};
 
-/// Parse the leading `&WatAST` arg count (the wat-side arity) from a
-/// fixed-arg handler signature. The context tail (`&Environment`,
-/// `&SymbolTable`, `&Span`) follows the wat args; we count `&WatAST`
-/// params and require they be a contiguous leading prefix.
-fn sniff_arity(item: &ItemFn) -> syn::Result<usize> {
-    let mut wat_arg_count = 0usize;
+/// Parse the leading `&WatAST` arg idents (the wat-side params) from a
+/// fixed-arg handler signature. Returns (arg_idents, arity).
+/// The context tail (`&Environment`, `&SymbolTable`, `&Span`) follows the
+/// wat args; we collect only `&WatAST` params from the leading prefix.
+fn sniff_args(item: &ItemFn) -> syn::Result<Vec<String>> {
+    let mut wat_args: Vec<String> = Vec::new();
     let mut seen_context = false;
 
     for input in item.sig.inputs.iter() {
@@ -62,7 +74,17 @@ fn sniff_arity(item: &ItemFn) -> syn::Result<usize> {
                      context tail (env/sym/span); cannot classify this shape",
                 ));
             }
-            wat_arg_count += 1;
+            // Extract the ident from the pattern.
+            let ident = match &*pt.pat {
+                Pat::Ident(pi) => pi.ident.to_string(),
+                other => {
+                    return Err(Error::new_spanned(
+                        other,
+                        "wat_intrinsic: `&WatAST` param must be a plain ident pattern",
+                    ));
+                }
+            };
+            wat_args.push(ident);
         } else if is_ref_watast_slice(&pt.ty) {
             // Variadic shape: `&[WatAST]`. Not handled this strike.
             return Err(Error::new_spanned(
@@ -76,10 +98,9 @@ fn sniff_arity(item: &ItemFn) -> syn::Result<usize> {
         }
     }
 
-    Ok(wat_arg_count)
+    Ok(wat_args)
 }
 
-/// Is the type `&WatAST` (with optional path qualification)?
 /// Sniff the handler fn's docstring — the Clojure-style whole string. `///`
 /// lines desugar to `#[doc = "…"]` attrs (one per line); we collect every
 /// such `doc` string literal, strip the single leading space syn leaves on
@@ -139,12 +160,89 @@ fn type_path_ends_with(ty: &Type, name: &str) -> bool {
     false
 }
 
+/// Render a `wat_doc::DocError` into a precise human message for `compile_error!`.
+fn render_doc_error(e: &wat_doc::DocError) -> String {
+    match e {
+        wat_doc::DocError::MissingProse => {
+            "doc comment has no prose (text before the first @-directive is required)".into()
+        }
+        wat_doc::DocError::MissingAdded => {
+            "doc comment is missing a required `@added <version>` directive".into()
+        }
+        wat_doc::DocError::MissingRet => {
+            "doc comment is missing a required `@ret <desc>` directive".into()
+        }
+        wat_doc::DocError::MissingExample => {
+            "doc comment must have at least one `@example` or `@example-norun` directive".into()
+        }
+        wat_doc::DocError::MalformedDirective { tag, why } => {
+            format!("malformed `{}` directive: {}", tag, why)
+        }
+        wat_doc::DocError::UnknownDirective { tag } => {
+            format!("unknown doc directive `{}`; recognized: @added @arg @ret @example @example-norun @deprecated @see", tag)
+        }
+        wat_doc::DocError::ExampleMissingMarker { expr } => {
+            format!(
+                "`@example` must carry a `#=>` expected-value marker; \
+                 use `@example-norun` if no expected value — got: `{}`",
+                expr
+            )
+        }
+        wat_doc::DocError::DuplicateSingleton { tag } => {
+            format!("duplicate singleton directive `{}`; may appear at most once", tag)
+        }
+        wat_doc::DocError::ArgCountMismatch { documented, signature } => {
+            format!(
+                "@arg count ({}) does not match the handler's `&WatAST` parameter count ({})",
+                documented, signature
+            )
+        }
+        wat_doc::DocError::ArgNameMismatch { position, documented, signature } => {
+            format!(
+                "@arg at position {} names `{}` but the handler parameter is `{}`",
+                position, documented, signature
+            )
+        }
+    }
+}
+
 pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
-    let arity = sniff_arity(item)?;
-    let doc_tokens = match sniff_doc(item) {
-        Some(d) => quote! { ::std::option::Option::Some(#d) },
-        None => quote! { ::std::option::Option::None },
+    let arg_names: Vec<String> = sniff_args(item)?;
+    let arity = arg_names.len();
+
+    // Require a doc comment; parse it through wat_doc.
+    let raw_doc = match sniff_doc(item) {
+        Some(d) => d,
+        None => {
+            return Err(Error::new_spanned(
+                item,
+                format!(
+                    "#[wat_intrinsic] {}: missing doc comment (/// is required; \
+                     must include @added, @ret, and at least one @example)",
+                    fqdn.value()
+                ),
+            ));
+        }
     };
+
+    let doc = match wat_doc::parse(&raw_doc) {
+        Ok(d) => d,
+        Err(e) => {
+            return Err(Error::new_spanned(
+                item,
+                format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
+            ));
+        }
+    };
+
+    // Check @arg names against signature param idents.
+    let arg_name_refs: Vec<&str> = arg_names.iter().map(String::as_str).collect();
+    if let Err(e) = wat_doc::check_args(&doc, &arg_name_refs) {
+        return Err(Error::new_spanned(
+            item,
+            format!("#[wat_intrinsic] {}: {}", fqdn.value(), render_doc_error(&e)),
+        ));
+    }
 
     let fn_name = &item.sig.ident;
     let shim_ident = format_ident!("__wat_intrinsic_shim_{}", fn_name);
@@ -155,6 +253,52 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     let arg_forwards: Vec<TokenStream2> = (0..arity)
         .map(|i| quote! { &args[#i] })
         .collect();
+
+    // Emit 'static literals for the structured doc fields.
+    let prose_lit = &doc.prose;
+    let added_lit = &doc.added;
+    let ret_lit = &doc.ret;
+
+    let args_lit: Vec<TokenStream2> = doc
+        .args
+        .iter()
+        .map(|a| {
+            let name = &a.name;
+            let desc = &a.desc;
+            quote! { (#name, #desc) }
+        })
+        .collect();
+
+    let examples_lit: Vec<TokenStream2> = doc
+        .examples
+        .iter()
+        .map(|ex| {
+            let expr = &ex.expr;
+            let run = ex.run;
+            let expected = match &ex.expected {
+                Some(s) => quote! { ::std::option::Option::Some(#s) },
+                None => quote! { ::std::option::Option::None },
+            };
+            quote! {
+                ::wat::intrinsic::ExampleSubmission {
+                    expr: #expr,
+                    expected: #expected,
+                    run: #run,
+                }
+            }
+        })
+        .collect();
+
+    let deprecated_lit = match &doc.deprecated {
+        Some(d) => {
+            let since = &d.since;
+            let use_instead = &d.use_instead;
+            quote! { ::std::option::Option::Some((#since, #use_instead)) }
+        }
+        None => quote! { ::std::option::Option::None },
+    };
+
+    let see_lit: Vec<&str> = doc.see.iter().map(String::as_str).collect();
 
     let expanded = quote! {
         // The annotated handler, passed through unchanged.
@@ -194,7 +338,13 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                 name: #fqdn,
                 handler: #shim_ident,
                 arity: #arity,
-                doc: #doc_tokens,
+                prose: #prose_lit,
+                added: #added_lit,
+                args: &[#(#args_lit),*],
+                ret: #ret_lit,
+                examples: &[#(#examples_lit),*],
+                deprecated: #deprecated_lit,
+                see: &[#(#see_lit),*],
             }
         }
     };

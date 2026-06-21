@@ -10126,11 +10126,14 @@ fn eval_metadata_of(
         put(":arity", HolonAST::i64(entry.arity as i64));
         put(":pure", HolonAST::bool_(pure));
         put(":deterministic", HolonAST::bool_(deterministic));
-        // :doc — present only when the handler carries a `///` docstring;
-        // omit the key entirely when absent (cleaner than a :unspecified sentinel).
-        if let Some(doc) = entry.doc {
-            put(":doc", HolonAST::string(doc));
-        }
+        // :doc — the GFM prose body from the structured doc contract (iv-b1).
+        // :added — the @added version string.
+        // :ret — the @ret description.
+        // (Vector-valued keys :args/:examples/:see are CARRIED on the entry
+        //  but rendered by the iv-b2 verifier seam, not here — scope cut.)
+        put(":doc", HolonAST::string(entry.prose));
+        put(":added", HolonAST::string(entry.added));
+        put(":ret", HolonAST::string(entry.ret));
         return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
     }
     match sym.binding_metadata.get(&name) {

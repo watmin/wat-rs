@@ -25,15 +25,21 @@ runtime. Double-punt. Builder: annihilation.
   sniffed from `///`; baseline derived. **Emits KEYWORD values — the keyword→enum flip is pending.**
 - **255.1b-iv-a** — the `wat-doc` leaf crate (`crates/wat-doc/`): the shared prose+@tag parser +
   `DocComment` model + `check_args` mutual-check, 16/16 unit tests, clippy-clean, floor untouched.
-  Parity-by-construction foundation (contract §10). DESIGN-STONE-255.1b-iv-a. NOT wired yet (iv-b).
+  Parity-by-construction foundation (contract §10). DESIGN-STONE-255.1b-iv-a. (`41954a33`)
+- **255.1b-iv-b1** — the compile-time contract: `#[wat_intrinsic]` consumes `wat-doc` at expand
+  (`sniff_args` names + `parse`→compile_error + `check_args`→compile_error), carries the structured
+  doc on the registry entry, `metadata-of` renders `:doc`/`:added`/`:ret`; Bytes decorated to the full
+  contract (the forcing function). Lib 954/36/1 (+1 confirmation test), clippy-clean. The
+  `args`/`examples`/`deprecated`/`see` carry fields use a **dated `#[allow(dead_code)]`** (reader =
+  iv-b2's seam; builder-sanctioned bounded exception, NOT the pub-leak cheat). DESIGN-STONE-255.1b-iv-b1.
 
-## NEXT — 255.1b-iv-b (wire `wat-doc` into `#[wat_intrinsic]`) + iv-c (enum flip)
-- **iv-b** — macro consumes `wat_doc::parse`+`check_args` at expand: required-directive
-  `compile_error!`s + `@arg`⇄signature check; carry the structured doc on the submission/entry;
-  `metadata-of` reads the richer fields; the doctest-runner + purity cross-check (registry-walk in
-  `wat`) + the `is_effectful_op` syscall-honesty fix; decorate Bytes to the full contract. **Doctest
-  mechanism = a fork to settle first (registry-walk runner vs macro-emitted test fns).** May split
-  iv-b1 (compile-time contract + structured carry) / iv-b2 (runtime doctest + cross-check + deriver).
+## NEXT — 255.1b-iv-b2 (the wat verifier — R2's self-hosting answer) + iv-c (enum flip)
+- **iv-b2** — wat verifies wat (the R2 realization; `deporder`/`verify-stdlib` template): the
+  `:wat::intrinsic::examples` reflection seam (Rust, reads the carried examples → exposes to wat;
+  **this is the reader that removes the iv-b1 dated allows**) + `verify-examples` (wat: `eval-ast!`
+  each run=true example + `assert-eq` vs `#=>` + purity cross-check) + the `is_effectful_op`
+  syscall-honesty fix (entropy/clock/time → effectful regardless of namespace). When green, R2's
+  prequel gets its fulfillment close + the dated allows come off.
 - **iv-c** — enum flip: `Kind`/`DefinedIn`/`Layer` enums; `metadata-of` emits enum values (§5).
 THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
 @example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole

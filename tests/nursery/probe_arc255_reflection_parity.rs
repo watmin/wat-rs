@@ -161,8 +161,8 @@ fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
     );
     let doc = string_val(get(&map, ":doc").expect(":doc present (handler has a /// docstring)"));
     assert!(
-        doc.contains("lowercase hex"),
-        ":doc must surface the to-hex docstring verbatim; got: {:?}",
+        doc.contains("lowercase-hex") || doc.contains("lowercase hex"),
+        ":doc must surface the to-hex docstring (prose containing 'lowercase-hex' or 'lowercase hex'); got: {:?}",
         doc
     );
 }

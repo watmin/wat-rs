@@ -29,11 +29,14 @@ use crate::value::{
     Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 
-/// Encode a `:wat::core::Bytes` into its lowercase hex `:String`.
+/// Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.
 ///
-/// `(:wat::core::Bytes::to-hex bs)` → `:String` (arc 063). Lowercase
-/// hex, two chars per byte, no separators and no `0x` prefix.
-/// Deterministic: the same Bytes always produce the same String.
+/// Markdown prose, GFM — flows straight to the wiki page body.
+///
+/// @added   1.0.0
+/// @arg     bs — the bytes to encode
+/// @ret     the lowercase hex string, two chars per byte, no separators
+/// @example (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16)) #=> "ff0010"
 #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
@@ -86,32 +89,30 @@ const NIBBLE: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 ];
 
-/// Decode a hex `:String` back into `:Option<wat::core::Bytes>`.
+/// Decode a lowercase-hex `:String` back into `:Option<wat::core::Bytes>`.
 ///
-/// `(:wat::core::Bytes::from-hex s)` → `:Option<wat::core::Bytes>`
-/// (arc 063). Mixed case accepted (a-f and A-F both decode); raw hex
-/// only (no separators, no `0x` prefix); the empty string round-trips
-/// to an empty Bytes.
+/// Mixed case accepted (`a-f` and `A-F` both decode); raw hex only (no
+/// separators, no `0x` prefix); the empty string round-trips to an empty
+/// Bytes. Returns `:None` on odd input length or any non-hex character.
 ///
-/// Returns `:None` on:
-///   - odd input length (can't pair into bytes)
-///   - any non-hex character (`[^0-9a-fA-F]`)
-///
-/// Same `:None`-on-structural-failure posture as arc 056's
-/// `from-iso8601` and arc 061's `bytes-vector`.
+/// @added      1.0.0
+/// @arg        s — the hex-encoded string to decode
+/// @ret        `Some(Bytes)` on success, `None` on malformed input
+/// @example-norun (:wat::core::Bytes::from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
 #[wat_intrinsic(":wat::core::Bytes::from-hex")]
 pub(crate) fn eval_bytes_from_hex(
-    s_arg: &WatAST,
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::from-hex";
-    let s = match eval_inner(s_arg, env, sym)?.value_owned() {
+    let arg_span = s.span().clone();
+    let s = match eval_inner(s, env, sym)?.value_owned() {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError {
-                span: s_arg.span().clone(),
+                span: arg_span,
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
