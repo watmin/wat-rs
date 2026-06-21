@@ -67,7 +67,15 @@ perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + �
   Principle: `get` asks "is there one?", `first/second/third` assert "give me the one." Precise spec +
   equivalences: `DESIGN-STONE-first-bare-accessors.md` § Downstream lint rule. `fix-wat` autofix; build after
   the first-bare cascade closes; flip to rete with the rest.
-- lint suppression via point-in-code metadata rune `{:wat-lint.disable [...]}`.
+- **`(comment ...)` form — the dual of `(quote ...)`** (SUPERSEDES the metadata-rune idea below). `quote` lifts
+  a form INTO the program (→ AST value); `comment` lifts it OUT (→ `nil`, body parsed-but-dropped, never
+  type-checked) yet leaves it in the SOURCE AST for "parsers who care" (lint/fmt/doc-gen). Impl: macro
+  `(:wat::core::comment & body) → nil`. One homoiconic mechanism serving BOTH rich-comments (kept-code/prose as
+  data) AND **lint suppression**: `(comment :wat-lint.disable [rule])` beside a LIVE form — the linter (source-AST
+  walker, `deporder.wat`) reads the directive; the code still runs, only the lint is suppressed. Caveat: body must
+  be lex/parse-valid s-exprs (like Clojure's `comment`); `;;` stays for free text (Clojure's `;` vs `(comment)`
+  split). OPEN: suppression scope — next-sibling / enclosing-form / bracketed-region (the one real decision).
+  ~~(superseded) lint suppression via point-in-code metadata rune `{:wat-lint.disable [...]}`.~~
 - tail-latency / GC-jitter measurement vs Clara (structural claim; lower priority).
 - **The reborn linter** (lint rules as rete rules) — the engine's first serious app; the *why* of arc-278.
   The accumulating rule roster above (quote-sugar, accessor-idiom, positional-construction, nested-if-ladder,
