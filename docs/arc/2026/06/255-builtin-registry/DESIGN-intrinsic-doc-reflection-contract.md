@@ -28,7 +28,7 @@ arity guard; "forgettable" is annihilated by enforcement). Example:
 /// @added   1.0.0
 /// @arg     bs — the bytes to encode
 /// @ret     the lowercase hex string, two chars per byte, no separators
-/// @example (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16)) => "ff0010"
+/// @example (:wat::core::Bytes::to-hex (:wat::core::Vector 255 0 16)) #=> "ff0010"
 #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 pub(crate) fn bytes_to_hex(bs: &WatAST, env: &Environment, sym: &SymbolTable, span: &Span)
     -> Result<Value, EvalBreak> { … }
@@ -41,7 +41,7 @@ pub(crate) fn bytes_to_hex(bs: &WatAST, env: &Environment, sym: &SymbolTable, sp
 | `@added <ver>` | **required** | `:added` | `compile_error!` if missing. `"1.0.0"` for all current intrinsics (honest genesis). The one declared-historical fact (un-sniffable). |
 | `@arg <name> — <desc>` ×params | **required** | `:args` | name+count **mutual-checked vs the signature** (below). |
 | `@ret — <desc>` | **required** | `:ret` | type derives from the scheme (255.2). |
-| `@example <expr> => <expected>` | **required ≥1, repeatable** | `:examples` (list) | **doctested** when `pure ∧ deterministic` (below). |
+| `@example <expr> #=> <expected>` | **required ≥1, repeatable** | `:examples` (list) | **doctested** when `pure ∧ deterministic` (below). `#=>` is the result marker (REPL / Ruby `# =>` / Clojure convention). The doc-parser splits on `#=>`; doctest-gen evals `<expr>`, asserts `== <expected>`. |
 | `@deprecated <ver> <use-instead>` | optional | `:deprecated` | SOFT deprecation (still works, warns) = Clojure's. Distinct from the retirement table (HARD cut). |
 | `@see <fqdn>` | optional, repeatable | `:see` | **registry-checked** — no dangling refs. |
 | `@yields …` | optional | `:yields` | for HOF intrinsics (a `fn` arg). Later. |
