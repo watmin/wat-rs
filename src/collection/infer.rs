@@ -379,115 +379,101 @@ pub(crate) fn infer_assoc(
 
     if let Some(coll_ty) = arg0_ty {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::HashMap" => {
-                // HashMap<K,V>: arg1 unifies with K, arg2 unifies with V.
-                // Return is type-preserving: HashMap<K,V> (unchanged).
-                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
-                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
-                // Unify arg1 against K.
-                if let Some(arg1) = arg1_ty {
-                    if unify(&arg1, &key_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#2".into(),
-                            expected: format_type(&key_ty),
-                            got: format_type(&apply_subst(&arg1, subst))
-                        } });
+        use crate::collection::map_container::MapContainer;
+        match MapContainer::of_type(&reduced, env.types()) {
+            Some(m) if m.can_assoc() => match m {   // exhaustive over MapContainer, no `_`
+                MapContainer::HashMap | MapContainer::PersistentMap => {
+                    // HashMap<K,V> / PersistentMap<K,V>: arg1 unifies with K, arg2 unifies with V.
+                    // Return is type-preserving (unchanged). `reduced` is Parametric here; extract targs.
+                    let targs = match &reduced {
+                        TypeExpr::Parametric { args: ta, .. } => ta,
+                        _ => unreachable!("of_type classified HashMap/PersistentMap → must be Parametric"),
+                    };
+                    let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
+                    let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
+                    // Unify arg1 against K.
+                    if let Some(arg1) = arg1_ty {
+                        if unify(&arg1, &key_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: OP.into(),
+                                param: "#2".into(),
+                                expected: format_type(&key_ty),
+                                got: format_type(&apply_subst(&arg1, subst))
+                            } });
+                        }
                     }
-                }
-                // Unify arg2 against V (NOT K — the K-vs-V trap).
-                if let Some(arg2) = arg2_ty {
-                    if unify(&arg2, &val_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#3".into(),
-                            expected: format_type(&val_ty),
-                            got: format_type(&apply_subst(&arg2, subst))
-                        } });
+                    // Unify arg2 against V (NOT K — the K-vs-V trap).
+                    if let Some(arg2) = arg2_ty {
+                        if unify(&arg2, &val_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: OP.into(),
+                                param: "#3".into(),
+                                expected: format_type(&val_ty),
+                                got: format_type(&apply_subst(&arg2, subst))
+                            } });
+                        }
                     }
+                    // Return type-preserving collection<K,V>.
+                    let ret_ty = apply_subst(&coll_ty, subst);
+                    return if local_errors.is_empty() {
+                        CheckResult::ok(ret_ty)
+                    } else {
+                        CheckResult::partial_with(ret_ty, local_errors)
+                    };
                 }
-                // Return type-preserving HashMap<K,V>.
-                let ret_ty = apply_subst(&coll_ty, subst);
-                return if local_errors.is_empty() {
-                    CheckResult::ok(ret_ty)
-                } else {
-                    CheckResult::partial_with(ret_ty, local_errors)
-                };
-            }
-            // Arc-278-0a — PersistentMap<K,V>: same K+V unification as HashMap; returns PersistentMap<K,V>.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentMap" => {
-                let key_ty = targs.first().map(|k| apply_subst(k, subst)).unwrap_or_else(|| fresh.fresh());
-                let val_ty = targs.get(1).map(|v| apply_subst(v, subst)).unwrap_or_else(|| fresh.fresh());
-                if let Some(arg1) = arg1_ty {
-                    if unify(&arg1, &key_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#2".into(),
-                            expected: format_type(&key_ty),
-                            got: format_type(&apply_subst(&arg1, subst))
-                        } });
+                MapContainer::Record => {
+                    // Record (base :wat::Record, holonic :wat::holon::Record, or any
+                    // specifically-typed subtype like :myapp::Voltage):
+                    // arg1 must be :keyword; arg2 is free ∀T — DO NOT unify.
+                    // Arc 258 cascade — accept all record subtypes here so assoc on
+                    // specifically-typed records type-checks without a TypeMismatch.
+                    // Flavor is preserved at runtime by eval_record_assoc.
+                    let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+                    if let Some(arg1) = arg1_ty {
+                        if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
+                            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: OP.into(),
+                                param: "#2".into(),
+                                expected: format_type(&keyword_ty),
+                                got: format_type(&apply_subst(&arg1, subst))
+                            } });
+                        }
                     }
+                    // arg2 is free ∀T — no unification. Flavor preserved at runtime via eval_record_assoc.
+                    // (arg2_ty was inferred above to surface any parse errors; no unification follows.)
+                    // Return the concrete record type (type-preserving for specifically-typed records).
+                    let ret_ty = reduced.clone();
+                    return if local_errors.is_empty() {
+                        CheckResult::ok(ret_ty)
+                    } else {
+                        CheckResult::partial_with(ret_ty, local_errors)
+                    };
                 }
-                if let Some(arg2) = arg2_ty {
-                    if unify(&arg2, &val_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#3".into(),
-                            expected: format_type(&val_ty),
-                            got: format_type(&apply_subst(&arg2, subst))
-                        } });
-                    }
-                }
-                // Return type-preserving PersistentMap<K,V>.
-                let ret_ty = apply_subst(&coll_ty, subst);
-                return if local_errors.is_empty() {
-                    CheckResult::ok(ret_ty)
-                } else {
-                    CheckResult::partial_with(ret_ty, local_errors)
-                };
-            }
-            TypeExpr::Path(p)
-                if crate::types::is_subtype(p, ":wat::Record", env.types())
-                    || crate::types::is_subtype(p, ":wat::holon::Record", env.types()) =>
-            {
-                // Record (base :wat::Record, holonic :wat::holon::Record, or any
-                // specifically-typed subtype like :myapp::Voltage):
-                // arg1 must be :keyword; arg2 is free ∀T — DO NOT unify.
-                // Arc 258 cascade — accept all record subtypes here so assoc on
-                // specifically-typed records type-checks without a TypeMismatch.
-                // Flavor is preserved at runtime by eval_record_assoc.
-                let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
-                if let Some(arg1) = arg1_ty {
-                    if unify(&arg1, &keyword_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#2".into(),
-                            expected: format_type(&keyword_ty),
-                            got: format_type(&apply_subst(&arg1, subst))
-                        } });
-                    }
-                }
-                // arg2 is free ∀T — no unification. Flavor preserved at runtime via eval_record_assoc.
-                // (arg2_ty was inferred above to surface any parse errors; no unification follows.)
-                // Return the concrete record type (type-preserving for specifically-typed records).
-                let ret_ty = reduced.clone();
-                return if local_errors.is_empty() {
-                    CheckResult::ok(ret_ty)
-                } else {
-                    CheckResult::partial_with(ret_ty, local_errors)
-                };
-            }
-            // Unresolved type variable — defers to the runtime backstop by design,
-            // uniformly across the four collection intrinsics (see infer_contains).
-            TypeExpr::Var(_) => {}
-            _ => {
+            },
+            Some(_) => {
+                // can_assoc()==false (none today; the slot for future non-assoc-capable map members).
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
                     expected: "HashMap<K,V> or :wat::Record".into(),
                     got: format_type(&reduced)
                 } });
+            }
+            None => {
+                // Unresolved type variable — defers to the runtime backstop by design,
+                // uniformly across the four collection intrinsics (see infer_contains).
+                // Any other shape (non-map, non-Var) → teaching TypeMismatch.
+                match &reduced {
+                    TypeExpr::Var(_) => {} // defers to runtime backstop
+                    _ => {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: "HashMap<K,V> or :wat::Record".into(),
+                            got: format_type(&reduced)
+                        } });
+                    }
+                }
             }
         }
     }

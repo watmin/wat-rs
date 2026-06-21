@@ -8713,17 +8713,22 @@ fn eval_assoc(
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     let arg2_val = eval_inner(&args[2], env, sym)?.value_owned();
-    match &arg0_val {
-        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
-        // Arc-278-0a — PersistentMap: generic assoc dispatches to persistentmap_assoc_inner.
-        Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
-        Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
-            record_assoc_inner(arg0_val, arg1_val, arg2_val, list_span, sym)
-        }
-        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg0_val) {
+        Some(m) if m.can_assoc() => match m {   // exhaustive over MapContainer, no `_`
+            MapContainer::HashMap => crate::collection::eval::hashmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
+            MapContainer::PersistentMap => crate::collection::eval::persistentmap_assoc_inner(&arg0_val, &arg1_val, &arg2_val),
+            MapContainer::Record => record_assoc_inner(arg0_val, arg1_val, arg2_val, list_span, sym),
+        },
+        Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>, PersistentMap<K,V>, or :wat::Record",
-            got: Box::new(ValueSnapshot::of(other))
+            got: Box::new(ValueSnapshot::of(&arg0_val))
+        } }.into()),   // can_assoc()==false (none today; the slot)
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>, PersistentMap<K,V>, or :wat::Record",
+            got: Box::new(ValueSnapshot::of(&arg0_val))
         } }.into()),
     }
 }
@@ -12328,10 +12333,27 @@ fn eval_length(
         } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
+    // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
+    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
+    // new keyed container forces this arm to be updated before the code compiles.
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg_val) {
+        Some(m) if m.measurable() => return match m {
+            MapContainer::HashMap => crate::collection::eval::hashmap_length_inner(&arg_val),
+            MapContainer::PersistentMap => crate::collection::eval::persistentmap_length_inner(&arg_val),
+            // measurable() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
+            MapContainer::Record => unreachable!("measurable() gate excludes Record (○ gap until strike A2)"),
+        },
+        Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        } }.into()),
+        None => {}
+    }
     match &arg_val {
         Value::Vec(_) => crate::collection::eval::vector_length_inner(&arg_val),
-        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_length_inner(&arg_val),
-        Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_length_inner(&arg_val),
         // Arc-278-0b — PersistentVector: generic length.
         Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_length_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_length_inner(&arg_val),
@@ -12371,10 +12393,27 @@ fn eval_empty(
         } }.into());
     }
     let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
+    // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
+    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
+    // new keyed container forces this arm to be updated before the code compiles.
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg_val) {
+        Some(m) if m.measurable() => return match m {
+            MapContainer::HashMap => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
+            MapContainer::PersistentMap => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
+            // measurable() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
+            MapContainer::Record => unreachable!("measurable() gate excludes Record (○ gap until strike A2)"),
+        },
+        Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            got: Box::new(ValueSnapshot::of(&arg_val))
+        } }.into()),
+        None => {}
+    }
     match &arg_val {
         Value::Vec(_) => crate::collection::eval::vector_empty_q_inner(&arg_val),
-        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
-        Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
         // Arc-278-0b — PersistentVector: generic empty?.
         Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_empty_q_inner(&arg_val),
@@ -12414,12 +12453,29 @@ fn eval_contains(
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    // Arc-278 strike A — map-family arms route through MapContainer (has_key capability).
+    // The capability DRIVES the accepted set: the `if m.has_key()` guard is the genuine gate,
+    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
+    // new keyed container forces this arm to be updated before the code compiles.
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg0_val) {
+        Some(m) if m.has_key() => return match m {
+            MapContainer::HashMap => crate::collection::eval::hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
+            // Arc-278-0a — PersistentMap: contains? checks KEY membership (same as HashMap).
+            MapContainer::PersistentMap => crate::collection::eval::persistentmap_contains_key_q_inner(&arg0_val, &arg1_val),
+            // has_key() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
+            MapContainer::Record => unreachable!("has_key() gate excludes Record (○ gap until strike A2)"),
+        },
+        Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
+            got: Box::new(ValueSnapshot::of(&arg0_val))
+        } }.into()),
+        None => {}
+    }
     match &arg0_val {
         Value::Vec(_) => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
         Value::wat__std__HashSet(_) => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_contains_key_q_inner(&arg0_val, &arg1_val),
-        // Arc-278-0a — PersistentMap: contains? checks KEY membership (same as HashMap).
-        Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_contains_key_q_inner(&arg0_val, &arg1_val),
         // Arc-278-0b — PersistentVector: contains? checks element membership (same as Vec).
         Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
@@ -12511,11 +12567,28 @@ fn eval_get(
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    // Arc-278 strike A — map-family arms route through MapContainer (keyed_lookup capability).
+    // The capability DRIVES the accepted set: the `if m.keyed_lookup()` guard is the genuine gate,
+    // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
+    // new keyed container forces this arm to be updated before the code compiles.
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg0_val) {
+        Some(m) if m.keyed_lookup() => return match m {
+            MapContainer::HashMap => crate::collection::eval::hashmap_get_inner(&arg0_val, &arg1_val),
+            // Arc-278-0a — PersistentMap: generic get dispatches to persistentmap_get_inner.
+            MapContainer::PersistentMap => crate::collection::eval::persistentmap_get_inner(&arg0_val, &arg1_val),
+            // keyed_lookup() gate excludes Record (○ gap until strike A2) — named arm, genuinely dead.
+            MapContainer::Record => unreachable!("keyed_lookup() gate excludes Record (○ gap until strike A2)"),
+        },
+        Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(&arg0_val))
+        } }.into()),
+        None => {}
+    }
     match &arg0_val {
         Value::Vec(_) => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
-        Value::wat__std__HashMap(_) => crate::collection::eval::hashmap_get_inner(&arg0_val, &arg1_val),
-        // Arc-278-0a — PersistentMap: generic get dispatches to persistentmap_get_inner.
-        Value::wat__core__PersistentMap(_) => crate::collection::eval::persistentmap_get_inner(&arg0_val, &arg1_val),
         // Arc-278-0b — PersistentVector: generic get dispatches to persistentvector_get_inner.
         Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
         other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {

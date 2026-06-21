@@ -127,3 +127,4 @@ pub(crate) mod infer;
 pub(crate) mod eval;
 pub(crate) mod transform;
 pub(crate) mod seq_container;
+pub(crate) mod map_container;
