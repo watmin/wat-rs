@@ -21,7 +21,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::parser::parse_one_with_file;
 use crate::span::Span;
-use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
+use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 
 /// Walk the intrinsic registry and return every registered intrinsic's
 /// carried `@example`s as a `Vector` of `:wat::intrinsic::Example` records —
@@ -105,17 +105,23 @@ pub(crate) fn eval_intrinsic_examples(
                 Value::Option(Arc::new(None))
             };
 
-            let record = Value::Struct(Arc::new(StructValue {
-                type_name: ":wat::intrinsic::Example".to_string(),
-                fields: vec![
+            // Builder doctrine (2026-06-21): EDN-representable data → `Value::wat__Record`
+            // (the `:wat::Record::def` representation, so the generated named accessors
+            // `:wat::intrinsic::Example/<field>` work); `Value::Struct` is reserved for
+            // payloads that are NOT EDN-able. An Example is fully EDN-representable
+            // (keyword + WatASTs + bools), so it's a wat__Record. `class_fqdn` carries
+            // NO leading colon (matches the RecordDef class identity).
+            let record = Value::wat__Record {
+                class_fqdn: Arc::new("wat::intrinsic::Example".to_string()),
+                struct_form: Arc::new(vec![
                     fqdn_kw.clone(),
                     expr_q,
                     expected_field,
                     Value::bool(ex.run),
                     Value::bool(pure),
                     Value::bool(det),
-                ],
-            }));
+                ]),
+            };
             tuples.push(record);
         }
     }

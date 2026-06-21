@@ -13,7 +13,67 @@
 (:wat::Record::def :wat::intrinsic::Example
   [fqdn          <- :wat::core::keyword
    expr          <- :wat::WatAST
-   expected      <- :wat::core::Option<:wat::WatAST>
+   expected      <- :wat::core::Option<wat::WatAST>
    run           <- :wat::core::bool
    pure          <- :wat::core::bool
    deterministic <- :wat::core::bool])
+
+;; ─── Doctest failure record ───────────────────────────────────────────
+
+(:wat::Record::def :wat::doctest::Failure
+  [fqdn   <- :wat::core::keyword
+   reason <- :wat::core::String])
+
+;; ─── verify-examples — the self-hosting doctest runner ───────────────
+;;
+;; Folds over (:wat::intrinsic::examples) — the iv-b2-a reflection seam.
+;; For each Example whose run=true:
+;;   1. Cross-check: intrinsic must be pure∧deterministic (the @example
+;;      marker guarantees this; a mismatch is a Failure).
+;;   2. Doctest: eval expr and expected via :wat::eval-ast!, compare with
+;;      :wat::core::=; a mismatch is a Failure.
+;; run=false examples (@example-norun) are skipped.
+;; Returns Vector<:wat::doctest::Failure> — empty means all doctests passed.
+
+(:wat::core::defn :wat::doctest::verify-examples
+  []
+  -> :wat::core::Vector<wat::doctest::Failure>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::Vector<wat::doctest::Failure>
+                     ex  <- :wat::intrinsic::Example]
+      -> :wat::core::Vector<wat::doctest::Failure>
+      ;; The Example values are Value::wat__Record (the seam builds the
+      ;; :wat::Record::def representation), so the generated named accessors
+      ;; :wat::intrinsic::Example/<field> work directly — no positional indexing.
+      (:wat::core::if (:wat::intrinsic::Example/run ex)
+        ;; run=true: cross-check purity, then run the doctest
+        (:wat::core::let [acc1 (:wat::core::if (:wat::core::not
+                                                   (:wat::core::and
+                                                     (:wat::intrinsic::Example/pure ex)
+                                                     (:wat::intrinsic::Example/deterministic ex)))
+                                  (:wat::core::concat acc
+                                    (:wat::core::Vector :wat::doctest::Failure
+                                      (:wat::doctest::Failure
+                                        (:wat::intrinsic::Example/fqdn ex)
+                                        "doctested @example on a non-pure∧deterministic intrinsic")))
+                                  acc)
+                          expected-ast (:wat::core::Option/expect -> :wat::WatAST
+                                          (:wat::intrinsic::Example/expected ex)
+                                          "verify-examples: run=true example missing expected")
+                          got  (:wat::core::Result/expect -> :wat::core::Value
+                                  (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
+                                  "verify-examples: expr eval failed")
+                          want (:wat::core::Result/expect -> :wat::core::Value
+                                  (:wat::eval-ast! expected-ast)
+                                  "verify-examples: expected eval failed")]
+          (:wat::core::if (:wat::core::not (:wat::core::= got want))
+            (:wat::core::concat acc1
+              (:wat::core::Vector :wat::doctest::Failure
+                (:wat::doctest::Failure
+                  (:wat::intrinsic::Example/fqdn ex)
+                  "@example result did not match #=>")))
+            acc1))
+        ;; run=false: skip
+        acc))
+    (:wat::core::Vector :wat::doctest::Failure)
+    (:wat::intrinsic::examples)))

@@ -15,10 +15,11 @@
 //! heterogeneous tuples) because R7's unidirectional `Value` makes a tuple's
 //! universal-top elements un-passable to the typed `eval-ast!` (the firewall, R3).
 //!
-//! RED until the records rework: the shipped seam returns `Value::Vec` tuples, so
-//! the `Value::Struct` match below finds nothing. GREEN after: a `Vector` of
-//! `:wat::intrinsic::Example` records including `:wat::core::Bytes::to-hex`
-//! (`run = true`).
+//! The records are `Value::wat__Record` (the `:wat::Record::def` representation —
+//! EDN-representable data is a wat-record, not a `Value::Struct`; that's the
+//! builder doctrine, and it's what makes the named field accessors work). GREEN:
+//! a `Vector` of `:wat::intrinsic::Example` records including
+//! `:wat::core::Bytes::to-hex` (`run = true`).
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
@@ -41,8 +42,8 @@ fn eval_examples_seam() -> Result<Value, String> {
 
 #[test]
 fn examples_seam_returns_bytes_to_hex_runnable() {
-    // RED until the seam exists / returns records; the eval errors or the
-    // Value::Struct match finds nothing.
+    // RED until the seam returns wat__Record Example values; the eval errors or
+    // the wat__Record match below finds nothing.
     let v = eval_examples_seam()
         .expect("(:wat::intrinsic::examples) must eval to a Vector of Example records");
 
@@ -52,30 +53,35 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
     };
     assert!(!entries.is_empty(), "seam must return at least one example");
 
-    // Find the to-hex Example RECORD (Value::Struct of :wat::intrinsic::Example),
-    // colon-normalized fqdn match. RED on the tuple seam (elements are Value::Vec).
+    // Find the to-hex Example — a Value::wat__Record of class `wat::intrinsic::Example`
+    // (EDN-representable data is a wat-record, NOT a Value::Struct — builder doctrine).
+    // RED on the tuple seam (elements were Value::Vec); RED on a Value::Struct seam too.
     let to_hex = entries
         .iter()
         .filter_map(|e| match e {
-            Value::Struct(s) if s.type_name == ":wat::intrinsic::Example" => Some(s),
+            Value::wat__Record { class_fqdn, struct_form }
+                if class_fqdn.as_str() == "wat::intrinsic::Example" =>
+            {
+                Some(struct_form)
+            }
             _ => None,
         })
-        .find(|s| match s.fields.first() {
+        .find(|sf| match sf.first() {
             Some(Value::wat__core__keyword(k)) => {
                 k.trim_start_matches(':') == "wat::core::Bytes::to-hex"
             }
             _ => false,
         })
-        .expect("seam must return :wat::intrinsic::Example records including Bytes::to-hex");
+        .expect("seam must return wat__Record :wat::intrinsic::Example values including Bytes::to-hex");
 
     // Field order = declaration order: [fqdn, expr, expected, run, pure, det] — run at index 3.
     assert!(
-        to_hex.fields.len() >= 4,
+        to_hex.len() >= 4,
         "Example record must carry at least [fqdn, expr, expected, run]; got {} fields",
-        to_hex.fields.len()
+        to_hex.len()
     );
     assert_eq!(
-        to_hex.fields.get(3),
+        to_hex.get(3),
         Some(&Value::bool(true)),
         "to-hex's @example is runnable (run = true at field index 3)"
     );
