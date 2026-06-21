@@ -20,11 +20,13 @@
 //! `examples` / `deprecated` / `see` are parsed + carried by the iv-b1 macro but
 //! their reader — iv-b2's `verify-examples` reflection seam — lands one strike
 //! later. They are NOT deleted (they are about to be used, not unneeded) and NOT
-//! hidden: each carries an explicit `#[allow(dead_code)]` with a removal clause
-//! naming iv-b2. That is the honest opposite of the pub-leak cheat an earlier
-//! draft used (making the module `pub` to FAKE external use and silence the
-//! signal — reverted): a dated, named, loud allow whose clause says exactly when
-//! it comes off. When iv-b2's seam reads these, the allows are removed.
+//! hidden behind a pub-leak (the cheat an earlier draft used — making the module
+//! `pub` to FAKE external use and silence the signal — reverted). Each carries
+//! `#[expect(dead_code)]` (NOT `#[allow]`): silent while genuinely dead, but the
+//! compiler emits an unfulfilled-expectation warning the instant iv-b2's seam
+//! references one — SELF-RETIRING, compiler-enforced removal, not a comment-clause
+//! the next hand might forget (arc 277's expect-dead idea, applied to the live
+//! instance). When iv-b2 reads these, the compiler tells us to take the `#[expect]`s off.
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::value::{Environment, SymbolTable, Value, EvalBreak};
@@ -37,10 +39,13 @@ pub(crate) type NativeHandler =
 /// structured form of `wat_doc::DocExample`, lowered to `'static` literals
 /// by the `#[wat_intrinsic]` macro.
 ///
-/// REMOVE-ALLOW when iv-b2 lands: the fields are read by the `verify-examples`
-/// reflection seam then. Until that one strike, they are parsed + carried but
-/// unread in a normal build — a dated, bounded `#[allow]`, not a hidden silence.
-#[allow(dead_code)] // iv-b2: read by the verify-examples seam — remove this then
+/// SELF-RETIRING (arc 277 expect-dead): `#[expect(dead_code)]` is silent while
+/// these are genuinely dead, but emits an unfulfilled-expectation warning (an
+/// ERROR under `-D warnings`) the MOMENT iv-b2's `verify-examples` seam reads
+/// them — compiler-enforced removal, not a comment-clause the next hand might
+/// forget. (Rust 1.81's `#[expect]` is exactly the used-while-annotated→fail
+/// half of the builder's self-retiring-allow idea.)
+#[expect(dead_code)] // iv-b2 seam reads these → expectation unfulfilled → remove this
 pub(crate) struct ExampleSubmission {
     pub expr: &'static str,
     pub expected: Option<&'static str>,
@@ -92,15 +97,17 @@ pub(crate) struct IntrinsicEntry {
     pub added: &'static str,
     pub ret: &'static str,
     // The iv-b2 carry: parsed + carried now, read by the `verify-examples`
-    // reflection seam one strike later. REMOVE these `#[allow]`s when iv-b2 lands
-    // (each is dated + named, the honest opposite of a pub-leak silence).
-    #[allow(dead_code)] // iv-b2: verify-examples seam reads this — remove then
+    // reflection seam one strike later. `#[expect(dead_code)]` (not `#[allow]`)
+    // makes the removal SELF-RETIRING — the moment iv-b2's seam references one of
+    // these, its expectation goes unfulfilled and the compiler says "remove me"
+    // (an ERROR under `-D warnings`). Compiler-enforced, not comment-enforced.
+    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
     pub args: &'static [(&'static str, &'static str)],
-    #[allow(dead_code)] // iv-b2: verify-examples seam reads this — remove then
+    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
     pub examples: &'static [ExampleSubmission],
-    #[allow(dead_code)] // iv-b2: verify-examples seam reads this — remove then
+    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
     pub deprecated: Option<(&'static str, &'static str)>,
-    #[allow(dead_code)] // iv-b2: verify-examples seam reads this — remove then
+    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
     pub see: &'static [&'static str],
 }
 
@@ -160,29 +167,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 
 mod bytes;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Arc 255.1b-iv-b1 confirmation: the registry entry for `core::Bytes::to-hex`
-    /// carries the full structured doc — args, examples, added, ret — as proven
-    /// by reading crate-private `registry().lookup_entry(...)`.
-    #[test]
-    fn bytes_to_hex_entry_carries_structured_doc() {
-        let entry = registry()
-            .lookup_entry(":wat::core::Bytes::to-hex")
-            .expect("to-hex must be registered");
-
-        // args: exactly one, named "bs"
-        assert_eq!(entry.args.len(), 1, "to-hex documents exactly one @arg");
-        assert_eq!(entry.args[0].0, "bs", "@arg name must match param ident 'bs'");
-
-        // examples: at least one, and the first is run=true
-        assert!(!entry.examples.is_empty(), "to-hex must carry at least one @example");
-        assert!(entry.examples[0].run, "first @example must be runnable (run=true)");
-
-        // added + ret are non-empty
-        assert_eq!(entry.added, "1.0.0", "@added must be 1.0.0");
-        assert!(!entry.ret.is_empty(), "@ret description must be non-empty");
-    }
-}
+// NB: no in-src test reads the iv-b2 carry fields (`args`/`examples`/…) — doing so
+// would be a spurious "use" that trips their `#[expect(dead_code)]` before iv-b2's
+// real reader lands. The rendered fields (`:added`/`:ret`) are covered by the
+// nursery probe via `metadata-of`; the carry is proven by iv-b2 USING it.

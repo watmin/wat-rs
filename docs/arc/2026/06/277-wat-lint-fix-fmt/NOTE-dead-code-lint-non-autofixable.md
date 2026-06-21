@@ -41,43 +41,36 @@ when iv-b2's seam reads these." That clause is enforced by *nobody*. Two ways it
 2. the item **stays dead forever** (the promised reader never lands) → a "temporary" allow becomes
    permanent cruft, and the dead code lingers behind a silence.
 
-So the builder wants a **self-retiring** annotation — an allow that **cannot go stale**, enforced
-**bidirectionally**:
+So the builder wants a **self-retiring** annotation — one whose single job is to **raise the moment you
+use the thing**:
 - **used-while-annotated → ERROR** — "`:my::ns/foo` is marked expected-dead but is referenced at
-  `<site>`; remove the annotation, it's alive now." (Forces removal the moment the reader lands.)
-- **still-dead-past-its-trigger → ERROR** — "`:my::ns/foo` has been expected-dead since `<trigger>` and
-  is still unreferenced; wire its reader or delete it." (Forces a decision; no eternal silence.)
+  `<site>`; remove the annotation, it's alive now." Forces removal the instant the reader lands.
 
-Both end-states force action: the only stable state is *resolved* (used → annotation gone; or truly
-dead → deleted). The annotation is a promise the toolchain keeps for you.
+That one direction IS the feature. Builder (2026-06-21): *"the conditional trigger feels completely
+unnecessary — i just wanted something to raise if i use the thing."* **No deadline / "still-dead-past-N"
+machinery** — that was an over-elaboration, explicitly rejected. (Eternal-cruft dead code is already
+caught by the plain report-only dead-code lint above; this annotation's one job is raise-on-use.)
 
-## Enforceability (which half is clean, which needs a trigger)
-- **used-while-annotated → ERROR** is **fully checkable** from the call-graph the dead-code lint already
-  needs (255 registry = the name universe; resolver = the referenced set). For an `expect-dead` item,
-  *referenced* flips from OK to a finding. This is the high-value half and it's the same machinery as the
-  plain lint, inverted. **Build this first.**
-- **still-dead-past-its-trigger → ERROR** needs a **machine-readable trigger** on the annotation (a
-  version, a named arc/stone, or a date), else "past its trigger" is unknowable. Simplest first cut: the
-  annotation carries a free-text removal-clause and the linter *lists* every outstanding `expect-dead`
-  (so they can't hide) + errors on the used-half; the trigger-deadline is a later refinement.
+## Enforceability (wat-side)
+**used-while-annotated → ERROR** is **fully checkable** from the call-graph the dead-code lint already
+needs (255 registry = the name universe; resolver = the referenced set): for an `expect-dead` item,
+*referenced* flips from OK to a finding. Same machinery as the plain lint, inverted. That is the whole rule.
 
-## Rust-side (bonus — and Rust already ships half of it)
-**Prior-art collision, noted honestly: Rust 1.81 stabilized `#[expect(lint)]`** (RFC 2383). `#[expect(dead_code)]`
-is *exactly* the used-while-annotated→ERROR half: it allows the item being dead, but emits an
-**unfulfilled-expectation** warning the moment the item *is* used (the lint it expected no longer fires).
-So the Rust side of the builder's idea is largely **free**: swap our dated `#[allow(dead_code)]` →
-`#[expect(dead_code)]` and the compiler *forces the removal* when iv-b2's seam reads `examples`. The
-**deadline half** (still-dead-past-trigger) is NOT in Rust's `#[expect]` — that remains our addition
-(a build-gate that scans for `#[expect(dead_code)]` older than a named trigger).
+## Rust-side — Rust already ships exactly this
+**Prior-art collision, noted honestly: Rust 1.81 stabilized `#[expect(lint)]`** (RFC 2383).
+`#[expect(dead_code)]` IS raise-on-use: silent while the item is genuinely dead, but emits an
+**unfulfilled-expectation** warning (an ERROR under `-D warnings`) the moment the item is referenced.
+Since raise-on-use is the whole feature, **Rust's `#[expect]` is the complete Rust side** — no
+deadline-gate, nothing to add.
 
-**Immediate, concrete action available now:** the iv-b1 dated allows in `src/intrinsic/mod.rs` are the
-textbook case — change them to `#[expect(dead_code)]` (verify toolchain ≥ 1.81 first) and the
-"remove when iv-b2 lands" clause becomes compiler-enforced instead of comment-enforced. (Surfaced to the
-builder; not done unprompted — it's a real toolchain/edition check + a decision.)
+**DONE (2026-06-21):** the iv-b1 transient allows in `src/intrinsic/mod.rs` (`IntrinsicEntry.{args,
+examples,deprecated,see}` + `ExampleSubmission`) were switched `#[allow(dead_code)]` → `#[expect(dead_code)]`
+(toolchain 1.93.0). They are silent now (genuinely dead) and the compiler will say "remove me" the
+instant iv-b2's `verify-examples` seam reads them. Gotcha learned: do NOT let a `#[cfg(test)]` test read
+an `#[expect(dead_code)]` field — that counts as a use and trips the expectation under `cargo test`; the
+real runtime reader (iv-b2) is what should retire it, so the premature in-src confirmation test was removed.
 
 ## Scope marker
-Wat-side: a queued lint rule (the self-retiring `expect-dead`), built on the same 255-registry +
-call-graph machinery as the plain dead-code lint above — build the used-while-annotated half first.
-Rust-side: adopt `#[expect(dead_code)]` for transient allows (near-free); the deadline-gate is ours to
-add. The live test case is iv-b1's `IntrinsicEntry.examples` allow — retire it via this mechanism when
-iv-b2 reads it.
+Wat-side: a queued lint rule (`expect-dead`, raise-on-use), built on the same 255-registry + call-graph
+machinery as the plain dead-code lint above. Rust-side: `#[expect(dead_code)]` — adopted for transient
+allows, complete. The live instance (iv-b1's carry fields) self-retires when iv-b2 reads it.
