@@ -3,6 +3,18 @@
 Deferred items surfaced elsewhere that belong with the 251 Clojure-faithful surface work. Recorded, not yet
 acted on.
 
+## ✅ DONE 2026-06-20 (arc 278, NOT 251) — `first`/`second`/`third` are now BARE, raising
+**Completed** by the first-bare cut (`26d492e5` flip + strike-2 + `725faa3d` cascade close). Forced forward from
+this deferral by the arc-278 container annihilation (the moment the accessor contract was in our hands). The
+**open question below is resolved: bare ⇒ RAISE** — wat is typed and has no `nil` valid in `Vector<T>`, so "bare"
+has exactly one honest meaning (raise on empty/out-of-range, like `nth`). `get` is the lone `Option` safe path;
+`first`/`second`/`third`/`nth` are the bare/raising accessors. Cross-cutting: ~68 stdlib sites + test/lib/nursery
+cascade, all floors green, NO shim. Full design + the argued why: `278-rules-engine/DESIGN-STONE-first-bare-accessors.md`.
+
+---
+
+*(Original note, kept as the record of the decision — now resolved above.)*
+
 ## `first`/`second`/`third` should return BARE, not `Option` (Clojure semantics)
 **Recorded 2026-06-19** (arc 278 P12c accessor work). Today `first`/`second`/`third` on every sequence
 (Vec/List/PersistentVector/WatAST) return `Option<T>` (the *safe* accessor), while `nth` is the get-or-raise
