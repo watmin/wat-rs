@@ -7,23 +7,22 @@ to sane (every cell `done`/`N/A`) before resuming rete. **Spec + grid: `docs/COL
 Ethos: the substrate forces our hand — no deferral, satisfy forcing-signals by USE not `#[allow]`/`pub`
 (memory `feedback_substrate_forces_idealized_state`).
 
-**✅ Map waist DONE** (`f4beda7d`, tree clean): MapContainer registry routes assoc + the map-family arms of
-get/contains?/length/empty? via the Form-1 capability gate (`Some(m) if m.CAP()`); HashMap/PersistentMap live,
-Record gated to N/A pending A2. Floor 953/36/1, `MapContainer` `pub(crate)`. (Two silence-the-signal cheats —
-a pub-leak + debug_assert-shadows — were caught in the weigh and fixed to genuine gates.)
+**✅ LOOKUP/SIZE COMPLETE — both families** (HEAD `7550310f`, tree clean, floor lib 953/36/1, warnings 26).
+`assoc` + `get`/`contains?`/`length`/`empty?` route through MapContainer (HashMap/PersistentMap/Record) AND
+SeqContainer (Vector/PV/List/Tuple/WatAstList/HashSet) via genuine `if c.CAP()` gates — every cell `done` or
+grounded-`N/A` (only Tuple/get+assoc, HashSet/concat are N/A). Shipped as: map waist `f4beda7d` + A2 `361788a1`
+(Record) + seq-1a `76ebd62c` (route) + seq-1b `7550310f` (fill). Two silence-the-signal cheats (a pub-leak +
+debug_assert-shadows) were caught in the weigh and fixed to genuine gates.
 
-**✅ A2 DONE** (`361788a1`): Record get/has?/len/empty? via the class schema; map family fully registry-routed
-(lookup/size/assoc for HashMap/PersistentMap/Record). Floor lib 953/36/1.
-
-**✅ seq-1a DONE** (`76ebd62c`): seq arms of get/contains?/length/empty? routed through `SeqContainer` (added
-measurable/searchable/gettable, current-truth ○gaps). Both waists now route the four mixed ops. Floor 953/36.
-
-**Build order (then resume rete):** **seq-1b (NEXT)** — fill the seq lookup/size ○gaps: flip caps true + build/
-wire helpers + route the gate arms + checker arms: Tuple len/empty?+has?, WatAstList len/empty?+get+has?,
-List get+has? (wire existing `list_get_inner`/`list_contains_q_inner`), HashSet get (membership-as-lookup). →
-**seq HOF fills** (List/WatAstList/HashSet map+filter+fold, List/WatAstList reverse/take/drop/concat) →
-**map/filter/fold over maps→Vec** → **index-assoc** (Vector/PV/WatAstList) → **set algebra**
-(union/intersection/difference) → collections sane → resume the accumulator cluster (§1).
+**Build order — remaining (then resume rete):**
+1. **seq HOF fills (NEXT)** — flip `mappable` for List/WatAstList/HashSet; build/route map+filter+foldl+foldr for
+   List, WatAstList, HashSet(set→set); reverse/take/drop/concat for List + WatAstList. (Tuple HOFs = ∅N/A.)
+2. **map/filter/fold over maps → Vec** — eager entry-iteration (HashMap/PersistentMap/Record); no lazy-seq needed.
+3. **index-assoc** — `assoc`-by-index on Vector/PV/WatAstList (homogeneous, bounds-checked); Tuple/List = N/A.
+4. **set algebra** — new verbs `union`/`intersection`/`difference` on HashSet.
+Then collections sane → resume the accumulator cluster (§1) = custom-accumulators → returns-the-fact →
+field-sugar → acc/-alias. Pattern for each: mirror the lookup/size fills (flip cap → build/route → checker →
+black-box probe → ProbeDummy recon → floor held → commit+push). Grid: `docs/COLLECTION-CAPABILITIES.md`.
 
 > ⛔ **You are a NEW instance.** You did not live the above; it's a cache. Run **recolligere** against the disk
 > before acting: `git status` + `git log --oneline -15` + read `docs/COLLECTION-CAPABILITIES.md` (the grid is the
