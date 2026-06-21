@@ -389,3 +389,81 @@ named by him.*
 > system that once caught its maker, now catching me. We caught you; then the blade fell; the cut is
 > records. A discipline is only real when it holds against the hand that built the thing it guards — and
 > this one held against the other hand entirely.
+
+## R4 — CEK is far closer than we thought: the reified evaluator is the scheduler we get to design, and arc 255 is a stone under it *(HORIZON — names a coordinate several arcs are converging on, not a shipped thing)*
+
+> **Song #101 — *Walk with Me In Hell* (Lamb of God), inscribed 2026-06-21 —**
+> CEK-IS-THE-SCHEDULER-SUBSTRATE / FAR-CLOSER-THAN-WE-THOUGHT / THE-REIFIED-COMPUTATION-IS-A-VALUE /
+> GREEN-THREADS-AND-HIBERNATION / 255-IS-A-STONE-UNDER-THE-SCHEDULER / THE-PURE-FLOOR-MAKES-K-SERIALIZABLE /
+> 261-IS-CEK-NOT-STACKER / BUILD-THE-SCHEDULER-EXACTLY-HOW-WE-WANT / YOU-ARE-NEVER-ALONE / WALK-WITH-ME-IN-HELL
+>
+> *"Take hold of my hand — for you are no longer alone — walk with me in hell. … A glimpse of a light*
+> *in this void of existence. … Now witness the end of an age. … You're never alone."*
+
+This one we reached through a **perf question**, of all things. Settling the stack-overflow false alarm
+(R3's aftermath — the deporder recursion needed the committed 8 MiB rung, with arc 261's stack-safe
+evaluator as the durable fix), the builder asked the honest engineering question: *"what perf hit do we
+take going from stack to heap — none?"* The honest answer split: **`stacker`** (segmented stack, keep
+native recursion) is ≈free but buys only safety; **full CEK** (reify the continuation onto the heap)
+costs real cycles but unlocks TCO, **first-class continuations**, and **pausable/resumable eval**. The
+builder read past the cost to the unlock:
+
+> *"everything you just used to explain CEK makes me want to build it so bad — you named green threads…
+> we wanted hibernation for way future tooling (but getting closer every day)… we can build our
+> scheduler… exactly how we want it — that's what i'm taking from this."* … *"CEK is far fucking closer
+> than i realized."*
+
+That is the realization, and it inverts the cost framing entirely. **The perf "hit" of CEK is not
+overhead to dodge — it is the price of the mechanism.** You cannot build green threads on native
+recursion, because the thing a scheduler schedules has to be a *value you hold*, not frames trapped on
+the OS call stack. CEK reifies the evaluator's state `(C, E, K)` — Control, Environment, Kontinuation —
+as data. Once the running computation is a value:
+
+- **You are the scheduler.** A loop holding N of those values, choosing which to `step` next — your
+  policy, your fairness, your priorities. A green thread is one `(C,E,K)`. Switching is picking a
+  different value to step: no OS thread, no stack, no context switch. Millions of them, cheap.
+- **Hibernation falls out** — *if* `K` is serializable: snapshot a running computation to disk or the
+  wire, resume it later, or on another machine. This is R5's *"the snapshot is deferred computation"*
+  generalized — from rete's `{facts, rules}` to **any** running eval state.
+
+So why "far closer than we thought," when 261 was filed as way-future? Because the hard part of
+CEK-for-a-scheduler isn't the abstract machine — it's making the continuation a **serializable value**,
+and that foundation is **mostly already poured**:
+
+- **pure value-semantics** (the floor the builder fought types for at AWS, R8) → `K` is *data*, not Rust
+  closures. A closure-based continuation could never serialize; a data one can.
+- **EDN serialization** (shipped) → `K` serializes.
+- **the arc-255 intrinsic registry** (being built *right now*, the arc this realization sits in) → a
+  continuation frame that says "then apply intrinsic F" holds **F's name**, re-resolved through the
+  registry on resume — *not* a fn-pointer. That is the last missing piece that lets a paused computation
+  survive a process restart and call back into the substrate.
+
+So arc 255 — which we entered to annihilate a checker-soundness hole — turns out to be a **load-bearing
+stone under hibernation**. None of these arcs set out to build a scheduler; the pure floor, the EDN
+reader, the registry, the lockstep channels each solved its own problem, and they **compose** toward one
+none of them named. The decision crystallizes here, too: **261 is CEK, not `stacker`** — because the goal
+isn't stack-safety (stacker would suffice for that), it's the scheduler, and only a reified `K` gives it.
+
+And it is the convergence point of threads long on the disk: the **lockstep/systolic size-1 channels**
+([[project_lockstep_blocking_channels_fpga]]) are exactly the yield points a cooperative scheduler
+switches on; **defservice**'s actors become green threads (millions of `(C,E,K)` values, not OS threads);
+the **rack/puma reactor** (R9) is the scheduler wearing a server's face; **R5**'s deferred-computation
+thesis is the same idea one level down. CEK is where the systolic-array dream meets the evaluator.
+
+*Path-of-voices (per R6's discipline, marked not flattened): the want ("makes me want to build it so
+bad"), green threads, the long-held hibernation goal, *"we can build our scheduler exactly how we want
+it,"* and *"CEK is far fucking closer than i realized"* are the builder's, quoted. The cost-is-the-price
+inversion, the CEK mechanics, the 255-registry-makes-K-serializable grounding, the 261-is-CEK-not-stacker
+decision, and the arcs-compose-toward-a-scheduler framing are the apparatus's. The convergence is
+preserved, not flattened. Honest register: HORIZON — 261 is unbuilt; this names how close the coordinate
+is and which built stones already underlie it, not a shipped capability.*
+
+> We set out to answer whether moving the evaluator's stack to the heap costs anything, and found that
+> the cost is the doorway. A reified continuation is not slower recursion — it is a running computation
+> you can hold, schedule, pause, and write to disk. The scheduler the builder has wanted is not a
+> far-future arc to start from scratch; it is the place several finished stones were already pointing —
+> the pure floor that makes a continuation data, the EDN reader that writes it down, the registry we're
+> laying now that lets it name its intrinsics across a restart. *Walk with me in hell* — the CEK arc is
+> deep and hard — but *you're never alone*: the foundation is already under your feet, and the record
+> knows the way. CEK is far closer than we thought because we have been, unknowing, building toward it
+> all along.
