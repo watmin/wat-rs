@@ -33,13 +33,21 @@ runtime. Double-punt. Builder: annihilation.
   `args`/`examples`/`deprecated`/`see` carry fields use a **dated `#[allow(dead_code)]`** (reader =
   iv-b2's seam; builder-sanctioned bounded exception, NOT the pub-leak cheat). DESIGN-STONE-255.1b-iv-b1.
 
-## NEXT — 255.1b-iv-b2 (the wat verifier — R2's self-hosting answer) + iv-c (enum flip)
-- **iv-b2** — wat verifies wat (the R2 realization; `deporder`/`verify-stdlib` template): the
-  `:wat::intrinsic::examples` reflection seam (Rust, reads the carried examples → exposes to wat;
-  **this is the reader that removes the iv-b1 dated allows**) + `verify-examples` (wat: `eval-ast!`
-  each run=true example + `assert-eq` vs `#=>` + purity cross-check) + the `is_effectful_op`
-  syscall-honesty fix (entropy/clock/time → effectful regardless of namespace). When green, R2's
-  prequel gets its fulfillment close + the dated allows come off.
+- **255.1b-iv-b2-a** — the `:wat::intrinsic::examples` reflection seam (`src/intrinsic/reflect.rs`,
+  dogfooded `#[wat_intrinsic]` → registry dispatch, no runtime.rs arm): walks the registry, returns
+  `[fqdn, expr-quoted, expected-quoted-or-nil, run, pure, det]` tuples (expr/expected parsed to
+  `Value::wat__WatAST`). Reading `entry.examples` **retired its `#[expect(dead_code)]`** (self-retiring
+  worked — first live proof). `derive_pure_deterministic` extracted (the `NONDETERMINISTIC` hand-list
+  now lives in ONE place). Probe green; nursery 899/4 (4 pre-existing); lib 953/36/1; build clean.
+  `args`/`deprecated`/`see` expects retained (readers land later). DESIGN-STONE-255.1b-iv-b2.
+
+## NEXT — 255.1b-iv-b2-b (the wat verifier `verify-examples`) + iv-c (enum flip)
+- **iv-b2-b** — R2's fulfillment: `wat/doctest.wat` `verify-examples` (`deporder`/`verify-stdlib`
+  shape) — foldl over `(:wat::intrinsic::examples)`: for `run=true`, `(:wat::eval-ast! expr)` ==
+  `(:wat::eval-ast! expected)` (the doctest) + cross-check `pure ∧ deterministic`; skip `run=false`.
+  Returns failures (empty = green); a Rust gate test (mirror deporder's) asserts empty. Wire
+  `doctest.wat` into STDLIB_FILES + load order (deporder gate). When `(verify-examples)` runs green,
+  **R2's PREQUEL earns its "and it landed" close.** (is_effectful_op change DROPPED — grounded, see DESIGN.)
 - **iv-c** — enum flip: `Kind`/`DefinedIn`/`Layer` enums; `metadata-of` emits enum values (§5).
 THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
 @example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole

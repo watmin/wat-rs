@@ -39,13 +39,9 @@ pub(crate) type NativeHandler =
 /// structured form of `wat_doc::DocExample`, lowered to `'static` literals
 /// by the `#[wat_intrinsic]` macro.
 ///
-/// SELF-RETIRING (arc 277 expect-dead): `#[expect(dead_code)]` is silent while
-/// these are genuinely dead, but emits an unfulfilled-expectation warning (an
-/// ERROR under `-D warnings`) the MOMENT iv-b2's `verify-examples` seam reads
-/// them — compiler-enforced removal, not a comment-clause the next hand might
-/// forget. (Rust 1.81's `#[expect]` is exactly the used-while-annotated→fail
-/// half of the builder's self-retiring-allow idea.)
-#[expect(dead_code)] // iv-b2 seam reads these → expectation unfulfilled → remove this
+/// Fields are read by the iv-b2 `verify-examples` reflection seam
+/// (`src/intrinsic/reflect.rs`). The `#[expect(dead_code)]` has been removed
+/// because the seam now satisfies the use.
 pub(crate) struct ExampleSubmission {
     pub expr: &'static str,
     pub expected: Option<&'static str>,
@@ -97,17 +93,16 @@ pub(crate) struct IntrinsicEntry {
     pub added: &'static str,
     pub ret: &'static str,
     // The iv-b2 carry: parsed + carried now, read by the `verify-examples`
-    // reflection seam one strike later. `#[expect(dead_code)]` (not `#[allow]`)
-    // makes the removal SELF-RETIRING — the moment iv-b2's seam references one of
-    // these, its expectation goes unfulfilled and the compiler says "remove me"
-    // (an ERROR under `-D warnings`). Compiler-enforced, not comment-enforced.
-    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
+    // reflection seam (`src/intrinsic/reflect.rs`). `examples` is now read
+    // by the seam (iv-b2-a), so its `#[expect(dead_code)]` has been removed.
+    // `args`/`deprecated`/`see` are still unread — their readers land later;
+    // keep their `#[expect(dead_code)]` so removal stays compiler-enforced.
+    #[expect(dead_code)] // reader lands later (wiki/doc) → keep
     pub args: &'static [(&'static str, &'static str)],
-    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
     pub examples: &'static [ExampleSubmission],
-    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
+    #[expect(dead_code)] // reader lands later → keep
     pub deprecated: Option<(&'static str, &'static str)>,
-    #[expect(dead_code)] // iv-b2 seam reads this → expectation unfulfilled → remove
+    #[expect(dead_code)] // reader lands later → keep
     pub see: &'static [&'static str],
 }
 
@@ -138,6 +133,12 @@ impl IntrinsicRegistry {
     pub(crate) fn lookup_entry(&self, name: &str) -> Option<&IntrinsicEntry> {
         self.entries.get(name)
     }
+
+    /// Iterate all registered entries. Read by the iv-b2 `verify-examples`
+    /// reflection seam (`src/intrinsic/reflect.rs`) to build the examples vector.
+    pub(crate) fn all_entries(&self) -> impl Iterator<Item = &IntrinsicEntry> {
+        self.entries.values()
+    }
 }
 
 /// The process-wide intrinsic registry, built once on first access.
@@ -166,8 +167,4 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
-
-// NB: no in-src test reads the iv-b2 carry fields (`args`/`examples`/…) — doing so
-// would be a spurious "use" that trips their `#[expect(dead_code)]` before iv-b2's
-// real reader lands. The rendered fields (`:added`/`:ret`) are covered by the
-// nursery probe via `metadata-of`; the carry is proven by iv-b2 USING it.
+mod reflect;

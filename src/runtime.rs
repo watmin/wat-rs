@@ -10102,12 +10102,9 @@ fn eval_metadata_of(
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
-        // Purity/determinism are DERIVED here (not stored on the entry):
-        //   pure          = !is_effectful_op(name)  (namespace deriver)
-        //   deterministic = pure && not in the nondeterministic-set
-        const NONDETERMINISTIC: &[&str] = &[":wat::core::Uuid/v4"];
-        let pure = !is_effectful_op(entry.name);
-        let deterministic = pure && !NONDETERMINISTIC.contains(&entry.name);
+        // Purity/determinism are DERIVED (not stored on the entry) via the
+        // shared helper — same derivation as the iv-b2-a reflection seam.
+        let (pure, deterministic) = derive_pure_deterministic(entry.name);
 
         let mut map: std::collections::HashMap<Value, Value> =
             std::collections::HashMap::with_capacity(8);
@@ -22654,6 +22651,23 @@ pub(crate) fn is_effectful_op(head: &str) -> bool {
         || head.starts_with(":wat::eval-")
         || head.starts_with(":wat::load")
         || head.starts_with(":wat::config::")
+}
+
+/// Derive `(pure, deterministic)` for an intrinsic FQDN — the same derivation
+/// used by `metadata-of`'s intrinsic branch (runtime.rs:10108) and the
+/// iv-b2-a `verify-examples` reflection seam. Extracted here so both callers
+/// share one source of truth.
+///
+///   pure          = !is_effectful_op(name)
+///   deterministic = pure && name ∉ NONDETERMINISTIC
+///
+/// The NONDETERMINISTIC hand-list is the residual from arc 255's original
+/// scope: deriving determinism structurally is its own future stone.
+pub(crate) fn derive_pure_deterministic(name: &str) -> (bool, bool) {
+    const NONDETERMINISTIC: &[&str] = &[":wat::core::Uuid/v4"];
+    let pure = !is_effectful_op(name);
+    let deterministic = pure && !NONDETERMINISTIC.contains(&name);
+    (pure, deterministic)
 }
 
 /// True iff `form` is a primitive literal — Phase 2's notion of
