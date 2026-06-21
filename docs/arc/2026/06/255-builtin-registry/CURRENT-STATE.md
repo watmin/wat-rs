@@ -32,7 +32,19 @@ defaults; fix-wat for rare breaks)**. Registry IS `sym`. Full spec: DESIGN.md LO
   macro-gate strike, all→reflection (255.2). Each field lands WITH its reader — never dead,
   never silenced. (If the builder later wants the full baseline DATA recorded now and accepts
   loud dead_code as tracked forcing-signals, that's a floor-raise call — flagged, not taken.)
-- **255.1b-ii (DESIGN LOCKED 2026-06-21) — the `#[wat_intrinsic]` macro + co-located carve.**
+- **255.1b-ii (DONE 2026-06-21) — `#[wat_intrinsic]` macro BUILT + `core::Bytes` carved.**
+  `crates/wat-macros/src/wat_intrinsic.rs` (proc-macro attr, modeled on `restricted_to`):
+  sniffs arity from the fixed-arg signature (counts leading `&WatAST`; hard `compile_error!`
+  on self-receiver / `&WatAST`-after-context / variadic `&[WatAST]`), emits the arity-checking
+  `NativeHandler` shim (ArityMismatch shape identical to the old handlers), `inventory::submit!`s
+  (fqdn→shim). `src/intrinsic/{mod.rs}`: `IntrinsicSubmission` + `inventory::collect!` +
+  `registry()` iterates `inventory::iter`. `src/intrinsic/bytes.rs`: both Bytes handlers carved
+  OUT of runtime.rs to fixed-arg form under `#[wat_intrinsic(":…")]` (no `args.len()`/`args[0]`).
+  WEIGHED: build clean, warnings 26, floor 953/36/1, zero behavior change, no `#[allow]`/pub-leak;
+  ProbeDummy confirms a variadic sig → loud compile_error (forcing holds). The DESIGN below is
+  realized. (NOTE: handlers that don't use the call span carry `_span` — uniform fixed-arg tail.)
+
+  ---ORIGINAL DESIGN (realized above)---
   Builder co-design, all four-questioned. The registration is a **co-located preamble: an
   attribute proc-macro directly above each handler, in the handler's HOME** (not a separate
   central list — separate fails Obvious/Simple/Honest/UX for LLM maintainers: two sites = the

@@ -27,6 +27,7 @@ use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 
 mod codegen;
 mod discover;
+mod wat_intrinsic;
 mod wat_value;
 
 /// `#[wat_value]` — structural seal for enum definitions.
@@ -199,6 +200,24 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
     let parsed_impl = parse_macro_input!(item as ItemImpl);
 
     match codegen::emit(&parsed_attr, &parsed_impl) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+/// `#[wat_intrinsic("<fqdn>")]` — arc 255.1b-ii. Annotates a Rust handler
+/// fn written with a fixed-arg signature (the wat args as individual
+/// `&WatAST` params, then the `env/sym/span` context tail). Sniffs arity
+/// from the leading `&WatAST` params, emits a `NativeHandler` dispatch
+/// shim (arity-checked, calling the fixed-arg fn), and `inventory::submit!`s
+/// the (fqdn → shim) pair into the `IntrinsicRegistry`. See
+/// `crates/wat-macros/src/wat_intrinsic.rs` for the full design.
+#[proc_macro_attribute]
+pub fn wat_intrinsic(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let fqdn = parse_macro_input!(attr as LitStr);
+    let parsed_fn = parse_macro_input!(item as syn::ItemFn);
+
+    match wat_intrinsic::emit(&fqdn, &parsed_fn) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }

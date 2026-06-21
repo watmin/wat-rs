@@ -25,6 +25,19 @@ use crate::value::{Environment, SymbolTable, Value, EvalBreak};
 pub(crate) type NativeHandler =
     fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
 
+/// A link-time submission of one intrinsic (fqdn → shim), gathered by
+/// `inventory`. The `#[wat_intrinsic("<fqdn>")]` proc-macro emits one
+/// `inventory::submit!` of this type per annotated handler; `registry()`
+/// builds itself by iterating `inventory::iter::<IntrinsicSubmission>`.
+/// Both fields are `'static` — the macro emits a string-literal `name`
+/// and a fn-pointer `handler`, both of which outlive the program.
+pub(crate) struct IntrinsicSubmission {
+    pub name: &'static str,
+    pub handler: NativeHandler,
+}
+
+inventory::collect!(IntrinsicSubmission);
+
 /// `name → handler`. Built once at startup; consulted by runtime dispatch.
 /// Grows into the full baseline ⊕ per-kind record as readers land (see module doc).
 pub(crate) struct IntrinsicRegistry {
@@ -52,7 +65,11 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
     static REGISTRY: std::sync::OnceLock<IntrinsicRegistry> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
         let mut r = IntrinsicRegistry::new();
-        crate::intrinsic::bytes::register(&mut r); // each home contributes; more homes accrete
+        // Each `#[wat_intrinsic("<fqdn>")]` handler submits an entry via
+        // `inventory`; gather them all into the registry at first access.
+        for submission in inventory::iter::<IntrinsicSubmission> {
+            r.register(submission.name, submission.handler);
+        }
         r
     })
 }
