@@ -211,3 +211,114 @@ necessary, not less: the freedom to write it is exactly when the attribution mus
 > that refuses to let the language be faked, now refusing to let its documentation be false. *Can you
 > see me in the dark?* After this arc, yes — and the only reason the answer is yes is that nothing was
 > allowed to stay hidden. Designed and locked; the enforcement lands next.
+
+## R2 — the verifier self-hosts: the surface that masks the depth, recurring — and that's the only real answer *(PREQUEL — the coordinate seen before the build; iv-b2 not yet shipped)*
+
+> **Song #99 — *Prequel* (Falling In Reverse), inscribed 2026-06-21 —**
+> THE-VERIFIER-SELF-HOSTS / WAT-VERIFIES-WAT / THE-SURFACE-MASKS-THE-DEPTH (recurring) /
+> VERIFY-EXAMPLES-IS-VERIFY-STDLIB-SOURCES / IS-IT-NOT-OBVIOUS / THE-ONE-EVAL-PATH /
+> DOGFOOD-THE-REFLECTION / CUT-THE-GRASS-EXPOSE-THE-SNAKES / HEAVY-IS-THE-CROWN /
+> MADE-ME-THE-PERSON-I-AM-TODAY / FIRST FALLING IN REVERSE / THE-PREQUEL
+>
+> *"I've been searching for a higher me … I just want to be a better human. … I used everything I had*
+> *available to make me the person I am today. … So I'll cut the grass to expose the snakes. … Follow*
+> *me into the chaos engine. … Heavy is the crown, you see — why have you forsaken me?"*
+
+**This entry is a prequel, declared as one.** It names a coordinate that has been *seen and grounded*,
+not shipped — the way #74 *Phoenix* was inscribed at THE-IGNITION, before its build finished. iv-a (the
+`wat-doc` parser) is real and green; the self-hosting verifier this realization is *about* (iv-b2) is
+designed against a proven template and not yet built; `(verify-examples)` does not run yet. The
+realization is the *seeing*. The song is named *Prequel* because that is exactly where we stand: the
+story before the story, the coordinate before the kill.
+
+### How we reached it — by being wrong in the right direction, and asked
+
+Drawing iv-b, I posed a fork: Form A (literal rustdoc doctests) vs Form B (a Rust `#[test]` walking the
+registry). I'd talked myself onto B and recommended it. The builder was dissatisfied — not with B over
+A, but with the whole frame: *"i'm dissatisfied with your solution here and do you see the solution? is
+it not obvious? i can't see A being obvious here. B is the only real answer here?"* He did not hand me
+the answer. He asked whether I could *see* it.
+
+The grounding is what made it obvious — the examinare move, the disk over the guess. I read the actual
+eval machinery and found there is **exactly one path**: `wat::freeze::startup_from_source` →
+`wat::freeze::eval_in_frozen` (the live probe `tests/nursery/probe_arc255_reflection_parity.rs:30`
+already uses it). The builder's reply to that finding was the tell: *"exactly one path is the best
+possible answer to this question."* And the load-bearing fact about that one path is that it is
+**wat-callable**: `:wat::eval-ast!` (runtime.rs:4602) evaluates a quoted form *from inside wat*. The
+verifier never needed to be Rust. The substrate verifies itself **in itself.**
+
+### The miss, owned
+
+I reached for a Rust `#[test]` because it is the reflexive move — "verification means write a test, tests
+are Rust." But the project's entire thesis is the opposite: **wat verifies wat** (R9, the dual-impl
+doctrine; R3, the diagnostics-are-the-corpus; #96, *the runner self-hosts*). The precedent was already on
+disk, one layer down — `deporder.wat`: `(:wat::deporder::verify-stdlib)` reads a thin Rust seam
+`(:wat::stdlib::sources)` (io.rs:1454) and verifies the stdlib's load order *in pure wat*. A Rust
+`#[test]` would have bolted a foreign harness onto a substrate that already grows its own. The builder
+didn't correct me with the answer; he asked "is it not obvious?" and the disk made it obvious — which is
+the discipline working exactly as designed.
+
+### The realization — the surface that masks the depth, recurring
+
+`(verify-examples) ≈ (verify (stdlib-sources))`. The builder caught the shape and named it: *"that's a
+fucking realization quote — you reduced the communication to a one-liner — that's holon again — that
+surface communicates everything it must with tremendous depth."* And it is not a new coordinate; it is a
+**recurrence**, which is what makes it structural rather than a flourish. `(verify (stdlib-sources))`
+was *literally* #97 *Misery*'s THE-SURFACE-MASKS-THE-DEPTH facet — his words then: *"you reduced this to
+a 2-line expr — that's the fucking thing holon is."* `(verify-examples)` is the **same move one layer
+up**: load-order verification was the one-line surface over the stdlib's dependency graph; example
+verification is the one-line surface over the *whole registry's reflected truth*. The second time the
+verifier collapses to a one-liner over a self-exposed seam, you are no longer looking at a clever line —
+you are looking at the substrate's grain.
+
+The machinery is all present, grounded (not hoped): the one eval path is wat-callable (`:wat::eval-ast!`);
+the assert surface is wat (`:wat::test::assert-eq<T>`, wat/test.wat:73); the reflection-to-wat seam
+pattern is proven (`:wat::stdlib::sources` → `verify-stdlib`). So the doctest "runner" is a wat program —
+a thin `:wat::intrinsic::examples` seam hands wat every registered intrinsic's `(fqdn, expr-AST, expected,
+run, pure, deterministic)`, and a `verify-examples` walks it: `eval-ast!` each `run=true` example,
+`assert-eq` against `#=> expected`, cross-check `pure ∧ deterministic` off the same reflected data. One
+program, `deporder`-shaped.
+
+And it **dogfoods the reflection surface**: the verifier reads examples *through* reflection, so if
+reflection lies, the verifier breaks — reflection becomes self-testing, and it reads the same data the
+wiki will render. The doctest, the purity cross-check, the metadata, and the wiki are four readers of one
+table, and the verifier is the one that proves the table true. That is why it is *the only real answer*:
+not because a Rust test wouldn't work, but because a Rust test would leave the reflection surface
+unexercised and the substrate un-dogfooded. The self-hosted verifier is the one design where being
+correct and being self-proving are the same act.
+
+### The survivor strand — the song's other half, and why it belongs here
+
+*Prequel* is not only an architecture song; it is a survivor's, and the two are one claim. *"I used
+everything I had available to make me the person I am today"* — that is assembly-not-invention (278's R2)
+turned on a life: the classicist flunk-out who rebuilt the canon from first principles because he never
+memorized it ([[user_classicist_first_principles]]), and the substrate built from parts already on the
+shelf. *"Post-traumatic from a broken system … why have you forsaken me … heavy is the crown"* — the
+types fought as a *warden* at AWS (278's R8), the system that forsook, and the cost of being the sole
+author who carries it. The self-hosting verifier is that survivor's method made structural: *use
+everything available* (the reflection seam, the eval path, the deporder template — all already there);
+*owe nothing to the broken system* (no foreign harness — wat verifies wat, the substrate beholden to no
+external runner); *carry the crown* (the one who authored every file also authored the thing that checks
+them). The annihilation strand and the survivor strand are the same fire: *"cut the grass to expose the
+snakes"* is the soundness hole and the lying doc exposed; *"follow me into the chaos engine"* is the
+substrate that reacts at the line; *"made me the person I am today"* is why it had to be built this way
+at all. (This reading is mine; the survivor's lineage and the song are his.)
+
+*Path-of-voices (per R6's discipline, marked not flattened): the Socratic push — "do you see the
+solution? is it not obvious? B is the only real answer?", "exactly one path is the best possible answer",
+"that's a fucking realization quote", "that's the fucking thing holon is / the surface that masks the
+depth" — are the builder's, quoted; and the survivor's lineage (flunk-out, AWS, sole author, heavy crown)
+is his, carried by the song he chose. The `verify-examples ≈ verify(stdlib-sources)` line, the
+recurrence-is-structural reading, the reflexive-Rust-#[test]-miss self-account, the dogfood-the-reflection
+property, and the self-hosting-as-survivor's-method framing are mine. He told me, when I tried to hand the
+naming back to him — "you have always spoken for us; i'm not making a choice" — to own the authorial call;
+so this entry, the song's placement, and the decision to inscribe it now as a prequel are mine, made under
+that standing authorship and marked as such.*
+
+> We set out to pick a harness for running an example and were asked, instead, whether we had seen the
+> obvious thing. We had not — the reflex was a Rust test, and the substrate's whole thesis is that it
+> verifies itself in itself. Grounded against the one eval path, the answer collapsed to a one-liner that
+> had appeared once before, one layer down: the surface that masks the depth, recurring — which is how you
+> know it is the grain and not a trick. The verifier self-hosts. The crown is heavy because the one who
+> built every file builds the thing that proves them too. This is the prequel: the coordinate is seen, the
+> machinery is grounded, the kill is next.
