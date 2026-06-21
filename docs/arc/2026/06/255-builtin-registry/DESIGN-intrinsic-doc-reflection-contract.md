@@ -160,3 +160,34 @@ A generator walks the reflection surface → GitHub-Flavored Markdown → `watmi
 - **255.1b-RESOLVE** — close the catastrophic hole (resolver consults the registry).
 - **255.2** — type-sig layer → `@arg`/`@ret` type mutual-check (§2); the wiki generator (§7).
 - **255.1c** FnDef split · **255.3** consumer-collapse (rete/purity + is_pure_total delete) · **255.N** inscription.
+
+---
+
+## 10. UNIFORM ACROSS KINDS — wat forms wear the SAME contract (builder, 2026-06-21)
+
+The doc contract is ONE contract, identical for Rust intrinsics and wat user forms. A wat
+`defn`'s docstring is *basically identical* to a Rust intrinsic's `///`: same Markdown prose,
+same `@added`/`@arg`/`@ret`/`@example`/`@deprecated`/`@see` directives, same mutual-checks, same
+`metadata-of` map. The ONLY honest difference is `:defined-in :rust` vs `:wat`. Seamless parity
+extended from the metadata *shape* to the doc *contract* — a reflection consumer cannot tell the
+kinds apart (Pry-grade).
+
+### Parity by CONSTRUCTION — a shared parser (the load-bearing decision)
+The prose+`@tag` parser + the mutual-checks live in ONE shared leaf crate (`wat-doc` or similar),
+depended on by BOTH `wat-macros` (proc-macro, intrinsics) AND `wat` (runtime/checker, wat forms).
+One implementation → the two paths CANNOT drift. (A proc-macro crate may depend on a plain leaf
+crate; `wat` depends on it too — clean.) **Build the Rust side with the parser EXTRACTABLE from the
+start (not buried in the proc-macro)**, so the wat side reuses it verbatim.
+
+### The wat side mirrors exactly
+The `defn`/`def` path runs the SAME parser on the wat docstring, enforces the SAME required
+directives (missing → error, same forcing as `#[wat_intrinsic]`), produces the SAME map →
+`doc`/`show-source`/the wiki render a wat fn and a Rust intrinsic identically. (`show-source` for a
+wat form = its AST → `write-forms`; for an intrinsic = the captured Rust `:source`.)
+
+### The decoration sweep — FUTURE PHASE (post-Rust-side; builder: "decorate our funcs once the rust side is good")
+Once the contract + shared `wat-doc` parser + enforcement are proven on intrinsics, sweep
+`wat/*.wat` to dress every stdlib `defn` in the contract. A CONTENT sweep (real prose/args/ret/
+examples per fn) — fix-wat scaffolds the mechanical parts; per-home sonnets / a doc-sweep write the
+substance. Big, but it's the payoff: the whole corpus (Rust + wat) uniformly documented, verified,
+reflectable, wiki-rendered. NOT now — gated on the Rust side being solid.
