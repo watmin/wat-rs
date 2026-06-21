@@ -41,7 +41,8 @@ pub(crate) fn bytes_to_hex(bs: &WatAST, env: &Environment, sym: &SymbolTable, sp
 | `@added <ver>` | **required** | `:added` | `compile_error!` if missing. `"1.0.0"` for all current intrinsics (honest genesis). The one declared-historical fact (un-sniffable). |
 | `@arg <name> — <desc>` ×params | **required** | `:args` | name+count **mutual-checked vs the signature** (below). |
 | `@ret — <desc>` | **required** | `:ret` | type derives from the scheme (255.2). |
-| `@example <expr> #=> <expected>` | **required ≥1, repeatable** | `:examples` (list) | **doctested** when `pure ∧ deterministic` (below). `#=>` is the result marker (REPL / Ruby `# =>` / Clojure convention). The doc-parser splits on `#=>`; doctest-gen evals `<expr>`, asserts `== <expected>`. |
+| `@example <expr> #=> <expected>` | **required ≥1 of either kind, repeatable** | `:examples` (list) | **DOCTESTED** — eval `<expr>`, assert `== <expected>`. Legal **only** on `pure ∧ deterministic` intrinsics (cross-checked, below). `#=>` is the result marker (REPL / Ruby `# =>` / Clojure convention); the doc-parser splits on it. |
+| `@example-norun <expr> [#=> <expected>]` | (satisfies the ≥1), repeatable | `:examples` (list, flagged `:run false`) | **NOT executed** — illustrative. For the non-runnable class: IO/effectful (`File/write`), nondeterministic-return (`Uuid/v4`, `now` — `getrandom(2)`/`clock_gettime(2)` are syscalls → effectful), or pure-but-unreproducible output. `#=>` optional; when present it is rendered **"illustrative — not verified"** (255.2 type-checks it without running — Rust `no_run`). |
 | `@deprecated <ver> <use-instead>` | optional | `:deprecated` | SOFT deprecation (still works, warns) = Clojure's. Distinct from the retirement table (HARD cut). |
 | `@see <fqdn>` | optional, repeatable | `:see` | **registry-checked** — no dangling refs. |
 | `@yields …` | optional | `:yields` | for HOF intrinsics (a `fn` arg). Later. |
@@ -58,9 +59,21 @@ a compile error or a failing test. This is the heart of the contract.
 
 - **`@arg` names + count ⇄ signature params** → `compile_error!` on mismatch. You cannot document
   a nonexistent arg, mis-order, or skip one. (available now — macro reads both.)
-- **`@example` ⇄ behavior** → for `pure ∧ deterministic` intrinsics the macro **generates a
-  doctest** (eval the expr, assert `== expected`). Change the code, the example-test goes red.
-  Effectful/nondeterministic → required-but-illustrative (surfaced, not auto-run). (now)
+- **`@example` ⇄ behavior** → the macro **generates a doctest** (eval the expr, assert `==
+  expected`). Change the code, the example-test goes red. `@example-norun` → emitted as
+  illustrative metadata, never run. (now)
+- **`@example` marker ⇄ derived purity (one-way cross-check)** → a doctested `@example` is legal
+  **only** on a `pure ∧ deterministic` intrinsic — *pure* = safe to run in the harness, *det* =
+  the return is assertable. `@example-norun` is legal on anything (the one-way escape; opting out
+  of verification you can't honestly deliver). **Why it's a marker, not derived:** the proc-macro
+  lives in `wat-macros`; `is_effectful_op` (the purity source) lives in `wat`, which *depends on*
+  `wat-macros` — so the macro **cannot** compute purity at expansion. The marker is the macro-time
+  doctest signal; honesty is restored **consumer-side**: a registry-walk **test in `wat`** (where
+  `is_effectful_op` is callable) asserts every doctested `@example` rides a `pure ∧ deterministic`
+  intrinsic — fails loud with "doctested example on effectful `<fqdn>` — use `@example-norun`".
+  This *requires* the `:pure` deriver to count entropy/clock/time syscalls (`getrandom`/
+  `clock_gettime`) as effectful regardless of namespace — else the hole reopens exactly at
+  `Uuid/v4`. (now)
 - **`@see` ⇄ registry** → the target FQDN must be a registered intrinsic, else error → refs can't
   dangle (registry makes cross-refs checkable, like Rust intra-doc links). (now-ish; may be a test)
 - **`@arg`/`@ret` types ⇄ the registered `TypeScheme`** → the documented types must equal the
@@ -152,8 +165,11 @@ A generator walks the reflection surface → GitHub-Flavored Markdown → `watmi
   baseline (arity/kind/defined-in/layer/pure/deterministic) — proven on Bytes (2 probes green,
   floor 953/36/1). **Currently emits keyword values** → §5 flip pending.
 - **255.1b-iv** — harden: flip closed values keyword→enum (§5); `@added` required + enforced;
-  `@arg`/`@ret` required + the **signature mutual-check** (§2); `@example` required ≥1 +
-  doctest-gen (purity-gated, §2). Re-prove on Bytes.
+  `@arg`/`@ret` required + the **signature mutual-check** (§2); `@example`/`@example-norun`
+  required ≥1 of either kind + doctest-gen for `@example` + the **consumer-side purity
+  cross-check** (§2) + the `:pure`-deriver-counts-syscalls fix it depends on. Re-prove on Bytes.
+  (Type-check of `@example-norun` exprs — Rust `no_run` semantics — rides with 255.2, since it
+  needs the `TypeScheme`; the value-doctest + marker + cross-check all land here.)
 - **255.1b-v** — `show-source`/`:source` (§4); `@see` registry-check; `(doc …)` accessor.
 - **per-home carve** — each home under the full contract; the carve sonnets WRITE the
   prose/`@added`/`@arg`/`@ret`/`@example` per intrinsic.
