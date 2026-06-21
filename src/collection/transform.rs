@@ -1,13 +1,19 @@
-//! Vector/List-specific utility ops for the collection dispatch home.
+//! Seq-HOF and helper functions for the collection dispatch home.
 //!
 //! Contains the ~15 seq-HOF and helper functions (map, filter, foldl, foldr,
 //! sort' (primitive comparator-sort), reverse, range, take, drop, last,
-//! find-last-index, zip, window, remove-at, map-with-index). These are NOT
-//! container-polymorphic dispatch — they are Vector-specific utilities (all
-//! enforce `Value::Vec` via `require_vec`).
+//! find-last-index, zip, window, remove-at, map-with-index).
+//!
+//! Arc-278 strike 3: the HOF family (map/filter/foldl/foldr/reverse/take/drop)
+//! is now container-polymorphic over `mappable()` containers (currently Vector
+//! and PersistentVector). Classification delegates to `SeqContainer::of_value` +
+//! `mappable()` — no hand-rolled per-container match in the classifier gate.
+//! Per-container element-iteration/rebuild arms remain behind the gate.
+//!
 //! The four ops in the `:wat::std::list::` namespace (zip, window, remove-at,
-//! map-with-index) are named `eval_vec_*` here to mirror the ENFORCED value type.
-//! `rest` was moved to `eval.rs` (container-polymorphic; Vec/List/WatAST-form arms).
+//! map-with-index) are named `eval_vec_*` and still enforce `Value::Vec` via
+//! `require_vec` — they are not part of the HOF family migration.
+//! `rest` lives in `eval.rs` (container-polymorphic; Vec/List/WatAST-form arms).
 //! Their dispatch arms in `dispatch_keyword_head_value` redirect here.
 //!
 //! See `src/collection/mod.rs` and `docs/DISPATCH.md` for the full doctrine.
@@ -33,24 +39,28 @@ pub(crate) fn eval_vec_reverse(
             got: args.len()
         } }.into());
     }
-    match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(xs) => {
-            let mut out = (*xs).clone();
-            out.reverse();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc-278-0c — PersistentVector: reverse returns a new PersistentVector (type-preserving).
-        Value::wat__core__PersistentVector(pv) => {
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
-                out = out.push_back(elem.clone());
+    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&v) {
+        Some(container) if container.mappable() => match v {
+            Value::Vec(xs) => {
+                let mut out = (*xs).clone();
+                out.reverse();
+                Ok(Value::Vec(Arc::new(out)))
             }
-            Ok(Value::wat__core__PersistentVector(out))
-        }
-        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            Value::wat__core__PersistentVector(pv) => {
+                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
+                    out = out.push_back(elem.clone());
+                }
+                Ok(Value::wat__core__PersistentVector(out))
+            }
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&v))
         } }.into()),
     }
 }
@@ -81,9 +91,8 @@ pub(crate) fn eval_vec_range(
     Ok(Value::Vec(Arc::new(items)))
 }
 
-/// `(:wat::core::take xs n)` → `Vec<T>`. First `n` elements; if
-/// `n >= xs.len()`, returns the full Vec. Negative `n` clamps to 0
-/// (empty Vec).
+/// `(:wat::core::take xs n)` → `C<T>`. First `n` elements; container-preserving.
+/// If `n >= xs.len()`, returns the full container. Negative `n` clamps to 0 (empty).
 pub(crate) fn eval_vec_take(
     args: &[WatAST],
     call_span: &Span,
@@ -99,32 +108,34 @@ pub(crate) fn eval_vec_take(
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
-    match coll {
-        Value::Vec(xs) => {
-            let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-            let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc-278-0c — PersistentVector: take n returns a new PersistentVector (type-preserving).
-        Value::wat__core__PersistentVector(pv) => {
-            let cap = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for elem in pv.iter().take(cap) {
-                out = out.push_back(elem.clone());
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+                let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
+                Ok(Value::Vec(Arc::new(out)))
             }
-            Ok(Value::wat__core__PersistentVector(out))
-        }
-        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            Value::wat__core__PersistentVector(pv) => {
+                let cap = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
+                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                for elem in pv.iter().take(cap) {
+                    out = out.push_back(elem.clone());
+                }
+                Ok(Value::wat__core__PersistentVector(out))
+            }
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::take".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }
 
-/// `(:wat::core::drop xs n)` → `Vec<T>`. Skip first `n` elements. If
-/// `n >= xs.len()`, returns an empty Vec. Negative `n` clamps to 0
-/// (returns the full Vec).
+/// `(:wat::core::drop xs n)` → `C<T>`. Skip first `n` elements; container-preserving.
+/// If `n >= xs.len()`, returns empty. Negative `n` clamps to 0 (returns the full container).
 pub(crate) fn eval_vec_drop(
     args: &[WatAST],
     call_span: &Span,
@@ -140,25 +151,28 @@ pub(crate) fn eval_vec_drop(
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
-    match coll {
-        Value::Vec(xs) => {
-            let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-            let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc-278-0c — PersistentVector: drop n returns a new PersistentVector (type-preserving).
-        Value::wat__core__PersistentVector(pv) => {
-            let skip = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for elem in pv.iter().skip(skip) {
-                out = out.push_back(elem.clone());
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+                let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
+                Ok(Value::Vec(Arc::new(out)))
             }
-            Ok(Value::wat__core__PersistentVector(out))
-        }
-        other => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            Value::wat__core__PersistentVector(pv) => {
+                let skip = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
+                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                for elem in pv.iter().skip(skip) {
+                    out = out.push_back(elem.clone());
+                }
+                Ok(Value::wat__core__PersistentVector(out))
+            }
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::drop".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }
@@ -265,7 +279,7 @@ pub(crate) fn eval_vec_sort_by(
     Ok(Value::Vec(Arc::new(sorted)))
 }
 
-/// `(:wat::core::map f xs)` → `Vec<U>`. Calls `f` on each element.
+/// `(:wat::core::map f xs)` → `C<U>`. Calls `f` on each element; container-preserving.
 /// `f` must be a callable Value (fn or define-registered).
 /// Arc 247: fn-first — (map f xs).
 pub(crate) fn eval_vec_map(
@@ -294,26 +308,29 @@ pub(crate) fn eval_vec_map(
             } }.into());
         }
     };
-    match coll {
-        Value::Vec(xs) => {
-            let mut out = Vec::with_capacity(xs.len());
-            for x in xs.iter() {
-                out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                let mut out = Vec::with_capacity(xs.len());
+                for x in xs.iter() {
+                    out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+                }
+                Ok(Value::Vec(Arc::new(out)))
             }
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc-278-0c — PersistentVector: map returns a new PersistentVector (type-preserving).
-        Value::wat__core__PersistentVector(pv) => {
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for x in pv.iter() {
-                out = out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+            Value::wat__core__PersistentVector(pv) => {
+                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                for x in pv.iter() {
+                    out = out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
+                }
+                Ok(Value::wat__core__PersistentVector(out))
             }
-            Ok(Value::wat__core__PersistentVector(out))
-        }
-        other => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::map".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }
@@ -349,30 +366,33 @@ pub(crate) fn eval_vec_foldl(
             } }.into());
         }
     };
-    match coll {
-        Value::Vec(xs) => {
-            for x in xs.iter() {
-                acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                for x in xs.iter() {
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
             }
-            Ok(acc)
-        }
-        // Arc-278-0c — PersistentVector: foldl iterates pv left-to-right; returns the accumulator.
-        Value::wat__core__PersistentVector(pv) => {
-            for x in pv.iter() {
-                acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+            Value::wat__core__PersistentVector(pv) => {
+                for x in pv.iter() {
+                    acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
             }
-            Ok(acc)
-        }
-        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldl".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }
 
 /// `(:wat::core::foldr f init xs)` → acc. Right-associative fold.
-/// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the Vec in reverse
+/// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the container in reverse
 /// so the call stack is bounded by iteration, not recursion.
 /// Arc 247: fn-first — (foldr f init xs).
 pub(crate) fn eval_vec_foldr(
@@ -402,31 +422,34 @@ pub(crate) fn eval_vec_foldr(
             } }.into());
         }
     };
-    match coll {
-        Value::Vec(xs) => {
-            for x in xs.iter().rev() {
-                acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                for x in xs.iter().rev() {
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
             }
-            Ok(acc)
-        }
-        // Arc-278-0c — PersistentVector: foldr iterates pv in reverse; returns the accumulator.
-        Value::wat__core__PersistentVector(pv) => {
-            let elems: Vec<&Value> = pv.iter().collect();
-            for x in elems.into_iter().rev() {
-                acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+            Value::wat__core__PersistentVector(pv) => {
+                let elems: Vec<&Value> = pv.iter().collect();
+                for x in elems.into_iter().rev() {
+                    acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
+                }
+                Ok(acc)
             }
-            Ok(acc)
-        }
-        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldr".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }
 
-/// `(:wat::core::filter pred xs)` → `Vec<T>`. Keeps elements for
-/// which `pred` returns `:bool true`. `pred` signature: `T -> :bool`.
+/// `(:wat::core::filter pred xs)` → `C<T>`. Keeps elements for which `pred` returns
+/// `:bool true`; container-preserving. `pred` signature: `T -> :bool`.
 /// Arc 247: fn-first — (filter pred xs).
 pub(crate) fn eval_vec_filter(
     args: &[WatAST],
@@ -454,46 +477,49 @@ pub(crate) fn eval_vec_filter(
             } }.into());
         }
     };
-    match coll {
-        Value::Vec(xs) => {
-            let mut out = Vec::with_capacity(xs.len());
-            for x in xs.iter() {
-                match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-                    Value::bool(true) => out.push(x.clone()),
-                    Value::bool(false) => {}
-                    other => {
-                        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::core::filter".into(),
-                            expected: "bool",
-                            got: Box::new(ValueSnapshot::of(&other))
-                        } }.into());
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match coll {
+            Value::Vec(xs) => {
+                let mut out = Vec::with_capacity(xs.len());
+                for x in xs.iter() {
+                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
+                        Value::bool(true) => out.push(x.clone()),
+                        Value::bool(false) => {}
+                        other => {
+                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::core::filter".into(),
+                                expected: "bool",
+                                got: Box::new(ValueSnapshot::of(&other))
+                            } }.into());
+                        }
                     }
                 }
+                Ok(Value::Vec(Arc::new(out)))
             }
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc-278-0c — PersistentVector: filter keeps elements where pred holds; returns PersistentVector.
-        Value::wat__core__PersistentVector(pv) => {
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for x in pv.iter() {
-                match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-                    Value::bool(true) => { out = out.push_back(x.clone()); }
-                    Value::bool(false) => {}
-                    other => {
-                        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                            op: ":wat::core::filter".into(),
-                            expected: "bool",
-                            got: Box::new(ValueSnapshot::of(&other))
-                        } }.into());
+            Value::wat__core__PersistentVector(pv) => {
+                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                for x in pv.iter() {
+                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
+                        Value::bool(true) => { out = out.push_back(x.clone()); }
+                        Value::bool(false) => {}
+                        other => {
+                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                                op: ":wat::core::filter".into(),
+                                expected: "bool",
+                                got: Box::new(ValueSnapshot::of(&other))
+                            } }.into());
+                        }
                     }
                 }
+                Ok(Value::wat__core__PersistentVector(out))
             }
-            Ok(Value::wat__core__PersistentVector(out))
-        }
-        other => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+        },
+        _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::filter".into(),
             expected: "wat::core::Vector or wat::core::PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
+            got: Box::new(ValueSnapshot::of(&coll))
         } }.into()),
     }
 }

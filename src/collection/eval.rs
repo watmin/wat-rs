@@ -755,39 +755,48 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
 
 pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Vector/concat";
-    // Arc-278-0c — PersistentVector: concat two PersistentVectors returns a PersistentVector.
-    // Both sides must be the same collection kind (Vec+Vec or PersistentVector+PersistentVector).
-    match (left, right) {
-        (Value::Vec(l), Value::Vec(r)) => {
-            let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
-            out.extend((*l).iter().cloned());
-            out.extend((*r).iter().cloned());
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        (Value::wat__core__PersistentVector(l), Value::wat__core__PersistentVector(r)) => {
-            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for elem in l.iter() {
-                out = out.push_back(elem.clone());
+    use crate::collection::seq_container::SeqContainer;
+    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
+    // Same-kind constraint preserved: Vec+Vec or PersistentVector+PersistentVector only.
+    match SeqContainer::of_value(left) {
+        Some(left_container) if left_container.mappable() => {
+            // Right side must be the same container kind.
+            match SeqContainer::of_value(right) {
+                Some(right_container) if right_container == left_container => {
+                    match (left, right) {
+                        (Value::Vec(l), Value::Vec(r)) => {
+                            let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
+                            out.extend((*l).iter().cloned());
+                            out.extend((*r).iter().cloned());
+                            Ok(Value::Vec(Arc::new(out)))
+                        }
+                        (Value::wat__core__PersistentVector(l), Value::wat__core__PersistentVector(r)) => {
+                            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                            for elem in l.iter() {
+                                out = out.push_back(elem.clone());
+                            }
+                            for elem in r.iter() {
+                                out = out.push_back(elem.clone());
+                            }
+                            Ok(Value::wat__core__PersistentVector(out))
+                        }
+                        _ => unreachable!("SeqContainer::of_value guarantees matching container kinds"),
+                    }
+                }
+                // Right side is a different (or non-mappable) container kind.
+                _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vec<T> or PersistentVector<T> (same kind as left)",
+                    got: Box::new(ValueSnapshot::of(right))
+                } }.into()),
             }
-            for elem in r.iter() {
-                out = out.push_back(elem.clone());
-            }
-            Ok(Value::wat__core__PersistentVector(out))
         }
-        (other, _) if !matches!(other, Value::Vec(_) | Value::wat__core__PersistentVector(_)) => {
-            Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T> or PersistentVector<T>",
-                got: Box::new(ValueSnapshot::of(other))
-            } }.into())
-        }
-        (_, other) => {
-            Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<T> or PersistentVector<T>",
-                got: Box::new(ValueSnapshot::of(other))
-            } }.into())
-        }
+        // Left side is not a mappable container.
+        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Vec<T> or PersistentVector<T>",
+            got: Box::new(ValueSnapshot::of(left))
+        } }.into()),
     }
 }
 

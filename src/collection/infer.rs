@@ -509,35 +509,52 @@ pub(crate) fn infer_assoc(
 // Common shape: extract the collection arg's parametric element type, accept
 // the two container heads, emit a teaching TypeMismatch for anything else.
 
-/// Extract `(container_head, elem_ty)` from a reduced TypeExpr that is either
-/// `Vector<T>` or `PersistentVector<T>`.  Returns `None` for a Var (caller defers
-/// to the runtime backstop) or for any unrecognized shape (caller emits TypeMismatch).
+/// Extract `(container_head, elem_ty)` from a reduced TypeExpr that is a
+/// `mappable` container (currently Vector or PersistentVector).
+///
+/// Arc-278 strike 3 — classification now delegates to the registry:
+/// `SeqContainer::of_type` classifies the shape, `mappable()` gates on
+/// the HOF-capable subset. Adding a new mappable container = one change to
+/// `seq_container.rs`; this function needs no edit.
+///
+/// Returns `None` for a `Var` (caller defers to the runtime backstop) or for
+/// any shape the registry doesn't classify as mappable (caller emits TypeMismatch).
 fn extract_seq_elem(
     reduced: &TypeExpr,
     subst: &mut Subst,
     fresh: &mut InferCtx,
 ) -> Option<(&'static str, TypeExpr)> {
-    match reduced {
-        TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
+    use crate::collection::seq_container::SeqContainer;
+
+    // Unresolved type variable — defer to the runtime backstop (same policy as
+    // infer_contains/conj/get/assoc; see infer_contains for the authoritative comment).
+    if matches!(reduced, TypeExpr::Var(_)) {
+        return None;
+    }
+
+    let container = SeqContainer::of_type(reduced)?;
+    if !container.mappable() {
+        return None;
+    }
+
+    // Derive the canonical head string and element type from the classified shape.
+    // - Parametric forms carry the head and targs directly on the TypeExpr.
+    // - Bare Path forms (arc-278-0d.1) carry no targs → fresh element type.
+    //   Bare is valid where element type is genuinely heterogeneous or left open
+    //   (e.g. un-parameterized params); fn-unification constrains it from the
+    //   reducer/predicate's element param, exactly as the empty-args parametric case does.
+    match (container, reduced) {
+        (SeqContainer::Vector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::Vector", elem_ty))
         }
-        TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
+        (SeqContainer::PersistentVector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::PersistentVector", elem_ty))
         }
-        // Arc-278-0d.1 — BARE container annotations. A type annotated `:wat::core::Vector` /
-        // `:wat::core::PersistentVector` with no `<T>` reduces to a `Path`, not a `Parametric`.
-        // Parametric is the norm (126:2 across wat/), but bare is valid where the element type is
-        // genuinely heterogeneous or left open (e.g. `Session.facts` holding mixed fact records, or
-        // an un-parameterized param) and must still type-check through the HOFs. Treat it as the
-        // container with a fresh element type — the fn-unification constrains it from the
-        // reducer/predicate's element param, exactly as the empty-args parametric case does.
-        TypeExpr::Path(p) if p == ":wat::core::Vector" => Some(("wat::core::Vector", fresh.fresh())),
-        TypeExpr::Path(p) if p == ":wat::core::PersistentVector" => Some(("wat::core::PersistentVector", fresh.fresh())),
-        // Unresolved type variable — defer to the runtime backstop (same policy as
-        // infer_contains/conj/get/assoc; see infer_contains for the authoritative comment).
-        TypeExpr::Var(_) => None,
+        (SeqContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
+        (SeqContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
+        // No other mappable containers today; SeqContainer::mappable() gates the rest to false.
         _ => None,
     }
 }

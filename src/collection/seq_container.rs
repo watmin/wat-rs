@@ -185,10 +185,12 @@ impl SeqContainer {
         }
     }
 
-    /// `map`/`filter`/`foldl`/`foldr` — element-wise transformation.
+    /// `map`/`filter`/`foldl`/`foldr`/`reverse`/`take`/`drop`/`concat` — element-wise transformation.
     ///
-    /// Stubbed for later strikes (Mappable capability migration).
-    #[allow(dead_code)]
+    /// Un-stubbed: strike 3 migrates HOF classification through this gate.
+    /// `true` for Vector and PersistentVector — the only containers the HOF
+    /// runtime arms support today (verified against transform.rs eval_vec_map/
+    /// filter/foldl/foldr/reverse/take/drop and eval.rs vector_concat_inner).
     pub(crate) fn mappable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
