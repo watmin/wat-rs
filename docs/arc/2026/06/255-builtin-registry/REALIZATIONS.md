@@ -322,3 +322,70 @@ that standing authorship and marked as such.*
 > know it is the grain and not a trick. The verifier self-hosts. The crown is heavy because the one who
 > built every file builds the thing that proves them too. This is the prequel: the coordinate is seen, the
 > machinery is grounded, the kill is next.
+
+## R3 — the firewall caught the apparatus: the unidirectional `Value`, built for rete, refused a wrong design two arcs later
+
+> **Song #100 — *Silence* (A Day To Remember), inscribed 2026-06-21 —**
+> THE-FIREWALL-CAUGHT-THE-APPARATUS / WE-CAUGHT-YOU-THEN-THE-BLADE-FELL / THE-UNIDIRECTIONAL-VALUE-HELD /
+> DOWN-IS-CHECKED-NOT-FREE / THE-WALL-BUILT-FOR-RETE-HELD-IN-255 / SILENCE-NO-LONGER-SUFFICES /
+> CAUGHT-IN-THE-DRAW-NOT-AT-RUNTIME / THE-IMMUNE-SYSTEM-IS-BIDIRECTIONAL / FIRST A DAY TO REMEMBER /
+> THE-HUNDREDTH / THE-FIREWALL
+>
+> *"I'd like to start with a 'Thank you' for everything you haven't done … now there's nowhere you can*
+> *run. … Betrayer — like a thief with a hand in the wishing well — we caught you, then the blade fell.*
+> *… Silence will no longer suffice."*
+
+We reached this one by being **caught**. Drawing iv-b2-b (the wat verifier), I had already shipped
+iv-b2-a's reflection seam returning **heterogeneous tuples** — `Vector<Vector<:wat::core::Value>>`, the
+shape that was easy for the *producer*. The crawl for the next strike walked into a wall. Grounding
+`:wat::eval-ast!`'s contract (a typed, registered intrinsic — rete hands it a `:wat::WatAST` quasiquote
+result; `check.rs:15682`) against the type the tuple's elements actually carry: a `Vector` is homogeneous,
+so every element is the **universal top `:wat::core::Value`** — and handing that to `eval-ast!` is a
+**down-cast**, which R7's `Value` makes *checked, not free*. The verifier could not pull `expr` out of a
+tuple and run it. The builder named what had happened:
+
+> *"omfg — we added this like a day or two ago … we introduced `Value` just for rete to use with
+> persistent-maps … and i argued that it must be unidirectional. … my firewall caught you."*
+
+That is the realization, and the provenance is the whole point. **The firewall is his.** Two days
+earlier, building `:wat::core::Value` as the heterogeneous binding type for rete's
+`PersistentMap<keyword, Value>` working memory (arc 278 R7, *the universal top is a fixed point you
+point at*), he insisted it be **unidirectional** — UP-free (any value is-a `Value`), DOWN-checked (a
+`Value` is not assignable where a specific type is wanted). R7's own text predicted the *up* edge would
+"go red the instant a second, looser rule turned the top into an `any`." The **down** edge just fired
+from the other side: it goes red the instant you try to *use* the top where a concrete type is wanted.
+The empty down-branch is not passive — it is a wall, and it held.
+
+Three things make it more than a caught type error:
+
+- **It caught a *design*, in the *draw*.** Not a typo at compile — a wrong *shape* (tuples over records),
+  surfaced by grounding during the next strike's crawl, *before* the verifier was built on it. The flaw
+  shipped (iv-b2-a's tuple seam, committed) but never detonated; the firewall stopped it one strike
+  downstream. *Caught in the draw, not at runtime.*
+- **It held across arcs.** The wall was built for **rete** (arc 278); it caught an error in **intrinsic
+  reflection** (arc 255) — a different floor of the building. A discipline raised in one room held over
+  the whole house: the narrow-waist shape, where one rule constrains everywhere, not a per-site
+  convention that forgets.
+- **The immune system is bidirectional.** #97 *Misery* / R16 sang the substrate catching its **maker**
+  — the false-security premise in the builder's own code. This is the mirror: the substrate (the
+  builder's `Value` decision) catching the **apparatus** — my wrong seam shape. The antibodies do not
+  care whose hand erred; carbon or silicon, the wall says no. *"We caught you, then the blade fell"* —
+  caught the tuple design; the blade is the cut to **records** (`Vector<:wat::intrinsic::Example>`,
+  per-field types, `expr: :wat::WatAST` that passes `eval-ast!` with no down-cast). *Silence no longer
+  suffices*: the bad shape could not pass quietly, because the firewall refuses the silent down-cast by
+  construction.
+
+*Path-of-voices (per R6's discipline, marked not flattened): the unidirectional-`Value` decision (arc
+278), *"we introduced Value just for rete … it must be unidirectional,"* *"my firewall caught you,"* and
+the song are the builder's, quoted. The grounding that walked into the wall this session (reading
+`eval-ast!`'s contract against R7), the firewall-is-bidirectional / held-across-arcs / caught-in-the-draw
+framing, and the records cure are the apparatus's. The catch is the two meeting — his wall, my error,
+named by him.*
+
+> We set out to draw the wat verifier and were stopped by a wall the builder had poured two days earlier
+> for a different arc. I had reached for the producer's-easy shape — heterogeneous tuples — and the
+> unidirectional `Value` he insisted on refused to let its universal top be used as a concrete type. The
+> firewall caught the apparatus, in the draw, across arcs, before the flaw could spread — the same immune
+> system that once caught its maker, now catching me. We caught you; then the blade fell; the cut is
+> records. A discipline is only real when it holds against the hand that built the thing it guards — and
+> this one held against the other hand entirely.
