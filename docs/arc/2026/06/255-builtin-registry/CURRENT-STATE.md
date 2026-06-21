@@ -15,7 +15,7 @@ Resolver blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`, walk
 punts via permissive `Infer` (check.rs:9923) → a typo'd builtin type-checks clean, dies only at
 runtime. Double-punt. Builder: annihilation.
 
-## DONE (committed, pushed; floor lib 953/36/1, warnings 26; last HEAD 527f3e9e)
+## DONE (committed, pushed; floor lib 953/36/1, warnings 25; last HEAD 41954a33)
 - **255.1b-i** — `src/intrinsic/` registry seam (`name→handler`, OnceLock), Bytes routed. (renamed
   from provisional `src/registry/` per intueri → `intrinsic`.)
 - **255.1b-ii** — `#[wat_intrinsic(":fqdn")]` proc-macro (`crates/wat-macros/src/wat_intrinsic.rs`):
@@ -23,13 +23,18 @@ runtime. Double-punt. Builder: annihilation.
   `inventory::submit!`. `core::Bytes` carved to fixed-arg as the reference template.
 - **255.1b-iii** — `metadata-of` answers for intrinsics (proven on Bytes, 2 probes green): `:doc`
   sniffed from `///`; baseline derived. **Emits KEYWORD values — the keyword→enum flip is pending.**
+- **255.1b-iv-a** — the `wat-doc` leaf crate (`crates/wat-doc/`): the shared prose+@tag parser +
+  `DocComment` model + `check_args` mutual-check, 16/16 unit tests, clippy-clean, floor untouched.
+  Parity-by-construction foundation (contract §10). DESIGN-STONE-255.1b-iv-a. NOT wired yet (iv-b).
 
-## NEXT — 255.1b-iv (harden the macro to the FULL contract, on Bytes, per the contract spec)
-- flip closed values keyword→enum (`Kind`/`DefinedIn`/`Layer`)
-- `@added` required+enforced · `@arg`/`@ret` required + signature mutual-check (compile_error) ·
-  `@example` required ≥1 + doctest-gen (purity-gated; result marker `#=>`)
-- **extract the prose+@tag parser into a shared `wat-doc` leaf crate** (both `wat-macros` AND `wat`
-  depend on it → wat-form docstrings reuse it verbatim, parity by construction)
+## NEXT — 255.1b-iv-b (wire `wat-doc` into `#[wat_intrinsic]`) + iv-c (enum flip)
+- **iv-b** — macro consumes `wat_doc::parse`+`check_args` at expand: required-directive
+  `compile_error!`s + `@arg`⇄signature check; carry the structured doc on the submission/entry;
+  `metadata-of` reads the richer fields; the doctest-runner + purity cross-check (registry-walk in
+  `wat`) + the `is_effectful_op` syscall-honesty fix; decorate Bytes to the full contract. **Doctest
+  mechanism = a fork to settle first (registry-walk runner vs macro-emitted test fns).** May split
+  iv-b1 (compile-time contract + structured carry) / iv-b2 (runtime doctest + cross-check + deriver).
+- **iv-c** — enum flip: `Kind`/`DefinedIn`/`Layer` enums; `metadata-of` emits enum values (§5).
 THEN: `show-source` (+`:source` capture) → per-home carve (sonnets write prose/@added/@arg/@ret/
 @example per intrinsic) → **255.1b-RESOLVE** (delete blanket-accept, registry membership → the hole
 closes) → 255.2 (type-sig → `@arg`/`@ret` type-check; the wiki generator) → 255.1c FnDef split →
