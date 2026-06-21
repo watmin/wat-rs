@@ -10958,61 +10958,79 @@ fn eval_positional_accessor(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Classify via the registry — the only Value→container map for sequence ops.
-    match crate::collection::seq_container::SeqContainer::of_value(&v) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&v) {
         Some(container) if container.indexable() => {
             // Dispatch: each container provides its element at `index` or raises out-of-range.
             // Tuple is the heterogeneous special case; the others are homogeneous.
-            match v {
-                Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
-                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!(
-                            "tuple has {} element(s); no element at index {}",
-                            items.len(),
-                            index
-                        )
-                    } })
-                }),
+            match container {
+                SeqContainer::Tuple => {
+                    let Value::Tuple(items) = v else { unreachable!("of_value⇒Tuple") };
+                    items.get(index).cloned().ok_or_else(|| {
+                        EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: op.into(),
+                            reason: format!(
+                                "tuple has {} element(s); no element at index {}",
+                                items.len(),
+                                index
+                            )
+                        } })
+                    })
+                }
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
-                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!("{op}: sequence has {} element(s); no element at index {index}", items.len())
-                    } })
-                }),
+                SeqContainer::Vector => {
+                    let Value::Vec(items) = v else { unreachable!("of_value⇒Vector") };
+                    items.get(index).cloned().ok_or_else(|| {
+                        EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: op.into(),
+                            reason: format!("{op}: sequence has {} element(s); no element at index {index}", items.len())
+                        } })
+                    })
+                }
                 // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                Value::wat__core__List(items) => items.iter().nth(index).cloned().ok_or_else(|| {
-                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
-                    } })
-                }),
+                SeqContainer::List => {
+                    let Value::wat__core__List(items) = v else { unreachable!("of_value⇒List") };
+                    items.iter().nth(index).cloned().ok_or_else(|| {
+                        EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: op.into(),
+                            reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+                        } })
+                    })
+                }
                 // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                Value::wat__core__PersistentVector(pv) => pv.get(index).cloned().ok_or_else(|| {
-                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                        head: op.into(),
-                        reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
-                    } })
-                }),
+                SeqContainer::PersistentVector => {
+                    let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
+                    pv.get(index).cloned().ok_or_else(|| {
+                        EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: op.into(),
+                            reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+                        } })
+                    })
+                }
                 // Arc 249 Stone 249.3a-ii — WatAstList: sequence of child forms.
                 // of_value guarantees this is a WatAST::List; positional access returns bare WatAST.
                 // Arc-278 flip: bare T, raise on out-of-range (was Option).
-                Value::wat__WatAST(ast) => match &*ast {
-                    WatAST::List(children, _) => children.get(index)
-                        .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
-                        .ok_or_else(|| {
-                            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                                head: op.into(),
-                                reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
-                            } })
-                        }),
-                    // Unreachable: of_value only returns WatAstList for List forms.
-                    _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
-                },
-                // Unreachable: only indexable containers reach this arm.
-                _ => unreachable!("SeqContainer::of_value classified a non-matching value as indexable"),
+                SeqContainer::WatAstList => {
+                    let Value::wat__WatAST(ast) = v else { unreachable!("of_value⇒WatAstList") };
+                    match &*ast {
+                        WatAST::List(children, _) => children.get(index)
+                            .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
+                            .ok_or_else(|| {
+                                EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                                    head: op.into(),
+                                    reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
+                                } })
+                            }),
+                        // Unreachable: of_value only returns WatAstList for List forms.
+                        _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
+                    }
+                }
+                // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
+                SeqContainer::HashSet =>
+                    unreachable!("indexable() gate excludes HashSet"),
             }
         }
         // ∅ N/A: HashSet is unordered — no canonical "first".
@@ -12441,17 +12459,20 @@ fn eval_conj(
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
     // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_append()).
     // The registry is the single source of truth; per-type inner helpers below do the work.
-    match crate::collection::seq_container::SeqContainer::of_value(&arg0_val) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&arg0_val) {
         Some(container) if container.has_append() => {
-            match &arg0_val {
-                Value::Vec(_) => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
-                Value::wat__std__HashSet(_) => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
+            match container {
+                SeqContainer::Vector => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
+                SeqContainer::HashSet => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
                 // Arc-278-0b — PersistentVector: generic conj dispatches to persistentvector_conj_inner.
-                Value::wat__core__PersistentVector(_) => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
+                SeqContainer::PersistentVector => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
                 // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
-                Value::wat__core__List(_) => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
-                // Unreachable: only has_append containers reach this arm.
-                _ => unreachable!("SeqContainer::of_value classified a non-matching value as has_append"),
+                SeqContainer::List => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
+                // has_append() gate excludes these — named arms, genuinely dead, compiler-forced:
+                SeqContainer::Tuple | SeqContainer::WatAstList =>
+                    unreachable!("has_append() gate excludes Tuple/WatAstList"),
             }
         }
         // ∅ N/A or ○ gap: container has no append capability (Tuple, WatAstList — nature forbids / gap).

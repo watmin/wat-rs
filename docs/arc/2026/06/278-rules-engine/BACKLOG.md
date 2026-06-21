@@ -50,13 +50,14 @@ first, ergonomics last. **This entire phase must complete before ② Perf begins
     "do-it"; the last mile is a runtime `unreachable!`, not a compile error.
 
   **Decomposition (dependency order; the guarantee holds only when all three land):**
-  - [ ] **Strike 4 — depth fix (NEXT, foundational).** Make the seq dispatch compiler-forced: inner dispatch
-    exhaustive over the `SeqContainer` enum (no `_`/`unreachable!`) — classification carries the data, or the
-    `match` is over the enum. Retrofit the already-green routed ops (`first`/`rest`/`conj`/HOF). Turns "drift
-    caught" into "drift unrepresentable." This is the pattern strikes 5+6 inherit, so it lands first, proven on
-    known-green code.
-  - [ ] **Strike 5 — coverage, seq half.** Route the seq arms of `get`/`contains?`/`length`/`empty?` through the
-    strengthened waist.
+  - [x] **Strike 4 — depth fix — DONE** (`284e35e5`, 2026-06-20). Inner dispatch now `match container` over the
+    closed `SeqContainer` enum, exhaustive, no `_` (Form 1: explicit named-helper arms, decided over Form 2 after
+    an architecture audit — Pattern A confirmed, traits/`defprotocol` rejected for these type-projective
+    intrinsics). 11 dispatch sites retrofitted (runtime.rs ×2, eval.rs ×2, transform.rs ×7). Proven: adding a
+    throwaway enum variant now errors at all 11 dispatch sites + 4 capability methods (was: 4 only). Floor held
+    941/36, warnings 26, behavior byte-identical. Strikes 5+6 inherit this pattern.
+  - [ ] **Strike 5 — coverage, seq half (NEXT).** Route the seq arms of `get`/`contains?`/`length`/`empty?`
+    through the strengthened waist (same exhaustive-`match container` pattern as strike 4).
   - [ ] **Strike 6 — MapContainer.** Mint the sibling keyed registry for `{HashMap, PersistentMap, Record}`
     (same data-carrying + exhaustive pattern); route the map arms of the four mixed ops + `assoc` through it.
   - **End state:** adding any container (seq or map) lights up compile errors at classification + capability +

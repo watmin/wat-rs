@@ -758,19 +758,26 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
     use crate::collection::seq_container::SeqContainer;
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
     // Same-kind constraint preserved: Vec+Vec or PersistentVector+PersistentVector only.
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
     match SeqContainer::of_value(left) {
         Some(left_container) if left_container.mappable() => {
             // Right side must be the same container kind.
             match SeqContainer::of_value(right) {
                 Some(right_container) if right_container == left_container => {
-                    match (left, right) {
-                        (Value::Vec(l), Value::Vec(r)) => {
+                    // Dispatch over the closed enum — exhaustive, no `_`.
+                    // left_container == right_container is guaranteed by the guard above.
+                    match left_container {
+                        SeqContainer::Vector => {
+                            let Value::Vec(l) = left else { unreachable!("of_value⇒Vector") };
+                            let Value::Vec(r) = right else { unreachable!("of_value⇒Vector") };
                             let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
                             out.extend((*l).iter().cloned());
                             out.extend((*r).iter().cloned());
                             Ok(Value::Vec(Arc::new(out)))
                         }
-                        (Value::wat__core__PersistentVector(l), Value::wat__core__PersistentVector(r)) => {
+                        SeqContainer::PersistentVector => {
+                            let Value::wat__core__PersistentVector(l) = left else { unreachable!("of_value⇒PersistentVector") };
+                            let Value::wat__core__PersistentVector(r) = right else { unreachable!("of_value⇒PersistentVector") };
                             let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                             for elem in l.iter() {
                                 out = out.push_back(elem.clone());
@@ -780,7 +787,9 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             }
                             Ok(Value::wat__core__PersistentVector(out))
                         }
-                        _ => unreachable!("SeqContainer::of_value guarantees matching container kinds"),
+                        // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+                        SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                            unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
                     }
                 }
                 // Right side is a different (or non-mappable) container kind.
@@ -1432,12 +1441,15 @@ pub(crate) fn eval_rest(
     // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_tail()).
     // The registry is the single source of truth; dispatch arms below are per-container
     // implementation only — no classification logic lives here.
-    match crate::collection::seq_container::SeqContainer::of_value(&v) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&v) {
         Some(container) if container.has_tail() => {
             // Dispatch: each has_tail container computes its tail.
             // Identity-preserving: rest(Container<T>) → Container<T>.
-            match v {
-                Value::Vec(xs) => {
+            match container {
+                SeqContainer::Vector => {
+                    let Value::Vec(xs) = v else { unreachable!("of_value⇒Vector") };
                     if xs.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::rest".into(),
@@ -1449,7 +1461,8 @@ pub(crate) fn eval_rest(
                 }
                 // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
                 // Maintains type identity: List/rest → List (not Vec).
-                Value::wat__core__List(xs) => {
+                SeqContainer::List => {
+                    let Value::wat__core__List(xs) = v else { unreachable!("of_value⇒List") };
                     if xs.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::rest".into(),
@@ -1463,23 +1476,27 @@ pub(crate) fn eval_rest(
                 // a new WatAST::List of the tail. Maintains form identity (List/rest → List),
                 // mirroring the wat__core__List arm above. Empty form → MalformedForm;
                 // of_value guarantees this is a WatAST::List so non-List branch is unreachable.
-                Value::wat__WatAST(ast) => match &*ast {
-                    WatAST::List(children, span) => {
-                        if children.is_empty() {
-                            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                                head: ":wat::core::rest".into(),
-                                reason: "cannot take rest of empty form".into()
-                            } }.into());
+                SeqContainer::WatAstList => {
+                    let Value::wat__WatAST(ast) = v else { unreachable!("of_value⇒WatAstList") };
+                    match &*ast {
+                        WatAST::List(children, span) => {
+                            if children.is_empty() {
+                                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                                    head: ":wat::core::rest".into(),
+                                    reason: "cannot take rest of empty form".into()
+                                } }.into());
+                            }
+                            let tail: Vec<WatAST> = children.iter().skip(1).cloned().collect();
+                            Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
                         }
-                        let tail: Vec<WatAST> = children.iter().skip(1).cloned().collect();
-                        Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
+                        // Unreachable: of_value only returns WatAstList for List forms.
+                        _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
-                    // Unreachable: of_value only returns WatAstList for List forms.
-                    _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
-                },
+                }
                 // Arc-278-0b — PersistentVector: rest returns a new PersistentVector (tail after first element).
                 // Maintains type identity: PersistentVector/rest → PersistentVector (not Vec).
-                Value::wat__core__PersistentVector(pv) => {
+                SeqContainer::PersistentVector => {
+                    let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
                     if pv.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: ":wat::core::rest".into(),
@@ -1493,8 +1510,9 @@ pub(crate) fn eval_rest(
                     }
                     Ok(Value::wat__core__PersistentVector(out))
                 }
-                // Unreachable: only has_tail containers reach this arm.
-                _ => unreachable!("SeqContainer::of_value classified a non-matching value as has_tail"),
+                // has_tail() gate excludes these — named arms, genuinely dead, compiler-forced:
+                SeqContainer::Tuple | SeqContainer::HashSet =>
+                    unreachable!("has_tail() gate excludes Tuple/HashSet"),
             }
         }
         // ∅ N/A: container has no tail (Tuple, HashSet — nature forbids it).

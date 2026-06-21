@@ -41,21 +41,27 @@ pub(crate) fn eval_vec_reverse(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&v) {
-        Some(container) if container.mappable() => match v {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&v) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = v else { unreachable!("of_value⇒Vector") };
                 let mut out = (*xs).clone();
                 out.reverse();
                 Ok(Value::Vec(Arc::new(out)))
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
                     out = out.push_back(elem.clone());
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
@@ -109,14 +115,18 @@ pub(crate) fn eval_vec_take(
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
                 let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
                 Ok(Value::Vec(Arc::new(out)))
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let cap = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for elem in pv.iter().take(cap) {
@@ -124,7 +134,9 @@ pub(crate) fn eval_vec_take(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::take".into(),
@@ -152,14 +164,18 @@ pub(crate) fn eval_vec_drop(
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
     let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
                 let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
                 Ok(Value::Vec(Arc::new(out)))
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let skip = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for elem in pv.iter().skip(skip) {
@@ -167,7 +183,9 @@ pub(crate) fn eval_vec_drop(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::drop".into(),
@@ -309,23 +327,29 @@ pub(crate) fn eval_vec_map(
         }
     };
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let mut out = Vec::with_capacity(xs.len());
                 for x in xs.iter() {
                     out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
                 }
                 Ok(Value::Vec(Arc::new(out)))
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for x in pv.iter() {
                     out = out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::map".into(),
@@ -367,21 +391,27 @@ pub(crate) fn eval_vec_foldl(
         }
     };
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 for x in xs.iter() {
                     acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
                 }
                 Ok(acc)
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 for x in pv.iter() {
                     acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
                 }
                 Ok(acc)
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldl".into(),
@@ -423,22 +453,28 @@ pub(crate) fn eval_vec_foldr(
         }
     };
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 for x in xs.iter().rev() {
                     acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
                 }
                 Ok(acc)
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let elems: Vec<&Value> = pv.iter().collect();
                 for x in elems.into_iter().rev() {
                     acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
                 }
                 Ok(acc)
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldr".into(),
@@ -478,9 +514,12 @@ pub(crate) fn eval_vec_filter(
         }
     };
     // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + mappable()).
-    match crate::collection::seq_container::SeqContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match coll {
-            Value::Vec(xs) => {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
+    use crate::collection::seq_container::SeqContainer;
+    match SeqContainer::of_value(&coll) {
+        Some(container) if container.mappable() => match container {
+            SeqContainer::Vector => {
+                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
                 let mut out = Vec::with_capacity(xs.len());
                 for x in xs.iter() {
                     match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
@@ -497,7 +536,8 @@ pub(crate) fn eval_vec_filter(
                 }
                 Ok(Value::Vec(Arc::new(out)))
             }
-            Value::wat__core__PersistentVector(pv) => {
+            SeqContainer::PersistentVector => {
+                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
                 let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
                 for x in pv.iter() {
                     match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
@@ -514,7 +554,9 @@ pub(crate) fn eval_vec_filter(
                 }
                 Ok(Value::wat__core__PersistentVector(out))
             }
-            _ => unreachable!("SeqContainer::of_value classified a non-matching value as mappable"),
+            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
+            SeqContainer::List | SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
+                unreachable!("mappable() gate excludes List/Tuple/WatAstList/HashSet"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::filter".into(),
