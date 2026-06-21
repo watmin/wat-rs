@@ -10957,63 +10957,83 @@ fn eval_positional_accessor(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    match v {
-        Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
-            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "tuple has {} element(s); no element at index {}",
-                    items.len(),
-                    index
-                )
-            } })
-        }),
-        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-        Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
-            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!("{op}: sequence has {} element(s); no element at index {index}", items.len())
-            } })
-        }),
-        // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
-        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-        Value::wat__core__List(items) => items.iter().nth(index).cloned().ok_or_else(|| {
-            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
-            } })
-        }),
-        // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
-        // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-        Value::wat__core__PersistentVector(pv) => pv.get(index).cloned().ok_or_else(|| {
-            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
-            } })
-        }),
-        // Arc 249 Stone 249.3a-ii — form-value decomposition: WatAST::List is a
-        // sequence of child forms; positional access returns bare wat__WatAST.
-        // Arc-278 flip: bare T, raise on out-of-range or non-List form (was Option).
-        Value::wat__WatAST(ast) => match &*ast {
-            WatAST::List(children, _) => children.get(index)
-                .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
-                .ok_or_else(|| {
+    // Classify via the registry — the only Value→container map for sequence ops.
+    match crate::collection::seq_container::SeqContainer::of_value(&v) {
+        Some(container) if container.indexable() => {
+            // Dispatch: each container provides its element at `index` or raises out-of-range.
+            // Tuple is the heterogeneous special case; the others are homogeneous.
+            match v {
+                Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
                     EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: op.into(),
-                        reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
+                        reason: format!(
+                            "tuple has {} element(s); no element at index {}",
+                            items.len(),
+                            index
+                        )
                     } })
                 }),
-            // A non-List form has no positional children — raise (matches Vec out-of-bounds shape).
-            _ => Err(EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+                Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
+                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: op.into(),
+                        reason: format!("{op}: sequence has {} element(s); no element at index {index}", items.len())
+                    } })
+                }),
+                // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
+                // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+                Value::wat__core__List(items) => items.iter().nth(index).cloned().ok_or_else(|| {
+                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: op.into(),
+                        reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+                    } })
+                }),
+                // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
+                // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
+                Value::wat__core__PersistentVector(pv) => pv.get(index).cloned().ok_or_else(|| {
+                    EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                        head: op.into(),
+                        reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
+                    } })
+                }),
+                // Arc 249 Stone 249.3a-ii — WatAstList: sequence of child forms.
+                // of_value guarantees this is a WatAST::List; positional access returns bare WatAST.
+                // Arc-278 flip: bare T, raise on out-of-range (was Option).
+                Value::wat__WatAST(ast) => match &*ast {
+                    WatAST::List(children, _) => children.get(index)
+                        .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
+                        .ok_or_else(|| {
+                            EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                                head: op.into(),
+                                reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
+                            } })
+                        }),
+                    // Unreachable: of_value only returns WatAstList for List forms.
+                    _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
+                },
+                // Unreachable: only indexable containers reach this arm.
+                _ => unreachable!("SeqContainer::of_value classified a non-matching value as indexable"),
+            }
+        }
+        // ∅ N/A: HashSet is unordered — no canonical "first".
+        Some(_) => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: "tuple, Vec, List, or PersistentVector",
+            got: Box::new(ValueSnapshot::of(&v))
+        } }.into()),
+        // None: not a sequence container. Preserve the specific MalformedForm for non-List WatAST
+        // (a non-List form has no positional children — distinct from a type mismatch).
+        None => match v {
+            Value::wat__WatAST(_) => Err(EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("{op}: WatAST is not a List form; cannot take positional child")
             } })),
+            other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "tuple, Vec, List, or PersistentVector",
+                got: Box::new(ValueSnapshot::of(&other))
+            } }.into()),
         },
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: op.into(),
-            expected: "tuple, Vec, List, or PersistentVector",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
     }
 }
 

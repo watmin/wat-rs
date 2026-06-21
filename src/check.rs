@@ -10024,63 +10024,58 @@ fn infer_positional_accessor(
     }
     let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(ty) = arg_ty {
-        // Reduce to canonical structural form for the match; keep the
-        // surface-name form for error display.
+        // Reduce to canonical structural form; keep the surface-name form for error display.
         let reduced = reduce(&ty, subst, env.types());
-        match &reduced {
-            // Tuple: return element at `index`.
-            TypeExpr::Tuple(elements) => {
-                if let Some(elem) = elements.get(index) {
-                    let result_ty = apply_subst(elem, subst);
-                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
-                } else {
-                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: op.into(),
-                        param: "#1".into(),
-                        expected: format!("tuple with ≥ {} element(s)", index + 1),
-                        got: format_type(&apply_subst(&ty, subst))
-                    } });
-                    // HARVEST (236.2): existing diagnostic; return fresh placeholder with error.
-                    return CheckResult::partial_with(fresh.fresh(), local_errors);
-                }
-            }
-            // Vec<T>: return bare T (arc-278 flip; was Option<T>).
-            // Empty/short is a runtime raise; get is the safe Option path.
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::Vector" => {
-                if let Some(inner) = targs.first() {
-                    let result_ty = apply_subst(inner, subst);
-                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
-                } else {
-                    // HARVEST (236.2): silent-by-intent — Vector type has no inner; polymorphic.
-                    return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
-                }
-            }
-            // List<T>: bare T (arc-278 flip; was Option<T>).
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::List" => {
-                if let Some(inner) = targs.first() {
-                    let result_ty = apply_subst(inner, subst);
-                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
-                } else {
-                    // HARVEST (236.2): silent-by-intent — List type has no inner; polymorphic.
-                    return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
-                }
-            }
-            // PersistentVector<T>: bare T (arc-278 flip; was Option<T>).
-            TypeExpr::Parametric { head, args: targs } if head == "wat::core::PersistentVector" => {
-                if let Some(inner) = targs.first() {
-                    let result_ty = apply_subst(inner, subst);
-                    return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
-                } else {
-                    // HARVEST (236.2): silent-by-intent — PersistentVector type has no inner; polymorphic.
-                    return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
-                }
-            }
-            // WatAST::List (arc-249 form-values): return bare :wat::WatAST (arc-278 flip; was Option).
-            TypeExpr::Path(p) if p == ":wat::WatAST" => {
-                let result_ty = TypeExpr::Path(":wat::WatAST".into());
+        // Classify via the registry — the only TypeExpr→container map for sequence ops.
+        match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+            Some(container) if container.indexable() => {
+                // Dispatch: Tuple is the heterogeneous special case (element at `index`);
+                // all homogeneous containers share the same element-type extraction path.
+                let result_ty = match &reduced {
+                    // Tuple: the i-th slot has its own distinct type.
+                    TypeExpr::Tuple(elements) => {
+                        if let Some(elem) = elements.get(index) {
+                            apply_subst(elem, subst)
+                        } else {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: op.into(),
+                                param: "#1".into(),
+                                expected: format!("tuple with ≥ {} element(s)", index + 1),
+                                got: format_type(&apply_subst(&ty, subst))
+                            } });
+                            // HARVEST (236.2): existing diagnostic; return fresh placeholder with error.
+                            return CheckResult::partial_with(fresh.fresh(), local_errors);
+                        }
+                    }
+                    // WatAstList: fixed homogeneous element type :wat::WatAST.
+                    // (arc-249 form-values; arc-278 flip: bare WatAST, was Option).
+                    TypeExpr::Path(p) if p == ":wat::WatAST" => {
+                        TypeExpr::Path(":wat::WatAST".into())
+                    }
+                    // Homogeneous parametric containers (Vector<T>, List<T>, PersistentVector<T>):
+                    // return bare T (arc-278 flip; was Option<T>). Empty/short is a runtime raise.
+                    TypeExpr::Parametric { args: targs, .. } => {
+                        targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
+                            // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
+                            fresh.fresh()
+                        })
+                    }
+                    // Bare path forms (:wat::core::Vector etc.): no type param available.
+                    _ => fresh.fresh(),
+                };
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
-            _ => {
+            // ∅ N/A: container is not Indexable (HashSet — unordered, no canonical "first").
+            Some(_) => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "#1".into(),
+                    expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    got: format_type(&apply_subst(&ty, subst))
+                } });
+            }
+            // Not a sequence container at all.
+            None => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
