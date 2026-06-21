@@ -35,7 +35,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{Error, FnArg, ItemFn, LitStr, Type};
+use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Type};
 
 /// Parse the leading `&WatAST` arg count (the wat-side arity) from a
 /// fixed-arg handler signature. The context tail (`&Environment`,
@@ -80,6 +80,37 @@ fn sniff_arity(item: &ItemFn) -> syn::Result<usize> {
 }
 
 /// Is the type `&WatAST` (with optional path qualification)?
+/// Sniff the handler fn's docstring — the Clojure-style whole string. `///`
+/// lines desugar to `#[doc = "…"]` attrs (one per line); we collect every
+/// such `doc` string literal, strip the single leading space syn leaves on
+/// each `///` line, and join with `\n` — VERBATIM, no curation/splitting.
+/// Returns `None` when there are no `#[doc]` attrs (doc absent).
+fn sniff_doc(item: &ItemFn) -> Option<String> {
+    let lines: Vec<String> = item
+        .attrs
+        .iter()
+        .filter_map(|attr| {
+            if let Meta::NameValue(nv) = &attr.meta {
+                if nv.path.is_ident("doc") {
+                    if let Expr::Lit(ExprLit { lit: Lit::Str(s), .. }) = &nv.value {
+                        // `///` desugars to `#[doc = " text"]` (one leading
+                        // space). Strip that single space; keep the rest verbatim.
+                        let raw = s.value();
+                        return Some(raw.strip_prefix(' ').map(str::to_owned).unwrap_or(raw));
+                    }
+                }
+            }
+            None
+        })
+        .collect();
+
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
 fn is_ref_watast(ty: &Type) -> bool {
     if let Type::Reference(r) = ty {
         return type_path_ends_with(&r.elem, "WatAST");
@@ -110,6 +141,10 @@ fn type_path_ends_with(ty: &Type, name: &str) -> bool {
 
 pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     let arity = sniff_arity(item)?;
+    let doc_tokens = match sniff_doc(item) {
+        Some(d) => quote! { ::std::option::Option::Some(#d) },
+        None => quote! { ::std::option::Option::None },
+    };
 
     let fn_name = &item.sig.ident;
     let shim_ident = format_ident!("__wat_intrinsic_shim_{}", fn_name);
@@ -158,6 +193,8 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             ::wat::intrinsic::IntrinsicSubmission {
                 name: #fqdn,
                 handler: #shim_ident,
+                arity: #arity,
+                doc: #doc_tokens,
             }
         }
     };

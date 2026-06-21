@@ -1,8 +1,15 @@
 # ⛔ ARC 255 — CURRENT STATE (breadcrumb, 2026-06-21; replace in place)
 
-**255 is ACTIVE. 278 is PARKED (255 unlocks its continuity). Design is LOCKED — read
-`DESIGN.md` § "LOCKED RECORD MODEL" (the authoritative spec; the sections above it are the
-derivation).**
+**255 is ACTIVE. 278 is PARKED (255 unlocks its continuity). Design is LOCKED — TWO authoritative specs:**
+- `DESIGN.md` § "LOCKED RECORD MODEL" — the registry record model (baseline ⊕ `*Def` ⊕ `*Meta`).
+- **`DESIGN-intrinsic-doc-reflection-contract.md` — the doc + reflection contract** (the `#[wat_intrinsic]`
+  comment contract, mutual code⇄doc checks, `show-source`, enum-valued closed fields, the wiki-as-
+  registry-projection). Read it for everything doc/reflection.
+
+**255.1b-iii DONE** (this commit): `metadata-of` answers for intrinsics, proven on `core::Bytes`
+(2 probes green, floor 953/36/1) — `:doc` sniffed from `///`, baseline derived. **Currently emits
+keyword values; the keyword→enum flip + the rich `@arg`/`@ret`/`@example`/mutual-checks are the
+next strikes (255.1b-iv+, per the contract spec).**
 
 ## Why we pivoted (the catastrophic instance, grounded)
 The resolver blanket-accepts ANY `:wat::*` head (`is_reserved_prefix → true`, walk.rs:189)
@@ -111,3 +118,50 @@ collection seq HOFs 1a (`5ac9abdb`) + 1b List (`751d131d`). Use the wat migratio
 
 > ⛔ NEW INSTANCE: you did not live the design session above — it's a cache. recolligere:
 > read DESIGN.md LOCKED section + this file, `git log --oneline -8`, before moving.
+
+---
+
+## THE INTRINSIC COMMENT CONTRACT (LOCKED 2026-06-21, builder co-design) — metadata-source model
+
+Every `metadata-of` key has ONE honest home. The `#[wat_intrinsic]` attribute is **name-only**
+(identity, compiler-bound to the ident); the **`///` block is a RIGID, macro-ENFORCED structured
+contract** (missing-required → `compile_error!`, same forcing as the arity guard — "forgettable"
+is annihilated by enforcement). Builder: "a rigidly strong requirement for how to comment our
+intrinsics… force LLM maintainability through the roof."
+
+### Sources (where each key comes from — drift-proof by construction)
+- **`:doc`** ← the `///` docstring, VERBATIM (Clojure convention; no curation). REQUIRED.
+- **`:added`** ← required `@added <version>` doc-tag. compile_error if missing. `"1.0.0"` for all
+  current intrinsics (honest: the genesis foundation). The ONE declared-historical fact (can't sniff).
+- **`:example`** ← required `@example <wat-expr> => <expected>` doc-tag. compile_error if missing.
+  The macro **generates an executable doctest** from it when the intrinsic is `pure ∧ deterministic`
+  (auto-run, asserts `== expected` → the example CANNOT drift/lie); for effectful/nondeterministic
+  it's required-but-illustrative (surfaced, not auto-run). The 480 examples → a verified corpus
+  (docs, `(doc …)`, the wat-expert training corpus).
+- **`:deprecated`** ← optional `@deprecated <version> <use-instead>` doc-tag. SOFT deprecation
+  (still works, warns) = Clojure's `:deprecated`. DISTINCT from the retirement table (HARD cut,
+  form GONE, resolve-errors) — `@deprecated` is the stage BEFORE retirement.
+- **DERIVED (no declaration):** `:arity` (sniff signature), `:pure` (`!is_effectful_op`),
+  `:deterministic` (`pure ∧ ∉ nondeterministic-set` e.g. `Uuid/v4`), `:file`/`:line`
+  (`Span::call_site`), `:arglists` (sniff signature), `:defined-in :rust`, `:layer :substrate`,
+  `:kind :intrinsic`.
+- **`:restricted-to`** (access control) ← wat's native (arc 198 / `#[restricted_to]`, composes
+  with `#[wat_intrinsic]`). We SKIP Clojure's `:private` — `:restricted-to` is richer (caller
+  prefix-whitelist vs binary). `:private` ≡ `:restricted-to [<own-ns>]`.
+
+### Clojure-faithfulness
+Plain metadata keys (`:doc`/`:added`/`:deprecated`/`:arglists` — like Clojure var metadata, no
+`?`-suffix). A `(:wat::core::doc <name>)` accessor mirroring `clojure.core/doc` prints it (later).
+N/A from Clojure: `:dynamic`/`:const`/`:test`; `:tag` → the type-sig layer (param_types/ret_type).
+
+### The forced spec, one line
+`#[wat_intrinsic(":fqdn")]` + `///` { docstring (req) · `@added` (req) · `@example` (req,
+auto-doctested when pure∧deterministic) · `@deprecated` (opt) }. Missing-required → compile_error.
+Every intrinsic ships documented + versioned + with a working, self-verifying example, BY
+CONSTRUCTION — you cannot add one without a complete spec.
+
+### Sequencing (folds onto the 255.1b-iii core)
+255.1b-iii core (doc-sniff + `metadata-of` on Bytes, IN FLIGHT) → `@added` enforce → `@example`
+enforce + doctest-gen (purity-gated) → `@deprecated` → `:arglists`/`:file`/`:line` derive-adds →
+`(doc …)` accessor → migration-parity + arity-fuzz tests. Per-home carve sonnets WRITE the
+`@example`s as they carve.

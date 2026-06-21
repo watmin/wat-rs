@@ -29,9 +29,11 @@ use crate::value::{
     Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 
-/// `(:wat::core::Bytes::to-hex bs)` → `:String` (arc 063).
-/// Emit lowercase hex, no separators. Deterministic: same Bytes
-/// always produce the same String.
+/// Encode a `:wat::core::Bytes` into its lowercase hex `:String`.
+///
+/// `(:wat::core::Bytes::to-hex bs)` → `:String` (arc 063). Lowercase
+/// hex, two chars per byte, no separators and no `0x` prefix.
+/// Deterministic: the same Bytes always produce the same String.
 #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
@@ -84,11 +86,12 @@ const NIBBLE: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 ];
 
+/// Decode a hex `:String` back into `:Option<wat::core::Bytes>`.
+///
 /// `(:wat::core::Bytes::from-hex s)` → `:Option<wat::core::Bytes>`
-/// (arc 063). Parse hex back into a byte buffer. Mixed case
-/// accepted (a-f and A-F both decode); raw hex only (no
-/// separators, no `0x` prefix); empty string round-trips to an
-/// empty Bytes.
+/// (arc 063). Mixed case accepted (a-f and A-F both decode); raw hex
+/// only (no separators, no `0x` prefix); the empty string round-trips
+/// to an empty Bytes.
 ///
 /// Returns `:None` on:
 ///   - odd input length (can't pair into bytes)

@@ -10095,6 +10095,44 @@ fn eval_metadata_of(
             }
         }
     };
+    // Arc 255.1b-iii — the intrinsic branch. If `name` is a registered Rust
+    // intrinsic, answer `metadata-of` with the SAME shape as the user path:
+    // `Some(HashMap<keyword, HolonAST>)`, carrying the auto-derived baseline.
+    // Seamless reflection parity — a `:wat::core::Bytes::to-hex` reflects like
+    // a user `defn`. ZERO eval behavior change: the handler dispatch route is
+    // untouched; this only READS the baseline the registry already carries.
+    if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
+        // Purity/determinism are DERIVED here (not stored on the entry):
+        //   pure          = !is_effectful_op(name)  (namespace deriver)
+        //   deterministic = pure && not in the nondeterministic-set
+        const NONDETERMINISTIC: &[&str] = &[":wat::core::Uuid/v4"];
+        let pure = !is_effectful_op(entry.name);
+        let deterministic = pure && !NONDETERMINISTIC.contains(&entry.name);
+
+        let mut map: std::collections::HashMap<Value, Value> =
+            std::collections::HashMap::with_capacity(8);
+        let mut put = |key: &str, val: HolonAST| {
+            map.insert(
+                Value::wat__core__keyword(Arc::new(key.to_string())),
+                Value::holon__HolonAST(Arc::new(val)),
+            );
+        };
+        // :name is the fqdn as a keyword leaf (HolonAST::keyword strips the
+        // leading colon — mirrors how WatAST::Keyword lowers in watast_to_holon).
+        put(":name", HolonAST::keyword(entry.name));
+        put(":kind", HolonAST::keyword(":intrinsic"));
+        put(":defined-in", HolonAST::keyword(":rust"));
+        put(":layer", HolonAST::keyword(":substrate"));
+        put(":arity", HolonAST::i64(entry.arity as i64));
+        put(":pure", HolonAST::bool_(pure));
+        put(":deterministic", HolonAST::bool_(deterministic));
+        // :doc — present only when the handler carries a `///` docstring;
+        // omit the key entirely when absent (cleaner than a :unspecified sentinel).
+        if let Some(doc) = entry.doc {
+            put(":doc", HolonAST::string(doc));
+        }
+        return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
+    }
     match sym.binding_metadata.get(&name) {
         Some(meta) if !meta.is_empty() => {
             let mut map: std::collections::HashMap<Value, Value> =
