@@ -28329,39 +28329,33 @@ mod tests {
 
     #[test]
     fn first_polymorphic_on_vec() {
-        // Arc 047 — first on Vec returns Option<T>.
-        let v = expect_some(
-            eval_expr("(:wat::core::first (:wat::core::Vector :i64 10 20 30))").unwrap(),
-        );
+        // Arc 047 — first on Vec now returns bare T (raises on out-of-range).
+        let v = eval_expr("(:wat::core::first (:wat::core::Vector :i64 10 20 30))").unwrap();
         assert_eq!(expect_i64(v), 10);
     }
 
     #[test]
     fn first_on_empty_vec_returns_none() {
-        // Arc 047 — first on empty Vec is None (used to error).
-        expect_none(eval_expr("(:wat::core::first (:wat::core::Vector :i64))").unwrap());
+        // Arc 047 — empty-range access uses get (safe Option path).
+        expect_none(eval_expr("(:wat::core::get (:wat::core::Vector :i64) 0)").unwrap());
     }
 
     #[test]
     fn second_polymorphic_on_vec() {
-        let v = expect_some(
-            eval_expr("(:wat::core::second (:wat::core::Vector :i64 10 20 30))").unwrap(),
-        );
+        let v = eval_expr("(:wat::core::second (:wat::core::Vector :i64 10 20 30))").unwrap();
         assert_eq!(expect_i64(v), 20);
     }
 
     #[test]
     fn third_on_vec() {
-        let v = expect_some(
-            eval_expr("(:wat::core::third (:wat::core::Vector :i64 10 20 30))").unwrap(),
-        );
+        let v = eval_expr("(:wat::core::third (:wat::core::Vector :i64 10 20 30))").unwrap();
         assert_eq!(expect_i64(v), 30);
     }
 
     #[test]
     fn third_on_short_vec_returns_none() {
-        // Arc 047 — out-of-range Vec index is None, not an error.
-        expect_none(eval_expr("(:wat::core::third (:wat::core::Vector :i64 10 20))").unwrap());
+        // Arc 047 — out-of-range access uses get (safe Option path).
+        expect_none(eval_expr("(:wat::core::get (:wat::core::Vector :i64 10 20) 2)").unwrap());
     }
 
     // ─── last + find-last-index + f64::max-of/min-of (arc 047) ────────────

@@ -31,9 +31,7 @@
       ;; the first finding must be the ladder rule
       (:wat::test::assert-eq
         (:wat::lint::Finding/rule
-          (:wat::core::Option/expect -> :wat::lint::Finding
-            (:wat::core::first findings)
-            "case-1: first finding"))
+          (:wat::core::first findings))
         "nested-if-=-ladder"))))
 
 ;; ─── Case 2: no false positive ───────────────────────────────────────
@@ -101,9 +99,7 @@
         (:wat::core::i64::>= (:wat::core::length rule-zero-findings) 1))
       (:wat::test::assert-eq
         (:wat::lint::Finding/rule
-          (:wat::core::Option/expect -> :wat::lint::Finding
-            (:wat::core::first rule-zero-findings)
-            "case-4: first rule-zero finding"))
+          (:wat::core::first rule-zero-findings))
         "load-order"))))
 
 ;; ─── Case 5: detects concat-abuse ────────────────────────────────────

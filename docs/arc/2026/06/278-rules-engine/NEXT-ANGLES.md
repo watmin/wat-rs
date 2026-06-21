@@ -67,14 +67,18 @@ perf (done — beat Clara) + tooling (② matrix) + capability (① EXPLAIN + �
   Principle: `get` asks "is there one?", `first/second/third` assert "give me the one." Precise spec +
   equivalences: `DESIGN-STONE-first-bare-accessors.md` § Downstream lint rule. `fix-wat` autofix; build after
   the first-bare cascade closes; flip to rete with the rest.
-- **lint suppression = mirror the proven `wat-test` sibling-annotation pattern (no new substrate).** Precedent:
-  `wat/test.wat:407-427` — `:wat::test::ignore` / `:should-panic` / `:time-limit` are **no-op typed defns**
-  (`String -> nil`, type-check but runtime-irrelevant) placed as a **sibling preceding** the target; the tooling
-  (proc-macro scanner) reads them; *"attaches to the IMMEDIATELY NEXT [form]; intervening non-annotation forms
-  clear the pending annotation."* Lint suppression reuses this exactly: a no-op `(:wat::lint::disable :rule)` /
-  `(:wat::lint::ignore "reason")` annotation, sibling before the LIVE form, read by the linter's source-AST walk
-  (`deporder.wat` — same walker shape as the test scanner). The code runs; only the lint is suppressed. **Scope
-  answered by precedent: next-form, intervening-clears.** Supersedes the metadata-rune idea (`{:wat-lint.disable}`).
+- **lint suppression = a no-op sibling marker, "the next form" contract (SETTLED — four-questions + one-way law).**
+  `(:wat::lint::disable [:rule-a :rule-b])` — a no-op `Vector<keyword> -> nil` defn (the SAME species as
+  `:wat::test::ignore`, `wat/test.wat:407-427`): inert at runtime (returns nil, discarded like a `quote` value),
+  present only for the linter's source-AST walk (`deporder.wat`, same walker shape as the test scanner). Multi-rule
+  via the keyword vector. **Contract: applies to the IMMEDIATELY-NEXT form, nothing else; intervening forms clear
+  the pending marker.** No macro (keywords self-evaluate — does-a-macro-need-it → no). Supersedes the metadata-rune.
+  - **Nested-arg offenses → wrap in `do` (existing primitive; NO special wrapper).** An offense buried in an
+    argument (`(+ 1 (offending x))`) has no sibling slot → `(+ 1 (do (:wat::lint::disable [:r]) (offending x)))`.
+    `do`'s body is a form-sequence (the marker gets its "next form") AND `do` returns its last value (transparent
+    in the arg position). One mechanism upheld — `do` + marker compose; a dedicated transparent-wrapper was
+    REJECTED as a redundant second mechanism that only made bad forms ergonomic (builder: *"play by the rules or
+    write ugly code"*). The `do`-wrap IS the intentional friction.
 - **`(comment ...)` form — the dual of `(quote ...)`** (SEPARATE idea; NOT the suppression vehicle — the
   annotation above covers that). `quote` lifts a form INTO the program (→ AST value); `comment` lifts it OUT
   (→ `nil`, body parsed-but-dropped, never type-checked) yet leaves it in the SOURCE AST for parsers who care.

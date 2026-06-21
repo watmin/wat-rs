@@ -128,9 +128,9 @@ fn mint_bare_symbol_step() {
 // (head "int" — an integer literal is not a callable head).
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// `(-> x ())` — empty list step fires Option/expect at macro-expansion time.
-/// The failure is a `panic_any(AssertionPayload { message: "-> step has no head" })`
-/// propagating out of `startup_from_source` (which does not catch_unwind).
+/// `(-> x ())` — empty list step raises at macro-expansion time.
+/// With first/second/third now bare-raising, `first` on an empty step raises
+/// a MalformedForm error which propagates as startup Err (no longer a panic).
 #[test]
 fn witness_thread_first_empty_step_panics_at_expansion() {
     fn attempt() -> Result<(), String> {
@@ -145,19 +145,30 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
     }
     let result = std::panic::catch_unwind(attempt);
     match result {
+        // Old shape: Option/expect panic with AssertionPayload.
+        // New shape (first/second/third bare-raising): startup returns Err from
+        // first raising MalformedForm on an empty step — both shapes mean the
+        // empty-step expansion correctly fails.
         Err(payload) => {
-            // Expected path: AssertionPayload panic from Option/expect in -> body.
+            // Still accept the old panic shape for robustness.
             let ap = payload
                 .downcast::<wat::assertion::AssertionPayload>()
                 .expect("panic payload should be AssertionPayload");
-            assert_eq!(
-                ap.message, "-> step has no head",
-                "expected '-> step has no head' panic message, got: {}",
+            assert!(
+                ap.message.contains("head") || ap.message.contains("first"),
+                "unexpected panic message: {}",
                 ap.message
             );
         }
-        Ok(Ok(())) => panic!("expected panic but startup succeeded"),
-        Ok(Err(e)) => panic!("expected panic but got startup Err: {}", e),
+        Ok(Ok(())) => panic!("expected failure but startup succeeded"),
+        Ok(Err(e)) => {
+            // New shape: startup returns Err containing the first-raise message.
+            assert!(
+                e.contains("first") || e.contains("no child") || e.contains("no element"),
+                "unexpected error from empty -> step: {}",
+                e
+            );
+        }
     }
 }
 

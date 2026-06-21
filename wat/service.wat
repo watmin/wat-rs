@@ -187,12 +187,8 @@
                          -> :wat::core::Vector<wat::WatAST>
                          (:wat::core::let
                            [ch          (:wat::core::ast->children clause)
-                            opkw        (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first ch)
-                                          "defservice request-records: op-clause has no head")
-                            argvec      (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first (:wat::core::drop ch 1))
-                                          "defservice request-records: op-clause has no arg-vec")
+                            opkw        (:wat::core::first ch)
+                            argvec      (:wat::core::first (:wat::core::drop ch 1))
                             ;; in-fields = drop the leading s <- :State triple (3 nodes)
                             in-fieldch  (:wat::core::drop (:wat::core::ast->children argvec) 3)
                             op-str      (:wat::core::keyword/to-string opkw)
@@ -214,12 +210,8 @@
                           -> :wat::core::Vector<wat::WatAST>
                           (:wat::core::let
                             [ch           (:wat::core::ast->children clause)
-                             opkw         (:wat::core::Option/expect -> :wat::WatAST
-                                            (:wat::core::first ch)
-                                            "defservice response-records: op-clause has no head")
-                             out-fieldvec (:wat::core::Option/expect -> :wat::WatAST
-                                            (:wat::core::first (:wat::core::drop ch 3))
-                                            "defservice response-records: op-clause has no out-fieldvec")
+                             opkw         (:wat::core::first ch)
+                             out-fieldvec (:wat::core::first (:wat::core::drop ch 3))
                              out-fieldch  (:wat::core::ast->children out-fieldvec)
                              op-str       (:wat::core::keyword/to-string opkw)
                              resp-name    (:wat::core::keyword/from-string
@@ -242,12 +234,8 @@
                        -> :wat::core::Vector<wat::WatAST>
                        (:wat::core::let
                          [ch      (:wat::core::ast->children clause)
-                          opkw    (:wat::core::Option/expect -> :wat::WatAST
-                                    (:wat::core::first ch)
-                                    "defservice variants: op-clause has no head")
-                          argvec  (:wat::core::Option/expect -> :wat::WatAST
-                                    (:wat::core::first (:wat::core::drop ch 1))
-                                    "defservice variants: op-clause has no arg-vec")
+                          opkw    (:wat::core::first ch)
+                          argvec  (:wat::core::first (:wat::core::drop ch 1))
                           op-str  (:wat::core::keyword/to-string opkw)
                           req-ty  (:wat::core::keyword/from-string
                                     (:wat::core::string::concat fqdn-str
@@ -268,12 +256,8 @@
                         -> :wat::core::Vector<wat::WatAST>
                         (:wat::core::let
                           [ch      (:wat::core::ast->children clause)
-                           opkw    (:wat::core::Option/expect -> :wat::WatAST
-                                     (:wat::core::first ch)
-                                     "defservice reply-variants: op-clause has no head")
-                           out-fieldvec (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first (:wat::core::drop ch 3))
-                                          "defservice reply-variants: op-clause has no out-fieldvec")
+                           opkw    (:wat::core::first ch)
+                           out-fieldvec (:wat::core::first (:wat::core::drop ch 3))
                            op-str  (:wat::core::keyword/to-string opkw)
                            resp-ty (:wat::core::keyword/from-string
                                      (:wat::core::string::concat fqdn-str
@@ -306,15 +290,9 @@
                        -> :wat::core::Vector<wat::WatAST>
                        (:wat::core::let
                          [ch            (:wat::core::ast->children clause)
-                          opkw          (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first ch)
-                                          "defservice serve-arm: op-clause has no head")
-                          argvec        (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first (:wat::core::drop ch 1))
-                                          "defservice serve-arm: op-clause has no arg-vec")
-                          body          (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first (:wat::core::drop ch 4))
-                                          "defservice serve-arm: op-clause has no body")
+                          opkw          (:wat::core::first ch)
+                          argvec        (:wat::core::first (:wat::core::drop ch 1))
+                          body          (:wat::core::first (:wat::core::drop ch 4))
                           ;; in-fields MINUS leading s <- :State triple (3 nodes)
                           fieldch       (:wat::core::drop (:wat::core::ast->children argvec) 3)
                           op-str        (:wat::core::keyword/to-string opkw)
@@ -326,9 +304,7 @@
                                                (:wat::core::string::interpolate "::Reply::{op-str}" :op-str op-str)))
                           ;; Extract state binder (e.g. `s`) from the first triple of argvec.
                           ;; Unquoted → Unquote node at definition time → passes hygiene check.
-                          state-binder  (:wat::core::Option/expect -> :wat::WatAST
-                                          (:wat::core::first (:wat::core::ast->children argvec))
-                                          "defservice serve-arm: argvec has no state binder")
+                          state-binder  (:wat::core::first (:wat::core::ast->children argvec))
                           ;; Build accessor keywords: <fqdn>::<Op>Request/<field-name>
                           ;; Field names at positions 0, 3, 6, … in fieldch.
                           fieldch-len   (:wat::core::length fieldch)
@@ -501,12 +477,8 @@
                        -> :wat::core::Vector<wat::WatAST>
                        (:wat::core::let
                          [ch           (:wat::core::ast->children clause)
-                          opkw         (:wat::core::Option/expect -> :wat::WatAST
-                                         (:wat::core::first ch)
-                                         "defservice constructors: op-clause has no head")
-                          argvec       (:wat::core::Option/expect -> :wat::WatAST
-                                         (:wat::core::first (:wat::core::drop ch 1))
-                                         "defservice constructors: op-clause has no arg-vec")
+                          opkw         (:wat::core::first ch)
+                          argvec       (:wat::core::first (:wat::core::drop ch 1))
                           ;; in-fields minus the leading s <- :State triple
                           in-fieldch   (:wat::core::drop (:wat::core::ast->children argvec) 3)
                           op-str       (:wat::core::keyword/to-string opkw)
@@ -559,12 +531,8 @@
                        -> :wat::core::Vector<wat::WatAST>
                        (:wat::core::let
                          [ch              (:wat::core::ast->children clause)
-                          opkw            (:wat::core::Option/expect -> :wat::WatAST
-                                            (:wat::core::first ch)
-                                            "defservice methods: op-clause has no head")
-                          out-fieldvec    (:wat::core::Option/expect -> :wat::WatAST
-                                            (:wat::core::first (:wat::core::drop ch 3))
-                                            "defservice methods: op-clause has no out-fieldvec")
+                          opkw            (:wat::core::first ch)
+                          out-fieldvec    (:wat::core::first (:wat::core::drop ch 3))
                           op-str          (:wat::core::keyword/to-string opkw)
                           op-lower        (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           method-name     (:wat::core::keyword/from-string

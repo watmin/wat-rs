@@ -96,7 +96,7 @@ const CANONICAL_COMPREHENSION_MACRO: &str = "(:wat::core::defmacro :my::inc-vof 
 
 #[test]
 fn canonical_comprehension_replaces_for() {
-    let body = "(:wat::core::match (:wat::core::first (:my::inc-vof 10 20 30)) -> :wat::core::i64 \
+    let body = "(:wat::core::match (:wat::core::get (:my::inc-vof 10 20 30) 0) -> :wat::core::i64 \
                   ((:wat::core::Some n) n) \
                   (:wat::core::None -1))";
     let result = eval_i64_with(CANONICAL_COMPREHENSION_MACRO, body);
