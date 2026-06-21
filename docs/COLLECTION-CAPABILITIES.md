@@ -14,7 +14,7 @@ human-readable face of that machine.
 - **`done`** — delivered (routed through the registry, runtime + checker, with tests).
 - **`BUILD`** — a real gap; we implement it now, before moving on. (Was `○ gap` in the registry tables.)
 - **`N/A`** — the container's *nature* forbids it (grounded reason given). Never to be filled.
-- **`DECIDE`** — a genuine ✓-vs-`N/A` design call; needs a four-questions ruling before it becomes `done`/`BUILD`/`N/A`.
+- **`DECIDE`** — ~~a genuine ✓-vs-`N/A` design call~~ **RESOLVED 2026-06-20** (see **Rulings** below; bucket now empty). Grid cells still marked `DECIDE` are superseded by the Rulings table and flip to `done`/`N/A` as each strike lands.
 
 ## The containers (what exists today)
 - **Seq family** (`SeqContainer`): Vector, PersistentVector, List, Tuple, WatAstList, HashSet
@@ -26,87 +26,107 @@ human-readable face of that machine.
 
 ---
 
-## Grid 1 — Seq family
+## Grid 1 — Seq family   *(all cells resolved; `BUILD` = the active campaign)*
 
 Op groups: **pos** = first/second/third · **rest** · **conj** · **map** = map/filter/foldl/foldr · **ord** =
-reverse/take/drop (order-dependent) · **concat** · **get** · **has?** = contains? · **len** = length/empty?
+reverse/take/drop (order-dependent) · **concat** · **get** · **has?** = contains? · **len** = length/empty? ·
+**assoc** = assoc-by-index
 
-| container        | pos  | rest | conj  | map   | ord   | concat | get        | has?       | len  | assoc (by-index)      |
-|------------------|------|------|-------|-------|-------|--------|------------|------------|------|-----------------------|
-| Vector           | done | done | done  | done  | done  | done   | done       | done       | done | DECIDE (Clojure ✓)    |
-| PersistentVector | done | done | done  | done  | done  | done   | done       | done       | done | DECIDE (Clojure ✓)    |
-| List             | done | done | done  | BUILD | BUILD | BUILD  | BUILD¹     | BUILD¹     | done | N/A (not associative) |
-| Tuple            | done | N/A² | N/A³  | N/A⁴  | N/A⁴  | N/A³   | DECIDE     | DECIDE     | BUILD| DECIDE                |
-| WatAstList       | done | done | BUILD | BUILD | BUILD | BUILD  | DECIDE     | DECIDE     | BUILD| DECIDE                |
-| HashSet          | N/A⁵ | N/A⁵ | done  | BUILD⁶| N/A⁷  | DECIDE⁸| DECIDE⁹    | done       | done | N/A (not k→v; use conj)|
+| container        | pos  | rest | conj  | map   | ord   | concat | get   | has?  | len   | assoc |
+|------------------|------|------|-------|-------|-------|--------|-------|-------|-------|-------|
+| Vector           | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
+| PersistentVector | done | done | done  | done  | done  | done   | done  | done  | done  | BUILD |
+| List             | done | done | done  | BUILD | BUILD | BUILD  | BUILD¹| BUILD¹| done  | N/A ᵃ |
+| Tuple            | done | N/A ᵇ| N/A ᶜ | N/A ᵈ | N/A ᵈ | N/A ᶜ  | N/A ᵉ | BUILD | BUILD | N/A ᵉ |
+| WatAstList       | done | done | BUILD | BUILD | BUILD | BUILD  | BUILD | BUILD | BUILD | BUILD |
+| HashSet          | N/A ᶠ| N/A ᶠ| done  | BUILD²| N/A ᵍ | N/A ʰ  | BUILD³| done  | done  | N/A ⁱ |
 
-1. **List get/has?** — the `list_get_inner` / `list_contains_q_inner` helpers **already exist** but aren't wired
-   into the polymorphic dispatch. `BUILD` = wire them through the registry (cheap).
-2. Tuple/rest — tail changes arity *and* element types → not representable.
-3. Tuple/conj, Tuple/concat — fixed arity; appending changes the type.
-4. Tuple/map, Tuple/ord — heterogeneous elements; one `fn` can't map mixed types.
-5. HashSet/pos, HashSet/rest — unordered; no canonical "first" or "tail".
-6. **HashSet/map** = ✓ set→set (deduped, unordered) — DECIDED this session (best option; identity-preserving).
-   `foldl`/`foldr` over a set fold in **unspecified order** (set is unordered) — flag at build.
-7. HashSet/ord (reverse/take/drop) — order-dependent ops on an unordered container → N/A.
-8. **HashSet/concat** — sequence-concat on a set = set *union*, a different op. DECIDE: `N/A` ("use a union op")
-   or ✓-as-union.
-9. **HashSet/get** — Clojure `(get #{x} x)` returns the element if present (membership-as-lookup). DECIDE:
-   ✓ (Clojure-faithful membership-get) or `N/A` (use `contains?`).
+¹ List get/has? — `list_get_inner`/`list_contains_q_inner` already exist; `BUILD` = wire them through the registry.
+² HashSet/map = set→set (deduped, unordered); `foldl/foldr` fold in unspecified order (flag at build).
+³ HashSet/get = membership-as-lookup (`Some(x)` if present) — uniform with `get` across keyed containers; under
+  value-semantics returns no *new* info vs `has?`, kept for uniformity (Clojure's canonicalization needs ref identity).
+
+N/A reasons: ᵃ List not associative (sequential) · ᵇ tail changes arity+types · ᶜ fixed arity · ᵈ heterogeneous
+(one `fn` can't map mixed types) · ᵉ heterogeneous product: runtime-index can't be typed; use static
+first/second/third or destructure · ᶠ unordered (no first/tail) · ᵍ order-dependent on unordered · ʰ `concat` is
+seq-join; set-combine is `union` (see set algebra) · ⁱ not key→value (use conj).
 
 ---
 
-## Grid 2 — Map family
+## Grid 2 — Map family   *(all cells resolved)*
 
-Seq ops (pos/rest/conj/map/ord/concat) on maps: a map is **not a sequence** in wat's model (unordered, no
-`lazy-seq`). Clojure makes maps seqable (→ map-entries); wat does not, today.
+| container     | get   | has? (key) | len/empty? | assoc  | map/filter/fold (→Vec) | first/rest/positional |
+|---------------|-------|------------|------------|--------|------------------------|-----------------------|
+| HashMap       | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
+| PersistentMap | done  | done       | done       | done   | BUILD ⁴                | N/A ⁵                 |
+| Record        | BUILD | BUILD      | BUILD      | done\* | BUILD ⁴                | N/A ⁵                 |
 
-| container     | get        | has? (key) | len  | empty? | assoc | seq ops (first/rest/map/…) |
-|---------------|------------|------------|------|--------|-------|----------------------------|
-| HashMap       | done       | done       | done | done   | done  | N/A (not a sequence)¹⁰      |
-| PersistentMap | done       | done       | done | done   | done  | N/A¹⁰                       |
-| Record        | BUILD¹¹    | BUILD¹¹    | BUILD| BUILD  | done* | N/A¹⁰                       |
+\* Record/assoc = field update (flavor-preserving) — `done` once the strike-5 pub-leak fix lands.
+⁴ map/filter/fold over a *finite* map iterate `[k v]` entries → **Vec** (eager; no lazy-seq needed). Return swaps
+  Vec→lazy-seq when lazy-seqs land. (Record get/has?/len flip the `keyed_lookup`/`has_key`/`measurable` capability
+  cells `false→true`.)
+⁵ first/rest/positional — maps are unordered; no positions. (Clojure's seqable-as-entries waits on lazy-seq.)
 
-\* Record/assoc = field update (flavor-preserving) — `done` once strike 5 lands (the pub-leak fix is in the weigh).
+## Set algebra — NEW verbs (BUILD)
 
-10. **map/fold over map-entries** — Clojure allows `(map f a-map)` over `[k v]` entries (unordered). DECIDE
-    (whole row): do maps become iterable over entries? Tied to the `lazy-seq` question — likely **deferred with
-    lazy-seq**, not built now. Marked `N/A (today)`, revisited when seq/iteration lands.
-11. **Record get/has?/len** — get-by-keyword, contains-field, field-count/empty. `BUILD` (Clojure records are
-    associative + counted). Record's `keyed_lookup`/`has_key`/`measurable` capability cells flip `false → true`
-    when built (strike 6).
+Sets need their combine ops; `concat` is not it. All `BUILD`:
+
+| op             | HashSet | grounding |
+|----------------|---------|-----------|
+| `union`        | BUILD   | Ruby `Set#merge` / Clojure `clojure.set/union` — unordered, dedupes |
+| `intersection` | BUILD   | elements in both |
+| `difference`   | BUILD   | elements in a not in b |
 
 ---
 
-## The BUILD queue (gaps we fill now, no deferral)
+## STANDING ORDER (2026-06-20)
+**Collections are the blocking campaign.** Rete feature work (custom accumulators, returns-the-fact, …) is
+BLOCKED until this grid is all `done`/`N/A`. We're in flow; the collection surface gets sane first, then we loop
+back to the rete items. DECIDE bucket is **empty** — all rulings made below.
 
-In dependency order; each lands green before the next, continuous (no parking):
+## The BUILD queue (in dependency order; each green before the next, continuous — no parking)
 
-1. **Strike 6 — route the mixed ops both waists + fill Record cells.** Route `get`/`contains?`/`length`/`empty?`
-   through `SeqContainer` (seq arms) and `MapContainer` (map arms); fill **Record/get, Record/has?, Record/len**;
-   wire **List/get, List/has?** (helpers exist). Consumes `MapContainer::keyed_lookup`/`has_key`/`measurable`
-   (kills the dead_code by *use*, not `#[allow]`). Fills Tuple/len, WatAstList/len.
-2. **Strike 7 — seq HOF fills.** **List/map, WatAstList/map+conj, HashSet/map (set→set)**, and List/WatAstList
-   for reverse/take/drop/concat. Each new `*_inner` + capability cell `false→true`.
-3. **The DECIDE cells** (below) — ruled, then built or cut, interleaved as each op's strike reaches them.
+1. **Map waist complete** — revert the strike-5 pub-leak (`MapContainer` → `pub(crate)`, drop the `lib.rs`
+   re-export, black-box probe) + route `get`/`contains?`/`length`/`empty?` map arms through `MapContainer` +
+   **fill Record get/has?/len** + **map/filter/fold over HashMap/PersistentMap/Record → Vec** (eager map-iteration;
+   becomes seq-returning when lazy-seqs land). Consumes `keyed_lookup`/`has_key`/`measurable` (dead_code → gone by
+   use).
+2. **Seq waist complete** — route `get`/`contains?`/`length`/`empty?` seq arms through `SeqContainer`; wire
+   **List/get + List/has?** (helpers exist); fill **Tuple/len+empty?, WatAstList/len+empty?**; fill the seq HOFs:
+   **List/map+filter+fold+reverse+take+drop+concat, WatAstList/map+conj+ord+concat, HashSet/map+filter+fold
+   (set→set)**; **contains? on Tuple + WatAstList** (element membership).
+3. **Index ops** — **assoc-by-index on Vector/PV/WatAstList**; **get-by-index on WatAstList**. (Tuple excluded — N/A.)
+4. **Set algebra (new verbs)** — **`union`, `intersection`, `difference`** on HashSet. The set-combine family
+   (Ruby `Set#merge`, Clojure `clojure.set/*`). A set without its algebra is itself a gap.
+5. **HashSet/get** — membership-as-lookup (`get(set,x) → Some(x)|None`), uniform with `get` across all keyed
+   containers (sets are element→element maps).
 
-## The DECIDE list (four-questions rulings owed — your call)
+## Rulings (DECIDE resolved 2026-06-20, four-questioned against the ADT + wat's choices, not stale rosetta)
 
-| cell | the call | lean |
-|------|----------|------|
-| Vector/assoc, PV/assoc | assoc-by-index (`(assoc v 0 :x)`) | Clojure ✓ — build |
-| Tuple/get, Tuple/has?, Tuple/assoc | tuple by-index get / element-membership / by-index update | get ✓, has? ✓, assoc ✓ (tuples are indexed, fixed-arity) — lean build, grounded per cell |
-| WatAstList/get, has?, assoc | child-by-index get / contains-child / child update | ✓ for AST manipulation — lean build |
-| HashSet/get | membership-as-lookup (Clojure `(get set x)`) | ✓ Clojure-faithful, OR N/A "use contains?" |
-| HashSet/concat | set union vs N/A | lean N/A (union is a distinct op) |
-| Map family / seq ops (map-entries) | iterate maps as `[k v]` | **defer with lazy-seq** (not now) |
+| cell | verdict | grounding |
+|------|---------|-----------|
+| Vector/assoc, PV/assoc, WatAstList/assoc | **✓ BUILD** (assoc-by-index) | homogeneous → type-preserving, bounds-checked; the immutable element-update verb |
+| WatAstList/get | **✓ BUILD** (child by index → `Option<WatAST>`) | homogeneous, precise |
+| Tuple/get, Tuple/assoc | **N/A** | heterogeneous *product*; runtime-index can't be typed (→`Option<Value>`, lossy) and precise static access exists (first/second/third, destructure) |
+| Tuple/has?, WatAstList/has? | **✓ BUILD** (element membership) | membership needs no static typing; matches wat's element-`contains?` |
+| HashSet/get | **✓ BUILD** (membership-as-lookup) | uniform `ILookup` — a set is an element→element map; `get` works on every keyed container. (Footnote: under value-semantics it returns no *new* info vs `contains?` — Clojure's canonicalization payoff needs reference identity, which we lack. Kept for uniformity, not canonicalization.) |
+| HashSet/concat | **N/A** | `concat` = ordered seq-join (keeps dupes); set-combine is `union` (unordered, dedupes) — a distinct verb. Clojure keeps them separate too. |
+| Map/set-combine | **✓ BUILD `union`/`intersection`/`difference`** | sets need their algebra; `concat` is not it |
+| Map family / map+filter+fold (entries) | **✓ BUILD → Vec** | eager iteration of a *finite* map; no lazy-seq needed; return swaps Vec→seq when lazy-seqs land |
+| Map family / first/rest/positional | **N/A** | unordered; no positions (Clojure makes maps seqable via lazy-seq — deferred) |
+| Seq *interface* (abstraction) | **with lazy-seqs, not now** | minting an interface over one eager impl is premature abstraction; introduce when lazy-seqs are its 2nd implementor |
 
 ## The N/A registry (grounded cuts — never filled)
-- Tuple: rest, conj, map, ord, concat — heterogeneous + fixed arity.
-- HashSet: pos, rest, ord — unordered.
+- Tuple: rest, conj, map, ord, concat, **get, assoc** — heterogeneous product / fixed arity; static positional access only.
+- HashSet: pos, rest, ord — unordered. **concat** — use `union`.
 - List: assoc — not associative (sequential).
 - HashSet: assoc — not key→value (use conj).
-- Map family: positional seq ops — not a sequence (today).
+- Map family: positional/first/rest seq ops — not a sequence (today; revisited with lazy-seqs).
+
+## The one bounded future-type
+**lazy/infinite `lazy-seq`** — does not exist; the single deferred thing (builder's call). NOT a gap in this grid —
+a future primitive the exhaustive matches will *force* into every cell when it lands. It also flips the
+map+filter+fold *return* (Vec→lazy-seq) uniformly, and is when the `Seq` interface gets minted.
 
 ---
 

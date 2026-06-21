@@ -24,6 +24,13 @@ for real" and "Horizon" are NOT in any phase.
 *The accumulator-completion cluster — all ride stone 8's machinery. Worked in tractability order: capability
 first, ergonomics last. **This entire phase must complete before ② Perf begins.***
 
+> ⛔ **STANDING ORDER (2026-06-20): COLLECTIONS BLOCK RETE.** Building rete exposed how unsound the collection
+> surface is. The accumulator cluster below (custom accumulators, returns-the-fact, field-sugar, acc/-alias) is
+> **BLOCKED** until the collection capability grid is all `done`/`N/A`. Authoritative spec + queue:
+> **`docs/COLLECTION-CAPABILITIES.md`**. Order: (1) map waist complete, (2) seq waist complete, (3) index ops,
+> (4) set algebra (union/intersection/difference), (5) HashSet/get. Then resume the accumulator cluster. No
+> deferral — every cell ships `done` or grounded-`N/A`; lazy-seq is the one bounded future-type, not a gap.
+
 **Coherence prerequisites (surfaced 2026-06-20 while de-risking returns-the-fact):**
 - ✅ **seq/collection container drift — DONE** (`75356ecc`). The checker false-rejected `first`/`second`/
   `third`/`rest` on PersistentVector + WatAST and `conj` on List (one-sided changes across arcs 220/249/
