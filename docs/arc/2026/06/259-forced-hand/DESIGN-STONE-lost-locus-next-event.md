@@ -98,6 +98,34 @@ compile-fails at the missing bridge — a valid gap-isolating RED). GREEN after 
 - lib floor (953/36/1), nursery floor unchanged.
 - remote slot is `unimplemented!` and there is NO remote construction path (honest omission).
 
+## Grounding update (2026-06-21, deeper inquisitor pass — supersedes guesses above)
+- **`select'` already takes process children.** `eval_peer_select_prime` (runtime.rs:24472)
+  dispatches on the FIRST peer's `type_path` — THREAD_PEER_TYPE_PATH (:67), PROCESS_PEER_TYPE_PATH
+  (:166), PEER_TYPE_PATH (:288). The "bundles aren't pollable" fear was WRONG: a supervisor can
+  already `(select' [child …])`. The THREE real gaps, all in this fn's arms:
+  1. on a peer death it **RAISES** ("peer closed / child exited", :252 process / :146 thread) —
+     crashes the supervisor instead of yielding an event;
+  2. it returns **`Tuple<i64, O>`** (:272), not `ServiceEvent`;
+  3. it extracts only the **output** receiver (`process::Receiver<String>` :212 / thread Receiver
+     :114) — never the `err`/`crash` channel, so no cause.
+  → The strike is concentrated here + the poll' arms + recv(): all route through `next_event`,
+  return `ServiceEvent`, read the crash channel on death.
+- **There is ALSO a legacy `select`** (no prime; `eval_kernel_select`, runtime.rs:20074) —
+  Receiver-based, thread-tier ONLY, `Tuple` return, `Ok(None)` on death. Separate older
+  multiplexer; fold it into the annihilation or confirm it's dead (bracket uses `select'`, the
+  primed one). Check callers before touching.
+- **ServiceEvent migration blast radius:** `select'` → `ServiceEvent` changes every `select'`
+  caller — today `wat/bracket.wat` (extracts `(idx,result)` Tuple; migrates to `:Message{idx,msg}`,
+  gains `:Lost` free). Grep `select'` callers before the strike.
+- **The RED probe must be RUST, not a wat-tests deftest.** At HEAD `select'` returns `Tuple`, so
+  any wat probe matching `ServiceEvent` is a CHECK error — and the wat-tests harness **aborts a
+  file's load on a check error** (it silently drops that file's tests AND poisons the
+  whole-directory proc-macro discovery until a forced re-scan; a broken file dropped the
+  round-trip test this session until `touch`). So author the probe as a Rust integration test
+  (model: `tests/wat_process_peer_ipc_round_trip.rs`) — spawn a process peer whose `:user::main`
+  crashes (`Option/expect` on `None`), `select'` over `[child]`, assert `ServiceEvent::Lost` with
+  the cause; RED at HEAD (Tuple / raise), GREEN after.
+
 ## Out of scope (affirmative cuts)
 - The remote IMPL (TCP socket spawn-program') — contract-shaped + `unimplemented!` only.
 - The negative gold-standard tests — they do NOT need `:Lost`; they ride `recv'` (already raises
