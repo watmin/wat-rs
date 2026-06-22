@@ -52,7 +52,16 @@ but only on an IOWriter object, not ambient fd 1). With it: over-cap (un-termina
 anti-smuggle (two values one line), truncated (partial then exit). Build `print-raw'` (probe →
 DESIGN → strike), then the 3 deftests. Then **#268** the unbounded-LINE bound.
 
-### Track 2 — `:Lost{cause}` for local crashes — DESIGN'd, the keystone stone
+### Track 2 — `:Lost{cause}` for local crashes — SLICE 1 LANDED (`51d0c954`)
+✅ **select' slice done & green** (weighed by hand): `select'` now returns `ServiceEvent` —
+a crashed peer → `:Lost{cause}` (death demux mirrors `recv()` spawn.rs:240: output-EOF → read
+the crash channel, thread `crash`/process `err`; bare connection peer → `:Closed` only). Cause
+via the pre-existing `message_only_failure` (runtime.rs:21873). RED probe:
+`tests/probe_supervisor_select_lost.rs`. Callers migrated: bracket.wat + 3 test files.
+**FOLLOW-UP slices (the rest of the annihilation):** (a) route `recv'`/`poll'` through the SAME
+one-`next_event` (today select' has its own demux copy — the full decomplect unifies all three);
+(b) the legacy non-prime `select` (eval_kernel_select:20074, Receiver-based/Tuple/Ok(None)-on-death)
+— fold into the protocol or HARD-CUT. `qualified-annihilations-are-priority`: these outrank Track 1.
 **DESIGN on disk: `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md`. READ IT.**
 The flaw (inquisitor-grounded): the unified `Peer` (peer.rs:206 = `{tx,rx}`) DROPPED the crash
 channel in the arc-209 unification; `Thread.crash`/`Process.err` are stranded on the tier
