@@ -10147,10 +10147,6 @@ fn eval_metadata_of(
     // a user `defn`. ZERO eval behavior change: the handler dispatch route is
     // untouched; this only READS the baseline the registry already carries.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
-        // Purity/determinism are DERIVED (not stored on the entry) via the
-        // shared helper — same derivation as the iv-b2-a reflection seam.
-        let (pure, deterministic) = derive_pure_deterministic(entry.name);
-
         let mut map: std::collections::HashMap<Value, Value> =
             std::collections::HashMap::with_capacity(8);
         // iv-c: put inserts PLAIN values (no HolonAST wrapping).
@@ -10163,7 +10159,7 @@ fn eval_metadata_of(
         // :name — the FQDN as a plain keyword value.
         put(":name", Value::wat__core__keyword(Arc::new(entry.name.to_string())));
         // :kind / :defined-in / :layer — closed-domain Value::Enum (iv-c §5).
-        put(":kind", crate::intrinsic::Kind::Intrinsic.to_enum_value());
+        put(":kind", entry.kind.to_enum_value());
         put(":defined-in", crate::intrinsic::DefinedIn::Rust.to_enum_value());
         put(":layer", crate::intrinsic::Layer::Substrate.to_enum_value());
         // :arity — Exact(N) → N as i64; Variadic → -1 (sentinel for "variadic").
@@ -10172,8 +10168,19 @@ fn eval_metadata_of(
             crate::intrinsic::Arity::Variadic => Value::i64(-1),
         };
         put(":arity", arity_val);
-        put(":pure", Value::bool(pure));
-        put(":deterministic", Value::bool(deterministic));
+        // :purity / :determinism — declared enum values from the doc, not derived bools.
+        let purity_val = match entry.purity {
+            wat_doc::Purity::Pure => crate::intrinsic::RuntimePurity::Pure,
+            wat_doc::Purity::Effectful => crate::intrinsic::RuntimePurity::Effectful,
+            wat_doc::Purity::Preserving => crate::intrinsic::RuntimePurity::Preserving,
+        }.to_enum_value();
+        let determinism_val = match entry.determinism {
+            wat_doc::Determinism::Deterministic => crate::intrinsic::RuntimeDeterminism::Deterministic,
+            wat_doc::Determinism::Nondeterministic => crate::intrinsic::RuntimeDeterminism::Nondeterministic,
+            wat_doc::Determinism::Preserving => crate::intrinsic::RuntimeDeterminism::Preserving,
+        }.to_enum_value();
+        put(":purity", purity_val);
+        put(":determinism", determinism_val);
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
         // :added — the @added version string.
         // :ret — the @ret description.
@@ -10183,11 +10190,15 @@ fn eval_metadata_of(
         put(":added", Value::String(Arc::new(entry.added.to_string())));
         put(":ret", Value::String(Arc::new(entry.ret.to_string())));
         // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
-        let category_val = Value::Enum(Arc::new(EnumValue {
-            type_path: ":wat::runtime::Category".into(),
-            variant_name: entry.category.into(),
-            fields: vec![],
-        }));
+        let category_val = {
+            let rc = match entry.category {
+                wat_doc::Category::Encoding => crate::intrinsic::RuntimeCategory::Encoding,
+                wat_doc::Category::Reflection => crate::intrinsic::RuntimeCategory::Reflection,
+                wat_doc::Category::ControlFlow => crate::intrinsic::RuntimeCategory::ControlFlow,
+                wat_doc::Category::Binding => crate::intrinsic::RuntimeCategory::Binding,
+            };
+            rc.to_enum_value()
+        };
         put(":category", category_val);
         return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
     }

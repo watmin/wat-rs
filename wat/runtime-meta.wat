@@ -10,13 +10,15 @@
 ;; May be placed anywhere after wat/core.wat.
 
 ;; Kind — what kind of callable is this?
-;;   :Intrinsic — implemented in Rust, exposed under a :wat:: FQDN
-;;   :Fn        — a user-defined :wat::core::defn
-;;   :Macro     — a user-defined :wat::core::defmacro
+;;   :Intrinsic   — implemented in Rust, exposed under a :wat:: FQDN
+;;   :Fn          — a user-defined :wat::core::defn
+;;   :Macro       — a user-defined :wat::core::defmacro
+;;   :SpecialForm — a substrate special form (no NativeHandler; runtime-dispatched)
 (:wat::core::defenum :wat::runtime::Kind
   :Macro
   :Fn
-  :Intrinsic)
+  :Intrinsic
+  :SpecialForm)
 
 ;; DefinedIn — implementation language.
 ;;   :Rust — written in Rust (all intrinsics)
@@ -31,3 +33,32 @@
 (:wat::core::defenum :wat::runtime::Layer
   :Substrate
   :Userland)
+
+;; Purity — declared purity of an intrinsic or special form.
+;;   :Pure      — produces the same output for the same input, no observable side effects
+;;   :Effectful — has observable side effects (I/O, mutation, etc.)
+;;   :Preserving — special forms that preserve the purity of their sub-forms
+(:wat::core::defenum :wat::runtime::Purity
+  :Pure
+  :Effectful
+  :Preserving)
+
+;; Determinism — declared determinism of an intrinsic or special form.
+;;   :Deterministic    — same input always produces same output
+;;   :Nondeterministic — output may differ across calls (e.g. UUID, random)
+;;   :Preserving       — special forms that preserve the determinism of their sub-forms
+(:wat::core::defenum :wat::runtime::Determinism
+  :Deterministic
+  :Nondeterministic
+  :Preserving)
+
+;; Category — functional category.
+;;   :Encoding    — data encoding/decoding
+;;   :Reflection  — reflection and introspection
+;;   :ControlFlow — control flow special forms (if, cond, etc.)
+;;   :Binding     — binding special forms (let, etc.)
+(:wat::core::defenum :wat::runtime::Category
+  :Encoding
+  :Reflection
+  :ControlFlow
+  :Binding)

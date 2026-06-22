@@ -41,6 +41,108 @@
 //! silent skip. Old separator forms (` — `, ` -- `, ` - `, `: `) are REJECTED
 //! as illegal in the type position — the grammar is firm: `@arg <name> <type> <desc>`.
 
+/// Declared purity of an intrinsic or special form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Purity {
+    Pure,
+    Effectful,
+    Preserving,
+}
+
+impl Purity {
+    pub fn variants() -> &'static [&'static str] {
+        &["Pure", "Effectful", "Preserving"]
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Purity::Pure => "Pure",
+            Purity::Effectful => "Effectful",
+            Purity::Preserving => "Preserving",
+        }
+    }
+}
+
+impl std::str::FromStr for Purity {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "Pure" => Ok(Purity::Pure),
+            "Effectful" => Ok(Purity::Effectful),
+            "Preserving" => Ok(Purity::Preserving),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Declared determinism of an intrinsic or special form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Determinism {
+    Deterministic,
+    Nondeterministic,
+    Preserving,
+}
+
+impl Determinism {
+    pub fn variants() -> &'static [&'static str] {
+        &["Deterministic", "Nondeterministic", "Preserving"]
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Determinism::Deterministic => "Deterministic",
+            Determinism::Nondeterministic => "Nondeterministic",
+            Determinism::Preserving => "Preserving",
+        }
+    }
+}
+
+impl std::str::FromStr for Determinism {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "Deterministic" => Ok(Determinism::Deterministic),
+            "Nondeterministic" => Ok(Determinism::Nondeterministic),
+            "Preserving" => Ok(Determinism::Preserving),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Functional category of an intrinsic or special form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Category {
+    Encoding,
+    Reflection,
+    ControlFlow,
+    Binding,
+}
+
+impl Category {
+    pub fn variants() -> &'static [&'static str] {
+        &["Encoding", "Reflection", "ControlFlow", "Binding"]
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Category::Encoding => "Encoding",
+            Category::Reflection => "Reflection",
+            Category::ControlFlow => "ControlFlow",
+            Category::Binding => "Binding",
+        }
+    }
+}
+
+impl std::str::FromStr for Category {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "Encoding" => Ok(Category::Encoding),
+            "Reflection" => Ok(Category::Reflection),
+            "ControlFlow" => Ok(Category::ControlFlow),
+            "Binding" => Ok(Category::Binding),
+            _ => Err(()),
+        }
+    }
+}
+
 /// One parsed `@example` / `@example-norun` directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocExample {
@@ -101,12 +203,12 @@ pub struct DocComment {
     pub deprecated: Option<Deprecation>,
     /// `@see <fqdn>` cross-references, in source order.
     pub see: Vec<String>,
-    /// `@pure true|false` — declared purity.
-    pub pure: bool,
-    /// `@deterministic true|false` — declared determinism.
-    pub deterministic: bool,
-    /// `@category <Variant>` — closed-enum category (e.g. `Encoding`, `Reflection`).
-    pub category: String,
+    /// `@Purity <Variant>` — declared purity.
+    pub purity: Purity,
+    /// `@Determinism <Variant>` — declared determinism.
+    pub determinism: Determinism,
+    /// `@Category <Variant>` — closed-enum category (e.g. `Encoding`, `Reflection`).
+    pub category: Category,
     /// `@yields <type> <desc>` — optional; the type handed into the fn-arg callback.
     /// `None` when the intrinsic does not yield to a callback.
     pub yields: Option<DocYields>,
@@ -151,12 +253,55 @@ pub enum DocError {
         documented: String,
         signature: String,
     },
-    /// No `@pure` directive.
+    /// No `@pure` directive (legacy — kept for backwards compat in tests).
     MissingPure,
-    /// No `@deterministic` directive.
+    /// No `@deterministic` directive (legacy — kept for backwards compat in tests).
     MissingDeterministic,
-    /// No `@category` directive.
+    /// No `@category` directive (legacy — kept for backwards compat in tests).
     MissingCategory,
+    /// No `@syntax` directive in a special form doc.
+    MissingSyntax,
+    /// No `@Purity` directive.
+    MissingPurity,
+    /// No `@Determinism` directive.
+    MissingDeterminism,
+    /// `@Purity` value is not a known variant.
+    InvalidPurityVariant { got: String },
+    /// `@Determinism` value is not a known variant.
+    InvalidDeterminismVariant { got: String },
+    /// `@Category` value is not a known variant.
+    InvalidCategoryVariant { got: String },
+}
+
+/// A fully-parsed special-form doc comment.
+/// Special forms use `@purity` / `@determinism` instead of `@pure` / `@deterministic`,
+/// and require an `@syntax` grammar string. They do NOT accept `@yields`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocSpecialForm {
+    /// GFM prose body, trimmed.
+    pub prose: String,
+    /// `@added <ver>`.
+    pub added: String,
+    /// `@syntax (...)` — the grammar string, verbatim payload after `@syntax `.
+    pub syntax: String,
+    /// `@arg` directives, in source order.
+    pub args: Vec<DocArg>,
+    /// `@ret` type token.
+    pub ret_type: String,
+    /// `@ret` description.
+    pub ret: String,
+    /// `@example` / `@example-norun` directives (≥1).
+    pub examples: Vec<DocExample>,
+    /// `@Category <Variant>`.
+    pub category: Category,
+    /// `@Purity <Variant>` — declared purity.
+    pub purity: Purity,
+    /// `@Determinism <Variant>` — declared determinism.
+    pub determinism: Determinism,
+    /// `@see` FQDNs, in source order.
+    pub see: Vec<String>,
+    /// `@deprecated`, if present.
+    pub deprecated: Option<Deprecation>,
 }
 
 /// The separator tokens that are now ILLEGAL in the type position.
@@ -170,7 +315,7 @@ const SEPARATOR_TOKENS: &[&str] = &["—", "--", "-", ":"];
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@pure", "@deterministic", "@category", "@yields",
+        "@Purity", "@Determinism", "@Category", "@yields",
     ];
 
     // Split into prose lines and directive lines at the first recognized @-directive.
@@ -195,9 +340,9 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut examples: Vec<DocExample> = Vec::new();
     let mut deprecated: Option<Deprecation> = None;
     let mut see: Vec<String> = Vec::new();
-    let mut pure_val: Option<bool> = None;
-    let mut deterministic_val: Option<bool> = None;
-    let mut category_val: Option<String> = None;
+    let mut purity_val: Option<Purity> = None;
+    let mut determinism_val: Option<Determinism> = None;
+    let mut category_val: Option<Category> = None;
     let mut yields_val: Option<DocYields> = None;
 
     let directive_lines = match first_directive {
@@ -377,43 +522,41 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
             "@see" => {
                 see.push(payload.to_string());
             }
-            "@pure" => {
-                if pure_val.is_some() {
-                    return Err(DocError::DuplicateSingleton { tag: "@pure".into() });
+            "@Purity" => {
+                if purity_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Purity".into() });
                 }
-                match payload {
-                    "true" => pure_val = Some(true),
-                    "false" => pure_val = Some(false),
-                    _ => return Err(DocError::MalformedDirective {
-                        tag: "@pure".into(),
-                        why: "value must be `true` or `false`",
+                match payload.parse::<Purity>() {
+                    Ok(p) => purity_val = Some(p),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Purity".into(),
+                        why: "value must be one of: Pure, Effectful, Preserving",
                     }),
                 }
             }
-            "@deterministic" => {
-                if deterministic_val.is_some() {
-                    return Err(DocError::DuplicateSingleton { tag: "@deterministic".into() });
+            "@Determinism" => {
+                if determinism_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Determinism".into() });
                 }
-                match payload {
-                    "true" => deterministic_val = Some(true),
-                    "false" => deterministic_val = Some(false),
-                    _ => return Err(DocError::MalformedDirective {
-                        tag: "@deterministic".into(),
-                        why: "value must be `true` or `false`",
+                match payload.parse::<Determinism>() {
+                    Ok(d) => determinism_val = Some(d),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Determinism".into(),
+                        why: "value must be one of: Deterministic, Nondeterministic, Preserving",
                     }),
                 }
             }
-            "@category" => {
+            "@Category" => {
                 if category_val.is_some() {
-                    return Err(DocError::DuplicateSingleton { tag: "@category".into() });
+                    return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
                 }
-                if payload.is_empty() {
-                    return Err(DocError::MalformedDirective {
-                        tag: "@category".into(),
-                        why: "variant name is empty; grammar is `@category <Variant>`",
-                    });
+                match payload.parse::<Category>() {
+                    Ok(c) => category_val = Some(c),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Category".into(),
+                        why: "value must be one of: Encoding, Reflection, ControlFlow, Binding",
+                    }),
                 }
-                category_val = Some(payload.to_string());
             }
             "@yields" => {
                 // Optional singleton: @yields <type> <desc>
@@ -456,11 +599,288 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     if examples.is_empty() {
         return Err(DocError::MissingExample);
     }
-    let pure = pure_val.ok_or(DocError::MissingPure)?;
-    let deterministic = deterministic_val.ok_or(DocError::MissingDeterministic)?;
+    let purity = purity_val.ok_or(DocError::MissingPurity)?;
+    let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
     let category = category_val.ok_or(DocError::MissingCategory)?;
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, pure, deterministic, category, yields: yields_val })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, purity, determinism, category, yields: yields_val })
+}
+
+/// Parse a special-form doc block.
+///
+/// Special forms use different purity/determinism directives than intrinsics:
+/// - `@purity preserving|pure|effectful` (required) maps to `pure: bool`
+/// - `@determinism preserving|deterministic|nondeterministic` (required) maps to `deterministic: bool`
+/// - `@syntax (...)` (required) — the grammar string, verbatim
+/// - Does NOT accept `@pure` or `@deterministic` (those fire `UnknownDirective`)
+/// - `@yields` is NOT recognized for special forms
+pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
+    let recognized = &[
+        "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
+        "@Purity", "@Determinism", "@Category", "@syntax",
+    ];
+
+    let lines: Vec<&str> = raw.lines().collect();
+    let first_directive = lines.iter().position(|l| {
+        let token = l.split_whitespace().next().unwrap_or("");
+        token.starts_with('@') && recognized.contains(&token)
+    });
+
+    let prose_end = first_directive.unwrap_or(lines.len());
+    let prose = trim_blank_lines(&lines[..prose_end]).join("\n");
+    if prose.is_empty() {
+        return Err(DocError::MissingProse);
+    }
+
+    let mut added: Option<String> = None;
+    let mut syntax_val: Option<String> = None;
+    let mut args: Vec<DocArg> = Vec::new();
+    let mut ret_type: Option<String> = None;
+    let mut ret: Option<String> = None;
+    let mut examples: Vec<DocExample> = Vec::new();
+    let mut deprecated: Option<Deprecation> = None;
+    let mut see: Vec<String> = Vec::new();
+    let mut purity_val: Option<Purity> = None;
+    let mut determinism_val: Option<Determinism> = None;
+    let mut category_val: Option<Category> = None;
+
+    let directive_lines = match first_directive {
+        Some(i) => &lines[i..],
+        None => &[][..],
+    };
+
+    for &line in directive_lines {
+        let trimmed = line.trim_start();
+        let tag = trimmed.split_whitespace().next().unwrap_or("");
+
+        if !tag.starts_with('@') {
+            continue;
+        }
+
+        if !recognized.contains(&tag) {
+            return Err(DocError::UnknownDirective { tag: tag.to_string() });
+        }
+
+        let payload = trimmed[tag.len()..].trim_start();
+
+        match tag {
+            "@added" => {
+                if added.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@added".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@added".into(),
+                        why: "version string is empty",
+                    });
+                }
+                added = Some(payload.to_string());
+            }
+            "@syntax" => {
+                if syntax_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@syntax".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@syntax".into(),
+                        why: "grammar string is empty",
+                    });
+                }
+                syntax_val = Some(payload.to_string());
+            }
+            "@arg" => {
+                let mut tokens = payload.splitn(3, char::is_whitespace);
+                let raw_name = tokens.next().unwrap_or("");
+                if raw_name.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "name is missing",
+                    });
+                }
+                let (name, is_rest) = if let Some(stem) = raw_name.strip_suffix('…') {
+                    (stem.to_string(), true)
+                } else if let Some(stem) = raw_name.strip_suffix("...") {
+                    (stem.to_string(), true)
+                } else {
+                    (raw_name.to_string(), false)
+                };
+
+                let ty_token = tokens.next().unwrap_or("").trim();
+                if ty_token.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "type is missing; grammar is `@arg <name> <type> <desc>`",
+                    });
+                }
+                if SEPARATOR_TOKENS.contains(&ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "separator used in type position; grammar is `@arg <name> <type> <desc>`",
+                    });
+                }
+                if !ty_token.starts_with(':') {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "type token must start with `:` (e.g. `:wat::core::Bool`); grammar is `@arg <name> <type> <desc>`",
+                    });
+                }
+                let ty = ty_token.to_string();
+                let desc = tokens.next().unwrap_or("").trim().to_string();
+                if desc.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "description is empty; grammar is `@arg <name> <type> <desc>`",
+                    });
+                }
+                args.push(DocArg { name, ty, desc, is_rest });
+            }
+            "@ret" => {
+                if ret.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@ret".into() });
+                }
+                let mut tokens = payload.splitn(2, char::is_whitespace);
+                let ty_token = tokens.next().unwrap_or("").trim();
+                if ty_token.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "type is missing; grammar is `@ret <type> <desc>`",
+                    });
+                }
+                if SEPARATOR_TOKENS.contains(&ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "separator used in type position; grammar is `@ret <type> <desc>`",
+                    });
+                }
+                if !ty_token.starts_with(':') {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+                    });
+                }
+                let ty = ty_token.to_string();
+                let desc = tokens.next().unwrap_or("").trim().to_string();
+                if desc.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "description is empty; grammar is `@ret <type> <desc>`",
+                    });
+                }
+                ret_type = Some(ty);
+                ret = Some(desc);
+            }
+            "@example" => {
+                let rest = payload;
+                match rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                    Some((left, right)) => {
+                        examples.push(DocExample {
+                            expr: left.trim().to_string(),
+                            expected: Some(right.trim().to_string()),
+                            run: true,
+                        });
+                    }
+                    None => {
+                        if let Some(left) = rest.strip_suffix("#=>") {
+                            examples.push(DocExample {
+                                expr: left.trim().to_string(),
+                                expected: Some(String::new()),
+                                run: true,
+                            });
+                        } else {
+                            return Err(DocError::ExampleMissingMarker {
+                                expr: rest.trim().to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+            "@example-norun" => {
+                let rest = payload;
+                let (expr, expected) =
+                    if let Some((left, right)) = rest.split_once(" #=> ").or_else(|| rest.split_once("#=> ")) {
+                        (left.trim().to_string(), Some(right.trim().to_string()))
+                    } else {
+                        (rest.trim().to_string(), None)
+                    };
+                examples.push(DocExample { expr, expected, run: false });
+            }
+            "@deprecated" => {
+                if deprecated.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@deprecated".into() });
+                }
+                let mut tokens = payload.splitn(2, char::is_whitespace);
+                let since = tokens.next().unwrap_or("").to_string();
+                let use_instead = tokens.next().unwrap_or("").trim_start().to_string();
+                deprecated = Some(Deprecation { since, use_instead });
+            }
+            "@see" => {
+                see.push(payload.to_string());
+            }
+            "@Purity" => {
+                if purity_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Purity".into() });
+                }
+                match payload.parse::<Purity>() {
+                    Ok(p) => purity_val = Some(p),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Purity".into(),
+                        why: "value must be one of: Pure, Effectful, Preserving",
+                    }),
+                }
+            }
+            "@Determinism" => {
+                if determinism_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Determinism".into() });
+                }
+                match payload.parse::<Determinism>() {
+                    Ok(d) => determinism_val = Some(d),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Determinism".into(),
+                        why: "value must be one of: Deterministic, Nondeterministic, Preserving",
+                    }),
+                }
+            }
+            "@Category" => {
+                if category_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@Category".into() });
+                }
+                match payload.parse::<Category>() {
+                    Ok(c) => category_val = Some(c),
+                    Err(_) => return Err(DocError::MalformedDirective {
+                        tag: "@Category".into(),
+                        why: "value must be one of: Encoding, Reflection, ControlFlow, Binding",
+                    }),
+                }
+            }
+            _ => unreachable!("recognized set is exhaustive"),
+        }
+    }
+
+    let added = added.ok_or(DocError::MissingAdded)?;
+    let syntax = syntax_val.ok_or(DocError::MissingSyntax)?;
+    let ret_type = ret_type.ok_or(DocError::MissingRet)?;
+    let ret = ret.ok_or(DocError::MissingRet)?;
+    if examples.is_empty() {
+        return Err(DocError::MissingExample);
+    }
+    let purity = purity_val.ok_or(DocError::MissingPurity)?;
+    let determinism = determinism_val.ok_or(DocError::MissingDeterminism)?;
+    let category = category_val.ok_or(DocError::MissingCategory)?;
+
+    Ok(DocSpecialForm {
+        prose,
+        added,
+        syntax,
+        args,
+        ret_type,
+        ret,
+        examples,
+        category,
+        purity,
+        determinism,
+        see,
+        deprecated,
+    })
 }
 
 /// Trim leading and trailing blank (empty/whitespace-only) lines from a slice.
@@ -504,7 +924,7 @@ mod tests {
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
-    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@pure true\n@deterministic true\n@category Encoding\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
+    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
 
     #[test]
     fn parses_the_reference_intrinsic() {
@@ -530,14 +950,14 @@ mod tests {
         );
         assert_eq!(doc.deprecated, None);
         assert!(doc.see.is_empty());
-        assert_eq!(doc.pure, true);
-        assert_eq!(doc.deterministic, true);
-        assert_eq!(doc.category, "Encoding");
+        assert_eq!(doc.purity, Purity::Pure);
+        assert_eq!(doc.determinism, Determinism::Deterministic);
+        assert_eq!(doc.category, Category::Encoding);
     }
 
     #[test]
     fn norun_example_may_omit_the_marker() {
-        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@category Encoding\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
+        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Encoding\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
         let doc = parse(raw).expect("norun parses");
         assert_eq!(
             doc.examples,
@@ -551,7 +971,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
-        let raw = "Read a uuid.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::core::Uuid/v4) #=> #uuid \"…\"";
+        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::core::Uuid/v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert_eq!(doc.examples[0].run, false);
         assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));
@@ -559,7 +979,7 @@ mod tests {
 
     #[test]
     fn multiple_args_and_see_in_order() {
-        let raw = "Blend two things.\n\n@added 1.2.0\n@pure true\n@deterministic true\n@category Encoding\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
+        let raw = "Blend two things.\n\n@added 1.2.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
         let doc = parse(raw).expect("parses");
         assert_eq!(doc.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(doc.args[0].desc, "the first");
@@ -569,7 +989,7 @@ mod tests {
 
     #[test]
     fn deprecated_parses() {
-        let raw = "Old thing.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Encoding\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
+        let raw = "Old thing.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
         let doc = parse(raw).expect("parses");
         assert_eq!(
             doc.deprecated,
@@ -685,50 +1105,74 @@ mod tests {
 
     #[test]
     fn check_args_zero_arity_ok() {
-        let raw = "A constant.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Encoding\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
+        let raw = "A constant.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
         let doc = parse(raw).unwrap();
         assert_eq!(check_args(&doc, &[]), Ok(()));
     }
 
     #[test]
     fn pure_and_deterministic_parse() {
-        let raw = "Do something.\n\n@added 1.0.0\n@pure true\n@deterministic false\n@category Encoding\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Nondeterministic\n@Category Encoding\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("pure+det doc parses");
-        assert_eq!(doc.pure, true);
-        assert_eq!(doc.deterministic, false);
+        assert_eq!(doc.purity, Purity::Pure);
+        assert_eq!(doc.determinism, Determinism::Nondeterministic);
     }
 
     #[test]
-    fn missing_pure_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@deterministic true\n@ret :wat::core::i64 x\n@example (f) #=> y";
-        assert_eq!(parse(raw), Err(DocError::MissingPure));
+    fn missing_purity_is_an_error() {
+        let raw = "Prose.\n\n@added 1.0.0\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        assert_eq!(parse(raw), Err(DocError::MissingPurity));
     }
 
     #[test]
-    fn missing_deterministic_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@pure true\n@ret :wat::core::i64 x\n@example (f) #=> y";
-        assert_eq!(parse(raw), Err(DocError::MissingDeterministic));
+    fn missing_determinism_is_an_error() {
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        assert_eq!(parse(raw), Err(DocError::MissingDeterminism));
     }
 
     #[test]
-    fn invalid_pure_value_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@pure maybe\n@deterministic true\n@ret :wat::core::i64 x\n@example (f) #=> y";
+    fn invalid_purity_value_is_an_error() {
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity maybe\n@Determinism Deterministic\n@Category Encoding\n@ret :wat::core::i64 x\n@example (f) #=> y";
         match parse(raw) {
-            Err(DocError::MalformedDirective { tag, .. }) => assert_eq!(tag, "@pure"),
-            other => panic!("expected MalformedDirective for @pure, got {:?}", other),
+            Err(DocError::MalformedDirective { tag, .. }) => assert_eq!(tag, "@Purity"),
+            other => panic!("expected MalformedDirective for @Purity, got {:?}", other),
         }
     }
 
     #[test]
     fn missing_category_is_an_error() {
-        let raw = "Prose.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        let raw = "Prose.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@ret :wat::core::i64 x\n@example (f) #=> y";
         assert_eq!(parse(raw), Err(DocError::MissingCategory));
     }
 
     #[test]
     fn category_parses() {
-        let raw = "Do something.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@Purity Pure\n@Determinism Deterministic\n@Category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("category doc parses");
-        assert_eq!(doc.category, "Reflection");
+        assert_eq!(doc.category, Category::Reflection);
+    }
+
+    #[test]
+    fn purity_parses_all_variants() {
+        for v in &["Pure", "Effectful", "Preserving"] {
+            assert!(v.parse::<Purity>().is_ok(), "should parse: {}", v);
+        }
+        assert!("pure".parse::<Purity>().is_err()); // case-sensitive
+    }
+
+    #[test]
+    fn determinism_parses_all_variants() {
+        for v in &["Deterministic", "Nondeterministic", "Preserving"] {
+            assert!(v.parse::<Determinism>().is_ok(), "should parse: {}", v);
+        }
+        assert!("deterministic".parse::<Determinism>().is_err());
+    }
+
+    #[test]
+    fn category_parses_all_variants() {
+        for v in &["Encoding", "Reflection", "ControlFlow", "Binding"] {
+            assert!(v.parse::<Category>().is_ok(), "should parse: {}", v);
+        }
+        assert!("encoding".parse::<Category>().is_err());
     }
 }

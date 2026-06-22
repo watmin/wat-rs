@@ -229,13 +229,31 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             )
         }
         wat_doc::DocError::MissingPure => {
-            "doc comment is missing a required `@pure true|false` directive".into()
+            "doc comment is missing a required `@Purity <Variant>` directive".into()
         }
         wat_doc::DocError::MissingDeterministic => {
-            "doc comment is missing a required `@deterministic true|false` directive".into()
+            "doc comment is missing a required `@Determinism <Variant>` directive".into()
         }
         wat_doc::DocError::MissingCategory => {
-            "doc comment is missing a required `@category <Variant>` directive (known: Encoding, Reflection)".into()
+            "doc comment is missing a required `@Category <Variant>` directive (known: Encoding, Reflection, ControlFlow, Binding)".into()
+        }
+        wat_doc::DocError::MissingSyntax => {
+            "doc comment is missing a required `@syntax (...)` directive (special forms only)".into()
+        }
+        wat_doc::DocError::MissingPurity => {
+            "doc comment is missing a required `@Purity <Variant>` directive (known: Pure, Effectful, Preserving)".into()
+        }
+        wat_doc::DocError::MissingDeterminism => {
+            "doc comment is missing a required `@Determinism <Variant>` directive (known: Deterministic, Nondeterministic, Preserving)".into()
+        }
+        wat_doc::DocError::InvalidPurityVariant { got } => {
+            format!("unknown @Purity variant `{}`; known: Pure, Effectful, Preserving", got)
+        }
+        wat_doc::DocError::InvalidDeterminismVariant { got } => {
+            format!("unknown @Determinism variant `{}`; known: Deterministic, Nondeterministic, Preserving", got)
+        }
+        wat_doc::DocError::InvalidCategoryVariant { got } => {
+            format!("unknown @Category variant `{}`; known: Encoding, Reflection, ControlFlow, Binding", got)
         }
     }
 }
@@ -267,18 +285,6 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             ));
         }
     };
-
-    // Cross-check @category against the known Category variants.
-    const KNOWN_CATEGORIES: &[&str] = &["Encoding", "Reflection"];
-    if !KNOWN_CATEGORIES.contains(&doc.category.as_str()) {
-        return Err(Error::new_spanned(
-            item,
-            format!(
-                "#[wat_intrinsic] {}: @category `{}` is not a known Category variant; known: Encoding, Reflection",
-                fqdn.value(), doc.category
-            ),
-        ));
-    }
 
     // Build the param-name list for check_args and the shim.
     // For Variadic, pass the single rest-param name (matches the one `@arg xs…` doc entry).
@@ -351,9 +357,22 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
 
     let see_lit: Vec<&str> = doc.see.iter().map(String::as_str).collect();
 
-    let pure_lit = doc.pure;
-    let deterministic_lit = doc.deterministic;
-    let category_lit = &doc.category;
+    let purity_token = match doc.purity {
+        wat_doc::Purity::Pure => quote! { ::wat_doc::Purity::Pure },
+        wat_doc::Purity::Effectful => quote! { ::wat_doc::Purity::Effectful },
+        wat_doc::Purity::Preserving => quote! { ::wat_doc::Purity::Preserving },
+    };
+    let determinism_token = match doc.determinism {
+        wat_doc::Determinism::Deterministic => quote! { ::wat_doc::Determinism::Deterministic },
+        wat_doc::Determinism::Nondeterministic => quote! { ::wat_doc::Determinism::Nondeterministic },
+        wat_doc::Determinism::Preserving => quote! { ::wat_doc::Determinism::Preserving },
+    };
+    let category_token = match doc.category {
+        wat_doc::Category::Encoding => quote! { ::wat_doc::Category::Encoding },
+        wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
+        wat_doc::Category::ControlFlow => quote! { ::wat_doc::Category::ControlFlow },
+        wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
+    };
 
     let yields_type_lit = match &doc.yields {
         Some(y) => {
@@ -429,9 +448,9 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                 deprecated: #deprecated_lit,
                 see: &[#(#see_lit),*],
                 source: #source_lit,
-                pure: #pure_lit,
-                deterministic: #deterministic_lit,
-                category: #category_lit,
+                purity: #purity_token,
+                determinism: #determinism_token,
+                category: #category_token,
                 yields_type: #yields_type_lit,
             }
         }

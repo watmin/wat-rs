@@ -27,9 +27,9 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// Returns the argument count as `:wat::core::i64`. Pure and deterministic.
 ///
 /// @added         1.0.0
-/// @pure          true
-/// @deterministic true
-/// @category      Reflection
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
 /// @arg xs… :wat::core::Value the args to count
 /// @ret :wat::core::i64 the number of arguments passed
 /// @example (:wat::intrinsic::variadic-args-measurement 1 2 3) #=> 3
@@ -50,9 +50,9 @@ pub(crate) fn eval_variadic_args_measurement(
 /// value is `:wat::core::i64`; `@yields` documents the type handed to `f`.
 ///
 /// @added         1.0.0
-/// @pure          true
-/// @deterministic true
-/// @category      Reflection
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
 /// @arg f :wat::core::Fn(:wat::core::i64)->:wat::core::i64 the fn applied to the yielded value
 /// @yields :wat::core::i64 the value handed to f (always 42 for this witness)
 /// @ret :wat::core::i64 the result of applying f to 42

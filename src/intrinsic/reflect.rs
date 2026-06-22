@@ -46,9 +46,9 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// not that `expr` parses as wat).
 ///
 /// @added         1.0.0
-/// @pure          true
-/// @deterministic false
-/// @category      Reflection
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Reflection
 /// @ret :wat::core::Vector<wat::intrinsic::Example> a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
@@ -151,7 +151,7 @@ pub(crate) fn check_see_refs() -> Vec<String> {
     let mut dangling: Vec<String> = Vec::new();
     for entry in reg.all_entries() {
         for &see_fqdn in entry.see {
-            if reg.lookup(see_fqdn).is_none() {
+            if reg.lookup_entry(see_fqdn).is_none() {
                 dangling.push(format!(
                     "dangling @see `{}` on `{}`",
                     see_fqdn, entry.name
@@ -210,9 +210,9 @@ fn extract_fqdn(
 /// Returns a `:wat::core::String`; the caller prints it.
 ///
 /// @added         1.0.0
-/// @pure          true
-/// @deterministic false
-/// @category      Reflection
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
 /// @example-norun (:wat::core::show-source :wat::core::Bytes::to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
@@ -292,9 +292,9 @@ pub(crate) fn eval_show_source(
 /// choice; a renderer drops in later over the SAME `metadata-of` data).
 ///
 /// @added         1.0.0
-/// @pure          true
-/// @deterministic false
-/// @category      Reflection
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
 /// @example-norun (:wat::core::render-doc :wat::core::Bytes::to-hex) #=> ":wat::core::Bytes::to-hex\n\n..."
@@ -338,11 +338,35 @@ pub(crate) fn eval_render_doc(
     out.push_str(entry.prose.trim());
     out.push('\n');
 
+    // Syntax line (special forms only).
+    if !entry.syntax.is_empty() {
+        out.push('\n');
+        out.push_str("Syntax: ");
+        out.push_str(entry.syntax);
+        out.push('\n');
+    }
+
     // Category line.
-    if !entry.category.is_empty() {
+    {
         out.push('\n');
         out.push_str("Category: ");
-        out.push_str(entry.category);
+        out.push_str(entry.category.as_str());
+        out.push('\n');
+    }
+
+    // Purity line.
+    {
+        out.push('\n');
+        out.push_str("Purity: ");
+        out.push_str(entry.purity.as_str());
+        out.push('\n');
+    }
+
+    // Determinism line.
+    {
+        out.push('\n');
+        out.push_str("Determinism: ");
+        out.push_str(entry.determinism.as_str());
         out.push('\n');
     }
 

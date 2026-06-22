@@ -28,6 +28,7 @@ use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 mod codegen;
 mod discover;
 mod wat_intrinsic;
+mod wat_special_form;
 mod wat_value;
 
 /// `#[wat_value]` — structural seal for enum definitions.
@@ -218,6 +219,20 @@ pub fn wat_intrinsic(attr: TokenStream, item: TokenStream) -> TokenStream {
     let parsed_fn = parse_macro_input!(item as syn::ItemFn);
 
     match wat_intrinsic::emit(&fqdn, &parsed_fn) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+/// `#[wat_special_form("<fqdn>")]` — arc 255.SF. Registers a special form's
+/// doc in the `IntrinsicRegistry` as a `Kind::SpecialForm` entry (no `NativeHandler`).
+/// Annotate a unit struct; the `///` doc comment must satisfy `parse_special_form()`
+/// (`@syntax`, `@purity`, `@determinism` instead of `@pure`/`@deterministic`).
+#[proc_macro_attribute]
+pub fn wat_special_form(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let fqdn = parse_macro_input!(attr as LitStr);
+    let parsed_struct = parse_macro_input!(item as syn::ItemStruct);
+    match wat_special_form::emit(&fqdn, &parsed_struct) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }

@@ -43,13 +43,14 @@ use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
 // iv-c nursery probe).
 
 /// Kind — what kind of callable is this?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Kind :Macro :Fn :Intrinsic)`.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Kind :Macro :Fn :Intrinsic :SpecialForm)`.
 pub(crate) enum Kind {
     #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Macro,
     #[expect(dead_code)] // reader lands at user-form branch parity (iv-c future) → keep
     Fn,
     Intrinsic,
+    SpecialForm,
 }
 
 impl Kind {
@@ -58,6 +59,7 @@ impl Kind {
             Kind::Macro => "Macro",
             Kind::Fn => "Fn",
             Kind::Intrinsic => "Intrinsic",
+            Kind::SpecialForm => "SpecialForm",
         };
         Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::runtime::Kind".into(),
@@ -112,23 +114,71 @@ impl Layer {
 }
 
 /// Category — what functional category is this intrinsic?
-/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection)`.
-pub(crate) enum Category {
-    #[expect(dead_code)] // reader via to_enum_value lands when caller switches to enum pattern → keep
+/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection :ControlFlow :Binding)`.
+/// Consumed by `eval_metadata_of` (runtime.rs) via `to_enum_value()`.
+pub(crate) enum RuntimeCategory {
     Encoding,
-    #[expect(dead_code)] // reader via to_enum_value lands when caller switches to enum pattern → keep
     Reflection,
+    ControlFlow,
+    Binding,
 }
 
-impl Category {
-    #[expect(dead_code)] // to_enum_value: reader lands when eval_metadata_of switches from inline EnumValue → keep
+impl RuntimeCategory {
     pub(crate) fn to_enum_value(&self) -> Value {
         let variant_name = match self {
-            Category::Encoding => "Encoding",
-            Category::Reflection => "Reflection",
+            RuntimeCategory::Encoding => "Encoding",
+            RuntimeCategory::Reflection => "Reflection",
+            RuntimeCategory::ControlFlow => "ControlFlow",
+            RuntimeCategory::Binding => "Binding",
         };
         Value::Enum(Arc::new(EnumValue {
             type_path: ":wat::runtime::Category".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
+
+/// Purity — declared purity of an intrinsic or special form.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Purity :Pure :Effectful :Preserving)`.
+pub(crate) enum RuntimePurity {
+    Pure,
+    Effectful,
+    Preserving,
+}
+
+impl RuntimePurity {
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            RuntimePurity::Pure => "Pure",
+            RuntimePurity::Effectful => "Effectful",
+            RuntimePurity::Preserving => "Preserving",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Purity".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
+
+/// Determinism — declared determinism of an intrinsic or special form.
+/// Mirrors `(:wat::core::defenum :wat::runtime::Determinism :Deterministic :Nondeterministic :Preserving)`.
+pub(crate) enum RuntimeDeterminism {
+    Deterministic,
+    Nondeterministic,
+    Preserving,
+}
+
+impl RuntimeDeterminism {
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            RuntimeDeterminism::Deterministic => "Deterministic",
+            RuntimeDeterminism::Nondeterministic => "Nondeterministic",
+            RuntimeDeterminism::Preserving => "Preserving",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Determinism".into(),
             variant_name: variant_name.into(),
             fields: vec![],
         }))
@@ -201,18 +251,41 @@ pub(crate) struct IntrinsicSubmission {
     /// Faithful-if-reformatted (token restringify; comments may be lost).
     /// Consumed by `(:wat::core::show-source <fqdn>)`.
     pub source: &'static str,
-    /// Declared purity from `@pure true|false` in the doc.
-    pub pure: bool,
-    /// Declared determinism from `@deterministic true|false` in the doc.
-    pub deterministic: bool,
-    /// `@category <Variant>` — functional category, e.g. `"Encoding"` or `"Reflection"`.
-    pub category: &'static str,
+    /// Declared purity from `@Purity <Variant>` in the doc.
+    pub purity: wat_doc::Purity,
+    /// Declared determinism from `@Determinism <Variant>` in the doc.
+    pub determinism: wat_doc::Determinism,
+    /// `@Category <Variant>` — functional category.
+    pub category: wat_doc::Category,
     /// `@yields <type> <desc>` type token — the type handed into the fn-arg callback.
     /// `None` when the intrinsic does not yield to a callback.
     pub yields_type: Option<&'static str>,
 }
 
 inventory::collect!(IntrinsicSubmission);
+
+/// A link-time submission of one special form, gathered by `inventory`.
+/// Special forms have no `NativeHandler` — they are handled by the runtime
+/// dispatch engine, not by a registered Rust fn. The `#[wat_special_form]`
+/// proc-macro emits one `inventory::submit!` of this type per annotated struct;
+/// `registry()` folds them into the `IntrinsicRegistry` as `Kind::SpecialForm` entries.
+pub(crate) struct SpecialFormSubmission {
+    pub name: &'static str,
+    pub prose: &'static str,
+    pub added: &'static str,
+    pub syntax: &'static str,
+    pub args: &'static [(&'static str, &'static str, &'static str, bool)],
+    pub ret_type: &'static str,
+    pub ret: &'static str,
+    pub examples: &'static [ExampleSubmission],
+    pub see: &'static [&'static str],
+    pub purity: wat_doc::Purity,
+    pub determinism: wat_doc::Determinism,
+    pub category: wat_doc::Category,
+    pub deprecated: Option<(&'static str, &'static str)>,
+}
+
+inventory::collect!(SpecialFormSubmission);
 
 /// One registered intrinsic's full baseline. `handler` is consumed by the
 /// runtime dispatch route (`lookup`); `name`/`arity`/`prose`/`added`/`ret` are
@@ -221,7 +294,14 @@ inventory::collect!(IntrinsicSubmission);
 /// `source` is consumed by `show-source` — every field has a reader.
 pub(crate) struct IntrinsicEntry {
     pub name: &'static str,
-    pub handler: NativeHandler,
+    /// The native dispatch handler. `Some` for `Kind::Intrinsic`; `None` for
+    /// `Kind::SpecialForm` (special forms are dispatched by the runtime engine,
+    /// not by a registered Rust fn).
+    pub handler: Option<NativeHandler>,
+    /// What kind of callable this is (`Intrinsic` or `SpecialForm`).
+    pub kind: Kind,
+    /// `@syntax (...)` grammar string; empty for regular intrinsics.
+    pub syntax: &'static str,
     /// Exact(N) for fixed-arity handlers; Variadic for rest-param handlers.
     /// Consumed by `metadata-of`'s intrinsic branch.
     pub arity: Arity,
@@ -247,15 +327,15 @@ pub(crate) struct IntrinsicEntry {
     pub see: &'static [&'static str],
     /// Restringified handler source (consumed by `show-source` / 255.1b-v).
     pub source: &'static str,
-    #[allow(dead_code)] // read by pure_declared_matches_is_effectful_op + purity_mandated_examples (cfg(test))
-    /// Declared purity — from `@pure true|false` in the doc.
-    pub pure: bool,
-    #[allow(dead_code)] // read by purity_mandated_examples (cfg(test))
-    /// Declared determinism — from `@deterministic true|false` in the doc.
-    pub deterministic: bool,
-    /// `@category <Variant>` — functional category string, e.g. `"Encoding"` or `"Reflection"`.
+    #[allow(dead_code)] // read by pure_declared_matches_is_effectful_op + purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc
+    /// Declared purity — from `@Purity <Variant>` in the doc.
+    pub purity: wat_doc::Purity,
+    #[allow(dead_code)] // read by purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc
+    /// Declared determinism — from `@Determinism <Variant>` in the doc.
+    pub determinism: wat_doc::Determinism,
+    /// `@Category <Variant>` — functional category.
     /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
-    pub category: &'static str,
+    pub category: wat_doc::Category,
     /// `@yields <type>` type token — the element type handed to the fn-arg callback.
     /// `None` when the intrinsic does not yield to a callback.
     /// Consumed by `yields_type_matches_fn_arg_param` (cfg(test)) and `eval_render_doc`.
@@ -280,9 +360,9 @@ impl IntrinsicRegistry {
     }
 
     /// The dispatch route — the native handler for `name` (255.1b-i/ii).
-    /// `None` = not a registered intrinsic.
+    /// `None` = not a registered intrinsic (or is a `Kind::SpecialForm` with no handler).
     pub(crate) fn lookup(&self, name: &str) -> Option<NativeHandler> {
-        self.entries.get(name).map(|e| e.handler)
+        self.entries.get(name).and_then(|e| e.handler)
     }
 
     /// The reflection route — the full baseline entry for `name` (255.1b-iii),
@@ -308,7 +388,9 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
         for submission in inventory::iter::<IntrinsicSubmission> {
             r.register(IntrinsicEntry {
                 name: submission.name,
-                handler: submission.handler,
+                handler: Some(submission.handler),
+                kind: Kind::Intrinsic,
+                syntax: "",
                 arity: submission.arity,
                 prose: submission.prose,
                 added: submission.added,
@@ -319,10 +401,34 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 deprecated: submission.deprecated,
                 see: submission.see,
                 source: submission.source,
-                pure: submission.pure,
-                deterministic: submission.deterministic,
+                purity: submission.purity,
+                determinism: submission.determinism,
                 category: submission.category,
                 yields_type: submission.yields_type,
+            });
+        }
+        // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
+        // via `inventory`; fold them into the registry as Kind::SpecialForm entries.
+        for submission in inventory::iter::<SpecialFormSubmission> {
+            r.register(IntrinsicEntry {
+                name: submission.name,
+                handler: None,
+                kind: Kind::SpecialForm,
+                syntax: submission.syntax,
+                arity: Arity::Variadic, // special forms handle their own arity
+                prose: submission.prose,
+                added: submission.added,
+                args: submission.args,
+                ret_type: submission.ret_type,
+                ret: submission.ret,
+                examples: submission.examples,
+                deprecated: submission.deprecated,
+                see: submission.see,
+                source: "",
+                purity: submission.purity,
+                determinism: submission.determinism,
+                category: submission.category,
+                yields_type: None,
             });
         }
         r
@@ -332,6 +438,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 mod bytes;
 mod reflect;
 mod witness;
+mod special;
 
 // ─── Arc 255.1b-v: @see registry-check + firm-doc tests ──────────────────────
 //
@@ -452,14 +559,17 @@ mod tests {
     /// Arc 255.1b-firm: pure+det intrinsics MUST carry ≥1 runnable `@example`;
     /// non-pure-det intrinsics MUST carry ≥1 `@example-norun` and NO runnable
     /// `@example`. Enforced at compile time via the doc-contract; enforced at
-    /// test time here using the declared `@pure`/`@deterministic` fields.
+    /// test time here using the declared `@Purity`/`@Determinism` fields.
     #[test]
     fn purity_mandated_examples() {
         for entry in super::registry().all_entries() {
             let has_run = entry.examples.iter().any(|e| e.run);
             let has_norun = entry.examples.iter().any(|e| !e.run);
 
-            if entry.pure && entry.deterministic {
+            let is_pure_and_det = matches!(entry.purity, wat_doc::Purity::Pure | wat_doc::Purity::Preserving)
+                && matches!(entry.determinism, wat_doc::Determinism::Deterministic | wat_doc::Determinism::Preserving);
+
+            if is_pure_and_det {
                 assert!(
                     has_run,
                     "pure+det intrinsic `{}` has no runnable @example (≥1 required by contract)",
@@ -480,19 +590,29 @@ mod tests {
         }
     }
 
-    /// Arc 255.1b-firm: the declared `@pure` in the doc must agree with
+    /// Arc 255.1b-firm: the declared `@Purity` in the doc must agree with
     /// `is_effectful_op` — the runtime witness. A mismatch is a doc lie.
     #[test]
     fn pure_declared_matches_is_effectful_op() {
         for entry in super::registry().all_entries() {
             let effectful = crate::runtime::is_effectful_op(entry.name);
-            let expected_pure = !effectful;
-            assert_eq!(
-                entry.pure, expected_pure,
-                "intrinsic `{}` declares `@pure {}` but is_effectful_op says effectful={}; \
-                 doc and runtime witness must agree",
-                entry.name, entry.pure, effectful
-            );
+            // Pure/Preserving ⟺ !effectful; Effectful ⟺ effectful
+            match entry.purity {
+                wat_doc::Purity::Pure | wat_doc::Purity::Preserving => {
+                    assert!(
+                        !effectful,
+                        "intrinsic `{}` declares purity={:?} but is_effectful_op says effectful=true",
+                        entry.name, entry.purity
+                    );
+                }
+                wat_doc::Purity::Effectful => {
+                    assert!(
+                        effectful,
+                        "intrinsic `{}` declares purity=Effectful but is_effectful_op says effectful=false",
+                        entry.name
+                    );
+                }
+            }
         }
     }
 
