@@ -34,9 +34,10 @@ use crate::value::{
 /// Markdown prose, GFM — flows straight to the wiki page body.
 ///
 /// @added   1.0.0
-/// @arg     bs — the bytes to encode
-/// @ret     the lowercase hex string, two chars per byte, no separators
+/// @arg     bs :wat::core::Bytes the bytes to encode
+/// @ret     :wat::core::String the lowercase hex string, two chars per byte, no separators
 /// @example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
+/// @see     :wat::core::Bytes::from-hex
 #[wat_intrinsic(":wat::core::Bytes::to-hex")]
 pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
@@ -89,16 +90,18 @@ const NIBBLE: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 ];
 
-/// Decode a lowercase-hex `:String` back into `:Option<wat::core::Bytes>`.
+/// Decode a lowercase-hex `:String` back into `:wat::core::Option<:wat::core::Bytes>`.
 ///
 /// Mixed case accepted (`a-f` and `A-F` both decode); raw hex only (no
 /// separators, no `0x` prefix); the empty string round-trips to an empty
 /// Bytes. Returns `:None` on odd input length or any non-hex character.
 ///
 /// @added      1.0.0
-/// @arg        s — the hex-encoded string to decode
-/// @ret        `Some(Bytes)` on success, `None` on malformed input
+/// @arg        s :wat::core::String the hex-encoded string to decode
+/// @ret        :wat::core::Option<wat::core::Bytes> Some(Bytes) on success, None on malformed input
+/// @example    (:wat::core::Bytes::from-hex "gg") #=> :None
 /// @example-norun (:wat::core::Bytes::from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
+/// @see        :wat::core::Bytes::to-hex
 #[wat_intrinsic(":wat::core::Bytes::from-hex")]
 pub(crate) fn eval_bytes_from_hex(
     s: &WatAST,

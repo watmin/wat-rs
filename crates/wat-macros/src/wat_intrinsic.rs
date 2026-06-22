@@ -247,6 +247,16 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     let fn_name = &item.sig.ident;
     let shim_ident = format_ident!("__wat_intrinsic_shim_{}", fn_name);
 
+    // Arc 255.1b-v — capture the handler source via stable restringify.
+    // `quote!(#item).to_string()` re-serializes the ItemFn's token stream.
+    // Comments are NOT preserved (token-level, not source-level), but the
+    // structural source — signature + body — is faithful-if-reformatted.
+    // `proc_macro::Span::source_text` would be exact but is nightly-only;
+    // the contract names this stable fallback. STOP-2: if `#item` is not in
+    // scope at this point (the ItemFn before we expand it), the quote! will
+    // fail to compile — but ItemFn IS in scope here (we have it as `item`).
+    let source_lit = quote!(#item).to_string();
+
     // The shim forwards `&args[0], &args[1], …, env, sym, span` to the
     // fixed-arg handler. Indices 0..arity feed the wat-arg params; the
     // context tail is `env, sym, span` in that order.
@@ -257,6 +267,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     // Emit 'static literals for the structured doc fields.
     let prose_lit = &doc.prose;
     let added_lit = &doc.added;
+    let ret_type_lit = &doc.ret_type;
     let ret_lit = &doc.ret;
 
     let args_lit: Vec<TokenStream2> = doc
@@ -264,8 +275,9 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         .iter()
         .map(|a| {
             let name = &a.name;
+            let ty = &a.ty;
             let desc = &a.desc;
-            quote! { (#name, #desc) }
+            quote! { (#name, #ty, #desc) }
         })
         .collect();
 
@@ -341,10 +353,12 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                 prose: #prose_lit,
                 added: #added_lit,
                 args: &[#(#args_lit),*],
+                ret_type: #ret_type_lit,
                 ret: #ret_lit,
                 examples: &[#(#examples_lit),*],
                 deprecated: #deprecated_lit,
                 see: &[#(#see_lit),*],
+                source: #source_lit,
             }
         }
     };

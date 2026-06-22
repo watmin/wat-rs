@@ -138,6 +138,8 @@ pub(crate) struct ExampleSubmission {
 /// Arc 255.1b-iv-b1 — the structured doc now rides each submission. `prose`,
 /// `added`, and `ret` are CONSUMED by `metadata-of`'s intrinsic branch;
 /// `args`, `examples`, and `see` are carried for iv-b2's verifier seam.
+/// Arc 255.1b-v — `source` carries the handler's restringified token source
+/// (via `quote!(#item).to_string()` in the macro), consumed by `show-source`.
 pub(crate) struct IntrinsicSubmission {
     pub name: &'static str,
     pub handler: NativeHandler,
@@ -146,8 +148,10 @@ pub(crate) struct IntrinsicSubmission {
     pub prose: &'static str,
     /// `@added` version string.
     pub added: &'static str,
-    /// `@arg` directives: `(name, desc)` pairs, in source order.
-    pub args: &'static [(&'static str, &'static str)],
+    /// `@arg` directives: `(name, ty, desc)` triples, in source order.
+    pub args: &'static [(&'static str, &'static str, &'static str)],
+    /// `@ret` type token (must start with `:`).
+    pub ret_type: &'static str,
     /// `@ret` description.
     pub ret: &'static str,
     /// `@example` / `@example-norun` directives, in source order (≥1).
@@ -156,6 +160,10 @@ pub(crate) struct IntrinsicSubmission {
     pub deprecated: Option<(&'static str, &'static str)>,
     /// `@see` FQDNs, in source order.
     pub see: &'static [&'static str],
+    /// Restringified handler source — `quote!(handler_fn).to_string()`.
+    /// Faithful-if-reformatted (token restringify; comments may be lost).
+    /// Consumed by `(:wat::core::show-source <fqdn>)`.
+    pub source: &'static str,
 }
 
 inventory::collect!(IntrinsicSubmission);
@@ -163,8 +171,8 @@ inventory::collect!(IntrinsicSubmission);
 /// One registered intrinsic's full baseline. `handler` is consumed by the
 /// runtime dispatch route (`lookup`); `name`/`arity`/`prose`/`added`/`ret` are
 /// consumed by `metadata-of`'s intrinsic branch (`lookup_entry`); `args`/
-/// `examples`/`see` are carried for iv-b2's doctest verifier seam — every
-/// field has a reader, so none is dead-code.
+/// `examples`/`see` are carried for iv-b2's doctest verifier seam;
+/// `source` is consumed by `show-source` — every field has a reader.
 pub(crate) struct IntrinsicEntry {
     pub name: &'static str,
     pub handler: NativeHandler,
@@ -175,15 +183,22 @@ pub(crate) struct IntrinsicEntry {
     // The iv-b2 carry: parsed + carried now, read by the `verify-examples`
     // reflection seam (`src/intrinsic/reflect.rs`). `examples` is now read
     // by the seam (iv-b2-a), so its `#[expect(dead_code)]` has been removed.
-    // `args`/`deprecated`/`see` are still unread — their readers land later;
-    // keep their `#[expect(dead_code)]` so removal stays compiler-enforced.
-    #[expect(dead_code)] // reader lands later (wiki/doc) → keep
-    pub args: &'static [(&'static str, &'static str)],
+    // `args` and `ret_type` are read by `doc_arg_ret_types_match_checker_scheme`
+    // (cfg(test) — 255.1b-firm) and dead in non-test builds. Use `#[allow(dead_code)]`
+    // (not `#[expect]`) because in test builds the field IS used, which would make
+    // `#[expect(dead_code)]` fire an "unfulfilled expectation" warning.
+    // `deprecated` is still unread — reader lands later; keep its `#[expect(dead_code)]`.
+    // `see` is read by `eval_render_doc`'s See-also section (non-test) — no dead_code attr.
+    #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
+    pub args: &'static [(&'static str, &'static str, &'static str)],
+    #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
+    pub ret_type: &'static str,
     pub examples: &'static [ExampleSubmission],
     #[expect(dead_code)] // reader lands later → keep
     pub deprecated: Option<(&'static str, &'static str)>,
-    #[expect(dead_code)] // reader lands later → keep
     pub see: &'static [&'static str],
+    /// Restringified handler source (consumed by `show-source` / 255.1b-v).
+    pub source: &'static str,
 }
 
 /// `name → entry`. Built once at startup; the dispatch route reads `handler`
@@ -236,10 +251,12 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 prose: submission.prose,
                 added: submission.added,
                 args: submission.args,
+                ret_type: submission.ret_type,
                 ret: submission.ret,
                 examples: submission.examples,
                 deprecated: submission.deprecated,
                 see: submission.see,
+                source: submission.source,
             });
         }
         r
@@ -248,3 +265,156 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 
 mod bytes;
 mod reflect;
+
+// ─── Arc 255.1b-v: @see registry-check + firm-doc tests ──────────────────────
+//
+// Consumer-side tests: every `@see` FQDN must resolve; doc arg/ret types must
+// match the checker's TypeScheme; pure+det intrinsics must carry ≥1 runnable
+// example. The walks live in `reflect::check_see_refs()` (cfg(test)) and
+// inline in the tests below.
+#[cfg(test)]
+mod tests {
+    /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve
+    /// to a registered intrinsic. A dangling @see is a broken cross-reference
+    /// in the doc system → fail loud.
+    #[test]
+    fn all_see_fqdns_resolve_to_registered_intrinsics() {
+        let dangling = super::reflect::check_see_refs();
+        assert!(
+            dangling.is_empty(),
+            "Found {} dangling @see reference(s) in the intrinsic corpus:\n{}",
+            dangling.len(),
+            dangling.join("\n")
+        );
+    }
+
+    /// Arc 255.1b-firm: the doc's `@arg`/`@ret` type strings must match the
+    /// checker's `TypeScheme` for each registered intrinsic. A mismatch is a
+    /// doc lie — the user reads one type, the checker enforces another.
+    #[test]
+    fn doc_arg_ret_types_match_checker_scheme() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        for entry in super::registry().all_entries() {
+            let scheme = match check_env.get(entry.name) {
+                Some(s) => s,
+                None => continue, // not yet in checker — skip
+            };
+
+            // Check arg types.
+            for (i, &(_, ty, _)) in entry.args.iter().enumerate() {
+                if i < scheme.params.len() {
+                    let scheme_ty = typeexpr_to_doc_string(&scheme.params[i]);
+                    assert_eq!(
+                        ty, scheme_ty.as_str(),
+                        "doc type for `{}` arg {} says `{}`, checker scheme says `{}`",
+                        entry.name, i, ty, scheme_ty
+                    );
+                }
+            }
+
+            // Check ret type.
+            let scheme_ret = typeexpr_to_doc_string(&scheme.ret);
+            assert_eq!(
+                entry.ret_type, scheme_ret.as_str(),
+                "doc ret type for `{}` says `{}`, checker scheme says `{}`",
+                entry.name, entry.ret_type, scheme_ret
+            );
+        }
+    }
+
+    fn typeexpr_to_doc_string(ty: &crate::types::TypeExpr) -> String {
+        match ty {
+            crate::types::TypeExpr::Path(p) => p.clone(),
+            crate::types::TypeExpr::Parametric { head, args } => {
+                // Inside <>, Path types drop their leading `:` — the colon is
+                // only the first char quoting the symbol at top level; `<:...>` is illegal.
+                let args_str: Vec<String> = args.iter().map(typeexpr_to_type_arg_string).collect();
+                format!(":{}<{}>", head, args_str.join(","))
+            }
+            crate::types::TypeExpr::Fn { args, ret } => {
+                let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
+                format!(":fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
+            }
+            other => format!("{:?}", other),
+        }
+    }
+
+    /// Render a TypeExpr as it appears INSIDE `<>` — Path types drop the leading `:`.
+    fn typeexpr_to_type_arg_string(ty: &crate::types::TypeExpr) -> String {
+        match ty {
+            crate::types::TypeExpr::Path(p) => {
+                // Strip leading `:` for use inside type parameters.
+                p.strip_prefix(':').unwrap_or(p).to_string()
+            }
+            crate::types::TypeExpr::Parametric { head, args } => {
+                let args_str: Vec<String> = args.iter().map(typeexpr_to_type_arg_string).collect();
+                format!("{}<{}>", head, args_str.join(","))
+            }
+            other => typeexpr_to_doc_string(other),
+        }
+    }
+
+    /// Arc 255.1b-firm: pure+det intrinsics MUST carry ≥1 runnable `@example`;
+    /// non-pure-det intrinsics MUST carry ≥1 `@example-norun` and NO runnable
+    /// `@example`. Enforced at compile time via the doc-contract; enforced at
+    /// test time here.
+    ///
+    /// Exemption: intrinsics whose output is CORPUS-DERIVED (they reflect the
+    /// registry itself — `render-doc`, `show-source`, `examples`) produce strings
+    /// that change whenever any doc changes. Runnable doctests for them would be
+    /// inherently fragile and corpus-coupled. They are pure+det by the structural
+    /// definition but exempted from the ≥1-run mandate; they must carry
+    /// ≥1 `@example-norun` instead.
+    #[test]
+    fn purity_mandated_examples() {
+        // Corpus-derived reflection intrinsics: output is a function of the
+        // entire registry/corpus; runnable doctests would break on every doc edit.
+        const CORPUS_DERIVED: &[&str] = &[
+            ":wat::core::render-doc",
+            ":wat::core::show-source",
+            ":wat::intrinsic::examples",
+        ];
+
+        for entry in super::registry().all_entries() {
+            let (pure, det) = crate::runtime::derive_pure_deterministic(entry.name);
+            let has_run = entry.examples.iter().any(|e| e.run);
+            let has_norun = entry.examples.iter().any(|e| !e.run);
+
+            if CORPUS_DERIVED.contains(&entry.name) {
+                // Corpus-derived: must have ≥1 @example-norun, no runnable @example.
+                assert!(
+                    has_norun,
+                    "corpus-derived intrinsic `{}` has no @example-norun (≥1 required)",
+                    entry.name
+                );
+                assert!(
+                    !has_run,
+                    "corpus-derived intrinsic `{}` has a runnable @example (forbidden — output is corpus-dependent)",
+                    entry.name
+                );
+            } else if pure && det {
+                assert!(
+                    has_run,
+                    "pure+det intrinsic `{}` has no runnable @example (≥1 required by contract)",
+                    entry.name
+                );
+            } else {
+                assert!(
+                    has_norun,
+                    "non-pure-det intrinsic `{}` has no @example-norun (≥1 required by contract)",
+                    entry.name
+                );
+                assert!(
+                    !has_run,
+                    "non-pure-det intrinsic `{}` has a runnable @example (forbidden — use @example-norun)",
+                    entry.name
+                );
+            }
+        }
+    }
+}

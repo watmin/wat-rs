@@ -4396,6 +4396,29 @@ fn infer_list(
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            ":wat::core::show-source"
+            | ":wat::core::render-doc" => {
+                // Arc 255.1b-v — reflection surface verbs. Each takes one FQDN
+                // keyword arg and returns :wat::core::String. The argument may
+                // be a known intrinsic FQDN (inferred as its fn-type by arc 009's
+                // "names are values") or an unknown bare keyword. Same bypass
+                // pattern as lookup-define/signature-of-defn: infer for side-
+                // effects, do NOT constrain the arg type — the runtime does its
+                // own FQDN resolution. The TypeScheme registered in register_builtins
+                // handles plain-keyword call sites; this arm handles the arc-009 path.
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Path(":wat::core::String".into());
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             ":wat::runtime::signature-of-fn" => {
                 // Arc 201 slice 3 — signature-of-fn.
                 // (fn-value :wat::core::fn) -> :wat::holon::HolonAST
@@ -14790,6 +14813,36 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 255.1b-v — reflection surface: show-source + render-doc.
+    // Both take one FQDN-keyword arg (mirroring metadata-of's keyword-arg shape
+    // from the lookup-define/signature-of-defn checker arm at infer_list:4364)
+    // and return :wat::core::String.
+    //
+    // `show-source` returns the Rust handler source (for intrinsics) or the
+    // wat body (for user forms). `render-doc` formats metadata-of's fields
+    // as a plain-text multi-line block.
+    {
+        let keyword_ty = TypeExpr::Path(":wat::core::keyword".into());
+        let string_ty = TypeExpr::Path(":wat::core::String".into());
+        env.register(
+            ":wat::core::show-source".to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![keyword_ty.clone()],
+                ret: string_ty.clone(),
+                rest_param_type: None,
+            },
+        );
+        env.register(
+            ":wat::core::render-doc".to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![keyword_ty],
+                ret: string_ty,
+                rest_param_type: None,
+            },
+        );
+    }
 
     // :wat::kernel::run-sandboxed (string entry) and
     // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
