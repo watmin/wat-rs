@@ -228,67 +228,6 @@ pub fn eval_kernel_epprintln(
     })
 }
 
-/// `(:wat::kernel::print-raw' s)` → `:wat::core::nil`. Write the bytes of
-/// the String `s` directly to fd 1 (stdout) with NO trailing newline and
-/// NO StdOutService round-trip.
-///
-/// This is the one ambient verb that bypasses the framing contract on
-/// purpose. Its intended use: test children that need to emit
-/// un-terminated or multi-value byte sequences to exercise the parent's
-/// framing-rejection paths (over-cap, truncated, anti-smuggle). Every
-/// other stdout verb (`println`, `pprintln`) goes through StdOutService
-/// and always terminates its output with `\n`; `print-raw'` deliberately
-/// does neither.
-///
-/// Because it bypasses the StdOutService the call does NOT block for an ack
-/// — writes go directly to `std::io::stdout()`. Flush is called after each
-/// write so bytes reach the pipe immediately (no stdio buffering lag).
-///
-/// Deviation note (arc 259 negatives track): the original design called for
-/// `#[restricted_to(":wat::kernel::print-raw'", ":wat::test::")]`. That
-/// restriction is NOT applied here because process-child WAT programs define
-/// `:user::main` — which cannot carry a `:wat::test::` FQDN (the prefix is
-/// reserved; child programs cannot define functions in the `:wat::` hierarchy).
-/// The restriction would silently block all negative-test child programs.
-/// The verb is instead left unrestricted by policy, matching the `println`
-/// family: misuse in production is a documentation problem, not a substrate
-/// constraint that the checker can enforce without blocking the test use-case.
-pub fn eval_kernel_print_raw_prime(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::print-raw'";
-    let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let s = match v {
-        Value::String(s) => s,
-        other => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: "String",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
-                },
-            });
-        }
-    };
-    // Write directly to fd 1, bypassing the StdOutService and its newline.
-    use std::io::Write;
-    std::io::stdout()
-        .write_all(s.as_bytes())
-        .and_then(|_| std::io::stdout().flush())
-        .map_err(|e| RuntimeError {
-            span: list_span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("stdout write failed: {}", e),
-            },
-        })?;
-    Ok(Value::Unit)
-}
-
 /// `(:wat::kernel::readln' <cap-i64> -> :T)`.
 ///
 /// The kernel-restricted positional prime that the `readln` defmacro expands to.

@@ -3760,3 +3760,104 @@ mod tests {
         assert_eq!(back, pm, "EDN round-trip must preserve the map");
     }
 }
+
+#[cfg(test)]
+mod next_complete_frame_negatives {
+    //! Stone 259-killed — pure unit tests for `next_complete_frame` negative paths.
+    //!
+    //! These replace the integration tests that relied on the annihilated `print-raw'`
+    //! verb. All four coverage axes are pure functions — no processes, no pipes.
+    //!
+    //! 1. over-cap, un-terminated    → TooLarge
+    //! 2. over-cap, complete frame   → TooLarge (semantics B)
+    //! 3. anti-smuggle two-value line → Frame + EDN decode fails
+    //! 4. incomplete partial           → Incomplete
+
+    use super::{next_complete_frame, FrameScan};
+
+    /// A buffer larger than `max_bytes` with no newline → `TooLarge(buf.len())`.
+    ///
+    /// Exercises the `None` (no newline) branch in `next_complete_frame` where
+    /// `buf.len() > max_bytes`. The exact length is returned so the caller can
+    /// log the offending size.
+    #[test]
+    fn over_cap_unterminated_is_too_large() {
+        let buf = vec![b'x'; 100];
+        match next_complete_frame(&buf, 64) {
+            FrameScan::TooLarge(n) => assert_eq!(
+                n, 100,
+                "TooLarge must carry the actual buffer length (100); got {n}"
+            ),
+            other => panic!(
+                "over-cap un-terminated: expected TooLarge(100); got {other:?}"
+            ),
+        }
+    }
+
+    /// A complete, newline-terminated frame whose `end` exceeds `max_bytes` →
+    /// `TooLarge(end)` (semantics B: reject oversized frames even when complete).
+    ///
+    /// A frame of 10 bytes + `\n` = 11 bytes; budget = 5 → `TooLarge(11)`.
+    #[test]
+    fn over_cap_complete_frame_is_too_large() {
+        // "{:a 1}\n" = 7 bytes; budget = 5 → TooLarge(7).
+        let buf = b"{:a 1}\n";
+        match next_complete_frame(buf, 5) {
+            FrameScan::TooLarge(n) => assert_eq!(
+                n, 7,
+                "TooLarge must carry end (7 = frame length incl. newline); got {n}"
+            ),
+            other => panic!(
+                "over-cap complete frame: expected TooLarge(7); got {other:?}"
+            ),
+        }
+    }
+
+    /// Two EDN values smuggled on one physical line: `{:a 1} {:b 2}\n`.
+    ///
+    /// `next_complete_frame` MUST return `Frame` (the whole line up to and
+    /// including the `\n`) — it does not split on the first value. The framer
+    /// uses `edn_frame_status` to detect non-Incomplete prefixes; `{:a 1} {:b 2}`
+    /// is `EdnFrameStatus::Malformed` (trailing content after the first complete
+    /// map) → `FrameScan::Frame(end)`. The decode step then REJECTS it.
+    ///
+    /// The second assertion confirms that `wat_edn::parse_owned` refuses the
+    /// smuggled content — no silent acceptance, no silent drop of `{:b 2}`.
+    #[test]
+    fn anti_smuggle_two_values_on_one_line_is_frame_but_decode_fails() {
+        let buf = b"{:a 1} {:b 2}\n";
+        let end = buf.len(); // 14 bytes incl. \n
+        match next_complete_frame(buf, usize::MAX) {
+            FrameScan::Frame(n) => assert_eq!(
+                n, end,
+                "anti-smuggle: Frame end must span the whole line ({end}); got {n}"
+            ),
+            other => panic!(
+                "anti-smuggle: expected Frame({end}); got {other:?} — \
+                 STOP-3: next_complete_frame does not return Frame for this input; \
+                 report the actual FrameScan, do not rewrite the assertion"
+            ),
+        }
+        // The framed content (newline stripped) must fail EDN decode.
+        let content = std::str::from_utf8(&buf[..end - 1]).expect("valid UTF-8");
+        assert!(
+            wat_edn::parse_owned(content).is_err(),
+            "anti-smuggle: EDN parse of '{content}' must fail (trailing content after first value); \
+             the smuggled second value must be rejected, not silently accepted"
+        );
+    }
+
+    /// A partial value with no newline and length under `max_bytes` → `Incomplete`.
+    ///
+    /// The caller must accumulate more bytes before a frame can be produced.
+    #[test]
+    fn incomplete_partial_is_incomplete() {
+        let buf = b"{:a 1";
+        match next_complete_frame(buf, usize::MAX) {
+            FrameScan::Incomplete => {}
+            other => panic!(
+                "incomplete partial: expected Incomplete; got {other:?}"
+            ),
+        }
+    }
+}

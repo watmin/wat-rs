@@ -4659,10 +4659,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::pprintln" => crate::services::eval_kernel_pprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::eprintln" => crate::services::eval_kernel_eprintln(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::epprintln" => crate::services::eval_kernel_epprintln(args, list_span, env, sym).map_err(Into::into),
-        // Arc 259 negatives track — no-newline raw stdout write for test children that
-        // need to emit un-terminated or multi-value byte sequences. Bypasses StdOutService.
-        // Unrestricted by policy (process children define :user:: fns, not :wat::test::).
-        ":wat::kernel::print-raw'" => crate::services::eval_kernel_print_raw_prime(args, list_span, env, sym).map_err(Into::into),
         // Arc 255 escape-hatch — readln' is the kernel-restricted positional prime
         // that the readln defmacro expands to. The macro forwards the `-> :T`
         // annotation intact; the prime carries an optional leading cap (i64).
