@@ -11411,24 +11411,24 @@ fn eval_option_expect(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
+    if args.len() != 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
-            expected: 4,
+            expected: 2,
             got: args.len()
         } }.into());
     }
-    let opt = eval_inner(&args[2], env, sym)?.value_owned();
+    let opt = eval_inner(&args[0], env, sym)?.value_owned();
     match opt {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(v)) => Ok(v),
-            Ok(None) => expect_panic(op, &args[3], env, sym, args[2].span().clone(), None),
+            Ok(None) => expect_panic(op, &args[1], env, sym, args[0].span().clone(), None),
             Err(shared) => match &*shared {
                 Some(v) => Ok(v.clone()),
-                None => expect_panic(op, &args[3], env, sym, args[2].span().clone(), None),
+                None => expect_panic(op, &args[1], env, sym, args[0].span().clone(), None),
             },
         },
-        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Option<T>",
             got: Box::new(ValueSnapshot::of(&other))
@@ -11445,30 +11445,30 @@ fn eval_result_expect(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
+    if args.len() != 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
-            expected: 4,
+            expected: 2,
             got: args.len()
         } }.into());
     }
-    let res = eval_inner(&args[2], env, sym)?.value_owned();
+    let res = eval_inner(&args[0], env, sym)?.value_owned();
     match res {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
             Ok(std::result::Result::Err(e)) => {
                 let chain = extract_panics(&e);
-                expect_panic(op, &args[3], env, sym, args[2].span().clone(), chain)
+                expect_panic(op, &args[1], env, sym, args[0].span().clone(), chain)
             }
             Err(shared) => match &*shared {
                 std::result::Result::Ok(ok) => Ok(ok.clone()),
                 std::result::Result::Err(e) => {
                     let chain = extract_panics(e);
-                    expect_panic(op, &args[3], env, sym, args[2].span().clone(), chain)
+                    expect_panic(op, &args[1], env, sym, args[0].span().clone(), chain)
                 }
             },
         },
-        other => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Result<T,E>",
             got: Box::new(ValueSnapshot::of(&other))
@@ -28377,7 +28377,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [[tx rx] (:wat::kernel::make-channel :i64)
-               _sent (:wat::core::Result/expect -> :()
+               _sent (:wat::core::Result/expect
                               (:wat::kernel::send tx 42)
                               "roundtrip: send failed")]
               (:wat::core::match (:wat::kernel::recv rx) -> :i64

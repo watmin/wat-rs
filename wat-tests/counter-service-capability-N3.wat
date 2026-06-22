@@ -314,7 +314,7 @@
                     (:counter::registry-provision
                       registry-vec user-id server-rx server-tx initial)
                   _sent
-                    (:wat::core::Result/expect -> :wat::core::nil
+                    (:wat::core::Result/expect  
                       (:wat::kernel::send admin-resp-tx
                         (:counter::AdminResp::Provisioned user-id user-tx user-rx))
                       "handle-admin3: admin-resp-tx disconnected on Provision")]
@@ -328,7 +328,7 @@
                  [new-registry
                     (:counter::registry-deprovision registry-vec dep-id)
                   _sent
-                    (:wat::core::Result/expect -> :wat::core::nil
+                    (:wat::core::Result/expect  
                       (:wat::kernel::send admin-resp-tx
                         (:counter::AdminResp::Deprovisioned dep-id))
                       "handle-admin3: admin-resp-tx disconnected on Deprovision")]
@@ -337,14 +337,14 @@
                    new-registry
                    next-id self-server-id)))
              (:counter::AdminReq::Stop
-               (:wat::core::Result/expect -> :wat::core::nil
+               (:wat::core::Result/expect  
                  (:wat::kernel::send admin-resp-tx
                    (:counter::AdminResp::Stopped))
                  "handle-admin3: admin-resp-tx disconnected on Stop")))
            ;; Mismatch: emit AccessDenied; continue dispatch (do not process request)
            (:wat::core::let
              [_denied
-                (:wat::core::Result/expect -> :wat::core::nil
+                (:wat::core::Result/expect  
                   (:wat::kernel::send admin-resp-tx
                     (:counter::AdminResp::AccessDenied))
                   "handle-admin3: admin-resp-tx disconnected on AccessDenied")]
@@ -382,7 +382,7 @@
                    (:wat::core::match req -> :wat::core::nil
                      (:counter::UserReq::Get
                        (:wat::core::do
-                         (:wat::core::Result/expect -> :wat::core::nil
+                         (:wat::core::Result/expect  
                            (:wat::kernel::send server-tx
                              (:counter::UserResp::Value state))
                            "handle-user3: server-tx disconnected on Get")
@@ -393,7 +393,7 @@
                        (:wat::core::let
                          [new-n     (:wat::core::i64::+ state n)
                           _sent
-                            (:wat::core::Result/expect -> :wat::core::nil
+                            (:wat::core::Result/expect  
                               (:wat::kernel::send server-tx
                                 (:counter::UserResp::Ok new-n))
                               "handle-user3: server-tx disconnected on Increment")
@@ -404,7 +404,7 @@
                            new-registry next-id self-server-id)))
                      (:counter::UserReq::Reset
                        (:wat::core::do
-                         (:wat::core::Result/expect -> :wat::core::nil
+                         (:wat::core::Result/expect  
                            (:wat::kernel::send server-tx
                              (:counter::UserResp::Ok 0))
                            "handle-user3: server-tx disconnected on Reset")
@@ -415,7 +415,7 @@
                    ;; Mismatch: emit AccessDenied; continue dispatch
                    (:wat::core::let
                      [_denied
-                        (:wat::core::Result/expect -> :wat::core::nil
+                        (:wat::core::Result/expect  
                           (:wat::kernel::send server-tx
                             (:counter::UserResp::AccessDenied))
                           "handle-user3: server-tx disconnected on AccessDenied")]

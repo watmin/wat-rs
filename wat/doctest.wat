@@ -57,13 +57,13 @@
                                         (:wat::intrinsic::Example/fqdn ex)
                                         "doctested @example on a non-pure∧deterministic intrinsic")))
                                   acc)
-                          expected-ast (:wat::core::Option/expect -> :wat::WatAST
+                          expected-ast (:wat::core::Option/expect  
                                           (:wat::intrinsic::Example/expected ex)
                                           "verify-examples: run=true example missing expected")
-                          got  (:wat::core::Result/expect -> :wat::core::Value
+                          got  (:wat::core::Result/expect  
                                   (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
                                   "verify-examples: expr eval failed")
-                          want (:wat::core::Result/expect -> :wat::core::Value
+                          want (:wat::core::Result/expect  
                                   (:wat::eval-ast! expected-ast)
                                   "verify-examples: expected eval failed")]
           (:wat::core::if (:wat::core::not (:wat::core::= got want))

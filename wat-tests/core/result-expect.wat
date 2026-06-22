@@ -14,7 +14,7 @@
   (:wat::core::let
     [res (:wat::core::Ok 99)
      v
-      (:wat::core::Result/expect -> :wat::core::i64
+      (:wat::core::Result/expect  
         res
         "should be Ok")]
     (:wat::test::assert-eq v 99)))
@@ -27,7 +27,7 @@
   (:wat::core::let
     [res (:wat::core::Ok "yes")
      v
-      (:wat::core::Result/expect -> :wat::core::String
+      (:wat::core::Result/expect  
         res
         "should be Ok")]
     (:wat::test::assert-eq v "yes")))
@@ -44,7 +44,7 @@
         (:wat::core::let
           [res (:wat::core::Err "rundb crashed")
            _v
-            (:wat::core::Result/expect -> :wat::core::i64
+            (:wat::core::Result/expect  
               res
               "expected Ok value")]
           ()))

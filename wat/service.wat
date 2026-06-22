@@ -91,12 +91,12 @@
                         (:wat::core::let
                           [k   (:wat::core::i64::* i 2)
                            key (:wat::core::keyword/to-string
-                                 (:wat::core::Option/expect -> :wat::WatAST
+                                 (:wat::core::Option/expect  
                                    (:wat::core::get opts k) "defservice: malformed trailing option key"))]
                           (:wat::core::if (:wat::core::HashMap/contains-key? known-opts key)
                             -> :wat::core::HashMap<wat::core::String,wat::WatAST>
                             (:wat::core::HashMap/assoc m key
-                              (:wat::core::Option/expect -> :wat::WatAST
+                              (:wat::core::Option/expect  
                                 (:wat::core::get opts (:wat::core::i64::+ k 1))
                                 "defservice: trailing option missing a value"))
                             (:wat::core::macro-error
@@ -108,7 +108,7 @@
      ;; each option is now a plain get with a default
      state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "record-parent")
                       -> :wat::WatAST
-                      (:wat::core::Option/expect -> :wat::WatAST
+                      (:wat::core::Option/expect  
                         (:wat::core::HashMap/get opts-map "record-parent")
                         "defservice: :record-parent needs a value")
                       :wat::Record)
@@ -316,7 +316,7 @@
                           ;; The field name AST nodes (symbols like `n`)
                           arg-names     (:wat::core::map
                                           (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                            (:wat::core::Option/expect -> :wat::WatAST
+                                            (:wat::core::Option/expect  
                                               (:wat::core::get fieldch i)
                                               "defservice serve-arm: arg name out of bounds"))
                                           arg-indices)
@@ -326,7 +326,7 @@
                           arg-accessors (:wat::core::map
                                           (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
                                             (:wat::core::let
-                                              [name-node (:wat::core::Option/expect -> :wat::WatAST
+                                              [name-node (:wat::core::Option/expect  
                                                             (:wat::core::get fieldch i)
                                                             "defservice serve-arm: accessor out of bounds")
                                                name-str  (:wat::core::ast-name name-node)]
@@ -351,10 +351,10 @@
                                                            i <- :wat::core::i64]
                                             -> :wat::core::Vector<wat::WatAST>
                                             (:wat::core::let
-                                              [arg-name (:wat::core::Option/expect -> :wat::WatAST
+                                              [arg-name (:wat::core::Option/expect  
                                                            (:wat::core::get arg-names i)
                                                            "defservice serve-arm: arg-name index")
-                                               acc-kw   (:wat::core::Option/expect -> :wat::WatAST
+                                               acc-kw   (:wat::core::Option/expect  
                                                            (:wat::core::get arg-accessors i)
                                                            "defservice serve-arm: accessor index")]
                                               (:wat::core::conj
@@ -500,7 +500,7 @@
                                          (:wat::core::range 0 n-args))
                           arg-names    (:wat::core::map
                                          (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                           (:wat::core::Option/expect -> :wat::WatAST
+                                           (:wat::core::Option/expect  
                                              (:wat::core::get in-fieldch i)
                                              "defservice constructors: field name out of bounds"))
                                          arg-indices)

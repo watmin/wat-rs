@@ -924,7 +924,7 @@
           (:wat::core::first inputs)
          rest (:wat::core::rest inputs)
          _
-          (:wat::core::Result/expect -> :wat::core::nil
+          (:wat::core::Result/expect  
             (:wat::kernel::send tx item)
             "run-hermetic-send-inputs: send failed — child disconnected")]
         (:wat::test::run-hermetic-send-inputs tx rest))))

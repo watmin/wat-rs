@@ -139,14 +139,14 @@
         -> :wat::core::bool
         false
         (:wat::core::= (:wat::core::ast-kind
-                         (:wat::core::Option/expect -> :wat::WatAST
+                         (:wat::core::Option/expect  
                            first-opt
                            "readln macro: internal error — first-opt is None but n-args > 0"))
                        "keyword"))
       -> :wat::WatAST
       ;; First arg is a keyword. Check if it's :max-buffer-bytes.
       (:wat::core::let
-        [first-node (:wat::core::Option/expect -> :wat::WatAST
+        [first-node (:wat::core::Option/expect  
                        first-opt
                        "readln macro: internal error — first-node")]
         (:wat::core::if
@@ -154,7 +154,7 @@
           -> :wat::WatAST
           ;; :max-buffer-bytes N -> :T  →  (readln' N -> :T)
           (:wat::core::let
-            [cap-expr (:wat::core::Option/expect -> :wat::WatAST
+            [cap-expr (:wat::core::Option/expect  
                           (:wat::core::get args 1)
                           "readln: :max-buffer-bytes requires a value (e.g. :max-buffer-bytes (* 2 1024 1024))")
              rest     (:wat::core::rest (:wat::core::rest args))]

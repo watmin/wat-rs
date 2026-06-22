@@ -291,7 +291,7 @@
                     parts  (:wat::core::string::split fqdn "::")
                     n      (:wat::core::length parts)]
     (:wat::core::if (:wat::core::i64::> n 0)
-      (:wat::core::Option/expect -> :wat::core::String
+      (:wat::core::Option/expect  
         (:wat::core::get parts (:wat::core::i64::- n 1))
         "node-kind-label: last segment")
       fqdn)))
@@ -353,7 +353,7 @@
       (:wat::core::fn [acc <- :wat::core::String
                        k   <- :wat::core::i64]
         -> :wat::core::String
-        (:wat::core::let [node  (:wat::core::Option/expect -> :wat::Record
+        (:wat::core::let [node  (:wat::core::Option/expect  
                                     (:wat::core::PersistentMap/get network k)
                                     "render-dag: node not found")
                           kind  (:wat::rete::node-kind-label node)
@@ -408,7 +408,7 @@
    node-id  <- :wat::core::i64
    child-id <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node     (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node     (:wat::core::Option/expect  
                                   (:wat::core::PersistentMap/get network node-id)
                                   "network-add-child: node not found")
                     old-ch   (:wat::rete::node-children-ids node)
@@ -547,7 +547,7 @@
                         ;; fence: pure ∧ deterministic — raise at compile if false
                         is-pure   (:wat::rete::pure? expr)
                         is-det    (:wat::rete::deterministic? expr)
-                        _fence    (:wat::core::Option/expect -> :wat::core::nil
+                        _fence    (:wat::core::Option/expect  
                                       (:wat::core::if (:wat::core::and is-pure is-det)
                                         (:wat::core::Some nil)
                                         (:wat::core::None))
@@ -577,7 +577,7 @@
       (:wat::core::if is-not
         ;; ── :not branch (7-a) ───────────────────────────────────────────────────
         ;; Guard: a leading :not (parent < 0) is banked — raise at compile time.
-        (:wat::core::let [_guard      (:wat::core::Option/expect -> :wat::core::nil
+        (:wat::core::let [_guard      (:wat::core::Option/expect  
                                           (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                             (:wat::core::Some nil)
                                             (:wat::core::None))
@@ -612,7 +612,7 @@
           ;; ── :exists branch (7-exists) ────────────────────────────────────────────
           ;; The :not branch, IDENTICAL, except it mints an ExistsNode instead of a NegationNode.
           ;; Guard: a leading :exists (parent < 0) is unsupported — raise at compile time.
-          (:wat::core::let [_guard       (:wat::core::Option/expect -> :wat::core::nil
+          (:wat::core::let [_guard       (:wat::core::Option/expect  
                                             (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                               (:wat::core::Some nil)
                                               (:wat::core::None))
@@ -648,7 +648,7 @@
           ;; Form: (?result-var <- (<acc-form>) :from (<inner>))
           ;; children: [?result-var, <-, acc-form, :from, inner]
           ;; Guard: a leading accumulate (parent < 0) is unsupported — accumulate needs a left token.
-          (:wat::core::let [_guard       (:wat::core::Option/expect -> :wat::core::nil
+          (:wat::core::let [_guard       (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                                (:wat::core::Some nil)
                                                (:wat::core::None))
@@ -656,7 +656,7 @@
                             ;; result-var: strip the "?" prefix from head-nm to get the var name string
                             result-var   head-nm
                             ;; acc-form: items[2]
-                            acc-form     (:wat::core::Option/expect -> :wat::WatAST
+                            acc-form     (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 2)
                                              "compile-condition: accumulate missing acc-form")
                             ;; 8-custom FENCE: the acc-form head selects the fold. A built-in
@@ -671,7 +671,7 @@
                             is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
                                             ((:wat::core::unquote acc-hd) __acc__))
-                            _acc-fence   (:wat::core::Option/expect -> :wat::core::nil
+                            _acc-fence   (:wat::core::Option/expect  
                                              (:wat::core::if is-builtin
                                                (:wat::core::Some nil)
                                                (:wat::core::if
@@ -682,16 +682,16 @@
                                                  (:wat::core::None)))
                                              "compile-condition: custom accumulator must be pure and deterministic")
                             ;; assert items[3] is :from (structural validation)
-                            from-kw      (:wat::core::Option/expect -> :wat::WatAST
+                            from-kw      (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 3)
                                              "compile-condition: accumulate missing :from")
-                            _from-check  (:wat::core::Option/expect -> :wat::core::nil
+                            _from-check  (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
                                                (:wat::core::Some nil)
                                                (:wat::core::None))
                                              "compile-condition: accumulate expected :from at position 3")
                             ;; inner: items[4] — the :from fact-pattern condition
-                            inner        (:wat::core::Option/expect -> :wat::WatAST
+                            inner        (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 4)
                                              "compile-condition: accumulate missing :from inner condition")
                             ;; find-or-mint an AlphaNode for the :from inner condition
@@ -869,7 +869,7 @@
    alpha-mem <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "activate-alpha: node not found")
                     kind (:wat::rete::node-kind-label node)]
@@ -877,7 +877,7 @@
       ((:wat::core::= kind "AlphaNode")
        ;; WHY get tests[0]: AlphaNode.tests is a PV; the first element is the single
        ;; condition form (WatAST) compiled from the rule's LHS clause.
-       (:wat::core::let [cond (:wat::core::Option/expect -> :wat::WatAST
+       (:wat::core::let [cond (:wat::core::Option/expect  
                                   (:wat::core::get (:wat::rete::AlphaNode/tests node) 0)
                                   "activate-alpha: AlphaNode has no tests")]
          (:wat::core::foldl
@@ -929,7 +929,7 @@
    network   <- :wat::core::PersistentMap
    beta-mem  <- :wat::core::PersistentMap]
   -> :wat::core::PersistentMap
-  (:wat::core::let [alpha-node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [alpha-node (:wat::core::Option/expect  
                                    (:wat::core::PersistentMap/get network alpha-id)
                                    "seed-root-join-children: alpha node not found")
                     child-ids  (:wat::rete::AlphaNode/children alpha-node)]
@@ -937,7 +937,7 @@
       (:wat::core::fn [bm       <- :wat::core::PersistentMap
                        child-id <- :wat::core::i64]
         -> :wat::core::PersistentMap
-        (:wat::core::let [child-node (:wat::core::Option/expect -> :wat::Record
+        (:wat::core::let [child-node (:wat::core::Option/expect  
                                          (:wat::core::PersistentMap/get network child-id)
                                          "seed-root-join-children: child node not found")]
           (:wat::core::cond
@@ -962,7 +962,7 @@
    beta-mem  <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "root-join-pass: node not found")]
     (:wat::core::cond
@@ -989,7 +989,7 @@
       -> :wat::core::i64
       (:wat::core::if (:wat::core::i64::>= found 0)
         found
-        (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+        (:wat::core::let [node (:wat::core::Option/expect  
                                    (:wat::core::PersistentMap/get network node-id)
                                    "alpha-feeding: node not found")]
           (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "AlphaNode")
@@ -1092,7 +1092,7 @@
    beta-mem  <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "hash-join-pass: node not found")
                     kind (:wat::rete::node-kind-label node)]
@@ -1104,7 +1104,7 @@
            (:wat::core::fn [bm       <- :wat::core::PersistentMap
                             child-id <- :wat::core::i64]
              -> :wat::core::PersistentMap
-             (:wat::core::let [child (:wat::core::Option/expect -> :wat::Record
+             (:wat::core::let [child (:wat::core::Option/expect  
                                          (:wat::core::PersistentMap/get network child-id)
                                          "hash-join-pass: child not found")]
                (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label child) "HashJoinNode")
@@ -1139,7 +1139,7 @@
       -> :wat::core::i64
       (:wat::core::if (:wat::core::i64::>= found 0)
         found
-        (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+        (:wat::core::let [node (:wat::core::Option/expect  
                                    (:wat::core::PersistentMap/get network node-id)
                                    "node-parent: node not found")]
           (:wat::core::if (:wat::core::PersistentVector/contains?
@@ -1158,7 +1158,7 @@
   [rules <- :wat::core::PersistentVector<wat::rete::Rule>
    rname <- :wat::core::String]
   -> :wat::rete::Rule
-  (:wat::core::Option/expect -> :wat::rete::Rule
+  (:wat::core::Option/expect  
     (:wat::core::foldl
       (:wat::core::fn [found <- :wat::core::Option<wat::rete::Rule>
                        rule  <- :wat::rete::Rule]
@@ -1185,7 +1185,7 @@
    rules    <- :wat::core::PersistentVector<wat::rete::Rule>
    prod-mem <- :wat::core::PersistentMap]
   -> :wat::core::PersistentMap
-  (:wat::core::let [prod-node  (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [prod-node  (:wat::core::Option/expect  
                                    (:wat::core::PersistentMap/get network prod-id)
                                    "fire-production: prod node not found")
                     rname      (:wat::rete::ProductionNode/rule-name prod-node)
@@ -1227,7 +1227,7 @@
    beta-mem <- :wat::core::PersistentMap
    node-id  <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "test-pass: node not found")]
     (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "TestNode")
@@ -1262,7 +1262,7 @@
    beta-mem  <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "filter-pass: node not found")
                     kind (:wat::rete::node-kind-label node)]
@@ -1361,7 +1361,7 @@
    prod-mem <- :wat::core::PersistentMap
    node-id  <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "production-pass: node not found")]
     (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode")
@@ -1673,7 +1673,7 @@
                                  (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
                                  raw-name)
                     ;; rest = (:when <when-vec> :then <insert-form> …); canonical order assumed.
-                    when-vec  (:wat::core::Option/expect -> :wat::WatAST
+                    when-vec  (:wat::core::Option/expect  
                                  (:wat::core::get rest 1)
                                  "defrule: missing :when conditions vector")
                     then-forms (:wat::core::drop rest 3)]
@@ -1720,7 +1720,7 @@
                      e   <- :wat::rete::Element]
       -> :wat::core::i64
       (:wat::core::+ acc
-        (:wat::core::Option/expect -> :wat::core::i64
+        (:wat::core::Option/expect  
           (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
           "acc: var unbound")))
     0
@@ -1737,7 +1737,7 @@
     (:wat::core::fn [acc <- :wat::core::Option<wat::core::i64>
                      e   <- :wat::rete::Element]
       -> :wat::core::Option<wat::core::i64>
-      (:wat::core::let [v (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::let [v (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc -> :wat::core::Option<wat::core::i64>
@@ -1756,7 +1756,7 @@
     (:wat::core::fn [acc <- :wat::core::Option<wat::core::i64>
                      e   <- :wat::rete::Element]
       -> :wat::core::Option<wat::core::i64>
-      (:wat::core::let [v (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::let [v (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::match acc -> :wat::core::Option<wat::core::i64>
@@ -1789,7 +1789,7 @@
     (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
                      e   <- :wat::rete::Element]
       -> :wat::core::PersistentVector<wat::core::i64>
-      (:wat::core::let [v (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::let [v (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
         (:wat::core::if (:wat::core::PersistentVector/contains? acc v)
@@ -1821,7 +1821,7 @@
     (:wat::core::fn [acc  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::Record>>
                      e    <- :wat::rete::Element]
       -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::Record>>
-      (:wat::core::let [k    (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::let [k    (:wat::core::Option/expect  
                                 (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                                 "acc: var unbound")
                         fact (:wat::rete::Element/fact e)
@@ -1846,7 +1846,7 @@
                      e   <- :wat::rete::Element]
       -> :wat::core::Vector<wat::core::i64>
       (:wat::core::Vector/conj acc
-        (:wat::core::Option/expect -> :wat::core::i64
+        (:wat::core::Option/expect  
           (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
           "acc: var unbound")))
     (:wat::core::Vector :wat::core::i64)
@@ -1896,7 +1896,7 @@
       ;; sum — bare i64 result (always); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::sum")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: sum missing ?var"))
                          v   (:wat::rete::acc::sum var gathered)
@@ -1906,7 +1906,7 @@
       ;; min — Option<i64>; Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::min")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: min missing ?var"))]
          (:wat::core::match (:wat::rete::acc::min var gathered) -> :wat::core::PersistentMap
@@ -1918,7 +1918,7 @@
       ;; max — Option<i64>; Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::max")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: max missing ?var"))]
          (:wat::core::match (:wat::rete::acc::max var gathered) -> :wat::core::PersistentMap
@@ -1930,7 +1930,7 @@
       ;; mean — Option<i64>; Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::mean")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: mean missing ?var"))]
          (:wat::core::match (:wat::rete::acc::mean var gathered) -> :wat::core::PersistentMap
@@ -1942,7 +1942,7 @@
       ;; distinct — bare PV result (always; empty → []); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::distinct")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: distinct missing ?var"))
                          v   (:wat::rete::acc::distinct var gathered)
@@ -1958,7 +1958,7 @@
       ;; group-by — bare PM result (always; empty → {}); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::group-by")
        (:wat::core::let [var (:wat::core::ast-name
-                               (:wat::core::Option/expect -> :wat::WatAST
+                               (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: group-by missing ?var"))
                          v   (:wat::rete::acc::group-by var gathered)
@@ -1972,7 +1972,7 @@
       ;; The compile fence (compile-condition) has already proven the fn is pure∧det.
       (:else
        (:wat::core::let [var  (:wat::core::ast-name
-                                (:wat::core::Option/expect -> :wat::WatAST
+                                (:wat::core::Option/expect  
                                   (:wat::core::get acc-ch 1)
                                   "accumulate-pass-for-token: custom fold missing ?var"))
                          vals (:wat::rete::acc::gather-vals var gathered)
@@ -1980,7 +1980,7 @@
                                 ((:wat::core::unquote acc-hd)
                                  (:wat::core::PersistentVector
                                    (:wat::core::unquote-splicing vals))))
-                         v    (:wat::core::Result/expect -> :wat::core::Value
+                         v    (:wat::core::Result/expect  
                                 (:wat::eval-ast! call)
                                 "accumulate-pass-for-token: custom fold eval failed")
                          nb   (:wat::core::PersistentMap/assoc tok-binds result-var v)
@@ -2005,7 +2005,7 @@
    beta-mem  <- :wat::core::PersistentMap
    node-id   <- :wat::core::i64]
   -> :wat::core::PersistentMap
-  (:wat::core::let [node (:wat::core::Option/expect -> :wat::Record
+  (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "accumulate-pass: node not found")
                     kind (:wat::rete::node-kind-label node)]

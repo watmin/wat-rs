@@ -214,10 +214,10 @@
      has-kwargs   (:wat::core::if (:wat::core::i64::>= params-len 2)
                     -> :wat::core::bool
                     (:wat::core::let
-                      [stl-node  (:wat::core::Option/expect -> :wat::WatAST
+                      [stl-node  (:wat::core::Option/expect  
                                    (:wat::core::get params-ch (:wat::core::i64::- params-len 2))
                                    "defn kwargs detect: stl index")
-                       last-node (:wat::core::Option/expect -> :wat::WatAST
+                       last-node (:wat::core::Option/expect  
                                    (:wat::core::get params-ch (:wat::core::i64::- params-len 1))
                                    "defn kwargs detect: last index")]
                       (:wat::core::if (:wat::core::= (:wat::core::ast-kind stl-node) "symbol")
@@ -238,7 +238,7 @@
                            (:wat::core::string::interpolate "{name-str}::Kwargs" :name-str name-str))
          kwargs-ty-str   (:wat::core::keyword/to-string kwargs-ty)
          ;; The inner argspec Vector node (the last element of params-ch)
-         kw-argvec       (:wat::core::Option/expect -> :wat::WatAST
+         kw-argvec       (:wat::core::Option/expect  
                             (:wat::core::last params-ch)
                             "defn kwargs: no inner argspec vector")
          kw-ch           (:wat::core::ast->children kw-argvec)
@@ -250,7 +250,7 @@
                            (:wat::core::fn [acc <- :wat::core::nil i <- :wat::core::i64]
                              -> :wat::core::nil
                              (:wat::core::let
-                               [fname-node (:wat::core::Option/expect -> :wat::WatAST
+                               [fname-node (:wat::core::Option/expect  
                                               (:wat::core::get kw-ch (:wat::core::i64::* i 3))
                                               "defn kwargs validate: field name index")]
                                (:wat::core::if (:wat::core::= (:wat::core::ast-name fname-node) "&")
@@ -280,7 +280,7 @@
                            kwargs-ty-node)
          reshaped-params (:wat::core::with-children params-vec reshaped-ch)
          ;; ret-type: rest[2] (after params-vec and ->)
-         ret-type        (:wat::core::Option/expect -> :wat::WatAST
+         ret-type        (:wat::core::Option/expect  
                             (:wat::core::get rest 2)
                             "defn kwargs: no return type")
          ;; body forms: rest[3..] (everything after params-vec -> ret-type)
@@ -297,7 +297,7 @@
                                              i   <- :wat::core::i64]
                               -> :wat::core::Vector<wat::WatAST>
                               (:wat::core::let
-                                [fname-node    (:wat::core::Option/expect -> :wat::WatAST
+                                [fname-node    (:wat::core::Option/expect  
                                                  (:wat::core::get kw-ch i)
                                                  "defn kwargs let-binder: field name index")
                                  fname-str     (:wat::core::ast-name fname-node)
@@ -494,7 +494,7 @@
 ;; returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it
 ;; or fail." Sugar over `Option/expect (Vector/get …)`, but with the total promise.
 (:wat::core::defn :wat::core::nth<T> [v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
-  (:wat::core::Option/expect -> :T (:wat::core::get v i) "nth: index out of range"))
+  (:wat::core::Option/expect   (:wat::core::get v i) "nth: index out of range"))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
 ;;
@@ -573,7 +573,7 @@
                      -> :wat::core::HashMap<wat::core::String,wat::WatAST>
                      (:wat::core::let
                        [k     (:wat::core::i64::* i 2)
-                        k-ast (:wat::core::Option/expect -> :wat::WatAST
+                        k-ast (:wat::core::Option/expect  
                                  (:wat::core::get opts k)
                                  "format: kwargs pair key missing")
                         key   (:wat::core::if
@@ -582,7 +582,7 @@
                                 (:wat::core::keyword/to-string k-ast)
                                 (:wat::core::macro-error
                                   "format: kwargs key must be a keyword (e.g. :name)"))
-                        val   (:wat::core::Option/expect -> :wat::WatAST
+                        val   (:wat::core::Option/expect  
                                  (:wat::core::get opts (:wat::core::i64::+ k 1))
                                  "format: kwargs pair value missing")]
                        (:wat::core::HashMap/assoc m key val)))
@@ -800,7 +800,7 @@
                                            "format: placeholder {"
                                            (:wat::core::string::concat pay
                                              "} has no matching kwarg"))))
-                             val-ast (:wat::core::Option/expect -> :wat::WatAST
+                             val-ast (:wat::core::Option/expect  
                                         (:wat::core::HashMap/get kwargs-map pay)
                                         "format: internal — kwargs-map get post-contains?")]
                             (:wat::core::Tuple

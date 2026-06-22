@@ -20,7 +20,7 @@
   (:wat::core::let
     [opt (:wat::core::Some 42)
      v
-      (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::Option/expect  
         opt
         "should be Some")]
     (:wat::test::assert-eq v 42)))
@@ -33,7 +33,7 @@
   (:wat::core::let
     [opt (:wat::core::Some "hello")
      v
-      (:wat::core::Option/expect -> :wat::core::String
+      (:wat::core::Option/expect  
         opt
         "should be Some")]
     (:wat::test::assert-eq v "hello")))
@@ -46,11 +46,11 @@
   (:wat::core::let
     [opt (:wat::core::Some (:wat::core::Some 7))
      inner
-      (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
+      (:wat::core::Option/expect  
         opt
         "outer should be Some")
      v
-      (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::Option/expect  
         inner
         "inner should be Some")]
     (:wat::test::assert-eq v 7)))
@@ -67,7 +67,7 @@
         (:wat::core::let
           [opt :wat::core::None
            _v
-            (:wat::core::Option/expect -> :wat::core::i64
+            (:wat::core::Option/expect  
               opt
               "broker disconnected")]
           ()))

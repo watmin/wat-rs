@@ -133,11 +133,11 @@
             [server-rx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty0 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty0 (:wat::core::Option/expect  
                                      (:wat::core::get tys 0)
                                      "run-threads-n1: missing type arg 0")
                                ch0 (:wat::holon::Bundle/children ty0)
-                               i0h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               i0h (:wat::core::Option/expect  
                                      (:wat::core::get ch0 1)
                                      "run-threads-n1: missing I-type child at slot 1")
                                i0  (:wat::holon::from-holon i0h)]
@@ -149,11 +149,11 @@
              server-tx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty0 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty0 (:wat::core::Option/expect  
                                      (:wat::core::get tys 0)
                                      "run-threads-n1: missing type arg 0")
                                ch0 (:wat::holon::Bundle/children ty0)
-                               o0h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               o0h (:wat::core::Option/expect  
                                      (:wat::core::get ch0 2)
                                      "run-threads-n1: missing O-type child at slot 2")
                                o0  (:wat::holon::from-holon o0h)]
@@ -165,7 +165,7 @@
             -> :wat::core::nil
             (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
       ~(:wat::holon::to-wat
-          (:wat::core::Option/expect -> :wat::holon::HolonAST
+          (:wat::core::Option/expect  
             (:wat::core::get
               (:wat::runtime::extract-arg-names
                 (:wat::runtime::signature-of-fn coordinator))
@@ -209,11 +209,11 @@
             [server-rx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty0 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty0 (:wat::core::Option/expect  
                                      (:wat::core::get tys 0)
                                      "run-threads-n3: missing type arg 0")
                                ch0 (:wat::holon::Bundle/children ty0)
-                               i0h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               i0h (:wat::core::Option/expect  
                                      (:wat::core::get ch0 1)
                                      "run-threads-n3: missing I-type child at slot 0:1")
                                i0  (:wat::holon::from-holon i0h)]
@@ -225,11 +225,11 @@
              server-tx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty0 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty0 (:wat::core::Option/expect  
                                      (:wat::core::get tys 0)
                                      "run-threads-n3: missing type arg 0")
                                ch0 (:wat::holon::Bundle/children ty0)
-                               o0h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               o0h (:wat::core::Option/expect  
                                      (:wat::core::get ch0 2)
                                      "run-threads-n3: missing O-type child at slot 0:2")
                                o0  (:wat::holon::from-holon o0h)]
@@ -241,7 +241,7 @@
             -> :wat::core::nil
             (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
       ~(:wat::holon::to-wat
-          (:wat::core::Option/expect -> :wat::holon::HolonAST
+          (:wat::core::Option/expect  
             (:wat::core::get
               (:wat::runtime::extract-arg-names
                 (:wat::runtime::signature-of-fn coordinator))
@@ -256,11 +256,11 @@
             [server-rx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty1 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty1 (:wat::core::Option/expect  
                                      (:wat::core::get tys 1)
                                      "run-threads-n3: missing type arg 1")
                                ch1 (:wat::holon::Bundle/children ty1)
-                               i1h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               i1h (:wat::core::Option/expect  
                                      (:wat::core::get ch1 1)
                                      "run-threads-n3: missing I-type child at slot 1:1")
                                i1  (:wat::holon::from-holon i1h)]
@@ -272,11 +272,11 @@
              server-tx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty1 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty1 (:wat::core::Option/expect  
                                      (:wat::core::get tys 1)
                                      "run-threads-n3: missing type arg 1")
                                ch1 (:wat::holon::Bundle/children ty1)
-                               o1h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               o1h (:wat::core::Option/expect  
                                      (:wat::core::get ch1 2)
                                      "run-threads-n3: missing O-type child at slot 1:2")
                                o1  (:wat::holon::from-holon o1h)]
@@ -288,7 +288,7 @@
             -> :wat::core::nil
             (~factory-1 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
       ~(:wat::holon::to-wat
-          (:wat::core::Option/expect -> :wat::holon::HolonAST
+          (:wat::core::Option/expect  
             (:wat::core::get
               (:wat::runtime::extract-arg-names
                 (:wat::runtime::signature-of-fn coordinator))
@@ -303,11 +303,11 @@
             [server-rx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty2 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty2 (:wat::core::Option/expect  
                                      (:wat::core::get tys 2)
                                      "run-threads-n3: missing type arg 2")
                                ch2 (:wat::holon::Bundle/children ty2)
-                               i2h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               i2h (:wat::core::Option/expect  
                                      (:wat::core::get ch2 1)
                                      "run-threads-n3: missing I-type child at slot 2:1")
                                i2  (:wat::holon::from-holon i2h)]
@@ -319,11 +319,11 @@
              server-tx <- ~(:wat::core::let
                               [sig (:wat::runtime::signature-of-fn coordinator)
                                tys (:wat::runtime::extract-arg-types sig)
-                               ty2 (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               ty2 (:wat::core::Option/expect  
                                      (:wat::core::get tys 2)
                                      "run-threads-n3: missing type arg 2")
                                ch2 (:wat::holon::Bundle/children ty2)
-                               o2h (:wat::core::Option/expect -> :wat::holon::HolonAST
+                               o2h (:wat::core::Option/expect  
                                      (:wat::core::get ch2 2)
                                      "run-threads-n3: missing O-type child at slot 2:2")
                                o2  (:wat::holon::from-holon o2h)]
@@ -335,7 +335,7 @@
             -> :wat::core::nil
             (~factory-2 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
       ~(:wat::holon::to-wat
-          (:wat::core::Option/expect -> :wat::holon::HolonAST
+          (:wat::core::Option/expect  
             (:wat::core::get
               (:wat::runtime::extract-arg-names
                 (:wat::runtime::signature-of-fn coordinator))
@@ -396,7 +396,7 @@
        rt-facs-ast  (:wat::core::quasiquote factories)
        rt-facs-h    (:wat::holon::from-wat rt-facs-ast)
        rt-facs-ch   (:wat::holon::Bundle/children rt-facs-h)
-       rt-fac0-h    (:wat::core::Option/expect -> :wat::holon::HolonAST
+       rt-fac0-h    (:wat::core::Option/expect  
                       (:wat::core::get rt-facs-ch 0)
                       "run-threads: no factory at position 0")
        ;; to-wat on the HolonAST::Bundle restores the factory call form
@@ -414,11 +414,11 @@
             coordinator
             (:wat::core::unquote rt-fac0)))
         (:wat::core::let
-          [rt-fac1-h   (:wat::core::Option/expect -> :wat::holon::HolonAST
+          [rt-fac1-h   (:wat::core::Option/expect  
                           (:wat::core::get rt-facs-ch 1)
                           "run-threads: no factory at position 1")
            rt-fac1     (:wat::holon::to-wat rt-fac1-h)
-           rt-fac2-h   (:wat::core::Option/expect -> :wat::holon::HolonAST
+           rt-fac2-h   (:wat::core::Option/expect  
                           (:wat::core::get rt-facs-ch 2)
                           "run-threads: no factory at position 2")
            rt-fac2     (:wat::holon::to-wat rt-fac2-h)]

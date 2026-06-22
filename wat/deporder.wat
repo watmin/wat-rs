@@ -202,7 +202,7 @@
       (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,wat::core::i64>
                        i <- :wat::core::i64]
         -> :wat::core::HashMap<wat::core::String,wat::core::i64>
-        (:wat::core::let [file (:wat::core::Option/expect -> :wat::source::File
+        (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "build-pos-map: get")]
           (:wat::core::HashMap/assoc m (:wat::source::File/path file) i)))
       (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -271,7 +271,7 @@
       (:wat::core::fn [viols <- :wat::core::Vector<wat::deporder::Violation>
                        i     <- :wat::core::i64]
         -> :wat::core::Vector<wat::deporder::Violation>
-        (:wat::core::let [file (:wat::core::Option/expect -> :wat::source::File
+        (:wat::core::let [file (:wat::core::Option/expect  
                                   (:wat::core::get files i) "verify: get file")]
           (:wat::core::concat viols
             (:wat::deporder::check-file-violations file i sym-map pos-map))))
@@ -292,11 +292,11 @@
       (:wat::core::fn [acc <- :wat::core::Vector<wat::source::File>
                        i   <- :wat::core::i64]
         -> :wat::core::Vector<wat::source::File>
-        (:wat::core::let [pair   (:wat::core::Option/expect -> :wat::core::Vector<wat::core::String>
+        (:wat::core::let [pair   (:wat::core::Option/expect  
                                     (:wat::core::get pairs i) "stdlib-sources: get pair")
-                          path   (:wat::core::Option/expect -> :wat::core::String
+                          path   (:wat::core::Option/expect  
                                     (:wat::core::get pair 0) "stdlib-sources: get path")
-                          source (:wat::core::Option/expect -> :wat::core::String
+                          source (:wat::core::Option/expect  
                                     (:wat::core::get pair 1) "stdlib-sources: get source")]
           (:wat::core::concat acc
             (:wat::core::Vector :wat::source::File

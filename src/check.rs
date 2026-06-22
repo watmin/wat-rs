@@ -1046,18 +1046,18 @@ fn validate_comm_positions(
             return;
         }
 
-        // (3) Result-side `expect` form — items[3] is the value-position.
-        //     Layout: (Result/expect -> :T <res> <msg>). Arc 109 slice 1j
+        // (3) Result-side `expect` form — items[1] is the value-position.
+        //     Layout: (Result/expect <res> <msg>). Arc 109 slice 1j
         //     renamed `:wat::core::result::expect` to `:wat::core::Result/expect`.
         //     Stone 241.15: the retired lowercase form is HARD CUT; only
         //     the canonical head recognized here.
         //     Arc 111: send/recv now return Result<Option<_>, _>; this is
         //     their natural panic-on-Err home.
         if head_str == ":wat::core::Result/expect"
-            && items.len() >= 5
+            && items.len() >= 3
         {
             for (i, child) in items.iter().enumerate() {
-                let child_ctx = if i == 3 {
+                let child_ctx = if i == 1 {
                     CommCtx::ResultExpectValue
                 } else {
                     CommCtx::Forbidden
@@ -1067,18 +1067,18 @@ fn validate_comm_positions(
             return;
         }
 
-        // (4) Option-side `expect` form — items[3] is the value-position.
-        //     Layout: (Option/expect -> :T <opt> <msg>). Arc 109 slice 1j
+        // (4) Option-side `expect` form — items[1] is the value-position.
+        //     Layout: (Option/expect <opt> <msg>). Arc 109 slice 1j
         //     renamed `:wat::core::option::expect` to `:wat::core::Option/expect`.
         //     Stone 241.15: the retired lowercase form is HARD CUT; only
         //     the canonical head recognized here.
         //     Pre-arc-111 home for kernel comm; kept for callers who have
         //     ALREADY unwrapped the outer Result and want to panic on :None.
         if head_str == ":wat::core::Option/expect"
-            && items.len() >= 5
+            && items.len() >= 3
         {
             for (i, child) in items.iter().enumerate() {
-                let child_ctx = if i == 3 {
+                let child_ctx = if i == 1 {
                     CommCtx::OptionExpectValue
                 } else {
                     CommCtx::Forbidden
@@ -1116,9 +1116,9 @@ fn validate_comm_positions(
 ///
 /// "Consumed" means the name appears as:
 /// - The first argument of `(:wat::core::match <name> ...)`
-/// - The value argument (position 3) of `(:wat::core::Result/expect -> :T <name> "msg")`
+/// - The value argument (position 1) of `(:wat::core::Result/expect <name> "msg")`
 ///   (Stone 241.15: `:wat::core::result::expect` is HARD CUT; canonical form only)
-/// - The value argument of `(:wat::core::Option/expect -> :T <name> "msg")`
+/// - The value argument of `(:wat::core::Option/expect <name> "msg")`
 ///   (Stone 241.15: `:wat::core::option::expect` is HARD CUT; canonical form only)
 fn collect_consumed_names_in_let(
     binding_items: &[WatAST],
@@ -1162,13 +1162,13 @@ fn collect_consumed_names_in_let(
             return;
         }
 
-        // (:wat::core::Result/expect -> :T <value> "msg")
+        // (:wat::core::Result/expect <value> "msg")
         // Stone 241.15: retired `:wat::core::result::expect` is HARD CUT; canonical form only.
-        // items[3] is the value — collect if it's a bare symbol.
+        // items[1] is the value — collect if it's a bare symbol.
         if head_str == ":wat::core::Result/expect"
-            && items.len() >= 5
+            && items.len() >= 3
         {
-            if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
+            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
                 consumed.insert(ident.as_str().to_owned());
             }
             for child in items {
@@ -1177,12 +1177,12 @@ fn collect_consumed_names_in_let(
             return;
         }
 
-        // (:wat::core::Option/expect -> :T <value> "msg")
+        // (:wat::core::Option/expect <value> "msg")
         // Stone 241.15: retired `:wat::core::option::expect` is HARD CUT; canonical form only.
         if head_str == ":wat::core::Option/expect"
-            && items.len() >= 5
+            && items.len() >= 3
         {
-            if let Some(WatAST::Symbol(ident, _)) = items.get(3) {
+            if let Some(WatAST::Symbol(ident, _)) = items.get(1) {
                 consumed.insert(ident.as_str().to_owned());
             }
             for child in items {
@@ -9122,30 +9122,18 @@ fn infer_option_try(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(:wat::core::option::expect -> :T <opt> <msg>)` — the
+/// `(:wat::core::Option/expect <opt> <msg>)` — the
 /// panic-on-:None companion to `:wat::core::try`'s propagation form.
 /// Arc 108.
 ///
-/// Argument order parallels `if` / `match` semantically but with the
-/// type declared FIRST (before any value producer): in `if`/`match`,
-/// the first arg (cond/scrutinee) is a dispatch-determiner that does
-/// NOT itself produce the result; `-> :T` lands between the
-/// determiner and the value-producing arms. In `expect`, the value
-/// expression IS a producer (Some/Ok-arm yields its inner). So the
-/// honest position for `-> :T` is HEAD-POSITION — declared before
-/// any producer.
-///
 /// Type rules:
-/// 1. Exactly four arguments (`->`, type, opt, msg). Otherwise
+/// 1. Exactly two arguments (opt, msg). Otherwise
 ///    `MalformedForm` naming the expected shape.
-/// 2. `args[0]` is the symbol `->`.
-/// 3. `args[1]` is the declared arm-result type `:T`. Parsed via
-///    `parse_type_expr`.
-/// 4. `args[2]` (the opt expression) must unify with `:Option<T>`.
-/// 5. `args[3]` (the msg expression) must unify with `:String`.
+/// 2. `args[0]` (the opt expression) must unify with `:Option<T>`.
+/// 3. `args[1]` (the msg expression) must unify with `:String`.
 ///
 /// On success the form's type is `T` — the Some-inner refined by
-/// unification with the declared arm-result type.
+/// unification via a fresh type variable.
 fn infer_option_expect(
     callee: &str,
     head_span: &Span,
@@ -9156,11 +9144,11 @@ fn infer_option_expect(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 4 {
+    if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: callee.into(),
             reason: format!(
-                "expected ({} -> :T <opt> <msg>) — 4 args; got {}",
+                "expected ({} <opt> <msg>) — 2 args; got {}",
                 callee,
                 args.len()
             ),
@@ -9172,59 +9160,19 @@ fn infer_option_expect(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    // `->` marker at head position.
-    match &args[0] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
-                reason: format!(
-                    "expected `->` as the first argument; ({} -> :T <opt> <msg>)",
-                    callee
-                ),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    }
-    // Declared arm-result type.
-    let declared_ty = match &args[1] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: callee.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    remedies: vec![],
-                } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
-                reason: "expected type keyword after `->`".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    };
-    // Opt expression must unify with :Option<T> where T is the
-    // declared arm-result type.
-    let opt_ty = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+    // Opt expression must unify with :Option<T> where T is a fresh type var.
+    let opt_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         // HARVEST (236.2): silent-by-intent — opt inference failed; propagate errors.
         None => return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::errs(local_errors) },
     };
+    let t_var = fresh.fresh();
     let expected_opt = TypeExpr::Parametric {
         head: "wat::core::Option".into(),
-        args: vec![declared_ty.clone()],
+        args: vec![t_var.clone()],
     };
     if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
-        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "opt".into(),
             expected: format_type(&apply_subst(&expected_opt, subst)),
@@ -9233,11 +9181,12 @@ fn infer_option_expect(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
+    let result_ty = apply_subst(&t_var, subst);
     // Msg must be :String.
-    let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let msg_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
                 expected: ":wat::core::String".into(),
@@ -9245,16 +9194,15 @@ fn infer_option_expect(
             } });
         }
     }
-    let ty = apply_subst(&declared_ty, subst);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+    if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) }
 }
 
-/// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
-/// sibling of `option::expect`. Arc 108.
+/// `(:wat::core::Result/expect <res> <msg>)` — the panic-on-Err
+/// sibling of `Option/expect`. Arc 108.
 ///
-/// Same shape as `option::expect` but `args[2]` unifies with
+/// Shape: exactly 2 args `[<res> <msg>]`. `args[0]` unifies with
 /// `:Result<T, fresh_E>` (Err variant is discarded at runtime; its
-/// type is left to inference).
+/// type is left to inference). On success the form's type is `T`.
 fn infer_result_expect(
     callee: &str,
     head_span: &Span,
@@ -9265,11 +9213,11 @@ fn infer_result_expect(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 4 {
+    if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: callee.into(),
             reason: format!(
-                "expected ({} -> :T <res> <msg>) — 4 args; got {}",
+                "expected ({} <res> <msg>) — 2 args; got {}",
                 callee,
                 args.len()
             ),
@@ -9281,56 +9229,19 @@ fn infer_result_expect(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    match &args[0] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
-                reason: format!(
-                    "expected `->` as the first argument; ({} -> :T <res> <msg>)",
-                    callee
-                ),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    }
-    let declared_ty = match &args[1] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: callee.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    remedies: vec![],
-                } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: callee.into(),
-                reason: "expected type keyword after `->`".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    };
-    let res_ty = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+    let res_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         // HARVEST (236.2): silent-by-intent — res inference failed; propagate errors.
         None => return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::errs(local_errors) },
     };
-    let fresh_e = fresh.fresh();
+    let t_var = fresh.fresh();
+    let e_var = fresh.fresh();
     let expected_res = TypeExpr::Parametric {
         head: "wat::core::Result".into(),
-        args: vec![declared_ty.clone(), fresh_e],
+        args: vec![t_var.clone(), e_var],
     };
     if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
-        local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::TypeMismatch {
+        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "res".into(),
             expected: format_type(&apply_subst(&expected_res, subst)),
@@ -9339,10 +9250,11 @@ fn infer_result_expect(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    let msg_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let result_ty = apply_subst(&t_var, subst);
+    let msg_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":wat::core::String".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
+            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: callee.into(),
                 param: "msg".into(),
                 expected: ":wat::core::String".into(),
@@ -9350,8 +9262,7 @@ fn infer_result_expect(
             } });
         }
     }
-    let ty = apply_subst(&declared_ty, subst);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+    if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) }
 }
 
 /// `(:wat::kernel::readln' <cap-i64> -> :T)`.

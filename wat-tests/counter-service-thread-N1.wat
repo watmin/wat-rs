@@ -126,7 +126,7 @@
                (:wat::core::match req -> :wat::core::nil
                  (:counter::AdminReq::Stop
                    ;; Terminal: send Stopped + return nil (thread exits)
-                   (:wat::core::Result/expect -> :wat::core::nil
+                   (:wat::core::Result/expect  
                      (:wat::kernel::send admin-resp-tx
                        (:counter::AdminResp::Stopped state))
                      "dispatch: admin-resp-tx disconnected on Stop"))))
@@ -136,7 +136,7 @@
                  ;; Get — no state change; reply Value(state); recur
                  (:counter::UserReq::Get
                    (:wat::core::do
-                     (:wat::core::Result/expect -> :wat::core::nil
+                     (:wat::core::Result/expect  
                        (:wat::kernel::send user-resp-tx
                          (:counter::UserResp::Value state))
                        "dispatch: user-resp-tx disconnected on Get")
@@ -147,7 +147,7 @@
                  ;; Increment — compute new state; reply Ok(new-n); recur
                  ((:counter::UserReq::Increment n)
                    (:wat::core::let [new-n (:wat::core::i64::+ state n)]
-                     (:wat::core::Result/expect -> :wat::core::nil
+                     (:wat::core::Result/expect  
                        (:wat::kernel::send user-resp-tx
                          (:counter::UserResp::Ok new-n))
                        "dispatch: user-resp-tx disconnected on Increment")
@@ -158,7 +158,7 @@
                  ;; Reset — reply Ok(0); recur with 0
                  (:counter::UserReq::Reset
                    (:wat::core::do
-                     (:wat::core::Result/expect -> :wat::core::nil
+                     (:wat::core::Result/expect  
                        (:wat::kernel::send user-resp-tx
                          (:counter::UserResp::Ok 0))
                        "dispatch: user-resp-tx disconnected on Reset")
@@ -240,12 +240,12 @@
      -> :wat::core::i64
      (:wat::core::let
        [_sent
-         (:wat::core::Result/expect -> :wat::core::nil
+         (:wat::core::Result/expect  
            (:wat::kernel::send user-tx (:counter::Wire::User (:counter::UserReq::Increment n)))
            "user-increment: user-tx disconnected")
         resp
-         (:wat::core::Option/expect -> :counter::UserResp
-           (:wat::core::Result/expect -> :wat::core::Option<counter::UserResp>
+         (:wat::core::Option/expect  
+           (:wat::core::Result/expect  
              (:wat::kernel::recv user-rx)
              "user-increment: recv peer died")
            "user-increment: clean disconnect")]
@@ -259,12 +259,12 @@
      -> :wat::core::i64
      (:wat::core::let
        [_sent
-         (:wat::core::Result/expect -> :wat::core::nil
+         (:wat::core::Result/expect  
            (:wat::kernel::send user-tx (:counter::Wire::User (:counter::UserReq::Get)))
            "user-get: user-tx disconnected")
         resp
-         (:wat::core::Option/expect -> :counter::UserResp
-           (:wat::core::Result/expect -> :wat::core::Option<counter::UserResp>
+         (:wat::core::Option/expect  
+           (:wat::core::Result/expect  
              (:wat::kernel::recv user-rx)
              "user-get: recv peer died")
            "user-get: clean disconnect")]
@@ -278,12 +278,12 @@
      -> :wat::core::i64
      (:wat::core::let
        [_sent
-         (:wat::core::Result/expect -> :wat::core::nil
+         (:wat::core::Result/expect  
            (:wat::kernel::send user-tx (:counter::Wire::User (:counter::UserReq::Reset)))
            "user-reset: user-tx disconnected")
         resp
-         (:wat::core::Option/expect -> :counter::UserResp
-           (:wat::core::Result/expect -> :wat::core::Option<counter::UserResp>
+         (:wat::core::Option/expect  
+           (:wat::core::Result/expect  
              (:wat::kernel::recv user-rx)
              "user-reset: recv peer died")
            "user-reset: clean disconnect")]
@@ -302,12 +302,12 @@
      -> :wat::core::i64
      (:wat::core::let
        [_sent
-         (:wat::core::Result/expect -> :wat::core::nil
+         (:wat::core::Result/expect  
            (:wat::kernel::send admin-tx (:counter::Wire::Admin (:counter::AdminReq::Stop)))
            "admin-stop: admin-tx disconnected")
         resp
-         (:wat::core::Option/expect -> :counter::AdminResp
-           (:wat::core::Result/expect -> :wat::core::Option<counter::AdminResp>
+         (:wat::core::Option/expect  
+           (:wat::core::Result/expect  
              (:wat::kernel::recv admin-resp-rx)
              "admin-stop: recv peer died")
            "admin-stop: clean disconnect")]
@@ -359,7 +359,7 @@
      ;; Outer scope: drain Thread/output + join after senders dropped.
      ;; drain-and-join sees an empty/disconnected output channel (admin-resp-rx
      ;; already consumed the Stopped response; server exited after sending it).
-     _drained (:wat::core::Result/expect -> :wat::core::nil
+     _drained (:wat::core::Result/expect  
                 (:wat::kernel::Thread/drain-and-join thread)
                 "counter-service: thread died unexpectedly")]
     nil))

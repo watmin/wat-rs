@@ -18,6 +18,39 @@
 ;; The walk is position-aware: `fix-seq` carries `prev-arrow?` so post-arrow keywords are
 ;; converted as types. `strip-if` recognises the `:wat::core::if` KEYWORD head, so it must
 ;; run BEFORE the head-rule turns that head into the `wat.core/if` symbol.
+;;
+;; ════════════════════════════════════════════════════════════════════════════════════
+;;  ⚠ BOOTSTRAP — running a codemod that ships ALONGSIDE a checker/runtime change.
+;;     READ THIS before you give up and hand-edit. (A prior self did exactly that —
+;;     abandoned this purpose-built tool because the dance below wasn't written down.)
+;; ════════════════════════════════════════════════════════════════════════════════════
+;;
+;; The stdlib (wat/*.wat — including THIS file) is FROZEN INTO the wat binary at BUILD
+;; time. Two facts bite when your codemod (a) calls a NEW `:wat::fix::…` verb you just
+;; added here, AND (b) ships with a Rust change (src/check.rs / src/runtime.rs) that makes
+;; the OLD corpus form ILLEGAL:
+;;
+;;   • The binary can't SEE your new verb until rebuilt — the on-disk edit is invisible to
+;;     the embedded copy → `#wat.kernel/UnknownFunction {:path ":wat::fix::your-verb"}`.
+;;   • But rebuilding NOW also bakes in the NEW checker, which then REJECTS the still-old
+;;     stdlib at freeze → you can't build the binary you need to fix the stdlib. Chicken/egg.
+;;
+;;  THE STASH-DANCE (this is the supported path — do NOT hand-edit instead):
+;;    1.  git stash push -m "rust change" src/check.rs src/runtime.rs   # old checker restored
+;;    2.  cargo build --release                                          # old checker + your NEW verb
+;;    3.  printf '["pathA" "pathB" …]\n' \                               # rewrite the WHOLE corpus
+;;          | ./target/release/wat ./wat-scripts/fixes/<your-fix>.wat    #   (list EVERY path; a
+;;                                                                        #    missed file breaks the build)
+;;    4.  git stash pop                                                  # restore the rust change
+;;    5.  cargo build --release && cargo test                           # new checker; corpus now new-form
+;;
+;;  Dry-run step 3 on a `/tmp` COPY first and `diff` it — verify the rewrite is exactly the
+;;  structural change you intend (the edits are token-span deletions; surrounding whitespace
+;;  survives — that trailing whitespace is wat-fmt's job, not the codemod's).
+;;
+;;  No Rust change in your strike (e.g. a pure rename)? Skip the stash — just `cargo build
+;;  --release` once to pick up your new verb, then run step 3.
+;; ════════════════════════════════════════════════════════════════════════════════════
 
 ;; structural? — a node whose children we recurse into (list/vector/set/map).
 (:wat::core::defn :wat::fix::structural? [node <- :wat::WatAST] -> :wat::core::bool
@@ -144,10 +177,10 @@
   [loc   <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
    lines <- :wat::core::Vector<wat::core::String>]
   -> :wat::core::i64
-  (:wat::core::let [ln (:wat::core::Option/expect -> :wat::core::i64
+  (:wat::core::let [ln (:wat::core::Option/expect  
                            (:wat::core::HashMap/get loc :line)
                            "fix-text-offset-of: :line")
-                    co (:wat::core::Option/expect -> :wat::core::i64
+                    co (:wat::core::Option/expect  
                            (:wat::core::HashMap/get loc :col)
                            "fix-text-offset-of: :col")]
     (:wat::core::+ (:wat::fix::fix-text-line-start ln lines)
@@ -312,6 +345,89 @@
                     all-edits (:wat::fix::fix-text-seq-edits forms false lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
+
+;; ─── Arc 258 — generic `-> :T` ascription stripper (reusable refactor tool) ──────────
+;;
+;; strip-arrow-ascription(src, heads) → migrated-src: deletes the `-> :T` return
+;; ascription (a `->` SYMBOL + the type keyword following it) from every LIST whose
+;; HEAD keyword is in `heads`. Comment-faithful (rides fix-text-deletion-edit + apply),
+;; idempotent, head-GATED (a `->` inside an unrelated or nested form is left alone), and
+;; position-agnostic (the arrow may sit at any child index — child[1] for `expect`,
+;; child[2] for `if`/`match`). The checker/runtime change that makes the bare form legal
+;; is per-form; THIS is the shared call-site rewriter every such kill reuses.
+
+;; str-in? — String membership in a Vector<String> (explicit; not index-contains?).
+(:wat::core::defn :wat::fix::str-in?
+  [s <- :wat::core::String  xs <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
+  (:wat::core::if (:wat::core::empty? xs)
+    false
+    (:wat::core::if (:wat::core::= s (:wat::core::first xs))
+      true
+      (:wat::fix::str-in? s (:wat::core::rest xs)))))
+
+;; strip-arrow-scan — within a HEAD-MATCHED list's children, delete each `->` SYMBOL and
+;; the child immediately after it (the type keyword); recurse (strip-arrow-edits) into
+;; every other child so NESTED matched forms are caught too.
+(:wat::core::defn :wat::fix::strip-arrow-scan
+  [items       <- :wat::core::Vector<wat::WatAST>
+   prev-arrow? <- :wat::core::bool
+   heads       <- :wat::core::Vector<wat::core::String>
+   lines       <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::if prev-arrow?
+        ;; h is the type keyword after `->` → delete; do NOT recurse into it
+        (:wat::core::concat (:wat::fix::fix-text-deletion-edit h lines)
+                            (:wat::fix::strip-arrow-scan tl false heads lines))
+        (:wat::core::if (:wat::fix::right-arrow? h)
+          ;; h is the `->` → delete; mark prev-arrow for the next child
+          (:wat::core::concat (:wat::fix::fix-text-deletion-edit h lines)
+                              (:wat::fix::strip-arrow-scan tl true heads lines))
+          ;; normal child → recurse for nested matched forms, no deletion here
+          (:wat::core::concat (:wat::fix::strip-arrow-edits h heads lines)
+                              (:wat::fix::strip-arrow-scan tl false heads lines)))))))
+
+;; strip-arrow-seq — recurse strip-arrow-edits over each child (non-matched nodes).
+(:wat::core::defn :wat::fix::strip-arrow-seq
+  [items <- :wat::core::Vector<wat::WatAST>
+   heads <- :wat::core::Vector<wat::core::String>
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::concat (:wat::fix::strip-arrow-edits (:wat::core::first items) heads lines)
+                        (:wat::fix::strip-arrow-seq (:wat::core::rest items) heads lines))))
+
+;; strip-arrow-edits — node → deletion edits for `-> :T` in lists headed by `heads`.
+(:wat::core::defn :wat::fix::strip-arrow-edits
+  [node  <- :wat::WatAST
+   heads <- :wat::core::Vector<wat::core::String>
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::fix::structural? node)
+    (:wat::core::let [ch (:wat::core::ast->children node)]
+      (:wat::core::if (:wat::core::if (:wat::core::empty? ch)
+                        false
+                        (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "keyword")
+                          (:wat::fix::str-in? (:wat::core::ast-name (:wat::core::first ch)) heads)
+                          false))
+        (:wat::fix::strip-arrow-scan ch false heads lines)
+        (:wat::fix::strip-arrow-seq ch heads lines)))
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+
+;; strip-arrow-ascription — src → migrated-src for the given head-set.
+(:wat::core::defn :wat::fix::strip-arrow-ascription
+  [src   <- :wat::core::String
+   heads <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::String
+  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+                    tree      (:wat::core::read-string src)
+                    forms     (:wat::core::ast->children tree)
+                    all-edits (:wat::fix::strip-arrow-seq forms heads lines)]
+    (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 ;; ─── Stone 251.5 / Slice 4.2b — fix-macro-param-types: the first migration RULE ──────────
 ;;
