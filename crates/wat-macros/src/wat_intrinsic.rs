@@ -240,6 +240,10 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::MissingSyntax => {
             "doc comment is missing a required `@syntax (...)` directive (special forms only)".into()
         }
+        wat_doc::DocError::MissingShape => {
+            "doc comment has neither `@arg` nor `@syntax`; at least one must express the form's \
+             shape (`@arg` for positional forms — grammar derived; `@syntax` for structural forms)".into()
+        }
         wat_doc::DocError::MissingPurity => {
             "doc comment is missing a required `@Purity <Variant>` directive (known: Pure, Effectful, Preserving)".into()
         }

@@ -261,6 +261,10 @@ pub enum DocError {
     MissingCategory,
     /// No `@syntax` directive in a special form doc.
     MissingSyntax,
+    /// Neither `@arg` nor `@syntax` is present in a special form doc.
+    /// At least one must express the shape: `@arg` for positional forms (grammar
+    /// is derived), `@syntax` for structural forms.
+    MissingShape,
     /// No `@Purity` directive.
     MissingPurity,
     /// No `@Determinism` directive.
@@ -857,7 +861,14 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
     }
 
     let added = added.ok_or(DocError::MissingAdded)?;
-    let syntax = syntax_val.ok_or(DocError::MissingSyntax)?;
+    // Shape rule: @arg OR @syntax — at least one must express the form's shape.
+    // @syntax is the escape hatch for structural forms (let/match/repetition).
+    // @arg-only forms (if/and/or) derive their grammar from the arg names.
+    // Neither → MissingShape.
+    if args.is_empty() && syntax_val.is_none() {
+        return Err(DocError::MissingShape);
+    }
+    let syntax = syntax_val.unwrap_or_default();
     let ret_type = ret_type.ok_or(DocError::MissingRet)?;
     let ret = ret.ok_or(DocError::MissingRet)?;
     if examples.is_empty() {
@@ -1174,5 +1185,44 @@ mod tests {
             assert!(v.parse::<Category>().is_ok(), "should parse: {}", v);
         }
         assert!("encoding".parse::<Category>().is_err());
+    }
+
+    // ─── special-form: @arg ∨ @syntax shape rule ─────────────────────────────
+
+    /// A special-form doc with neither @arg nor @syntax → MissingShape.
+    #[test]
+    fn special_form_with_neither_arg_nor_syntax_is_missing_shape() {
+        let raw = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @ret :T the result\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        assert_eq!(
+            super::parse_special_form(raw),
+            Err(DocError::MissingShape),
+            "a special-form doc with no @arg and no @syntax must fail with MissingShape"
+        );
+    }
+
+    /// A special-form doc with @arg only (no @syntax) parses OK.
+    /// Grammar is derived from the arg names by the render site.
+    #[test]
+    fn special_form_with_arg_only_parses_ok() {
+        let raw = "Evaluate the condition.\n\n\
+            @added 1.0.0\n\
+            @Category ControlFlow\n\
+            @Purity Preserving\n\
+            @Determinism Preserving\n\
+            @arg cond :wat::core::Bool the condition\n\
+            @arg then :T the then branch\n\
+            @arg else :T the else branch\n\
+            @ret :T the taken branch value\n\
+            @example (:wat::core::if true 1 2) #=> 1";
+        let doc = super::parse_special_form(raw)
+            .expect("@arg-only special form doc must parse OK");
+        assert_eq!(doc.syntax, "", "syntax is empty when @syntax is absent");
+        assert_eq!(doc.args.len(), 3, "three @arg entries parsed");
     }
 }

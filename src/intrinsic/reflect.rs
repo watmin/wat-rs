@@ -339,11 +339,28 @@ pub(crate) fn eval_render_doc(
     out.push('\n');
 
     // Syntax line (special forms only).
-    if !entry.syntax.is_empty() {
-        out.push('\n');
-        out.push_str("Syntax: ");
-        out.push_str(entry.syntax);
-        out.push('\n');
+    // When entry.syntax is non-empty, render it verbatim (@syntax was provided).
+    // When empty but @arg entries are present, derive: `(head <arg>…)` where
+    // head is the last `::` segment of the FQDN (e.g. `:wat::core::if` → `if`).
+    {
+        let syntax_str: Option<String> = if !entry.syntax.is_empty() {
+            Some(entry.syntax.to_string())
+        } else if !entry.args.is_empty() {
+            // Derive the grammar from the head short-name + arg names.
+            let head = entry.name.rsplit("::").next().unwrap_or(entry.name);
+            let slots: Vec<String> = entry.args.iter()
+                .map(|&(name, _, _, _)| format!("<{}>", name))
+                .collect();
+            Some(format!("({} {})", head, slots.join(" ")))
+        } else {
+            None
+        };
+        if let Some(s) = syntax_str {
+            out.push('\n');
+            out.push_str("Syntax: ");
+            out.push_str(&s);
+            out.push('\n');
+        }
     }
 
     // Category line.

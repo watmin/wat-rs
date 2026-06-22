@@ -1,8 +1,9 @@
 //! Codegen for `#[wat_special_form("<fqdn>")]` — arc 255.SF.
 //!
 //! Annotates a unit struct; the `///` doc block is parsed via
-//! `wat_doc::parse_special_form` (which requires `@syntax`, `@Purity`,
-//! `@Determinism`, `@Category`, `@added`, `@ret`, and ≥1 `@example`).
+//! `wat_doc::parse_special_form` (which requires `@arg` OR `@syntax` — at
+//! least one expressing the shape — plus `@Purity`, `@Determinism`,
+//! `@Category`, `@added`, `@ret`, and ≥1 `@example`).
 //! Emits an `inventory::submit!` of a `SpecialFormSubmission` — no
 //! `NativeHandler`, no dispatch shim. The entry lands in the
 //! `IntrinsicRegistry` as `Kind::SpecialForm` and is visible to
@@ -43,7 +44,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
                 item,
                 format!(
                     "#[wat_special_form] {}: missing doc comment (/// is required; \
-                     must include @syntax, @Purity, @Determinism, @Category, @added, @ret, and ≥1 @example)",
+                     must include @arg or @syntax, @Purity, @Determinism, @Category, @added, @ret, and ≥1 @example)",
                     fqdn.value()
                 ),
             ));
