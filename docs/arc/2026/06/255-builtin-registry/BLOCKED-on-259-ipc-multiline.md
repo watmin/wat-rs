@@ -1,5 +1,13 @@
 # ⛔ ARC 255 — MOMENTARILY BLOCKED on a 259 enhancement (2026-06-21)
 
+> **UPDATE 2026-06-21 (`ecda39e2`): the FRAMING half is RESOLVED.** 259.S3.6 (one
+> frame-finder) landed: comms `recv`/`take_frame` now value-frames multi-line EDN (was
+> first-`\n` split). The remaining live question is the SECOND bullet below — whether a
+> process peer's `recv'` reads the child's **stdout (fd 1)** (→ 255 unblocked, write the
+> tests) or a separate channel (→ the raw-bound-stdio design fork at the bottom is still
+> live; settle it with the builder). GROUND this in `src/process/` (the spawn-program' fd
+> wiring, rehomed per task #206 — NOT in process.rs). See `CURRENT-STATE.md`.
+
 255's stdio value-framing work all SHIPPED (committed, pushed):
 - metadata-of plain values + enum flip (iv-c, `695eca16`)
 - pprintln (`e92f5333`); stdio value-framing + symmetry incl. epprintln (`1632d02c`)
