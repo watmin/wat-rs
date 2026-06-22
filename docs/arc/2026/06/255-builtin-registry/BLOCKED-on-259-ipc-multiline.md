@@ -1,12 +1,16 @@
 # ⛔ ARC 255 — MOMENTARILY BLOCKED on a 259 enhancement (2026-06-21)
 
-> **UPDATE 2026-06-21 (`ecda39e2`): the FRAMING half is RESOLVED.** 259.S3.6 (one
-> frame-finder) landed: comms `recv`/`take_frame` now value-frames multi-line EDN (was
-> first-`\n` split). The remaining live question is the SECOND bullet below — whether a
-> process peer's `recv'` reads the child's **stdout (fd 1)** (→ 255 unblocked, write the
-> tests) or a separate channel (→ the raw-bound-stdio design fork at the bottom is still
-> live; settle it with the builder). GROUND this in `src/process/` (the spawn-program' fd
-> wiring, rehomed per task #206 — NOT in process.rs). See `CURRENT-STATE.md`.
+> **RESOLVED 2026-06-21 (`ecda39e2`) — 255 IS UNBLOCKED. This note's "design fork" was WRONG.**
+> 259.S3.6 (one frame-finder) landed: the client peer's `recv'` now value-frames multi-line
+> EDN (was first-`\n` split). That was the ONLY gap. The MODEL (grounded in the tree, NOT a
+> fork): client (parent) gets the named fd = `Process'<I,O>` peer (`recv'`/`send'`/`poll'`/
+> `select'`/`close'`); server (child) just uses stdio (ambient `readln`/`pprintln`).
+> `spawn_process_peer` dup2's child fd 0/1 onto the channel pipe (verbs.rs:387, mod.rs:69),
+> so the parent's `recv'` reads the child's stdout through the named fd. **The "Peer' has no
+> raw bound stdio handle" complaint below was the INTENDED design, not a gap** — the client
+> doesn't need raw stdio; it has the named fd. Use the PRIMED `spawn-process'` (returns
+> `Process'<I,O>`). The everything below is RETAINED for history but SUPERSEDED — do not act
+> on the "design fork to settle" paragraph.
 
 255's stdio value-framing work all SHIPPED (committed, pushed):
 - metadata-of plain values + enum flip (iv-c, `695eca16`)

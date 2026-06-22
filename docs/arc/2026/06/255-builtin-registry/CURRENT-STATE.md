@@ -20,31 +20,33 @@ branch (`arc-170-...-deadlock-state`) — passes isolated; a second full run com
 PRE-EXISTING (tasks #163/#183/#207), not a regression. If a nursery run gets SIGKILL'd on a
 `probe_arc209`/process test, re-run; don't chase it.
 
-## ⏭️ NEXT: does 259.S3.6 FULLY unblock arc 255? — a builder DESIGN FORK stands first
-259.S3.6 fixed the FRAMING half. But `BLOCKED-on-259-ipc-multiline.md` flagged a deeper
-concern the framing fix does NOT settle: **how a parent reads a child's multi-line stdout.**
-The four gold-standard `deftest-hermetic'` IPC tests want a child to `pprintln` a pretty
-(multi-line) map and the parent to receive it as ONE value. Open question to GROUND before
-writing them (start the crawl in `src/process/`, where the spawn-program' fd-wiring rehomed
-per task #206 — it is NOT in process.rs):
-- Does a process peer's `recv'` actually read the child's **stdout (fd 1)**? If yes, the
-  framing fix means `recv'` now value-frames a child's multi-line `pprintln` → 255 is
-  unblocked and the tests can be written directly.
-- If `recv'` reads a SEPARATE comms channel (not fd 1), the BLOCKED note's design fork is
-  still live: expose raw bound stdio on `Peer'` (a `Peer'/stdin`+`Peer'/stdout` accessor)
-  vs a distinct stdio-program spawn shape; and whether `send'`/`recv'` coexist with raw
-  handles or the process tier is raw-stdio per the 259 DESIGN. **This is a builder fork —
-  surface it, do not unilaterally pick** (per settle-surface-before-grounding-impl).
+## ✅ 255 IS UNBLOCKED — there is NO design fork (an earlier note here was WRONG, retracted)
+The PROCESS MODEL (builder, grounded in the tree): **client (parent) gets the named fd =
+`Process'<I,O>` peer** (`recv'`/`send'`/`poll'`/`select'`/`close'`); **server (child) just
+uses stdio** (ambient `readln`/`pprintln`). `spawn_process_peer` dup2's the child's fd 0/1
+onto the channel pipe (verbs.rs:387, mod.rs:69) — so the child writes stdout, the parent's
+`recv'` reads it through the named fd. 259.S3.6 made that `recv'` value-frame, so a server's
+multi-line `pprintln` now returns as ONE value. **That was the only gap. 255 is unblocked
+through the PRIMED peer — no raw-bound-stdio surface is needed or wanted** (the old "Peer'
+has no raw stdio handle" complaint was the INTENDED design, not a gap).
+`spawn-process'` (kernel/spawn.rs:344) returns `Process'<I,O>`; `spawn-thread'` returns
+`Thread'`. Use these. **PRIMED ONLY** — non-prime `spawn-program`/`spawn-thread`/
+`spawn-process` + the 4-field `:wat::kernel::Process` stdio record (verbs.rs:725,
+IOWriter/IOReader/IOReader/ProgramHandle) are PENDING ANNIHILATION; do NOT build on them.
 
-## RESUME PATH (once the fork is settled + 255 confirmed unblocked)
-Write the FOUR gold-standard `deftest-hermetic'` IPC tests — PRIMED ONLY (non-prime
+## RESUME PATH (255 unblocked — write it)
+Write the FOUR gold-standard `deftest-hermetic'` IPC tests over the PRIMED `Process'<I,O>`
+peer (client = parent does `recv'`; server = child does `pprintln`). PRIMED ONLY (non-prime
 deftest/`Process`-struct/`try-recv'` are DOOMED, arc-170 ~2-month migration): (1) round-trip
-— child `pprintln`s the examples metadata map, parent receives one value → assert ==
-compact; (2) over-cap; (3) truncated-frame [#267]; (4) anti-smuggling. Negatives via the
-SUPERVISOR pattern: child crashes, parent `poll'` → `:Closed` (NOT `:Message`); `:Lost` is
+— child `pprintln`s the examples metadata map, parent `recv'`s one value → assert == compact;
+(2) over-cap; (3) truncated-frame [#267]; (4) anti-smuggling. Negatives via the SUPERVISOR
+pattern: child crashes, parent `poll'` → `:Closed` (NOT `:Message`); `:Lost` is
 remote-tier-only; there is NO in-process try/catch (let-it-crash). Then **#268** the
 single-unbounded-LINE bound (a no-`\n` flood OOMs `read_line` before the frame cap fires —
-a per-line byte bound; RED probe → build).
+a per-line byte bound; RED probe → build). Remember `examinare`: PROBE the harness capability
+(can a pass-or-raise `deftest-hermetic'` even ASSERT a rejection?) BEFORE delegating the
+negatives — that exact unprobed assumption burned a sonnet last session
+([[feedback_probe_capability_before_delegating]]).
 
 ## SHIPPED earlier this session-cluster (255 stdio value-framing + symmetry; all pushed)
 `695eca16` iv-c (metadata-of plain values + Kind/DefinedIn/Layer enums) · `e92f5333`
