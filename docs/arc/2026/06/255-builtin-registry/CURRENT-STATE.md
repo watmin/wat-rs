@@ -62,11 +62,17 @@ via the pre-existing `message_only_failure` (runtime.rs:21873). RED probe:
 `select'` (both arms) + `recv()` share the Lost-vs-Closed decision; inline copies gone. Behavior
 preserved. `poll'` was NOT folded in — correctly: its peers are connect'-accepted unified `Peer`s
 with NO crash channel, so it never did the demux; `:Closed` is honest there.
-**REMAINING slices:** (a) **poll' emits `:Lost`** — needs a crash channel ADDED to the unified
-`Peer` (peer.rs:206 = `{tx,rx}` only; the arc-209 unification dropped it). Only THEN can poll' (or
-a supervisor passing crash-ful peers) report `:Lost`; today poll's peers can't. THE remaining real
-stone. (b) the legacy non-prime `select` (eval_kernel_select:20074, Receiver-based/Tuple/
-Ok(None)-on-death) — fold or HARD-CUT. `qualified-annihilations-are-priority`: these outrank Track 1.
+**REMAINING:** (a) ⚠️ **poll' `:Lost` is a PHANTOM stone — do NOT add a crash field to `Peer`.**
+Grounded 2026-06-21: all 9 `Peer` construction sites (from_thread/from_socket) are crashless by
+nature — self-peers, connect' clients, accept'd connections, peer-pair' ends. NONE is a
+supervisor-handle-to-a-crashable-child (those are `Process'`/`Thread'` BUNDLES, watched by `select'`,
+already `:Lost`). So a `Peer.crash` field would be DEAD (no producer); `poll'`→`:Closed` for
+connections is HONEST. `poll'` could only emit `:Lost` if it ACCEPTED bundles (heterogeneous) — that
+is ADDITIVE + SPECULATIVE (no consumer multiplexes accepted-clients + spawned-children today), so NOT
+a qualified annihilation. The `:Lost`-for-local goal is DONE via `select'`. (b) ✅ **THE real
+remaining annihilation: the legacy non-prime `select`** (eval_kernel_select:20074, Receiver-based/
+thread-only/Tuple/Ok(None)-on-death) — a genuine duplicate of the unified `select'`+classify_peer_death
+path; fold or HARD-CUT (settle live-or-dead first; bracket uses the primed `select'`).
 **DESIGN on disk: `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md`. READ IT.**
 The flaw (inquisitor-grounded): the unified `Peer` (peer.rs:206 = `{tx,rx}`) DROPPED the crash
 channel in the arc-209 unification; `Thread.crash`/`Process.err` are stranded on the tier
