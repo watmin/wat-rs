@@ -4,6 +4,48 @@
 IPC-contract decision, not a thread-plumbing task — the frame cap governs how *any*
 byte-framing transport bounds its receive buffer, and remote rides the same path.
 
+## ⚠️ GROUNDING UPDATE (2026-06-21, post-compaction recolligere)
+Two corrections, grounded against the live disk before the strike:
+
+1. **The name is `:max-message-bytes`, NOT `:max-frame-bytes`** (intueri cast
+   `aa72b240714dc11df`, weighed + settled in the curare): "frame" reads as MTU to a
+   user. Rust internals keep `frame`/`max_frame_bytes`; the wat surface is
+   `:max-message-bytes`. Every `:max-frame-bytes` BELOW is stale — read it as
+   `:max-message-bytes`.
+
+2. **The cap is an ACCUMULATION bound today, not a message-size limit — the stone
+   must make it semantics B.** Grounding `next_complete_frame` (edn_shim.rs:1064)
+   showed `TooLarge` fires ONLY in the no-newline branch (line 1071): a COMPLETE
+   ('\n'-terminated) frame is returned as `Frame(end)` (line 1092) **regardless of
+   size**. So a 256-byte terminated message under a 64-byte budget is DELIVERED
+   today. That makes `:max-message-bytes` a lie unless the stone ALSO size-caps
+   complete frames. The four-questions decided it: under the settled name, the
+   accumulation-only semantics fails Obvious + Simple + Honest; the message-size
+   semantics (B) passes all four. **THE HEART of this stone is therefore a one-branch
+   change to `next_complete_frame`** (size-cap the `Frame(end)` return), not mere
+   plumbing. B subsumes the existing anti-flood check (the no-newline branch stays).
+
+**The RED probe is on disk and verified RED:**
+`wat-tests/spawn/recv-budget-override.wat` — a process peer spawned with a 64-byte
+`:max-message-bytes` rejects a 256-byte COMPLETE message (`println`'d). RED at HEAD:
+`unknown function: :wat::spawn::process/max-message-bytes`. The 256-byte sizing forces
+genuine semantics-B honoring (a present-but-ignored budget would deliver the frame →
+still red).
+
+3. **The MODEL (grounded with the builder) and the SURFACE.** Pipes are bidirectional;
+   each side defends its OWN read pipe with its OWN limit — independent, no handshake,
+   not uniform ("don't DoS me"). Between parent and process child: child→parent
+   (`output_rx`, read by the parent's `recv'`) is **the gap**; parent→child (child
+   stdin, read by `readln`) is **already defended** by `readln`'s `:max-buffer-bytes`.
+   So this stone only adds the parent's `recv'` read-budget. The SURFACE is a 3rd field
+   on the `ProcessOpts` **locus env record** (where spawn options live) — NOT an arg on
+   `spawn-program'` (stays 2-arg) and NOT a new scoped form. There is NO composition
+   wart: `process`/`process/env`/`process/post-spawn` are `defn` HELPERS over the full
+   `(:wat::spawn::ProcessOpts …)` record constructor; N non-default fields = call the
+   constructor with N values or write a helper. The sections BELOW that put
+   `:max-frame-bytes` on connect'/listener' are deferred follow-ons (socket tier),
+   not this stone.
+
 ## The flaw
 The receive-side frame cap (`DEFAULT_MAX_FRAME_BYTES = 512 KiB`, edn_shim.rs:1008) is
 **hardcoded on the peer path**: `take_frame` (comms/process.rs:884) passes the const, so

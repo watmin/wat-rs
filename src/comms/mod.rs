@@ -942,7 +942,7 @@ impl std::fmt::Display for RecvError {
         f.write_str(match self {
             RecvError::Disconnected => "channel disconnected",
             RecvError::Shutdown => "substrate shutdown",
-            RecvError::FrameTooLarge => "frame exceeded cap (peer sent an un-terminated frame larger than DEFAULT_MAX_FRAME_BYTES)",
+            RecvError::FrameTooLarge => "frame exceeded cap (message larger than the receiver's max-message-bytes budget)",
         })
     }
 }

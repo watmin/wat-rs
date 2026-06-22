@@ -440,12 +440,12 @@ pub fn eval_kernel_spawn_process_prime(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::spawn-process'";
-    if args.len() != 3 {
+    if args.len() != 4 {
         return Err(RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::ArityMismatch {
                 op: OP.into(),
-                expected: 3,
+                expected: 4,
                 got: args.len(),
             },
         }
@@ -491,8 +491,24 @@ pub fn eval_kernel_spawn_process_prime(
         }
     };
 
+    // arg 3: max-message-bytes — the per-receiver frame-size budget (i64 from ProcessOpts).
+    let max_frame_bytes = match eval_inner(&args[3], env, sym)?.value_owned() {
+        Value::i64(n) => n as usize,
+        other => {
+            return Err(RuntimeError {
+                span: args[3].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "i64 value (max-message-bytes budget) for process tier",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+                },
+            }
+            .into());
+        }
+    };
+
     // Delegate to the shared process-tier spawn logic.
-    spawn_process_peer(forms, post_spawn_fn, env_fn, sym, list_span).map_err(Into::into)
+    spawn_process_peer(forms, post_spawn_fn, env_fn, max_frame_bytes, sym, list_span).map_err(Into::into)
 }
 
 // ─── Thread tier ──────────────────────────────────────────────────────────────
@@ -707,6 +723,7 @@ pub fn spawn_process_peer(
     forms: Vec<WatAST>,
     post_spawn_fn: Arc<Function>,
     env_fn: String,
+    max_frame_bytes: usize,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, RuntimeError> {
@@ -725,12 +742,12 @@ pub fn spawn_process_peer(
         }
     })?;
 
-    let (output_tx, output_rx) = crate::comms::process::pair::<String>().map_err(|io_err| {
+    let (output_tx, output_rx) = crate::comms::process::pair_with_budget::<String>(max_frame_bytes).map_err(|io_err| {
         RuntimeError {
             span: list_span.clone(),
             kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("comms::process::pair (output) failed: {}", io_err),
+                reason: format!("comms::process::pair_with_budget (output) failed: {}", io_err),
             },
         }
     })?;

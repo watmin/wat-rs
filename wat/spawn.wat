@@ -51,16 +51,23 @@
   [init-fn       <- :wat::core::Fn()->wat::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
 (:wat::Record::def :wat::spawn::ProcessOpts
-  [post-spawn-fn <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
-   env-fn        <- :wat::core::String])
+  [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
+   env-fn           <- :wat::core::String
+   max-message-bytes <- :wat::core::i64])
+
+;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
+;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
+;; together.  512 KiB = 524288 bytes.
+(:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
 ;; (thread)             — default init-fn + no-op post-spawn-fn.
 ;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op.
 ;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g.
-;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor.
-;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor.
-;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op.
+;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor; default budget.
+;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor; default budget.
+;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op; default budget.
+;; (process/max-message-bytes n) — budget is n; post-spawn-fn + env-fn default.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
@@ -78,15 +85,23 @@
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    "(:wat::program::EmptyEnv)"))
+    "(:wat::program::EmptyEnv)"
+    524288))  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)"))
+  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288))  ;; DEFAULT-MAX-MESSAGE-BYTES
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    s))
+    s
+    524288))  ;; DEFAULT-MAX-MESSAGE-BYTES
+
+(:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+  (:wat::spawn::ProcessOpts
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    "(:wat::program::EmptyEnv)"
+    n))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
@@ -169,7 +184,7 @@
   ;; evals in its own frozen world to produce user.program.
   ([locus <- :wat::spawn::ProcessOpts
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
-    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus))))
+    (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus) (:wat::spawn::ProcessOpts/max-message-bytes locus))))
 
 ;; ── Locus — the locus-agnostic service-launch protocol (arc 209 host-parity-4a) ─
 ;;

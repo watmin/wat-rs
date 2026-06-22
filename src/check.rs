@@ -11043,9 +11043,9 @@ fn infer_spawn_thread_prime(
     }
 }
 
-/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn env-fn)` — arc 259 Stone S2c-i.
+/// Type-check `(:wat::kernel::spawn-process' forms post-spawn-fn env-fn max-message-bytes)` — arc 259 Stone S2c-i.
 ///
-/// Three positional args:
+/// Four positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
 ///   returns `Process'<I,O>` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
@@ -11054,6 +11054,9 @@ fn infer_spawn_thread_prime(
 ///   accessor type-check at parse time (ProcessLaunch/bogus-field → check error).
 /// - `args[2]`: env-fn; a `:wat::core::String` source string the child evals to
 ///   produce `user.program`; inferred (runtime validates the result is a :wat::Record).
+/// - `args[3]`: max-message-bytes; an `:wat::core::i64` per-receiver frame-size
+///   budget extracted from `ProcessOpts/max-message-bytes`; inferred only (runtime
+///   validates the value is an i64).
 ///
 /// No tier keyword, no env arg.
 fn infer_spawn_process_prime(
@@ -11066,12 +11069,12 @@ fn infer_spawn_process_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::spawn-process'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 3 {
+    if args.len() != 4 {
         local_errors.push(CheckError {
             span: head_span.clone(),
             kind: CheckErrorKind::ArityMismatch {
                 callee: OP.into(),
-                expected: 3,
+                expected: 4,
                 got: args.len(),
             },
         });
@@ -11093,6 +11096,9 @@ fn infer_spawn_process_prime(
 
     // arg 2: env-fn — a String source expression; infer only (runtime validates result type).
     let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg 3: max-message-bytes — an i64 budget; infer only (runtime validates it's an i64).
+    let _ = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
     // Delegate to the shared process-projection helper (same logic as spawn-program' :process).
     let (val, mut proj_errs) = infer_process_prog_type(&args[0], env, locals, fresh, subst).into_parts();

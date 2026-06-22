@@ -1041,14 +1041,15 @@ pub enum FrameScan {
 /// complete frame including its terminator).
 ///
 /// Rules applied in order as newlines are consumed:
-/// 1. `Complete` prefix → `Frame(end)`. The frame is well-formed EDN.
-/// 2. `Malformed` prefix → `Frame(end)`. The prefix at this newline boundary
-///    is not a valid/incomplete EDN expression — treat it as a terminal frame
-///    and let the decode step (`from_wire` / `read_edn`) handle the content
-///    error. This handles non-EDN wire formats (`String::from_wire` raw
-///    passthrough: `"via trait\n"` parses as two EDN symbols but is a valid
-///    single-line wire frame) and genuinely malformed multi-line EDN alike.
-///    The content error surfaces at decode time, not frame-finding time.
+/// 1. `Complete` prefix → size-check `end` against `max_bytes`; if `end >
+///    max_bytes` → `TooLarge(end)` (semantics B: max MESSAGE size, not merely
+///    un-terminated accumulation); otherwise `Frame(end)`.
+/// 2. `Malformed` prefix → same size-check as (1): `TooLarge(end)` if too
+///    large; otherwise `Frame(end)`. The decode step (`from_wire` / `read_edn`)
+///    handles the content error. This covers non-EDN wire formats
+///    (`String::from_wire` raw passthrough) and genuinely malformed multi-line
+///    EDN alike; the content error surfaces at decode time, not frame-finding
+///    time.
 /// 3. `Incomplete` prefix → advance past this newline; the EDN value is not
 ///    yet complete (e.g. `{` without closing `}`). Continue scanning.
 /// 4. After exhausting all `'\n'` positions with no non-Incomplete prefix:
@@ -1088,15 +1089,15 @@ pub fn next_complete_frame(buf: &[u8], max_bytes: usize) -> FrameScan {
                     }
                 };
                 match edn_frame_status(prefix_str) {
-                    // Complete EDN value — clean frame boundary.
-                    EdnFrameStatus::Complete => return FrameScan::Frame(end),
-                    // Not a valid/complete EDN expression at this newline, but
-                    // also NOT cut off mid-value: the prefix is terminal here.
-                    // Return Frame and let the decode step handle the content.
-                    // This covers: non-EDN wire formats (String raw passthrough),
-                    // and multi-line EDN accumulated so far that forms a parse
-                    // error (content error, not framing error).
-                    EdnFrameStatus::Malformed(_) => return FrameScan::Frame(end),
+                    // Complete EDN value — size-check then clean frame boundary.
+                    // Semantics B: reject complete frames that exceed the budget
+                    // (a complete but oversized message is still too large).
+                    EdnFrameStatus::Complete | EdnFrameStatus::Malformed(_) => {
+                        if end > max_bytes {
+                            return FrameScan::TooLarge(end);
+                        }
+                        return FrameScan::Frame(end);
+                    }
                     EdnFrameStatus::Incomplete => {
                         // This prefix is cut off mid-value (e.g. `{` without `}`);
                         // advance past this newline and accumulate more.

@@ -455,6 +455,12 @@ pub struct Receiver<T: EdnRepresentable> {
     /// Receiver across threads — clones (Stone D) create independent
     /// endpoints.
     accumulator: Accumulator,
+    /// Per-receiver frame-size cap (semantics B: max message size, not merely
+    /// un-terminated accumulation). Defaults to `DEFAULT_MAX_FRAME_BYTES`
+    /// (512 KiB) on a plain `pair()`. Override via `pair_with_budget(n)` at
+    /// peer construction to lower (or raise) the limit for this receiver.
+    /// Carried through `Clone` so a cloned endpoint honors the same budget.
+    max_frame_bytes: usize,
     /// Persistent io_uring (Stone E-1) — capacity 4 covers Read
     /// (1 SQE) and POLL_ADD pair (2 SQEs) operations with headroom.
     /// `RefCell` for the same `&self` interior-mutability reason as
@@ -480,6 +486,7 @@ impl<T: EdnRepresentable> std::fmt::Debug for Receiver<T> {
         f.debug_struct("Receiver")
             .field("read_fd", &self.read_fd)
             .field("accumulator", &self.accumulator)
+            .field("max_frame_bytes", &self.max_frame_bytes)
             .field("ring", &"IoUring")
             .field("_phantom", &self._phantom)
             .finish()
@@ -570,7 +577,7 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// Solvere ward finding from E-1 ward pass 2026-05-19 (deferred to
     /// E-2 for resolution; E-2 mints this method + Select calls it).
     pub(crate) fn take_buffered_frame(&self) -> Result<Option<Frame>, RecvError> {
-        take_frame(&mut self.accumulator.borrow_mut())
+        take_frame(&mut self.accumulator.borrow_mut(), self.max_frame_bytes)
     }
 
     /// Return the read-end raw file descriptor for poll registration.
@@ -707,6 +714,7 @@ impl<T: EdnRepresentable> Clone for Receiver<T> {
                 .try_clone()
                 .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
             accumulator: RefCell::new(Vec::new()),
+            max_frame_bytes: self.max_frame_bytes,
             ring: RefCell::new(
                 IoUring::new(4)
                     .expect("IoUring::new(4) failed — kernel io_uring resource exhausted"),
@@ -880,8 +888,8 @@ fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
 /// `TooLarge`/`Malformed` (no error channel). Changing to
 /// `Result<Option<Frame>, RecvError>` is the minimal addition; callers map
 /// `Err(_)` to their domain's disconnect/error outcome.
-fn take_frame(acc: &mut Vec<u8>) -> Result<Option<Frame>, RecvError> {
-    match next_complete_frame(acc, DEFAULT_MAX_FRAME_BYTES) {
+fn take_frame(acc: &mut Vec<u8>, max_frame_bytes: usize) -> Result<Option<Frame>, RecvError> {
+    match next_complete_frame(acc, max_frame_bytes) {
         FrameScan::Frame(end) => {
             // Split acc: acc[..end] is the frame (including trailing '\n');
             // acc[end..] becomes the new accumulator content.
@@ -1525,6 +1533,19 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
 // consumer surfaces or `thread.rs` mints the same alias for symmetry, revisit.
 // Per perspicere ward (Stone E-1 ward pass 2026-05-19).
 pub fn pair<T: EdnRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> {
+    pair_with_budget(DEFAULT_MAX_FRAME_BYTES)
+}
+
+/// Like [`pair`] but sets the receiver's per-frame cap to `max_frame_bytes`
+/// instead of the default `DEFAULT_MAX_FRAME_BYTES` (512 KiB).
+///
+/// Use this at peer construction to lower (or raise) the budget:
+/// `pair_with_budget(64)` caps each received message at 64 bytes, rejecting
+/// anything larger with `RecvError::FrameTooLarge`. The budget is carried
+/// through `Clone` (Stone D).
+///
+/// `pair()` is exactly `pair_with_budget(DEFAULT_MAX_FRAME_BYTES)`.
+pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let mut fds = [0i32; 2];
     // SAFETY: `fds` is a valid `[i32; 2]` stack allocation whose
     // lifetime covers this call; `libc::pipe2` writes two file
@@ -1543,6 +1564,7 @@ pub fn pair<T: EdnRepresentable>() -> std::io::Result<(Sender<T>, Receiver<T>)> 
     let receiver = Receiver {
         read_fd,
         accumulator: RefCell::new(Vec::new()),
+        max_frame_bytes,
         ring: RefCell::new(
             IoUring::new(4)
                 .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at Receiver construction: {}", e)))?,
@@ -1578,6 +1600,7 @@ pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     let receiver = Receiver {
         read_fd,
         accumulator: RefCell::new(Vec::new()),
+        max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
         ring: RefCell::new(
             IoUring::new(4).map_err(|e| std::io::Error::other(
                 format!("IoUring::new(4) failed at sender_receiver_from_fd: {}", e)))?,
@@ -1602,6 +1625,7 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
     let receiver = Receiver {
         read_fd,
         accumulator: RefCell::new(Vec::new()),
+        max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
         ring: RefCell::new(IoUring::new(4).map_err(|e| std::io::Error::other(
             format!("IoUring::new(4) failed at sender_receiver_from_split_fds: {}", e)))?,
         ),
