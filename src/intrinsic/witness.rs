@@ -12,8 +12,6 @@
 //!   `@yields` grammar, the singleton directive, and the cross-check that
 //!   `@yields` type == the fn-arg's Fn param type.
 
-use std::sync::Arc;
-
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;

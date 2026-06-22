@@ -119,7 +119,10 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
     };
 
     let expanded = quote! {
-        // The annotated struct, passed through unchanged.
+        // The annotated struct. A zero-cost attribute anchor — never constructed
+        // (it exists only to carry the doc + this attribute). `allow(dead_code)`
+        // keeps every special-form marker struct warning-clean by construction.
+        #[allow(dead_code)]
         #item
 
         // Auto-collect: link-time registration of this special form in the
