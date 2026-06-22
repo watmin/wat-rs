@@ -165,6 +165,10 @@ pub fn typed_recv(
                 Ok(v) => RecvOutcome::Value(v),
                 Err(crate::comms::RecvError::Shutdown) => RecvOutcome::Shutdown,
                 Err(crate::comms::RecvError::Disconnected) => RecvOutcome::Disconnected,
+                // FrameTooLarge: the peer sent a frame exceeding the cap.
+                // The channel is unusable for this peer; treat as a disconnect
+                // (the peer should be torn down by the caller before this path).
+                Err(crate::comms::RecvError::FrameTooLarge) => RecvOutcome::Disconnected,
             }
         }
         ReceiverInner::PipeFd(reader) => {

@@ -17386,6 +17386,20 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // Arc 259 negatives track — print-raw' : String -> :wat::core::nil.
+    // No-newline raw stdout write for test children that need to emit
+    // un-terminated or multi-value byte sequences to exercise framing
+    // rejection. Unrestricted by policy (process children define :user::
+    // fns; the :wat::test:: restriction cannot apply there).
+    env.register(
+        ":wat::kernel::print-raw'".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: unit_ty(),
+            rest_param_type: None,
+        },
+    );
     // Arc 255 — readln' is the kernel-restricted positional prime.
     // Type-checking is handled by the infer_kernel_readln_prime special-case arm
     // in infer_list. This vestigial registration makes the binding visible to

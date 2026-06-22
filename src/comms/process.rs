@@ -891,7 +891,14 @@ fn take_frame(acc: &mut Vec<u8>) -> Result<Option<Frame>, RecvError> {
             Ok(Some(frame))
         }
         FrameScan::Incomplete => Ok(None),
-        FrameScan::TooLarge(_) | FrameScan::Malformed(_) => Err(RecvError::Disconnected),
+        // TooLarge: the peer is still alive (blocked in write_all); returning
+        // Disconnected here would make ProcessPeerBundle::recv() call err.recv()
+        // while the peer cannot write to the error channel — DEADLOCK. Return
+        // FrameTooLarge distinctly so callers can tear down the peer immediately.
+        FrameScan::TooLarge(_) => Err(RecvError::FrameTooLarge),
+        // Malformed: wire-level encoding error (non-UTF-8); the peer may or may
+        // not be alive — treat as Disconnected (same as decode failure below).
+        FrameScan::Malformed(_) => Err(RecvError::Disconnected),
     }
 }
 

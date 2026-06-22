@@ -273,9 +273,30 @@ impl ProcessPeerBundle {
     /// fd-2 dup are the ONLY Err write ends (the parent moved `err_tx` into the
     /// child closure), and `_exit` closes them atomically with fd 1 — so it reads
     /// any buffered reason, then sees EOF.
+    ///
+    /// ## FrameTooLarge teardown (lockstep invariant)
+    ///
+    /// `RecvError::FrameTooLarge` means the child is ALIVE and blocked in
+    /// `write_all` (the output pipe is full because the parent stopped draining
+    /// at the cap). Calling `self.err.recv()` on this path would deadlock:
+    /// the parent blocks on the error channel while the child blocks on stdout.
+    ///
+    /// The lockstep invariant: a peer that misbehaves is TORN DOWN, never
+    /// waited on. On `FrameTooLarge` we return `Disconnected` IMMEDIATELY and
+    /// drop `self` (by consuming the bundle) — which closes `_lifeline_w`,
+    /// the child's output read-end, and the err read-end. The child receives
+    /// EPIPE/SIGPIPE on its next stdout write and exits cleanly. We never
+    /// block on `self.err.recv()` for a FrameTooLarge case.
     pub fn recv(&self) -> Result<String, PeerRecvError> {
         match self.peer.output.recv() {
             Ok(value) => Ok(value),
+            // FrameTooLarge: child is ALIVE, blocked on write_all.
+            // Return immediately — do NOT call self.err.recv() (would deadlock).
+            // Dropping the bundle after this call closes the pipes → EPIPE kills child.
+            Err(crate::comms::RecvError::FrameTooLarge) => Err(PeerRecvError::Disconnected),
+            // True EOF (Disconnected) or substrate shutdown: child has exited (or
+            // the substrate is going down). Reading the Err channel is safe — the child
+            // is dead, so err.recv() returns quickly (buffered reason or EOF).
             Err(_) => match classify_peer_death(self.err.recv()) {
                 PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
                 PeerDeath::Closed => Err(PeerRecvError::Disconnected),

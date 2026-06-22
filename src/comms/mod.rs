@@ -901,6 +901,12 @@ pub enum RecvError {
     Disconnected,
     /// The substrate shutdown cascade fired (the broadcast / `SHUTDOWN_RX` arm).
     Shutdown,
+    /// The accumulator exceeded `DEFAULT_MAX_FRAME_BYTES` without a complete
+    /// frame (no newline terminator). The peer wrote more than the cap without
+    /// ending a frame — its message is rejected. Distinct from `Disconnected`
+    /// so callers can tear down the peer WITHOUT reading the error channel
+    /// (the peer is still alive; blocking on err.recv() would deadlock).
+    FrameTooLarge,
 }
 
 /// HolonAST roundtrip failure during wire serialization/deserialization.
@@ -936,6 +942,7 @@ impl std::fmt::Display for RecvError {
         f.write_str(match self {
             RecvError::Disconnected => "channel disconnected",
             RecvError::Shutdown => "substrate shutdown",
+            RecvError::FrameTooLarge => "frame exceeded cap (peer sent an un-terminated frame larger than DEFAULT_MAX_FRAME_BYTES)",
         })
     }
 }
