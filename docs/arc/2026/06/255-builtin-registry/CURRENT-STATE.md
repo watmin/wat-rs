@@ -69,10 +69,14 @@ supervisor-handle-to-a-crashable-child (those are `Process'`/`Thread'` BUNDLES, 
 already `:Lost`). So a `Peer.crash` field would be DEAD (no producer); `poll'`→`:Closed` for
 connections is HONEST. `poll'` could only emit `:Lost` if it ACCEPTED bundles (heterogeneous) — that
 is ADDITIVE + SPECULATIVE (no consumer multiplexes accepted-clients + spawned-children today), so NOT
-a qualified annihilation. The `:Lost`-for-local goal is DONE via `select'`. (b) ✅ **THE real
-remaining annihilation: the legacy non-prime `select`** (eval_kernel_select:20074, Receiver-based/
-thread-only/Tuple/Ok(None)-on-death) — a genuine duplicate of the unified `select'`+classify_peer_death
-path; fold or HARD-CUT (settle live-or-dead first; bracket uses the primed `select'`).
+a qualified annihilation. The `:Lost`-for-local goal is DONE via `select'`. (b) ⚠️ **legacy non-prime
+`select` is NOT a duplicate either (grounded 2026-06-21)** — eval_kernel_select:20074 multiplexes
+`Vector<Receiver<T>>` (raw channel fan-in) → `Chosen<T>`; `select'` multiplexes `Vector<peer>` →
+`ServiceEvent`. DIFFERENT inputs/purpose. `select` is LIVE (service-template.wat:187,
+counter-service-*N1/N3). Retiring it = the bigger channel-surface-vs-peer-surface migration (is
+`make-channel`/`Receiver` doomed in favor of peers?), a real arc — NOT a quick cut.
+**∴ the `:Lost` annihilation is COMPLETE; no qualified annihilation remains here.** Next is additive
+(Track 1 negatives) or a fresh thread — not manufactured annihilation.
 **DESIGN on disk: `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md`. READ IT.**
 The flaw (inquisitor-grounded): the unified `Peer` (peer.rs:206 = `{tx,rx}`) DROPPED the crash
 channel in the arc-209 unification; `Thread.crash`/`Process.err` are stranded on the tier
