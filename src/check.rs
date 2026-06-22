@@ -4995,10 +4995,10 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 214 Stone 4.6b — select' intrinsic.
+            // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select' intrinsic.
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
-            // O flows from Vector<peer<I,O>>'s element peer type into the
-            // return Tuple<i64,O>. See `infer_select_prime` for the reasoning.
+            // I,O flow from Vector<peer<I,O>>'s element peer type into the
+            // return ServiceEvent<I,O>. See `infer_select_prime` for the reasoning.
             ":wat::kernel::select'" => {
                 let (val, mut errs) = infer_select_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -11389,16 +11389,16 @@ fn infer_close_prime(
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
-// O flows from Vector<peer<I,O>>'s element peer type into the return Tuple<i64,O>.
+// I,O flow from Vector<peer<I,O>>'s element peer type into the return ServiceEvent<I,O>.
 // A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
 // the same infinite-open-set argument as get/recv'. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
-/// Type-check `(:wat::kernel::select' peers)` — Stone 4.6b.
+/// Type-check `(:wat::kernel::select' peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
 /// One positional arg: `args[0]` a `Vector<Thread'<I,O>>` or
-/// `Vector<Process'<I,O>>`. Returns `Tuple<i64, O>`.
+/// `Vector<Process'<I,O>>`. Returns `ServiceEvent<I,O>`.
 ///
-/// On success: `TypeExpr::Tuple(vec![i64-path, O])`.
+/// On success: `TypeExpr::Parametric { "wat::spawn::ServiceEvent", [I, O] }`.
 /// On failure (non-peer element type): TypeMismatch with
 /// "Vector of Thread'<I,O> | Process'<I,O> peers".
 fn infer_select_prime(
@@ -11430,7 +11430,10 @@ fn infer_select_prime(
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
-        let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+        let fb = TypeExpr::Parametric {
+            head: "wat::spawn::ServiceEvent".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        };
         return CheckResult::partial_with(fb, local_errors);
     }
 
@@ -11438,7 +11441,10 @@ fn infer_select_prime(
     let vec_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
-            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            let fb = TypeExpr::Parametric {
+                head: "wat::spawn::ServiceEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
             return CheckResult::partial_with(fb, local_errors);
         }
     };
@@ -11462,7 +11468,10 @@ fn infer_select_prime(
                     got: format_type(other),
                 },
             });
-            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            let fb = TypeExpr::Parametric {
+                head: "wat::spawn::ServiceEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
             return CheckResult::partial_with(fb, local_errors);
         }
     };
@@ -11470,13 +11479,13 @@ fn infer_select_prime(
     // Reduce the element type to a peer Parametric.
     let elem_surface = apply_subst(&elem_ty, subst);
     let elem_reduced = reduce(&elem_surface, subst, env.types());
-    let o_ty = match &elem_reduced {
+    let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
             if (head == "wat::kernel::Thread'" || head == "wat::kernel::Process'")
                 && targs.len() == 2 =>
         {
-            // O is args[1] (I is args[0]).
-            targs[1].clone()
+            // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
+            (targs[0].clone(), targs[1].clone())
         }
         other => {
             local_errors.push(CheckError {
@@ -11488,16 +11497,20 @@ fn infer_select_prime(
                     got: format_type(other),
                 },
             });
-            let fb = TypeExpr::Tuple(vec![TypeExpr::Path(":wat::core::i64".into()), fresh.fresh()]);
+            let fb = TypeExpr::Parametric {
+                head: "wat::spawn::ServiceEvent".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            };
             return CheckResult::partial_with(fb, local_errors);
         }
     };
 
+    let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
-    let ret = TypeExpr::Tuple(vec![
-        TypeExpr::Path(":wat::core::i64".into()),
-        o_resolved,
-    ]);
+    let ret = TypeExpr::Parametric {
+        head: "wat::spawn::ServiceEvent".into(),
+        args: vec![i_resolved, o_resolved],
+    };
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {

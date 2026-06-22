@@ -3,10 +3,12 @@
 //! Mirrors `peer_verb_round_trip_process.rs` (round-trip baseline) but
 //! verifies `select'` over a Vector of two `:process` echo peers.
 //!
+//! Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
+//!
 //! Verifies:
 //! 1. Two `:process` echo peers are spawned.
 //! 2. `send'` is called on exactly ONE peer (peer B, index 1).
-//! 3. `select'` over both returns `(1, value)` — index 1 (peer B fired).
+//! 3. `select'` over both returns `ServiceEvent::Message{idx=1, msg=value}`.
 //! 4. Both peers are `close'`d (exit 0 each).
 //!
 //! # Containment
@@ -36,9 +38,10 @@ fn process_select_prime_picks_ready_peer() {
     // Arc 214 β: spawn-program' :process takes a forms-server (not a fn).
     // Each spawned peer runs readln -> :i64, println (i64::+ n 1) — echo+1 server.
     // The select' test sends 98 to peer b only; select' fires on b (index 1)
-    // and returns (1, 99) — 98+1=99 from the echo+1 server.
+    // and returns ServiceEvent::Message{idx=1, msg=99} — 98+1=99 from the echo+1 server.
+    // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
     let src = r#"
-        (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64>
           (:wat::core::let [a (:wat::kernel::spawn-program' (:wat::spawn::process)
                                 (:wat::core::forms
                                   (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -65,22 +68,33 @@ fn process_select_prime_picks_ready_peer() {
     let result = eval_in_frozen(&ast, &world, &env)
         .expect("eval_in_frozen must succeed: process-tier select' picks ready peer");
 
+    // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
     match result.value_owned() {
-        Value::Tuple(xs) => {
-            assert_eq!(xs.len(), 2, "select' returns (index, value); got {:?}", xs);
+        Value::Enum(ev) => {
             assert_eq!(
-                xs[0],
+                ev.type_path, ":wat::spawn::ServiceEvent",
+                "select' must return ServiceEvent; got type_path {:?}",
+                ev.type_path
+            );
+            assert_eq!(
+                ev.variant_name, "Message",
+                "ready peer must yield :Message; got {:?}",
+                ev.variant_name
+            );
+            assert_eq!(ev.fields.len(), 2, "Message must have idx + msg; got {:?}", ev.fields);
+            assert_eq!(
+                ev.fields[0],
                 Value::i64(1),
                 "ready peer is index 1 (b); got {:?}",
-                xs[0]
+                ev.fields[0]
             );
             assert_eq!(
-                xs[1],
+                ev.fields[1],
                 Value::i64(99),
                 "echoed value must be 99; got {:?}",
-                xs[1]
+                ev.fields[1]
             );
         }
-        other => panic!("expected Tuple(index, value); got {:?}", other),
+        other => panic!("expected ServiceEvent::Message; got {:?}", other),
     }
 }

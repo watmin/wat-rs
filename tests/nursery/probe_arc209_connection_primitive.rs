@@ -61,20 +61,28 @@ fn eval_expr(expr: &str) -> Result<Value, String> {
 /// `recv'`s the reply. Asserts the reply is `84` (round-trip + select' over a
 /// provisioned peer).
 ///
-/// RED at HEAD: `:wat::kernel::peer-pair'` does not exist — eval fails on that line.
+/// GREEN once `peer-pair'` and the Stone 259 ServiceEvent migration both ship.
+/// Stone 259: `select'` returns `ServiceEvent<I,O>`; match on `:Message{idx, req}`.
 #[test]
 fn connection_primitive_mints_a_connected_peer_pair_without_spawning() {
+    // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
+    // The request message is in :Message{idx, msg}.
     let expr = r#"(:wat::core::let
         [pair   (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
          server (:wat::core::first pair)
          client (:wat::core::second pair)
          _      (:wat::kernel::send' client 42)
          chosen (:wat::kernel::select'
-                  (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64> server))
-         req    (:wat::core::second chosen)
-         _      (:wat::kernel::send' server (:wat::core::* req 2))
-         reply  (:wat::kernel::recv' client)]
-        reply)"#;
+                  (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64> server))]
+        (:wat::core::match chosen
+          -> :wat::core::i64
+          ((:wat::spawn::ServiceEvent::Message _idx req)
+            (:wat::core::let [_ (:wat::kernel::send' server (:wat::core::* req 2))
+                              reply (:wat::kernel::recv' client)]
+              reply))
+          (_ (:wat::kernel::assertion-failed!
+               "connection primitive: unexpected ServiceEvent variant"
+               :wat::core::None :wat::core::None))))"#;
 
     match eval_expr(expr) {
         Ok(Value::i64(84)) => { /* green — the provision mechanic works end-to-end */ }

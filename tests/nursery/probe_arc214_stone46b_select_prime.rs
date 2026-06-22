@@ -1,15 +1,14 @@
 //! Arc 214 Stone 4.6b — `select'` (FM-2-bis disconfirming probe).
 //!
-//! `select' : Vector<peer<I,O>> -> Tuple<i64, O>` — blocking first-ready
-//! multiplex over same-tier peers, returning (index, value). Intrinsic —
-//! projective (O flows from the element peer type; docs/DISPATCH.md).
+//! `select' : Vector<peer<I,O>> -> ServiceEvent<I,O>` — blocking first-ready
+//! multiplex over same-tier peers, returning a ServiceEvent. Intrinsic —
+//! projective (I,O flow from the element peer type; docs/DISPATCH.md).
 //! Mixed-tier selection needs no bespoke rejection: Vector homogeneity
 //! already makes it unrepresentable at check.
 //!
-//! Vacuity-aware (the 4.6a lesson): probe 1 RUNS the program (no eval
-//! dispatch at HEAD → RED); probe 2 is a check NEGATIVE (a wrong return
-//! annotation must fail once the projective inference exists — fresh vars
-//! pass it today → RED).
+//! Stone 259 Lost-locus: select' returns ServiceEvent (was Tuple<i64,O>);
+//! probe 1 matches on :Message{idx, msg}; probe 2 checks wrong-return still
+//! fails (ServiceEvent<i64,i64> ≠ String).
 //!
 //! ## Arc 259 S2c-ii-a — apply-loop PURGE
 //!
@@ -44,9 +43,10 @@ fn startup_err(src: &str) -> String {
 // ─── Probe 1 (LOAD-BEARING, RUNTIME): select' picks the ready peer ────────────
 
 /// Two thread echo peers; send 7 to peer B ONLY (deterministic — only B will
-/// ever have data); select' [a b] must return the tuple (1, 7): index 1
-/// (peer B's position) and the echoed value. Both peers closed after.
-/// At HEAD: no eval dispatch for select' → eval errors → RED.
+/// ever have data); select' [a b] must return ServiceEvent::Message{idx=1, msg=7}:
+/// index 1 (peer B's position) and the echoed value. Both peers closed after.
+///
+/// Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
 ///
 /// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
 /// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —
@@ -58,7 +58,7 @@ fn probe_1_select_returns_ready_index_and_value() {
           (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
-        (:wat::core::defn :user::compute [] -> :(wat::core::i64,wat::core::i64)
+        (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64>
           (:wat::core::let [a (:user::mk)
                             b (:user::mk)
                             _ (:wat::kernel::send' b 7)
@@ -73,21 +73,33 @@ fn probe_1_select_returns_ready_index_and_value() {
     let got = eval_in_frozen(&ast, &world, &env)
         .expect("compute must evaluate (select' dispatch exists)")
         .value_owned();
-    match got {
-        Value::Tuple(xs) => {
-            assert_eq!(xs.len(), 2, "select' returns (index, value); got {:?}", xs);
-            assert_eq!(xs[0], Value::i64(1), "ready peer is index 1 (b); got {:?}", xs[0]);
-            assert_eq!(xs[1], Value::i64(7), "the echoed value; got {:?}", xs[1]);
+    // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
+    match &got {
+        Value::Enum(ev) => {
+            assert_eq!(
+                ev.type_path, ":wat::spawn::ServiceEvent",
+                "select' must return ServiceEvent; got type_path {:?}",
+                ev.type_path
+            );
+            assert_eq!(
+                ev.variant_name, "Message",
+                "ready peer must yield :Message; got {:?}",
+                ev.variant_name
+            );
+            assert_eq!(ev.fields.len(), 2, "Message must have idx + msg; got {:?}", ev.fields);
+            assert_eq!(ev.fields[0], Value::i64(1), "ready peer is index 1 (b); got {:?}", ev.fields[0]);
+            assert_eq!(ev.fields[1], Value::i64(7), "the echoed value; got {:?}", ev.fields[1]);
         }
-        other => panic!("expected Tuple(index, value); got {:?}", other),
+        other => panic!("expected ServiceEvent::Message; got {:?}", other),
     }
 }
 
-// ─── Probe 2 (CHECK NEGATIVE): select' return type is Tuple<i64,O> ────────────
+// ─── Probe 2 (CHECK NEGATIVE): select' return type is ServiceEvent<I,O> ───────
 
 /// Declaring the select' result as `:wat::core::String` over i64-peers MUST
-/// fail at check — the projective return is `:(i64,i64)`.
-/// RED at HEAD (fresh var unifies with String).
+/// fail at check — the projective return is `ServiceEvent<i64,i64>`, not String.
+/// Stone 259: return type changed from Tuple<i64,O> to ServiceEvent<I,O>;
+/// the wrong-annotation rejection still holds.
 ///
 /// Arc 259 S2c-ii-a: spawn prog swapped to self-peer form
 /// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))` —

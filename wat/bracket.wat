@@ -34,11 +34,16 @@
 ;; Invariant: cursor ≤ m; collected ≤ m.  When collected == m every result
 ;; has arrived; return pairs-acc (unsorted — the caller sorts).
 ;;
-;; Dynamic balance: after select' returns the (peer-pos, (idx,result)) pair
+;; Dynamic balance: after select' returns the ServiceEvent::Message{idx=peer-pos, msg=pair}
 ;; for whichever runner finished first, that runner's channel is empty again
 ;; and we immediately feed it the next pending item (if cursor < m).  Runners
 ;; that had no item sent to them (when M < N) are simply never select'ed —
 ;; the channel-drain RAII at scope exit joins them cleanly.
+;;
+;; select' now returns ServiceEvent<I,O> (Stone 259 Lost-locus).  :Message is
+;; the normal case.  :Closed/:Lost are honest arms — a bracket runner should
+;; never disconnect or crash in normal operation; if it does, raise via
+;; assertion-failed! so the failure is visible rather than silently swallowed.
 
 (:wat::core::defn :wat::bracket::collect-loop<I,O>
   [peers     <- :wat::core::Vector<wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>>
@@ -51,17 +56,35 @@
   (:wat::core::if (:wat::core::= collected m)
     pairs-acc
     (:wat::core::let
-      [picked   (:wat::kernel::select' peers)
-       peer-pos (:wat::core::first picked)
-       pair     (:wat::core::second picked)
-       cursor'  (:wat::core::if (:wat::core::< cursor m)
-                  (:wat::core::let [_ (:wat::kernel::send'
-                                        (:wat::core::nth peers peer-pos)
-                                        (:wat::core::Tuple cursor (:wat::core::nth items cursor)))]
-                    (:wat::core::+ cursor 1))
-                  cursor)]
-      (:wat::bracket::collect-loop peers items
-        (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m))))
+      [event    (:wat::kernel::select' peers)]
+      (:wat::core::match event
+        -> :wat::core::Vector<(wat::core::i64,O)>
+        ((:wat::spawn::ServiceEvent::Message peer-pos pair)
+          (:wat::core::let
+            [cursor'  (:wat::core::if (:wat::core::< cursor m)
+                        (:wat::core::let [_ (:wat::kernel::send'
+                                              (:wat::core::nth peers peer-pos)
+                                              (:wat::core::Tuple cursor (:wat::core::nth items cursor)))]
+                          (:wat::core::+ cursor 1))
+                        cursor)]
+            (:wat::bracket::collect-loop peers items
+              (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
+        ((:wat::spawn::ServiceEvent::Closed _idx)
+          (:wat::kernel::assertion-failed!
+            "bracket collect-loop: runner closed unexpectedly"
+            :wat::core::None :wat::core::None))
+        ((:wat::spawn::ServiceEvent::Lost _idx _cause)
+          (:wat::kernel::assertion-failed!
+            "bracket collect-loop: runner crashed"
+            :wat::core::None :wat::core::None))
+        (:wat::spawn::ServiceEvent::Shutdown
+          (:wat::kernel::assertion-failed!
+            "bracket collect-loop: unexpected Shutdown event"
+            :wat::core::None :wat::core::None))
+        ((:wat::spawn::ServiceEvent::Connection _peer)
+          (:wat::kernel::assertion-failed!
+            "bracket collect-loop: unexpected Connection event"
+            :wat::core::None :wat::core::None))))))
 
 ;; ── map-worker — general pool engine (per-runner state via worker-init) ───────
 ;;

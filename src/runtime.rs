@@ -24454,10 +24454,13 @@ fn eval_peer_close_prime(
     }
 }
 
-/// `(:wat::kernel::select' peers)` — Stone 4.6b.
+/// `(:wat::kernel::select' peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
-/// Blocks until one peer's output is ready; returns `(index, value)` as
-/// `Value::Tuple([Value::i64(index), value])`.
+/// Blocks until one peer's output is ready; returns a
+/// `:wat::spawn::ServiceEvent`:
+/// - `Ok(value)` from a peer → `ServiceEvent::Message { idx, msg }`.
+/// - EOF on output, crash channel has reason → `ServiceEvent::Lost { idx, cause }`.
+/// - EOF on output, crash channel empty (clean exit) → `ServiceEvent::Closed { idx }`.
 ///
 /// Dispatch:
 /// - `peers` must be a non-empty `Value::Vec`.
@@ -24466,8 +24469,9 @@ fn eval_peer_close_prime(
 /// - Empty vector → MalformedForm "select over an empty vector would block forever".
 /// - `None` Option (peer already closed) → MalformedForm "peer already closed".
 /// - Thread tier: builds a `comms::thread::Select`, registers output receivers,
-///   blocks, maps `Recv{index, value}` → `Value::Tuple(...)`.
-/// - Process tier: same with `comms::process::Select`; decodes EDN String → Value.
+///   blocks; on EOF reads the crash channel → `Lost`/`Closed`; on value → `Message`.
+/// - Process tier: same with `comms::process::Select`; decodes EDN String → Value;
+///   on EOF reads the err channel → `Lost`/`Closed`.
 /// - Shutdown fires → MalformedForm "select' interrupted by shutdown".
 fn eval_peer_select_prime(
     args: &[WatAST],
@@ -24581,8 +24585,12 @@ fn eval_peer_select_prime(
             guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
         }
 
-        // Verify none are closed and collect &Receiver references.
-        let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
+        // Verify none are closed; collect &output and &crash receivers.
+        // Both are borrowed from the same guard, so we need the guards alive
+        // across the select — collect as parallel slices.
+        let mut output_rxs: Vec<&crate::comms::thread::Receiver<Value>> =
+            Vec::with_capacity(guards.len());
+        let mut crash_rxs: Vec<&crate::comms::thread::Receiver<String>> =
             Vec::with_capacity(guards.len());
         for (i, guard) in guards.iter().enumerate() {
             match &**guard {
@@ -24596,32 +24604,54 @@ fn eval_peer_select_prime(
                     }
                     .into())
                 }
-                Some(peer) => receivers.push(&peer.output),
+                Some(peer) => {
+                    output_rxs.push(&peer.output);
+                    crash_rxs.push(&peer.crash);
+                }
             }
         }
 
-        // Build Select and register all receivers.
+        // Build Select over output receivers only.
         let mut sel = crate::comms::thread::Select::new();
-        for rx in &receivers {
+        for rx in &output_rxs {
             sel.recv(*rx);
         }
 
-        // Block until ready.
+        // Block until ready; demux EOF via the crash channel (mirrors Thread::recv).
+        const SELECT_EVENT_TYPE_THREAD: &str = ":wat::spawn::ServiceEvent";
         match sel.select() {
             crate::comms::SelectOutcome::Recv { index, result } => {
-                let value = result.map_err(|_| {
-                    EvalBreak::from(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "select' recv failed: peer closed / thread exited".into(),
-                        },
-                    })
-                })?;
-                Ok(Value::Tuple(std::sync::Arc::new(vec![
-                    Value::i64(index.0 as i64),
-                    value,
-                ])))
+                let peer_idx = index.0 as i64;
+                match result {
+                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                        variant_name: "Message".into(),
+                        fields: vec![Value::i64(peer_idx), msg],
+                    }))),
+                    Err(_) => {
+                        // Output EOF — demux via crash channel (arc 259 S3.5a-0 mirror).
+                        let event = match crash_rxs[index.0].recv() {
+                            Ok(reason) => {
+                                // Abnormal exit — build Failure from reason string.
+                                let cause = message_only_failure(reason);
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                                    variant_name: "Lost".into(),
+                                    fields: vec![Value::i64(peer_idx), cause],
+                                }))
+                            }
+                            Err(_) => {
+                                // Clean exit — crash channel EOF means no reason.
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                                    variant_name: "Closed".into(),
+                                    fields: vec![Value::i64(peer_idx)],
+                                }))
+                            }
+                        };
+                        Ok(event)
+                    }
+                }
             }
             crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
                 span: list_span.clone(),
@@ -24679,8 +24709,14 @@ fn eval_peer_select_prime(
             guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
         }
 
-        // Verify none are closed and collect &Receiver<String> references.
-        let mut receivers: Vec<&crate::comms::process::Receiver<String>> =
+        const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
+
+        // Verify none are closed; collect &output and &err receivers.
+        // Both are borrowed from the same guard, so we need guards alive
+        // across the select — collect as parallel slices.
+        let mut output_rxs: Vec<&crate::comms::process::Receiver<String>> =
+            Vec::with_capacity(guards.len());
+        let mut err_rxs: Vec<&crate::comms::process::Receiver<String>> =
             Vec::with_capacity(guards.len());
         for (i, guard) in guards.iter().enumerate() {
             match &**guard {
@@ -24694,17 +24730,20 @@ fn eval_peer_select_prime(
                     }
                     .into())
                 }
-                Some(bundle) => receivers.push(&bundle.peer.output),
+                Some(bundle) => {
+                    output_rxs.push(&bundle.peer.output);
+                    err_rxs.push(&bundle.err);
+                }
             }
         }
 
-        // Build Select and register all receivers.
+        // Build Select over output receivers only.
         let mut sel = crate::comms::process::Select::new();
-        for rx in &receivers {
+        for rx in &output_rxs {
             sel.recv(*rx);
         }
 
-        // Block until ready.
+        // Block until ready; demux EOF via the err channel (mirrors ProcessPeerBundle::recv).
         match sel.select().map_err(|io_err| {
             EvalBreak::from(RuntimeError {
                 span: list_span.clone(),
@@ -24715,35 +24754,51 @@ fn eval_peer_select_prime(
             })
         })? {
             crate::comms::SelectOutcome::Recv { index, result } => {
-                let edn_str = result.map_err(|_| {
-                    EvalBreak::from(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "select' recv failed: peer closed / child exited".into(),
-                        },
-                    })
-                })?;
-                // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
-                // decode through the capability door with the full type registry. Every Peer is
-                // lineage by construction (inherited handle/self-peer; accept' passed OnlyMyPeers;
-                // connect' passed OnlyThisPeer — euid + kernel-vouched pid == minter pid in the
-                // address capability; the autobind name is an exclusive-bind rendezvous token, not
-                // a secret). The EDN wire is self-describing (post-234.7) — sym.types()
-                // reconstructs user records; no declared target type is needed.
-                let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
-                    EvalBreak::from(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: format!("select' EDN decode failed: {}", e),
-                        },
-                    })
-                })?;
-                Ok(Value::Tuple(std::sync::Arc::new(vec![
-                    Value::i64(index.0 as i64),
-                    value,
-                ])))
+                match result {
+                    Err(_) => {
+                        // Output EOF — demux via err channel (mirrors ProcessPeerBundle::recv).
+                        let peer_idx = index.0 as i64;
+                        let event = match err_rxs[index.0].recv() {
+                            Ok(reason) => {
+                                // Abnormal exit — build Failure from crash reason string.
+                                let cause = message_only_failure(reason);
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Lost".into(),
+                                    fields: vec![Value::i64(peer_idx), cause],
+                                }))
+                            }
+                            Err(_) => {
+                                // Clean exit — err channel EOF means no crash reason.
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Closed".into(),
+                                    fields: vec![Value::i64(peer_idx)],
+                                }))
+                            }
+                        };
+                        return Ok(event);
+                    }
+                    Ok(edn_str) => {
+                        // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
+                        // decode through the capability door with the full type registry.
+                        let value = crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
+                            EvalBreak::from(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: format!("select' EDN decode failed: {}", e),
+                                },
+                            })
+                        })?;
+                        let peer_idx = index.0 as i64;
+                        Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE.into(),
+                            variant_name: "Message".into(),
+                            fields: vec![Value::i64(peer_idx), value],
+                        })))
+                    }
+                }
             }
             crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
                 span: list_span.clone(),
@@ -24842,21 +24897,27 @@ fn eval_peer_select_prime(
             sel.recv(*rx);
         }
 
+        // Bare Peer' has no crash channel (it is a connection peer, not a spawned worker).
+        // EOF = clean disconnect only → :Closed. :Lost is for spawned workers (process/thread tier).
+        const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
         match sel.select() {
             crate::comms::SelectOutcome::Recv { index, result } => {
-                let value = result.map_err(|_| {
-                    EvalBreak::from(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "select' recv failed: peer closed".into(),
-                        },
-                    })
-                })?;
-                Ok(Value::Tuple(std::sync::Arc::new(vec![
-                    Value::i64(index.0 as i64),
-                    value,
-                ])))
+                let peer_idx = index.0 as i64;
+                match result {
+                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
+                        type_path: SELECT_EVENT_TYPE_PEER.into(),
+                        variant_name: "Message".into(),
+                        fields: vec![Value::i64(peer_idx), msg],
+                    }))),
+                    Err(_) => {
+                        // EOF — bare connection peer left gracefully (no crash channel).
+                        Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                            variant_name: "Closed".into(),
+                            fields: vec![Value::i64(peer_idx)],
+                        })))
+                    }
+                }
             }
             crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
                 span: list_span.clone(),
