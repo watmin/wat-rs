@@ -73,14 +73,27 @@ only to carry doc attrs and give `show-source` a home (§6).
 | `@syntax` | **MANDATORY** — the grammar, `(head <slot> …)` with `<x>+`/`<x>*` | replaces the hand-built `signature: HolonAST` sketch; cross-checked against the form's inline arg-count |
 | `@arg`/`@ret` | **present where slots are typed value-positions** (`if`/`and`/`or`); **omitted** where slots are structural (`let`/`match`/`quote`) | the runnable `@example` (run through check+eval) |
 | `@example` | **MANDATORY** ≥1, runnable | runtime — same as intrinsics |
-| `@category` | closed enum; new values `ControlFlow`, `Binding` (+ `Quoting`, `Definition` as more forms migrate) | the macro's `KNOWN_CATEGORIES` (compile-error on unknown) |
-| `@purity` | tri-state `Pure | Effectful | Preserving` (Option A) | `is_effectful_op` analog / declared |
-| `@determinism` | tri-state `Deterministic | Nondeterministic | Preserving` | declared |
-| ~~`@pure`/`@deterministic`~~ | **not used for special forms** — replaced by the tri-state axes above | — |
+| `@Category` | closed enum `Category`; values `Encoding`, `Reflection`, `ControlFlow`, `Binding` (+ `Quoting`, `Definition` as forms migrate) | value ∈ `Category` variants (compile-error on unknown) |
+| `@Purity` | closed enum `Purity { Pure, Effectful, Preserving }` (Option A) | value ∈ `Purity` variants; `Pure`/`Preserving` ⟺ `!is_effectful_op` |
+| `@Determinism` | closed enum `Determinism { Deterministic, Nondeterministic, Preserving }` | value ∈ `Determinism` variants |
+| ~~`@pure`/`@deterministic`~~ | **annihilated** — the bool markers are gone for BOTH kinds; replaced by the enum markers above | — |
 
-`@purity preserving` = "adds no effect; inherits from sub-forms" (the third value
-agreed via four-questions; named **Preserving** on both axes — revisit `Inherited`
-if it grates when read on `if`).
+### The enum-marker convention (`@<EnumName> <Variant>`, exact case)
+
+Every CLOSED-ENUM-valued marker follows ONE grammar rule: the marker name IS the
+Rust enum (`Purity`/`Determinism`/`Category`), the value IS a variant verbatim
+(exact case). The CASE is the discriminator — **Capitalized marker = closed enum;
+lowercase marker** (`@arg`/`@ret`/`@example`/`@added`/`@see`/`@syntax`) **=
+structured/freeform**. The three enums live in `crates/wat-doc` (the leaf crate the
+parser, macro, and main crate all reach, like `Arity`); the value parses straight
+into the enum (no case-mapping); the cross-check is structural (value ∈ variants).
+
+`@Purity Preserving` = "adds no effect; inherits from sub-forms" (the third value,
+agreed via four-questions). This unifies VALUE intrinsics too: `bytes` re-fits
+`@pure true`→`@Purity Pure`, `@deterministic true`→`@Determinism Deterministic`,
+`@category Encoding`→`@Category Encoding`. The Entry's `pure: bool`/`deterministic:
+bool` become `purity: Purity`/`determinism: Determinism`; `category: String`
+becomes `category: Category`.
 
 ### The witness model for special forms
 
@@ -96,9 +109,9 @@ scheme diff.
 
 **`if` → `src/intrinsic/special/control_flow.rs`** — the `@arg`-fits shape:
 ```rust
-/// Evaluate `cond`; when `:true`, evaluate and return `then`, else `else`.
+/// Evaluate `cond`; when true, evaluate and return `then`, else `else`.
 /// The untaken branch is never evaluated — that is why `if` is a special form.
-/// @added 1.0.0  @category ControlFlow  @purity preserving  @determinism preserving
+/// @added 1.0.0  @Category ControlFlow  @Purity Preserving  @Determinism Preserving
 /// @syntax (if <cond> <then> <else>)
 /// @arg cond :wat::core::Bool  the condition
 /// @arg then :T  returned when cond is :true
@@ -116,7 +129,7 @@ scheme diff.
 ```rust
 /// Bind each <expr> to its <binder> in order (later see earlier), then evaluate
 /// the body in the enriched scope, returning the last form.
-/// @added 1.0.0  @category Binding  @purity preserving  @determinism preserving
+/// @added 1.0.0  @Category Binding  @Purity Preserving  @Determinism Preserving
 /// @syntax (let [<binder> <expr> ...] <body>+)
 /// @ret :T  the value of the final body form
 /// @example (:wat::core::let [x 1 y 2] (:wat::core::+ x y)) #=> 3
