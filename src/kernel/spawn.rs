@@ -606,25 +606,40 @@ pub fn spawn_thread_peer(
             );
             // Hand the prog its self-peer ONCE — no apply-loop.
             // The prog owns its own recv'/send' loop if it wants one.
-            // Arc 259 S3.5a-0: on a genuine panic (Err payload) send the reason over
-            // crash_tx — the crossbeam analog of the process Err channel. A clean exit
-            // (Ok — including Ok(Err(eval_break)), which is RAII drain, NOT a crash)
-            // does NOT send; crash_tx just drops → parent sees Disconnected, not Crashed.
-            // STOP-1 guard: ONLY Err(payload) sends — never Ok(Err(..)).
+            // Arc 259 S3.5a-0 + crash-reason PARITY (four-questions/Honest): the body's
+            // terminating reason is sent over crash_tx — the crossbeam analog of the
+            // process Err channel (fd 2). BOTH a Rust panic AND a wat RuntimeError out of
+            // the body are genuine deaths that carry their reason. The old guard ("never
+            // send Ok(Err)") DROPPED the RuntimeError → the parent saw a generic
+            // disconnect, losing the reason the process tier carries over fd 2; that was
+            // the dishonest option. EvalSignal (TailCall / Result-try / Option-try) is
+            // caught inside apply_function and never escapes, so Ok(Err) here is ALWAYS a
+            // genuine Diagnostic. A clean exit (Ok(Ok)) sends nothing → crash_tx drops →
+            // the parent sees Closed (not Lost).
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
                 apply_function(program_fn.clone(), vec![self_peer], &thread_sym, span.clone())
             }));
             // output_tx (inside self_peer via the Peer) is dropped here → output channel EOFs.
-            if let Err(payload) = outcome {
-                // Genuine panic — extract and send the reason before crash_tx drops.
-                // Arc 209 C0b: send the ENVELOPE when the payload is a structured
-                // AssertionPayload; fall back to the plain message for generic panics.
-                let (message, assertion) = crate::runtime::extract_panic_payload(payload);
-                let reason = match assertion {
-                    Some(a) => crate::panic_hook::assertion_failure_envelope(&a),
-                    None => message,
-                };
-                let _ = crash_tx.send(reason);
+            match outcome {
+                // Rust panic — send the ENVELOPE for a structured AssertionPayload (arc
+                // 209 C0b), else the plain message.
+                Err(payload) => {
+                    let (message, assertion) = crate::runtime::extract_panic_payload(payload);
+                    let reason = match assertion {
+                        Some(a) => crate::panic_hook::assertion_failure_envelope(&a),
+                        None => message,
+                    };
+                    let _ = crash_tx.send(reason);
+                }
+                // wat RuntimeError out of the body — a genuine death; carry its reason so
+                // the parent's crash channel surfaces it (parity with the process tier).
+                // apply_function already unwraps EvalSignals (TailCall/try/option), so the
+                // Err here is a bare RuntimeError.
+                Ok(Err(re)) => {
+                    let _ = crash_tx.send(re.to_string());
+                }
+                // Clean exit — no crash reason to carry.
+                Ok(Ok(_)) => {}
             }
             // crash_tx dropped here → crash channel EOFs (reason buffered if it was sent).
         })

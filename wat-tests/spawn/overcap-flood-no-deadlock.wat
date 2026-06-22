@@ -14,14 +14,15 @@
 ;; The Rust bench (tests/probe_overcap_no_deadlock.rs) is the lab bench; THIS is
 ;; the proof — the supervisor pattern in wat directly.
 
-;; The body runs in the deftest' thread-harness; the inner process `recv'`'s
-;; "process channel disconnected" surfaces at the outer layer as the generic
-;; "peer closed / thread exited" (the harness collapses the inner diagnostic —
-;; the Rust bench `probe_overcap_no_deadlock.rs` keeps the specific cause). What
-;; THIS proves at the wat surface: the flood is REJECTED (the body raises, not
-;; returns) AND does not deadlock (it completes far inside the global per-test
+;; The SPECIFIC cap reason propagates all the way out: the inner process `recv'`
+;; raises "frame exceeded cap …", the thread crash channel carries it through the
+;; deftest' harness (arc 259 crash-reason parity — the thread tier now sends a
+;; body RuntimeError on its crash channel, like the process tier's fd 2), and the
+;; outer `recv'` re-raises it. So this asserts the EXACT cause, not a generic
+;; disconnect. What THIS proves at the wat surface: the flood is REJECTED with the
+;; cap reason AND does not deadlock (it completes far inside the global per-test
 ;; time-limit; a regression to deadlock would fail as a timeout).
-(:wat::test::should-panic "peer closed / thread exited")
+(:wat::test::should-panic "frame exceeded cap")
 (:wat::test::deftest' :wat-tests::overcap::flood-is-rejected-not-deadlocked
   ()
   (:wat::core::let
