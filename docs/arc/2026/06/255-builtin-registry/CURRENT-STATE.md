@@ -58,10 +58,15 @@ a crashed peer → `:Lost{cause}` (death demux mirrors `recv()` spawn.rs:240: ou
 the crash channel, thread `crash`/process `err`; bare connection peer → `:Closed` only). Cause
 via the pre-existing `message_only_failure` (runtime.rs:21873). RED probe:
 `tests/probe_supervisor_select_lost.rs`. Callers migrated: bracket.wat + 3 test files.
-**FOLLOW-UP slices (the rest of the annihilation):** (a) route `recv'`/`poll'` through the SAME
-one-`next_event` (today select' has its own demux copy — the full decomplect unifies all three);
-(b) the legacy non-prime `select` (eval_kernel_select:20074, Receiver-based/Tuple/Ok(None)-on-death)
-— fold into the protocol or HARD-CUT. `qualified-annihilations-are-priority`: these outrank Track 1.
+✅ **decomplect slice done & green** (`5968a900`): one `classify_peer_death` (spawn.rs:204) —
+`select'` (both arms) + `recv()` share the Lost-vs-Closed decision; inline copies gone. Behavior
+preserved. `poll'` was NOT folded in — correctly: its peers are connect'-accepted unified `Peer`s
+with NO crash channel, so it never did the demux; `:Closed` is honest there.
+**REMAINING slices:** (a) **poll' emits `:Lost`** — needs a crash channel ADDED to the unified
+`Peer` (peer.rs:206 = `{tx,rx}` only; the arc-209 unification dropped it). Only THEN can poll' (or
+a supervisor passing crash-ful peers) report `:Lost`; today poll's peers can't. THE remaining real
+stone. (b) the legacy non-prime `select` (eval_kernel_select:20074, Receiver-based/Tuple/
+Ok(None)-on-death) — fold or HARD-CUT. `qualified-annihilations-are-priority`: these outrank Track 1.
 **DESIGN on disk: `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md`. READ IT.**
 The flaw (inquisitor-grounded): the unified `Peer` (peer.rs:206 = `{tx,rx}`) DROPPED the crash
 channel in the arc-209 unification; `Thread.crash`/`Process.err` are stranded on the tier
