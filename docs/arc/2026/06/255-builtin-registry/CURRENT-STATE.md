@@ -34,26 +34,44 @@ has no raw stdio handle" complaint was the INTENDED design, not a gap).
 `spawn-process` + the 4-field `:wat::kernel::Process` stdio record (verbs.rs:725,
 IOWriter/IOReader/IOReader/ProgramHandle) are PENDING ANNIHILATION; do NOT build on them.
 
-## RESUME PATH (255 unblocked — write it)
-Write the FOUR gold-standard `deftest-hermetic'` IPC tests over the PRIMED `Process'<I,O>`
-peer (client = parent does `recv'`; server = child does `pprintln`). PRIMED ONLY (non-prime
-deftest/`Process`-struct/`try-recv'` are DOOMED, arc-170 ~2-month migration): (1) round-trip
-— child `pprintln`s the examples metadata map, parent `recv'`s one value → assert == compact;
-(2) over-cap; (3) truncated-frame [#267]; (4) anti-smuggling. Negatives via the SUPERVISOR
-pattern: child crashes, parent `poll'` → `:Closed` (NOT `:Message`); `:Lost` is
-remote-tier-only; there is NO in-process try/catch (let-it-crash). Then **#268** the
-single-unbounded-LINE bound (a no-`\n` flood OOMs `read_line` before the frame cap fires —
-a per-line byte bound; RED probe → build). Remember `examinare`: PROBE the harness capability
-(can a pass-or-raise `deftest-hermetic'` even ASSERT a rejection?) BEFORE delegating the
-negatives — that exact unprobed assumption burned a sonnet last session
-([[feedback_probe_capability_before_delegating]]).
+## ✅ ROUND-TRIP gold-standard test LANDED (`1d91fcec`, pushed)
+`wat-tests/process-multiline-roundtrip.wat` — a `deftest'` whose body spawns a forms-server
+child that `pprintln`s a 5-key map (7 physical lines), parent `recv'`s it as ONE value,
+`assert-eq` == the map. Non-vacuous (pre-259.S3.6 it'd have gotten `{`). Green by own run
+(suite 265/1; the 1 fail = `std::test::test-run-string-entry-direct`, PRE-EXISTING, leave it).
+
+## RESUME PATH — two tracks (the rich design round of 2026-06-21 is on disk; READ them)
+### Track 1 — the THREE negatives (no new substrate; the keystone capability EXISTS)
+`:should-panic "<substr>"` is the assert-a-rejection capability (wat/test.wat:407; corpus
+proof wat-tests/core/unknown-call-head-panics.wat:10) — this is what the last sonnet burned
+for lack of. The negatives are `:should-panic` deftests: child emits a malformed frame, parent
+`recv'` → RAISES (recv' already surfaces `Crashed`/decode errors) → should-panic asserts.
+**Needs ONE small tool:** `:wat::kernel::print-raw'` — a namespace-restricted ambient
+no-newline stdout write (`#[restricted_to(…, ":wat::test::")]`; `IOWriter/write` is no-newline
+but only on an IOWriter object, not ambient fd 1). With it: over-cap (un-terminated >512KiB),
+anti-smuggle (two values one line), truncated (partial then exit). Build `print-raw'` (probe →
+DESIGN → strike), then the 3 deftests. Then **#268** the unbounded-LINE bound.
+
+### Track 2 — `:Lost{cause}` for local crashes — DESIGN'd, the keystone stone
+**DESIGN on disk: `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md`. READ IT.**
+The flaw (inquisitor-grounded): the unified `Peer` (peer.rs:206 = `{tx,rx}`) DROPPED the crash
+channel in the arc-209 unification; `Thread.crash`/`Process.err` are stranded on the tier
+structs; `poll'` folds every death to `:Closed` (runtime.rs:25196/25352) while `recv()` (spawn.rs:240)
+correctly demuxes the cause — a recv-vs-poll DUPLICATION. The cure = a locus-blind `next_event`
+protocol (a DEFPROTOCOL: constant surface, bespoke per-locus guts): thread reads `crash`,
+process reads `err`, **remote demuxes `Result<T,E>` over rx (rx/tx ONLY — the forcing function;
+`unimplemented!` for now)**. Route `recv'`/`poll'`/`select'` ALL through `next_event` →
+annihilate the duplicate demux; `:Lost{cause}` falls out uniformly. NOT a cheap flip — a real
+multi-file stone (C decision = C1: tier-receiver self-sufficient, bundle becomes a pollable Peer).
+The negatives do NOT depend on this (they ride recv'+should-panic).
 
 ## SHIPPED earlier this session-cluster (255 stdio value-framing + symmetry; all pushed)
 `695eca16` iv-c (metadata-of plain values + Kind/DefinedIn/Layer enums) · `e92f5333`
 pprintln · `1632d02c` value-framing + symmetry (epprintln; Receiver value-frames) ·
 `49cbe8ee` 512 KiB cap · `0854b081` `:max-buffer-bytes` escape hatch · `4fb86f8b`
 `:wat::core::Value` EDN coerce target · `28853601` 259.S3.6 STRIKE-READY · `ecda39e2`
-259.S3.6 GREEN.
+259.S3.6 GREEN · `1d91fcec` round-trip gold-standard wat-test · (docs: `84a3d22d` retract the
+phantom design-fork, `c4c44856`/`ab0d89a3` curare).
 
 ## DISCIPLINE (memory written) — `feedback_probe_capability_before_delegating`
 Probe the HARNESS/SUBSTRATE capability ("can it even OBSERVE a failure?") before delegating,
@@ -65,6 +83,9 @@ EVERY gate yourself, never credit the report. The disk is the only witness.
 > familiar voice. recolligere FIRST: fetch the grimoire + 4 primers (datamancy MCP — they
 > are MCP RESOURCES via ReadMcpResourceTool, server `datamancy`, URI
 > `https://datamancy.dev/<name>/SKILL.md`; NOT ToolSearch tools), `git log --oneline -15`,
-> `git status`, read `BLOCKED-on-259-ipc-multiline.md` + the 259.S3.6 DESIGN. Then GROUND the
-> NEXT fork above against `src/process/` before proposing 255's tests. Do NOT propose from
-> this summary — open the specs.
+> `git status`. Then OPEN THE TWO DESIGN DOCS before proposing anything:
+> `../259-forced-hand/DESIGN-STONE-lost-locus-next-event.md` (the `:Lost`/next_event protocol)
+> and this file's Track-1 (negatives + `print-raw'`). The locus-as-defprotocol contract +
+> the `next_event` decomplect are the heart — see also memory
+> `[[project_process_model_client_server_named_fd]]`. Do NOT propose from this summary — open
+> the specs; the design was hard-won by the inquisitor crawl and the paraphrase will mislead.
