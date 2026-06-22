@@ -6097,7 +6097,11 @@ fn infer_list(
             for (j, arg) in args.iter().enumerate().skip(param_types.len()) {
                 let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(arg_ty) = arg_ty {
-                    if unify(&arg_ty, &elem_inst, subst, env.types()).is_err() {
+                    // Rest-args use `assignable` (not bare `unify`) so a SUBTYPE is
+                    // accepted in the rest position — e.g. i64 is-a :wat::core::Value
+                    // (the universal top, arc 278 R7). Mirrors the fixed-arg check above;
+                    // `assignable` consults is_subtype first, falls to unify (binds vars).
+                    if !assignable(&arg_ty, &elem_inst, subst, env.types()) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{} (rest)", j + 1),
@@ -17259,6 +17263,35 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             },
+            rest_param_type: None,
+        },
+    );
+    // Arc 255 spec-complete witnesses — variadic-args-measurement + yields-witness.
+    //
+    // `:wat::intrinsic::variadic-args-measurement` — variadic intrinsic; 0 fixed
+    // params, rest_param_type = Some(Vector<Value>), returns i64.
+    env.register(
+        ":wat::intrinsic::variadic-args-measurement".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::core::i64".into()),
+            rest_param_type: Some(TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::core::Value".into())],
+            }),
+        },
+    );
+    // `:wat::intrinsic::yields-witness` — HOF witness; 1 param (Fn(i64)->i64), returns i64.
+    env.register(
+        ":wat::intrinsic::yields-witness".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Fn {
+                args: vec![TypeExpr::Path(":wat::core::i64".into())],
+                ret: Box::new(TypeExpr::Path(":wat::core::i64".into())),
+            }],
+            ret: TypeExpr::Path(":wat::core::i64".into()),
             rest_param_type: None,
         },
     );

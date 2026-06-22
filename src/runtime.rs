@@ -10166,7 +10166,12 @@ fn eval_metadata_of(
         put(":kind", crate::intrinsic::Kind::Intrinsic.to_enum_value());
         put(":defined-in", crate::intrinsic::DefinedIn::Rust.to_enum_value());
         put(":layer", crate::intrinsic::Layer::Substrate.to_enum_value());
-        put(":arity", Value::i64(entry.arity as i64));
+        // :arity — Exact(N) → N as i64; Variadic → -1 (sentinel for "variadic").
+        let arity_val = match entry.arity {
+            crate::intrinsic::Arity::Exact(n) => Value::i64(n as i64),
+            crate::intrinsic::Arity::Variadic => Value::i64(-1),
+        };
+        put(":arity", arity_val);
         put(":pure", Value::bool(pure));
         put(":deterministic", Value::bool(deterministic));
         // :doc — the GFM prose body from the structured doc contract (iv-b1).
@@ -10177,6 +10182,13 @@ fn eval_metadata_of(
         put(":doc", Value::String(Arc::new(entry.prose.to_string())));
         put(":added", Value::String(Arc::new(entry.added.to_string())));
         put(":ret", Value::String(Arc::new(entry.ret.to_string())));
+        // :category — closed-domain Value::Enum (iv-c / arc 255.1b-iv-c Part C).
+        let category_val = Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Category".into(),
+            variant_name: entry.category.into(),
+            fields: vec![],
+        }));
+        put(":category", category_val);
         return Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))));
     }
     match sym.binding_metadata.get(&name) {

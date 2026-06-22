@@ -48,6 +48,7 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// @added         1.0.0
 /// @pure          true
 /// @deterministic false
+/// @category      Reflection
 /// @ret :wat::core::Vector<wat::intrinsic::Example> a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
@@ -211,6 +212,7 @@ fn extract_fqdn(
 /// @added         1.0.0
 /// @pure          true
 /// @deterministic false
+/// @category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
 /// @example-norun (:wat::core::show-source :wat::core::Bytes::to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
@@ -292,6 +294,7 @@ pub(crate) fn eval_show_source(
 /// @added         1.0.0
 /// @pure          true
 /// @deterministic false
+/// @category      Reflection
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
 /// @example-norun (:wat::core::render-doc :wat::core::Bytes::to-hex) #=> ":wat::core::Bytes::to-hex\n\n..."
@@ -334,6 +337,22 @@ pub(crate) fn eval_render_doc(
     // Prose (the GFM body, which is plain text here).
     out.push_str(entry.prose.trim());
     out.push('\n');
+
+    // Category line.
+    if !entry.category.is_empty() {
+        out.push('\n');
+        out.push_str("Category: ");
+        out.push_str(entry.category);
+        out.push('\n');
+    }
+
+    // Yields line (optional — only for HOF intrinsics with @yields).
+    if let Some(yields_ty) = entry.yields_type {
+        out.push('\n');
+        out.push_str("Yields: ");
+        out.push_str(yields_ty);
+        out.push('\n');
+    }
 
     // Examples section (if any).
     if !entry.examples.is_empty() {

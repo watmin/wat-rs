@@ -31,3 +31,8 @@
       ;; from-hex — proving @see is declared (corpus), rendered (render-doc), and
       ;; checked (the dangling-ref test) on the pilot, not carried-but-dark.
       (:wat::test::assert-contains rendered "from-hex"))))
+
+;; Spec-complete end-to-end (weigh): the variadic witness counts its args.
+(:wat::test::deftest' :wat-tests::reflect::variadic-witness-counts-args
+  ()
+  (:wat::test::assert-eq (:wat::intrinsic::variadic-args-measurement 1 2 3) 3))

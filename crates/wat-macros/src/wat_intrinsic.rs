@@ -1,14 +1,14 @@
 //! Codegen for `#[wat_intrinsic("<fqdn>")]` — arc 255.1b-ii / iv-b1.
 //!
-//! Applied to a handler fn written with a **fixed-arg signature**: the wat
-//! args as individual `&WatAST` params, followed by the context tail
-//! (`env: &Environment, sym: &SymbolTable, span: &Span`). The attribute:
+//! Applied to a handler fn written with either a **fixed-arg signature** (each
+//! wat arg as a `&WatAST` param) or a **variadic signature** (single `&[WatAST]`
+//! slice param). The context tail (`env: &Environment, sym: &SymbolTable,
+//! span: &Span`) follows in both cases.  The attribute:
 //!
 //!   1. **Sniffs args** — collects the leading `&WatAST` param idents (those
-//!      BEFORE the context tail). N such params ⇒ `Exact(N)`. (This strike only
-//!      needs Exact-N; a trailing `&[WatAST]` slice would be Variadic, but
-//!      core::Bytes is Exact(1) twice, so a shape we can't classify is a
-//!      hard compile_error! rather than a silent guess.)
+//!      BEFORE the context tail). N such params ⇒ `Exact(N)`. A single
+//!      `&[WatAST]` leading param ⇒ `Variadic` (the slice is passed through
+//!      directly; no arity check in the shim).
 //!
 //!   2. **Parses the `///` block** via `wat_doc::parse`, enforcing the full
 //!      doc contract at expand time (`compile_error!` on any `DocError`).
@@ -49,13 +49,23 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Pat, Type};
 
-/// Parse the leading `&WatAST` arg idents (the wat-side params) from a
-/// fixed-arg handler signature. Returns (arg_idents, arity).
-/// The context tail (`&Environment`, `&SymbolTable`, `&Span`) follows the
-/// wat args; we collect only `&WatAST` params from the leading prefix.
-fn sniff_args(item: &ItemFn) -> syn::Result<Vec<String>> {
+/// Result of sniffing the handler signature's arg structure.
+enum SniffedArgs {
+    /// N leading `&WatAST` params — fixed arity.
+    Exact(Vec<String>),
+    /// A single leading `&[WatAST]` param — variadic (any number of args).
+    Variadic(String),
+}
+
+/// Parse the leading wat-side params from a handler signature.
+/// Returns `SniffedArgs::Exact(names)` for fixed-arity handlers
+/// (`&WatAST` params leading) or `SniffedArgs::Variadic(name)` for
+/// a single `&[WatAST]` param.
+/// The context tail (`&Environment`, `&SymbolTable`, `&Span`) follows.
+fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
     let mut wat_args: Vec<String> = Vec::new();
     let mut seen_context = false;
+    let mut variadic_param: Option<String> = None;
 
     for input in item.sig.inputs.iter() {
         let FnArg::Typed(pt) = input else {
@@ -64,14 +74,32 @@ fn sniff_args(item: &ItemFn) -> syn::Result<Vec<String>> {
                 "wat_intrinsic: handler fns take no `self` receiver",
             ));
         };
-        if is_ref_watast(&pt.ty) {
-            if seen_context {
-                // A `&WatAST` after a context param — the leading-args
-                // contract is violated. STOP rather than guess.
+        if is_ref_watast_slice(&pt.ty) {
+            // Variadic shape: a single `&[WatAST]` param.
+            if seen_context || !wat_args.is_empty() || variadic_param.is_some() {
+                return Err(Error::new_spanned(
+                    &pt.ty,
+                    "wat_intrinsic: `&[WatAST]` variadic param must be the SOLE \
+                     leading param (before context tail; no mixing with `&WatAST` params)",
+                ));
+            }
+            let ident = match &*pt.pat {
+                Pat::Ident(pi) => pi.ident.to_string(),
+                other => {
+                    return Err(Error::new_spanned(
+                        other,
+                        "wat_intrinsic: `&[WatAST]` variadic param must be a plain ident pattern",
+                    ));
+                }
+            };
+            variadic_param = Some(ident);
+        } else if is_ref_watast(&pt.ty) {
+            if seen_context || variadic_param.is_some() {
+                // A `&WatAST` after a context param or variadic param — violated.
                 return Err(Error::new_spanned(
                     &pt.ty,
                     "wat_intrinsic: all `&WatAST` arg params must precede the \
-                     context tail (env/sym/span); cannot classify this shape",
+                     context tail (env/sym/span) and cannot mix with a variadic param",
                 ));
             }
             // Extract the ident from the pattern.
@@ -85,20 +113,17 @@ fn sniff_args(item: &ItemFn) -> syn::Result<Vec<String>> {
                 }
             };
             wat_args.push(ident);
-        } else if is_ref_watast_slice(&pt.ty) {
-            // Variadic shape: `&[WatAST]`. Not handled this strike.
-            return Err(Error::new_spanned(
-                &pt.ty,
-                "wat_intrinsic: variadic `&[WatAST]` handlers are not supported \
-                 by this strike (255.1b-ii covers Exact-N only); STOP-1",
-            ));
         } else {
-            // First non-`&WatAST` param marks the start of the context tail.
+            // First non-`&WatAST`/`&[WatAST]` param marks the start of the context tail.
             seen_context = true;
         }
     }
 
-    Ok(wat_args)
+    if let Some(name) = variadic_param {
+        Ok(SniffedArgs::Variadic(name))
+    } else {
+        Ok(SniffedArgs::Exact(wat_args))
+    }
 }
 
 /// Sniff the handler fn's docstring — the Clojure-style whole string. `///`
@@ -179,7 +204,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
             format!("malformed `{}` directive: {}", tag, why)
         }
         wat_doc::DocError::UnknownDirective { tag } => {
-            format!("unknown doc directive `{}`; recognized: @added @arg @ret @example @example-norun @deprecated @see", tag)
+            format!("unknown doc directive `{}`; recognized: @added @arg @ret @example @example-norun @deprecated @see @pure @deterministic @category", tag)
         }
         wat_doc::DocError::ExampleMissingMarker { expr } => {
             format!(
@@ -209,12 +234,14 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
         wat_doc::DocError::MissingDeterministic => {
             "doc comment is missing a required `@deterministic true|false` directive".into()
         }
+        wat_doc::DocError::MissingCategory => {
+            "doc comment is missing a required `@category <Variant>` directive (known: Encoding, Reflection)".into()
+        }
     }
 }
 
 pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
-    let arg_names: Vec<String> = sniff_args(item)?;
-    let arity = arg_names.len();
+    let sniffed = sniff_args(item)?;
 
     // Require a doc comment; parse it through wat_doc.
     let raw_doc = match sniff_doc(item) {
@@ -241,6 +268,25 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         }
     };
 
+    // Cross-check @category against the known Category variants.
+    const KNOWN_CATEGORIES: &[&str] = &["Encoding", "Reflection"];
+    if !KNOWN_CATEGORIES.contains(&doc.category.as_str()) {
+        return Err(Error::new_spanned(
+            item,
+            format!(
+                "#[wat_intrinsic] {}: @category `{}` is not a known Category variant; known: Encoding, Reflection",
+                fqdn.value(), doc.category
+            ),
+        ));
+    }
+
+    // Build the param-name list for check_args and the shim.
+    // For Variadic, pass the single rest-param name (matches the one `@arg xs…` doc entry).
+    let (arg_names, is_variadic): (Vec<String>, bool) = match &sniffed {
+        SniffedArgs::Exact(names) => (names.clone(), false),
+        SniffedArgs::Variadic(name) => (vec![name.clone()], true),
+    };
+
     // Check @arg names against signature param idents.
     let arg_name_refs: Vec<&str> = arg_names.iter().map(String::as_str).collect();
     if let Err(e) = wat_doc::check_args(&doc, &arg_name_refs) {
@@ -254,21 +300,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     let shim_ident = format_ident!("__wat_intrinsic_shim_{}", fn_name);
 
     // Arc 255.1b-v — capture the handler source via stable restringify.
-    // `quote!(#item).to_string()` re-serializes the ItemFn's token stream.
-    // Comments are NOT preserved (token-level, not source-level), but the
-    // structural source — signature + body — is faithful-if-reformatted.
-    // `proc_macro::Span::source_text` would be exact but is nightly-only;
-    // the contract names this stable fallback. STOP-2: if `#item` is not in
-    // scope at this point (the ItemFn before we expand it), the quote! will
-    // fail to compile — but ItemFn IS in scope here (we have it as `item`).
     let source_lit = quote!(#item).to_string();
-
-    // The shim forwards `&args[0], &args[1], …, env, sym, span` to the
-    // fixed-arg handler. Indices 0..arity feed the wat-arg params; the
-    // context tail is `env, sym, span` in that order.
-    let arg_forwards: Vec<TokenStream2> = (0..arity)
-        .map(|i| quote! { &args[#i] })
-        .collect();
 
     // Emit 'static literals for the structured doc fields.
     let prose_lit = &doc.prose;
@@ -283,7 +315,8 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             let name = &a.name;
             let ty = &a.ty;
             let desc = &a.desc;
-            quote! { (#name, #ty, #desc) }
+            let is_rest = a.is_rest;
+            quote! { (#name, #ty, #desc, #is_rest) }
         })
         .collect();
 
@@ -320,29 +353,42 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
 
     let pure_lit = doc.pure;
     let deterministic_lit = doc.deterministic;
+    let category_lit = &doc.category;
 
-    let expanded = quote! {
-        // The annotated handler, passed through unchanged.
-        #item
+    let yields_type_lit = match &doc.yields {
+        Some(y) => {
+            let ty = &y.ty;
+            quote! { ::std::option::Option::Some(#ty) }
+        }
+        None => quote! { ::std::option::Option::None },
+    };
 
-        // Dispatch shim — canonical NativeHandler signature. Bridges the
-        // registry's slice-based ABI to the fixed-arg handler, enforcing
-        // arity with the SAME ArityMismatch shape the hand-written
-        // handlers produced (op = fqdn, expected = N, got = len, span =
-        // the call's list_span).
-        fn #shim_ident(
-            args: &[::wat::ast::WatAST],
-            list_span: &::wat::span::Span,
-            env: &::wat::value::Environment,
-            sym: &::wat::value::SymbolTable,
-        ) -> ::std::result::Result<::wat::value::Value, ::wat::value::EvalBreak> {
-            if args.len() != #arity {
+    // Emit the arity value: `Arity::Exact(N)` or `Arity::Variadic`.
+    let arity_lit = if is_variadic {
+        quote! { ::wat::intrinsic::Arity::Variadic }
+    } else {
+        let n = arg_names.len();
+        quote! { ::wat::intrinsic::Arity::Exact(#n) }
+    };
+
+    // Build the shim body. For exact-arity: check len == N, then forward individual refs.
+    // For variadic: pass the whole slice directly (no arity check — 0+ args all valid).
+    let shim_body = if is_variadic {
+        // Variadic: pass the whole slice to the handler.
+        quote! {
+            #fn_name(args, env, sym, list_span)
+        }
+    } else {
+        let n = arg_names.len();
+        let arg_forwards: Vec<TokenStream2> = (0..n).map(|i| quote! { &args[#i] }).collect();
+        quote! {
+            if args.len() != #n {
                 return ::std::result::Result::Err(
                     ::wat::value::RuntimeError {
                         span: list_span.clone(),
                         kind: ::wat::value::RuntimeErrorKind::ArityMismatch {
                             op: #fqdn.into(),
-                            expected: #arity,
+                            expected: #n,
                             got: args.len(),
                         },
                     }
@@ -351,6 +397,21 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             }
             #fn_name(#(#arg_forwards,)* env, sym, list_span)
         }
+    };
+
+    let expanded = quote! {
+        // The annotated handler, passed through unchanged.
+        #item
+
+        // Dispatch shim — canonical NativeHandler signature.
+        fn #shim_ident(
+            args: &[::wat::ast::WatAST],
+            list_span: &::wat::span::Span,
+            env: &::wat::value::Environment,
+            sym: &::wat::value::SymbolTable,
+        ) -> ::std::result::Result<::wat::value::Value, ::wat::value::EvalBreak> {
+            #shim_body
+        }
 
         // Auto-collect: link-time registration of (fqdn → shim) into the
         // IntrinsicRegistry. `registry()` iterates these submissions.
@@ -358,7 +419,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             ::wat::intrinsic::IntrinsicSubmission {
                 name: #fqdn,
                 handler: #shim_ident,
-                arity: #arity,
+                arity: #arity_lit,
                 prose: #prose_lit,
                 added: #added_lit,
                 args: &[#(#args_lit),*],
@@ -370,6 +431,8 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                 source: #source_lit,
                 pure: #pure_lit,
                 deterministic: #deterministic_lit,
+                category: #category_lit,
+                yields_type: #yields_type_lit,
             }
         }
     };

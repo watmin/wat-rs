@@ -111,6 +111,42 @@ impl Layer {
     }
 }
 
+/// Category — what functional category is this intrinsic?
+/// Mirrors `(:wat::core::defenum :wat::runtime::Category :Encoding :Reflection)`.
+pub(crate) enum Category {
+    #[expect(dead_code)] // reader via to_enum_value lands when caller switches to enum pattern → keep
+    Encoding,
+    #[expect(dead_code)] // reader via to_enum_value lands when caller switches to enum pattern → keep
+    Reflection,
+}
+
+impl Category {
+    #[expect(dead_code)] // to_enum_value: reader lands when eval_metadata_of switches from inline EnumValue → keep
+    pub(crate) fn to_enum_value(&self) -> Value {
+        let variant_name = match self {
+            Category::Encoding => "Encoding",
+            Category::Reflection => "Reflection",
+        };
+        Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::runtime::Category".into(),
+            variant_name: variant_name.into(),
+            fields: vec![],
+        }))
+    }
+}
+
+/// Arity — how many wat-side arguments does this intrinsic accept?
+/// `Exact(N)` means exactly N fixed args; `Variadic` means any number
+/// (the handler receives `&[WatAST]` and does its own dispatch).
+/// Only `Exact` and `Variadic` are needed now — Range/AtLeast are out of scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Arity {
+    /// Exactly N positional wat arguments.
+    Exact(usize),
+    /// Any number of wat arguments (zero or more); passed as `&[WatAST]`.
+    Variadic,
+}
+
 /// The native dispatch handler — matches the eval-fn signature exactly.
 pub(crate) type NativeHandler =
     fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
@@ -143,13 +179,14 @@ pub(crate) struct ExampleSubmission {
 pub(crate) struct IntrinsicSubmission {
     pub name: &'static str,
     pub handler: NativeHandler,
-    pub arity: usize,
+    /// Exact(N) for fixed-arity handlers; Variadic for `&[WatAST]` handlers.
+    pub arity: Arity,
     /// GFM prose body (everything before the first `@`-tag line).
     pub prose: &'static str,
     /// `@added` version string.
     pub added: &'static str,
-    /// `@arg` directives: `(name, ty, desc)` triples, in source order.
-    pub args: &'static [(&'static str, &'static str, &'static str)],
+    /// `@arg` directives: `(name, ty, desc, is_rest)` 4-tuples, in source order.
+    pub args: &'static [(&'static str, &'static str, &'static str, bool)],
     /// `@ret` type token (must start with `:`).
     pub ret_type: &'static str,
     /// `@ret` description.
@@ -168,6 +205,11 @@ pub(crate) struct IntrinsicSubmission {
     pub pure: bool,
     /// Declared determinism from `@deterministic true|false` in the doc.
     pub deterministic: bool,
+    /// `@category <Variant>` — functional category, e.g. `"Encoding"` or `"Reflection"`.
+    pub category: &'static str,
+    /// `@yields <type> <desc>` type token — the type handed into the fn-arg callback.
+    /// `None` when the intrinsic does not yield to a callback.
+    pub yields_type: Option<&'static str>,
 }
 
 inventory::collect!(IntrinsicSubmission);
@@ -180,7 +222,9 @@ inventory::collect!(IntrinsicSubmission);
 pub(crate) struct IntrinsicEntry {
     pub name: &'static str,
     pub handler: NativeHandler,
-    pub arity: usize,
+    /// Exact(N) for fixed-arity handlers; Variadic for rest-param handlers.
+    /// Consumed by `metadata-of`'s intrinsic branch.
+    pub arity: Arity,
     pub prose: &'static str,
     pub added: &'static str,
     pub ret: &'static str,
@@ -194,7 +238,7 @@ pub(crate) struct IntrinsicEntry {
     // `deprecated` is still unread — reader lands later; keep its `#[expect(dead_code)]`.
     // `see` is read by `eval_render_doc`'s See-also section (non-test) — no dead_code attr.
     #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
-    pub args: &'static [(&'static str, &'static str, &'static str)],
+    pub args: &'static [(&'static str, &'static str, &'static str, bool)],
     #[allow(dead_code)] // read by doc_arg_ret_types_match_checker_scheme (cfg(test))
     pub ret_type: &'static str,
     pub examples: &'static [ExampleSubmission],
@@ -209,6 +253,14 @@ pub(crate) struct IntrinsicEntry {
     #[allow(dead_code)] // read by purity_mandated_examples (cfg(test))
     /// Declared determinism — from `@deterministic true|false` in the doc.
     pub deterministic: bool,
+    /// `@category <Variant>` — functional category string, e.g. `"Encoding"` or `"Reflection"`.
+    /// Consumed by `metadata-of`'s intrinsic branch and `eval_render_doc`.
+    pub category: &'static str,
+    /// `@yields <type>` type token — the element type handed to the fn-arg callback.
+    /// `None` when the intrinsic does not yield to a callback.
+    /// Consumed by `yields_type_matches_fn_arg_param` (cfg(test)) and `eval_render_doc`.
+    #[allow(dead_code)] // read by yields_type_matches_fn_arg_param (cfg(test)) + render-doc
+    pub yields_type: Option<&'static str>,
 }
 
 /// `name → entry`. Built once at startup; the dispatch route reads `handler`
@@ -269,6 +321,8 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 source: submission.source,
                 pure: submission.pure,
                 deterministic: submission.deterministic,
+                category: submission.category,
+                yields_type: submission.yields_type,
             });
         }
         r
@@ -277,6 +331,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 
 mod bytes;
 mod reflect;
+mod witness;
 
 // ─── Arc 255.1b-v: @see registry-check + firm-doc tests ──────────────────────
 //
@@ -303,6 +358,9 @@ mod tests {
     /// Arc 255.1b-firm: the doc's `@arg`/`@ret` type strings must match the
     /// checker's `TypeScheme` for each registered intrinsic. A mismatch is a
     /// doc lie — the user reads one type, the checker enforces another.
+    ///
+    /// For variadic args (`is_rest=true`): the doc's element type must match the
+    /// ELEMENT of `scheme.rest_param_type` (a `Vector<elem>` in the scheme).
     #[test]
     fn doc_arg_ret_types_match_checker_scheme() {
         use crate::check::CheckEnv;
@@ -318,8 +376,28 @@ mod tests {
             };
 
             // Check arg types.
-            for (i, &(_, ty, _)) in entry.args.iter().enumerate() {
-                if i < scheme.params.len() {
+            for (i, &(_, ty, _, is_rest)) in entry.args.iter().enumerate() {
+                if is_rest {
+                    // Variadic: doc elem type must match the element of scheme.rest_param_type.
+                    // The doc's @arg type uses full `:wat::core::X` form (top-level, with `:`),
+                    // so compare using typeexpr_to_doc_string (not the type-arg variant).
+                    if let Some(rest_ty) = &scheme.rest_param_type {
+                        // rest_param_type is Vector<elem>; extract the elem.
+                        let elem_ty = match rest_ty {
+                            crate::types::TypeExpr::Parametric { args, .. } if !args.is_empty() => {
+                                typeexpr_to_doc_string(&args[0])
+                            }
+                            other => typeexpr_to_doc_string(other),
+                        };
+                        assert_eq!(
+                            ty, elem_ty.as_str(),
+                            "doc elem type for variadic `{}` arg {} says `{}`, \
+                             checker rest_param_type elem says `{}`",
+                            entry.name, i, ty, elem_ty
+                        );
+                    }
+                    // If no rest_param_type on the scheme, skip — not yet registered.
+                } else if i < scheme.params.len() {
                     let scheme_ty = typeexpr_to_doc_string(&scheme.params[i]);
                     assert_eq!(
                         ty, scheme_ty.as_str(),
@@ -350,7 +428,7 @@ mod tests {
             }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
-                format!(":fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
+                format!(":wat::core::Fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
             }
             other => format!("{:?}", other),
         }
@@ -415,6 +493,60 @@ mod tests {
                  doc and runtime witness must agree",
                 entry.name, entry.pure, effectful
             );
+        }
+    }
+
+    /// Arc 255 spec-complete: for entries with `@yields`, the declared type must match
+    /// the fn-arg's (Fn(P)->R) param type P in the checker's TypeScheme.
+    /// A mismatch is a doc lie — the user reads one callback-param type, the checker
+    /// enforces another.
+    #[test]
+    fn yields_type_matches_fn_arg_param() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        for entry in super::registry().all_entries() {
+            let yields_type = match entry.yields_type {
+                Some(yt) => yt,
+                None => continue, // no @yields — skip
+            };
+
+            let scheme = match check_env.get(entry.name) {
+                Some(s) => s,
+                None => continue, // not yet in checker — skip
+            };
+
+            // Find the arg whose scheme type is Fn(P)->R; assert @yields type == P.
+            // The Fn arg is identified by TypeExpr::Fn in scheme.params.
+            let mut found_fn_param = false;
+            for param_ty in &scheme.params {
+                if let crate::types::TypeExpr::Fn { args: fn_args, .. } = param_ty {
+                    // @yields type must match the first (and only) Fn param.
+                    let param_ty_str = if fn_args.len() == 1 {
+                        typeexpr_to_doc_string(&fn_args[0])
+                    } else {
+                        continue;
+                    };
+                    assert_eq!(
+                        yields_type, param_ty_str.as_str(),
+                        "doc `@yields` type for `{}` says `{}`, \
+                         but the fn-arg's scheme Fn(P)->R param P says `{}`",
+                        entry.name, yields_type, param_ty_str
+                    );
+                    found_fn_param = true;
+                    break;
+                }
+            }
+            if !found_fn_param {
+                panic!(
+                    "intrinsic `{}` declares `@yields {}` but its TypeScheme has \
+                     no Fn(P)->R param — register a Fn param in check.rs",
+                    entry.name, yields_type
+                );
+            }
         }
     }
 }

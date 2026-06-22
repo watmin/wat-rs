@@ -59,12 +59,16 @@ pub struct DocExample {
 /// is [`check_args`]'s job, not the parser's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocArg {
-    /// First whitespace-delimited token after `@arg`.
+    /// First whitespace-delimited token after `@arg`, stripped of any trailing `…`.
     pub name: String,
     /// Second whitespace-delimited token after `@arg` — the type, must start with `:`.
+    /// For variadic args this is the ELEMENT type (the `…` implies `Vector<elem>`).
     pub ty: String,
     /// The remainder after name and type, trimmed.
     pub desc: String,
+    /// True when the name had a trailing `…` suffix — this is a rest/variadic parameter.
+    /// The `ty` is the element type; the actual runtime type is `Vector<ty>`.
+    pub is_rest: bool,
 }
 
 /// A parsed `@deprecated` directive (soft deprecation — still callable).
@@ -101,6 +105,20 @@ pub struct DocComment {
     pub pure: bool,
     /// `@deterministic true|false` — declared determinism.
     pub deterministic: bool,
+    /// `@category <Variant>` — closed-enum category (e.g. `Encoding`, `Reflection`).
+    pub category: String,
+    /// `@yields <type> <desc>` — optional; the type handed into the fn-arg callback.
+    /// `None` when the intrinsic does not yield to a callback.
+    pub yields: Option<DocYields>,
+}
+
+/// One parsed `@yields` directive — the type the intrinsic hands into its fn-arg callback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocYields {
+    /// The type token (must start with `:`).
+    pub ty: String,
+    /// The remainder description, trimmed.
+    pub desc: String,
 }
 
 /// A doc-contract violation. Closed enum — diagnostic completeness by shape.
@@ -137,6 +155,8 @@ pub enum DocError {
     MissingPure,
     /// No `@deterministic` directive.
     MissingDeterministic,
+    /// No `@category` directive.
+    MissingCategory,
 }
 
 /// The separator tokens that are now ILLEGAL in the type position.
@@ -150,7 +170,7 @@ const SEPARATOR_TOKENS: &[&str] = &["—", "--", "-", ":"];
 pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let recognized = &[
         "@added", "@arg", "@ret", "@example", "@example-norun", "@deprecated", "@see",
-        "@pure", "@deterministic",
+        "@pure", "@deterministic", "@category", "@yields",
     ];
 
     // Split into prose lines and directive lines at the first recognized @-directive.
@@ -177,6 +197,8 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     let mut see: Vec<String> = Vec::new();
     let mut pure_val: Option<bool> = None;
     let mut deterministic_val: Option<bool> = None;
+    let mut category_val: Option<String> = None;
+    let mut yields_val: Option<DocYields> = None;
 
     let directive_lines = match first_directive {
         Some(i) => &lines[i..],
@@ -213,8 +235,10 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 added = Some(payload.to_string());
             }
             "@arg" => {
-                // Firm grammar: @arg <name> <type> <desc>
-                // name = first token, type = second token (must start with `:`), desc = rest
+                // Firm grammar: @arg <name>[…] <elem-type> <desc>
+                // name = first token (may carry `…` suffix for variadic/rest params),
+                // type = second token (must start with `:`; for `…` args, this is the
+                // ELEMENT type — the `…` implies Vector<elem>), desc = rest.
                 let mut tokens = payload.splitn(3, char::is_whitespace);
                 let raw_name = tokens.next().unwrap_or("");
                 if raw_name.is_empty() {
@@ -223,7 +247,14 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                         why: "name is missing",
                     });
                 }
-                let name = raw_name.to_string();
+                // Detect and strip the variadic `…` suffix.
+                let (name, is_rest) = if let Some(stem) = raw_name.strip_suffix('…') {
+                    (stem.to_string(), true)
+                } else if let Some(stem) = raw_name.strip_suffix("...") {
+                    (stem.to_string(), true)
+                } else {
+                    (raw_name.to_string(), false)
+                };
 
                 let ty_token = tokens.next().unwrap_or("").trim();
                 if ty_token.is_empty() {
@@ -255,7 +286,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                         why: "description is empty; grammar is `@arg <name> <type> <desc>`",
                     });
                 }
-                args.push(DocArg { name, ty, desc });
+                args.push(DocArg { name, ty, desc, is_rest });
             }
             "@ret" => {
                 if ret.is_some() {
@@ -372,6 +403,48 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     }),
                 }
             }
+            "@category" => {
+                if category_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@category".into() });
+                }
+                if payload.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@category".into(),
+                        why: "variant name is empty; grammar is `@category <Variant>`",
+                    });
+                }
+                category_val = Some(payload.to_string());
+            }
+            "@yields" => {
+                // Optional singleton: @yields <type> <desc>
+                // type = first token (must start with `:`), desc = rest.
+                if yields_val.is_some() {
+                    return Err(DocError::DuplicateSingleton { tag: "@yields".into() });
+                }
+                let mut tokens = payload.splitn(2, char::is_whitespace);
+                let ty_token = tokens.next().unwrap_or("").trim();
+                if ty_token.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@yields".into(),
+                        why: "type is missing; grammar is `@yields <type> <desc>`",
+                    });
+                }
+                if !ty_token.starts_with(':') {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@yields".into(),
+                        why: "type token must start with `:` (e.g. `:wat::core::i64`); grammar is `@yields <type> <desc>`",
+                    });
+                }
+                let ty = ty_token.to_string();
+                let desc = tokens.next().unwrap_or("").trim().to_string();
+                if desc.is_empty() {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@yields".into(),
+                        why: "description is empty; grammar is `@yields <type> <desc>`",
+                    });
+                }
+                yields_val = Some(DocYields { ty, desc });
+            }
             _ => unreachable!("recognized set is exhaustive"),
         }
     }
@@ -385,8 +458,9 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
     }
     let pure = pure_val.ok_or(DocError::MissingPure)?;
     let deterministic = deterministic_val.ok_or(DocError::MissingDeterministic)?;
+    let category = category_val.ok_or(DocError::MissingCategory)?;
 
-    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, pure, deterministic })
+    Ok(DocComment { prose, added, args, ret_type, ret, examples, deprecated, see, pure, deterministic, category, yields: yields_val })
 }
 
 /// Trim leading and trailing blank (empty/whitespace-only) lines from a slice.
@@ -399,6 +473,10 @@ fn trim_blank_lines<'a>(lines: &'a [&'a str]) -> &'a [&'a str] {
 /// The `@arg`⇄signature mutual check: the documented args must match `params`
 /// (the wat-arg names, in order) by count and name. A 0-param intrinsic must
 /// document 0 args. This is what makes "`@arg` required ×params" true.
+///
+/// For variadic intrinsics, the last `@arg` carries `is_rest: true`; the
+/// corresponding signature param is the single `&[WatAST]` (variadic) param.
+/// The name check strips `…` from the documented name before comparing.
 pub fn check_args(doc: &DocComment, params: &[&str]) -> Result<(), DocError> {
     if doc.args.len() != params.len() {
         return Err(DocError::ArgCountMismatch {
@@ -407,6 +485,7 @@ pub fn check_args(doc: &DocComment, params: &[&str]) -> Result<(), DocError> {
         });
     }
     for (i, (arg, &param)) in doc.args.iter().zip(params.iter()).enumerate() {
+        // `arg.name` is already stripped of any `…` suffix by the parser.
         if arg.name != param {
             return Err(DocError::ArgNameMismatch {
                 position: i,
@@ -425,7 +504,7 @@ mod tests {
     /// The reference intrinsic doc block (`core::Bytes::to-hex`), in the exact
     /// joined form `sniff_doc` produces (`/// ` stripped, `\n`-joined). This IS
     /// the contract the parser must satisfy. Updated to firm grammar (no separator).
-    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@pure true\n@deterministic true\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
+    const TO_HEX: &str = "Encode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\n@added   1.0.0\n@arg     bs :wat::core::Bytes the bytes to encode\n@ret     :wat::core::String the lowercase hex string, two chars per byte, no separators\n@pure true\n@deterministic true\n@category Encoding\n@example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> \"ff0010\"";
 
     #[test]
     fn parses_the_reference_intrinsic() {
@@ -437,7 +516,7 @@ mod tests {
         assert_eq!(doc.added, "1.0.0");
         assert_eq!(
             doc.args,
-            vec![DocArg { name: "bs".into(), ty: ":wat::core::Bytes".into(), desc: "the bytes to encode".into() }]
+            vec![DocArg { name: "bs".into(), ty: ":wat::core::Bytes".into(), desc: "the bytes to encode".into(), is_rest: false }]
         );
         assert_eq!(doc.ret_type, ":wat::core::String");
         assert_eq!(doc.ret, "the lowercase hex string, two chars per byte, no separators");
@@ -453,11 +532,12 @@ mod tests {
         assert!(doc.see.is_empty());
         assert_eq!(doc.pure, true);
         assert_eq!(doc.deterministic, true);
+        assert_eq!(doc.category, "Encoding");
     }
 
     #[test]
     fn norun_example_may_omit_the_marker() {
-        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
+        let raw = "Write bytes to a path.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@category Encoding\n@arg p :wat::core::Path the path\n@ret :wat::core::Result ok on success\n@example-norun (:wat::core::File::write p data)";
         let doc = parse(raw).expect("norun parses");
         assert_eq!(
             doc.examples,
@@ -471,7 +551,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
-        let raw = "Read a uuid.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::core::Uuid/v4) #=> #uuid \"…\"";
+        let raw = "Read a uuid.\n\n@added 1.0.0\n@pure false\n@deterministic false\n@category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::core::Uuid/v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert_eq!(doc.examples[0].run, false);
         assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));
@@ -479,7 +559,7 @@ mod tests {
 
     #[test]
     fn multiple_args_and_see_in_order() {
-        let raw = "Blend two things.\n\n@added 1.2.0\n@pure true\n@deterministic true\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
+        let raw = "Blend two things.\n\n@added 1.2.0\n@pure true\n@deterministic true\n@category Encoding\n@arg a :wat::core::i64 the first\n@arg b :wat::core::i64 the second\n@ret :wat::core::i64 the blend\n@example (f 1 2) #=> 3\n@see :wat::core::other\n@see :wat::core::another";
         let doc = parse(raw).expect("parses");
         assert_eq!(doc.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(doc.args[0].desc, "the first");
@@ -489,7 +569,7 @@ mod tests {
 
     #[test]
     fn deprecated_parses() {
-        let raw = "Old thing.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
+        let raw = "Old thing.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Encoding\n@ret :wat::core::i64 nothing useful\n@example (g) #=> nil\n@deprecated 2.0.0 use :wat::core::new-thing instead";
         let doc = parse(raw).expect("parses");
         assert_eq!(
             doc.deprecated,
@@ -605,14 +685,14 @@ mod tests {
 
     #[test]
     fn check_args_zero_arity_ok() {
-        let raw = "A constant.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
+        let raw = "A constant.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Encoding\n@ret :wat::core::i64 the value\n@example (k) #=> 42";
         let doc = parse(raw).unwrap();
         assert_eq!(check_args(&doc, &[]), Ok(()));
     }
 
     #[test]
     fn pure_and_deterministic_parse() {
-        let raw = "Do something.\n\n@added 1.0.0\n@pure true\n@deterministic false\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let raw = "Do something.\n\n@added 1.0.0\n@pure true\n@deterministic false\n@category Encoding\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
         let doc = parse(raw).expect("pure+det doc parses");
         assert_eq!(doc.pure, true);
         assert_eq!(doc.deterministic, false);
@@ -637,5 +717,18 @@ mod tests {
             Err(DocError::MalformedDirective { tag, .. }) => assert_eq!(tag, "@pure"),
             other => panic!("expected MalformedDirective for @pure, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn missing_category_is_an_error() {
+        let raw = "Prose.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@ret :wat::core::i64 x\n@example (f) #=> y";
+        assert_eq!(parse(raw), Err(DocError::MissingCategory));
+    }
+
+    #[test]
+    fn category_parses() {
+        let raw = "Do something.\n\n@added 1.0.0\n@pure true\n@deterministic true\n@category Reflection\n@ret :wat::core::i64 the value\n@example (f) #=> 1";
+        let doc = parse(raw).expect("category doc parses");
+        assert_eq!(doc.category, "Reflection");
     }
 }
