@@ -164,6 +164,10 @@ pub(crate) struct IntrinsicSubmission {
     /// Faithful-if-reformatted (token restringify; comments may be lost).
     /// Consumed by `(:wat::core::show-source <fqdn>)`.
     pub source: &'static str,
+    /// Declared purity from `@pure true|false` in the doc.
+    pub pure: bool,
+    /// Declared determinism from `@deterministic true|false` in the doc.
+    pub deterministic: bool,
 }
 
 inventory::collect!(IntrinsicSubmission);
@@ -199,6 +203,12 @@ pub(crate) struct IntrinsicEntry {
     pub see: &'static [&'static str],
     /// Restringified handler source (consumed by `show-source` / 255.1b-v).
     pub source: &'static str,
+    #[allow(dead_code)] // read by pure_declared_matches_is_effectful_op + purity_mandated_examples (cfg(test))
+    /// Declared purity — from `@pure true|false` in the doc.
+    pub pure: bool,
+    #[allow(dead_code)] // read by purity_mandated_examples (cfg(test))
+    /// Declared determinism — from `@deterministic true|false` in the doc.
+    pub deterministic: bool,
 }
 
 /// `name → entry`. Built once at startup; the dispatch route reads `handler`
@@ -257,6 +267,8 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 deprecated: submission.deprecated,
                 see: submission.see,
                 source: submission.source,
+                pure: submission.pure,
+                deterministic: submission.deterministic,
             });
         }
         r
@@ -362,42 +374,14 @@ mod tests {
     /// Arc 255.1b-firm: pure+det intrinsics MUST carry ≥1 runnable `@example`;
     /// non-pure-det intrinsics MUST carry ≥1 `@example-norun` and NO runnable
     /// `@example`. Enforced at compile time via the doc-contract; enforced at
-    /// test time here.
-    ///
-    /// Exemption: intrinsics whose output is CORPUS-DERIVED (they reflect the
-    /// registry itself — `render-doc`, `show-source`, `examples`) produce strings
-    /// that change whenever any doc changes. Runnable doctests for them would be
-    /// inherently fragile and corpus-coupled. They are pure+det by the structural
-    /// definition but exempted from the ≥1-run mandate; they must carry
-    /// ≥1 `@example-norun` instead.
+    /// test time here using the declared `@pure`/`@deterministic` fields.
     #[test]
     fn purity_mandated_examples() {
-        // Corpus-derived reflection intrinsics: output is a function of the
-        // entire registry/corpus; runnable doctests would break on every doc edit.
-        const CORPUS_DERIVED: &[&str] = &[
-            ":wat::core::render-doc",
-            ":wat::core::show-source",
-            ":wat::intrinsic::examples",
-        ];
-
         for entry in super::registry().all_entries() {
-            let (pure, det) = crate::runtime::derive_pure_deterministic(entry.name);
             let has_run = entry.examples.iter().any(|e| e.run);
             let has_norun = entry.examples.iter().any(|e| !e.run);
 
-            if CORPUS_DERIVED.contains(&entry.name) {
-                // Corpus-derived: must have ≥1 @example-norun, no runnable @example.
-                assert!(
-                    has_norun,
-                    "corpus-derived intrinsic `{}` has no @example-norun (≥1 required)",
-                    entry.name
-                );
-                assert!(
-                    !has_run,
-                    "corpus-derived intrinsic `{}` has a runnable @example (forbidden — output is corpus-dependent)",
-                    entry.name
-                );
-            } else if pure && det {
+            if entry.pure && entry.deterministic {
                 assert!(
                     has_run,
                     "pure+det intrinsic `{}` has no runnable @example (≥1 required by contract)",
@@ -415,6 +399,22 @@ mod tests {
                     entry.name
                 );
             }
+        }
+    }
+
+    /// Arc 255.1b-firm: the declared `@pure` in the doc must agree with
+    /// `is_effectful_op` — the runtime witness. A mismatch is a doc lie.
+    #[test]
+    fn pure_declared_matches_is_effectful_op() {
+        for entry in super::registry().all_entries() {
+            let effectful = crate::runtime::is_effectful_op(entry.name);
+            let expected_pure = !effectful;
+            assert_eq!(
+                entry.pure, expected_pure,
+                "intrinsic `{}` declares `@pure {}` but is_effectful_op says effectful={}; \
+                 doc and runtime witness must agree",
+                entry.name, entry.pure, effectful
+            );
         }
     }
 }

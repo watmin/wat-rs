@@ -45,7 +45,9 @@ use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, Symbo
 /// a malformed example is a real defect; the macro enforced the doc SHAPE,
 /// not that `expr` parses as wat).
 ///
-/// @added 1.0.0
+/// @added         1.0.0
+/// @pure          true
+/// @deterministic false
 /// @ret :wat::core::Vector<wat::intrinsic::Example> a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
@@ -206,7 +208,9 @@ fn extract_fqdn(
 ///
 /// Returns a `:wat::core::String`; the caller prints it.
 ///
-/// @added 1.0.0
+/// @added         1.0.0
+/// @pure          true
+/// @deterministic false
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the intrinsic or user form to inspect, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String the handler's Rust source (for intrinsics) or the body's wat source (for user forms)
 /// @example-norun (:wat::core::show-source :wat::core::Bytes::to-hex) #=> "pub (crate) fn eval_bytes_to_hex ..."
@@ -285,7 +289,9 @@ pub(crate) fn eval_show_source(
 /// Plain-text only (no ANSI/glow/markdown rendering — flavor is the caller's
 /// choice; a renderer drops in later over the SAME `metadata-of` data).
 ///
-/// @added 1.0.0
+/// @added         1.0.0
+/// @pure          true
+/// @deterministic false
 /// @arg fqdn :wat::core::keyword the FQDN keyword of the registered intrinsic to render, e.g. `:wat::core::Bytes::to-hex`
 /// @ret :wat::core::String a plain-text multi-line String rendering the intrinsic's name, prose, and examples
 /// @example-norun (:wat::core::render-doc :wat::core::Bytes::to-hex) #=> ":wat::core::Bytes::to-hex\n\n..."

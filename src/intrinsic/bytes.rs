@@ -33,7 +33,9 @@ use crate::value::{
 ///
 /// Markdown prose, GFM — flows straight to the wiki page body.
 ///
-/// @added   1.0.0
+/// @added         1.0.0
+/// @pure          true
+/// @deterministic true
 /// @arg     bs :wat::core::Bytes the bytes to encode
 /// @ret     :wat::core::String the lowercase hex string, two chars per byte, no separators
 /// @example (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
@@ -96,7 +98,9 @@ const NIBBLE: [char; 16] = [
 /// separators, no `0x` prefix); the empty string round-trips to an empty
 /// Bytes. Returns `:None` on odd input length or any non-hex character.
 ///
-/// @added      1.0.0
+/// @added         1.0.0
+/// @pure          true
+/// @deterministic true
 /// @arg        s :wat::core::String the hex-encoded string to decode
 /// @ret        :wat::core::Option<wat::core::Bytes> Some(Bytes) on success, None on malformed input
 /// @example    (:wat::core::Bytes::from-hex "gg") #=> :None

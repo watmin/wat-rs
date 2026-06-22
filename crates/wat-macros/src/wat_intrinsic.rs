@@ -203,6 +203,12 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
                 position, documented, signature
             )
         }
+        wat_doc::DocError::MissingPure => {
+            "doc comment is missing a required `@pure true|false` directive".into()
+        }
+        wat_doc::DocError::MissingDeterministic => {
+            "doc comment is missing a required `@deterministic true|false` directive".into()
+        }
     }
 }
 
@@ -312,6 +318,9 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
 
     let see_lit: Vec<&str> = doc.see.iter().map(String::as_str).collect();
 
+    let pure_lit = doc.pure;
+    let deterministic_lit = doc.deterministic;
+
     let expanded = quote! {
         // The annotated handler, passed through unchanged.
         #item
@@ -359,6 +368,8 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                 deprecated: #deprecated_lit,
                 see: &[#(#see_lit),*],
                 source: #source_lit,
+                pure: #pure_lit,
+                deterministic: #deterministic_lit,
             }
         }
     };

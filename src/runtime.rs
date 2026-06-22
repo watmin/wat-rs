@@ -22711,6 +22711,9 @@ pub(crate) fn is_effectful_op(head: &str) -> bool {
 /// The NONDETERMINISTIC hand-list is the residual from arc 255's original
 /// scope: deriving determinism structurally is its own future stone.
 pub(crate) fn derive_pure_deterministic(name: &str) -> (bool, bool) {
+    // Registered intrinsics now declare `@deterministic` in their doc; this set
+    // is the residual for not-yet-registered intrinsics (dies when they migrate
+    // to `#[wat_intrinsic]`).
     const NONDETERMINISTIC: &[&str] = &[":wat::core::Uuid/v4"];
     let pure = !is_effectful_op(name);
     let deterministic = pure && !NONDETERMINISTIC.contains(&name);
