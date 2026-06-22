@@ -366,11 +366,11 @@
   -> :wat::core::nil
   (:wat::core::let
     [_send
-      (:wat::core::Result/expect -> :wat::core::nil
+      (:wat::core::Result/expect  
         (:wat::kernel::send req-tx entries)
         "Service/batch-log: req-tx disconnected — telemetry service died?")
      _recv
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
+      (:wat::core::Result/expect  
         (:wat::kernel::recv ack-rx)
         "Service/batch-log: ack-rx disconnected — telemetry service died mid-flush?")]
     nil))

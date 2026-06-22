@@ -142,10 +142,10 @@
         results
          (:wat::lru::get handle (:wat::core::Vector :wat::core::String k))
         slot
-         (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
+         (:wat::core::Option/expect  
            (:wat::core::get results 0)
            "lru-put-then-get-on-handle: results vec is empty")]
-       (:wat::core::Option/expect -> :wat::core::i64
+       (:wat::core::Option/expect  
          slot
          "lru-put-then-get-on-handle: get returned None for the put key")))
 
@@ -216,15 +216,15 @@
          (:wat::lru::get handle
            (:wat::core::Vector :wat::core::String "k1" "k2" "k3"))
         p0 (:test::lru-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
+           (:wat::core::Option/expect  
              (:wat::core::get results 0)
              "lru-probe-three-on-handle: results[0] missing"))
         p1 (:test::lru-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
+           (:wat::core::Option/expect  
              (:wat::core::get results 1)
              "lru-probe-three-on-handle: results[1] missing"))
         p2 (:test::lru-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
+           (:wat::core::Option/expect  
              (:wat::core::get results 2)
              "lru-probe-three-on-handle: results[2] missing"))]
        (:wat::core::i64::+

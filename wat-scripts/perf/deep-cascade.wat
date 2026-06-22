@@ -68,8 +68,8 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
-                    depth   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get params 0) "stdin: [depth width]")
-                    width   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get params 1) "stdin: [depth width]")
+                    depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
+                    width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)
                     staged  (:perf::seed-level-0 (:wat::rete::compile rules) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)

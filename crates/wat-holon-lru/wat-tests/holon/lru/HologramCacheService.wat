@@ -180,7 +180,7 @@
          (:wat::holon::lru::HologramCacheService/get handle
            (:wat::core::Vector :wat::holon::HolonAST k))
         slot
-         (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+         (:wat::core::Option/expect  
            (:wat::core::get results 0)
            "hcs-put-then-get-on-handle: results vec is empty")]
        (:test::hcs-slot-presence slot)))
@@ -244,15 +244,15 @@
              (:wat::holon::leaf :beta)
              (:wat::holon::leaf :gamma)))
         p0 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 0)
              "hcs-probe-three-on-handle: results[0] missing"))
         p1 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 1)
              "hcs-probe-three-on-handle: results[1] missing"))
         p2 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 2)
              "hcs-probe-three-on-handle: results[2] missing"))]
        (:wat::core::i64::+
@@ -317,15 +317,15 @@
              (:wat::holon::leaf :beta)
              (:wat::holon::leaf :gamma)))
         p0 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 0)
              "hcs-eviction-on-handle: results[0] missing"))
         p1 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 1)
              "hcs-eviction-on-handle: results[1] missing"))
         p2 (:test::hcs-slot-presence
-           (:wat::core::Option/expect -> :wat::core::Option<wat::holon::HolonAST>
+           (:wat::core::Option/expect  
              (:wat::core::get results 2)
              "hcs-eviction-on-handle: results[2] missing"))]
        (:wat::core::i64::+

@@ -291,7 +291,7 @@
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
            _send
-            (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::core::Result/expect  
               (:wat::kernel::send reply-tx (:wat::holon::lru::HologramCacheService::Reply::GetResult results))
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
@@ -320,7 +320,7 @@
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
            _send
-            (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::core::Result/expect  
               (:wat::kernel::send reply-tx :wat::holon::lru::HologramCacheService::Reply::PutAck)
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
@@ -500,12 +500,12 @@
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
      _send
-      (:wat::core::Result/expect -> :wat::core::nil
+      (:wat::core::Result/expect  
         (:wat::kernel::send req-tx (:wat::holon::lru::HologramCacheService::Request::Get probes))
         "HologramCacheService/get: req-tx disconnected — driver died?")
      reply
-      (:wat::core::Option/expect -> :wat::holon::lru::HologramCacheService::Reply
-        (:wat::core::Result/expect -> :wat::core::Option<wat::holon::lru::HologramCacheService::Reply>
+      (:wat::core::Option/expect  
+        (:wat::core::Result/expect  
           (:wat::kernel::recv reply-rx)
           "HologramCacheService/get: reply-rx disconnected — driver died mid-request?")
         "HologramCacheService/get: reply channel closed — driver dropped reply-tx?")]
@@ -527,12 +527,12 @@
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      _send
-      (:wat::core::Result/expect -> :wat::core::nil
+      (:wat::core::Result/expect  
         (:wat::kernel::send req-tx (:wat::holon::lru::HologramCacheService::Request::Put entries))
         "HologramCacheService/put: req-tx disconnected — driver died?")
      reply
-      (:wat::core::Option/expect -> :wat::holon::lru::HologramCacheService::Reply
-        (:wat::core::Result/expect -> :wat::core::Option<wat::holon::lru::HologramCacheService::Reply>
+      (:wat::core::Option/expect  
+        (:wat::core::Result/expect  
           (:wat::kernel::recv reply-rx)
           "HologramCacheService/put: reply-rx disconnected — driver died mid-request?")
         "HologramCacheService/put: reply channel closed — driver dropped reply-tx?")]

@@ -225,7 +225,7 @@
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
            _send
-            (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::core::Result/expect  
               (:wat::kernel::send reply-tx (:wat::lru::Reply::GetResult results))
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
@@ -252,7 +252,7 @@
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
            _send
-            (:wat::core::Result/expect -> :wat::core::nil
+            (:wat::core::Result/expect  
               (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck nil))
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
@@ -420,12 +420,12 @@
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
      _send
-      (:wat::core::Result/expect -> :wat::core::nil
+      (:wat::core::Result/expect  
         (:wat::kernel::send req-tx (:wat::lru::Request::Get probes))
         "lru::get: req-tx disconnected — driver died?")
      reply
-      (:wat::core::Option/expect -> :wat::lru::Reply<V>
-        (:wat::core::Result/expect -> :wat::core::Option<wat::lru::Reply<V>>
+      (:wat::core::Option/expect  
+        (:wat::core::Result/expect  
           (:wat::kernel::recv reply-rx)
           "lru::get: reply-rx disconnected — driver died mid-request?")
         "lru::get: reply channel closed — driver dropped reply-tx?")]
@@ -447,12 +447,12 @@
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      _send
-      (:wat::core::Result/expect -> :wat::core::nil
+      (:wat::core::Result/expect  
         (:wat::kernel::send req-tx (:wat::lru::Request::Put entries))
         "lru::put: req-tx disconnected — driver died?")
      reply
-      (:wat::core::Option/expect -> :wat::lru::Reply<V>
-        (:wat::core::Result/expect -> :wat::core::Option<wat::lru::Reply<V>>
+      (:wat::core::Option/expect  
+        (:wat::core::Result/expect  
           (:wat::kernel::recv reply-rx)
           "lru::put: reply-rx disconnected — driver died mid-request?")
         "lru::put: reply channel closed — driver dropped reply-tx?")]
