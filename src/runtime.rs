@@ -24754,11 +24754,15 @@ fn eval_peer_select_prime(
         })? {
             crate::comms::SelectOutcome::Recv { index, result } => {
                 match result {
-                    Err(_) => {
-                        // Output EOF — classify death via the shared helper.
-                        use crate::kernel::spawn::{PeerDeath, classify_peer_death};
+                    // The ONE door (annihilation of the two-door deadlock):
+                    // classify_peer_error owns the FrameTooLarge teardown (no err
+                    // read → no deadlock) AND the true-EOF err read. recv'
+                    // (ProcessPeerBundle::recv) routes through the SAME fn — a
+                    // cap-violation surfaces as Lost{cap reason} consistently.
+                    Err(e) => {
+                        use crate::kernel::spawn::{PeerDeath, classify_peer_error};
                         let peer_idx = index.0 as i64;
-                        let event = match classify_peer_death(err_rxs[index.0].recv()) {
+                        let event = match classify_peer_error(&e, err_rxs[index.0]) {
                             PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Lost".into(),

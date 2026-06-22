@@ -208,6 +208,32 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
     }
 }
 
+/// THE ONE DOOR for a process peer's output-side error → death classification.
+///
+/// Both `recv'` (`ProcessPeerBundle::recv`) and `select'` (the process arm of
+/// `eval_peer_select_prime`) route through this — the over-cap deadlock had TWO
+/// doors (each independently deciding "FrameTooLarge → don't read err"); this is
+/// the annihilation of that duplication into one.
+///
+/// Lockstep invariant: on `FrameTooLarge` the child is ALIVE and blocked in
+/// `write_all` (the parent stopped draining after the cap fired) — reading `err`
+/// would DEADLOCK. The cap-violation IS the cause, so surface it as `Lost`
+/// WITHOUT touching `err`; the caller tears the peer down via RAII. Only a true
+/// EOF/shutdown (`Err(_)`) reads `err` — there the child has exited, so the read
+/// returns promptly (buffered reason → `Lost`, or EOF → `Closed`).
+pub fn classify_peer_error(
+    output_err: &crate::comms::RecvError,
+    err: &crate::comms::process::Receiver<String>,
+) -> PeerDeath {
+    match output_err {
+        crate::comms::RecvError::FrameTooLarge => PeerDeath::Lost(output_err.to_string()),
+        _ => match err.recv() {
+            Ok(reason) => PeerDeath::Lost(reason),
+            Err(_) => PeerDeath::Closed,
+        },
+    }
+}
+
 /// Bundles a `Process<String, String>` peer with its Err channel and lifeline.
 ///
 /// The lifeline fd must outlive the peer: the parent holds the write-end
@@ -290,14 +316,10 @@ impl ProcessPeerBundle {
     pub fn recv(&self) -> Result<String, PeerRecvError> {
         match self.peer.output.recv() {
             Ok(value) => Ok(value),
-            // FrameTooLarge: child is ALIVE, blocked on write_all.
-            // Return immediately — do NOT call self.err.recv() (would deadlock).
-            // Dropping the bundle after this call closes the pipes → EPIPE kills child.
-            Err(crate::comms::RecvError::FrameTooLarge) => Err(PeerRecvError::Disconnected),
-            // True EOF (Disconnected) or substrate shutdown: child has exited (or
-            // the substrate is going down). Reading the Err channel is safe — the child
-            // is dead, so err.recv() returns quickly (buffered reason or EOF).
-            Err(_) => match classify_peer_death(self.err.recv()) {
+            // The ONE door: classify_peer_error owns the FrameTooLarge-teardown
+            // (no err read → no deadlock) AND the true-EOF err read. A cap-violation
+            // surfaces as Crashed with the cap reason — consistent with select'.
+            Err(e) => match classify_peer_error(&e, &self.err) {
                 PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
                 PeerDeath::Closed => Err(PeerRecvError::Disconnected),
             },
