@@ -21883,6 +21883,7 @@ fn message_only_failure(message: String) -> Value {
     }))
 }
 
+
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure
 /// that isn't a control-flow signal.
@@ -24629,25 +24630,19 @@ fn eval_peer_select_prime(
                         fields: vec![Value::i64(peer_idx), msg],
                     }))),
                     Err(_) => {
-                        // Output EOF — demux via crash channel (arc 259 S3.5a-0 mirror).
-                        let event = match crash_rxs[index.0].recv() {
-                            Ok(reason) => {
-                                // Abnormal exit — build Failure from reason string.
-                                let cause = message_only_failure(reason);
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE_THREAD.into(),
-                                    variant_name: "Lost".into(),
-                                    fields: vec![Value::i64(peer_idx), cause],
-                                }))
-                            }
-                            Err(_) => {
-                                // Clean exit — crash channel EOF means no reason.
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE_THREAD.into(),
-                                    variant_name: "Closed".into(),
-                                    fields: vec![Value::i64(peer_idx)],
-                                }))
-                            }
+                        // Output EOF — classify death via the shared helper.
+                        use crate::kernel::spawn::{PeerDeath, classify_peer_death};
+                        let event = match classify_peer_death(crash_rxs[index.0].recv()) {
+                            PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                                variant_name: "Lost".into(),
+                                fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
+                            })),
+                            PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_THREAD.into(),
+                                variant_name: "Closed".into(),
+                                fields: vec![Value::i64(peer_idx)],
+                            })),
                         };
                         Ok(event)
                     }
@@ -24756,26 +24751,20 @@ fn eval_peer_select_prime(
             crate::comms::SelectOutcome::Recv { index, result } => {
                 match result {
                     Err(_) => {
-                        // Output EOF — demux via err channel (mirrors ProcessPeerBundle::recv).
+                        // Output EOF — classify death via the shared helper.
+                        use crate::kernel::spawn::{PeerDeath, classify_peer_death};
                         let peer_idx = index.0 as i64;
-                        let event = match err_rxs[index.0].recv() {
-                            Ok(reason) => {
-                                // Abnormal exit — build Failure from crash reason string.
-                                let cause = message_only_failure(reason);
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Lost".into(),
-                                    fields: vec![Value::i64(peer_idx), cause],
-                                }))
-                            }
-                            Err(_) => {
-                                // Clean exit — err channel EOF means no crash reason.
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Closed".into(),
-                                    fields: vec![Value::i64(peer_idx)],
-                                }))
-                            }
+                        let event = match classify_peer_death(err_rxs[index.0].recv()) {
+                            PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Lost".into(),
+                                fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
+                            })),
+                            PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Closed".into(),
+                                fields: vec![Value::i64(peer_idx)],
+                            })),
                         };
                         return Ok(event);
                     }
@@ -25255,8 +25244,13 @@ fn eval_poll_prime(
                                 }))
                             }
                             Err(_) => {
-                                // Output EOF — client peer left gracefully (thread tier:
-                                // bare Peer', no crash channel; :Lost is remote-tier only).
+                                // Output EOF — bare Peer' has no crash channel, so there
+                                // is no abnormal-exit distinction here.  The canonical
+                                // Lost-vs-Closed classifier is
+                                // `crate::kernel::spawn::classify_peer_death`; poll' keeps
+                                // emitting :Closed because bare peers carry no crash
+                                // channel.  Upgrading poll' to emit :Lost requires adding
+                                // a crash channel to `Peer` (peer.rs) — the next slice.
                                 // ServiceEvent::Closed [idx <- i64]
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
@@ -25411,8 +25405,13 @@ fn eval_poll_prime(
                                 }))
                             }
                             Err(_) => {
-                                // Output EOF — client disconnected (process tier: bare pipe
-                                // EOF = Closed; :Lost is remote-tier only).
+                                // Output EOF — bare Peer' has no crash channel, so there
+                                // is no abnormal-exit distinction here.  The canonical
+                                // Lost-vs-Closed classifier is
+                                // `crate::kernel::spawn::classify_peer_death`; poll' keeps
+                                // emitting :Closed because bare peers carry no crash
+                                // channel.  Upgrading poll' to emit :Lost requires adding
+                                // a crash channel to `Peer` (peer.rs) — the next slice.
                                 // ServiceEvent::Closed [idx <- i64]
                                 Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),

@@ -172,6 +172,42 @@ pub enum PeerRecvError {
     Crashed(String),
 }
 
+/// Outcome of reading a crash / err channel after output-EOF on a spawned peer.
+///
+/// This is the ONE place the Lost-vs-Closed decision lives.  Every consumer
+/// — `select'` thread arm, `select'` process arm, `ProcessPeerBundle::recv()` —
+/// calls [`classify_peer_death`] and maps this enum to its own output type.
+///
+/// `poll'` peers (bare `Peer`, no crash channel) always produce `Closed`: the
+/// caller passes `Err(RecvError::Disconnected)` and the `Err(_)` arm fires.
+/// poll' keeps emitting `:Closed` without modification (no crash channel on
+/// `Peer`; adding one is the next slice).
+pub enum PeerDeath {
+    /// The crash / err channel delivered a reason — abnormal exit.
+    Lost(String),
+    /// The crash / err channel was EOF (or absent) — clean exit / bare peer.
+    Closed,
+}
+
+/// Classify a spawned peer's death from the result of reading its crash / err
+/// channel, called immediately after output-EOF.
+///
+/// - `Ok(reason)` → [`PeerDeath::Lost`]`(reason)` — abnormal exit with a
+///   crash reason string (use `message_only_failure` to cook into a `Failure`
+///   if a `Value` is needed).
+/// - `Err(_)`     → [`PeerDeath::Closed`] — no reason buffered → clean exit.
+///
+/// Both `thread::Receiver<String>::recv()` and
+/// `process::Receiver<String>::recv()` return `Result<String, RecvError>`, so
+/// one concrete signature covers both tiers.  For bare `Peer` (no crash
+/// channel) pass `Err(RecvError::Disconnected)` directly.
+pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) -> PeerDeath {
+    match crash_recv {
+        Ok(reason) => PeerDeath::Lost(reason),
+        Err(_) => PeerDeath::Closed,
+    }
+}
+
 /// Bundles a `Process<String, String>` peer with its Err channel and lifeline.
 ///
 /// The lifeline fd must outlive the peer: the parent holds the write-end
@@ -240,9 +276,9 @@ impl ProcessPeerBundle {
     pub fn recv(&self) -> Result<String, PeerRecvError> {
         match self.peer.output.recv() {
             Ok(value) => Ok(value),
-            Err(_) => match self.err.recv() {
-                Ok(reason) => Err(PeerRecvError::Crashed(reason)),
-                Err(_) => Err(PeerRecvError::Disconnected),
+            Err(_) => match classify_peer_death(self.err.recv()) {
+                PeerDeath::Lost(reason) => Err(PeerRecvError::Crashed(reason)),
+                PeerDeath::Closed => Err(PeerRecvError::Disconnected),
             },
         }
     }
