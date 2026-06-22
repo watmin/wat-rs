@@ -52,11 +52,10 @@ Bespoke front-door in `crates/wat-macros`. Anchors on a **per-form marker item**
 
 ```rust
 /// <prose...>
-/// @added 1.0.0  @category ControlFlow  @purity preserving  @determinism preserving
-/// @syntax (if <cond> <then> <else>)
-/// @arg cond :wat::core::Bool  the condition
+/// @added 1.0.0  @Category ControlFlow  @Purity Preserving  @Determinism Preserving
+/// @arg cond :wat::core::Bool  the condition   ;; positional → @arg; grammar derived
 /// @ret :T  the taken branch's value
-/// @example (:wat::core::if :true 1 2) #=> 1
+/// @example (:wat::core::if true 1 2) #=> 1
 #[wat_special_form(":wat::core::if")]
 pub(crate) struct If;
 ```
@@ -70,8 +69,8 @@ only to carry doc attrs and give `show-source` a home (§6).
 
 | marker | rule | witness |
 |---|---|---|
-| `@syntax` | **MANDATORY** — the grammar, `(head <slot> …)` with `<x>+`/`<x>*` | replaces the hand-built `signature: HolonAST` sketch; cross-checked against the form's inline arg-count |
-| `@arg`/`@ret` | **present where slots are typed value-positions** (`if`/`and`/`or`); **omitted** where slots are structural (`let`/`match`/`quote`) | the runnable `@example` (run through check+eval) |
+| `@ret` | **MANDATORY** — the return type (every form has one) | the runnable `@example` (run through check+eval) |
+| `@arg` ∨ `@syntax` | **at least ONE — the shape.** `@arg` for POSITIONAL forms with typed slots (`if`/`and`/`or` — grammar *derived* from arg names); `@syntax` for STRUCTURAL forms `@arg` can't capture (`let`'s binding-vector, `match`'s clauses, repetition `<x>+`/`<x>*`). `@syntax` is the escape hatch, NOT unconditionally required. If BOTH given → cross-check they agree. Neither → `MissingShape`. | render-doc derives `(head <arg>…)` from `@arg` when `@syntax` absent; arity cross-checks inline validation |
 | `@example` | **MANDATORY** ≥1, runnable | runtime — same as intrinsics |
 | `@Category` | closed enum `Category`; values `Encoding`, `Reflection`, `ControlFlow`, `Binding` (+ `Quoting`, `Definition` as forms migrate) | value ∈ `Category` variants (compile-error on unknown) |
 | `@Purity` | closed enum `Purity { Pure, Effectful, Preserving }` (Option A) | value ∈ `Purity` variants; `Pure`/`Preserving` ⟺ `!is_effectful_op` |
@@ -112,8 +111,7 @@ scheme diff.
 /// Evaluate `cond`; when true, evaluate and return `then`, else `else`.
 /// The untaken branch is never evaluated — that is why `if` is a special form.
 /// @added 1.0.0  @Category ControlFlow  @Purity Preserving  @Determinism Preserving
-/// @syntax (if <cond> <then> <else>)
-/// @arg cond :wat::core::Bool  the condition
+/// @arg cond :wat::core::Bool  the condition    ;; positional → @arg only; @syntax derived
 /// @arg then :T  returned when cond is :true
 /// @arg else :T  returned when cond is :false
 /// @ret :T  the taken branch's value; both branches unify to T
