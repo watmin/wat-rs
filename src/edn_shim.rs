@@ -1007,6 +1007,108 @@ pub fn edn_frame_status(s: &str) -> EdnFrameStatus {
 /// accumulation and surfaces `FramedRead::TooLarge` instead.
 pub const DEFAULT_MAX_FRAME_BYTES: usize = 512 * 1024; // 512 KiB
 
+/// Outcome of [`next_complete_frame`] — the ONE frame-finder that both
+/// the blocking-pull path (`read_framed_edn`) and the non-blocking comms
+/// path (`take_frame` in `comms/process.rs`) route through.
+#[derive(Debug)]
+pub enum FrameScan {
+    /// A complete EDN value ends at byte offset `end` (exclusive), i.e.
+    /// `buf[..end]` contains the value + its terminating `'\n'`. The
+    /// caller consumes `buf[..end]` and keeps `buf[end..]` as the residual.
+    Frame(usize),
+    /// No complete EDN value is present yet — the caller should append
+    /// more bytes and retry.
+    Incomplete,
+    /// The accumulated buffer exceeded `max_bytes` before a complete EDN
+    /// value was found. The `usize` is `buf.len()` at the point of rejection.
+    TooLarge(usize),
+    /// The accumulated buffer contains a wire-level error that no
+    /// `from_wire` impl could decode — currently only non-UTF-8 bytes. The
+    /// `String` is the error message. NOTE: a genuine EDN *syntax* error is
+    /// NOT reported here; it returns `Frame(end)` (rule 2 of
+    /// [`next_complete_frame`]) so the decode step surfaces it — `String`
+    /// wire content is raw passthrough, not EDN.
+    Malformed(String),
+}
+
+/// The ONE frame-finder. Pure — no I/O.
+///
+/// Scans `buf` line-by-line (splitting on `'\n'`); for each prefix up to
+/// and including that newline, calls [`edn_frame_status`] on the prefix
+/// WITHOUT the trailing `'\n'`. The FIRST prefix that is NOT `Incomplete`
+/// (i.e. `Complete` or `Malformed`) → `FrameScan::Frame(end)` where `end`
+/// is the byte index just past the `'\n'` (i.e. `buf[..end]` is the
+/// complete frame including its terminator).
+///
+/// Rules applied in order as newlines are consumed:
+/// 1. `Complete` prefix → `Frame(end)`. The frame is well-formed EDN.
+/// 2. `Malformed` prefix → `Frame(end)`. The prefix at this newline boundary
+///    is not a valid/incomplete EDN expression — treat it as a terminal frame
+///    and let the decode step (`from_wire` / `read_edn`) handle the content
+///    error. This handles non-EDN wire formats (`String::from_wire` raw
+///    passthrough: `"via trait\n"` parses as two EDN symbols but is a valid
+///    single-line wire frame) and genuinely malformed multi-line EDN alike.
+///    The content error surfaces at decode time, not frame-finding time.
+/// 3. `Incomplete` prefix → advance past this newline; the EDN value is not
+///    yet complete (e.g. `{` without closing `}`). Continue scanning.
+/// 4. After exhausting all `'\n'` positions with no non-Incomplete prefix:
+///    if `buf.len() > max_bytes` → `TooLarge(buf.len())`; otherwise
+///    `Incomplete` (need more bytes).
+/// 5. Non-UTF-8 bytes → `Malformed("non-UTF-8 bytes in frame")`. This is the
+///    ONLY path that returns `FrameScan::Malformed`; it is a wire-level error
+///    that cannot be decoded by any `from_wire` impl.
+///
+/// Both `read_framed_edn` (blocking `WatReader` path) and `take_frame`
+/// (`comms/process.rs` io_uring path) route through this single function
+/// so framing logic cannot diverge.
+pub fn next_complete_frame(buf: &[u8], max_bytes: usize) -> FrameScan {
+    let mut search_start = 0usize;
+    loop {
+        // Find the next '\n' from the current scan position.
+        match buf[search_start..].iter().position(|&b| b == b'\n') {
+            None => {
+                // No more newlines — no complete frame in the buffer.
+                if buf.len() > max_bytes {
+                    return FrameScan::TooLarge(buf.len());
+                }
+                return FrameScan::Incomplete;
+            }
+            Some(rel) => {
+                let newline_idx = search_start + rel;
+                let end = newline_idx + 1; // byte past the '\n'
+                // The candidate value is buf[0..newline_idx] (stripped of '\n').
+                let prefix = &buf[..newline_idx];
+                let prefix_str = match std::str::from_utf8(prefix) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        // Wire-level encoding error — can't decode regardless.
+                        return FrameScan::Malformed(
+                            "non-UTF-8 bytes in frame".to_string(),
+                        )
+                    }
+                };
+                match edn_frame_status(prefix_str) {
+                    // Complete EDN value — clean frame boundary.
+                    EdnFrameStatus::Complete => return FrameScan::Frame(end),
+                    // Not a valid/complete EDN expression at this newline, but
+                    // also NOT cut off mid-value: the prefix is terminal here.
+                    // Return Frame and let the decode step handle the content.
+                    // This covers: non-EDN wire formats (String raw passthrough),
+                    // and multi-line EDN accumulated so far that forms a parse
+                    // error (content error, not framing error).
+                    EdnFrameStatus::Malformed(_) => return FrameScan::Frame(end),
+                    EdnFrameStatus::Incomplete => {
+                        // This prefix is cut off mid-value (e.g. `{` without `}`);
+                        // advance past this newline and accumulate more.
+                        search_start = end;
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The result of a single `read_framed_edn` call.
 #[derive(Debug)]
 pub enum FramedRead {
@@ -1016,7 +1118,10 @@ pub enum FramedRead {
     Eof,
     /// EOF arrived mid-frame — the writer died while sending a value.
     Truncated(String),
-    /// The accumulated buffer is a genuine syntax error (not incomplete).
+    /// The accumulated buffer contains a wire-level encoding error —
+    /// currently only non-UTF-8 bytes (from `FrameScan::Malformed`).
+    /// EDN syntax errors in otherwise UTF-8 content reach the caller
+    /// as `Frame` and surface as decode errors at the `from_wire` step.
     Malformed(String),
     /// The accumulated buffer exceeded `max_bytes` without completing a
     /// value. The `usize` is the byte count at the point of rejection.
@@ -1032,44 +1137,49 @@ pub enum FramedRead {
 /// - `Ok(None)` — EOF
 /// - `Err(e)` — a read error (treated as EOF / disconnect)
 ///
-/// The accumulator re-adds `\n` (which `read_line` strips) before testing
-/// the buffer with `edn_frame_status`. This is correct because the EDN
-/// lexer skips whitespace including `\n`, and the parser already handles
-/// multi-line strings.
+/// Internally accumulates bytes and routes through [`next_complete_frame`]
+/// (the one frame-finder) so the framing logic is shared with the comms
+/// io_uring path and cannot diverge.
 ///
-/// STOP-trigger-safe: returns `Malformed` (not `Frame`) when the buffer
-/// would parse as MULTIPLE values (anti-smuggling is enforced by
-/// `parse_owned`/`parse_top` which requires EOF after the first value).
+/// Note: anti-smuggling (two concatenated values on one physical line) is
+/// enforced at the DECODE step (`edn_to_value` / `from_wire`) rather than
+/// at the frame-finding step — `next_complete_frame` treats a `Malformed`
+/// prefix (including trailing-value EDN) as a terminal `Frame`. The ambient
+/// channel path (`channel/transfer.rs`) enforces anti-smuggling at its own
+/// `edn_frame_status` loop, independent of this function.
 ///
 /// The `max_bytes` parameter caps total accumulated bytes before a
 /// `FramedRead::TooLarge` is returned, defending against a peer that
 /// sends an open-ended frame (`{` forever) that would otherwise exhaust
-/// memory. The size check fires BEFORE `edn_frame_status` — cheaper and
-/// bounds even buffers that would parse.
+/// memory.
 pub fn read_framed_edn<F>(mut next_line: F, span: Span, max_bytes: usize) -> Result<FramedRead, RuntimeError>
 where
     F: FnMut(Span) -> Result<Option<String>, RuntimeError>,
 {
-    let mut buf = String::new();
+    let mut buf: Vec<u8> = Vec::new();
     loop {
         match next_line(span.clone()) {
             Ok(Some(line)) => {
-                buf.push_str(&line);
-                buf.push('\n');
-                if buf.len() > max_bytes {
-                    return Ok(FramedRead::TooLarge(buf.len()));
-                }
-                match edn_frame_status(&buf) {
-                    EdnFrameStatus::Complete => return Ok(FramedRead::Frame(buf)),
-                    EdnFrameStatus::Incomplete => continue,
-                    EdnFrameStatus::Malformed(msg) => return Ok(FramedRead::Malformed(msg)),
+                buf.extend_from_slice(line.as_bytes());
+                buf.push(b'\n');
+                match next_complete_frame(&buf, max_bytes) {
+                    FrameScan::Frame(end) => {
+                        // buf[..end] is the complete frame including trailing '\n'.
+                        let s = String::from_utf8_lossy(&buf[..end]).into_owned();
+                        return Ok(FramedRead::Frame(s));
+                    }
+                    FrameScan::Incomplete => continue,
+                    FrameScan::TooLarge(n) => return Ok(FramedRead::TooLarge(n)),
+                    FrameScan::Malformed(msg) => return Ok(FramedRead::Malformed(msg)),
                 }
             }
             Ok(None) | Err(_) => {
                 if buf.is_empty() {
                     return Ok(FramedRead::Eof);
                 } else {
-                    return Ok(FramedRead::Truncated(buf));
+                    return Ok(FramedRead::Truncated(
+                        String::from_utf8_lossy(&buf).into_owned(),
+                    ));
                 }
             }
         }

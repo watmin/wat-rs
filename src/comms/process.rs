@@ -85,6 +85,7 @@ use crate::comms::{
     CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
     SendError,
 };
+use crate::edn_shim::{next_complete_frame, FrameScan, DEFAULT_MAX_FRAME_BYTES};
 
 /// Byte accumulator for newline-framed pipe reads. `RefCell` provides
 /// interior mutability so `recv(&self)` can extend
@@ -499,7 +500,7 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// on EDN parse failure, or on `T::from_holon_ast` failure.
     pub fn recv(&self) -> Result<T, RecvError> {
         // Fast path — accumulator already has a complete frame.
-        if let Some(frame) = self.take_buffered_frame() {
+        if let Some(frame) = self.take_buffered_frame()? {
             return decode_frame::<T>(&frame);
         }
 
@@ -529,7 +530,7 @@ impl<T: EdnRepresentable> Receiver<T> {
                 return Err(RecvError::Disconnected);
             }
 
-            if let Some(frame) = self.take_buffered_frame() {
+            if let Some(frame) = self.take_buffered_frame()? {
                 return decode_frame::<T>(&frame);
             }
             // No complete frame yet; loop and poll/read more bytes.
@@ -554,9 +555,13 @@ impl<T: EdnRepresentable> Receiver<T> {
         uring_read_into_acc(self.read_fd.as_raw_fd(), &self.accumulator, &self.ring)
     }
 
-    /// Pull the first newline-terminated frame out of `self.accumulator`
-    /// if one is buffered. Returns `None` when no `'\n'` is present
+    /// Pull the first COMPLETE EDN value-frame out of `self.accumulator`
+    /// if one is buffered. Returns `None` when no complete frame is present
     /// (caller should read more bytes via `read_into_acc`).
+    ///
+    /// Now returns `Result<Option<Frame>, RecvError>` to carry the
+    /// `TooLarge`/`Malformed` error cases from [`take_frame`]. Callers
+    /// map `Err(_)` to `RecvError::Disconnected`.
     ///
     /// Encapsulates the accumulator borrow + `take_frame` call pattern
     /// so callers — including `Select::select`'s fast-path scan and
@@ -564,7 +569,7 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// of reaching into the Receiver's accumulator field. Closes the
     /// Solvere ward finding from E-1 ward pass 2026-05-19 (deferred to
     /// E-2 for resolution; E-2 mints this method + Select calls it).
-    pub(crate) fn take_buffered_frame(&self) -> Option<Frame> {
+    pub(crate) fn take_buffered_frame(&self) -> Result<Option<Frame>, RecvError> {
         take_frame(&mut self.accumulator.borrow_mut())
     }
 
@@ -609,8 +614,13 @@ impl<T: EdnRepresentable> Receiver<T> {
     // rune:excusare(perennial) — is_empty() structurally withheld: the process tier's len() is a kernel-invisible approximation (kernel-pipe bytes not-yet-drained are invisible); self.len()==0 returns true while unread frames sit in the pipe, so a naive is_empty() would mislead. The transport-oblivion model makes this asymmetry permanent; any change to the process pipe transport would trip the comms ward first. (Documented narrowed-len contract; 9-spell cast.)
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        // Count '\n' bytes in the accumulator — each marks the end of
-        // a complete frame ready for take_frame to consume.
+        // Count '\n' bytes in the accumulator as a FAST (but approximate)
+        // frame-count proxy. Since value-framing landed (Stone 259.S3.6),
+        // a single logical frame may span multiple physical lines (multiple
+        // '\n' bytes) — so this OVER-counts frames for multi-line values.
+        // The documented "APPROXIMATION" contract already covers this; callers
+        // must not rely on exact frame counts (only the kernel pipe visibility
+        // gap was acknowledged before; now the multi-line gap is added).
         self.accumulator.borrow().iter().filter(|&&b| b == b'\n').count()
     }
 
@@ -643,7 +653,7 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// for socket-tier peers (the self-peer's `Receiver<Value>` over the lineage pipe).
     pub(crate) fn recv_wire_raw(&self) -> Result<String, RecvError> {
         // Fast path — accumulator already holds a complete frame.
-        if let Some(frame) = self.take_buffered_frame() {
+        if let Some(frame) = self.take_buffered_frame()? {
             return std::str::from_utf8(&frame)
                 .map(str::to_owned)
                 .map_err(|_| RecvError::Disconnected);
@@ -663,7 +673,7 @@ impl<T: EdnRepresentable> Receiver<T> {
             if n == 0 {
                 return Err(RecvError::Disconnected);
             }
-            if let Some(frame) = self.take_buffered_frame() {
+            if let Some(frame) = self.take_buffered_frame()? {
                 return std::str::from_utf8(&frame)
                     .map(str::to_owned)
                     .map_err(|_| RecvError::Disconnected);
@@ -843,17 +853,46 @@ fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
     T::from_wire(s).map_err(|_| RecvError::Disconnected)
 }
 
-/// Pull the first newline-terminated frame out of `acc` (consuming the
-/// frame bytes + the trailing `'\n'`). Returns `None` when no `'\n'`
-/// is present (caller should read more bytes).
-fn take_frame(acc: &mut Vec<u8>) -> Option<Frame> {
-    let pos = acc.iter().position(|&b| b == b'\n')?;
-    // Split acc: [0..=pos] becomes the frame (with trailing \n);
-    // [pos+1..] becomes the new accumulator content.
-    let suffix = acc.split_off(pos + 1);
-    let mut frame = std::mem::replace(acc, suffix);
-    frame.pop(); // remove trailing '\n'
-    Some(frame)
+/// Pull the first COMPLETE EDN value-frame out of `acc`, routing through
+/// [`next_complete_frame`] (the one frame-finder shared with the
+/// blocking-pull path).
+///
+/// Returns:
+/// - `Ok(Some(frame))` — a complete frame was extracted (trailing `'\n'`
+///   stripped); `acc` is updated to hold only the bytes after the frame.
+/// - `Ok(None)` — no complete frame yet; the caller should read more bytes
+///   and retry.
+/// - `Err(RecvError::Disconnected)` — the buffer is `TooLarge` (exceeded
+///   `DEFAULT_MAX_FRAME_BYTES`) or `Malformed` (a wire-level error —
+///   currently only non-UTF-8 bytes; a genuine EDN *syntax* error reaches
+///   the caller as `Ok(Some(frame))` and surfaces as a decode error at
+///   `from_wire`, since `String` wire content is raw passthrough, not EDN);
+///   the channel is in an unrecoverable state for this frame.
+///
+/// Previously returned `Option<Frame>` and split on the FIRST `'\n'`. That
+/// split-on-first-newline strategy was correct only when all EDN values were
+/// single-line (the old stale assumption at process.rs:51). Now that
+/// `pprintln`-style multi-line EDN values cross process peers, the framer
+/// must scan ALL newlines and accept the prefix only once it forms a complete
+/// value. `next_complete_frame` owns that logic in one place.
+///
+/// Signature change from `Option<Frame>`: `Option<Frame>` cannot carry
+/// `TooLarge`/`Malformed` (no error channel). Changing to
+/// `Result<Option<Frame>, RecvError>` is the minimal addition; callers map
+/// `Err(_)` to their domain's disconnect/error outcome.
+fn take_frame(acc: &mut Vec<u8>) -> Result<Option<Frame>, RecvError> {
+    match next_complete_frame(acc, DEFAULT_MAX_FRAME_BYTES) {
+        FrameScan::Frame(end) => {
+            // Split acc: acc[..end] is the frame (including trailing '\n');
+            // acc[end..] becomes the new accumulator content.
+            let suffix = acc.split_off(end);
+            let mut frame = std::mem::replace(acc, suffix);
+            frame.pop(); // strip the terminating '\n'
+            Ok(Some(frame))
+        }
+        FrameScan::Incomplete => Ok(None),
+        FrameScan::TooLarge(_) | FrameScan::Malformed(_) => Err(RecvError::Disconnected),
+    }
 }
 
 // ─── Decomplected helpers ────────────────────────────────────────────────────
@@ -1066,11 +1105,20 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
 
         // Fast path — any accumulator already has a complete frame?
         for (i, rx) in self.receivers.iter().enumerate() {
-            if let Some(frame) = rx.take_buffered_frame() {
-                return Ok(SelectOutcome::Recv {
-                    index: ReceiverIndex(i),
-                    result: decode_frame::<T>(&frame),
-                });
+            match rx.take_buffered_frame() {
+                Err(e) => {
+                    return Ok(SelectOutcome::Recv {
+                        index: ReceiverIndex(i),
+                        result: Err(e),
+                    });
+                }
+                Ok(Some(frame)) => {
+                    return Ok(SelectOutcome::Recv {
+                        index: ReceiverIndex(i),
+                        result: decode_frame::<T>(&frame),
+                    });
+                }
+                Ok(None) => {} // no complete frame yet; check next receiver
             }
         }
 
@@ -1242,11 +1290,20 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 Ok(_) => {}
             }
 
-            if let Some(frame) = rx.take_buffered_frame() {
-                return Ok(SelectOutcome::Recv {
-                    index: ReceiverIndex(arm_idx),
-                    result: decode_frame::<T>(&frame),
-                });
+            match rx.take_buffered_frame() {
+                Err(e) => {
+                    return Ok(SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(e),
+                    });
+                }
+                Ok(Some(frame)) => {
+                    return Ok(SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: decode_frame::<T>(&frame),
+                    });
+                }
+                Ok(None) => {}
             }
             // Partial bytes; no complete frame yet. Loop and re-poll
             // all arms (broadcast can fire mid-drain).
@@ -1278,11 +1335,20 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
 
         // Fast path — any accumulator already has a complete frame?
         for (i, rx) in self.receivers.iter().enumerate() {
-            if let Some(frame) = rx.take_buffered_frame() {
-                return Ok(crate::comms::SelectOutcome::Recv {
-                    index: ReceiverIndex(i),
-                    result: Ok(frame),
-                });
+            match rx.take_buffered_frame() {
+                Err(e) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(i),
+                        result: Err(e),
+                    });
+                }
+                Ok(Some(frame)) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(i),
+                        result: Ok(frame),
+                    });
+                }
+                Ok(None) => {} // no complete frame yet; check next receiver
             }
         }
 
@@ -1413,11 +1479,20 @@ impl<'a, T: EdnRepresentable> Select<'a, T> {
                 Ok(_) => {}
             }
 
-            if let Some(frame) = rx.take_buffered_frame() {
-                return Ok(crate::comms::SelectOutcome::Recv {
-                    index: ReceiverIndex(arm_idx),
-                    result: Ok(frame),
-                });
+            match rx.take_buffered_frame() {
+                Err(e) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Err(e),
+                    });
+                }
+                Ok(Some(frame)) => {
+                    return Ok(crate::comms::SelectOutcome::Recv {
+                        index: ReceiverIndex(arm_idx),
+                        result: Ok(frame),
+                    });
+                }
+                Ok(None) => {}
             }
             // Partial bytes; no complete frame yet. Loop and re-poll.
         }
