@@ -226,7 +226,7 @@
         (:wat::telemetry::sqlite/stream-logs handle no-constraints))
      ;; First event is the {time_ns=1000, "first"} row.
      first-evt
-      (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
+      (:wat::core::match (:wat::core::get events 0) -> :wat::telemetry::Event
         ((:wat::core::Some e) e)
         (:wat::core::None
           (:wat::kernel::assertion-failed!
@@ -263,7 +263,7 @@
       (:wat::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints))
      first-evt
-      (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
+      (:wat::core::match (:wat::core::get events 0) -> :wat::telemetry::Event
         ((:wat::core::Some e) e)
         (:wat::core::None
           (:wat::kernel::assertion-failed!

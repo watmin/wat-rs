@@ -242,7 +242,7 @@
       (:test::svc-tel-active-translator)
      result
       (t (:wat::telemetry::Stats/new 0 0 0))]
-    (:wat::test::assert-eq (:wat::core::first result) (:wat::core::Some -1))))
+    (:wat::test::assert-eq (:wat::core::first result) -1)))
 
 
 ;; Layer 1 — spawn-shutdown: full lifecycle with no traffic.
