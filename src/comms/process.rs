@@ -433,8 +433,49 @@ impl<T: EdnRepresentable> CommSender<T> for Sender<T> {
 
 // ─── Receiver ────────────────────────────────────────────────────────────────
 
-/// Receive process-tier values. Wraps the read-end of an
-/// `OwnedFd` pipe; decodes newline-framed EDN payloads to `T`.
+/// The fd source backing a `Receiver<T>`. Two variants share the same
+/// accumulator/io_uring/frame machinery; only how the fd fires and how
+/// bytes are produced differs.
+///
+/// `Pipe` — normal anonymous pipe or socket read-end. Data arrives from
+/// the peer's `Sender::send`; `uring_read_into_acc` copies bytes straight
+/// into the accumulator.
+///
+/// `Timer` — one-shot timerfd (arc 292 `:wat::kernel::after`). When the
+/// timerfd fires, the kernel writes 8 bytes (the expiry count); `read_into_acc`
+/// drains those 8 bytes via an io_uring Read into a scratch buffer (NOT the
+/// accumulator), then appends the pre-encoded `msg` frame to the accumulator
+/// exactly once (atomic-gated via `OwnedMoveCell`, ZERO-MUTEX — mirrors
+/// `src/comms/thread.rs:200`). The timerfd is a pollable fd, so
+/// `process::Select` registers it unchanged (no Select modifications needed).
+enum Source {
+    /// EDN frames arrive over a pipe or socket read-end.
+    Pipe { read_fd: OwnedFd },
+    /// One-shot timerfd: on expiry, deliver `msg` (a pre-encoded frame) once.
+    ///
+    /// `msg` is taken via `OwnedMoveCell` (atomic-gated, ZERO-MUTEX —
+    /// see `docs/ZERO-MUTEX.md`; mirrors `src/comms/thread.rs:200`).
+    /// A `Mutex`/`RwLock`/`RefCell<Option<..>>` here is a heresy.
+    Timer {
+        timer_fd: OwnedFd,
+        msg: std::sync::Arc<crate::rust_deps::custodia::OwnedMoveCell<Frame>>,
+    },
+}
+
+// `OwnedMoveCell` holds an `UnsafeCell` which makes it `!RefUnwindSafe`.
+// Asserting `UnwindSafe` + `RefUnwindSafe` for `Source` is safe because:
+// - `Source::Pipe` has only `OwnedFd` which is already `UnwindSafe`.
+// - `Source::Timer`'s `OwnedMoveCell` has an `AtomicBool` gate: only one
+//   caller's `take()` succeeds regardless of panics. The cell is either
+//   `Some(value)` (untaken) or `None` (taken) — both states are consistent
+//   after an unwind; no invariant can be broken by a panic mid-take.
+//   The atomic CAS ensures no partial mutation is visible across threads.
+impl std::panic::UnwindSafe for Source {}
+impl std::panic::RefUnwindSafe for Source {}
+
+/// Receive process-tier values. Wraps either a pipe/socket read-end
+/// (`Source::Pipe`) or a one-shot timerfd (`Source::Timer`); decodes
+/// newline-framed EDN payloads to `T`.
 /// `Clone` competes for frames via `try_clone` (Stone D1);
 /// each clone gets a FRESH empty accumulator AND a fresh ring
 /// (rings are `Send` but `!Sync`; never share across clones).
@@ -446,7 +487,7 @@ impl<T: EdnRepresentable> CommSender<T> for Sender<T> {
 /// implement `Debug`; the ring field is shown as an opaque
 /// `"IoUring"` placeholder.
 pub struct Receiver<T: EdnRepresentable> {
-    read_fd: OwnedFd,
+    source: Source,
     /// Bytes read from the pipe but not yet returned to a caller.
     /// `RefCell` (via the `Accumulator` alias) provides interior
     /// mutability so `recv(&self)` can update the accumulator without
@@ -483,8 +524,12 @@ impl<T: EdnRepresentable> std::fmt::Debug for Receiver<T> {
     /// the ring field is shown as an opaque placeholder. All other
     /// fields are shown via their own Debug impls.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let source_display = match &self.source {
+            Source::Pipe { read_fd } => format!("Pipe {{ read_fd: {:?} }}", read_fd),
+            Source::Timer { timer_fd, .. } => format!("Timer {{ timer_fd: {:?} }}", timer_fd),
+        };
         f.debug_struct("Receiver")
-            .field("read_fd", &self.read_fd)
+            .field("source", &source_display)
             .field("accumulator", &self.accumulator)
             .field("max_frame_bytes", &self.max_frame_bytes)
             .field("ring", &"IoUring")
@@ -511,7 +556,7 @@ impl<T: EdnRepresentable> Receiver<T> {
             return decode_frame::<T>(&frame);
         }
 
-        let read_fd = self.read_fd.as_raw_fd();
+        let read_fd = self.poll_fd();
         // current_broadcast_fd() encapsulates the atomic-load + sentinel-check;
         // see helper's rune:sequi(ambient-context) for rationale.
         let broadcast_opt = current_broadcast_fd();
@@ -559,7 +604,28 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// into Receiver internals; deferred to E-2 for resolution; E-2 mints
     /// this method + Select calls it).
     pub(crate) fn read_into_acc(&self) -> Result<usize, ()> {
-        uring_read_into_acc(self.read_fd.as_raw_fd(), &self.accumulator, &self.ring)
+        match &self.source {
+            Source::Pipe { read_fd } => {
+                uring_read_into_acc(read_fd.as_raw_fd(), &self.accumulator, &self.ring)
+            }
+            Source::Timer { timer_fd, msg } => {
+                // Drain the 8-byte expiration count from the timerfd via io_uring Read
+                // into a scratch buffer (NOT the accumulator) — same SQE shape as
+                // uring_read_into_acc but reads into [u8;8], discards the count.
+                let n = uring_read_n_into_scratch(timer_fd.as_raw_fd(), &self.ring, 8)?;
+                if n == 0 {
+                    // EOF — timer fd closed / spent without firing.
+                    return Ok(0);
+                }
+                // Timer fired; take the msg ONCE (atomic-gated, zero-mutex — mirrors
+                // thread.rs:200). If already taken (spurious poll), silently skip.
+                if let Ok(frame) = msg.take(":wat::kernel::after", crate::span::Span::unknown()) {
+                    // frame already ends in '\n' (pre-encoded by the timer() caller).
+                    self.accumulator.borrow_mut().extend_from_slice(&frame);
+                }
+                Ok(n)
+            }
+        }
     }
 
     /// Pull the first COMPLETE EDN value-frame out of `self.accumulator`
@@ -589,7 +655,10 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// reached into `rx.read_fd` directly at the POLL_ADD construction
     /// site). Per Solvere ward Stone E-2 follow-up 2026-05-19.
     pub(crate) fn poll_fd(&self) -> std::os::fd::RawFd {
-        self.read_fd.as_raw_fd()
+        match &self.source {
+            Source::Pipe { read_fd } => read_fd.as_raw_fd(),
+            Source::Timer { timer_fd, .. } => timer_fd.as_raw_fd(),
+        }
     }
 
     /// Return every raw file descriptor this `Receiver` owns.
@@ -606,7 +675,11 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// so fork children can enumerate "every fd I must keep alive across the
     /// sweep" without reaching past the public API into private fields.
     pub fn raw_fds(&self) -> Vec<std::os::fd::RawFd> {
-        vec![self.read_fd.as_raw_fd(), self.ring.borrow().as_raw_fd()]
+        let data_fd = match &self.source {
+            Source::Pipe { read_fd } => read_fd.as_raw_fd(),
+            Source::Timer { timer_fd, .. } => timer_fd.as_raw_fd(),
+        };
+        vec![data_fd, self.ring.borrow().as_raw_fd()]
     }
 
     /// Count of locally-buffered complete frames in the accumulator.
@@ -666,7 +739,7 @@ impl<T: EdnRepresentable> Receiver<T> {
                 .map_err(|_| RecvError::Disconnected);
         }
 
-        let read_fd = self.read_fd.as_raw_fd();
+        let read_fd = self.poll_fd();
         let broadcast_opt = current_broadcast_fd();
 
         loop {
@@ -708,11 +781,21 @@ impl<T: EdnRepresentable> Clone for Receiver<T> {
     /// Panics on `libc::dup` failure (EMFILE/ENFILE; fd table exhausted)
     /// or `IoUring::new(4)` failure (kernel resource exhaustion; rare).
     fn clone(&self) -> Self {
+        let source = match &self.source {
+            Source::Pipe { read_fd } => Source::Pipe {
+                read_fd: read_fd
+                    .try_clone()
+                    .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
+            },
+            Source::Timer { timer_fd, msg } => Source::Timer {
+                timer_fd: timer_fd
+                    .try_clone()
+                    .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
+                msg: std::sync::Arc::clone(msg),
+            },
+        };
         Self {
-            read_fd: self
-                .read_fd
-                .try_clone()
-                .expect("OwnedFd::try_clone (libc::dup) failed — fd table exhausted"),
+            source,
             accumulator: RefCell::new(Vec::new()),
             max_frame_bytes: self.max_frame_bytes,
             ring: RefCell::new(
@@ -975,6 +1058,126 @@ fn uring_read_into_acc(
     let n = result as usize;
     acc.borrow_mut().extend_from_slice(&buf[..n]);
     Ok(n)
+}
+
+/// Issues one io_uring Read on `fd` into a scratch `[u8; N]` (NOT the
+/// accumulator). Returns `Ok(n)` where `n` is bytes read (0 = EOF),
+/// or `Err(())` on SQE/submit/CQE error.
+///
+/// Used by `Source::Timer`'s `read_into_acc` to drain the 8-byte expiration
+/// count from a timerfd without polluting the accumulator. The count itself
+/// is discarded; what matters is that the timerfd is drained (re-armed
+/// state cleared) and `n > 0` signals the timer fired.
+///
+/// Retry-on-EINTR mirrors `uring_read_into_acc` (process.rs:~1030).
+fn uring_read_n_into_scratch(
+    fd: std::os::fd::RawFd,
+    ring: &RefCell<IoUring>,
+    capacity: usize,
+) -> Result<usize, ()> {
+    let mut ring = ring.borrow_mut();
+    // Stack-allocated scratch; capacity is always 8 (timerfd expiry count).
+    let mut buf = [0u8; 8];
+    let read_len = capacity.min(buf.len());
+    let read_e = opcode::Read::new(
+        types::Fd(fd),
+        buf.as_mut_ptr(),
+        read_len as u32,
+    )
+    .build()
+    .user_data(1);
+
+    // SAFETY: buf is on this function's stack and outlives submit_and_wait.
+    unsafe {
+        ring.submission().push(&read_e).map_err(|_| ())?;
+    }
+
+    loop {
+        match ring.submit_and_wait(1) {
+            Ok(_) => break,
+            Err(e) if e.raw_os_error() == Some(libc::EINTR) => continue,
+            Err(_) => return Err(()),
+        }
+    }
+    let cqe = ring.completion().next().ok_or(())?;
+    let result = cqe.result();
+    if result < 0 {
+        return Err(());
+    }
+    Ok(result as usize)
+}
+
+// ─── Timer constructor ────────────────────────────────────────────────────────
+
+/// Create a one-shot process-tier timer `Receiver<String>`.
+///
+/// The returned receiver fires exactly once after `duration`, delivering
+/// `msg_frame` (a pre-encoded EDN frame — must end with `'\n'`). After that,
+/// subsequent `recv()` or `Select::select()` calls on this receiver behave as
+/// if the peer closed: the timerfd is spent and the `OwnedMoveCell` is drained.
+///
+/// Internally uses `libc::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK|TFD_CLOEXEC)`
+/// armed via `libc::timerfd_settime` with `it_value = duration`, `it_interval = 0`
+/// (one-shot). The timerfd is a normal pollable fd — `process::Select` registers
+/// it via `rx.poll_fd()` unchanged; no Select modifications are needed.
+///
+/// The `msg` is stored in an `OwnedMoveCell` (atomic-gated, ZERO-MUTEX —
+/// mirrors `src/comms/thread.rs:200`). A `Mutex`/`RwLock`/`RefCell<Option<..>>`
+/// here is a heresy (see `docs/ZERO-MUTEX.md`).
+///
+/// Returns `Err(io::Error)` if `timerfd_create` or `timerfd_settime` fails.
+pub fn timer(duration: std::time::Duration, msg_frame: Frame) -> std::io::Result<Receiver<String>> {
+    // timerfd_create: CLOCK_MONOTONIC is steady (unaffected by wall-clock adjustments);
+    // TFD_NONBLOCK + TFD_CLOEXEC are atomic at creation.
+    // SAFETY: libc::timerfd_create is a raw syscall; its return value is a raw fd
+    // or -1 on error. We check for -1 and wrap the fd in OwnedFd immediately.
+    let raw_fd = unsafe {
+        libc::timerfd_create(
+            libc::CLOCK_MONOTONIC,
+            libc::TFD_NONBLOCK | libc::TFD_CLOEXEC,
+        )
+    };
+    if raw_fd < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: timerfd_create returned a valid, owned fd. Wrap as OwnedFd
+    // immediately so Drop closes it on any subsequent error path.
+    let timer_fd = unsafe { OwnedFd::from_raw_fd(raw_fd) };
+
+    // Arm the timer: it_value = duration (fires once); it_interval = 0 (no repeat).
+    let secs = duration.as_secs() as libc::time_t;
+    let nsecs = duration.subsec_nanos() as libc::c_long;
+    let its = libc::itimerspec {
+        it_value: libc::timespec { tv_sec: secs, tv_nsec: nsecs },
+        it_interval: libc::timespec { tv_sec: 0, tv_nsec: 0 },
+    };
+    // SAFETY: timer_fd.as_raw_fd() is valid (just created); &its is a valid
+    // *const itimerspec on our stack, alive for the duration of this call.
+    let ret = unsafe {
+        libc::timerfd_settime(
+            timer_fd.as_raw_fd(),
+            0, // flags = 0: relative time (CLOCK_MONOTONIC from now)
+            &its as *const libc::itimerspec,
+            std::ptr::null_mut(),
+        )
+    };
+    if ret != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    let ring = IoUring::new(4)
+        .map_err(|e| std::io::Error::other(format!("IoUring::new(4) failed at timer(): {}", e)))?;
+
+    Ok(Receiver {
+        source: Source::Timer {
+            timer_fd,
+            msg: std::sync::Arc::new(crate::rust_deps::custodia::OwnedMoveCell::new(msg_frame)),
+        },
+        accumulator: RefCell::new(Vec::new()),
+        max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
+        ring: RefCell::new(ring),
+        _phantom: PhantomData,
+    })
 }
 
 // ─── Select ──────────────────────────────────────────────────────────────────
@@ -1562,7 +1765,7 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
     let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
     let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
     let receiver = Receiver {
-        read_fd,
+        source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes,
         ring: RefCell::new(
@@ -1598,7 +1801,7 @@ pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     let read_fd = fd.try_clone()
         .map_err(|e| std::io::Error::other(format!("dup for sender_receiver_from_fd failed: {}", e)))?;
     let receiver = Receiver {
-        read_fd,
+        source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
         ring: RefCell::new(
@@ -1623,7 +1826,7 @@ pub fn sender_receiver_from_split_fds<T: EdnRepresentable>(
     write_fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
     let receiver = Receiver {
-        read_fd,
+        source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
         max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
         ring: RefCell::new(IoUring::new(4).map_err(|e| std::io::Error::other(
@@ -1677,4 +1880,73 @@ pub fn socket_pair<T: EdnRepresentable>() -> std::io::Result<((Sender<T>, Receiv
     let end_a = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[0]) })?;
     let end_b = sender_receiver_from_fd(unsafe { OwnedFd::from_raw_fd(sv[1]) })?;
     Ok((end_a, end_b))
+}
+
+// ─── Timer tests ──────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod timer_tests {
+    use super::{timer, Select};
+    use crate::comms::{ReceiverIndex, SelectOutcome};
+    use std::time::{Duration, Instant};
+
+    /// A timerfd-backed `Receiver<String>` fires through `process::Select` after
+    /// the requested delay and delivers the pre-encoded frame exactly once.
+    ///
+    /// Harness: no broadcast fd in unit tests (SHUTDOWN_BROADCAST_READ_FD == -1
+    /// at boot); Select falls back to bare io_uring POLL_ADD without the cascade
+    /// arm (same fallback as all other process-tier unit tests). The timer fd is a
+    /// normal pollable fd — Select registers it via `rx.poll_fd()` unchanged.
+    #[test]
+    fn timer_source_fires_through_select() {
+        let delay = Duration::from_millis(50);
+        let msg_frame: Vec<u8> = b":tick\n".to_vec();
+
+        let rx = timer(delay, msg_frame).expect("timerfd_create + timerfd_settime must succeed");
+
+        let mut sel = Select::<String>::new();
+        let idx: ReceiverIndex = sel.recv(&rx);
+
+        // Record start time; select() blocks until the timerfd fires (~50ms).
+        let t0 = Instant::now();
+        let outcome = sel.select().expect("select() must not fail");
+        let elapsed = t0.elapsed();
+
+        // Must have fired after approximately the requested delay.
+        // We allow a 5ms underrun for OS scheduling jitter (timerfd resolution
+        // is ~1ms; Instant::elapsed() measurement itself has overhead). The
+        // meaningful check is that select() blocked at all — an immediate return
+        // with no data would mean the timer fd fired at t=0, which is wrong.
+        let tolerance = Duration::from_millis(5);
+        assert!(
+            elapsed + tolerance >= delay,
+            "timer fired far too early: elapsed={:?}, delay={:?}",
+            elapsed,
+            delay
+        );
+
+        // The outcome must be Recv on the registered index.
+        match outcome {
+            SelectOutcome::Recv { index, result } => {
+                assert_eq!(
+                    index, idx,
+                    "SelectOutcome index must match the registered timer receiver"
+                );
+                let frame = result.expect("timer receiver must deliver Ok(frame)");
+                // decode_frame::<String> calls String::from_wire(s) which is raw passthrough.
+                // The '\n' was stripped by take_frame; the delivered value is ":tick".
+                assert_eq!(
+                    frame, ":tick",
+                    "timer must deliver the pre-encoded frame without the trailing '\\n'; got {:?}",
+                    frame
+                );
+            }
+            other => {
+                panic!(
+                    "expected SelectOutcome::Recv from timer; got {:?}",
+                    other
+                );
+            }
+        }
+    }
 }
