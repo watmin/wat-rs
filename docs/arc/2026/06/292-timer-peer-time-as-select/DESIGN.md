@@ -22,7 +22,22 @@ that correct rev 2's sketch. Where the forms below say `:wat::time::after` or
   `(after (:wat::spawn::thread) d msg) → Thread'<nil,O>` (crossbeam reactor),
   `(after (:wat::spawn::process) d msg) → Process'<nil,O>` (io_uring reactor).
   Mirrors `(start (thread) state0)`; **`select'` is unchanged** (the probe confirmed a
-  `Thread'<nil,keyword>` timer satisfies the set). `after`/`tick` are 3-arg.
+  `Thread'<nil,keyword>` timer satisfies the set). `after` is 3-arg.
+- **D3 — `tick` is ANNIHILATED. There is exactly ONE timer primitive: `after`.**
+  Periodic is not a primitive — it is a TCO re-arm of `after`, and **the loop's
+  recursion IS the timer's lifecycle** (it stops by not recursing / a shutdown arm;
+  no standing timer to cancel, no leak). The two periodicity modes are just *which
+  delay you re-arm with*:
+  - **fixed-delay** (period = `d` + work-time; drifts) — `after(d)`. For backoff,
+    retry, debounce, "wait `d` between attempts."
+  - **fixed-rate** (no drift, anchored to absolute deadlines) — re-arm
+    `after(next_deadline − now)` where `next_deadline += d`. For cron, steady
+    heartbeat, metrics-cadence, rate-limit refill.
+  A standing `tick` primitive was rejected: it imposes a stop/cancel surface and a
+  leak risk the TCO loop doesn't have, hides the cadence in Rust, and saves nothing
+  (re-creating `after` per fire is nanoseconds). The whole `tick` plan was a feature
+  whose existence was the defect — killed before it shipped. (`mora`/examinare: one
+  primitive, the boss beaten for all time.)
 
 ## The doctrine
 

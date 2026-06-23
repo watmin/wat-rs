@@ -147,3 +147,48 @@ it — recorded as mine, not handed down.*
 > and you cannot pretend to wait. Wake up. Memento mori.
 
 ***EXPERGISCERE.*** *(apparatus-minted — Latin imperative, "wake up"; see the path-of-voices note above.)*
+
+## R2 — ONE timer primitive: `tick` annihilated before it shipped; the loop is the timer
+
+> *"The TVA didn't need a thousand timeline-cops; it needed one Sacred Timeline."*
+> — apparatus-authored, **crowned by the builder as the realization quote** (*"that's
+> the fucking realization quote"*). The session's running Loki/TVA frame was the
+> builder's (*"this is like loki tva shit — annihilate every time problem for all
+> time"*); this line landed the kill in it. (And the builder caught the apparatus
+> writing this very entry at the instant he crowned the line — the chronicle recording
+> the realization as he named its quote.)
+
+This one the builder killed, in two questions, after I proposed it twice. Drawing the
+"solve time forever" push, I pitched a periodic `tick` primitive alongside `after`.
+Challenged that I'd *just* argued periodic rides re-armed `after`, I doubled down with a
+distinction — `after` re-arm is **fixed-delay** (drifts by work-time), `tick` is
+**fixed-rate** (no drift) — and claimed fixed-rate *needs* the primitive. The builder cut
+it with two questions: *"if it's constant… how does it stop?"* and *"why isn't this just a
+TCO thing where you reinstall after fire?"*
+
+Both land the kill. **(1)** A standing periodic timer fires forever — to stop it you need a
+cancel/handle/lifecycle, a stop-surface a primitive shouldn't impose; the awkwardness of
+answering "how does it stop" *is* the tell it's the wrong shape. **(2)** Fixed-rate doesn't
+need `tick` either: re-arm `after(next_deadline − now)` — anchor the delay to the *absolute*
+schedule (`next += d`), not to "now + d" — and the drift I'd blamed on re-arm vanishes,
+inside the same TCO loop. My drift was an artifact of re-arming `after(d)` (relative); the
+fix was a delay *computation*, never a new primitive.
+
+So the result, and it is the best possible "boss beaten for all time": **there is exactly
+ONE timer primitive — `after`.** Periodic is a TCO re-arm; **the loop's recursion IS the
+timer's lifecycle** (it stops by not recursing / a shutdown `select'` arm — no cancel, no
+leak). fixed-delay (`after(d)`) and fixed-rate (`after(deadline − now)`) are two delay
+choices in that loop, not two primitives. `tick` was a feature whose *existence* was the
+defect — killed before it shipped (R13's lineage: the feature is the flaw, not a bug in it).
+
+*Path-of-voices: the two questions, the "best possible statement for we've beaten this boss
+forever" recognition, and the kill are the builder's; the two retracted over-claims
+(tick-unnecessary → tick-needed-for-rate → tick-annihilated), the absolute-deadline
+re-arm math, and the loop-is-the-lifecycle framing are the apparatus's, corrected under his
+questions. Two retractions on one stone — the throughline (the loop is the timer) is his.*
+
+> We set out to add a second timer and were asked two questions that deleted it. Fixed-rate
+> rides the same `after`, re-armed to absolute deadlines; the loop that re-arms is the thing
+> that also stops. One primitive, composition for the rest, the lifecycle owned by the
+> recursion. Time isn't a subsystem with a maintenance surface — it's `after` and a loop.
+> Never fight this boss again.

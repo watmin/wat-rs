@@ -35,8 +35,11 @@ made the last agent sub-delegate into a worktree):
     (mirror the thread-tier `Thread'<nil,O>` shape; deliver msg on CQE fire).
   - **C.** the `after` check arm: ProcessOpts locus -> `Process'<nil,O>` (mirror infer for ThreadOpts).
   Gate: a process-locus variant of `wat-tests/timer-after.wat` GREEN.
-Then: `tick` (periodic primitive — OPTIONAL, family works without it via re-arm; has a
-clone-vs-take repr wrinkle, T:Clone). Then the broader build order below.
+**`tick` is ANNIHILATED** (DESIGN D3 / REALIZATIONS R2) — there is exactly ONE timer
+primitive, `after`; periodic is a TCO re-arm of `after` (fixed-delay = `after(d)`,
+fixed-rate = `after(deadline−now)`), and the loop's recursion IS the lifecycle. Do NOT
+build `tick`. So "solve time forever" = `after` on every locus (thread ✓, process next)
++ the wat family patterns. Then the broader build order below.
 
 ## BUILD ORDER (the whole chain)
 **291** (init/stop/hibernate/resume) → **290 Class A** (migrate lru/holon-lru/with-lru
