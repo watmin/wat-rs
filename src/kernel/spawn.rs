@@ -113,7 +113,7 @@ pub type ThreadPeerCell = Arc<ThreadOwnedCell<Option<Thread<Value, Value>>>>;
 /// is the structurally-right migration.
 // rune:exigere(scope-affirmative) — ProcessPeerCell adoption in runtime.rs
 // rides the runtime.rs flat-sea (Phoenix) warding campaign, not this kernel home.
-pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessPeerBundle>>>;
+pub type ProcessPeerCell = Arc<ThreadOwnedCell<Option<ProcessSelectable>>>;
 
 // ─── RustOpaque type-path sentinels ──────────────────────────────────────────
 
@@ -325,6 +325,15 @@ impl ProcessPeerBundle {
             },
         }
     }
+}
+
+/// A process-tier select'-able. Today the only kind is a spawned child
+/// (`Spawned`); arc 292 L3 adds `Timer` (a timerfd-backed one-shot, no child) as a
+/// second NAMED variant — identity is named, never inferred from a None. See
+/// docs/arc/2026/06/292-timer-peer-time-as-select/DESIGN.md (D5).
+pub enum ProcessSelectable {
+    /// A spawned child process and its channels.
+    Spawned(ProcessPeerBundle),
 }
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────
@@ -870,7 +879,7 @@ pub fn spawn_process_peer(
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for
     // `close()+wait`) while send'/recv' detect use-after-close via
     // `.as_ref()` returning None.  Stone 4.6a-ii.
-    let wrapped = Arc::new(ThreadOwnedCell::new(Some(bundle)));
+    let wrapped = Arc::new(ThreadOwnedCell::new(Some(ProcessSelectable::Spawned(bundle))));
     Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, wrapped))
 }
 

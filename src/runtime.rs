@@ -24011,7 +24011,7 @@ fn eval_peer_send_prime(
             if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
         {
             let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::spawn::ProcessPeerBundle>,
+                Option<crate::kernel::spawn::ProcessSelectable>,
             >> = crate::rust_deps::marshal::downcast_ref_opaque(
                 inner,
                 crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
@@ -24035,7 +24035,7 @@ fn eval_peer_send_prime(
                         },
                     }
                     .into()),
-                    Some(bundle) => bundle.peer.send(edn_str.clone()).map_err(|_| {
+                    Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => bundle.peer.send(edn_str.clone()).map_err(|_| {
                         RuntimeError {
                             span: list_span.clone(),
                             kind: RuntimeErrorKind::MalformedForm {
@@ -24218,7 +24218,7 @@ fn eval_peer_recv_prime(
             if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
         {
             let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::spawn::ProcessPeerBundle>,
+                Option<crate::kernel::spawn::ProcessSelectable>,
             >> = crate::rust_deps::marshal::downcast_ref_opaque(
                 inner,
                 crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
@@ -24236,7 +24236,7 @@ fn eval_peer_recv_prime(
                             },
                         }
                         .into()),
-                        Some(bundle) => bundle.recv().map_err(|e| {
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => bundle.recv().map_err(|e| {
                             use crate::kernel::spawn::PeerRecvError;
                             let reason = match e {
                                 PeerRecvError::Crashed(crash_reason) => {
@@ -24431,14 +24431,14 @@ fn eval_peer_close_prime(
             if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
         {
             let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::spawn::ProcessPeerBundle>,
+                Option<crate::kernel::spawn::ProcessSelectable>,
             >> = crate::rust_deps::marshal::downcast_ref_opaque(
                 inner,
                 crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
                 OP,
                 list_span.clone(),
             )?;
-            let bundle = cell
+            let selectable = cell
                 .with_mut(OP, list_span.clone(), |opt_bundle| opt_bundle.take())
                 .map_err(EvalBreak::from)?
                 .ok_or_else(|| EvalBreak::from(RuntimeError {
@@ -24448,6 +24448,7 @@ fn eval_peer_close_prime(
                         reason: "peer already closed".into(),
                     },
                 }))?;
+            let crate::kernel::spawn::ProcessSelectable::Spawned(bundle) = selectable;
             // Consume the bundle: close channels, then wait for the child.
             // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
             let exit_status = bundle.peer.wait().map_err(|io_err| {
@@ -24697,7 +24698,7 @@ fn eval_peer_select_prime(
         // ── Process tier ───────────────────────────────────────────────────────
         type ProcessCell = std::sync::Arc<
             crate::rust_deps::custodia::ThreadOwnedCell<
-                Option<crate::kernel::spawn::ProcessPeerBundle>,
+                Option<crate::kernel::spawn::ProcessSelectable>,
             >,
         >;
         let mut arcs: Vec<&ProcessCell> = Vec::with_capacity(peers_vec.len());
@@ -24732,7 +24733,7 @@ fn eval_peer_select_prime(
         }
 
         // Acquire ref_guard for each cell.
-        let mut guards: Vec<crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::spawn::ProcessPeerBundle>>> =
+        let mut guards: Vec<crate::rust_deps::custodia::RefGuard<'_, Option<crate::kernel::spawn::ProcessSelectable>>> =
             Vec::with_capacity(arcs.len());
         for arc in &arcs {
             guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
@@ -24759,7 +24760,7 @@ fn eval_peer_select_prime(
                     }
                     .into())
                 }
-                Some(bundle) => {
+                Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                     output_rxs.push(&bundle.peer.output);
                     err_rxs.push(&bundle.err);
                 }
