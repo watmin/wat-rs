@@ -1,6 +1,13 @@
 # Arc 292 — the timer-Peer: `send_after`, time-as-select (`mora`'s keystone)
 
-**Status:** SCOPED (2026-06-22; rev 2 — converged on the `send_after` shape).
+**Status:** ✅ **DONE (2026-06-23)** — shipped + GREEN on both built tiers (L1 `19e78f94`,
+L2 `1e8eefc1`, L3-α `b958732d`, L3-β `b861ed22`; chronicle R3/#104 `8cd93385`). `after` takes
+a `:wat::program::PeerKind`, returns the tier-open `Timer'<O>`, fuses into the homogeneous
+`select'` set; `tick` annihilated; `sleep` eliminated (grep-clean). Grounded deferrals
+(named, not silent): the **env-grab idiom test** (needs a `with-program-env` test helper —
+the idiom is functionally live, untestable under `deftest'`) and the **remote tier** (the
+deferred door; the interface is remote-ready — REV-4). Original status below for the record:
+SCOPED (2026-06-22; rev 2 — converged on the `send_after` shape).
 Surfaced while designing arc 291/observability: a service that "clocks its own
 perf" needs a periodic trigger, and `mora`'s law says the only honest one is *time
 arriving via the wire*. Pinning that primitive eliminates `sleep` as a concept and

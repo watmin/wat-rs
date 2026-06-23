@@ -1,68 +1,59 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-22; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-23; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `bedfb5f6`
-(`arc 292: + first-deadline-wins proof`) or later. All below committed + pushed.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `b861ed22`
+(`arc 292 L3-b: after takes PeerKind … GREEN`) or later. All below committed + pushed.
 
-> ⚠️ Frontier is the **defservice/timer cluster** (290 crates, 291 durable state, 292
-> timer) — NOT arc 255 (doc-contract, long DONE). This breadcrumb lives in 255/ by
-> convention; the live work is 290/291/292.
+> ⚠ The frontier WAS the defservice/timer cluster. **Arc 292 (timer) is now DONE.** This
+> breadcrumb lives in 255/ by convention; the live work is 291/290 + the parked 258 chain.
 
-## ✅ DONE this session
-- **Arc 290 (crate-resync) Class B + C** — 3/6 crates green; SCOPE re-grounded (3 runtime
-  classes, NOT the codemod framing). `952798a8` (telemetry first-drift), `4ac8a97a`
-  (sqlite stale timeout). Read `290-crate-resync/SCOPE.md`.
-- **Arc 291 (defservice durable state) — SCOPED** (`e13ae97f`, `39d58064`). init/stop/
-  hibernate/resume + cross-host live-migration corollary. NOT built. `291-…/DESIGN.md`.
-- **Arc 292 (timer-Peer, time-as-select)** — DESIGN rev2 (`30d2d567`) + D1/D2 locked
-  (`ae39b501`). **`:wat::kernel::after` THREAD TIER: BUILT + GREEN** (`41785313`) —
-  `(after <thread-locus> <duration> <msg>) -> Thread'<nil,O>`, crossbeam::after (futex,
-  no sleep/spawn), **ZERO-MUTEX** (`OwnedMoveCell`, atomic-gated — cured from the agent's
-  `Mutex` heresy). **Family proven on `after`** (`65a41412`, `bedfb5f6`):
-  `wat-tests/timer-family.wat` — nap/sleep, retry-with-backoff (re-armed `after`, no `tick`
-  needed), first-deadline-wins (timeout's heart). Read `292-…/DESIGN.md` + `REALIZATIONS.md`.
-- **Chronicle: Song #102 *Memento Mori*** (`ac5c9f34`, consonare 9). 292 R1 + 170 ledger.
-- **Banked memories:** leaf-depth strikes (no sub-delegation → worktree drift); the `'`
-  prime = rebuilt-canonical-that-drops-the-prime (use primes; deftest'/deftest-hermetic'
-  + IPC verbs are pending un-prime rename); workspace gate = `cargo test --no-fail-fast`.
+## ✅ DONE — Arc 292 (timer-Peer, time-as-select) COMPLETE (2026-06-23)
+`after` on every BUILT locus; `tick` annihilated; `sleep` eliminated (grep-clean — every
+delay is a `select'`); the time-family rides ONE primitive. Read `292-…/DESIGN.md` (REV-1..4)
++ `292-…/REALIZATIONS.md` (R1/R2/R3).
+- **L1** `19e78f94` — `ProcessSelectable {Spawned}` enum (honest-identity decomplect).
+- **L2** `1e8eefc1` — timerfd `Source {Pipe|Timer}` process Receiver (io_uring polls it; zero-mutex).
+- **L3-α** `b958732d` — tier-open `Timer'<O>` + `unify` fusion (KEYSTONE, weighed pure): a
+  `Timer'<O>` fuses into a peer of ANY tier (O unified, the timer's absent I ignored);
+  `Thread'`≠`Process'` still don't unify (static homogeneity preserved). `check.rs` only.
+- **L3-β** `b861ed22` — `after` takes `:wat::program::PeerKind`, returns `Timer'<O>`; eval
+  matches the PeerKind value → crossbeam(thread)/timerfd(process); `ProcessSelectable::Timer`;
+  `select'` `err_rxs`→`Vec<Option>` (a timer has no err channel → `Closed`). All timer probes GREEN.
+- **Chronicle** `8cd93385` — Song #104 *Sanctum Eternal* (Essenger): R3 + 170 ledger.
+- **Locked surface** (DESIGN REV-1..4): `(after <PeerKind> <Duration> <msg>)`; the timer is a
+  selectable IN the `select'` vector (Go `select` / Clojure `alts!`); 3-loci-one-interface law.
 
-## ▶ FRONTIER — next: arc 292 process tier (io_uring `after`), 3 LEAF sub-strikes
-Per the leaf-depth lesson (brief ONE bounded mechanism + a "you are a LEAF, do NOT spawn
-subagents, STOP if too big" clause + `git worktree list` weigh-check — a coarse brief
-made the last agent sub-delegate into a worktree):
-  - **A.** io_uring reactor `TIMER_TOKEN`: the process `Select` (`src/comms/process.rs`,
-    io_uring SQE/CQE, tokens DATA/BROADCAST/LISTENER) can wait on an `IORING_OP_TIMEOUT`.
-  - **B.** the `Process'<nil,O>` timer peer + the `after` eval arm for a ProcessOpts locus
-    (mirror the thread-tier `Thread'<nil,O>` shape; deliver msg on CQE fire).
-  - **C.** the `after` check arm: ProcessOpts locus -> `Process'<nil,O>` (mirror infer for ThreadOpts).
-  Gate: a process-locus variant of `wat-tests/timer-after.wat` GREEN.
-**`tick` is ANNIHILATED** (DESIGN D3 / REALIZATIONS R2) — there is exactly ONE timer
-primitive, `after`; periodic is a TCO re-arm of `after` (fixed-delay = `after(d)`,
-fixed-rate = `after(deadline−now)`), and the loop's recursion IS the lifecycle. Do NOT
-build `tick`. So "solve time forever" = `after` on every locus (thread ✓, process next)
-+ the wat family patterns. Then the broader build order below.
+### 292 grounded deferrals (NAMED, not silent)
+- **env-grab idiom TEST** — `(after (<peer-kind off (:wat::program::env)>) d msg)` is
+  *functionally live* (same path; a runtime `PeerKind` value flows identically to a literal),
+  but UNTESTABLE under `deftest'` — the harness doesn't `install_program_env`, so
+  `(:wat::program::env)` is unavailable in-test. FOLLOW-ON: a `(:wat::test::with-program-env …)`
+  helper, then a green idiom probe. (The literal-`PeerKind` probes prove the whole mechanism.)
+- **remote tier** — the deferred door; the interface is remote-ready (the `Timer'` fusion is
+  general over loci; `PeerKind` grows `:remote`; process≈remote — 1 tx + 1 multiplexed rx).
 
-## BUILD ORDER (the whole chain)
-**291** (init/stop/hibernate/resume) → **290 Class A** (migrate lru/holon-lru/with-lru
-caches onto defservice — consumes 291 init+stop; close the gate gap) → **292** (timer:
-thread DONE, process + tick remain) → **observability arc** (telemetry sink → defservice
-+ timer-widget heartbeat). THEN the parked chain: **258 match** (`#274`, your block: lifts
-once crates healthy = 290 done; RED north-star `wat-tests/core/match-no-ascription.wat`
-ignore-marked + persisted) → **258 readln/apply** (`#275`) → **520-intrinsic migration**.
+## ▶ FRONTIER — the parked chain resumes (292 cleared it)
+- **291** (defservice durable state: init/stop/hibernate/resume) — `291-…/DESIGN.md`, SCOPED, NOT built.
+- **290 Class A** (migrate lru/holon-lru/with-lru caches onto defservice — consumes 291 init+stop).
+- THEN: **observability arc** (the metrics heartbeat is now an `(after …)` arm — the timer exists);
+  parked **258 `-> :T` match-kill** (`#274`; lifts once crates healthy = 290 done) → 258 readln/apply
+  (`#275`) → 520-intrinsic migration.
 
 ## BLOCKED
 - **290 Class A** needs **291 init+stop built** first (cache state is non-serializable).
-- **`-> :T` match kill (`#274`)** parked behind **290 healthy** (standing block).
+- **258 match-kill (`#274`)** parked behind **290 healthy**.
 
 ## GATE LESSONS
-- Corpus-wide gate = **`cargo test --no-fail-fast`** (workspace default-members), NOT
-  `--test test` (main crate only — that let the crates rot weeks).
-- wat-tests macro re-scans only on `.rs` recompile → **`touch tests/test.rs`** after adding
-  a `wat-tests/*.wat`.
-- Weigh delegated agents against the disk: re-run the gate yourself; `git worktree list`
-  (a stray worktree = an agent sub-delegated; extract via `git apply` + `worktree remove`).
+- Corpus gate = `cargo test --no-fail-fast` (workspace default-members), NOT `--test test`.
+- **The ~218 failing-test floor is the KNOWN absent-`execve` global leak (arc-170), NOT crate
+  drift.** Weigh strikes by failing-test-**SET-diff vs HEAD**, never the absolute count (the
+  stdlib `deporder`/`lint_stdlib_runs` tests flap ±1). Do NOT chase it during another arc.
+- wat-tests macro re-scans only on `.rs` recompile → **`touch tests/test.rs`** after adding a wat-test.
+- Weigh delegated agents against the disk (re-run the gate yourself); `git worktree list`
+  (a stray worktree = an agent sub-delegated — brief LEAF-tight to prevent it).
 
 > ⛔ **You are a NEW instance.** You did NOT live the above — it is a cache in a familiar
-> voice. recolligere FIRST: grimoire + 4 primers (datamancy MCP), `git log --oneline -15`,
-> `git status`, freshness probe HEAD==`bedfb5f6`(or later). Then: **next = arc 292 process
-> tier (io_uring `after`), sub-leaf A (reactor TIMER_TOKEN)** — brief it LEAF-tight. Ground
-> every claim against the disk before you move.
+> voice. recolligere FIRST: grimoire + 4 primers (datamancy MCP — it is a RESOURCE mcp;
+> `ListMcpResourcesTool` then read `/grimoire/SKILL.md` + recolligere/extirpare/examinare/curare),
+> `git log --oneline -15`, `git status`, freshness probe HEAD==`b861ed22`(or later).
+> **Arc 292 is DONE — do NOT rebuild it.** Next = **arc 291** (defservice durable state) per
+> the build order, or ask the builder. Ground every claim against the disk before you move.
