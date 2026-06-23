@@ -127,6 +127,49 @@ If those hold, remote migration is a drop-in `Locus` later, with zero edit to
 - Snapshot persistence format / storage — Snapshot is just EDN; persistence is the caller's.
 - Generic `<K,V>` defservice — orthogonal (arc 290 stays monomorphic).
 
+## The administrative-capability split (strikes 3–4) — owner-only `stop`/`hibernate`
+
+**Added 2026-06-23 (builder): *"how can we restrict this such that stop/hibernate are 'administrative'
+APIs — only the thing who creates the service instance can call them?"* This amends strikes 3–4 below;
+the prior contract stands, this layers authority on it.**
+
+**The gap today** (grounded — `service.wat:407-440`, `575-600`): `stop` is folded into the **client**
+`Op` enum, and the generated `stop` method takes `[c <- client-peer-ty]` — the peer from
+`connect'(Handle/addr)`. So **any holder of the dial-address can stop the service.** Ambient authority.
+Hibernate would inherit this if folded the same way.
+
+**The cure — two capabilities, two authorities, by construction (ocap / POLA, 272's law):**
+
+| capability | who holds it | confers | analog |
+|---|---|---|---|
+| **`Address'`** (dial-address, handed out via `Handle/addr`) | clients | data-plane ops (Get/Increment) | S3 `GetObject` · a scoped client grant |
+| **`Handle`** (returned by `start`) | the creator only | control-plane ops (`stop`/`hibernate`) | the bucket owner's IAM role · the Erlang supervisor |
+
+**Mechanism:** the administrative ops come **off the client `Op` enum** onto a separate surface reachable
+**only through the Handle**. `start` mints *two* listener/address pairs — the public client address
+(exposed via `Handle/addr`) and a **private admin address kept inside the Handle, never exposed**. The
+serve loop `select'`s over both listeners; `stop`/`hibernate` are **Handle methods** travelling the admin
+channel. A client holding only the dial-address *cannot name the admin door* — it's a different,
+unforgeable, never-handed capability. **Not a runtime permission check — authority is possession of an
+unforgeable reference** (272: no ambient authority, no forge-from-name). Crosses the process/remote wire
+free: `Address'` is already a portable `#wat-edn.cap` capability (272 6a).
+
+**Two properties that fall out:**
+- **Delegation composes, explicitly.** Admin authority *is* a capability, so the owner can hand it to a
+  supervisor/deploy-tool by transferring it — explicit transfer, never ambient.
+- **It is "AWS on a CPU" exactly** — data-plane (`Address'`) vs control-plane (`Handle`); and the Erlang
+  supervisor (children don't stop each other; the owner owns the lifecycle).
+
+**Where it lands:**
+- **strike 3 (`stop → resp`)** absorbs this: `stop` moves off the client `Op` enum onto the Handle admin
+  surface (it is already "reshape stop," so the authority split rides along).
+- **strike 4 (`hibernate`/`resume`)** is then born owner-only: `hibernate` is a Handle method; `resume` is
+  `start`-family (the caller creates the instance and receives the Handle), owner by construction.
+- **`init`** (strike 2, shipped `d5d71766`) — unaffected; `init` is inherently the creator's (part of `start`).
+
+(Status: PROPOSED contract for strikes 3–4 — the two-address Handle split. To be confirmed before the
+strike-3 draw.)
+
 ## Done = the gate
 The RED probe (sub-strike 1) goes GREEN: counter hibernate → process-kill → resume →
 continue, across processes, asserted. `service-locus-parity.wat` still green. And the
