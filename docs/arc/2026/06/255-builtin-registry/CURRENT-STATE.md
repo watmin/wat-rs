@@ -1,52 +1,56 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-22; replace in place) — read the DESIGN docs, not this paraphrase
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-22; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **The intrinsic doc-contract spec is DONE + FROZEN.**
-`bytes` is the proven exemplar. The NEXT frontier is the **520-intrinsic migration** (re-fit each
-into the registry + its forced doc). Not started.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `397efea8`
+(`docs: scope arc 290 crate-resync`) or later. Everything below is committed + pushed.
 
-## ✅ THE DOC-CONTRACT SPEC IS DONE (this session; committed + pushed)
-- `c59d65aa` firm doc-contract — bytes PERFECT: firm grammar (one canonical form per marker; 4-way
-  separator dead; multi-line `@example` blocks), `@arg`/`@ret` TYPES ⇄ checker scheme, show-source,
-  render-doc (`See also`), `@see` registry-check.
-- `9d30dbf3` `@pure`/`@deterministic` declared doc fields; `@pure` ⇄ `is_effectful_op`;
-  `CORPUS_DERIVED` hand-list ANNIHILATED.
-- `a47c4857` spec-complete — variadic (`@arg xs…` + `&[WatAST]` + `Arity` enum; rest-param honors the
-  universal-top via `assignable`, check.rs:6100), `@yields` (singleton, ⇄ fn-arg param), `@category`
-  (closed `Category` enum, compile-error on unknown). Witnesses: `:wat::intrinsic::variadic-args-measurement`,
-  `:wat::intrinsic::yields-witness`.
+## ✅ DONE this session
+- **Doc-contract DONE+FROZEN** (arc 255): value intrinsics (`bytes`) + special forms
+  (`if`/`let`, the `wat_special_form!` macro, `Kind::SpecialForm` + `handler:Option`).
+  Two live extensions survived on the exemplars alone (the "narrow waist" proof):
+  enum-marker convention `@<EnumName> <Variant>` (`Purity`/`Determinism`/`Category` in
+  wat-doc) + the `@arg ∨ @syntax` shape rule. Read `DESIGN-STONE-special-form-doc-contract.md`.
+- **`-> :T` annihilation (arc 258) sub-strike 1 DONE** — `Option/expect` + `Result/expect`
+  drop `-> :T`, type inferred from the `Option<T>`/`Result<T,E>` arg. Codemodded tree-wide
+  (wat/ + wat-tests/ + crates/ + scripts), the COMPLETION fixing a "list-every-path" miss.
+  Read `docs/arc/2026/06/258-instinctive-conditionals/BRIEF-arrow-clean-kills.md`.
 
-**Every axis has an independent witness, build-fail on divergence** (name/count, type, behavior,
-purity, see, category, yields). Gates: lib 962/36/1; wat-tests 269/1; wat-doc 25/0; nursery 8/8; clippy clean.
+## 🧰 Reusable assets built (USE THESE)
+- **Generic codemod** `:wat::fix::strip-arrow-ascription src heads` (wat/fix.wat) — head-set-
+  parameterized `-> :T` stripper, comment-faithful. Entry-points: `wat-scripts/fixes/strip-
+  {expect,match}-ascription.wat`.
+- **BOOTSTRAP header in `wat/fix.wat`** (READ IT before any codemod that ships with a checker
+  change): the stash-dance AND the battery-disable technique (comment the 5 registrations in
+  `crates/wat-cli/src/bin/wat.rs` → core-only load → codemod the still-drifted crates without
+  them failing the checker at load).
 
-DESIGN docs (read these, not this): `DESIGN-intrinsic-doc-reflection-contract.md` (LOCKED §1-10),
-`DESIGN-STONE-firm-doc-contract.md`, `DESIGN-STONE-spec-complete.md`, `NOTE-fuzzy-docs-horizon.md`.
+## ⛔ BLOCKED + the priority pivot
+- **`-> :T` sub-strike 2 (`match`) is STRIKE-READY but BLOCKED** (user decision, this session)
+  **until the crates are healthy.** Probe `wat-tests/core/match-no-ascription.wat` (RED-verified,
+  UNCOMMITTED) + brief `258.../BRIEF-arrow-match.md` (the hard one: build `infer_match`
+  bare-unify mirroring `infer_if`, codemod 143 via the generic, weigh non-unifying-arm cascade;
+  ORCHESTRATOR-OWNED — bootstrap forbids blind delegation). `strip-match-ascription.wat` also
+  UNCOMMITTED. Do NOT start match until arc 290 lands.
+- **Arc 290 (crate-resync) is now THE PRIORITY.** Read `docs/arc/2026/06/290-crate-resync/SCOPE.md`.
+  Weeks of un-applied-arc drift in `crates/{wat-lru,wat-holon-lru,wat-telemetry,wat-sqlite,
+  wat-telemetry-sqlite}` + `examples/with-lru`, surfaced by sub-strike 1's universe-load. Axes:
+  type-keyword-as-value (`:nil` 264 + `:i64` 15, position-aware codemod), expect-in-spawned-
+  program-STRINGS (the hard one — AST can't reach string literals), `define`→`defn`, `match -> :T`,
+  downstream TypeMismatch/comm. Method: per-axis probe→codemod→cascade + battery-disable + vigilia.
+  THE real fix: close the gate gap so they can't re-drift.
 
-## NEXT — the 520-migration (the big refactor)
-Move the ~520 `runtime.rs` dispatch arms into `#[wat_intrinsic]` registry homes (the bytes pattern).
-The engine is built: the firm grammar REJECTS every thin/old doc with a located teaching error →
-"re-fit until green," intrinsic by intrinsic; the cross-checks catch lies as you go. Self-policing.
-The endgame (after migration): **255.1b-RESOLVE** — delete the `resolve/walk.rs:198` blanket-accept
-(the undefined-func class dies); the `NONDETERMINISTIC` set (Uuid/v4) dies as it migrates.
+## GATE LESSONS (hard-won — the gap that hid the drift)
+- The corpus-wide gate is **plain `cargo test`** (workspace `default-members`), NOT
+  `cargo test --test test` (main crate only — it never loads the crates; that let them drift weeks).
+- With the known lib 36-floor, use **`cargo test --no-fail-fast`** so the floor doesn't fail-fast-
+  mask the later crate binaries.
+- Main crate floor (good): lib 962/36; wat-tests 272/2. The 36 lib + 2 wat-tests are pre-existing.
 
-## NOT spec (downstream / decided)
-- The wiki generator (§7) — a projection of the registry; its own later strike.
-- `expand-time-legal`/`@total` — derived (pure∧total), or a bounded future add for the macro-combinator subset.
-- fuzzy-docs MCP (HORIZON note) — "best docs platform" claim to PROVE; later, not an arc yet.
+## GOTCHAS
+- The wat binary EMBEDS the stdlib at build → a new fix-wat verb needs a rebuild to be visible.
+- Codemod leaves trailing whitespace where tokens were (wat-fmt's job, arc 264; harmless).
+- Crates are RED on the arc-290 axes — that is PRE-EXISTING neglect, not a regression; main crate green.
 
-## GOTCHAS (hard-won this session)
-- **Nested agents spawn git WORKTREES.** A 4-deep delegation built in `.claude/worktrees/agent-*`
-  then a rewrite-from-inference copy-back BROKE main (missed files). ALWAYS weigh against the MAIN
-  repo disk (`cargo check` + the gates yourself); if an agent worked in a worktree, `cp` its real
-  tree — never trust an inference-rewrite. Removed both rogue worktrees this session.
-- **The weigh must READ, not pattern-match.** I cried wolf 3× tonight (revert / nursery-not-wired /
-  category-drift) by asserting "anti-pattern" from a glance instead of reading the flow — all wrong;
-  the user corrected each. The weigh caught ONE real bug (variadic rest-param). Ground every defect
-  claim against the disk ([[feedback_ground_codebase_claims_in_codesign]]). Recurs under fatigue.
-- `build.rs` auto-detects `tests/<group>/*.rs` (nursery) → run `cargo test --test nursery`.
-- Pre-existing fails: lib 36 floor; wat-tests `test-run-string-entry-direct`. Pre-existing dead-code:
-  `value_matches_type_pattern`, `wrap_stream_as_socket_peer` (#234). LEAVE them.
-
-> ⛔ **You are a NEW instance.** You did NOT live the above — it's a cache in a familiar voice.
-> recolligere FIRST: grimoire + 4 primers (datamancy MCP), `git log --oneline -15`, `git status`.
-> Freshness probe: HEAD should be `a47c4857` (or later). The doc-spec is DONE; the migration is
-> NOT started — surface it, don't auto-start. Ground every claim against the disk before you move.
+> ⛔ **You are a NEW instance.** You did NOT live the above — it is a cache in a familiar voice.
+> recolligere FIRST: grimoire + 4 primers (datamancy MCP), `git log --oneline -15`, `git status`,
+> freshness probe HEAD==397efea8(or later). Then: **arc 290 (crate-resync) is the priority; the
+> `-> :T` match kill is BLOCKED behind it.** Ground every claim against the disk before you move.
