@@ -39,6 +39,44 @@ that correct rev 2's sketch. Where the forms below say `:wat::time::after` or
   whose existence was the defect — killed before it shipped. (`mora`/examinare: one
   primitive, the boss beaten for all time.)
 
+- **D4 — process-tier mechanism: `timerfd`, NOT `IORING_OP_TIMEOUT`** (2026-06-22,
+  builder-locked; four-questions-grounded). The "Who blocks for N" table below and
+  sub-strike 3 say `IORING_OP_TIMEOUT SQE + TIMER_TOKEN` — **prior state, preserved.**
+  Superseded because, grounded against the disk: `comms::process::Receiver<T>` is
+  **rigidly fd-backed** (`read_fd: OwnedFd` mandatory; every method assumes it), and
+  `select'` consumes a timer as a `Process'<nil,O>` peer (D2). A `timerfd_create(2)`
+  receiver drops straight into the existing `read_fd` slot and the existing
+  `PollAdd POLLIN` data-arm path — **`Select` is UNCHANGED.** An `IORING_OP_TIMEOUT`
+  arm (no fd) would force enum-ifying the warded `Receiver` + reactor surgery
+  (`-ETIME`-is-success, `Timespec` lifetime). **io_uring stays the sole waiter either
+  way** (io_uring *polls the timerfd*); the doctrine "best-of-breed Linux, io_uring
+  reactor" is satisfied — `timerfd` IS best-of-breed Linux, and it is the arc's
+  ORIGINAL conception (arc-214 DESIGN: *"timeouts = a timerfd arm"*; R1 path-of-voices
+  lists "timerfd-vs-IORING_OP_TIMEOUT" as live grounding). The `IORING_OP_TIMEOUT`
+  wording was the drift; this restores timerfd. Cost of timerfd quantified: 1 fd (of
+  1,048,576), a few hundred bytes kernel mem, ~3 syscalls/arm — negligible at the
+  time-family's ms-to-second cadence; the hrtimer is identical to io_uring's.
+
+- **D5 — the timer peer is a `Process'<nil,O>` with `pidfd: None`** (mirrors the
+  SHIPPED thread tier's `Thread.join: Option = None` for its timer). Per D2 the timer
+  IS a peer, so it presents as a `ProcessPeerBundle{ peer: Process<String,String>,
+  err, _lifeline_w }`; `Process` mandates `pidfd: Pidfd`, but a timer has no child.
+  Faithful fix = decomplect `Process.pidfd` to `Option<Pidfd>` (honest absence, not a
+  sentinel-pidfd lie) — the same shape the thread tier already uses for `join`.
+
+- **STATUS (2026-06-22):** thread tier `after` is **SHIPPED + GREEN** (crossbeam
+  `after`, zero-mutex `OwnedMoveCell`); the family rides it (nap/backoff/retry/
+  first-deadline). So the "What exists / what's missing" section below ("No `timerfd`,
+  no crossbeam after arm, no `sleep`") is **prior state, preserved** — true at scoping,
+  now true only of the process tier. The **process tier is the sole remainder.**
+
+> **Prior-state preservation note (per the amend-don't-delete discipline):** every
+> `tick` form below (annihilated by D3), every `:wat::time::after`/`tick` spelling
+> (renamed to `:wat::kernel::` by D1), and every `IORING_OP_TIMEOUT` reference
+> (superseded by D4) is left **in place, marked, recognized as prior state** — not
+> deleted. The body records the arc's reasoning journey; the decisions above are the
+> current truth. Inline `SUPERSEDED →` pointers mark the worst spots.
+
 ## The doctrine
 
 > **Every temporal behaviour is a timer that delivers a typed message into a
@@ -56,6 +94,11 @@ does not change.
 
 A timer **delivers a caller-chosen, typed message** after a delay. Its output type
 **is** the `select'` set's type `O`, because *you hand it the `O` to emit*:
+
+> **SUPERSEDED → D1 (namespace `:wat::kernel::`) + D3 (`tick` annihilated).** The two
+> illustrative forms below are PRIOR STATE, preserved: the real verb is
+> `(:wat::kernel::after d msg)`, and there is no `tick` — periodic is a TCO re-arm of
+> `after`. Kept here to show the `send_after` shape as first reached.
 
 ```clojure
 (:wat::time::after d msg)    ;; → Peer'<nil, O>, delivers `msg` (an O) ONCE after d
@@ -95,6 +138,12 @@ This is Erlang's `erlang:send_after(Time, Dest, Msg)` — "deliver `Msg` after
 
 ## The whole time-family (usages, no new mechanism)
 
+> **SUPERSEDED → D3 (`tick` annihilated).** The `(tick …)` rows below are PRIOR STATE,
+> preserved. Current truth: `heartbeat/cron` and `rate-limit` are a TCO re-arm of
+> `(after (deadline−now) msg)` (fixed-rate, absolute-anchored); `retry-backoff` is a
+> re-arm of `(after d msg)` (fixed-delay). One primitive, `after`; the loop is the
+> lifecycle.
+
 | usage | how |
 |---|---|
 | **sleep / wait** | `(select' [(after d nil)])`, ignore the message |
@@ -112,6 +161,13 @@ All of them: arm a timer to deliver `M`, match `M` in `select'`. TCO, never `loo
 
 `mora`'s point: **nothing in wat ever waits N units.** The timer is the *timeout arm
 of the one blocking call the reactor already makes*; the kernel is the waiter.
+
+> **SUPERSEDED → D4 (process = `timerfd`) + D3 (`tick` annihilated).** The process row's
+> `IORING_OP_TIMEOUT SQE + TIMER_TOKEN` and the thread row's `crossbeam::tick` are PRIOR
+> STATE, preserved. Current truth: process tier = a `timerfd_create(2)` receiver polled
+> by the existing io_uring `PollAdd` data-arm (no `TIMER_TOKEN`, `Select` unchanged —
+> io_uring still the sole waiter); thread tier = `crossbeam::after` only (no `tick`).
+> The "kernel is the only waiter, both tiers" claim holds unchanged.
 
 | tier | the one blocking call | timer is… | the waiter |
 |---|---|---|---|
@@ -133,6 +189,12 @@ wait cascade-interruptible by construction, killing the class.
 
 ## What exists / what's missing (grounded)
 
+> **SUPERSEDED → STATUS (thread tier SHIPPED).** This section is PRIOR STATE as of
+> scoping, preserved. The thread-tier `after` is now BUILT + GREEN (crossbeam `after`,
+> zero-mutex), so "❌ the timer — nothing makes time arrive" is true only of the
+> **process tier** now. The grounding (`:wat::time::*` = pure clock; `mora` held for
+> lack of arrival) remains accurate.
+
 - ✅ `:wat::time::*` — the **clock**: `now`, `epoch-nanos`, `Duration` units,
   iso8601 (`src/time.rs`). All *pure readouts* — values, not arrivals.
 - ✅ the reactors — process `io_uring` (token-multiplexed), thread `crossbeam
@@ -153,6 +215,14 @@ the full `Peer'<I,O>`, relaxing it to "same `O`, same tier" is the small enablin
 change. Confirm exactly what it constrains before building.
 
 ## Sub-strikes
+
+> **SUPERSEDED → STATUS + D3 + D4 (the list below is PRIOR STATE, preserved).**
+> Current: (0) DESIGN ✓; (1) RED probe ✓ thread + ✓ process (`timer-after-process.wat`,
+> ignore-marked, `90f29cd3`); (2) thread tier ✓ SHIPPED; (3) **process tier = the
+> sole remainder — `timerfd` (D4), NOT `IORING_OP_TIMEOUT`; `pidfd: Option` (D5)**;
+> (4) wat surface = `:wat::kernel::after` (D1), no `tick` (D3); (5) family = ✓ proven
+> on `after`. The original sub-strike text (kept below) names `IORING_OP_TIMEOUT`,
+> `:wat::time::`, and `tick` — read it as the journey, not the current plan.
 
 0. **DESIGN** (this doc) — doctrine + `send_after` primitive + the family.
 1. **RED probe** — `(select' [(after (millis 50) :tick)])` returns `:tick` ~50ms
