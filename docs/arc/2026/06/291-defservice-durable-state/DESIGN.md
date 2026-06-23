@@ -167,8 +167,54 @@ free: `Address'` is already a portable `#wat-edn.cap` capability (272 6a).
   `start`-family (the caller creates the instance and receives the Handle), owner by construction.
 - **`init`** (strike 2, shipped `d5d71766`) — unaffected; `init` is inherently the creator's (part of `start`).
 
-(Status: PROPOSED contract for strikes 3–4 — the two-address Handle split. To be confirmed before the
-strike-3 draw.)
+### Lessons from the deleted first attempt (verified archaeology, 2026-06-23)
+
+The builder asked for the history of the *first* attempt at restricted-admin tooling, deleted, so we
+don't repeat its mistakes. Found + verified against git/disk:
+
+**What was attempted (arc 203, May 2026):** a hand-rolled per-service **Admin/Client capability split** —
+an `Admin` `struct-restricted` holding a `server-id` UUID **secret-witness** + the admin channel; a
+`Client/User` struct carrying that UUID; `:admin {Provision/Deprovision/Stop}` vs `:user {Get/Increment}`
+sections; a `Wire Admin|User` enum multiplexing both planes over one stream. Commits `26c92981`,
+`e7aa671b`, `b1fed2be`, `cd6f2617`.
+
+**Why it was deleted — the load-bearing lesson** (`DESIGN-REGROUNDED-2026-06-12.md:17-20`, verbatim on disk):
+> *"Admin existed for one job: PERMISSIONS … The substrate now answers that directly, per tier — thread =
+> you hold the handle; process = your pid is in my SO_PEERCRED allow-set (kernel-vouched); remote = your
+> cert chains to my CA (mTLS). A hand-rolled permission system on top of a real one is redundant ceremony."*
+
+So `Admin`/`User` caps, `Provision`/`Deprovision`, the `server-id` witness, and `Wire` multiplexing **all
+collapsed**. Further deletions: the restricted FORMS `struct-restricted`/`def-restricted`/`defn-restricted`
+HARD CUT into `{:restricted-to}` metadata-maps (arc 241 Stones 241.8 `f6cb564f` / 241.14 `839cf9e6`,
+retirement table); `socket-address'` guessable-name rendezvous annihilated (272 step 5 `4e473da1`);
+`AnyOfMyUser` (euid-only connect gate) annihilated + the "autobind names are unguessable" premise retracted
+(272 6c.2 `ed633891` — autobind is `%05x` = 2²⁰, brute-forceable, NOT a secret).
+
+**THE PRIMARY LESSON → the contract for this attempt:** do **not** hand-roll a permission system (no
+`server-id` witness, no `Provision`/`Deprovision`, no token). Lean on the substrate's **per-tier authority
+that already exists and survives** (`src/capability/policy.rs`, `src/comms/process.rs`): thread =
+**handle-possession**; process = **`SO_PEERCRED` allow-set + `OnlyThisPeer{pid}`**; remote = **mTLS**. The
+two-capability split (`Handle` vs `Address'`) provides ONLY the admin/data **separation** (the ocap facet);
+the substrate provides the per-tier **WHO**. They compose — the facet says *which door*, the substrate auth
+says *who may walk through it*. This is why the second attempt is better: the real auth now exists, so the
+ceremony the first attempt hand-rolled is replaced by leaning on it.
+
+**The avoid-list (verified mistakes that could recur — guard each):**
+1. **No Mutex on the Handle / admin listener.** A Handle is single-owner by construction → `ThreadOwnedCell`
+   / plain ownership, never `Mutex` (the arc-209 `Mutex<HashSet>` → `ThreadOwnedCell` lesson, `06bfdf92` —
+   a Mutex lies about a single-owner access pattern).
+2. **Never claim the admin address is "unguessable."** Autobind is `%05x` (2²⁰). Security = the admin
+   address is **never exposed** (only the client address via `Handle/addr`) + **pid-stamped**, NOT secrecy.
+3. **Never add a `Handle/admin-addr` accessor or leak the admin address.** Exposure collapses the
+   by-construction guarantee back to a runtime check — the exact forge-from-name failure 272 step 5 killed.
+4. **Do not multiplex admin+data onto one listener with a runtime "which kind of message" check.** That
+   reintroduces ambient authority (a dispatch decision instead of possession-of-address). Two listeners.
+5. **Pid-stamp the admin address at mint** (`OnlyThisPeer{minter_pid}`, 272 6c.2 `ed633891`) so the
+   process-tier admin connect gate is symmetric with accept — else it falls back to the annihilated
+   `AnyOfMyUser`.
+
+(Status: PROPOSED contract for strikes 3–4 — the two-address Handle split, leaning on substrate per-tier
+auth, guarded by the avoid-list. To be confirmed before the strike-3 draw.)
 
 ## Done = the gate
 The RED probe (sub-strike 1) goes GREEN: counter hibernate → process-kill → resume →
