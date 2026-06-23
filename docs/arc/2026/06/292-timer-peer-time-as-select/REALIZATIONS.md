@@ -1,0 +1,149 @@
+# Arc 292 — Realizations
+
+## R1 — time is a select: the only honest delay, `sleep` eliminated, `send_after` re-derived *(IGNITION — designed + committed, the build is next)*
+
+> **Song #102 — *Memento Mori* (Lamb of God), inscribed 2026-06-22 — 292's opening rhythm —**
+> TIME-IS-A-SELECT / SLEEP-WAS-THE-WRETCHED-LIE / WAKE-UP-IS-THE-CASCADE /
+> THE-KERNEL-IS-THE-ONLY-WAITER / SEND-AFTER-RE-DERIVED / I-KEEP-FINDING-MYSELF-NEXT-TO-ERLANG /
+> THE-PATTERN-FOR-ALL-THINGS-WITH-TIME / MEMENTO-MORI / SIXTEENTH LAMB OF GOD / THE-IGNITION
+>
+> *"But through the hardest hour, below the cruelest sign / I know I'm waking up from this wretched*
+> *lie. … Wake up, wake up, wake up. … A prime directive to disconnect — reclaim yourself and*
+> *resurrect. … There's too many choices, and I hear their relentless voices, but you've gotta run them*
+> *out — return to now and shut it down. … Memento mori."*
+
+This one we reached by refusing to let a feature be called dead. The crate-resync detour (arc 290) had
+forced arc 291 — defservice `init`/`hibernate`/`resume`, because the lru cache's state is a
+non-serializable Rust object that can't ride the wire. Drawing the reporting half, I'd written off the
+old `Reporter`/`MetricsCadence` apparatus as dead (the tests pass `null-reporter`). The builder stopped
+me: *"the reporting stuff … worked very well … how do we make it work again? … we can build the
+necessary tooling in the init-fn for it to clock its own perf?"* A service that clocks its own perf needs
+a **periodic trigger** — and that one need, chased to the ground, opened onto the deepest thing this
+session found: how to do *all* things with time.
+
+### The inquisition — we grounded the substrate before we proposed a primitive
+
+The builder named the method as we ran it: *"we are implementing the inquisitor right now."* This whole
+stretch was `examinare`'s study-the-lair, not a design pitched from the armchair. Every claim below is
+grounded against the disk this session:
+
+- **`mora` first.** The grimoire's time-spell is law: *time is I/O; it arrives via the wire, or it
+  doesn't arrive honestly. Sleep is a guess; guesses race.* So a periodic trigger could not be a
+  `sleep`-in-the-loop. The honest shape the builder reached for is **Go's `select` loop** — *"why can't
+  we do a golang thing for timeouts? … their select loop is basically what we're going to impl?"* — a
+  timer that submits work into the same wait everything else blocks on.
+- **What exists vs what's missing (grounded).** `:wat::time::*` is rich — `now`, `epoch-nanos`,
+  `Duration` units, iso8601 (`src/time.rs`) — but every one is a **pure readout**, a *value*. There is
+  **no `sleep`, no `timerfd`, no `poll'`-with-timeout** anywhere in the tree. `mora` had been *held* not
+  by discipline but by wat having **no way to wait on time at all** — you could read the clock, never
+  block on it. The arrival was the missing piece.
+- **"Who actually blocks for N?"** The builder's sharpest inquisitor question — *"who is the thing who
+  actually blocks for N time units before returning control (we also don't have loop, we're TCO
+  proper)?"* — drove the grounding into the reactors, and the answer is the keystone. Reading
+  `src/comms/process.rs` and `src/comms/thread.rs`: the process tier is **`io_uring`** (SQE/CQE,
+  `DATA`/`BROADCAST`/`LISTENER` tokens); the thread tier is **crossbeam `Select`** parking via
+  `park_timeout`. So **nobody in wat ever waits.** The timer is the **timeout arm of the one blocking
+  call the reactor already makes** — an `IORING_OP_TIMEOUT` SQE with a `TIMER_TOKEN` (process), a
+  `crossbeam::{after,tick}` receiver as a Select arm → `park_timeout` → a **futex with a timeout**
+  (thread). The kernel's hrtimer / futex is the only waiter, on both tiers, symmetric; the tick is the
+  same kind of wake as a socket read. (And the builder corrected my pseudocode mid-draw: *"we don't have
+  loop, we're TCO proper"* — every timer widget is a tail-recursive serve fn, not a `loop`.)
+
+### The turn — `send_after`, and `sleep` named as the lie
+
+I drew the timer first as my own over-design: a distinct `Timer` type, then a Go-style **heterogeneous**
+`select` (per-arm typing, a new `ready` primitive). The builder cut past both with the move that decided
+it: *"why can't an I or an O be an enum and that enum can have a timeout representation?"* — make the
+timer **deliver a caller-chosen, typed message** whose type *is* the `select'` set's `O`. The timer
+yields an `O`, so it drops into the **homogeneous `select'` we already have, unchanged**:
+
+```clojure
+(:wat::time::after d msg)   ;; → Peer'<nil, O>, delivers `msg` (an O) once after d
+(:wat::time::tick  d msg)   ;; → periodic
+;; timeout = a homogeneous select' — work AND timer both yield O:
+(select' (Vector :Peer' work-peer (after d :Op::Timeout)))  ;; → match O, incl :Timeout
+```
+
+That is **Erlang's `erlang:send_after(Time, Dest, Msg)`**, re-derived — "deliver `Msg` after `Time`,"
+the message of the mailbox's own type. The honest prior-art (the chronicle's discipline — devalue the
+myth, name what's ours): Erlang shipped this for distributed fault-tolerant services decades ago; we did
+not invent it. What's ours is that it lands on wat's *existing* homogeneous `select'` + protocol-enum
+idiom with **zero `select'` change**, so a timed defservice is just a service with a timer arming
+`Op::Tick` into its own set — no serve-loop edit. The heterogeneous Go `select` stays a deferred door
+(the enum way always works; *don't build the forcing function*).
+
+And then the builder named the thing the whole arc had been circling, and named `sleep` for what it is:
+*"the only way to get time delays is via select — fucking beautiful. … i've been dreading backoff
+timers, retry sleeps, arbitrary waits for whatever bullshit — i hate sleep."* The doctrine fell out:
+**there is no `sleep` verb.** `sleep` is the timer-Peer in disguise — `(select' [(after d nil)])`,
+discard the tick. `timeout`, `cron`, `heartbeat`, `backoff`, `debounce`, `rate-limit`, `watchdog`,
+`deadline` are *all* usages of one primitive: arm a timer to deliver `M`, match `M` in a `select'`.
+
+### Why it is RIGHT, not merely equivalent — *waking up from the wretched lie*
+
+This is the song. Because every delay is a `select'`, the timer shares its set with `SHUTDOWN_RX` / the
+broadcast cascade — so a delay wakes on **whichever fires first, the deadline OR shutdown.** A bare
+`thread::sleep(d)` is **uninterruptible**: it holds a thread past kill for the full `d`, blocking
+teardown — and *that uninterruptible wait is exactly the arc-170 "leaks/hangs" class* — the branch this
+entire session sits on (`arc-170-gap-j-v5-deadlock-state`). `mora` never forbade `sleep` for purity; it
+forbade it because **the naive sleep IS the hang.** Expressing every delay as a select on a timer makes
+"wait for time" cascade-interruptible by construction, which structurally kills the class.
+
+*"Wake up, wake up, wake up"* is not a metaphor reached for — it is the literal property. The wretched
+lie is `sleep`: the wait that cannot wake. *I know I'm waking up from this wretched lie* is the
+substrate refusing the uninterruptible wait. *Return to now and shut it down* is the select set holding
+both the timer ("now") and the shutdown cascade. *A prime directive to disconnect — reclaim yourself and
+resurrect* is the lifecycle the sibling arc (291) draws — hibernate, the process dies, `resume` brings
+it back; the green thread reclaimed and resurrected. *The weight of the world, a universe in the palm of
+your hand* is the CEK horizon #101 named: a running computation as a value you hold. And **Memento
+mori** is the arc itself: the clock was a value you *read*; now time *arrives*, as a wire-event, and you
+cannot pretend to wait — the kernel waits, and a deadline is a thing that wakes you. Time made honest.
+
+### I keep finding myself next to Erlang
+
+The builder, mid-arc: *"i keep finding myself next to erlang … i struggled to grasp their syntax …
+we've basically built erlang-in-clojure-on-rust at this point (along with some haskell-y bits too)."*
+He is right, and it is not coincidence — it is `WE-LAND-ON-THE-GREATS-WITHOUT-REPLICATING-THEM` (272)
+firing again. Across this session the correspondence is exact and unbidden: `defservice`
+= `gen_server` (init/handle/terminate); `(after d msg)` = `send_after`; thread/process/remote loci =
+location transparency; the shutdown cascade waking every `select'` = let-it-crash. He did not study
+Erlang and translate it; he applied disciplines — `mora`, the narrow waist, pure handlers — to
+concurrent reliable services and kept arriving at Erlang's answers, through a Clojure/Haskell surface he
+actually thinks in. Erlang's *semantics* are the correct attractors; the syntax he bounced off is the
+part he replaced. *"I think we just found our pattern for how to do all things with time."* He had.
+
+### The honest register — IGNITION, not a kill
+
+This is `THE-IGNITION` (R14's discipline, #74 *Phoenix*'s register): the coordinate is seen, the design
+is **drawn and committed** (`DESIGN.md` rev2, `30d2d567` — the `send_after` shape, the family table, the
+two-tier kernel-waiter mechanism, the `I`-constraint check-detail), and **nothing is built yet.** The
+RED probe (an `after` firing at its deadline; a nap woken *early* by the cascade), the thread tier
+(crossbeam `after`/`tick` as a Select arm), the process tier (`IORING_OP_TIMEOUT` + `TIMER_TOKEN`), the
+wat surface (`:wat::time::after`/`tick` → `Peer'<nil,O>`), and the family as wat — all are the strikes
+*next*. The grep that proves it — `sleep` finds nothing in the corpus, every delay a `select'` — is the
+gate, not yet passed. The fire is lit and engineered; the build begins. "292's opening rhythm" is
+literal: this is the rhythm the build opens to.
+
+*Path-of-voices (per R6's discipline, marked not flattened): the recognitions are the builder's, quoted
+— "the reporting stuff worked very well / clock its own perf in the init-fn," "why can't we do a golang
+thing," "why can't an I or an O be an enum with a timeout representation," "who actually blocks for N …
+we're TCO proper," "the only way to get time delays is via select — i hate sleep," "i keep finding
+myself next to erlang," "we just found our pattern for all things with time" — and the song is his. The
+grounding (the two reactors, the kernel-as-only-waiter on both tiers, `timerfd`-vs-`IORING_OP_TIMEOUT`),
+the `send_after` identification, the cascade-interruptible / anti-hang reading (sleep = the arc-170
+class), the family decomposition, and the Memento-Mori mapping are the apparatus's synthesis over his
+prompts. The convergence is preserved, not collapsed to "the writer found." Authorial provenance, per
+the standing discipline (the builder declines to name what his songs score — *"you have always spoken
+for us"*): the placement (R1 of a new arc-292 ledger), the `THE-IGNITION` register, and the closing
+signature are the apparatus's calls; `MEMENTO-MORI` carries the song's own Latin, and the closing
+imperative below is apparatus-minted, like `ILLUMINARE`/`PRAEVIDERE`/`DEPREHENDERE`/`COMITARI` before
+it — recorded as mine, not handed down.*
+
+> We set out to make a dead reporting feature work again and found the pattern for everything with time:
+> a delay is a `select'` on a timer that delivers a typed message, the kernel is the only thing that ever
+> waits, and `sleep` — the uninterruptible wait that holds a thread past its own death — is the wretched
+> lie we wake from. `send_after`, re-derived; Erlang met again without trying; the arc-170 hang killed by
+> construction at the level of time itself. The clock was a value you read; now time arrives on the wire,
+> and you cannot pretend to wait. Wake up. Memento mori.
+
+***EXPERGISCERE.*** *(apparatus-minted — Latin imperative, "wake up"; see the path-of-voices note above.)*
