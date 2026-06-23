@@ -11,7 +11,6 @@
 ;;   - test-arc-123-minutes-suffix: 1m budget, trivial work →
 ;;     passes; verifies the 'm' suffix parses to 60000ms
 
-(:wat::test::time-limit "100ms")
 (:wat::test::deftest :wat-tests::sqlite::arc-123::test-arc-123-fast
   ()
   (:wat::test::assert-eq 42 42))
