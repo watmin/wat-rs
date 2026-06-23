@@ -127,6 +127,17 @@ builder. **Prior text for D2 and D5 is left in place above, recognized as supers
   `comms::process::Source { Pipe, Timer }` + `timer()`, io_uring polls the timerfd, sole
   waiter, zero-mutex.
 
+- **REV-4 (three loci, one interface — design tier-spanning things general over THREE).**
+  thread, process, and the **deferred remote** share ONE peer interface (a peer = optional
+  tx + N rx; `select'` multiplexes all rx). **process ≈ remote**, nearly identical: process
+  = 1 tx (stdin) + **2 rx** (stdout=`output`, stderr=`err`); remote = 1 tx + **1 rx**
+  (stdout+stderr **multiplexed**); thread = crossbeam; a timer = **0 tx + 1 rx** (the
+  simplest peer). LAW: the tier-open `Timer'<O>` unify rule (REV-2) is **"a timer fuses
+  into a peer of ANY tier"** — keyed on "the other side is a known peer-tier head," NOT a
+  hardcoded thread/process pair → `remote` slots in for free. `:wat::program::PeerKind`
+  will grow `:remote` (deferred). `select'` stays N-rx-per-peer general. No silent 2-only
+  assumption anywhere.
+
 ## The doctrine
 
 > **Every temporal behaviour is a timer that delivers a typed message into a
