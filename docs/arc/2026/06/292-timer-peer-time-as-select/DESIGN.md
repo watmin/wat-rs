@@ -6,6 +6,24 @@ perf" needs a periodic trigger, and `mora`'s law says the only honest one is *ti
 arriving via the wire*. Pinning that primitive eliminates `sleep` as a concept and
 — it turns out — re-derives Erlang's `send_after`.
 
+## DECISIONS LOCKED (2026-06-22, RED-probe-grounded — supersede the illustrative forms below)
+
+The arc-292 RED probe (`wat-tests/timer-after.wat`) grounded two surface decisions
+that correct rev 2's sketch. Where the forms below say `:wat::time::after` or
+`Peer'<nil,O>`, read these:
+
+- **D1 — namespace: `:wat::kernel::after` / `:wat::kernel::tick`** (NOT `:wat::time::`).
+  They are effectful peer-constructors, so they live beside the other comms verbs
+  (`select'`/`recv'`/`connect'`); they *consume* a `:wat::time::` `Duration`. (Honest
+  axis: the pure-readout time module must not host an effectful reactor primitive.)
+- **D2 (= B1) — the timer is a TIER peer; a LOCUS picks the tier.** The RED probe
+  proved `select'` demands `Thread'<I,O> | Process'<I,O>`, not a generic `Peer'`. So:
+  **`(:wat::kernel::after <locus> <duration> <msg>) → <Tier>'<nil,O>`** —
+  `(after (:wat::spawn::thread) d msg) → Thread'<nil,O>` (crossbeam reactor),
+  `(after (:wat::spawn::process) d msg) → Process'<nil,O>` (io_uring reactor).
+  Mirrors `(start (thread) state0)`; **`select'` is unchanged** (the probe confirmed a
+  `Thread'<nil,keyword>` timer satisfies the set). `after`/`tick` are 3-arg.
+
 ## The doctrine
 
 > **Every temporal behaviour is a timer that delivers a typed message into a
