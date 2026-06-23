@@ -1,0 +1,53 @@
+;; wat-tests/timer-env-grab-parity.wat — arc 292 R3: the env-grab idiom, locus-parity proof.
+;;
+;; THE idiom "programs don't care about their tier": code reads its OWN `wat.peer-kind`
+;; off its ambient `(:wat::program::env)` and hands it to `(after …)`. The tier-open
+;; `Timer'<O>` fuses into whatever reactor it landed on. The SAME service runs unchanged
+;; on a thread (crossbeam) and a process (io_uring).
+;;
+;; Model: wat-tests/service-locus-parity.wat — ONE defservice, two deftests differing in
+;; EXACTLY ONE token, the locus `(:wat::spawn::thread)` vs `(:wat::spawn::process)`. The
+;; generated client face (start / connect' / wait-tick / Handle / Response) is byte-identical.
+;; The op handler runs inside the spawned peer, where the program-env is installed (a real
+;; spawn — spawn.rs:623), so `(:wat::program::env)` resolves and the env-grab fires.
+
+;; ── the service, defined once at top-level (shared by both deftests) ──────────
+(:wat::service::defservice :wat-tests::deadline
+  :state [count <- :wat::core::i64]
+  :ops
+  [(:WaitTick [s <- :State]
+              -> [fired <- :wat::core::keyword]
+     (:wat::core::let
+       [m (:wat::core::match
+            (:wat::kernel::select'
+              (:wat::core::Vector :wat::kernel::Timer'<wat::core::keyword>
+                (:wat::kernel::after
+                  (:wat::program::Env/wat.peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
+                  (:wat::time::Millisecond 50)
+                  :tick)))
+            -> :wat::core::keyword
+            ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
+            (_ :no-tick))]
+       (:wat::service::Outcome::Reply s (:wat-tests::deadline::WaitTickResponse m))))])
+
+;; ── thread tier ──────────────────────────────────────────────────────────────
+(:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
+  ()
+  (:wat::test::assert-eq
+    (:wat::core::let
+      [h (:wat-tests::deadline/start (:wat::spawn::thread) (:wat-tests::deadline::State 0))
+       c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
+       r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
+      (:wat-tests::deadline::WaitTickResponse/fired r))
+    :tick))
+
+;; ── process tier — IDENTICAL except the locus token ──────────────────────────
+(:wat::test::deftest' :wat-tests::timer::env-grab-on-process
+  ()
+  (:wat::test::assert-eq
+    (:wat::core::let
+      [h (:wat-tests::deadline/start (:wat::spawn::process) (:wat-tests::deadline::State 0))
+       c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
+       r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
+      (:wat-tests::deadline::WaitTickResponse/fired r))
+    :tick))
