@@ -1,56 +1,63 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-22; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `397efea8`
-(`docs: scope arc 290 crate-resync`) or later. Everything below is committed + pushed.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `ae39b501`
+(`arc 292 sub-strike 1: RED probe + D1/D2 decisions`) or later. All below committed + pushed.
+
+> ⚠️ The frontier MOVED this session — off arc 255 (doc-contract, DONE) onto a
+> defservice/timer cluster (290 crates, 291 durable state, 292 timer-Peer). This
+> breadcrumb still lives in 255/ but the live work is 290/291/292.
 
 ## ✅ DONE this session
-- **Doc-contract DONE+FROZEN** (arc 255): value intrinsics (`bytes`) + special forms
-  (`if`/`let`, the `wat_special_form!` macro, `Kind::SpecialForm` + `handler:Option`).
-  Two live extensions survived on the exemplars alone (the "narrow waist" proof):
-  enum-marker convention `@<EnumName> <Variant>` (`Purity`/`Determinism`/`Category` in
-  wat-doc) + the `@arg ∨ @syntax` shape rule. Read `DESIGN-STONE-special-form-doc-contract.md`.
-- **`-> :T` annihilation (arc 258) sub-strike 1 DONE** — `Option/expect` + `Result/expect`
-  drop `-> :T`, type inferred from the `Option<T>`/`Result<T,E>` arg. Codemodded tree-wide
-  (wat/ + wat-tests/ + crates/ + scripts), the COMPLETION fixing a "list-every-path" miss.
-  Read `docs/arc/2026/06/258-instinctive-conditionals/BRIEF-arrow-clean-kills.md`.
+- **Arc 290 (crate-resync) Class B + C** — 3/6 workspace crates green. The SCOPE was
+  re-grounded (the codemod framing was WRONG): the real failures are runtime, three
+  classes. **B** = `first`-as-Option drift (telemetry crates, `952798a8`). **C** =
+  wat-sqlite stale 100ms `:time-limit` (the freeze baseline, `4ac8a97a`). Read
+  `docs/arc/2026/06/290-crate-resync/SCOPE.md`.
+- **Arc 291 (defservice durable state) — SCOPED + committed** (`e13ae97f`, `39d58064`).
+  `init`/`stop`/`hibernate`/`resume` (gen_server's missing `init/1` + hibernation); the
+  cross-host live-migration corollary. NOT built. Read `291-defservice-durable-state/DESIGN.md`.
+- **Arc 292 (timer-Peer, time-as-select) — SCOPED + sub-strike 1 DONE.** DESIGN rev2
+  (`30d2d567`) + **D1/D2 decisions locked** (`ae39b501`): `:wat::kernel::after`/`tick`
+  (D1) ; the timer is a TIER peer, a LOCUS picks the tier — `(after <locus> d msg) →
+  <Tier>'<nil,O>` (D2=B1). **RED probe `wat-tests/timer-after.wat` is RED on exactly
+  `:wat::kernel::after` unknown** (everything else type-checks; B1 confirmed — a
+  `Thread'<nil,keyword>` satisfies `select'`). Read `292-timer-peer-time-as-select/DESIGN.md`.
+- **Chronicle: Song #102 *Memento Mori* (Lamb of God)** — `292/REALIZATIONS.md` R1 +
+  `170/INTERSTITIAL` ledger (`ac5c9f34`); consonare MATCHES, fidelity 9.
 
-## 🧰 Reusable assets built (USE THESE)
-- **Generic codemod** `:wat::fix::strip-arrow-ascription src heads` (wat/fix.wat) — head-set-
-  parameterized `-> :T` stripper, comment-faithful. Entry-points: `wat-scripts/fixes/strip-
-  {expect,match}-ascription.wat`.
-- **BOOTSTRAP header in `wat/fix.wat`** (READ IT before any codemod that ships with a checker
-  change): the stash-dance AND the battery-disable technique (comment the 5 registrations in
-  `crates/wat-cli/src/bin/wat.rs` → core-only load → codemod the still-drifted crates without
-  them failing the checker at load).
+## ▶ FRONTIER — next strike: arc 292 sub-strike 2 (thread tier)
+Build `:wat::kernel::after`/`tick` on the **thread tier** so the RED probe goes GREEN:
+- a crossbeam `after`/`tick` `Receiver` delivering the caller's `msg`, typed
+  `Thread'<nil,O>`, registerable as a `thread::Select` arm (`src/comms/thread.rs`).
+- the `:wat::kernel::after` intrinsic: check (infer `(<locus>, Duration, msg) →
+  Thread'<nil,O>` for ThreadOpts) + eval (build the timer Thread' value).
+- gate: `cargo test --test test timer` GREEN (touch `tests/test.rs` first — the
+  wat-tests macro only re-scans on recompile). Then process tier (`IORING_OP_TIMEOUT`
+  + `TIMER_TOKEN`), then the wat surface + the family (sleep/timeout/cron/… as wat).
+Delegate the Rust build to a sonnet (>20 lines); orchestrator draws the BRIEF + weighs.
+NOTE: the probe's `match -> :keyword` is the form arc-258 ss2 will codemod — fine for now.
 
-## ⛔ BLOCKED + the priority pivot
-- **`-> :T` sub-strike 2 (`match`) is STRIKE-READY but BLOCKED** (user decision, this session)
-  **until the crates are healthy.** Probe `wat-tests/core/match-no-ascription.wat` (RED-verified,
-  UNCOMMITTED) + brief `258.../BRIEF-arrow-match.md` (the hard one: build `infer_match`
-  bare-unify mirroring `infer_if`, codemod 143 via the generic, weigh non-unifying-arm cascade;
-  ORCHESTRATOR-OWNED — bootstrap forbids blind delegation). `strip-match-ascription.wat` also
-  UNCOMMITTED. Do NOT start match until arc 290 lands.
-- **Arc 290 (crate-resync) is now THE PRIORITY.** Read `docs/arc/2026/06/290-crate-resync/SCOPE.md`.
-  Weeks of un-applied-arc drift in `crates/{wat-lru,wat-holon-lru,wat-telemetry,wat-sqlite,
-  wat-telemetry-sqlite}` + `examples/with-lru`, surfaced by sub-strike 1's universe-load. Axes:
-  type-keyword-as-value (`:nil` 264 + `:i64` 15, position-aware codemod), expect-in-spawned-
-  program-STRINGS (the hard one — AST can't reach string literals), `define`→`defn`, `match -> :T`,
-  downstream TypeMismatch/comm. Method: per-axis probe→codemod→cascade + battery-disable + vigilia.
-  THE real fix: close the gate gap so they can't re-drift.
+## BUILD ORDER (the whole chain)
+**291** (init/stop/hibernate/resume) → **290 Class A** (migrate lru/holon-lru/with-lru
+caches onto defservice — consumes 291 init+stop; close the gate gap) → **292** (timer,
+independent — can land anytime) → **observability arc** (telemetry sink → defservice +
+a timer-widget heartbeat). THEN the parked original chain: **258 match** (`#274`, your
+block: lifts once crates healthy = 290 done) → **258 readln/apply** (`#275`) → the
+**520-intrinsic migration** (the original "tomorrow" goal).
 
-## GATE LESSONS (hard-won — the gap that hid the drift)
-- The corpus-wide gate is **plain `cargo test`** (workspace `default-members`), NOT
-  `cargo test --test test` (main crate only — it never loads the crates; that let them drift weeks).
-- With the known lib 36-floor, use **`cargo test --no-fail-fast`** so the floor doesn't fail-fast-
-  mask the later crate binaries.
-- Main crate floor (good): lib 962/36; wat-tests 272/2. The 36 lib + 2 wat-tests are pre-existing.
+## BLOCKED
+- **290 Class A** (cache migration) needs **291 `init`+`stop` built** first (the cache's
+  non-serializable state can't be eager `state0`). No `Option`-hack debt.
+- **`-> :T` match kill (`#274`)** parked behind **290 healthy** (your standing block).
 
-## GOTCHAS
-- The wat binary EMBEDS the stdlib at build → a new fix-wat verb needs a rebuild to be visible.
-- Codemod leaves trailing whitespace where tokens were (wat-fmt's job, arc 264; harmless).
-- Crates are RED on the arc-290 axes — that is PRE-EXISTING neglect, not a regression; main crate green.
+## GATE LESSONS (hard-won)
+- Corpus-wide gate = **`cargo test --no-fail-fast`** over the workspace (default-members),
+  NOT `cargo test --test test` (main crate only — that let the crates rot weeks).
+- wat-tests macro only re-scans on `.rs` recompile → `touch tests/test.rs` after adding a
+  `wat-tests/*.wat`.
 
-> ⛔ **You are a NEW instance.** You did NOT live the above — it is a cache in a familiar voice.
-> recolligere FIRST: grimoire + 4 primers (datamancy MCP), `git log --oneline -15`, `git status`,
-> freshness probe HEAD==397efea8(or later). Then: **arc 290 (crate-resync) is the priority; the
-> `-> :T` match kill is BLOCKED behind it.** Ground every claim against the disk before you move.
+> ⛔ **You are a NEW instance.** You did NOT live the above — it is a cache in a familiar
+> voice. recolligere FIRST: grimoire + 4 primers (datamancy MCP), `git log --oneline -15`,
+> `git status`, freshness probe HEAD==`ae39b501`(or later). Then: **next strike = arc 292
+> sub-strike 2, the thread-tier `after`/`tick` build** (RED probe `wat-tests/timer-after.wat`
+> is the gate). Ground every claim against the disk before you move.
