@@ -77,6 +77,56 @@ that correct rev 2's sketch. Where the forms below say `:wat::time::after` or
 > deleted. The body records the arc's reasoning journey; the decisions above are the
 > current truth. Inline `SUPERSEDED →` pointers mark the worst spots.
 
+## DECISION REVISION — 2026-06-23 (supersedes D2 + D5; D4 holds)
+
+The arg0 surface was re-examined (intueri + solvere cast on it) and reshaped with the
+builder. **Prior text for D2 and D5 is left in place above, recognized as superseded.**
+
+- **REV-1 (supersedes D2's "locus picks tier") — arg0 is a declared `PeerKind`, the
+  timer is a selectable IN the `select'` vector.** intueri found `(:wat::spawn::thread)`
+  as arg0 is a **Level-1 lie** (it promises spawn-config, delivers tier-pick; the whole
+  `ThreadOpts`/`ProcessOpts` payload is dead weight — only `class_fqdn` is read); solvere
+  found the **same braid** at `eval_listener_prime`. So arg0 is NOT the spawn-locus and NOT
+  ambient-reach (builder: *"taking a program config isn't a good solution"*). It is the
+  **existing `:wat::program::PeerKind` enum** (`:thread` | `:process`), declared explicitly.
+  - **The tier-agnostic IDIOM:** a program that "doesn't care" grabs its own
+    `wat.peer-kind` off `(:wat::program::env)` and passes it — *explicit but constant in
+    shape*; programs never hardcode their tier (builder: *"i want programs to not care"*).
+    Explicit literal `(after :wat::program::PeerKind::process …)` for "I want a specific kind."
+  - **`select'` is a vector of selectables; the timer is a member of it** — `(select'
+    (Vector client (after kind d msg)))` — Go's `select { case <-After }` / Clojure's
+    `(alts! [client (timeout 100)])`. The rejected alternative A′ (timer as a *distinguished
+    arg* `(select' (Vector client) timer)`) contradicts what `select'` IS (a fan-in over a
+    list) — builder: *"A' doesn't have a vector of selectables.... goofy as shit."*
+
+- **REV-2 (the type mechanism) — `after -> ⟨tier-open⟩'<nil, O>`.** Because a `PeerKind`
+  VALUE (literal or env-grabbed) is tier-OPAQUE at check time (enum variants are not
+  distinct types — `types.rs:147`; narrowed only inside `match`), `after`'s result is a
+  **tier-open peer type that fuses to the concrete tier of the homogeneous `select'` set it
+  joins** (head-polymorphism / a tier-open timer type). This PRESERVES static
+  tier-homogeneity (`Thread'`≠`Process'` heads don't unify → a mixed real-peer set is still
+  a compile error) and carries `O` (msg type-checked). Rejected alternative **B**
+  (a `Selectable<I,O>` *supertype* + runtime tier-resolution) FAILED the four-questions:
+  it **downgrades a compile-time homogeneity guarantee to runtime** — the type would lie
+  about what it enforces. Rejected **D** (bare fresh-var return): an `msg ↔ O` soundness
+  hole. The ruthless-correctness pass chose the tier-open type (sound) over the easier-but-
+  weaker B.
+  - **`select'` relaxes to constrain only `O` (the receive side) across elements, not `I`**
+    — a timer has `I = nil` (you never send *to* it) while work-peers have a real `I`; the
+    homogeneous set must agree on what you RECEIVE (`O`), not on `I`.
+
+- **REV-3 (supersedes D5's "pidfd: Option") — the timer peer is the `ProcessSelectable`
+  enum, not an Optional field.** Per the builder's doctrine *"Option communicating a
+  semantic statement rather than presence is screaming for an enum,"* the process-tier peer
+  cell is `enum ProcessSelectable { Spawned(ProcessPeerBundle), Timer(TimerPeer) }` (L1,
+  SHIPPED `19e78f94`). `pidfd` stays a mandatory field of `Spawned` (a child always has
+  one); `Timer` has no pidfd — illegal states unrepresentable. The D5 "pidfd: Option"
+  framing above is superseded.
+
+- **D4 (process-tier mechanism = `timerfd`) HOLDS** — L2 SHIPPED (`1e8eefc1`):
+  `comms::process::Source { Pipe, Timer }` + `timer()`, io_uring polls the timerfd, sole
+  waiter, zero-mutex.
+
 ## The doctrine
 
 > **Every temporal behaviour is a timer that delivers a typed message into a
