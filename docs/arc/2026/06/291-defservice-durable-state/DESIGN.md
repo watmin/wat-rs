@@ -62,6 +62,39 @@ hibernation:  start(locus, init-args) ─→ [running] ─→ hibernate ─→ S
 makes a defservice location- and time-independent: durable actors + transparent
 process migration, achieved purely by the EDN-only-on-the-wire discipline.
 
+## The corollary: the remote locus × hibernate/resume = live migration (across HOSTS)
+
+defservice is locus-agnostic by law (it never names thread/process/remote;
+`DESIGN-STONE-6b-ii-beta-IDEALIZED.md`). The remote locus is the **perpetually-
+deferred** door (`wat/spawn.wat:16` — *"⛔ THE REMOTE DOOR IS PERPETUALLY AWAITING
+ITS KEY"*; remote = one new `CommAddress`/TLS impl + one `CommsPolicy` rung, zero
+defservice edit). A **Snapshot is pure EDN** and `resume` is **locus-parametric**,
+so the same EDN bytes travel identically over shared memory, a pipe, or an mTLS
+socket. Therefore:
+
+```
+hibernate on host A → EDN Snapshot → (mTLS) → resume((remote B), snapshot) on host B
+```
+
+is the SAME operation as `resume((thread), snapshot)` — only the `Locus` impl
+differs. The service is alive on B and cannot know it moved. **Cross-host live
+migration falls out for free** the day the remote locus exists — *because* the
+narrow waist was held shut until now. `init`/`hibernate`/`resume` IS the key the
+remote door was waiting for.
+
+**Standing discipline (do NOT violate in this arc):** arc 291 does **not** build
+remote (`feedback_dont_build_the_forcing_function` — build it when a remote caller
+surfaces). Arc 291's obligation is to be **remote-ready by construction**:
+- `hibernate` produces a **pure EDN** Snapshot — no transport, no locus, no opaque
+  handle baked in.
+- `resume` is **strictly locus-parametric** — it takes `(locus, snapshot)` and never
+  inspects or special-cases the transport.
+- the snapshot path never touches `CommAddress`/TLS/pid — those join later as a
+  Locus impl, not as an edit to snapshot/resume.
+
+If those hold, remote migration is a drop-in `Locus` later, with zero edit to
+`hibernate`/`resume`/the macro.
+
 ## Sub-strikes (sequenced)
 
 0. **DESIGN** (this doc) — the contract.
