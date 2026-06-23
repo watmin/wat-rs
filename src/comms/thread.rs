@@ -112,17 +112,51 @@ impl<T: Send + 'static> CommSender<T> for Sender<T> {
     }
 }
 
-// ─── Receiver ────────────────────────────────────────────────────────────────
+// ─── Receiver internals ───────────────────────────────────────────────────────
 
-/// Thread-tier receive endpoint. Wraps `crossbeam_channel::Receiver<T>`
-/// with cascade-aware blocking recv. Private inner field prevents bare
-/// crossbeam access from outside the tier.
-#[derive(Debug)]
-pub struct Receiver<T> {
-    inner: crossbeam_channel::Receiver<T>,
+/// Backing storage for `Receiver<T>`. Either a normal crossbeam channel
+/// or a one-shot timer (arc 292 `:wat::kernel::after`).
+///
+/// `Timer` uses `Arc<OwnedMoveCell<T>>` so the msg can be *taken* exactly
+/// once without requiring `T: Clone` — and ZERO-MUTEX (`docs/ZERO-MUTEX.md`
+/// caveat 1: the cell's `AtomicBool` gate is sanctioned; a `Mutex` is not).
+/// The `instant_rx` is a
+/// `crossbeam_channel::after(d)` receiver that fires once after the
+/// requested duration; we drain it (by receiving the `Instant`) to signal
+/// readiness, then take the stored `T`.
+enum ReceiverKind<T: Send> {
+    /// Normal capacity-1 crossbeam channel (the only kind created by `pair()`).
+    Channel(crossbeam_channel::Receiver<T>),
+    /// One-shot timer: fires once after `duration`, delivering `msg`.
+    ///
+    /// `instant_rx` is a `crossbeam_channel::after(d)` receiver. After it
+    /// fires, subsequent recv/select calls see Disconnected — the timer is
+    /// one-shot. `msg` is taken exactly once via the OwnedMoveCell (atomic-gated, no lock).
+    Timer {
+        instant_rx: crossbeam_channel::Receiver<std::time::Instant>,
+        msg: std::sync::Arc<crate::rust_deps::custodia::OwnedMoveCell<T>>,
+    },
 }
 
-impl<T> Receiver<T> {
+// ─── Receiver ────────────────────────────────────────────────────────────────
+
+/// Thread-tier receive endpoint. Wraps either a `crossbeam_channel::Receiver<T>`
+/// (normal channel) or a one-shot timer (arc 292) with cascade-aware blocking recv.
+/// Private inner field prevents bare crossbeam access from outside the tier.
+pub struct Receiver<T: Send> {
+    inner: ReceiverKind<T>,
+}
+
+impl<T: Send + std::fmt::Debug> std::fmt::Debug for Receiver<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.inner {
+            ReceiverKind::Channel(rx) => f.debug_tuple("Receiver::Channel").field(rx).finish(),
+            ReceiverKind::Timer { .. } => f.debug_struct("Receiver::Timer").finish_non_exhaustive(),
+        }
+    }
+}
+
+impl<T: Send> Receiver<T> {
     /// Cascade-aware blocking recv. Routes through `SHUTDOWN_RX` via
     /// `crossbeam::select! { recv(data), recv(SHUTDOWN_RX) }`. When
     /// substrate shutdown fires, parked recvs wake with `Err(RecvError)`
@@ -131,17 +165,41 @@ impl<T> Receiver<T> {
     /// Bootstrap fallback: when `SHUTDOWN_RX` is `None`, falls back to
     /// bare crossbeam recv. Production paths always have SHUTDOWN_RX
     /// initialized before wat code executes.
+    ///
+    /// For the Timer variant: blocks on `instant_rx` (crossbeam `after(d)`)
+    /// then takes the stored msg. One-shot: subsequent calls return
+    /// `Err(Disconnected)` (both the instant_rx and the Option<T> are exhausted).
     pub fn recv(&self) -> Result<T, RecvError> {
-        // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
-        let shutdown_rx = crate::runtime::shutdown_rx();
-        match shutdown_rx {
-            Some(srx) => {
-                crossbeam_channel::select! {
-                    recv(&self.inner) -> msg => msg.map_err(|_| RecvError::Disconnected),
-                    recv(srx) -> _ => Err(RecvError::Shutdown),
+        match &self.inner {
+            ReceiverKind::Channel(ch) => {
+                // rune:sequi(ambient-context) — SHUTDOWN_RX is the substrate cascade signal; explicit threading would bloat every recv signature in the codebase
+                let shutdown_rx = crate::runtime::shutdown_rx();
+                match shutdown_rx {
+                    Some(srx) => {
+                        crossbeam_channel::select! {
+                            recv(ch) -> msg => msg.map_err(|_| RecvError::Disconnected),
+                            recv(srx) -> _ => Err(RecvError::Shutdown),
+                        }
+                    }
+                    None => ch.recv().map_err(|_| RecvError::Disconnected),
                 }
             }
-            None => self.inner.recv().map_err(|_| RecvError::Disconnected),
+            ReceiverKind::Timer { instant_rx, msg } => {
+                // Block on the timer channel (or shutdown) WITHOUT holding the msg lock.
+                // crossbeam::after(d) parks on a futex — not thread::sleep.
+                let shutdown_rx = crate::runtime::shutdown_rx();
+                let fired = match shutdown_rx {
+                    Some(srx) => crossbeam_channel::select! {
+                        recv(instant_rx) -> r => r.map(|_| ()).map_err(|_| RecvError::Disconnected),
+                        recv(srx) -> _ => Err(RecvError::Shutdown),
+                    },
+                    None => instant_rx.recv().map(|_| ()).map_err(|_| RecvError::Disconnected),
+                };
+                fired?;
+                // Timer fired; take the msg (one-shot, atomic-gated — zero mutex).
+                msg.take(":wat::kernel::after", crate::span::Span::unknown())
+                    .map_err(|_| RecvError::Disconnected)
+            }
         }
     }
 
@@ -152,7 +210,10 @@ impl<T> Receiver<T> {
     // rune:excusare(perennial) — is_empty() withheld at the trait level for the kernel-invisible process-tier len() approximation (see CommReceiver); the thread tier's len() is exact but the trait contract is unified — adding is_empty() to one tier and not the other breaks the unified surface. Perennial per the transport model.
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        self.inner.len()
+        match &self.inner {
+            ReceiverKind::Channel(ch) => ch.len(),
+            ReceiverKind::Timer { instant_rx, .. } => instant_rx.len(),
+        }
     }
 
     /// Signal end-of-stream from this receiver. Consumes self so the
@@ -167,10 +228,18 @@ impl<T> Receiver<T> {
     }
 }
 
-impl<T> Clone for Receiver<T> {
+impl<T: Send> Clone for Receiver<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
+        match &self.inner {
+            ReceiverKind::Channel(rx) => Self {
+                inner: ReceiverKind::Channel(rx.clone()),
+            },
+            ReceiverKind::Timer { instant_rx, msg } => Self {
+                inner: ReceiverKind::Timer {
+                    instant_rx: instant_rx.clone(),
+                    msg: std::sync::Arc::clone(msg),
+                },
+            },
         }
     }
 }
@@ -280,9 +349,16 @@ impl<'a, T: Send + 'static> Select<'a, T> {
 
         // Register user arms; crossbeam assigns ascending indices starting
         // after the shutdown arm (if any).
+        // For Channel arms: register the value channel directly.
+        // For Timer arms: register the instant_rx (crossbeam::after(d)) — the
+        //   timer fires once after the duration, delivering a std::time::Instant.
+        //   The stored T is retrieved after the arm fires (see below).
         let user_arm_start = shutdown_arm_idx.map_or(0, |sa| sa + 1);
         for rx in self.user_arms.iter() {
-            inner.recv(&rx.inner);
+            match &rx.inner {
+                ReceiverKind::Channel(ch) => { inner.recv(ch); }
+                ReceiverKind::Timer { instant_rx, .. } => { inner.recv(instant_rx); }
+            }
         }
 
         let selected_op = inner.select();
@@ -299,10 +375,27 @@ impl<'a, T: Send + 'static> Select<'a, T> {
         // User arm — map crossbeam index back to user_pos.
         let user_pos = arm_idx - user_arm_start;
         let fired_rx = self.user_arms[user_pos];
-        let result = selected_op.recv(&fired_rx.inner).map_err(|_| RecvError::Disconnected);
-        SelectOutcome::Recv {
-            index: ReceiverIndex(user_pos),
-            result,
+
+        match &fired_rx.inner {
+            ReceiverKind::Channel(ch) => {
+                let result = selected_op.recv(ch).map_err(|_| RecvError::Disconnected);
+                SelectOutcome::Recv {
+                    index: ReceiverIndex(user_pos),
+                    result,
+                }
+            }
+            ReceiverKind::Timer { instant_rx, msg } => {
+                // Consume the Instant to drain the timer channel.
+                let _ = selected_op.recv(instant_rx);
+                // Take the stored msg (one-shot, atomic-gated — zero mutex).
+                let result = msg
+                    .take(":wat::kernel::after", crate::span::Span::unknown())
+                    .map_err(|_| RecvError::Disconnected);
+                SelectOutcome::Recv {
+                    index: ReceiverIndex(user_pos),
+                    result,
+                }
+            }
         }
     }
 }
@@ -321,5 +414,22 @@ impl<'a, T: Send + 'static> Select<'a, T> {
 /// shutdown).
 pub fn pair<T: Send + 'static>() -> (Sender<T>, Receiver<T>) {
     let (tx, rx) = crossbeam_channel::bounded(1);
-    (Sender { inner: tx }, Receiver { inner: rx })
+    (Sender { inner: tx }, Receiver { inner: ReceiverKind::Channel(rx) })
+}
+
+/// Construct a one-shot timer `Receiver<T>` (arc 292 `:wat::kernel::after`).
+///
+/// The returned receiver fires exactly once after `duration`, delivering
+/// `msg`. After that, subsequent `recv()` or `select()` calls on this
+/// receiver return `Err(Disconnected)`.
+///
+/// Internally uses `crossbeam_channel::after(duration)` — a futex-based
+/// wait, NOT `thread::sleep`. No background thread is spawned.
+pub fn timer<T: Send + 'static>(duration: std::time::Duration, msg: T) -> Receiver<T> {
+    Receiver {
+        inner: ReceiverKind::Timer {
+            instant_rx: crossbeam_channel::after(duration),
+            msg: std::sync::Arc::new(crate::rust_deps::custodia::OwnedMoveCell::new(msg)),
+        },
+    }
 }

@@ -4821,6 +4821,14 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-process'" => {
             crate::kernel::spawn::eval_kernel_spawn_process_prime(args, list_span, env, sym)
         }
+        // Arc 292 — one-shot timer peer (thread tier).
+        // after : (locus: ThreadOpts, duration: Duration, msg: T) -> Thread'<nil, T>
+        // Returns a Thread' peer whose output fires once after `duration` delivering
+        // `msg`, and whose crash receiver never fires (sender immediately dropped).
+        // Drops cleanly into select' next to real Thread' peers — no select' changes.
+        ":wat::kernel::after" => {
+            eval_kernel_after(args, list_span, env, sym)
+        }
         // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
         // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814):
         //   send'     — intrinsic (projective: I from peer<I,O>)
@@ -24982,6 +24990,137 @@ fn eval_peer_select_prime(
 ///
 /// Thread tier only. Uses existing `comms::thread::Select` (no `comms/thread.rs` change).
 /// `wrap_connect_request` is reused from `accept'` — ONE helper, THREE callers.
+
+// ─── after — one-shot timer peer ─────────────────────────────────────────────
+
+/// Implement `(:wat::kernel::after locus duration msg)` — arc 292 timer peer.
+///
+/// Returns a `Thread'<nil, T>` peer whose output fires once after `duration`
+/// delivering `msg`, and whose crash receiver never fires (sender dropped
+/// immediately). The peer drops cleanly into `select'` next to real Thread'
+/// peers — `select'` sees a normal `Thread'` RustOpaque with no changes.
+///
+/// Three args:
+/// - `args[0]`: locus — must evaluate to a `ThreadOpts` wat-record
+///   (`class_fqdn == "wat::spawn::ThreadOpts"`). ProcessOpts → clear runtime
+///   error (io_uring timer not yet implemented).
+/// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`.
+///   Nanos must be non-negative.
+/// - `args[2]`: msg — any `Value`; becomes the timer's output payload.
+fn eval_kernel_after(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::after";
+    if args.len() != 3 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 3,
+                got: args.len(),
+            },
+        }
+        .into());
+    }
+
+    // arg 0: locus — evaluate and validate tier.
+    let locus_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match &locus_val {
+        Value::wat__Record { class_fqdn, .. } if class_fqdn.as_str() == "wat::spawn::ThreadOpts" => {
+            // Thread tier — proceed.
+        }
+        Value::wat__Record { class_fqdn, .. } if class_fqdn.as_str() == "wat::spawn::ProcessOpts" => {
+            return Err(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: ":wat::kernel::after with ProcessOpts locus (io_uring timer) is not yet implemented".into(),
+                },
+            }
+            .into());
+        }
+        other => {
+            return Err(RuntimeError {
+                span: args[0].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "ThreadOpts or ProcessOpts locus (e.g. (:wat::spawn::thread) or (:wat::spawn::process))",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            }
+            .into());
+        }
+    }
+
+    // arg 1: duration — must be Value::Duration(nanos: i64), non-negative.
+    let duration_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let nanos: i64 = match &duration_val {
+        Value::Duration(n) => *n,
+        other => {
+            return Err(RuntimeError {
+                span: args[1].span().clone(),
+                kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::time::Duration value (e.g. (:wat::time::Millisecond 50))",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            }
+            .into());
+        }
+    };
+    if nanos < 0 {
+        return Err(RuntimeError {
+            span: args[1].span().clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "after: duration must be non-negative; got {} nanos",
+                    nanos
+                ),
+            },
+        }
+        .into());
+    }
+
+    // arg 2: msg — any Value.
+    let msg = eval_inner(&args[2], env, sym)?.value_owned();
+
+    // Build the std::time::Duration from nanos.
+    let std_dur = std::time::Duration::from_nanos(nanos as u64);
+
+    // Build the timer Receiver<Value> using crossbeam::after (futex-based, no
+    // background thread). The timer fires exactly once after std_dur.
+    let output_rx = crate::comms::thread::timer(std_dur, msg);
+
+    // Build a never-firing crash Receiver<String>: create a bounded(1) pair
+    // and immediately drop the sender. The receiver returns Disconnected on
+    // any recv — correct for a timer peer that always exits cleanly.
+    let (_crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
+    drop(_crash_tx);
+
+    // Build the Thread<Value, Value> peer.
+    // - input: None (no send side; timer has no input)
+    // - output: the timer receiver (fires once after duration with msg)
+    // - crash: disconnected receiver (never fires — clean exit)
+    // - join: None (no thread to join)
+    let peer = crate::kernel::peer::Thread {
+        input: None,
+        output: output_rx,
+        crash: crash_rx,
+        join: None,
+    };
+
+    use crate::kernel::spawn::{ThreadPeerCell, THREAD_PEER_TYPE_PATH};
+    use crate::rust_deps::custodia::ThreadOwnedCell;
+    use crate::rust_deps::marshal::make_rust_opaque;
+
+    let wrapped: ThreadPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
+    Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
+}
+
 fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,

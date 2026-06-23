@@ -4987,6 +4987,16 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 292 — one-shot timer peer (thread tier).
+            // after : (locus, duration: :wat::time::Duration, msg: T) -> Thread'<nil, T>
+            ":wat::kernel::after" => {
+                let (val, mut errs) = infer_kernel_after(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 214 Stone 4.6a-ii — three peer verb intrinsics.
             // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
             //   send'     — projective: I flows from peer<I,O> into the payload arg.
@@ -11100,6 +11110,85 @@ fn project_peer_io(
             });
             Err(())
         }
+    }
+}
+
+// ─── Arc 292 — after: one-shot timer peer ────────────────────────────────────
+
+/// Type-check `(:wat::kernel::after locus duration msg)` — arc 292 timer peer.
+///
+/// Three positional args:
+/// - `args[0]`: locus — inferred; accepts any value (runtime validates ThreadOpts
+///   vs ProcessOpts; checker does not project further into the locus).
+/// - `args[1]`: duration — must conform to `:wat::time::Duration`.
+/// - `args[2]`: msg — inferred; its type becomes the output type `O`.
+///
+/// Returns `Thread'<nil, O>` where `O` is the inferred type of `msg`.
+fn infer_kernel_after(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::after";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 3 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 3,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let o = fresh.fresh();
+        let ty = TypeExpr::Parametric {
+            head: "wat::kernel::Thread'".into(),
+            args: vec![TypeExpr::Path(":wat::core::nil".into()), o],
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    }
+
+    // arg 0: locus — infer it (runtime validates ThreadOpts vs ProcessOpts).
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg 1: duration — infer; check it conforms to :wat::time::Duration.
+    let dur_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(dur_ty) = &dur_ty_opt {
+        let expected_dur = TypeExpr::Path(":wat::time::Duration".into());
+        if !assignable(dur_ty, &expected_dur, subst, &env.types) {
+            local_errors.push(CheckError {
+                span: args[1].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "duration".into(),
+                    expected: ":wat::time::Duration".into(),
+                    got: format_type(dur_ty),
+                },
+            });
+        }
+    }
+
+    // arg 2: msg — infer its type; that becomes O.
+    let msg_ty = infer(&args[2], env, locals, fresh, subst)
+        .drain_errors_into(&mut local_errors)
+        .unwrap_or_else(|| fresh.fresh());
+
+    // Return Thread'<nil, O>.
+    let nil_ty = TypeExpr::Path(":wat::core::nil".into());
+    let thread_ty = TypeExpr::Parametric {
+        head: "wat::kernel::Thread'".into(),
+        args: vec![nil_ty, msg_ty],
+    };
+    if local_errors.is_empty() {
+        CheckResult::ok(thread_ty)
+    } else {
+        CheckResult::partial_with(thread_ty, local_errors)
     }
 }
 
