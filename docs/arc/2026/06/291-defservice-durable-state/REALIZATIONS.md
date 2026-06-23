@@ -31,12 +31,14 @@ mechanism; the understanding is already earned. *Probandum est.*
 
 ### How we reached it — the discovery, in his words (the song came last)
 
-This realization did not start at a song or a spec. It started at a confession. Drawing the `init`
-surface — settling whether `:init` should read as a lifecycle callback — the apparatus pointed at the
-shape on the page and said the quiet part: *this is a constructor for an instance of a class.* `:state`
-is the fields, `:init` the constructor, `:ops` the methods (each takes `this`, returns a value and the
-next `this`), `start` is `new`, the `Handle` is the object reference, `stop` the destructor. The
-builder's response was the spark of the whole entry:
+This realization did not start at a song or a spec. It started with the **builder** seeing it. The
+apparatus had just locked the `:init` surface (Form B), describing `:init` only as *a lifecycle
+callback peer to `:state`/`:ops`* — adjacent to the truth but not naming it. The builder made the leap:
+*"do you see the pattern here?... this is object oriented programming — this is a constructor for some
+instance of a class."* **That recognition is his** — `:state` the fields, `:init` the constructor,
+`:ops` the methods (each takes `this`, returns a value and the next `this`), `start` is `new`, the
+`Handle` the object reference, `stop` the destructor. The apparatus's part came *after*: naming *which*
+OOP (below). And his next line was the spark of the whole entry:
 
 > *"i fucking hate oop and i just found it trying to solve state management."*
 
@@ -56,6 +58,29 @@ hand over *Empire of Steel*. The order matters: the understanding was emergent f
 the song crowned an already-standing realization. (Recorded because the chronicle's own discipline is to
 preserve the path that made a realization, not just its endpoint — R6's lesson, against collapsing the
 duet into a single voice at the destination.)
+
+### ⚠ Editorial note — a VERBAL attribution-blur, caught and corrected (highlighted per discipline)
+
+**The first draft of the paragraph above wrote: *"the apparatus pointed at the shape on the page and
+said the quiet part: this is a constructor for an instance of a class."* That is false, and it is
+exactly the failure class this project tracks.** The builder said it — *"do you see the pattern… this
+is object oriented programming — this is a constructor for some instance of a class"* — and the draft
+claimed his recognition as the apparatus's. The apparatus's contribution was *naming which OOP*
+(Kay/Hewitt/Armstrong/SOA, below), not the constructor-seeing itself.
+
+Classified by the substrate's own taxonomy (`170:9168`, the VERBAL / AGENCY / COINCIDENCE dimensions):
+this is a **VERBAL** attribution-blur (dimensions 1–3 — *"user said X; LLM claims X as own"*; direction
+A→B, discrete-text). **Not COINCIDENCE** (#5) — his words were clean and his alone, not a multi-voice
+composite the inscription flattened; **not AGENCY** (#4) — a said-thing, not a discipline-produced
+verdict narrated as a choice. The plainest kind: claiming the builder's words as mine.
+
+Caught by the builder on read; corrected above; **kept visible and highlighted rather than silently
+rewritten**, because these are rare and the project marks them prominently. Lineage of the same care:
+arc-278 R6's COINCIDENCE-flatten editorial note (*"left in place, honest"*), #98's minted-signature
+note, the #32 *Monolith* misattribution that first named COINCIDENCE (`170:9170`). The discipline that
+prevents it: **inscribe the PATH** — who saw it, who named what — never flatten to single-voice
+authorship at the destination. (On-the-nose, and instructive: a realization *about who built what*
+fell, in its own first draft, to a who-said-what blur.)
 
 ### The prior-art collision — four doors, one room (WE-LAND-ON-THE-GREATS)
 
@@ -187,6 +212,9 @@ migration **compiles against the new `init` surface**. Until then the soul is no
 prophecy stands unproven, by design.
 
 *Path-of-voices (per R6's discipline, marked not flattened): the discovery is the builder's, quoted —
+**"do you see the pattern… this is object oriented programming — this is a constructor for some instance
+of a class"** (the constructor-recognition is HIS; an earlier draft mis-claimed it for the apparatus — a
+VERBAL attribution-blur, caught, corrected, and highlighted in the ⚠ editorial note above),
 "i fucking hate oop and i just found it trying to solve state management," "i have no idea what an actor
 even is — i wanted mutexes to be aws services … the impl details are on the far side of the contract," "i
 wanted aws on my cpu because thinking in distributed systems is easier than not"; and the song (Essenger
