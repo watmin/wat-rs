@@ -14,8 +14,8 @@
   -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::select'
-      (:wat::core::Vector :wat::kernel::Thread'<wat::core::nil,wat::core::nil>
-        (:wat::kernel::after (:wat::spawn::thread) d nil)))
+      (:wat::core::Vector :wat::kernel::Timer'<wat::core::nil>
+        (:wat::kernel::after :wat::program::PeerKind::thread d nil)))
     -> :wat::core::nil
     ((:wat::spawn::ServiceEvent::Message _idx _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _idx) nil)
@@ -53,9 +53,9 @@
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select'
-        (:wat::core::Vector :wat::kernel::Thread'<wat::core::nil,wat::core::keyword>
-          (:wat::kernel::after (:wat::spawn::thread) (:wat::time::Millisecond 20) :slow)
-          (:wat::kernel::after (:wat::spawn::thread) (:wat::time::Millisecond 1) :fast)))
+        (:wat::core::Vector :wat::kernel::Timer'<wat::core::keyword>
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 20) :slow)
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) :fast)))
       -> :wat::core::keyword
       ((:wat::spawn::ServiceEvent::Message _idx m) m)
       ((:wat::spawn::ServiceEvent::Closed _idx) :none)

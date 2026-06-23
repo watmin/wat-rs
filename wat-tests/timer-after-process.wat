@@ -17,18 +17,13 @@
 ;; missing primitive: the process-tier after. Everything else (process select',
 ;; Vector, ServiceEvent, :wat::time::Millisecond) already exists.
 
-;; PARKED (ignore) — RED north-star, persisted to DR. Remove the ignore when the
-;; process-tier after lands (eval ProcessOpts arm + check ProcessOpts->Process' +
-;; io_uring IORING_OP_TIMEOUT reactor arm). At HEAD it fails at check time:
-;; (after (process) ...) infers Thread'<nil,O> but the Vector demands Process'<nil,O>.
-(:wat::test::ignore "arc-292 process-tier after — RED north-star; remove on land (IORING_OP_TIMEOUT timer arm + ProcessOpts eval/check)")
 (:wat::test::deftest' :wat-tests::timer::after-delivers-its-message-process
   ()
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select'
-        (:wat::core::Vector :wat::kernel::Process'<wat::core::nil,wat::core::keyword>
-          (:wat::kernel::after (:wat::spawn::process) (:wat::time::Millisecond 50) :tick)))
+        (:wat::core::Vector :wat::kernel::Timer'<wat::core::keyword>
+          (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 50) :tick)))
       -> :wat::core::keyword
       ((:wat::spawn::ServiceEvent::Message _idx msg) msg)
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)

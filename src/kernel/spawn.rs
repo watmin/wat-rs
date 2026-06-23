@@ -334,6 +334,10 @@ impl ProcessPeerBundle {
 pub enum ProcessSelectable {
     /// A spawned child process and its channels.
     Spawned(ProcessPeerBundle),
+    /// arc 292 L3 — a one-shot timerfd-backed timer peer. No child process,
+    /// no error channel. Fires exactly once after the duration, delivering the
+    /// encoded msg frame. Only valid in `select'`; send'/recv'/close' reject it.
+    Timer(crate::comms::process::Receiver<String>),
 }
 
 // ─── Arc 259 S2c-i — per-tier 1-arg primitives ───────────────────────────────

@@ -22,8 +22,8 @@
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select'
-        (:wat::core::Vector :wat::kernel::Thread'<wat::core::nil,wat::core::keyword>
-          (:wat::kernel::after (:wat::spawn::thread) (:wat::time::Millisecond 50) :tick)))
+        (:wat::core::Vector :wat::kernel::Timer'<wat::core::keyword>
+          (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 50) :tick)))
       -> :wat::core::keyword
       ((:wat::spawn::ServiceEvent::Message _idx msg) msg)
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)

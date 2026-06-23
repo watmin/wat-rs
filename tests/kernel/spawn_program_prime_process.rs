@@ -47,23 +47,33 @@ fn reap_child_on_wire(cell: &ProcessPeerCell) {
         .with_mut("test:reap", Span::unknown(), |opt| opt.take())
         .expect("with_mut(reap) must not cross thread boundary")
         .expect("bundle must still be present at reap time");
-    let wat::kernel::spawn::ProcessSelectable::Spawned(bundle) = selectable;
-    bundle
-        .peer
-        .wait()
-        .expect("peer.wait() must reap the child on the pidfd wire");
+    match selectable {
+        wat::kernel::spawn::ProcessSelectable::Spawned(bundle) => {
+            bundle
+                .peer
+                .wait()
+                .expect("peer.wait() must reap the child on the pidfd wire");
+        }
+        wat::kernel::spawn::ProcessSelectable::Timer(_) => {
+            panic!("reap_child_on_wire: expected Spawned, got Timer");
+        }
+    }
 }
 
 /// Send an EDN-encoded string to the child via the peer channel.
 fn peer_send(cell: &ProcessPeerCell, input: &str) {
     cell.with_ref("test:send", |opt_bundle| {
-        let wat::kernel::spawn::ProcessSelectable::Spawned(bundle) = opt_bundle
-            .as_ref()
-            .expect("bundle must not be closed");
-        bundle
-            .peer
-            .send(input.to_string())
-            .expect("peer.send must succeed")
+        match opt_bundle.as_ref().expect("bundle must not be closed") {
+            wat::kernel::spawn::ProcessSelectable::Spawned(bundle) => {
+                bundle
+                    .peer
+                    .send(input.to_string())
+                    .expect("peer.send must succeed")
+            }
+            wat::kernel::spawn::ProcessSelectable::Timer(_) => {
+                panic!("peer_send: expected Spawned, got Timer");
+            }
+        }
     })
     .expect("with_ref(send) must not cross thread boundary");
 }
@@ -76,10 +86,12 @@ fn peer_send(cell: &ProcessPeerCell, input: &str) {
 /// or `Err(PeerRecvError::Disconnected)` on clean disconnect.
 fn peer_recv(cell: &ProcessPeerCell) -> Result<String, PeerRecvError> {
     cell.with_ref("test:recv", |opt_bundle| {
-        let wat::kernel::spawn::ProcessSelectable::Spawned(bundle) = opt_bundle
-            .as_ref()
-            .expect("bundle must not be closed");
-        bundle.recv()
+        match opt_bundle.as_ref().expect("bundle must not be closed") {
+            wat::kernel::spawn::ProcessSelectable::Spawned(bundle) => bundle.recv(),
+            wat::kernel::spawn::ProcessSelectable::Timer(_) => {
+                panic!("peer_recv: expected Spawned, got Timer");
+            }
+        }
     })
     .expect("with_ref(recv) must not cross thread boundary")
 }

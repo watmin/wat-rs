@@ -11115,15 +11115,17 @@ fn project_peer_io(
 
 // ─── Arc 292 — after: one-shot timer peer ────────────────────────────────────
 
-/// Type-check `(:wat::kernel::after locus duration msg)` — arc 292 timer peer.
+/// Type-check `(:wat::kernel::after peer-kind duration msg)` — arc 292 L3 timer peer.
 ///
 /// Three positional args:
-/// - `args[0]`: locus — inferred; accepts any value (runtime validates ThreadOpts
-///   vs ProcessOpts; checker does not project further into the locus).
+/// - `args[0]`: peer-kind — inferred; must conform to `:wat::program::PeerKind`
+///   (`:thread` | `:process`). TypeMismatch if not assignable.
 /// - `args[1]`: duration — must conform to `:wat::time::Duration`.
 /// - `args[2]`: msg — inferred; its type becomes the output type `O`.
 ///
-/// Returns `Thread'<nil, O>` where `O` is the inferred type of `msg`.
+/// Returns `Timer'<O>` where `O` is the inferred type of `msg`. The tier-open
+/// `Timer'` fuses into the concrete peer tier of whichever `select'` set it joins
+/// (via the `unify` fusion arms in check.rs).
 fn infer_kernel_after(
     args: &[WatAST],
     head_span: &Span,
@@ -11148,14 +11150,28 @@ fn infer_kernel_after(
         }
         let o = fresh.fresh();
         let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Thread'".into(),
-            args: vec![TypeExpr::Path(":wat::core::nil".into()), o],
+            head: "wat::kernel::Timer'".into(),
+            args: vec![o],
         };
         return CheckResult::partial_with(ty, local_errors);
     }
 
-    // arg 0: locus — infer it (runtime validates ThreadOpts vs ProcessOpts).
-    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // arg 0: peer-kind — infer; must conform to :wat::program::PeerKind.
+    let peer_kind_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(peer_kind_ty) = &peer_kind_ty_opt {
+        let expected_kind = TypeExpr::Path(":wat::program::PeerKind".into());
+        if !assignable(peer_kind_ty, &expected_kind, subst, &env.types) {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "peer-kind".into(),
+                    expected: ":wat::program::PeerKind".into(),
+                    got: format_type(peer_kind_ty),
+                },
+            });
+        }
+    }
 
     // arg 1: duration — infer; check it conforms to :wat::time::Duration.
     let dur_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11179,16 +11195,16 @@ fn infer_kernel_after(
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
 
-    // Return Thread'<nil, O>.
-    let nil_ty = TypeExpr::Path(":wat::core::nil".into());
-    let thread_ty = TypeExpr::Parametric {
-        head: "wat::kernel::Thread'".into(),
-        args: vec![nil_ty, msg_ty],
+    // Return Timer'<O> — the tier-open timer type that fuses into the concrete
+    // peer tier of the select' set it joins (via unify fusion arms in check.rs).
+    let timer_ty = TypeExpr::Parametric {
+        head: "wat::kernel::Timer'".into(),
+        args: vec![msg_ty],
     };
     if local_errors.is_empty() {
-        CheckResult::ok(thread_ty)
+        CheckResult::ok(timer_ty)
     } else {
-        CheckResult::partial_with(thread_ty, local_errors)
+        CheckResult::partial_with(timer_ty, local_errors)
     }
 }
 

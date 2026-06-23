@@ -24045,6 +24045,15 @@ fn eval_peer_send_prime(
                         }
                         .into()
                     }),
+                    // arc 292 L3 — timers are select'-only; send' is not supported.
+                    Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "cannot send to a timer peer (timers are select'-only)".into(),
+                        },
+                    }
+                    .into()),
                 }
             })
             .map_err(Into::<EvalBreak>::into)??;
@@ -24259,6 +24268,15 @@ fn eval_peer_recv_prime(
                             }
                             .into()
                         }),
+                        // arc 292 L3 — timers are select'-only; recv' is not supported.
+                        Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "recv' on a timer peer is not supported; place it in a select' set".into(),
+                            },
+                        }
+                        .into()),
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
@@ -24448,32 +24466,44 @@ fn eval_peer_close_prime(
                         reason: "peer already closed".into(),
                     },
                 }))?;
-            let crate::kernel::spawn::ProcessSelectable::Spawned(bundle) = selectable;
-            // Consume the bundle: close channels, then wait for the child.
-            // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
-            let exit_status = bundle.peer.wait().map_err(|io_err| {
-                EvalBreak::from(RuntimeError {
+            match selectable {
+                crate::kernel::spawn::ProcessSelectable::Spawned(bundle) => {
+                    // Consume the bundle: close channels, then wait for the child.
+                    // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
+                    let exit_status = bundle.peer.wait().map_err(|io_err| {
+                        EvalBreak::from(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("Process peer wait failed: {}", io_err),
+                            },
+                        })
+                    })?;
+                    match exit_status {
+                        crate::process::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
+                        crate::process::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("Process peer killed by signal {}", sig),
+                            },
+                        })),
+                        crate::process::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!("Process peer stopped by signal {}", sig),
+                            },
+                        })),
+                    }
+                }
+                // arc 292 L3 — timer peers are consumed by select'; close' is not supported.
+                // Drop the rx (fd closed by Drop); no child to wait on.
+                crate::kernel::spawn::ProcessSelectable::Timer(_) => Err(EvalBreak::from(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
-                        reason: format!("Process peer wait failed: {}", io_err),
-                    },
-                })
-            })?;
-            match exit_status {
-                crate::process::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
-                crate::process::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("Process peer killed by signal {}", sig),
-                    },
-                })),
-                crate::process::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("Process peer stopped by signal {}", sig),
+                        reason: "close' on a timer peer is not supported (it is consumed by select')".into(),
                     },
                 })),
             }
@@ -24744,9 +24774,11 @@ fn eval_peer_select_prime(
         // Verify none are closed; collect &output and &err receivers.
         // Both are borrowed from the same guard, so we need guards alive
         // across the select — collect as parallel slices.
+        // arc 292 L3 — err_rxs is now Option<&Receiver<String>>: Spawned has a real
+        // err channel; Timer(rx) has none (it never crashes — EOF = Closed, not Lost).
         let mut output_rxs: Vec<&crate::comms::process::Receiver<String>> =
             Vec::with_capacity(guards.len());
-        let mut err_rxs: Vec<&crate::comms::process::Receiver<String>> =
+        let mut err_rxs: Vec<Option<&crate::comms::process::Receiver<String>>> =
             Vec::with_capacity(guards.len());
         for (i, guard) in guards.iter().enumerate() {
             match &**guard {
@@ -24762,7 +24794,12 @@ fn eval_peer_select_prime(
                 }
                 Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                     output_rxs.push(&bundle.peer.output);
-                    err_rxs.push(&bundle.err);
+                    err_rxs.push(Some(&bundle.err));
+                }
+                // arc 292 L3 — timer peer: output is the timer rx; no err channel.
+                Some(crate::kernel::spawn::ProcessSelectable::Timer(rx)) => {
+                    output_rxs.push(rx);
+                    err_rxs.push(None);
                 }
             }
         }
@@ -24790,16 +24827,26 @@ fn eval_peer_select_prime(
                     // read → no deadlock) AND the true-EOF err read. recv'
                     // (ProcessPeerBundle::recv) routes through the SAME fn — a
                     // cap-violation surfaces as Lost{cap reason} consistently.
+                    // arc 292 L3 — timer peers have no err channel (err_rxs[i] = None);
+                    // EOF on a timer rx always means Closed (the timer fired and is done).
                     Err(e) => {
                         use crate::kernel::spawn::{PeerDeath, classify_peer_error};
                         let peer_idx = index.0 as i64;
-                        let event = match classify_peer_error(&e, err_rxs[index.0]) {
-                            PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
-                                type_path: SELECT_EVENT_TYPE.into(),
-                                variant_name: "Lost".into(),
-                                fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
-                            })),
-                            PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
+                        let event = match err_rxs[index.0] {
+                            Some(err_rx) => match classify_peer_error(&e, err_rx) {
+                                PeerDeath::Lost(reason) => Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Lost".into(),
+                                    fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
+                                })),
+                                PeerDeath::Closed => Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Closed".into(),
+                                    fields: vec![Value::i64(peer_idx)],
+                                })),
+                            },
+                            // Timer peer: no err channel; EOF always means clean Closed.
+                            None => Value::Enum(Arc::new(EnumValue {
                                 type_path: SELECT_EVENT_TYPE.into(),
                                 variant_name: "Closed".into(),
                                 fields: vec![Value::i64(peer_idx)],
@@ -24994,19 +25041,17 @@ fn eval_peer_select_prime(
 
 // ─── after — one-shot timer peer ─────────────────────────────────────────────
 
-/// Implement `(:wat::kernel::after locus duration msg)` — arc 292 timer peer.
+/// Implement `(:wat::kernel::after peer-kind duration msg)` — arc 292 L3 timer peer.
 ///
-/// Returns a `Thread'<nil, T>` peer whose output fires once after `duration`
-/// delivering `msg`, and whose crash receiver never fires (sender dropped
-/// immediately). The peer drops cleanly into `select'` next to real Thread'
-/// peers — `select'` sees a normal `Thread'` RustOpaque with no changes.
+/// arg0 is a `:wat::program::PeerKind` enum value (`:thread` or `:process`), selecting
+/// the tier for the one-shot timer. Returns a `Timer'<O>` value (opaque RustOpaque):
+///   - `:thread` → crossbeam-based Thread' timer (futex, no background thread).
+///   - `:process` → timerfd-backed Process' timer (io_uring reactor, same Select as
+///     spawned peers).
 ///
 /// Three args:
-/// - `args[0]`: locus — must evaluate to a `ThreadOpts` wat-record
-///   (`class_fqdn == "wat::spawn::ThreadOpts"`). ProcessOpts → clear runtime
-///   error (io_uring timer not yet implemented).
-/// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`.
-///   Nanos must be non-negative.
+/// - `args[0]`: peer-kind — must evaluate to `:wat::program::PeerKind` enum value.
+/// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`, non-negative.
 /// - `args[2]`: msg — any `Value`; becomes the timer's output payload.
 fn eval_kernel_after(
     args: &[WatAST],
@@ -25027,34 +25072,40 @@ fn eval_kernel_after(
         .into());
     }
 
-    // arg 0: locus — evaluate and validate tier.
-    let locus_val = eval_inner(&args[0], env, sym)?.value_owned();
-    match &locus_val {
-        Value::wat__Record { class_fqdn, .. } if class_fqdn.as_str() == "wat::spawn::ThreadOpts" => {
-            // Thread tier — proceed.
-        }
-        Value::wat__Record { class_fqdn, .. } if class_fqdn.as_str() == "wat::spawn::ProcessOpts" => {
-            return Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: ":wat::kernel::after with ProcessOpts locus (io_uring timer) is not yet implemented".into(),
-                },
+    // arg 0: peer-kind — evaluate and match the PeerKind enum VALUE.
+    // `:wat::program::PeerKind::thread` / `:process` evaluate to
+    // Value::Enum { type_path=":wat::program::PeerKind", variant_name="thread"/"process", fields=[] }.
+    let peer_kind_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let is_thread_tier = match &peer_kind_val {
+        Value::Enum(ev) if ev.type_path.as_str() == ":wat::program::PeerKind" && ev.fields.is_empty() => {
+            match ev.variant_name.as_str() {
+                "thread" => true,
+                "process" => false,
+                _other => {
+                    return Err(RuntimeError {
+                        span: args[0].span().clone(),
+                        kind: RuntimeErrorKind::TypeMismatch {
+                            op: OP.into(),
+                            expected: ":wat::program::PeerKind (e.g. :wat::program::PeerKind::process)",
+                            got: Box::new(ValueSnapshot::of(&peer_kind_val)),
+                        },
+                    }
+                    .into());
+                }
             }
-            .into());
         }
         other => {
             return Err(RuntimeError {
                 span: args[0].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "ThreadOpts or ProcessOpts locus (e.g. (:wat::spawn::thread) or (:wat::spawn::process))",
+                    expected: ":wat::program::PeerKind (e.g. :wat::program::PeerKind::process)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }
             .into());
         }
-    }
+    };
 
     // arg 1: duration — must be Value::Duration(nanos: i64), non-negative.
     let duration_val = eval_inner(&args[1], env, sym)?.value_owned();
@@ -25092,34 +25143,63 @@ fn eval_kernel_after(
     // Build the std::time::Duration from nanos.
     let std_dur = std::time::Duration::from_nanos(nanos as u64);
 
-    // Build the timer Receiver<Value> using crossbeam::after (futex-based, no
-    // background thread). The timer fires exactly once after std_dur.
-    let output_rx = crate::comms::thread::timer(std_dur, msg);
-
-    // Build a never-firing crash Receiver<String>: create a bounded(1) pair
-    // and immediately drop the sender. The receiver returns Disconnected on
-    // any recv — correct for a timer peer that always exits cleanly.
-    let (_crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
-    drop(_crash_tx);
-
-    // Build the Thread<Value, Value> peer.
-    // - input: None (no send side; timer has no input)
-    // - output: the timer receiver (fires once after duration with msg)
-    // - crash: disconnected receiver (never fires — clean exit)
-    // - join: None (no thread to join)
-    let peer = crate::kernel::peer::Thread {
-        input: None,
-        output: output_rx,
-        crash: crash_rx,
-        join: None,
-    };
-
-    use crate::kernel::spawn::{ThreadPeerCell, THREAD_PEER_TYPE_PATH};
     use crate::rust_deps::custodia::ThreadOwnedCell;
     use crate::rust_deps::marshal::make_rust_opaque;
 
-    let wrapped: ThreadPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
-    Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
+    if is_thread_tier {
+        // ── Thread tier ───────────────────────────────────────────────────────
+        // Build the timer Receiver<Value> using crossbeam::after (futex-based, no
+        // background thread). The timer fires exactly once after std_dur.
+        let output_rx = crate::comms::thread::timer(std_dur, msg);
+
+        // Build a never-firing crash Receiver<String>: create a bounded(1) pair
+        // and immediately drop the sender. The receiver returns Disconnected on
+        // any recv — correct for a timer peer that always exits cleanly.
+        let (_crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
+        drop(_crash_tx);
+
+        // Build the Thread<Value, Value> peer.
+        // - input: None (no send side; timer has no input)
+        // - output: the timer receiver (fires once after duration with msg)
+        // - crash: disconnected receiver (never fires — clean exit)
+        // - join: None (no thread to join)
+        let peer = crate::kernel::peer::Thread {
+            input: None,
+            output: output_rx,
+            crash: crash_rx,
+            join: None,
+        };
+
+        use crate::kernel::spawn::{ThreadPeerCell, THREAD_PEER_TYPE_PATH};
+
+        let wrapped: ThreadPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
+        Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
+    } else {
+        // ── Process tier ─────────────────────────────────────────────────────
+        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'.
+        let edn_node = crate::edn_shim::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
+        let edn_str = wat_edn::write(&edn_node);
+        let mut frame: Vec<u8> = edn_str.into_bytes();
+        frame.push(b'\n');
+
+        // Build a timerfd-backed Receiver<String> via comms::process::timer.
+        let rx = crate::comms::process::timer(std_dur, frame).map_err(|io_err| {
+            EvalBreak::from(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("after: timerfd creation failed: {}", io_err),
+                },
+            })
+        })?;
+
+        // Wrap as ProcessSelectable::Timer, then as PROCESS_PEER_TYPE_PATH opaque.
+        use crate::kernel::spawn::{ProcessSelectable, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
+
+        let selectable = ProcessSelectable::Timer(rx);
+        let cell: ProcessPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(selectable)));
+        Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, cell))
+    }
 }
 
 fn eval_poll_prime(

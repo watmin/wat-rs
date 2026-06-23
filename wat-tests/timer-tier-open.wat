@@ -14,9 +14,6 @@
 ;; spawn-locus, not a PeerKind; and there is no tier-open `Timer'` type. Everything else
 ;; (select', Vector, ServiceEvent, PeerKind, :wat::time::Millisecond) already exists.
 ;;
-;; PARKED (ignore) — RED north-star persisted to DR; remove the ignore when L3 lands
-;; (PeerKind arg0 + tier-open Timer' + select' accepts/fuses it).
-(:wat::test::ignore "arc-292 L3 tier-open timer — RED north-star; remove on land (PeerKind arg0 + Timer' tier-open + select' fusion)")
 (:wat::test::deftest' :wat-tests::timer::tier-open-after-peerkind
   ()
   (:wat::test::assert-eq
