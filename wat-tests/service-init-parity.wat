@@ -27,7 +27,6 @@
 ;; start takes the EDN seed 42 (not (State 42)); init builds State in the spawned thread.
 ;; IGNORE-MARKED RED: `:init` is unbuilt (strike-1 disconfirming probe). The strike-2 build
 ;; REMOVES this ignore — un-ignoring it green is the kill's proof. (arc 122 ignore convention.)
-(:wat::test::ignore "arc 291 strike-1 RED probe — :init keystone unbuilt; un-ignore on strike-2 green")
 (:wat::test::deftest' :wat-tests::service::seeded-counter-on-thread
   ()
   (:wat::test::assert-eq
@@ -40,7 +39,6 @@
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 ;; the EDN seed crosses the wire; init builds State child-side; State never crosses.
-(:wat::test::ignore "arc 291 strike-1 RED probe — :init keystone unbuilt; un-ignore on strike-2 green")
 (:wat::test::deftest' :wat-tests::service::seeded-counter-on-process
   ()
   (:wat::test::assert-eq

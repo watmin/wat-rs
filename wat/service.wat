@@ -72,8 +72,10 @@
      ;; To add an option later: one entry in `known-opts` + one more `get` below. Keys are
      ;; strings (a WatAST keyword node isn't reliably `=` a runtime keyword — `to-string` them).
      known-opts     (:wat::core::HashMap/assoc
-                      (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                      "record-parent" true)
+                      (:wat::core::HashMap/assoc
+                        (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                        "record-parent" true)
+                      "init" true)
      opts-len       (:wat::core::length opts)
      n-opt-pairs    (:wat::core::i64::/ opts-len 2)
      ;; even-length guard (no modulo: (len/2)*2 == len iff even)
@@ -102,7 +104,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown trailing option :"
                                 (:wat::core::string::concat key
-                                  " — recognized options: :record-parent"))))))
+                                  " — recognized options: :record-parent :init"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-opt-pairs))
      ;; each option is now a plain get with a default
@@ -118,6 +120,35 @@
      ;; stop method, start params, self-peer) keeps working unchanged.
      state-ty       (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::State" :fqdn-str fqdn-str))
+
+     ;; ── arc 291: :init option — fn node, emitted defn, single-param binder ────
+     ;; The default identity fn wraps the ship value in an identity: fn [s <- :State] -> :State s.
+     ;; A synthetic symbol-node "s" is used as the default param name (hygiene: Unquote at def time).
+     ;; If :init is provided, its fn node is used directly.
+     s-sym          (:wat::core::symbol-node "s")
+     ;; init-fn-node: either the user-provided fn node or the default identity fn
+     init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "init")
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get opts-map "init")
+                        "defservice: :init needs a value")
+                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~state-ty ~s-sym))
+     ;; Extract the param vector children [name <- :T] from the init fn node
+     ;; init-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
+     init-fn-ch     (:wat::core::ast->children init-fn-node)
+     init-params-vec (:wat::core::first (:wat::core::drop init-fn-ch 1))
+     init-body      (:wat::core::first (:wat::core::drop init-fn-ch 4))
+     ;; init-param: the children of the params vector — the 3-token binder [name <- :T]
+     init-param     (:wat::core::ast->children init-params-vec)
+     ;; ship-ref: the symbol name for the init param (becomes start's 2nd param ref)
+     ship-ref       (:wat::core::first init-param)
+     ;; ship-ty: the type of the init param — used for self-peer in child-main-form
+     ship-ty        (:wat::core::first (:wat::core::drop init-param 2))
+     ;; init-name: :<fqdn>::init — the emitted defn's name keyword
+     init-name-str  (:wat::core::string::interpolate "{fqdn-str}::init" :fqdn-str fqdn-str)
+     init-name      (:wat::core::keyword/from-string init-name-str)
+     ;; init-def: the emitted top-level defn for init
+     init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty ~init-body)
 
      ;; ── rs-1: emit the State record def, branching on state-parent ──────────
      ;; :wat::holon::Record → (:wat::holon::Record::def ~state-ty ~state-fields)
@@ -630,7 +661,9 @@
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Op,"
-                            (:wat::core::string::concat fqdn-str "::Reply>")))))
+                            (:wat::core::string::concat fqdn-str
+                              (:wat::core::string::concat "::Reply,"
+                                (:wat::core::string::concat fqdn-str "::State>")))))))
 
      ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
@@ -641,24 +674,29 @@
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
      ;; `(def :wat::spawn::service-locus (process))` before spawning, so the child
      ;; universe resolves service-locus at startup to a ProcessOpts value.
-     ;; self-peer S=addr-ty (child sends minted Address' up), R=state-ty (parent sends
-     ;; state0 down). serve is invoked via apply (dynamic keyword) — the child main
+     ;; self-peer S=addr-ty (child sends minted Address' up), R=ship-ty (parent sends
+     ;; the EDN ship value down). The child recvs the ship value, applies init to build State,
+     ;; then calls serve. serve is invoked via apply (dynamic keyword) — the child main
      ;; never statically names the per-service serve fn.
-     ;; Hygiene: child main let binders (b/cm-self/_/st) are synthetic names → must use
+     ;; Hygiene: child main let binders (b/cm-self/_/ship/st) are synthetic names → must use
      ;; symbol-node + unquote so they appear as Unquote nodes in the template, not bare
      ;; Symbols that would trigger the ProgramBodyIntroducesName hygiene gate.
      cm-b-sym    (:wat::core::symbol-node "b")
      cm-self-sym (:wat::core::symbol-node "self")
      cm-und-sym  (:wat::core::symbol-node "_")
+     cm-ship-sym (:wat::core::symbol-node "ship")
      cm-st-sym   (:wat::core::symbol-node "st")
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name)
-                           ~cm-self-sym (:wat::program::self-peer ~addr-ty ~state-ty)
+                           ~cm-self-sym (:wat::program::self-peer ~addr-ty ~ship-ty)
                            ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
                                             (:wat::spawn::Bound/address ~cm-b-sym))
-                           ~cm-st-sym   (:wat::kernel::recv' ~cm-self-sym)]
+                           ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
+                           ~cm-st-sym   (:wat::core::apply -> ~state-ty
+                                            (:wat::core::keyword/from-string ~init-name-str)
+                                            ~cm-ship-sym [])]
                           (:wat::core::apply -> :wat::core::nil
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
@@ -681,11 +719,15 @@
                             (:wat::core::defenum ~reply-name ~@reply-variants)
                             (:wat::core::defn ~serve-name ~serve-params
                               -> :wat::core::nil ~serve-body)
+                            ~init-def
                             ~child-main-form))
 
-     start-params  `[locus <- :wat::spawn::Locus  state0 <- ~state-ty]
+     ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
+     ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
+     start-params  `[locus <- :wat::spawn::Locus  ~@init-param]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw locus state0
+                      [~lr-sym (~launch-head-kw locus ~ship-ref
+                                 (:wat::core::keyword/from-string ~init-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw))]
                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
@@ -721,6 +763,7 @@
        (:wat::core::defenum ~enum-name ~@variants)
        (:wat::core::defenum ~reply-name ~@reply-variants)
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
+       ~init-def
        ~@constructors
        ~@methods
        ~service-forms-def
