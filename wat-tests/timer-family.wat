@@ -43,3 +43,23 @@
   (:wat::test::assert-eq
     (:test::timer::retry-until 3 0 1)
     3))
+
+;; timeout's heart: select' over multiple deadlines — the sooner one fires first.
+;; The generic "work OR deadline" timeout is this exact shape with one arm a real
+;; work-peer; two timers make it deterministic (1ms always beats 20ms). Proves
+;; select' multiplexes N timers and returns the first-ready's message.
+(:wat::test::deftest' :wat-tests::timer::first-deadline-wins
+  ()
+  (:wat::test::assert-eq
+    (:wat::core::match
+      (:wat::kernel::select'
+        (:wat::core::Vector :wat::kernel::Thread'<wat::core::nil,wat::core::keyword>
+          (:wat::kernel::after (:wat::spawn::thread) (:wat::time::Millisecond 20) :slow)
+          (:wat::kernel::after (:wat::spawn::thread) (:wat::time::Millisecond 1) :fast)))
+      -> :wat::core::keyword
+      ((:wat::spawn::ServiceEvent::Message _idx m) m)
+      ((:wat::spawn::ServiceEvent::Closed _idx) :none)
+      ((:wat::spawn::ServiceEvent::Lost _idx _cause) :none)
+      (:wat::spawn::ServiceEvent::Shutdown :none)
+      ((:wat::spawn::ServiceEvent::Connection _peer) :none))
+    :fast))
