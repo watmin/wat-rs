@@ -1,12 +1,12 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-23; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `b861ed22`
-(`arc 292 L3-b: after takes PeerKind … GREEN`) or later. All below committed + pushed.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `d45fc784`
+(`arc 292: INSCRIPTION.md — the dedicated closure ledger`) or later. All below committed + pushed.
 
 > ⚠ The frontier WAS the defservice/timer cluster. **Arc 292 (timer) is now DONE.** This
 > breadcrumb lives in 255/ by convention; the live work is 291/290 + the parked 258 chain.
 
-## ✅ DONE — Arc 292 (timer-Peer, time-as-select) COMPLETE (2026-06-23)
+## ✅ INSCRIBED — Arc 292 (timer-Peer, time-as-select) CLOSED (2026-06-23) — see `292-…/INSCRIPTION.md`
 `after` on every BUILT locus; `tick` annihilated; `sleep` eliminated (grep-clean — every
 delay is a `select'`); the time-family rides ONE primitive. Read `292-…/DESIGN.md` (REV-1..4)
 + `292-…/REALIZATIONS.md` (R1/R2/R3).
