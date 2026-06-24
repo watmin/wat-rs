@@ -89,12 +89,24 @@ the original 4b-iii probe, which wrongly put the address on `:durable`.)*
    the child loads them FIRST. `service-forms` is evaluated in the PARENT (start-body calls
    `(service-forms-kw)`, passes the result to `launch` — `spawn.wat:262`), so `(:<svc>::client-forms)`
    resolves (both parent). Empty/absent `:calls` → service-forms unchanged.
-3. **Multi-param `:init`** (THE CONSEQUENCE — the macro currently assumes a SINGLE-param `:init`): `:init`
-   becomes `(Record, …live-addresses) → State`. Today `init-param`/`ship-ref`/`ship-ty` (`service.wat`
-   ~140-148, 4b-ii-a) read only the FIRST `:init` param. Generalize: thread ALL `:init` params; `start-params`
-   = `[locus ~@all-init-params]`; `resume-params` likewise; the Admin::Init/Resume ship carries all the
-   live-input values, applied by `:init` in-locus. (This is "the orchestrator injects current endpoints" —
-   K8s service-discovery shaped.)
+3. **Multi-param `:init`** (THE CONSEQUENCE — the macro currently assumes a SINGLE-param `:init`).
+   **THE LAW (builder, 2026-06-24): there is NO hard requirement that `:init` have a constant shape.** The
+   honest contract is *"you must accept your state AND optionally anything else you need to operate"*:
+   ```
+   :init : (Record, …operating-inputs) → State
+            ▲ MANDATORY first           ▲ 0+ optional (addresses, config — live topology, never durable)
+            "accept your state"         "anything else you need to operate"
+   ```
+   The first param MUST be `:<fqdn>::Record` (the macro can enforce it — `ship-ty` already pins `record-ty`).
+   Params 2+ are live inputs provided FRESH by `start`/`resume` (this is the address-as-`:init`-arg of
+   Decision 3 — DI, typed + explicit). **Why it's only a small change (grounded `wat/service.wat`):** the
+   *signature* already generalizes — `start-params = `[locus ~@init-param]`` (line 977) splices ALL `:init`
+   binders, so a 2-param `:init` already yields a 3-param `start`. The single-shape assumption lives in exactly
+   two downstream spots: `ship-ref = (first init-param)` (line 187, ships only the first binder) +
+   `ship-ty = record-ty` / `Admin::Init [seed <- ~ship-ty]` (lines 188-189, 389 — the wire frame carries ONE
+   value). Generalize: the Admin::Init/Resume ship carries a TUPLE of all live-input values; `dispatch-admin`
+   applies `:init` to all of them in-locus; `resume-params` likewise. (This is "the orchestrator injects
+   current endpoints" — K8s service-discovery shaped.)
 4. **Prove:** rewrite `service-telemetry-bridge.wat` to the corrected UX (address as `:init` arg, `:calls`),
    un-ignore the process-tier deftest → GREEN. Keep thread + hibernate green. SET-diff vs HEAD = ∅.
    **That green process tier = the 290 template + R1 FULL PROBATUM EST → PAUSE (builder's) → INSCRIPTION.**
