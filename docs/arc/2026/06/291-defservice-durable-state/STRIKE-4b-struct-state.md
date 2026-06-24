@@ -60,6 +60,13 @@ the 1-line `is_portable_type` flip + the un-ignore.
 
 ## 4b-ii — DESIGN PINNED (the keystone re-tool; the soul wears a body)
 
+> ⚠ **SUPERSEDED 2026-06-24 — the CURRENT contract is "## 4b-ii — CONTRACT EVOLVED" at the END of this
+> doc.** A long co-design this session refined the contract on six axes: clause names `:record`/`:state`
+> → **`:durable`/`:ephemeral`** (intueri); **all-kwargs** surface; **`:durable` optional** (omit → empty
+> record); **`:init` conditional default** (required only when `:ephemeral` non-empty, else macro-error);
+> **fixed `start` arity**; **`:hibernate`/`:stop` as projection hooks with defaults**. This section is kept
+> for the reasoning path; **4b-ii-a builds the EVOLVED section.** (amend-with-recognition — nothing deleted.)
+
 The contract, settled across the co-design (R8 + the `record`/`Status` namings):
 
 ```clojure
@@ -118,3 +125,98 @@ resp` (stop_resp), `service-hibernate-resume`, the arc272/arc209 probes.
   non-EDN field (a `Receiver`/handle), `:record` holds the durable data; proves (a) the struct compiles
   holding a resource, (b) hibernate→kill→resume emits the record + rebuilds the resource fresh. THE honest
   fulfillment → then R1 PROBATUM EST · pause · INSCRIPTION.
+
+---
+
+## 4b-ii — CONTRACT EVOLVED (2026-06-24 co-design) — **THIS is what 4b-ii-a builds**
+
+Settled across a long co-design (this session). The "DESIGN PINNED" section above is the earlier reasoning,
+preserved. Six refinements over it: clause names → `:durable`/`:ephemeral`; all-kwargs surface; `:durable`
+optional; `:init` conditional default; fixed `start` arity; `:hibernate`/`:stop` as projection hooks.
+
+### Worked example — the two poles
+
+```clojure
+;; POLE 1 — pure-data service (the degenerate "soul with no body"): :durable + :ops, the rest defaults.
+(:wat::service::defservice :my::counter
+  :durable [count <- :wat::core::i64]
+  :ops [(:Increment [s <- :State n <- :wat::core::i64] -> [value <- :wat::core::i64]
+          (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
+            (:wat::service::Outcome::Reply
+              (:my::counter::State/new (:my::counter::Record c))      ;; build next State = struct wrapping the record
+              (:my::counter::IncrementResponse c))))])
+;; :ephemeral defaults empty → :init defaults (State/new d) → :hibernate/:stop default (State/durable s)
+;; start: (my::counter/start locus (:my::counter::Record 0))         ;; caller ALWAYS supplies the record
+
+;; POLE 2 — resource service (a body): :ephemeral declared → :init REQUIRED (macro can't build a cache).
+(:wat::service::defservice :my::lru
+  :durable   [capacity <- :wat::core::i64]                 ;; the durable identity (config); entries are ephemeral → cold resume
+  :ephemeral [cache <- :my::LruCache  hits <- :wat::core::i64]
+  :ops [ ... ]
+  :init (:wat::core::fn [d <- :my::lru::Record] -> :my::lru::State
+          (:my::lru::State/new d (:my::LruCache/new (:my::lru::Record/capacity d)) 0)))
+;; start: (my::lru/start locus (:my::lru::Record 1024))
+```
+
+### The surface (all-kwargs; `(defservice :fqdn & clauses)`, order-independent)
+
+| clause | required? | mints / role |
+|---|---|---|
+| `:durable [fields]` | optional (default `[]`) | mints `:<fqdn>::Record` (durable EDN identity — **CROSSES**); prepended as the State struct's first field, named `durable` |
+| `:ephemeral [fields]` | optional (default `[]`) | the live body (resources/telemetry); mints `:<fqdn>::State` (a `defstruct`) = `{ durable <- ::Record, <these> }` — **NEVER crosses** (4b-i) |
+| `:ops [clauses]` | **REQUIRED** | the typed API; op-clause syntax `(:Op [in] -> [out] body)` **UNCHANGED** |
+| `:init` | required IFF `:ephemeral` non-empty; else default | `Record → State`. Default `(fn [d <- ::Record] -> ::State (::State/new d))`. **Macro-error if `:ephemeral` non-empty and `:init` absent.** |
+| `:hibernate` | optional | `State → ::Record`. Return type **FORCED** to `::Record` (resume = `:init` consumes it). Default `(fn [s] -> ::Record (::State/durable s))`. |
+| `:stop` | optional | `State → :Resp`. Return type **USER-DECLARED** (any EDN-portable type — scalar or a record the user defines OUTSIDE the block). Default returns the durable record `(::State/durable s)`. |
+| `:record-parent <p>` | optional (existing) | now parents `:<fqdn>::Record` (holon vs base), NOT the struct |
+
+### Naming — axis at the clause, kind at the type (intueri cast 2026-06-24 + a kind-vocab override)
+- **Clauses name the AXIS:** `:durable` / `:ephemeral`. intueri's gem — the old `:record`/`:state` named the
+  format-and-the-whole, and `:state` was an **L1 lie** (claimed the whole; declared only the ephemeral part).
+- **Types keep the KIND:** `:<fqdn>::Record` / `:<fqdn>::State`. intueri argued `::Durable`; **OVERRIDDEN** —
+  record-vs-struct IS the 4b-i wire-boundary law (record=crosses, struct=stays). The clause→type jump TEACHES
+  it: `:durable [...] => ::Record` reads "durable ⟺ record ⟺ crosses." struct field is `durable`.
+- **Hooks stay a uniform trio** `:init`/`:hibernate`/`:stop` (intueri's `:on-stop` rejected — broke trio consistency).
+
+### Lifecycle — fixed arity (no conditional shapes; the user always supplies *something*)
+- `start  [locus  r <- ::Record] -> Handle` — caller ALWAYS supplies the record; empty-`:durable` → `(::Record/new)` explicitly (the macro never conjures it).
+- `resume [locus  r <- ::Record] -> Handle` — caller supplies the saved record.
+- `hibernate [h <- Handle] -> ::Record` · `stop [h <- Handle] -> :Resp`.
+
+### Defaults — principle: *default the unambiguous; require the rest; loud-error the gap*
+- `:init` defaults to the trivial wrap `(::State/new d)` ONLY when `:ephemeral` is empty (no body to build).
+  With a body → required; omission is a **macro-error** ("`:ephemeral` declares [...] but no `:init` — the
+  macro can't construct ephemeral fields; provide `:init : Record → State`"). Construction needs the body's
+  recipe (the user's); destruction does not.
+- `:hibernate`/`:stop` default to `(::State/durable s)` ALWAYS (you can always *shed* a body; you can't always
+  *build* one). `:hibernate` return type forced to `::Record` (the resume seed); `:stop` return type is the
+  user's. Both bodies are free (logs, metrics, DB writes) — only the final value's TYPE is constrained.
+- `:durable` omitted → empty `::Record` (zero fields → one value). The record FIELD always exists → hibernate/
+  resume are TOTAL even for a pure-resource service ("it must exist; you can effectively ignore it").
+
+### Composition — defservice owns the intrinsic surface, NOT your file
+The block holds the service DECLARATION (the clauses). The macro EMITS the intrinsic machinery (`::Record`,
+`::State`, `Op`/`Reply`, per-op `Request`/`Response`, `serve`, ctors/methods, `start`/`resume`/`stop`/
+`hibernate`, `Handle`, the lineage protocol). **Everything else lives OUTSIDE as normal top-level forms** — a
+custom `:stop` `:Resp` type (`Record::def` it yourself), helpers, shared records — referenced by name (define
+shared types in scope before use). A service is one form among many; it does not swallow the file. (R5 composition.)
+
+### Wire (records only — 4b-i enforces)
+`Admin::{Init,Resume}` carry `:<fqdn>::Record`; `Status::Hibernated` carries `:<fqdn>::Record`;
+`Status::Stopped` carries `:Resp` (must be EDN-portable — scalar or record, NEVER a struct). The struct never crosses.
+
+### Op handlers (user-written, in `:ops` bodies)
+durable read `(::Record/<f> (::State/durable s))` · ephemeral read `(::State/<f> s)` · next State
+`(::State/new (::Record/new …) <ephemeral…>)`.
+
+### Decomposition (refined)
+- **4b-ii-a** — the macro re-tool to THIS surface (all-kwargs, durable/ephemeral, struct State, Record soul,
+  conditional `:init` + macro-error, `:hibernate`/`:stop` projections+defaults, fixed arity) + migrate ALL
+  ~17 definers/probes (incl. `probe_arc272_rs1_state_must_be_record` — its "state must be a record" premise
+  INVERTS to "state is a struct"; rewrite+rename it, keep its still-valid bare-keyword/unknown-option tests).
+  **KEEP the internal lineage names** (`LineageUp`/`init-from-admin`/`lineage-extract-addr`). Gate: all green + SET-diff ∅.
+- **4b-ii-b** — the internal lineage rename (`LineageUp→Status`, `Final→Stopped`, `init-from-admin→dispatch-admin`,
+  `lineage-extract-addr→extract-addr`). Mechanical, fix-wat where possible; the one `.rs` literal break is `probe_arc209_c2`.
+- **4b-iii** — the resource RED probe (`:ephemeral` holds a genuinely non-EDN resource; `:hibernate` projects
+  it → record; resume rebuilds it). THE honest fulfillment + where the `:hibernate` *override* earns its test.
+  → R1 PROBATUM EST · pause (builder's) · INSCRIPTION.

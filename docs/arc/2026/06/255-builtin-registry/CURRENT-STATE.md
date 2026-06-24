@@ -40,35 +40,38 @@ holding an `LruCache`, hibernate emits its record, resume rebuilds the resource)
 sequencing: **4b → R1 PROBATUM amend (allowed) → PAUSE (his beat) → the 291 INSCRIPTION.** Do NOT barrel from
 the fulfilled-amend into the inscription.
 
-### ▶▶ NEXT — 4b-ii (the keystone re-tool). DESIGN FULLY PINNED: `STRIKE-4b-struct-state.md` §"4b-ii DESIGN PINNED".
-The contract (settled across a long co-design + 3 intueri casts; `record` + `Status` builder-confirmed):
-- **`:record [fields]`** clause (NEW, prepended adjacent to `:state`) → mints `:<fqdn>::Record` (the durable
-  EDN record = the SOUL) and **prepends a field named `record`** as the State struct's first field.
-- **`:state [fields]`** now mints a **`defstruct`** (the BODY: record field + ephemeral/resource flesh). Empty
-  for a pure-data service. The struct never crosses (4b-i).
-- **Four lifecycle verbs collapse to ONE user fn `:init : Record → State`** (REQUIRED; the no-`:init`
-  ship-State default is DEAD — a struct can't ship). `start` = init-from-initial-record; `resume` =
-  init-from-saved-record (same fn). `hibernate` = **`(State/record s)`** (a field read, NO `:hibernate`
-  callback). `stop` returns resp (default the record, or `:stop`).
-- **Wire carries records only:** `Admin::{Init,Resume}[<- Record]`, `Status::Hibernated[<- Record]`,
-  `Status::Stopped[resp]`. Revises 4a (4a returned whole State).
-- **The renames (intueri, fold into the re-tool):** `LineageUp→Status`, `LineageUp::Final→Status::Stopped`,
-  `init-from-admin→dispatch-admin`, `lineage-extract-addr→extract-addr` (+ binding names `lineage-*→status-*`).
-  Keep `Admin`/`Started`/`Hibernated`/all owner-facing. The ONE literal break outside service.wat:
-  `probe_arc209_c2`'s `Peer'<…::LineageUp,…::Admin>` → `…::Status`.
-- **Migration (accepted cascade):** every defservice + probe moves `:state [data] → :record [data] + :state []`,
-  declares `:init`, reads durable via `(Record/… (State/record s))`. Affected probes: counter_on (locus-
-  parity), seeded (init-parity), admin_stop, stop_resp, hibernate_resume, arc272 rs1/rs2×2, arc209 c1/c2.
+### ▶▶ NEXT — 4b-ii-a (the keystone re-tool). **CONTRACT: `STRIKE-4b-struct-state.md` §"4b-ii — CONTRACT EVOLVED" (the END of the doc).**
+The contract evolved HARD in co-design 2026-06-24 (intueri cast + 6 refinements). Read the EVOLVED section —
+the older "DESIGN PINNED" section above it is superseded (marked, kept for the reasoning path). Headline:
+- **All-kwargs surface** `(defservice :fqdn & clauses)`, order-independent. Clauses: **`:durable [fields]`**
+  (optional, → `:<fqdn>::Record`, the durable identity that CROSSES) · **`:ephemeral [fields]`** (optional,
+  → `:<fqdn>::State` defstruct = `{durable + body}`, NEVER crosses) · **`:ops`** (required) · **`:init`**
+  (`Record→State`; required IFF `:ephemeral` non-empty, else default `(State/new d)`, **macro-error** if a
+  body exists and `:init` absent) · **`:hibernate`** (`State→::Record`, return type FORCED; default
+  `(State/durable s)`) · **`:stop`** (`State→:Resp`, user-declared type; default the record).
+- **Naming:** clauses name the AXIS (`:durable`/`:ephemeral`); types keep the KIND (`::Record`/`::State` — the
+  4b-i wire-boundary law; intueri's `::Durable` OVERRIDDEN). struct field = `durable`. Hooks = uniform trio.
+- **Fixed `start`/`resume` arity** — caller ALWAYS supplies the record (empty-durable → `(Record/new)`).
+- **Composition:** the user's `:stop` `:Resp` type + helpers live OUTSIDE the block (normal top-level forms).
+- **Decomposition (refined):** **4b-ii-a** = the macro re-tool to this surface + migrate ALL ~17 definers
+  (incl. `probe_arc272_rs1_state_must_be_record` — premise INVERTS to "state is a struct"; rewrite+rename it).
+  **KEEP internal lineage names** (`LineageUp`/`init-from-admin`/`lineage-extract-addr`) → renamed in **4b-ii-b**
+  (mechanical fix-wat: `LineageUp→Status`, `Final→Stopped`, `init-from-admin→dispatch-admin`,
+  `extract-addr`). Then **4b-iii** = resource RED probe (the honest fulfillment + the `:hibernate` override test).
 
-**GROUNDED SITES for 4b-ii-a (so you don't re-ground — verify they're current, then brief):**
-`wat/service.wat`: macro signature `:52-58` (positional `:state`/`:ops` markers + `&opts` — ADD `_record-kw`
-+ `record-fields` before `_state-kw`+`state-fields`); known-opts `:74-80`; State emission `:181-184`
-(`Record::def`→`defstruct` w/ `record` prepended; + a separate `Record::def` from record-fields); op-handler
-`s`-access fold `:460-478` (rewrite durable reads → `(Record/f (State/record s))`); init-def `:153`
-(→ `[r <- :<fqdn>::Record] -> :State`); Admin/Status enums `:293-302` (payloads `state-ty`→`record-ty`);
-start/resume bodies `:895-915`; child-main-form `:834+` (self-peer types). **It's BIG** — consider whether to
-fire as one thorough sonnet strike (RED probe + migrate all back-compat probes; gate = all green + SET-diff ∅)
-or decompose; the signature change forces all call sites at once (can't cleanly split structural-vs-lineage).
+**GROUNDED SITES for 4b-ii-a (re-grounded 2026-06-24 — verify current, then brief):** `wat/service.wat` (963 ln):
+macro signature `:52-58` (today `_state-kw state-fields _ops-kw ops & opts` POSITIONAL — re-tool to `[fqdn & clauses]`
++ a clause-map fold, extending the existing opts-fold at `:74-111`); State emission `:181-184` (today mints a
+**Record** `:wat::Record::def ~state-ty ~state-fields` — change to: a `Record::def` from `:durable` + a `defstruct`
+`:<fqdn>::State` with `durable` field prepended); `:init` default + node `:130-153`; `:stop` proj `:159-174`;
+Admin/LineageUp enums `:293-302` (payloads `ship-ty`/`state-ty` → record-ty); serve hibernate arm `:589-592`
+(`(send' self (Hibernated state))` → `(Hibernated (State/durable state))`); `/hibernate` method `:752-764`
+(ret `state-ty`→record-ty); `/resume` `:899-914` (snapshot `state-ty`→record-ty); start-params/body `:875-890`;
+child-main-form `:834-849`; service-forms-def `:857-873` (emit BOTH the Record::def AND the State defstruct).
+`defstruct` ctor = `Type/new` positional, accessors `Type/field` (grounded: `Launched/new`, `Bound/address`);
+`classify_type_decl` (`types.rs:1620`) includes `defstruct` → State-struct splices like the Record does today.
+**It's BIG + indivisible** (signature change breaks all defservice sites at once) → one thorough sonnet strike,
+ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT = draw 4b-ii-a's BRIEF.
 
 ### Then
 - **4b-iii** — the resource RED probe (a defservice `:state` holding a genuinely non-EDN field; proves the
