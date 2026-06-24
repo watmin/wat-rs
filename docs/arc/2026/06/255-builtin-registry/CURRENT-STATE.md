@@ -22,17 +22,21 @@ hibernate/resume, POLA/Miller). The arc is its Euclidean derivation; the debates
   EDN). `launch<S,R,St,Sh>` takes a ship value + init by-name. **Unblocks arc 290.** (Strike 1 RED probe
   `5c431787`.)
 
-### STRIKE-READY (next = fire, fresh)
-- **Strike 3a — the admin/data facet split** (`df9a86ea`): make `stop` **owner-only by construction** (move
-  off the client `Op` enum onto the Handle's admin surface; its arg flips `client-peer` → `Handle`). RED
-  probe `wat-tests/service-admin-facet.wat` verified RED (stop wants client-`Peer'`, got `Handle`),
-  ignore-marked. **Fork resolved:** the admin channel IS the spawn **lineage peer** (the spawn handle
-  `Thread'/Process'` is a peer = `Handle.handle`, owner-only by 272 inherited-capability) — no new listener;
-  delegation defers. **3a-i (foundation, the real work):** extend the serve wait to multiplex the client
-  facet (`poll'`, single-facet today `check.rs:11448`) + the admin lineage peer, one loop, shared `State` —
-  lean: a 4-arg facet-tagged `poll'`. **A reactor-level Rust change (io_uring/crossbeam) — the biggest of the
-  arc; FIRE RESTED (slow is smooth).** Then **3a-ii:** the macro reshape (split Op/Reply enums; `stop` →
-  Handle method) → un-ignore the probe green.
+### Strike 3a — the admin/data facet split (make `stop` owner-only by construction)
+RED probe `wat-tests/service-admin-facet.wat` (`df9a86ea`, verified RED, ignore-marked): `(<svc>/stop h)`
+wants `client-Peer'`, got `Handle`. **Fork resolved:** the admin channel IS the spawn **lineage peer** —
+and the KEY grounding win: `poll'` arg0 (the self-peer / owner-lineage channel) was ALREADY in the wait,
+just discarding its messages.
+- **3a-i — SHIPPED GREEN (`1c6d8690`):** `poll'` now inspects index-0's result — `Ok(msg) → ServiceEvent::Admin{msg}`,
+  `Err(_) → Shutdown`. `ServiceEvent<I,O> → <I,O,A>` (admin msg = self-peer's receive type). Both tiers
+  (thread: Value; process: decode the wire frame). **STOP lesson:** a new ENUM VARIANT makes every match
+  non-exhaustive (a real cascade my brief missed — param-free ≠ variant-free); resolved via the existing
+  `Connection`-stub precedent (Admin arm on all 6 match sites; 5 `select'` sites "can't happen", service.wat
+  re-loops). Weighed: 281/2/56, SET-diff = the known floor. **Emission verified by reading; 3a-ii exercises it.**
+- **3a-ii — NEXT (the macro reshape):** emit `<fqdn>::Admin` enum (`Stop`; later `Hibernate`); self-peer R =
+  `Admin`; child-main `recv'`s `Admin::Init(ship)` (unify the startup handshake with the admin channel);
+  service.wat's serve-loop `ServiceEvent::Admin` arm becomes REAL dispatch; `stop` → `<fqdn>/stop [h <- Handle]`
+  sending `Admin::Stop` on `Handle.handle`. Un-ignores `service-admin-facet.wat` → GREEN. (`STRIKE-3a-facet-split.md`.)
 
 ### Then (the rest of 291)
 - **Strike 3b** — `stop → resp` decouple (return decoupled from State).
