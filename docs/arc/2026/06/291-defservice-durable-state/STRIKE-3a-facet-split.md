@@ -139,6 +139,45 @@ firewall; the typed `A` is the point).
 `ServiceEvent::Admin` arm dispatching the admin op, `stop` → `<fqdn>/stop [h <- Handle]` sending `Admin::Stop`
 on `Handle.handle`. Un-ignores `service-admin-facet.wat` → GREEN.
 
+## ⚠ 3a-ii GROUNDED — the lineage-protocol overloading (the genuinely-hard core)
+
+3a-i shipped (`1c6d8690`): `poll'` now delivers the owner's messages as `ServiceEvent::Admin`. 3a-ii makes
+the macro USE it — but grounding it surfaced that the **lineage channel (the self-peer) is now overloaded**,
+and resolving that is the real work.
+
+**The tangle (grounded).** The self-peer is ONE typed channel `Peer'<addr-ty, R>`. Today (3a-i) `R = ship-ty`
+(the startup init-args), recv'd once in `child-main` (process) / captured in the launch closure (thread),
+then `init` is applied to it. For owner-only `stop`, the owner must ALSO send `Admin::Stop` on this same
+channel (it's the only owner→service link). So `R` must carry BOTH the startup ship AND the admin ops →
+`R = :<fqdn>::Admin` with `Admin::Init[seed]` carrying the startup value and `Admin::Stop` the control op.
+
+**The worked resolution (most of it):**
+- `(defenum :<fqdn>::Admin :Init [seed <- :ship-ty]  :Stop [])` — the lineage protocol.
+- `self-peer R` : `ship-ty` → `:<fqdn>::Admin`; launch `Sh` = `:<fqdn>::Admin`.
+- `start-body` ships `(:<fqdn>::Admin::Init seed)`; emit `<fqdn>::init-from-admin` = `(fn [ai <- :Admin] -> :State
+  (match ai (Admin::Init seed) → (<fqdn>::init seed) (Admin::Stop) → assertion-failed "Stop before Init"))`,
+  passed to launch BY-NAME in place of `init` (so the generic thread closure never names `Admin`). Both
+  tiers `(apply init-from-admin <ship>)`.
+- serve-loop `ServiceEvent::Admin` arm becomes real: `(match admin-op (Admin::Stop) → send resp + nil ; terminate)`.
+
+**The OPEN wrinkle (the design call — resolve before firing, else a guaranteed STOP):** the **return path**.
+`(admin-counter/stop h)` must RETURN the final state. So the owner, after sending `Admin::Stop` on `Handle.handle`,
+`recv'`s the resp. But `Handle.handle` is typed `:wat::spawn::Spawned` (the locus-agnostic marker), not a
+`Peer'`; and the lineage channel's owner-side recv already carried the **child's `Address'`** at startup
+(the addr-handshake). So the owner-side lineage peer would carry: *recv `Address'` (startup) THEN recv the
+stop-resp (state-ty)* — a second recv-type overload, mirroring the send-side `Admin` overload. **Decision
+needed:** either (a) re-type `Handle.handle` to a real `Peer'<Admin, StopResp>` and fold the startup
+addr-handshake into the Admin protocol too (fully unify the lineage protocol — cleanest, biggest), or (b)
+the stop-resp rides a different return (e.g. `stop` blocks on the spawn-handle's join/final-state — the
+"a service returns its final state" thread, `272/NOTE-service-final-state-return.md`), keeping the lineage
+send-only for control. **(b) may be the honest decomplection** (control DOWN the lineage, result UP via the
+join) and dovetails with strike 3b (`stop → resp`). This is the call to make — rested — before 3a-ii fires;
+firing into the open wrinkle would STOP on exactly it (the armor would catch it, but it's wasted ore).
+
+**Prophecy status:** `init` (the soul built in-locus) ✓ · the reactor (admin delivery) ✓ · 3a-ii (the
+lineage protocol, control flow) = HERE · 3b (`stop → resp`, the return path — couples to the wrinkle above)
+· strike 4 (`hibernate`/`resume`) = PROBATUM EST. Two stones laid; the door is opening.
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
