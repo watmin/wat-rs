@@ -13,28 +13,30 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 // The counter as a process service; after incrementing, `stop` must return the accumulated final state.
-// (state is i64 here — the strict state-must-be-a-record rule is arc-272 rs-1, deferred onto arc 273.)
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record (the soul); stop returns ::Record.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h     (:my::counter/start (:wat::spawn::process) (:my::counter::State 0))
+    [h     (:my::counter/start (:wat::spawn::process) (:my::counter::Record 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _     (:my::counter/increment c (:my::counter/increment-request 5))
      ;; arc 291 3a-ii-β: stop is now OWNER-ONLY — takes the Handle (h), not the client peer (c).
      ;; The final state rides UP the lineage channel (LineageUp::Final), not the client reply.
+     ;; arc 291 4b-ii: stop returns ::Record (the durable soul), read via Record/count.
      final (:my::counter/stop h)]
-    (:my::counter::State/count final)))
+    (:my::counter::Record/count final)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;

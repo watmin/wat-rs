@@ -19,9 +19,11 @@ use wat::load::InMemoryLoader;
 use wat::runtime::Environment;
 
 // A service with one op whose handler CRASHES (assertion-failed! raises inside the serve loop).
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::svc
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:Boom [s <- :State]
           -> [ok <- :wat::core::bool]
@@ -32,7 +34,7 @@ const PROGRAM: &str = r#"
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [h (:my::svc/start (:wat::spawn::thread) (:my::svc::State 0))
+    [h (:my::svc/start (:wat::spawn::thread) (:my::svc::Record 0))
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
      _ (:my::svc/boom c (:my::svc/boom-request))]
     true))

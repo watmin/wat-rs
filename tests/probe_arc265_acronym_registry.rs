@@ -52,14 +52,16 @@ fn namespace_scoped_acronym_conversion_restores_casing() {
 
 // defservice consults its OWN namespace's acronyms at EXPAND time — proves declare-acronyms
 // populated the registry before the macro expanded, and the op-name derivation used pascal->kebab-in.
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
 const SVC: &str = r#"
 (:wat::core::string::declare-acronyms :my::aws ["ACL"])
 (:wat::service::defservice :my::aws
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:CreateWebACL [s <- :State n <- :wat::core::i64]
                   -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::aws::CreateWebACLResponse (:my::aws::State/count s))))])
+     (:wat::service::Outcome::Reply s (:my::aws::CreateWebACLResponse (:my::aws::Record/count (:my::aws::State/durable s)))))])
 
 (:wat::core::defn :user::req-n [] -> :wat::core::i64
   (:my::aws::CreateWebACLRequest/n (:my::aws/create-web-acl-request 7)))

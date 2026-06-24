@@ -49,13 +49,15 @@ fn pascal_kebab_both_directions_and_roundtrip() {
 
 // defservice with a MULTI-WORD op must derive `get-object-request` (pascal->kebab), not
 // `getobject-request` (bare lowercase). Calling the generated constructor proves the name.
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
 const SVC: &str = r#"
 (:wat::service::defservice :my::svc
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:GetObject [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::svc::GetObjectResponse (:my::svc::State/count s))))])
+     (:wat::service::Outcome::Reply s (:my::svc::GetObjectResponse (:my::svc::Record/count (:my::svc::State/durable s)))))])
 
 (:wat::core::defn :user::req-id [] -> :wat::core::i64
   (:my::svc::GetObjectRequest/n (:my::svc/get-object-request 42)))

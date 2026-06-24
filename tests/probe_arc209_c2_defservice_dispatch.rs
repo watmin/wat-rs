@@ -28,17 +28,20 @@ use wat::runtime::{Environment, Value};
 
 // The counter as ONE defservice — C.3 wrapped-record shape (single format). C.2 must generate
 // Op (C.1), Reply, and serve. Probe hand-drives serve directly.
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; serve takes ::State (struct).
+// Initial state for hand-driven serve: (State/new (Record 0)). LineageUp kept (4b-ii-b renames).
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
@@ -49,7 +52,7 @@ const PROGRAM: &str = r#"
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
-;; literal initial state 0, connects a client, round-trips two ops, reads the typed Reply.
+;; initial state (State/new (Record 0)), connects a client, round-trips two ops, reads the typed Reply.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::counter::Op :my::counter::Reply)
@@ -57,11 +60,12 @@ const PROGRAM: &str = r#"
      addr (:wat::spawn::Bound/address pair)
      ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<LineageUp,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
+     ;; LineageUp name kept — 4b-ii-b renames it to Status.
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::LineageUp,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
-                (:my::counter::State 0))))
+                (:my::counter::State/new (:my::counter::Record 0)))))
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c (:my::counter::Op::Increment (:my::counter/increment-request 5)))
      r1   (:wat::kernel::recv' c)

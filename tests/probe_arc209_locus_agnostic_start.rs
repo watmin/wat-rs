@@ -22,23 +22,25 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
+// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::State/count s))))
+     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ (:my::counter::State/count s) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State s') (:my::counter::IncrementResponse s'))))])
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
+       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 ;; Drive through the client face, but start now takes a LOCUS — `(thread)` selects the shared-memory
 ;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h  (:my::counter/start (:wat::spawn::thread) (:my::counter::State 0))
+    [h  (:my::counter/start (:wat::spawn::thread) (:my::counter::Record 0))
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _  (:my::counter/increment c (:my::counter/increment-request 5))
      r  (:my::counter/get c (:my::counter/get-request))]

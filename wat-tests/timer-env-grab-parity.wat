@@ -10,10 +10,14 @@
 ;; generated client face (start / connect' / wait-tick / Handle / Response) is byte-identical.
 ;; The op handler runs inside the spawned peer, where the program-env is installed (a real
 ;; spawn — spawn.rs:623), so `(:wat::program::env)` resolves and the env-grab fires.
+;;
+;; arc 291 4b-ii: State is now a defstruct; :durable [count] mints ::Record; ::State holds it.
+;; start takes ::Record(0). Op body doesn't read count (only the env-grab matters here).
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::deadline
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:WaitTick [s <- :State]
               -> [fired <- :wat::core::keyword]
@@ -35,7 +39,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start (:wat::spawn::thread) (:wat-tests::deadline::State 0))
+      [h (:wat-tests::deadline/start (:wat::spawn::thread) (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
       (:wat-tests::deadline::WaitTickResponse/fired r))
@@ -46,7 +50,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start (:wat::spawn::process) (:wat-tests::deadline::State 0))
+      [h (:wat-tests::deadline/start (:wat::spawn::process) (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
       (:wat-tests::deadline::WaitTickResponse/fired r))

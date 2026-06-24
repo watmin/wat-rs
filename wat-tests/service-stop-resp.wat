@@ -2,39 +2,41 @@
 ;;
 ;; THE CONTRACT, proven at the surface: `stop`'s RETURN is DECOUPLED from the live State. A `:stop`
 ;; callback projects the final State → a serializable `resp` of the AUTHOR'S type — here `:i64` (the count),
-;; NOT the `:State` record. `(<svc>/stop h)` returns that i64 directly. This is the out-locus mirror of
-;; `:init` (which builds State from an EDN seed in-locus); `:stop` renders State to resp out-locus.
+;; NOT the `::Record`. `(<svc>/stop h)` returns that i64 directly. This is the out-locus mirror of
+;; `:init` (which builds State from a Record in-locus); `:stop` renders State to resp out-locus.
 ;;
 ;; ONE defservice, two deftests differing in exactly one token (the locus). Modeled on
 ;; service-admin-facet.wat (owner-only stop via the Handle) + the shipped `:init`/`:stop` callbacks.
 ;;
-;; RED at HEAD: `:stop` is an UNKNOWN trailing option → defservice macro-errors
-;; ("unknown trailing option :stop"). GREEN once `:stop` is supported: stop projects State → i64 and
-;; `(resp-counter/stop h)` returns 7 (the projected i64), NOT a State record.
+;; arc 291 4b-ii: State is now a defstruct; :durable [count] mints ::Record; ::State holds it.
+;; :init defaults (pure-data, ephemeral empty). start takes ::Record(0).
+;; Op body reads through State/durable. State building uses State/new (Record c).
+;; :stop projection now reads through State/durable: (Record/count (State/durable s)).
 
-;; ── the service: a counter; :init seeds from i64; :stop projects State → i64 (the count) ──
+;; ── the service: a counter; :stop projects State → i64 (the count) ──
 (:wat::service::defservice :wat-tests::resp-counter
-  :state [count <- :wat::core::i64]
+  :durable [count <- :wat::core::i64]
+  :ephemeral []
   :ops
   [(:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
-     (:wat::core::let [s' (:wat::core::i64::+ (:wat-tests::resp-counter::State/count s) n)]
-       (:wat::service::Outcome::Reply (:wat-tests::resp-counter::State s')
-         (:wat-tests::resp-counter::IncrementResponse s'))))]
-  :init (:wat::core::fn [seed <- :wat::core::i64] -> :wat-tests::resp-counter::State
-          (:wat-tests::resp-counter::State seed))
+     (:wat::core::let [c (:wat::core::i64::+
+                           (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s)) n)]
+       (:wat::service::Outcome::Reply
+         (:wat-tests::resp-counter::State/new (:wat-tests::resp-counter::Record c))
+         (:wat-tests::resp-counter::IncrementResponse c))))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
-  ;; decoupled from the live State record. (Default would be identity → Resp = State.)
+  ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64
-          (:wat-tests::resp-counter::State/count s)))
+          (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
-;; Increment to 7; the Handle-holder stops; stop returns the PROJECTED i64 (7), not a State.
+;; Increment to 7; the Handle-holder stops; stop returns the PROJECTED i64 (7), not a Record.
 (:wat::test::deftest' :wat-tests::service::stop-resp-on-thread
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::resp-counter/start (:wat::spawn::thread) 0)
+      [h (:wat-tests::resp-counter/start (:wat::spawn::thread) (:wat-tests::resp-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
        _ (:wat-tests::resp-counter/increment c (:wat-tests::resp-counter/increment-request 7))
        final (:wat-tests::resp-counter/stop h)]
@@ -46,7 +48,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::resp-counter/start (:wat::spawn::process) 0)
+      [h (:wat-tests::resp-counter/start (:wat::spawn::process) (:wat-tests::resp-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
        _ (:wat-tests::resp-counter/increment c (:wat-tests::resp-counter/increment-request 7))
        final (:wat-tests::resp-counter/stop h)]

@@ -50,12 +50,8 @@
   :Stop  [state <- :S  reply <- :R])
 
 (:wat::core::defmacro :wat::service::defservice
-  [fqdn         <- :wat::WatAST     ;; :my::counter
-   _state-kw    <- :wat::WatAST     ;; the literal :state marker (ignored)
-   state-fields <- :wat::WatAST     ;; the field vector [count <- :wat::core::i64] (minted into State record)
-   _ops-kw      <- :wat::WatAST     ;; the literal :ops marker (ignored)
-   ops          <- :wat::WatAST     ;; the [ (:Get …) (:Increment …) ] vector NODE
-   & opts       <- :wat::core::Vector<wat::WatAST>]  ;; optional trailing: [] or [:record-parent <parent>]
+  [fqdn    <- :wat::WatAST     ;; :my::counter
+   & clauses <- :wat::core::Vector<wat::WatAST>]  ;; all-kwargs: [:durable [..] :ephemeral [..] :ops [..] ...]
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, params are node-values, nested quasiquote at the end.
   (:wat::core::let
@@ -64,77 +60,122 @@
      ;; can use it as the namespace for acronym-registry lookup.
      fqdn-kw       (:wat::core::keyword/from-string fqdn-str)
 
-     ;; ── rs-1: fold trailing opts into a kwargs MAP (honest + extensible) ──────
-     ;; opts is the rest param: a flat [:key val :key val …] list. We fold it into a
-     ;; HashMap ONCE (size-based pairs, not "exactly one pair"), rejecting any key not in
-     ;; `known-opts` DIRECTLY — named (raise the bar: the user's mistake is reported, not
-     ;; silently mis-read). Then each option is a plain `(HashMap/get opts-map "<key>")`.
-     ;; To add an option later: one entry in `known-opts` + one more `get` below. Keys are
-     ;; strings (a WatAST keyword node isn't reliably `=` a runtime keyword — `to-string` them).
-     known-opts     (:wat::core::HashMap/assoc
+     ;; ── 4b-ii: fold ALL clauses into a kwargs MAP (all-kwargs surface) ──────
+     ;; clauses is the rest param: a flat [:key val :key val …] list. We fold it into a
+     ;; HashMap ONCE, rejecting any key not in `known-clauses` DIRECTLY — named.
+     ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, record-parent.
+     known-clauses  (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
                         (:wat::core::HashMap/assoc
-                          (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                          "record-parent" true)
-                        "init" true)
-                      "stop" true)
-     opts-len       (:wat::core::length opts)
-     n-opt-pairs    (:wat::core::i64::/ opts-len 2)
-     ;; even-length guard (no modulo: (len/2)*2 == len iff even)
-     _opts-even     (:wat::core::if
-                      (:wat::core::= (:wat::core::i64::* n-opt-pairs 2) opts-len)
+                          (:wat::core::HashMap/assoc
+                            (:wat::core::HashMap/assoc
+                              (:wat::core::HashMap/assoc
+                                (:wat::core::HashMap/assoc
+                                  (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                                  "durable" true)
+                                "ephemeral" true)
+                              "ops" true)
+                            "init" true)
+                          "hibernate" true)
+                        "stop" true)
+                      "record-parent" true)
+     clauses-len    (:wat::core::length clauses)
+     n-clause-pairs (:wat::core::i64::/ clauses-len 2)
+     ;; even-length guard
+     _clauses-even  (:wat::core::if
+                      (:wat::core::= (:wat::core::i64::* n-clause-pairs 2) clauses-len)
                       -> :wat::core::nil
                       nil
                       (:wat::core::macro-error
-                        "defservice: trailing options must be :keyword value pairs"))
-     ;; build + validate in one pass: assoc each recognized key; macro-error on an unknown one
-     opts-map       (:wat::core::foldl
+                        "defservice: clauses must be :keyword value pairs"))
+     ;; build + validate in one pass
+     clause-map     (:wat::core::foldl
                       (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,wat::WatAST>
                                        i <- :wat::core::i64]
                         -> :wat::core::HashMap<wat::core::String,wat::WatAST>
                         (:wat::core::let
                           [k   (:wat::core::i64::* i 2)
                            key (:wat::core::keyword/to-string
-                                 (:wat::core::Option/expect  
-                                   (:wat::core::get opts k) "defservice: malformed trailing option key"))]
-                          (:wat::core::if (:wat::core::HashMap/contains-key? known-opts key)
+                                 (:wat::core::Option/expect
+                                   (:wat::core::get clauses k) "defservice: malformed clause key"))]
+                          (:wat::core::if (:wat::core::HashMap/contains-key? known-clauses key)
                             -> :wat::core::HashMap<wat::core::String,wat::WatAST>
                             (:wat::core::HashMap/assoc m key
-                              (:wat::core::Option/expect  
-                                (:wat::core::get opts (:wat::core::i64::+ k 1))
-                                "defservice: trailing option missing a value"))
+                              (:wat::core::Option/expect
+                                (:wat::core::get clauses (:wat::core::i64::+ k 1))
+                                "defservice: clause missing a value"))
                             (:wat::core::macro-error
-                              (:wat::core::string::concat "defservice: unknown trailing option :"
+                              (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized options: :record-parent :init :stop"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :record-parent"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
-                      (:wat::core::range 0 n-opt-pairs))
-     ;; each option is now a plain get with a default
-     state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "record-parent")
+                      (:wat::core::range 0 n-clause-pairs))
+     ;; :ops is REQUIRED
+     _ops-required  (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "ops")
+                      -> :wat::core::nil
+                      nil
+                      (:wat::core::macro-error "defservice: :ops clause is required"))
+     ops            (:wat::core::Option/expect
+                      (:wat::core::HashMap/get clause-map "ops")
+                      "defservice: :ops clause missing value")
+
+     ;; :durable [fields] — optional, default empty vector node []
+     ;; The empty vector node is built by using with-children on a fresh Vector.
+     ;; We need a Vector WatAST node; use the ops node as a shape carrier with empty children.
+     empty-vec      (:wat::core::with-children ops (:wat::core::Vector :wat::WatAST))
+     durable-fields (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable")
                       -> :wat::WatAST
-                      (:wat::core::Option/expect  
-                        (:wat::core::HashMap/get opts-map "record-parent")
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "durable")
+                        "defservice: :durable needs a value")
+                      empty-vec)
+
+     ;; :ephemeral [fields] — optional, default empty vector node []
+     ephemeral-fields (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "ephemeral")
+                        -> :wat::WatAST
+                        (:wat::core::Option/expect
+                          (:wat::core::HashMap/get clause-map "ephemeral")
+                          "defservice: :ephemeral needs a value")
+                        empty-vec)
+     ;; Is ephemeral non-empty? (child count > 0)
+     ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
+     has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
+
+     ;; :record-parent — optional, default :wat::Record
+     state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "record-parent")
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "record-parent")
                         "defservice: :record-parent needs a value")
                       :wat::Record)
 
-     ;; ── rs-1: mint state-ty as :<fqdn>::State ───────────────────────────────
-     ;; REBIND state-ty so every downstream ~state-ty use (serve param, StopResponse,
-     ;; stop method, start params, self-peer) keeps working unchanged.
+     ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
      state-ty       (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::State" :fqdn-str fqdn-str))
+     record-ty      (:wat::core::keyword/from-string
+                      (:wat::core::string::interpolate "{fqdn-str}::Record" :fqdn-str fqdn-str))
 
-     ;; ── arc 291: :init option — fn node, emitted defn, single-param binder ────
-     ;; The default identity fn wraps the ship value in an identity: fn [s <- :State] -> :State s.
-     ;; A synthetic symbol-node "s" is used as the default param name (hygiene: Unquote at def time).
-     ;; If :init is provided, its fn node is used directly.
+     ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
+     ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State/new d))
+     ;;   when :ephemeral is empty. When :ephemeral non-empty and :init absent → macro-error.
+     ;; A synthetic symbol-node "d" for the default init param (hygiene: Unquote at def time).
+     d-sym          (:wat::core::symbol-node "d")
      s-sym          (:wat::core::symbol-node "s")
-     ;; init-fn-node: either the user-provided fn node or the default identity fn
-     init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "init")
+     ;; state-new-kw: :<fqdn>::State/new — the struct ctor
+     state-new-kw   (:wat::core::keyword/from-string
+                      (:wat::core::string::interpolate "{fqdn-str}::State/new" :fqdn-str fqdn-str))
+     ;; init-fn-node: user-provided fn, or default, or macro-error
+     init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "init")
                       -> :wat::WatAST
                       (:wat::core::Option/expect
-                        (:wat::core::HashMap/get opts-map "init")
+                        (:wat::core::HashMap/get clause-map "init")
                         "defservice: :init needs a value")
-                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~state-ty ~s-sym))
+                      (:wat::core::if has-ephemeral
+                        -> :wat::WatAST
+                        (:wat::core::macro-error
+                          (:wat::core::string::concat fqdn-str
+                            ": :ephemeral declares fields but no :init — the macro cannot construct ephemeral fields; provide :init : Record → State"))
+                        `(:wat::core::fn [~d-sym <- ~record-ty] -> ~state-ty (~state-new-kw ~d-sym))))
      ;; Extract the param vector children [name <- :T] from the init fn node
      ;; init-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
      init-fn-ch     (:wat::core::ast->children init-fn-node)
@@ -144,24 +185,25 @@
      init-param     (:wat::core::ast->children init-params-vec)
      ;; ship-ref: the symbol name for the init param (becomes start's 2nd param ref)
      ship-ref       (:wat::core::first init-param)
-     ;; ship-ty: the type of the init param — used for self-peer in child-main-form
-     ship-ty        (:wat::core::first (:wat::core::drop init-param 2))
+     ;; ship-ty: the type of the init param — now always ::Record
+     ship-ty        record-ty
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
      init-name-str  (:wat::core::string::interpolate "{fqdn-str}::init" :fqdn-str fqdn-str)
      init-name      (:wat::core::keyword/from-string init-name-str)
      ;; init-def: the emitted top-level defn for init
      init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty ~init-body)
 
-     ;; ── arc 291 3b: :stop option — fn node, emitted defn, resp-ty ────────────
-     ;; Mirror of :init: (fn [s <- :State] -> :Resp body) projecting final State → resp.
-     ;; Default (no :stop): identity fn — (fn [s <- :State] -> :State s) so Resp = State.
-     ;; stop-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
-     stop-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "stop")
+     ;; ── 4b-ii: :stop option — projection hook ────────────────────────────────
+     ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
+     ;; User-provided :stop keeps its own declared resp-ty (any EDN-portable type).
+     state-durable-kw (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{fqdn-str}::State/durable" :fqdn-str fqdn-str))
+     stop-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "stop")
                       -> :wat::WatAST
                       (:wat::core::Option/expect
-                        (:wat::core::HashMap/get opts-map "stop")
+                        (:wat::core::HashMap/get clause-map "stop")
                         "defservice: :stop needs a value")
-                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~state-ty ~s-sym))
+                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
      stop-fn-ch     (:wat::core::ast->children stop-fn-node)
      stop-params-vec (:wat::core::first (:wat::core::drop stop-fn-ch 1))
      ;; resp-ty: index 3 = the :RetTy node in [fn, params, ->, :RetTy, body]
@@ -173,15 +215,67 @@
      ;; stop-project-def: the emitted top-level defn for stop projection
      stop-project-def `(:wat::core::defn ~stop-project-name ~stop-params-vec -> ~resp-ty ~stop-body)
 
-     ;; ── rs-1: emit the State record def, branching on state-parent ──────────
-     ;; :wat::holon::Record → (:wat::holon::Record::def ~state-ty ~state-fields)
-     ;; else              → (:wat::Record::def          ~state-ty ~state-fields)
-     ;; Compare via keyword/to-string since state-parent is a WatAST keyword node.
+     ;; ── 4b-ii: :hibernate option — projection hook (NEW, mirror of :stop) ────
+     ;; Return type FORCED to ::Record (resume = :init consumes it).
+     ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
+     ;; User-provided :hibernate: if it declares a different return type → macro-error.
+     hibernate-fn-node (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "hibernate")
+                         -> :wat::WatAST
+                         (:wat::core::Option/expect
+                           (:wat::core::HashMap/get clause-map "hibernate")
+                           "defservice: :hibernate needs a value")
+                         `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
+     hibernate-fn-ch  (:wat::core::ast->children hibernate-fn-node)
+     hibernate-params-vec (:wat::core::first (:wat::core::drop hibernate-fn-ch 1))
+     ;; hib-ret-ty: the declared return type of the hibernate fn
+     hib-ret-ty       (:wat::core::first (:wat::core::drop hibernate-fn-ch 3))
+     hibernate-body   (:wat::core::first (:wat::core::drop hibernate-fn-ch 4))
+     ;; Force the return type to ::Record — if user declared something else, macro-error
+     hib-ret-str      (:wat::core::keyword/to-string hib-ret-ty)
+     record-ty-str    (:wat::core::keyword/to-string record-ty)
+     _hib-ty-check    (:wat::core::if (:wat::core::= hib-ret-str record-ty-str)
+                        -> :wat::core::nil
+                        nil
+                        (:wat::core::macro-error
+                          (:wat::core::string::concat fqdn-str
+                            ": :hibernate return type must be ::Record (the resume seed); declared a different type")))
+     hibernate-project-name-str (:wat::core::string::interpolate "{fqdn-str}::hibernate-project" :fqdn-str fqdn-str)
+     hibernate-project-name (:wat::core::keyword/from-string hibernate-project-name-str)
+     hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty ~hibernate-body)
+
+     ;; ── 4b-ii: emit the Record def + State defstruct ─────────────────────────
+     ;; record-def: (:wat::Record::def ::Record [durable-fields]) (or holon parent)
+     ;; state-def:  (:wat::core::defstruct ::State [durable <- ::Record <ephemeral-fields...>])
+     ;;   The 3 tokens `durable <- ~record-ty` are prepended to ephemeral children.
      state-parent-str (:wat::core::keyword/to-string state-parent)
-     state-record   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
-                      -> :wat::WatAST
-                      `(:wat::holon::Record::def ~state-ty ~state-fields)
-                      `(:wat::Record::def ~state-ty ~state-fields))
+     record-def   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
+                    -> :wat::WatAST
+                    `(:wat::holon::Record::def ~record-ty ~durable-fields)
+                    `(:wat::Record::def ~record-ty ~durable-fields))
+     ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
+     ;; Strategy: use quasiquote to build the durable-field prefix vector `[durable <- ~record-ty]`,
+     ;; extract its 3 children, then prepend them to the ephemeral children via foldl.
+     ;; The quasiquote gives us WatAST nodes (incl. the `<-` keyword) rather than runtime values.
+     durable-prefix-vec `[durable <- ~record-ty]
+     durable-prefix-children (:wat::core::ast->children durable-prefix-vec)
+     ephemeral-children (:wat::core::ast->children ephemeral-fields)
+     ;; Concatenate: durable-prefix-children ++ ephemeral-children
+     state-field-items (:wat::core::foldl
+                         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                          item <- :wat::WatAST]
+                           -> :wat::core::Vector<wat::WatAST>
+                           (:wat::core::conj acc item))
+                         (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                            item <- :wat::WatAST]
+                             -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::conj acc item))
+                           (:wat::core::Vector :wat::WatAST)
+                           durable-prefix-children)
+                         ephemeral-children)
+     ;; Build the state field vector as a WatAST::Vector using with-children on empty-vec
+     state-field-vec (:wat::core::with-children empty-vec state-field-items)
+     state-def    `(:wat::core::defstruct ~state-ty ~state-field-vec)
 
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{fqdn-str}::Op" :fqdn-str fqdn-str))
@@ -288,18 +382,19 @@
      ;; LineageUp: Started carries the minted Address'; Final carries the final state.
      ;; :Stop and :Shutdown are unit variants (bare keyword, no field vector) —
      ;; matches as a bare keyword pattern (ev.fields.is_empty() ✓).
-     ;; arc 291 4a: Admin now has four variants:
+     ;; arc 291 4b-ii: Admin now has four variants:
      ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
+     ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
      admin-enum-def `(:wat::core::defenum ~admin-ty
                        :Init     [seed     <- ~ship-ty]
                        :Stop
                        :Hibernate
-                       :Resume   [snapshot <- ~state-ty])
-     ;; arc 291 4a: LineageUp gains :Hibernated carrying the full State snapshot.
+                       :Resume   [snapshot <- ~record-ty])
+     ;; arc 291 4b-ii: LineageUp::Hibernated carries ::Record (not ::State).
      lineage-up-enum-def `(:wat::core::defenum ~lineage-up-ty
                              :Started   [addr     <- ~addr-ty]
                              :Final     [resp     <- ~resp-ty]
-                             :Hibernated [snapshot <- ~state-ty])
+                             :Hibernated [snapshot <- ~record-ty])
 
      ;; ── arc 291 3a-ii-α: init-from-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -308,15 +403,15 @@
      ;; `ai` is a param in [ai <- admin-ty] Vector → checker does not recurse into
      ;; Vector children, so the literal symbol `ai` is hygienic.
      ;; `seed` and `_ignored` in match arms are match-arm binders → checker skips.
-     ;; arc 291 4a: init-from-admin must stay exhaustive over all four Admin variants.
-     ;;   Init(seed)       → (init seed)   — normal startup
-     ;;   Resume(snapshot) → snapshot      — bypass init; snapshot IS the State
+     ;; arc 291 4b-ii: init-from-admin must stay exhaustive over all four Admin variants.
+     ;;   Init(seed)       → (init seed)       — normal startup: init builds struct from record
+     ;;   Resume(snapshot) → (init snapshot)   — resume: init rebuilds struct from saved record
      ;;   Stop             → assertion-failed! (not a startup message)
      ;;   Hibernate        → assertion-failed! (not a startup message)
      init-from-admin-def `(:wat::core::defn ~init-from-admin-name [ai <- ~admin-ty] -> ~state-ty
                             (:wat::core::match ai -> ~state-ty
                               ((~admin-init-kw seed)     (~init-name seed))
-                              ((~admin-resume-kw snapshot) snapshot)
+                              ((~admin-resume-kw snapshot) (~init-name snapshot))
                               (~admin-stop-kw
                                 (:wat::kernel::assertion-failed!
                                   "defservice init-from-admin: Stop received before Init/Resume (protocol error)"
@@ -588,7 +683,7 @@
                              nil))
                          (~admin-hibernate-kw
                            (:wat::core::do
-                             (:wat::kernel::send' self (~lineage-hibernated-kw state))
+                             (:wat::kernel::send' self (~lineage-hibernated-kw (~hibernate-project-name state)))
                              nil))
                          ((~admin-init-kw _seed)
                            (:wat::kernel::assertion-failed!
@@ -755,13 +850,13 @@
      hibernate-method-body  `(:wat::core::let
                                [~hib-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
                                 ~hib-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                               (:wat::core::match ~hib-r-sym -> ~state-ty
+                               (:wat::core::match ~hib-r-sym -> ~record-ty
                                  ((~lineage-hibernated-kw snapshot) snapshot)
                                  (_ (:wat::kernel::assertion-failed!
                                       "defservice hibernate: expected LineageUp::Hibernated"
                                       :wat::core::None
                                       :wat::core::None))))
-     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~state-ty ~hibernate-method-body)
+     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate.
      methods           (:wat::core::conj methods hibernate-method)
 
@@ -857,7 +952,8 @@
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>
                           (:wat::core::forms
-                            ~state-record
+                            ~record-def
+                            ~state-def
                             ~@request-records
                             ~@response-records
                             (:wat::core::defenum ~enum-name ~@variants)
@@ -866,6 +962,7 @@
                               -> :wat::core::nil ~serve-body)
                             ~init-def
                             ~stop-project-def
+                            ~hibernate-project-def
                             ~admin-enum-def
                             ~lineage-up-enum-def
                             ~init-from-admin-def
@@ -889,19 +986,19 @@
                                     (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
-     ;; ── arc 291 4a: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
-     ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~state-ty] -> ~handle-name
+     ;; ── arc 291 4b-ii: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
+     ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~record-ty] -> ~handle-name
      ;;   (let [lr (launch<…> locus (Admin::Resume snapshot) init-from-admin serve service-forms lu-addr)]
      ;;     (Handle (Launched/handle lr) (Launched/address lr))))
-     ;; init-from-admin routes Admin::Resume → snapshot (identity, bypasses init).
+     ;; init-from-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
      ;; launch is UNCHANGED — resume reuses the same machinery.
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
      snapshot-sym   (:wat::core::symbol-node "snapshot")
      resume-name    (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}/resume" :fqdn-str fqdn-str))
-     ;; resume-params: [locus <- :wat::spawn::Locus  snapshot <- ~state-ty]
+     ;; resume-params: [locus <- :wat::spawn::Locus  snapshot <- ~record-ty]
      ;; Vector → checker does not recurse into Vector children.
-     resume-params  `[locus <- :wat::spawn::Locus  ~snapshot-sym <- ~state-ty]
+     resume-params  `[locus <- :wat::spawn::Locus  ~snapshot-sym <- ~record-ty]
      resume-body    `(:wat::core::let
                        [~lr-sym (~launch-head-kw locus
                                   (~admin-resume-kw ~snapshot-sym)
@@ -943,7 +1040,8 @@
     ;; Type-decl forms (records, enums, Handle) splice to top-level via splice_type_decl;
     ;; defns keep the `do` non-empty after type-decl stripping.
     `(:wat::core::do
-       ~state-record
+       ~record-def
+       ~state-def
        ~@request-records
        ~@response-records
        (:wat::core::defenum ~enum-name ~@variants)
@@ -953,6 +1051,7 @@
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
        ~init-def
        ~stop-project-def
+       ~hibernate-project-def
        ~init-from-admin-def
        ~lineage-extract-addr-def
        ~@constructors
