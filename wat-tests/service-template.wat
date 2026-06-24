@@ -4,7 +4,7 @@
 ;; This file is a runnable reference. It exercises every pattern that
 ;; a service program built on the substrate's channel + spawn primitives
 ;; will reach for. Lift directly when starting your own service; the
-;; only thing that should change is the State struct (your domain) and
+;; only thing that should change is the State record (your domain) and
 ;; the Request enum's verbs (your operations).
 ;;
 ;; SERVICE-PROGRAMS.md § "The complete pattern" walks this file as
@@ -81,11 +81,11 @@
    ;; never mutate in place). Two counter fields here demonstrate the
    ;; pattern; in your service, these are your real domain fields
    ;; (an LRU map, a treasury record, a registry table, etc.).
-   (:wat::core::defstruct :svc::State
+   (:wat::Record::def :svc::State
      [push-count <- :wat::core::i64
       ack-count  <- :wat::core::i64])
 
-   (:wat::core::defn :svc::State::fresh [] -> :svc::State (:svc::State/new 0 0))
+   (:wat::core::defn :svc::State::fresh [] -> :svc::State (:svc::State 0 0))
 
    ;; Reply channel for the Ack verb — unit reply. Aliased because it
    ;; recurs at every Ack call site (request body + caller's reply
@@ -93,7 +93,7 @@
    (:wat::core::typealias :svc::AckReplyTx :wat::kernel::Sender<wat::core::nil>)
    (:wat::core::typealias :svc::AckReplyRx :wat::kernel::Receiver<wat::core::nil>)
 
-   ;; Get's reply channel carries the full State struct. Inlined in
+   ;; Get's reply channel carries the full State record. Inlined in
    ;; the variant declaration below — domain-payload reply types are
    ;; per-verb and don't tend to repeat outside the variant they belong
    ;; to (one alias per such variant adds noise, not signal).
@@ -135,7 +135,7 @@
             ;; The _value param ignored here; in your service it'd feed
             ;; into state computation.
             ((:svc::Request::Push _value)
-              (:svc::State/new
+              (:svc::State
                 (:wat::core::+ (:svc::State/push-count state) 1)
                 (:svc::State/ack-count state)))
 
@@ -149,7 +149,7 @@
                   (:wat::core::Result/expect  
                     (:wat::kernel::send reply-tx ())
                     "Service/handle Ack: reply-tx disconnected — caller died?")]
-                (:svc::State/new
+                (:svc::State
                   (:svc::State/push-count state)
                   (:wat::core::+ (:svc::State/ack-count state) 1))))
 
@@ -433,7 +433,7 @@
 
 ;; Layer 2 — assert-state proof (pure: no threading, no channels).
 (:deftest :svc::test-svc-assert-state
-  (:test::svc-assert-state (:svc::State/new 3 1) 3 1))
+  (:test::svc-assert-state (:svc::State 3 1) 3 1))
 
 
 ;; Layer 3 — full-sequence proof.

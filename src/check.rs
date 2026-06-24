@@ -13040,10 +13040,11 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             match types.get(p) {
                 // Record types: holon-representable by construction → portable.
                 Some(crate::types::TypeDef::Record(_)) => true,
-                // Struct: portable iff every field type is portable.
-                Some(crate::types::TypeDef::Struct(s)) => {
-                    s.fields.iter().all(|(_, ft)| is_portable_type(ft, types))
-                }
+                // Struct: categorically non-portable — struct ↛ wire by kind (arc 291 4b
+                // supersedes 254.1's field-recursion). A struct holds resources + EDN in
+                // the same body; only records (EDN-only, :wat::Record::def) cross the wire.
+                // If you want a portable-payload type with i64/bool/enum fields, use a record.
+                Some(crate::types::TypeDef::Struct(_)) => false,
                 // Enum: treated as portable at the type level. Enum variant
                 // fields may include Receiver<T> in substrate service-control
                 // enums (e.g. StdOutService::Event) — recursing into them

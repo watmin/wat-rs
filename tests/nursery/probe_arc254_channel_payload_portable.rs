@@ -117,7 +117,6 @@ const CHANNEL_OF_ALL_EDN_STRUCT: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 291 4b-i RED probe — firm struct↛wire rule unbuilt; un-ignore on 4b-i green"]
 fn channel_of_all_edn_struct_must_be_rejected() {
     let result = check_result(CHANNEL_OF_ALL_EDN_STRUCT);
     assert!(
