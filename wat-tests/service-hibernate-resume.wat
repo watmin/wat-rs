@@ -31,7 +31,6 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; 7 → hibernate (snapshot, service dies) → resume fresh → +3 → stop = 10.
-(:wat::test::ignore "arc 291 strike-4a RED probe — hibernate/resume unbuilt; un-ignore on 4a green")
 (:wat::test::deftest' :wat-tests::service::hibernate-resume-on-thread
   ()
   (:wat::test::assert-eq
@@ -48,7 +47,6 @@
     10))
 
 ;; ── process tier — IDENTICAL except the locus token (the snapshot crosses as EDN) ──
-(:wat::test::ignore "arc 291 strike-4a RED probe — hibernate/resume unbuilt; un-ignore on 4a green")
 (:wat::test::deftest' :wat-tests::service::hibernate-resume-on-process
   ()
   (:wat::test::assert-eq

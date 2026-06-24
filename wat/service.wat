@@ -265,11 +265,19 @@
                       (:wat::core::string::interpolate "{fqdn-str}::Admin::Init" :fqdn-str fqdn-str))
      admin-stop-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::Admin::Stop" :fqdn-str fqdn-str))
+     ;; arc 291 4a: Admin::Hibernate (unit, like Stop) + Admin::Resume (carries snapshot).
+     admin-hibernate-kw (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::Admin::Hibernate" :fqdn-str fqdn-str))
+     admin-resume-kw  (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{fqdn-str}::Admin::Resume" :fqdn-str fqdn-str))
      lineage-started-kw (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Started" :fqdn-str fqdn-str))
      ;; arc 291 3a-ii-β: LineageUp::Final — service replies with final state on admin stop.
      lineage-final-kw  (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Final" :fqdn-str fqdn-str))
+     ;; arc 291 4a: LineageUp::Hibernated — service replies with full state on hibernate.
+     lineage-hibernated-kw (:wat::core::keyword/from-string
+                             (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Hibernated" :fqdn-str fqdn-str))
      init-from-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::init-from-admin" :fqdn-str fqdn-str)
      init-from-admin-name (:wat::core::keyword/from-string init-from-admin-name-str)
      lineage-extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::lineage-extract-addr" :fqdn-str fqdn-str)
@@ -280,12 +288,18 @@
      ;; LineageUp: Started carries the minted Address'; Final carries the final state.
      ;; :Stop and :Shutdown are unit variants (bare keyword, no field vector) —
      ;; matches as a bare keyword pattern (ev.fields.is_empty() ✓).
+     ;; arc 291 4a: Admin now has four variants:
+     ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
      admin-enum-def `(:wat::core::defenum ~admin-ty
-                       :Init [seed <- ~ship-ty]
-                       :Stop)
+                       :Init     [seed     <- ~ship-ty]
+                       :Stop
+                       :Hibernate
+                       :Resume   [snapshot <- ~state-ty])
+     ;; arc 291 4a: LineageUp gains :Hibernated carrying the full State snapshot.
      lineage-up-enum-def `(:wat::core::defenum ~lineage-up-ty
-                             :Started [addr <- ~addr-ty]
-                             :Final   [resp <- ~resp-ty])
+                             :Started   [addr     <- ~addr-ty]
+                             :Final     [resp     <- ~resp-ty]
+                             :Hibernated [snapshot <- ~state-ty])
 
      ;; ── arc 291 3a-ii-α: init-from-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -294,12 +308,23 @@
      ;; `ai` is a param in [ai <- admin-ty] Vector → checker does not recurse into
      ;; Vector children, so the literal symbol `ai` is hygienic.
      ;; `seed` and `_ignored` in match arms are match-arm binders → checker skips.
+     ;; arc 291 4a: init-from-admin must stay exhaustive over all four Admin variants.
+     ;;   Init(seed)       → (init seed)   — normal startup
+     ;;   Resume(snapshot) → snapshot      — bypass init; snapshot IS the State
+     ;;   Stop             → assertion-failed! (not a startup message)
+     ;;   Hibernate        → assertion-failed! (not a startup message)
      init-from-admin-def `(:wat::core::defn ~init-from-admin-name [ai <- ~admin-ty] -> ~state-ty
                             (:wat::core::match ai -> ~state-ty
-                              ((~admin-init-kw seed) (~init-name seed))
+                              ((~admin-init-kw seed)     (~init-name seed))
+                              ((~admin-resume-kw snapshot) snapshot)
                               (~admin-stop-kw
                                 (:wat::kernel::assertion-failed!
-                                  "defservice init-from-admin: Stop received before Init (protocol error)"
+                                  "defservice init-from-admin: Stop received before Init/Resume (protocol error)"
+                                  :wat::core::None
+                                  :wat::core::None))
+                              (~admin-hibernate-kw
+                                (:wat::kernel::assertion-failed!
+                                  "defservice init-from-admin: Hibernate received before Init/Resume (protocol error)"
                                   :wat::core::None
                                   :wat::core::None))))
 
@@ -546,6 +571,11 @@
      ;; arc 291 3a-ii-β: Admin::Stop arm — sends LineageUp::Final(state) back up the
      ;; lineage peer (self), then terminates (returns nil, no recur). Admin::Init arriving
      ;; post-startup is a protocol error (assertion-failed!).
+     ;; arc 291 4a: serve Admin dispatch must stay exhaustive over all four variants.
+     ;;   Stop      → send Final(projected-state) up + terminate
+     ;;   Hibernate → send Hibernated(full-state) up + terminate
+     ;;   Init(_)   → assertion-failed! (startup-only message)
+     ;;   Resume(_) → assertion-failed! (startup-only message)
      serve-body   `(:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
                      (:wat::spawn::ServiceEvent::Shutdown nil)
                      ((:wat::spawn::ServiceEvent::Connection peer)
@@ -556,9 +586,18 @@
                            (:wat::core::do
                              (:wat::kernel::send' self (~lineage-final-kw (~stop-project-name state)))
                              nil))
+                         (~admin-hibernate-kw
+                           (:wat::core::do
+                             (:wat::kernel::send' self (~lineage-hibernated-kw state))
+                             nil))
                          ((~admin-init-kw _seed)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
+                             :wat::core::None
+                             :wat::core::None))
+                         ((~admin-resume-kw _snapshot)
+                           (:wat::kernel::assertion-failed!
+                             "defservice serve: Admin::Resume after startup (protocol error)"
                              :wat::core::None
                              :wat::core::None))))
                      ((:wat::spawn::ServiceEvent::Message idx op)
@@ -703,6 +742,29 @@
      ;; Extend methods with the owner-only stop.
      methods           (:wat::core::conj methods stop-method)
 
+     ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
+     ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
+     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recv's LineageUp::Hibernated
+     ;; which carries the WHOLE State (not a projection — that's what distinguishes hibernate from stop).
+     ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
+     hib-discard-sym   (:wat::core::symbol-node "_")
+     hib-r-sym         (:wat::core::symbol-node "r")
+     hibernate-method-name (:wat::core::keyword/from-string
+                             (:wat::core::string::interpolate "{fqdn-str}/hibernate" :fqdn-str fqdn-str))
+     hibernate-method-params `[h <- ~handle-name]
+     hibernate-method-body  `(:wat::core::let
+                               [~hib-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
+                                ~hib-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
+                               (:wat::core::match ~hib-r-sym -> ~state-ty
+                                 ((~lineage-hibernated-kw snapshot) snapshot)
+                                 (_ (:wat::kernel::assertion-failed!
+                                      "defservice hibernate: expected LineageUp::Hibernated"
+                                      :wat::core::None
+                                      :wat::core::None))))
+     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~state-ty ~hibernate-method-body)
+     ;; Extend methods with the owner-only hibernate.
+     methods           (:wat::core::conj methods hibernate-method)
+
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
      ;;   (let [b    (listener' locus Op Reply)              ; listener' accepts an abstract :Locus
@@ -827,6 +889,30 @@
                                     (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
+     ;; ── arc 291 4a: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
+     ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~state-ty] -> ~handle-name
+     ;;   (let [lr (launch<…> locus (Admin::Resume snapshot) init-from-admin serve service-forms lu-addr)]
+     ;;     (Handle (Launched/handle lr) (Launched/address lr))))
+     ;; init-from-admin routes Admin::Resume → snapshot (identity, bypasses init).
+     ;; launch is UNCHANGED — resume reuses the same machinery.
+     ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
+     snapshot-sym   (:wat::core::symbol-node "snapshot")
+     resume-name    (:wat::core::keyword/from-string
+                      (:wat::core::string::interpolate "{fqdn-str}/resume" :fqdn-str fqdn-str))
+     ;; resume-params: [locus <- :wat::spawn::Locus  snapshot <- ~state-ty]
+     ;; Vector → checker does not recurse into Vector children.
+     resume-params  `[locus <- :wat::spawn::Locus  ~snapshot-sym <- ~state-ty]
+     resume-body    `(:wat::core::let
+                       [~lr-sym (~launch-head-kw locus
+                                  (~admin-resume-kw ~snapshot-sym)
+                                  (:wat::core::keyword/from-string ~init-from-admin-name-str)
+                                  (:wat::core::keyword/from-string ~serve-name-str)
+                                  (~service-forms-kw)
+                                  (:wat::core::keyword/from-string ~lineage-extract-addr-name-str))]
+                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
+                                     (:wat::spawn::Launched/address ~lr-sym)))
+     resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)
+
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
      ;; (Record::def <fqdn>::Handle
      ;;   [handle <- Peer'<Admin,LineageUp>
@@ -873,4 +959,5 @@
        ~@methods
        ~service-forms-def
        ~start-fn
+       ~resume-fn
        ~handle-record)))
