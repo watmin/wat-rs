@@ -138,7 +138,8 @@ the prior contract stands, this layers authority on it.**
 `connect'(Handle/addr)`. So **any holder of the dial-address can stop the service.** Ambient authority.
 Hibernate would inherit this if folded the same way.
 
-**The cure — two capabilities, two authorities, by construction (ocap / POLA, 272's law):**
+**The cure — two capabilities, two authorities, by construction (ocap / the Principle of Least Authority
+— POLA: a caller holds only the authority its task needs, nothing more; 272's law):**
 
 | capability | who holds it | confers | analog |
 |---|---|---|---|

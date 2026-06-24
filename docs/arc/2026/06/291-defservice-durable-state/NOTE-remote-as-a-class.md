@@ -30,7 +30,8 @@ Two capabilities, two authorities, by ocap construction (see `DESIGN.md` § admi
 - **`Handle`** = *management* authority only (`stop`/`hibernate`/`promote`). Held by the spawner. **It is
   NOT a backdoor to data ops.** To call `Get`/`Increment`, even the owner `connect'`s to the client
   `Address'` and authenticates against the client policy **like any other caller**. Management authority and
-  usage authority are *separate capabilities* (POLA at its purest — stronger than AWS IAM).
+  usage authority are *separate capabilities* (the Principle of Least Authority — POLA: a caller holds only
+  the authority its task needs — at its purest; stronger than AWS IAM).
 - **`Address'`** (client facet) = *usage* authority. Either ocap-handed (internal) OR **public**
   (published endpoint + policy gate).
 

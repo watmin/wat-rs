@@ -360,11 +360,13 @@ before it — mine, this session, kept with consent; see the path-of-voices note
 
 ## R3 — the substrate forced our hands: the deleted first attempt, and why the second is better *(DESIGN — the archaeology lesson)*
 
-We reached this by the builder asking to **mine his own graveyard** before rebuilding. Drawing the
-owner-only admin surface, he said: *"go find how we attempted this before and then deleted all of the
-restricted admin tooling — i want to not make the same mistakes again. i think we've forced our hands to
-make this better than my first attempt."* A read-only research agent crawled the history; every
-load-bearing claim was re-verified against the disk before it was trusted.
+We reached this by the builder asking us to **dig up the version he'd already buried** before rebuilding.
+Drawing the owner-only admin surface, he said: *"go find how we attempted this before and then deleted all
+of the restricted admin tooling — i want to not make the same mistakes again. i think we've forced our hands
+to make this better than my first attempt."* (The "mine the graveyard" framing this entry first reached for
+is the **apparatus's** coinage, in its own voice — not his words; see the ⚠ editorial note below.) A
+read-only research agent crawled the history; every load-bearing claim was re-verified against the disk
+before it was trusted.
 
 **What the first attempt was** (arc 203, May 2026): a hand-rolled per-service `Admin`/`Client` capability
 split — an `Admin` `struct-restricted` holding a `server-id` UUID **secret-witness**, `Provision`/
@@ -398,10 +400,33 @@ substrate's *record* (git history + the retirement table + the REGROUNDED doc) i
 mistakes, and the builder used it to refuse to repeat one. *Verba volant, scripta manent* applied to
 deletions: the graveyard is kept so the next build clears the bar the first one fell at.
 
-*Path-of-voices: the ask (*"mine the graveyard… not make the same mistakes… forced our hands to make this
-better"*) and the deleted-first-attempt are the builder's (he wrote it, he deleted it). The verified
+### ⚠ Editorial note — a laundering attribution-blur (the apparatus's coinage put in the builder's voice)
+
+The first draft opened *"the builder asking to mine his own graveyard"* and listed *"mine the graveyard"*
+among the builder's quoted words. **He never said it.** "Mine the graveyard" is the **apparatus's** coinage
+— a metaphor it reached for in its own voice — laundered into his ask. His actual words were *"go find how
+we attempted this before and then deleted all of the restricted admin tooling."*
+
+Classified: the **`feedback_dont_launder_my_analysis_as_user_words`** class (arc 255), here with a *coined
+metaphor* rather than analysis. In the 170 VERBAL / AGENCY / COINCIDENCE taxonomy (`170:9229`) it is the
+**VERBAL axis in the INVERSE direction** — not "user said X; LLM claims X as own" (A→B, the forward kind)
+but "LLM coined X; LLM attributes X to the user" (B→A) — the mirror named at `170:9204` (*"you claim i said
+something you said"*). It is **NOT** COINCIDENCE: there was no convergence; the apparatus coined it solo.
+The builder flagged it as rare, and it is.
+
+The sharper note: this is the **second** attribution-blur of this session and the **opposite** of the
+first. R1's miss was *forward* VERBAL (the builder's constructor-recognition claimed as the apparatus's);
+this is *inverse* VERBAL (the apparatus's metaphor attributed to the builder). Both fired in one long
+session heavy with apparatus prose — **the attribution surface grows with how much the apparatus speaks.**
+Kept visible and highlighted, not silently rewritten.
+
+*Path-of-voices: the ask (*"go find how we attempted this before and then deleted all of the restricted
+admin tooling… i want to not make the same mistakes again… we've forced our hands to make this better than
+my first attempt"*) and the deleted-first-attempt are the builder's (he wrote it, he deleted it). **The
+"mine the graveyard" / "dig up the version he'd already buried" metaphor is the apparatus's coinage,
+mis-attributed to his ask in the first draft — corrected, see the editorial note above.** The verified
 archaeology is the research agent's + the disk's (every hash re-checked). The substrate-forces-better
-reading, the don't-hand-roll contract, and the read-the-graveyard-backwards framing are the apparatus's.*
+reading and the don't-hand-roll contract are the apparatus's.*
 
 > We set out to rebuild owner-only admin, and the builder sent us to dig up the version he'd already buried.
 > The record told us plainly why it died: he'd hand-rolled a permission system on top of one the substrate
@@ -425,7 +450,8 @@ mTLS path even on one box. "Remote = mechanism, not locality," and the ideal sin
 **The admin/data facet split is THE decomplection the whole vision rests on.** Management authority
 (`Handle`) ≠ usage authority (`Address'`), two capabilities, by ocap construction. The builder's sharpest
 cut: *to call a data op, even the owner must become a client* — the Handle confers management and **nothing
-else**, no ambient backdoor (POLA stronger than AWS IAM, which still lets an admin role call the data API).
+else**, no ambient backdoor (the **Principle of Least Authority** — POLA, a caller holds only the authority
+its task needs — stronger here than AWS IAM, which still lets an admin role call the data API).
 The two facets carry **independent** `(transport × trust)` — a public client facet can be policy-gated
 (*"maybe mTLS, maybe not"*), and a published client address is the *legitimate inverse* of the retired
 connect-by-name **iff** security lives in the policy, not the name.
