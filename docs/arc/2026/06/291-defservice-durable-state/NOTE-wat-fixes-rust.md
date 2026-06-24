@@ -1,6 +1,10 @@
 # NOTE — wat-fixes-rust (+ wat-fixes-wat-in-rust): the migration toolkit, over Rust
 
-**Status: ARC-CANDIDATE (2026-06-23), NOT minted. "Not yet" (the builder).** Surfaced during arc 291
+**Status: DEFERRED CAPABILITY — NOT an arc (2026-06-23).** The builder's call: *"we'll do the
+wat-fixes-rust whenever we have a mammoth refactor before us — no need to arc it, we'll make it when we need
+it."* This is the don't-build-the-forcing-function discipline (capabilities arrive precisely when they must):
+the next **mammoth** `.rs`/wat-in-rust refactor is the forcing function; build it then, not before. This NOTE
+is the design-on-the-shelf so that build is cheap when it comes. Surfaced during arc 291
 strike-3a-ii-β: the qualified annihilation of the client-stop op had a blast radius of **5 probe `.rs`
 files** (tests asserting the removed `Op::Stop`/`Reply::Stop`/`/stop c`), every one **hand-edited** because
 the wat-fix toolkit (`wat/fix.wat`, `wat-scripts/fixes/`) rewrites **`.wat` source**, not **wat embedded in

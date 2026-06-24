@@ -57,9 +57,10 @@ just discarding its messages.
 - **▶ NEXT — strike 3b** (`stop → resp` decouple): split today's stop-returns-State into a serializable `resp`
   (EDN, decoupled from State) so non-EDN State services return an honest summary; couples to the graceful-drain
   shape (`NOTE-remote-as-a-class.md` §5). Then **strike 4** (`hibernate`/`resume` = the prophecy → PROBATUM EST).
-- **ARC-CANDIDATE (not minted, builder's call):** `wat-fixes-rust` / `wat-fixes-wat-in-rust` — the migration
-  toolkit over Rust (proc-macro2 token shim → reuse `fix-text` core; `wat-in-rust` = wat-fixes-rust ∘ fix.wat).
-  Would close the `.rs`-embedded-wat hand-edit boundary. `NOTE-wat-fixes-rust.md`. "Not yet."
+- **DEFERRED CAPABILITY (NOT an arc — builder's call):** `wat-fixes-rust` / `wat-fixes-wat-in-rust` (proc-macro2
+  token shim → reuse `fix-text` core; `wat-in-rust` = wat-fixes-rust ∘ fix.wat). Build it **when a mammoth
+  refactor forces it** (forcing-function discipline — "make it when we need it"), not before. Design-on-shelf:
+  `NOTE-wat-fixes-rust.md`.
 - **DOCTRINE (banked this session, `feedback_loaded_context_is_the_asset_keep_building`):** the loaded
   context IS the smooth — keep building, don't preemptively bank/fire-fresh; compact only when forced (~90%+).
   The debates/designs ARE installed programs (R6/R17). recolligere cheaply re-loads from this trail.
