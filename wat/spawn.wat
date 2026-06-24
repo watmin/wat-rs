@@ -139,6 +139,16 @@
 (:wat::core::derive :wat::kernel::Thread'  :wat::spawn::Spawned)
 (:wat::core::derive :wat::kernel::Process' :wat::spawn::Spawned)
 
+;; ── arc 291 3a-ii-β: Thread'/Process' ARE Peer's ────────────────────────────
+;; The owner-side spawn handle IS the parent end of the lineage channel — a peer.
+;; send'/recv'/poll' already operate on it (process `launch` does `recv' svc`/`send' svc`);
+;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- Peer'<…>`
+;; field binds ANY spawn handle. N-LOCI-GENERAL: a future remote locus joins the peer family
+;; with ONE more `derive` line — zero edits to the assignable rule, which is driven by THIS
+;; derive graph (check.rs `assignable`, the Parametric<:Parametric arm). Never a 2-only assumption.
+(:wat::core::derive :wat::kernel::Thread'  :wat::kernel::Peer')
+(:wat::core::derive :wat::kernel::Process' :wat::kernel::Peer')
+
 ;; ── Bound<S,R> — the listening state minted by (listener' (thread) :S :R) ─────
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what

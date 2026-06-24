@@ -14187,6 +14187,28 @@ pub(crate) fn assignable(
             return true;
         }
     }
+    // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
+    // the expected head (the derive graph — N-loci-general: Thread'/Process'/<future remote>
+    // `derive` Peer' in spawn.wat, so a locus-agnostic `Peer'<…>` field binds any spawn handle)
+    // AND the type-args are pairwise compatible. Args are INVARIANT (a channel's send/recv types
+    // are exact) → unify, not covariant-assignable. The head check is driven entirely by the
+    // derive graph, never a hardcoded {Thread',Process'} list — a new locus joins with one derive.
+    if let (
+        TypeExpr::Parametric { head: ah, args: aargs },
+        TypeExpr::Parametric { head: eh, args: eargs },
+    ) = (&a, &e)
+    {
+        if ah != eh
+            && aargs.len() == eargs.len()
+            && crate::types::is_subtype(&format!(":{ah}"), &format!(":{eh}"), types)
+            && aargs
+                .iter()
+                .zip(eargs.iter())
+                .all(|(x, y)| unify(x, y, subst, types).is_ok())
+        {
+            return true;
+        }
+    }
     unify(actual, expected, subst, types).is_ok()
 }
 
