@@ -214,6 +214,41 @@ both ARE peers, so it stays locus-agnostic).
 (Thread'/Process' must both satisfy it), STOP + report. If the `LineageUp`/`Admin` protocol migration breaks
 the existing startup (locus-parity/init-parity go red), STOP — α must keep them green (it's a pure migration).
 
+## ✅✅✅ 3a-ii-α SHIPPED GREEN (`25eced7d`, weighed pure against the disk)
+
+The macro emits both defenums + `init-from-admin` + `lineage-extract-addr` at BOTH tier-emission sites
+(process service-forms + thread top-level `do`). `child-main-form` self-peer → `Peer'<LineageUp, Admin>`
+(sends `LineageUp::Started(addr)` UP, recvs `Admin`, applies `init-from-admin`); `start-body` wraps the seed
+in `Admin::Init` and threads `init-from-admin` + `lineage-extract-addr` by-name; `spawn.wat` `Locus/launch`
+grows `lu-addr-kw`, ProcessOpts extracts addr via the by-name helper. The serve-loop `ServiceEvent::Admin`
+arm stayed a re-loop **stub** (Stop dispatch is β).
+
+**A substrate root-cause fix the migration FORCED (extirpare, not in the brief but correct):** the three
+`reconstruct_*` paths (`edn_shim.rs` struct/record/enum_tagged) hardcoded `edn_to_value` (`allow_caps=false`)
+for FIELD values, **silently dropping a capability nested inside a struct/record/enum variant even on a
+trusted decode**. `LineageUp::Started` carries an `Address'` cap *inside an enum variant* over the process
+wire → exposed the drop. Fixed: the three take `allow_caps` and forward `edn_to_value_caps`, honoring the
+parent's trust (untrusted parent → fields still refused; the ocap rule holds). Verified `edn_to_value` ≡
+`edn_to_value_caps(…, false)`, so it's pure propagate-not-hardcode. The whole class "caps nested in structured
+types are dropped on the trusted decode path" is pulled, not patched.
+
+**Weighed (against the disk, NOT the agent's report):** 4 service tests GREEN both tiers (counter_on /
+seeded); full-package suite failing-SET vs HEAD = **∅** (202 == 202, identical arc-170 execve floor — the
+raw 250-vs-268 count gap was nondeterministic `result:`/`Probe` summary-line noise, not test outcomes); 6
+defservice/cap probes GREEN in isolation (arc209 c1/c2/c3/locus-agnostic + arc272 process/thread
+stop-returns-final-state).
+
+### ⚠ β implication discovered while weighing (RESOLVE in 3a-ii-β, do not be surprised)
+The **thread** self-peer is still typed `Peer'<R,S>` = `Peer'<Reply, Op>` (the client-facet types — vestigial
+since strike 2; nothing flowed on the thread self-peer, and α's `Admin` arm is a stub, so it's invisible NOW).
+The **process** tier's `child-main-form` self-peer is already `Peer'<LineageUp, Admin>` (correct). So β's
+"`Handle.handle → Peer'<Admin,LineageUp>`" re-typing is a no-op-shaped change for process but **must also
+re-type the thread closure self-peer** (`spawn.wat` ThreadOpts/launch `fn [self-peer <- Peer'<R,S>]` →
+`Peer'<LineageUp,Admin>`) so the thread `Handle.handle` becomes `Peer'<Admin,LineageUp>` and `Admin::Stop` /
+`LineageUp::Final` type-check on the thread tier. The thread tier also does NOT do the `Started`/`Init` wire
+handshake (shared memory: it captures `ship=Admin::Init` and `launch` already holds `Bound/address`) — that
+asymmetry is correct and stays; only the self-peer TYPE needs the β re-type.
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
