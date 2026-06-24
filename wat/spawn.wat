@@ -119,11 +119,14 @@
 ;;                  Shutdown/Connection/Message/Closed — :Lost is built for the union.
 ;;
 ;; Type params: I = the type the server SENDS to peers (peer's recv type);
-;;              O = the type the server RECEIVES from peers (peer's send type).
+;;              O = the type the server RECEIVES from peers (peer's send type);
+;;              A = the type the server RECEIVES from the owner (admin ops).
 ;; Mirror Peer'<I,O>: the accepted peer is Peer'<I,O>, message is O.
+;; Arc 291 3a-i: A is the self-peer's receive type (owner→service admin channel).
 ;;
-(:wat::core::defenum :wat::spawn::ServiceEvent<I,O>
+(:wat::core::defenum :wat::spawn::ServiceEvent<I,O,A>
   :Shutdown                                                              ;; owner dropped the handle (self-peer drained) — exit; deadlock-free termination
+  :Admin      [msg   <- :A]                                             ;; owner sent an admin op over the lineage peer (Ok path); A = self-peer's recv type
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]
   :Message    [idx   <- :wat::core::i64  msg   <- :O]
   :Closed     [idx   <- :wat::core::i64]

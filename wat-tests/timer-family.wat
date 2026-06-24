@@ -21,7 +21,8 @@
     ((:wat::spawn::ServiceEvent::Closed _idx) nil)
     ((:wat::spawn::ServiceEvent::Lost _idx _cause) nil)
     (:wat::spawn::ServiceEvent::Shutdown nil)
-    ((:wat::spawn::ServiceEvent::Connection _peer) nil)))
+    ((:wat::spawn::ServiceEvent::Connection _peer) nil)
+    ((:wat::spawn::ServiceEvent::Admin _msg) nil)))
 
 ;; retry-with-backoff — the dreaded pattern, as a tail-recursive re-arm of `after`.
 ;; Naps a growing delay between attempts; returns the attempt it "succeeded" on.
@@ -61,5 +62,6 @@
       ((:wat::spawn::ServiceEvent::Closed _idx) :none)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :none)
       (:wat::spawn::ServiceEvent::Shutdown :none)
-      ((:wat::spawn::ServiceEvent::Connection _peer) :none))
+      ((:wat::spawn::ServiceEvent::Connection _peer) :none)
+      ((:wat::spawn::ServiceEvent::Admin _msg) :none))
     :fast))

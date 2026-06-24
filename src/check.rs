@@ -11438,16 +11438,19 @@ fn infer_close_prime(
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
-// I,O flow from Vector<peer<I,O>>'s element peer type into the return ServiceEvent<I,O>.
+// I,O flow from Vector<peer<I,O>>'s element peer type into the return ServiceEvent<I,O,A>.
 // A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
 // the same infinite-open-set argument as get/recv'. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
 /// Type-check `(:wat::kernel::select' peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
 /// One positional arg: `args[0]` a `Vector<Thread'<I,O>>` or
-/// `Vector<Process'<I,O>>`. Returns `ServiceEvent<I,O>`.
+/// `Vector<Process'<I,O>>`. Returns `ServiceEvent<I,O,A>`.
 ///
-/// On success: `TypeExpr::Parametric { "wat::spawn::ServiceEvent", [I, O] }`.
+/// select' has no self-peer / lineage channel, so `A` (the admin receive type) is a
+/// fresh unconstrained tyvar — the :Admin variant can never fire from select'.
+///
+/// On success: `TypeExpr::Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
 /// On failure (non-peer element type): TypeMismatch with
 /// "Vector of Thread'<I,O> | Process'<I,O> peers".
 fn infer_select_prime(
@@ -11481,7 +11484,7 @@ fn infer_select_prime(
         }
         let fb = TypeExpr::Parametric {
             head: "wat::spawn::ServiceEvent".into(),
-            args: vec![fresh.fresh(), fresh.fresh()],
+            args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
         };
         return CheckResult::partial_with(fb, local_errors);
     }
@@ -11492,7 +11495,7 @@ fn infer_select_prime(
         None => {
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
         }
@@ -11519,7 +11522,7 @@ fn infer_select_prime(
             });
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
         }
@@ -11555,7 +11558,7 @@ fn infer_select_prime(
             });
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
         }
@@ -11563,9 +11566,12 @@ fn infer_select_prime(
 
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
+    // select' has no self-peer / lineage channel — :Admin can never fire.
+    // Use a fresh unconstrained tyvar for A so the arity matches ServiceEvent<I,O,A>.
+    let a_fresh = fresh.fresh();
     let ret = TypeExpr::Parametric {
         head: "wat::spawn::ServiceEvent".into(),
-        args: vec![i_resolved, o_resolved],
+        args: vec![i_resolved, o_resolved, a_fresh],
     };
     if local_errors.is_empty() {
         CheckResult::ok(ret)
@@ -11574,16 +11580,16 @@ fn infer_select_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll' self-peer listener peers)` → `ServiceEvent<I,O>`.
+/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll' self-peer listener peers)` → `ServiceEvent<I,O,A>`.
 ///
 /// 3-arg service-multiplexer form:
-///   args[0] = self-peer (`Peer'<_,_>` — the owner link; its params don't constrain the result).
+///   args[0] = self-peer (`Peer'<S,R>` — the owner link; R = admin receive type A).
 ///   args[1] = listener (`Listener'<S,R>` — inferred permissively, not further constrained).
 ///   args[2] = peers (`Vector<Peer'<I,O>>` — the connected client peers).
 ///
-/// Returns `Parametric { "wat::spawn::ServiceEvent", [I, O] }` extracted from the peers.
-/// The self-peer parameter is accepted as any `Peer'` (the supervisor link); its type params
-/// are the program's self-channel which are independent of the client peer I/O types.
+/// Arc 291 3a-i: returns `Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
+///   I, O flow from the peers vector element type.
+///   A = the self-peer's receive type (args[0]: Peer'<_,A>) — the admin channel receive type.
 fn infer_poll_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11595,8 +11601,30 @@ fn infer_poll_prime(
     const OP: &str = ":wat::kernel::poll'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // args[0]: self-peer — infer for error coverage; type not further constrained.
-    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // args[0]: self-peer — infer and extract the receive type A (targs[1] of Peer'<S,A>).
+    // A is the type the service receives from the owner over the lineage channel (admin ops).
+    let a_ty: TypeExpr = {
+        let self_peer_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        match self_peer_ty {
+            Some(ty) => {
+                let surface = apply_subst(&ty, subst);
+                let reduced = reduce(&surface, subst, env.types());
+                match &reduced {
+                    TypeExpr::Parametric { head, args: targs }
+                        if head == "wat::kernel::Peer'" && targs.len() == 2 =>
+                    {
+                        // Peer'<S, R>: targs[1] = R = what the service receives from the owner.
+                        targs[1].clone()
+                    }
+                    _ => {
+                        // Self-peer type unknown or not yet resolved — use a fresh tyvar.
+                        fresh.fresh()
+                    }
+                }
+            }
+            None => fresh.fresh(),
+        }
+    };
 
     // args[1]: listener — infer for error coverage; type not further constrained here.
     let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11607,7 +11635,7 @@ fn infer_poll_prime(
         None => {
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return if local_errors.is_empty() {
                 CheckResult::ok(fb)
@@ -11638,7 +11666,7 @@ fn infer_poll_prime(
             });
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
         }
@@ -11665,7 +11693,7 @@ fn infer_poll_prime(
             });
             let fb = TypeExpr::Parametric {
                 head: "wat::spawn::ServiceEvent".into(),
-                args: vec![fresh.fresh(), fresh.fresh()],
+                args: vec![fresh.fresh(), fresh.fresh(), fresh.fresh()],
             };
             return CheckResult::partial_with(fb, local_errors);
         }
@@ -11673,9 +11701,10 @@ fn infer_poll_prime(
 
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
+    let a_resolved = apply_subst(&a_ty, subst);
     let ret = TypeExpr::Parametric {
         head: "wat::spawn::ServiceEvent".into(),
-        args: vec![i_resolved, o_resolved],
+        args: vec![i_resolved, o_resolved, a_resolved],
     };
     if local_errors.is_empty() {
         CheckResult::ok(ret)

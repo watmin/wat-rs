@@ -84,6 +84,10 @@
         ((:wat::spawn::ServiceEvent::Connection _peer)
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Connection event"
+            :wat::core::None :wat::core::None))
+        ((:wat::spawn::ServiceEvent::Admin _msg)
+          (:wat::kernel::assertion-failed!
+            "bracket collect-loop: unexpected Admin event (select' has no self-peer)"
             :wat::core::None :wat::core::None))))))
 
 ;; ── map-worker — general pool engine (per-runner state via worker-init) ───────

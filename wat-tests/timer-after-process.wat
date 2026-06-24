@@ -29,5 +29,6 @@
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :no-tick)
       (:wat::spawn::ServiceEvent::Shutdown :no-tick)
-      ((:wat::spawn::ServiceEvent::Connection _peer) :no-tick))
+      ((:wat::spawn::ServiceEvent::Connection _peer) :no-tick)
+      ((:wat::spawn::ServiceEvent::Admin _msg) :no-tick))
     :tick))

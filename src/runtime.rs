@@ -25450,17 +25450,25 @@ fn eval_poll_prime(
                 }
                 crate::comms::SelectOutcome::Recv { index, result } => {
                     if index.0 == 0 {
-                        // ── Self-peer arm: owner dropped the handle (RAII drain fired) ──
-                        // Do NOT inspect `result` — the self-peer is the supervisor link.
-                        // The RAII drain drops input_tx → input_rx disconnects → select
-                        // fires here (result = Err(Disconnected)).  Returning :Shutdown is
-                        // the deadlock-free termination signal — no cooperative Stop needed.
-                        // index 0 → ServiceEvent::Shutdown (no fields)
-                        Value::Enum(Arc::new(EnumValue {
-                            type_path: SELECT_EVENT_TYPE.into(),
-                            variant_name: "Shutdown".into(),
-                            fields: vec![],
-                        }))
+                        // ── Self-peer arm (index 0): owner↔service lineage channel ──────
+                        // Arc 291 3a-i: inspect `result`.
+                        //   Ok(msg)  → ServiceEvent::Admin{msg}  (owner sent an admin op)
+                        //   Err(_)   → ServiceEvent::Shutdown     (owner dropped handle — RAII drain)
+                        // Previously this arm always returned :Shutdown without inspecting
+                        // `result` — that discarded messages the owner sent before dropping.
+                        // [[arc-291-3a-i: admin/data facet split foundation]]
+                        match result {
+                            Ok(msg) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Admin".into(),
+                                fields: vec![msg],
+                            })),
+                            Err(_) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Shutdown".into(),
+                                fields: vec![],
+                            })),
+                        }
                     } else if index.0 == 1 {
                         // ── Listener arm: a client is dialing ─────────────────────────
                         let cr = result.map_err(|_| {
@@ -25600,17 +25608,51 @@ fn eval_poll_prime(
                 }
                 crate::comms::SelectOutcome::Recv { index, result } => {
                     if index.0 == 0 {
-                        // ── Self-peer arm (index 0): owner dropped the handle ──
-                        // The RAII drain dropped the write-end of the child's input
-                        // pipe → fd EOF → process::Select fires Recv{0}.
-                        // DO NOT inspect `result` — we only care that this arm fired.
-                        // Returning :Shutdown is the deadlock-free termination signal.
-                        // [[feedback_vended_primitives_never_deadlock]]
-                        Value::Enum(Arc::new(EnumValue {
-                            type_path: SELECT_EVENT_TYPE.into(),
-                            variant_name: "Shutdown".into(),
-                            fields: vec![],
-                        }))
+                        // ── Self-peer arm (index 0): owner↔service lineage channel ──────
+                        // Arc 291 3a-i: inspect `result`.
+                        //   Ok(raw_bytes) → decode → ServiceEvent::Admin{msg}  (owner sent admin op)
+                        //   Err(_)        → ServiceEvent::Shutdown              (owner dropped handle)
+                        // Previously always returned :Shutdown without inspecting `result`.
+                        // [[arc-291-3a-i: admin/data facet split foundation]]
+                        match result {
+                            Ok(raw_bytes) => {
+                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: "poll' (process tier): admin message is not valid UTF-8".into(),
+                                        },
+                                    })
+                                })?;
+                                let msg = crate::edn_shim::decode_trusted_wire(
+                                    wire_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                )
+                                .map_err(|e| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!(
+                                                "poll' (process tier): admin message decode failed: {}",
+                                                e
+                                            ),
+                                        },
+                                    })
+                                })?;
+                                Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE.into(),
+                                    variant_name: "Admin".into(),
+                                    fields: vec![msg],
+                                }))
+                            }
+                            Err(_) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Shutdown".into(),
+                                fields: vec![],
+                            })),
+                        }
                     } else {
                         // ── Client peer arm: clients[k-1] fired (k = index, k ≥ 1) ──
                         // NB: process layout is 0=self-peer, 1..=N=clients (the listener

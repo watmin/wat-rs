@@ -486,6 +486,8 @@
                      (:wat::spawn::ServiceEvent::Shutdown nil)
                      ((:wat::spawn::ServiceEvent::Connection peer)
                        (~serve-name self l (:wat::core::conj clients peer) state))
+                     ((:wat::spawn::ServiceEvent::Admin _admin-msg)
+                       (~serve-name self l clients state))
                      ((:wat::spawn::ServiceEvent::Message idx op)
                        (:wat::core::match op -> :wat::core::nil
                          ~@serve-op-arms))
