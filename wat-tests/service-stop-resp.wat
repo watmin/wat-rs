@@ -30,7 +30,6 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; Increment to 7; the Handle-holder stops; stop returns the PROJECTED i64 (7), not a State.
-(:wat::test::ignore "arc 291 strike-3b RED probe — stop→resp decouple (:stop callback) unbuilt; un-ignore on 3b green")
 (:wat::test::deftest' :wat-tests::service::stop-resp-on-thread
   ()
   (:wat::test::assert-eq
@@ -43,7 +42,6 @@
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::ignore "arc 291 strike-3b RED probe — stop→resp decouple (:stop callback) unbuilt; un-ignore on 3b green")
 (:wat::test::deftest' :wat-tests::service::stop-resp-on-process
   ()
   (:wat::test::assert-eq

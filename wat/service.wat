@@ -73,9 +73,11 @@
      ;; strings (a WatAST keyword node isn't reliably `=` a runtime keyword — `to-string` them).
      known-opts     (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
-                        (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                        "record-parent" true)
-                      "init" true)
+                        (:wat::core::HashMap/assoc
+                          (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                          "record-parent" true)
+                        "init" true)
+                      "stop" true)
      opts-len       (:wat::core::length opts)
      n-opt-pairs    (:wat::core::i64::/ opts-len 2)
      ;; even-length guard (no modulo: (len/2)*2 == len iff even)
@@ -104,7 +106,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown trailing option :"
                                 (:wat::core::string::concat key
-                                  " — recognized options: :record-parent :init"))))))
+                                  " — recognized options: :record-parent :init :stop"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-opt-pairs))
      ;; each option is now a plain get with a default
@@ -149,6 +151,27 @@
      init-name      (:wat::core::keyword/from-string init-name-str)
      ;; init-def: the emitted top-level defn for init
      init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty ~init-body)
+
+     ;; ── arc 291 3b: :stop option — fn node, emitted defn, resp-ty ────────────
+     ;; Mirror of :init: (fn [s <- :State] -> :Resp body) projecting final State → resp.
+     ;; Default (no :stop): identity fn — (fn [s <- :State] -> :State s) so Resp = State.
+     ;; stop-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
+     stop-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? opts-map "stop")
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get opts-map "stop")
+                        "defservice: :stop needs a value")
+                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~state-ty ~s-sym))
+     stop-fn-ch     (:wat::core::ast->children stop-fn-node)
+     stop-params-vec (:wat::core::first (:wat::core::drop stop-fn-ch 1))
+     ;; resp-ty: index 3 = the :RetTy node in [fn, params, ->, :RetTy, body]
+     resp-ty        (:wat::core::first (:wat::core::drop stop-fn-ch 3))
+     stop-body      (:wat::core::first (:wat::core::drop stop-fn-ch 4))
+     ;; stop-project-name: :<fqdn>::stop-project (distinct from <fqdn>/stop method)
+     stop-project-name-str (:wat::core::string::interpolate "{fqdn-str}::stop-project" :fqdn-str fqdn-str)
+     stop-project-name (:wat::core::keyword/from-string stop-project-name-str)
+     ;; stop-project-def: the emitted top-level defn for stop projection
+     stop-project-def `(:wat::core::defn ~stop-project-name ~stop-params-vec -> ~resp-ty ~stop-body)
 
      ;; ── rs-1: emit the State record def, branching on state-parent ──────────
      ;; :wat::holon::Record → (:wat::holon::Record::def ~state-ty ~state-fields)
@@ -262,7 +285,7 @@
                        :Stop)
      lineage-up-enum-def `(:wat::core::defenum ~lineage-up-ty
                              :Started [addr <- ~addr-ty]
-                             :Final   [state <- ~state-ty])
+                             :Final   [resp <- ~resp-ty])
 
      ;; ── arc 291 3a-ii-α: init-from-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -531,7 +554,7 @@
                        (:wat::core::match admin-msg -> :wat::core::nil
                          (~admin-stop-kw
                            (:wat::core::do
-                             (:wat::kernel::send' self (~lineage-final-kw state))
+                             (:wat::kernel::send' self (~lineage-final-kw (~stop-project-name state)))
                              nil))
                          ((~admin-init-kw _seed)
                            (:wat::kernel::assertion-failed!
@@ -670,13 +693,13 @@
      stop-method-body  `(:wat::core::let
                           [~stop-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
                            ~stop-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                          (:wat::core::match ~stop-r-sym -> ~state-ty
-                            ((~lineage-final-kw state) state)
+                          (:wat::core::match ~stop-r-sym -> ~resp-ty
+                            ((~lineage-final-kw resp) resp)
                             (_ (:wat::kernel::assertion-failed!
                                  "defservice stop: expected LineageUp::Final"
                                  :wat::core::None
                                  :wat::core::None))))
-     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~state-ty ~stop-method-body)
+     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend methods with the owner-only stop.
      methods           (:wat::core::conj methods stop-method)
 
@@ -780,6 +803,7 @@
                             (:wat::core::defn ~serve-name ~serve-params
                               -> :wat::core::nil ~serve-body)
                             ~init-def
+                            ~stop-project-def
                             ~admin-enum-def
                             ~lineage-up-enum-def
                             ~init-from-admin-def
@@ -842,6 +866,7 @@
        ~lineage-up-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
        ~init-def
+       ~stop-project-def
        ~init-from-admin-def
        ~lineage-extract-addr-def
        ~@constructors
