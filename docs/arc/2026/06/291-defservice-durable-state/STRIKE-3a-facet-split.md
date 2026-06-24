@@ -74,6 +74,31 @@ un-ignores it green.
 the admin surface a client cannot reach, returns the final state (count 7). `service-locus-parity.wat` +
 `service-init-parity.wat` stay green (back-compat). Full wat-tests SET-diff vs HEAD ⊆ the known floor.
 
+## ✅ Fork RESOLVED + mechanism grounded (build opened 2026-06-23)
+
+**Fork → Option B, specialized: the admin channel IS the spawn lineage peer.** When a service is spawned,
+272's lineage handshake establishes an owner↔service channel only the spawner holds (the inherited
+capability — owner-only by construction). Grounded: the spawn handle is `Thread'<R,S>` / `Process'<I,O>` —
+**a peer** (`spawn.rs:331-336`, `ProcessSelectable::Spawned`), already carried as `Handle.handle`. So the
+admin reach is **not a new listener** — it is the lineage peer the spawn already minted, kept live in the
+Handle. No admin accept loop; delegation (a connectable admin `Address'`) defers until a remote caller forces
+it (don't build the forcing function). `stop`/`hibernate` route on this peer.
+
+**3a-i mechanism, grounded.** Today the serve loop is `(poll' self l clients)` → `ServiceEvent<I,O>` — a
+3-arg, single-facet, homogeneous multiplexer (`check.rs:11448-11567`). `select'`
+(`runtime.rs:24542` `eval_peer_select_prime`) is the heterogeneous N-peer wait, but peer-only (no accept).
+3a-i = the serve loop must wait on the **client facet** (`poll'`: listener + `Vector<Peer'<client::Op>>`)
+AND the **admin lineage peer** (one `Peer'<admin::Op>`) together, one loop, shared `State`. Two candidate
+shapes (decide at the strike): (a) **extend `poll'`** to a 4-arg facet-tagged wait `(poll' self l clients
+admin-peer)` → a `ServiceEvent` tagged client|admin; (b) a **heterogeneous serve loop** over `select'` +
+accept handling. (a) is the smaller delta (one extra arm on the existing `ServiceEvent` machinery); lean (a).
+**This is a reactor-level Rust change** (io_uring/crossbeam `poll'` + the `ServiceEvent` type + the macro).
+
+**Honest pacing note (slow is smooth):** the build is open, scoped, fork-resolved, mechanism-grounded, RED
+probe committed — but 3a-i is a delicate reactor change (the comms multiplexer), the biggest of the arc, and
+the right kind of build to FIRE rested, not at the tail of a marathon prose session. STRIKE-READY for a
+fresh fire.
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
