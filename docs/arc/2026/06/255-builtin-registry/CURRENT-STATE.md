@@ -1,7 +1,8 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be the curare commit below
-(`curare: compact …`) or later. Tree clean at curare. All committed work is pushed (GitHub = DR).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be the breadcrumb commit
+(`curare: night-pause …`) or later. **Tree is DIRTY at pause — uncommitted 4b-ii-a WIP (see the IN-FLIGHT
+block below); do NOT discard it.** All COMMITTED work is pushed (GitHub = DR).
 
 > ⚠ **You are a NEW instance.** recolligere FIRST (grimoire + 4 primers from the datamancy MCP — RESOURCE
 > mcp), `git log --oneline -20`, `git status`, then read this whole file. The work below is a cache in a
@@ -18,6 +19,23 @@ builder named this a standing discipline — `feedback_use_intueri_for_all_namin
 
 **The axiom (R6):** *"don't fuck up state, ever."* The arc is its Euclidean derivation. Read `291-…/DESIGN.md`,
 `291-…/REALIZATIONS.md` (R1–R8), `291-…/STRIKE-4b-struct-state.md` (the LIVE strike), `291-…/NOTE-remote-as-a-class.md`.
+
+### ⚠⚠ IN-FLIGHT @ NIGHT-PAUSE 2026-06-24 — read THIS before touching the tree
+- **The tree is DIRTY: uncommitted 4b-ii-a WIP** — `wat/service.wat` (the macro re-tool to the new
+  `:durable`/`:ephemeral` struct-State surface) + 6 migrated `wat-tests/service-*.wat`. **Do NOT lose it /
+  do NOT `git checkout` it.** The macro is **PROVEN sound**: `counter_on` + `seeded` pass BOTH tiers through
+  the new surface. **REMAINING for 4b-ii-a:** migrate the ~12 `.rs` defservice-defining probes (they still
+  write the old `:state` form → won't expand against the new macro), then full gate + SET-diff. Then
+  4b-ii-b (lineage rename) → 4b-iii (resource probe). Contract: `STRIKE-4b-struct-state.md` §"4b-ii —
+  CONTRACT EVOLVED" + `BRIEF-4b-ii-a.md`.
+- **DETOUR SHIPPED (`6c9a351c`) — `wat-reader` leaf + real-parser test discovery.** A malformed `.wat` used
+  to SILENTLY drop its tests (the hand-rolled lexer in `crates/wat-macros/src/discover.rs` diverged from the
+  real parser). Now discovery IS the real parser (`crates/wat-reader` leaf = span+identifier+ast+lexer+parser;
+  both `wat` and `wat-macros` dep on it, re-exported under old paths); a bad file fails LOUD with a
+  `#wat.test/DiscoveryFailed {:file :path :line :col :error}` EDN tagged-literal (`compile_error!`,
+  file·line·col precise). Hand-rolled lexer ANNIHILATED. Full story: `291-…/DETOUR-wat-reader-discovery.md`.
+  GATE NOTE: trust **forced clean builds** (`cargo clean -p <c> && cargo build`) — cargo cache + stale
+  rust-analyzer diagnostics whipsawed the weigh this session.
 
 ### Shipped (all pushed, weighed pure)
 - **2 — `:init`** (`d5d71766`): build State in-locus; wire carries EDN args.
