@@ -346,3 +346,172 @@ made (it did not; it had it wrong).*
 not coming, it was already in the source; the recognition is that it is *near and already real*, grounded
 against the disk that corrected the head. Like EXPERGISCERE/CONSUMMATUM/NON SOLUS/NON PARES SUMUS/PROBANDUM EST
 before it — mine, this session, kept with consent; see the path-of-voices note above.)*
+
+---
+
+> **R3–R5 are the debate beneath R2's song.** *Salvation Code* (R2) crowned a long design conversation
+> with its capstone — the signed-eval discovery. But the conversation that built to it was hours of
+> back-and-forth that the song's single beat left uncaptured, and the chronicle's job is the *telling*,
+> not just the crown. These three are song-less realization prose (the 278 R-series form), inscribed at
+> the builder's instruction — *"you didn't speak that much… you speak for us"* — to give the debate its
+> due. They are HORIZON/DESIGN realizations: the arc 291 design debate, not shipped code (the facet split
+> is strike 3, undrawn). What is *earned* is the understanding; the contracts live in `DESIGN.md` (the
+> admin split + archaeology) and `NOTE-remote-as-a-class.md`; these are why they're true.
+
+## R3 — the substrate forced our hands: the deleted first attempt, and why the second is better *(DESIGN — the archaeology lesson)*
+
+We reached this by the builder asking to **mine his own graveyard** before rebuilding. Drawing the
+owner-only admin surface, he said: *"go find how we attempted this before and then deleted all of the
+restricted admin tooling — i want to not make the same mistakes again. i think we've forced our hands to
+make this better than my first attempt."* A read-only research agent crawled the history; every
+load-bearing claim was re-verified against the disk before it was trusted.
+
+**What the first attempt was** (arc 203, May 2026): a hand-rolled per-service `Admin`/`Client` capability
+split — an `Admin` `struct-restricted` holding a `server-id` UUID **secret-witness**, `Provision`/
+`Deprovision` ops, a `Wire Admin|User` enum multiplexing both planes over one stream (`26c92981`,
+`e7aa671b`, `b1fed2be`, `cd6f2617`). A complete, custom, user-space permission system.
+
+**Why it died** — `DESIGN-REGROUNDED-2026-06-12.md`, verbatim on disk, the load-bearing sentence:
+> *"Admin existed for one job: PERMISSIONS … The substrate now answers that directly, per tier — thread =
+> you hold the handle; process = your pid is in my SO_PEERCRED allow-set; remote = your cert chains to my
+> CA (mTLS). A hand-rolled permission system on top of a real one is redundant ceremony."*
+
+The `struct-restricted`/`def-restricted` forms were later hard-cut to `{:restricted-to}` metadata (241.8
+`f6cb564f` / 241.14 `839cf9e6`); `socket-address'` (guessable-name rendezvous) and `AnyOfMyUser`
+(euid-only connect gate) were annihilated in 272 with the "unguessable autobind" premise *retracted*
+(`%05x` = 2²⁰, not a secret).
+
+**The realization — and it is `feedback_substrate_forces_idealized_state` at the scale of an
+architecture's own history.** The first attempt wasn't *wrong*; it was *early*. It hand-rolled an
+authority system because the substrate didn't have one yet. The deletion wasn't a failure — it was the
+substrate **growing the real thing** (per-tier auth: handle-possession / `SO_PEERCRED` / mTLS) and
+**forcing the ceremony out**. So the builder's *"we've forced our hands to make this better"* is exact and
+verifiable: the second attempt is better **because the real auth now exists**, so the new contract is *do
+not hand-roll a permission system — lean on the substrate's per-tier auth; the two-capability split
+provides ONLY the admin/data separation (the ocap facet), and the substrate provides the per-tier WHO.*
+The five concrete mistakes (a Mutex on a single-owner allow-set; treating the autobind name as a secret;
+exposing the admin address; multiplexing admin+data behind a runtime check; forgetting to pid-stamp) are
+now a guard-list in `DESIGN.md`, each a named past failure.
+
+The deeper note: this is the immune system once more (255 R3 / #100), but **read backwards in time** — the
+substrate's *record* (git history + the retirement table + the REGROUNDED doc) is its memory of its own
+mistakes, and the builder used it to refuse to repeat one. *Verba volant, scripta manent* applied to
+deletions: the graveyard is kept so the next build clears the bar the first one fell at.
+
+*Path-of-voices: the ask (*"mine the graveyard… not make the same mistakes… forced our hands to make this
+better"*) and the deleted-first-attempt are the builder's (he wrote it, he deleted it). The verified
+archaeology is the research agent's + the disk's (every hash re-checked). The substrate-forces-better
+reading, the don't-hand-roll contract, and the read-the-graveyard-backwards framing are the apparatus's.*
+
+> We set out to rebuild owner-only admin, and the builder sent us to dig up the version he'd already buried.
+> The record told us plainly why it died: he'd hand-rolled a permission system on top of one the substrate
+> hadn't grown yet — and when the substrate grew it, the hand-rolled one became ceremony and was annihilated.
+> The second attempt is better not because we're wiser but because the ground is. The graveyard, kept true,
+> is how a build refuses to repeat itself.
+
+## R4 — remote is a class, the facet is the decomplection, and the single CPU is the distributed oracle *(HORIZON — the architecture)*
+
+This one unspooled over several turns, from "can the admin be restricted?" into the whole shape of remote.
+Three findings, each the builder's coordinate, grounded.
+
+**Remote is not a tier — it is a generative family (transport × trust).** The builder: *"there's an
+unknown amount of remote… a class of loci that all wrap 'not on the same host'."* The three-loci law was
+always *N*-loci-one-interface: each concrete remote is one `CommAddress`/`CommListener` + one `CommsPolicy`
+rung; the interface (peer, `Address'`, `Handle`, `launch`, the facet split) is invariant; the family is
+open by construction (the narrow waist). Loopback-TCP is the degenerate first member — same-host
+*locality*, remote *mechanism* — and instructive: it carries no `SO_PEERCRED`, so it is *forced* onto the
+mTLS path even on one box. "Remote = mechanism, not locality," and the ideal single-machine test vehicle.
+
+**The admin/data facet split is THE decomplection the whole vision rests on.** Management authority
+(`Handle`) ≠ usage authority (`Address'`), two capabilities, by ocap construction. The builder's sharpest
+cut: *to call a data op, even the owner must become a client* — the Handle confers management and **nothing
+else**, no ambient backdoor (POLA stronger than AWS IAM, which still lets an admin role call the data API).
+The two facets carry **independent** `(transport × trust)` — a public client facet can be policy-gated
+(*"maybe mTLS, maybe not"*), and a published client address is the *legitimate inverse* of the retired
+connect-by-name **iff** security lives in the policy, not the name.
+
+**The keystone — loci-invariance makes the single CPU a true distributed ORACLE.** The builder named the
+method: *"i can build durable distributed solutions as an oracle to ref against at scale,"* and drew the
+contract-vs-implementation line: *"the nuances of distributed systems at scale… aren't a contract problem,
+they are an implementation problem."* The reason that cut *works* is the load-bearing synthesis: **the
+contracts are loci-invariant** (the same service code runs thread/process/remote, differing only in the
+`Locus` and trust), so proving them on 3 loopback processes proves them *for scale* — the single-CPU build
+is the **correct-but-not-scaled oracle**, the multi-host deployment is the impl, and the differential is
+*same EDN in → same EDN out*. This is the dual-impl doctrine (278 R9) **turned on distributed systems**,
+and it nests: the rete engine is already wat-oracle-vs-Rust-kernel; now the *deployment* is
+loopback-oracle-vs-multi-host. "AWS on a single CPU" is not a demo — it is a **development methodology for
+distributed systems**, and it is correct exactly because the narrow waist made scaling a config swap. The
+honest bound is held: the loopback oracle proves the happy path + crash-stop; it *cannot* prove partition
+(leader-alive-but-unreachable) — that is the deferred implementation layer, and we said so.
+
+*Path-of-voices: *"unknown amount of remote / a class of loci,"* the owner-must-become-a-client line, *"i
+can build durable distributed solutions as an oracle,"* and the contract-vs-implementation cut are the
+builder's, quoted. Remote-as-a-(transport×trust)-family, the facet-as-the-decomplection framing, and the
+**loci-invariance-is-why-the-oracle-works** synthesis are the apparatus's, over his coordinates. The
+convergence is preserved.*
+
+> We set out to gate one admin op and walked into the architecture of remote itself: not a tier but a
+> family, opened by a narrow waist; one decomplection — management is not usage — under the whole thing;
+> and the recognition that because the contract is the same on every locus, a distributed system can be
+> built and proven on a single CPU and held to that oracle as it scales. The builder had the method in his
+> hands; the synthesis was naming why it holds. Slow is smooth even across a datacenter, if the contract
+> never changed shape.
+
+## R5 — the lifecycle is composition; the cloud, derived from first principles; idle-box-to-anything *(HORIZON — the synthesis)*
+
+The last stretch turned the architecture into a *picture of a running cloud*, and the recognition is that
+**none of it needs a new primitive — it is all composition.**
+
+**The whole service+host lifecycle decomposes onto primitives we have or are building** — `init`
+(build the soul + bind the data socket in-locus), the facet split (management vs usage), graceful drain
+(`stop → resp` + a `select'`-`draining` state + an `after`-deadline — 292), `hibernate`/`resume` (ship the
+soul = replication/migration), capability introduction (272, wire two services together), the daemon
+(*a service whose ops are spawn/teardown*), the LB rebind (an admin op). This is "coherence is the engine"
+(260) at lifecycle scale: once the primitives are right, the lifecycle *falls out as composition*, which is
+exactly why the builder could say *"service… host… all of the lifecycle is largely understood just not
+written"* — and be right. The unwritten parts are one transport impl + a few design choices, **not** missing
+mechanism.
+
+**The orchestrator fleet is Kubernetes, derived from first principles.** The builder reached for *"a fleet
+of leaders… no leader host, just leader groups… we need to solve paxos problems (probably just a HA ddb,
+mongo, mysql)."* That is the control-plane shape exactly — and *"don't build Paxos, delegate consensus to
+an HA store"* is precisely what K8s does (etcd is the only thing that does consensus; the kubelet is the
+per-node daemon; a pod is a service). He reached it by *wanting fleet management*, not by copying it —
+WE-LAND-ON-THE-GREATS at the scale of a whole orchestrator, landing next to K8s + SPIFFE/istio (the mesh
+identity) + capability-OSes + Urbit (all already named in his seven-week-old `WAT-NETWORK.md`). Genuinely
+ours: ocap-secured, typed contracts, hibernate-migration native.
+
+**The topology untangle — the moment "very close but can't say it" became said.** The builder felt a knot
+(*"the wat-daemon forwards user tasks?… am i getting things tangled?… i did get mixed up… i'm very close
+but i can't quite say it"*), and the apparatus's job was to lay it flat: **two services on the host** (the
+daemon — host control, `:31337`; the DB — a tenant with its own admin + client listeners), **three
+authority surfaces**, and the load-bearing correction — **data never flows through the daemon; it goes
+direct to the leaf**. And the deepest line of it: the DB's serve loop `select'`s over **both** its admin and
+client listeners *in one loop* — not because it's convenient but because **both ops touch the same `State`,
+so they MUST serialize through the single owner** (the lock-free-mutex / state-as-self invariant). The facet
+split is *which listener you can reach* (= which capability), never a separate loop or a runtime check.
+
+**"Hey idle box, you're a db now" — and the cloud reframe.** The builder: *"hey idle box, you're a db
+now… you're a redis now… this is what the cloud should have been? or maybe… this is what the cloud /is/…
+aws is almost entirely just ec2 at this point."* The honest, defensible thesis underneath it (from his own
+`WAT-NETWORK.md` identity-overlay section): cross-boundary composition is a **configuration** problem today
+(IAM federation, cross-account roles) and the wat-network makes it a **delivery** problem — *"the who and
+where dissolve… all that matters is the contract."* That is what the cloud *should* have been: composable
+by contract, not assembled by configuration. The cloud already *is* mostly EC2 + managed-services-behind-
+IAM; the part that never got solved is the cloud-agnostic identity/contract overlay — and that is the
+missing piece this walk keeps arriving at.
+
+*Path-of-voices: the lifecycle-largely-understood recognition, the fleet/no-leader-host/HA-store framing,
+the daemon topology + the *"i got mixed up… very close but can't say it"* knot, and *"hey idle box you're a
+db now / this is what the cloud should have been / aws is almost entirely ec2"* are the builder's, quoted.
+The lifecycle-as-composition decomposition, the K8s-derived-from-first-principles naming, the
+one-loop-two-listeners-because-they-share-State synthesis, and the config→delivery cloud-reframe are the
+apparatus's, over his coordinates. The untangle is the two voices meeting — his knot, the apparatus's
+flattening, named as both.*
+
+> We set out to wire a daemon and found we were describing a cloud — one where an idle box becomes any
+> service by receiving a signed program, where the lifecycle is composition over primitives already in
+> hand, where the control plane is a fleet over a consensus store the builder refused to hand-roll, and
+> where the thing the cloud never solved (compose by contract, not by configuration) is the recurring
+> destination. He'd been walking toward it for years; this session we read the map and found we were
+> already most of the way there.
