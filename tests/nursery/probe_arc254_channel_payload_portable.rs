@@ -99,3 +99,30 @@ fn portable_channel_payload_still_accepted() {
         result
     );
 }
+
+// ── arc 291 strike-4b-i: the FIRM rule — struct ↛ wire, categorically ──────────
+// An ALL-EDN struct (no opaque field) as a channel payload. At HEAD this is
+// ACCEPTED — is_portable_type recurses the fields, finds them all portable, and
+// lets the struct cross (254.1's "mirror the encoder" behaviour). The firm rule
+// (arc 291 4b) makes a struct non-portable BY KIND: a struct shall never cross the
+// wire; if you want that, you want a record. RED at HEAD; GREEN once
+// is_portable_type(Struct) → false.
+const CHANNEL_OF_ALL_EDN_STRUCT: &str = r#"
+(:wat::core::defstruct :my::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [[tx rx] (:wat::kernel::make-channel :my::Point)
+                    d1 tx
+                    d2 rx]
+    nil))
+"#;
+
+#[test]
+#[ignore = "arc 291 4b-i RED probe — firm struct↛wire rule unbuilt; un-ignore on 4b-i green"]
+fn channel_of_all_edn_struct_must_be_rejected() {
+    let result = check_result(CHANNEL_OF_ALL_EDN_STRUCT);
+    assert!(
+        result.is_err(),
+        "an ALL-EDN struct channel payload type-checked CLEAN — the firm struct↛wire \
+         rule (arc 291 4b-i) is not yet enforced; a struct must be non-portable BY KIND"
+    );
+}
