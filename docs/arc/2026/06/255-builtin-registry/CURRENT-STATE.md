@@ -11,7 +11,7 @@ below is pushed.
 
 Read `291-…/DESIGN.md` (the arc + the admin-capability split + the deleted-first-attempt archaeology),
 `291-…/REALIZATIONS.md` (R1–R7), `291-…/NOTE-remote-as-a-class.md` (the network horizon), and
-`291-…/STRIKE-3a-facet-split.md` (the next strike).
+`291-…/DESIGN.md` §sub-strike-4 (the NEXT strike — hibernate/resume). Strikes 2/3a/3b are SHIPPED (below).
 
 **The axiom (R6):** *"don't fuck up state, ever"* — the single self-evident refusal from which the arc's
 theorems derive (OOP/Kay, actors/Hewitt, value-semantics/Hickey, the lock-free mutex, no-mutexes,
@@ -73,9 +73,8 @@ just discarding its messages.
   The debates/designs ARE installed programs (R6/R17). recolligere cheaply re-loads from this trail.
 
 ### Then (the rest of 291)
-- **Strike 3b** — `stop → resp` decouple (return decoupled from State).
 - **Strike 4** — `hibernate`/`resume` (the prophecy → PROBATUM EST): EDN Snapshot; hibernate → process-kill →
-  resume → continue. THE done-gate.
+  resume → continue. THE done-gate. (Strikes 2/3a/3b SHIPPED — see Shipped above.)
 - **Horizon (NOTE-remote-as-a-class.md):** remote = a (transport × trust) family; the daemon (a service whose
   ops are spawn/teardown); the rete-DDB loopback ORACLE; signed-eval + digest ALREADY BUILT
   (`check.rs:15995-16037`) — only mTLS deferred. AWS-on-a-single-CPU as a method.
