@@ -99,6 +99,46 @@ probe committed — but 3a-i is a delicate reactor change (the comms multiplexer
 the right kind of build to FIRE rested, not at the tail of a marathon prose session. STRIKE-READY for a
 fresh fire.
 
+## ✅✅ 3a-i GROUNDED + BRIEFED (the reactor change is surgical) — fire this first
+
+**The keystone grounding:** `eval_poll_prime` arg0 is the **self-peer** (the owner↔service link), and it is
+**already index 0 in the blocking wait** (`runtime.rs:25214-25261`). Today index-0 fire → `ServiceEvent::
+Shutdown` *unconditionally* (`:25451-25463`, "Do NOT inspect result"). The admin channel is already watched;
+we just stop discarding its messages. **A stop from the owner is a `recv'` Ok(msg) on the self-peer.**
+
+**3a-i contract:** at index 0, inspect `result` — **`Ok(msg)` → `ServiceEvent::Admin{msg}`** (owner sent an
+admin op), **`Err(_)` → `ServiceEvent::Shutdown`** (owner dropped — unchanged). Mirror at the process tier
+(`~25530`, `ReactorClass::Fd`). The admin msg is a **third type** `A` (the self-peer's receive type,
+independent of the client `I,O`), so `ServiceEvent<I,O>` → **`ServiceEvent<I,O,A>`** with `Admin[msg <- :A]`.
+
+**Why the cascade is bounded (verified):** `ServiceEvent` is `(defenum :wat::spawn::ServiceEvent<I,O> …)`
+at `spawn.wat:125`. The ~89 `ServiceEvent` hits are mostly **match patterns** (`ServiceEvent::Message idx
+op`) that do NOT carry type params → unaffected by a 3rd param. The Rust constructions build
+`EnumValue{type_path, variant_name, fields}` by NAME → unaffected. The real edits: (1) the defenum
+(`spawn.wat:125`, add `,A` + `Admin [msg <- :A]`); (2) `infer_poll_prime` (`check.rs:5034`/`:11448`) — type
+`A` from arg0's (self-peer) receive type, expose `Admin`; (3) `eval_poll_prime` thread tier
+(`runtime.rs:25451-25463`) + process tier (`~25530`) — the `Ok(msg)→Admin` / `Err→Shutdown` split.
+
+**Rooms (read in order):** `runtime.rs:25205-25261` (poll' arg parsing) → `:25440-25518` (thread event
+construction, the index-0 branch) → `:25521-~25560` (process tier mirror) → `wat/spawn.wat:125` (the
+defenum) → `check.rs:5034` + `:11448-11567` (`infer_poll_prime` + the `ServiceEvent` typing).
+
+**Verify 3a-i (Rust probe — it has no clean wat surface until 3a-ii):** a `tests/` probe that builds a
+self-peer pair, sends an admin `Value` from the owner end, calls the poll'/service-loop path, asserts the
+event is `ServiceEvent::Admin{msg}` (and a dropped-owner still yields `Shutdown`). Model on
+`tests/probe_arc209_c0b3aii_process_service_loop.rs`. ALL existing tests stay green (the SET-diff floor).
+
+**STOP-i:** if adding the 3rd param `A` breaks existing `ServiceEvent::*` **match sites** (it should NOT —
+patterns are param-free), STOP and report which — the design assumes matches are unaffected. Do NOT widen
+`Admin`'s msg to `:wat::core::Value` to dodge the param (that reintroduces a down-cast — R7/255's checked
+firewall; the typed `A` is the point).
+
+**3a-ii (next strike, after 3a-i weighs green):** the macro reshape — emit `<fqdn>::Admin` enum
+(`Stop`; later `Hibernate`), self-peer R = `Admin`, child-main `recv'`s the first admin (the ship/init is
+`Admin::Init(ship)` — unify the startup handshake with the admin channel), serve loop adds a
+`ServiceEvent::Admin` arm dispatching the admin op, `stop` → `<fqdn>/stop [h <- Handle]` sending `Admin::Stop`
+on `Handle.handle`. Un-ignores `service-admin-facet.wat` → GREEN.
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
