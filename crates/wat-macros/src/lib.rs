@@ -742,13 +742,21 @@ pub fn test(input: TokenStream) -> TokenStream {
     let sites = match discover::discover_deftests(&discovery_root) {
         Ok(s) => s,
         Err(e) => {
-            return Error::new(
-                path_lit.span(),
-                format!("wat::test! discover_deftests({}): {}",
-                    discovery_root.display(), e),
-            )
-            .to_compile_error()
-            .into();
+            // A malformed `.wat` file gets its own loud banner (the Display
+            // impl renders the file + line:col + parse error). Lead with that
+            // banner; don't bury it behind the generic discover_deftests(<root>)
+            // prefix. Read/Stat errors keep the contextual prefix.
+            let msg = match &e {
+                discover::DiscoverError::Malformed(..) => format!("{}", e),
+                _ => format!(
+                    "wat::test! discover_deftests({}): {}",
+                    discovery_root.display(),
+                    e
+                ),
+            };
+            return Error::new(path_lit.span(), msg)
+                .to_compile_error()
+                .into();
         }
     };
 

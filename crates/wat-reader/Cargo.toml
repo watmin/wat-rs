@@ -1,0 +1,9 @@
+[package]
+name = "wat-reader"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "The wat reader front-end: span, identifier, AST, lexer, and parser. A closed std-only set depended on by both the main wat crate and wat-macros (proc-macro). Extracted so discovery can use the REAL parser, eliminating the hand-rolled lexer in wat-macros."
+repository = "https://github.com/watmin/wat-rs"
+
+[dependencies]

@@ -44,7 +44,7 @@ pub struct ScopeId(u64);
 impl ScopeId {
     /// The raw `u64` token for env-key string encoding. Do not interpret
     /// the value as domain state.
-    pub(crate) fn as_u64(self) -> u64 {
+    pub fn as_u64(self) -> u64 {
         self.0
     }
 }

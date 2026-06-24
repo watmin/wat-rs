@@ -1,6 +1,7 @@
 [workspace]
 members = [
     ".",
+    "crates/wat-reader",
     "crates/wat-macros",
     "crates/wat-doc",
     "crates/wat-lru",
@@ -24,6 +25,7 @@ members = [
 # at every checkpoint.
 default-members = [
     ".",
+    "crates/wat-reader",
     "crates/wat-macros",
     "crates/wat-doc",
     "crates/wat-lru",
@@ -58,6 +60,7 @@ libc = "0.2"
 regex = "1"
 chrono = "0.4"
 tempfile = "3"
+wat-reader = { path = "crates/wat-reader" }
 wat-macros = { path = "crates/wat-macros" }
 wat-doc = { path = "crates/wat-doc" }
 wat-edn = { path = "crates/wat-edn", features = ["mint"] }

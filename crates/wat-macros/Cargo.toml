@@ -14,6 +14,7 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
 wat-doc = { path = "../wat-doc" }
+wat-reader = { path = "../wat-reader" }
 
 [dev-dependencies]
 trybuild = "1"

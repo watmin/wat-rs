@@ -1,54 +1,31 @@
-//! Deftest discovery — paren-balanced scanner that finds the four
-//! deftest-producing shapes in `.wat` source:
+//! Deftest discovery — walks the real `wat-reader` AST to find the four
+//! deftest-producing shapes in `.wat` source.
 //!
+//! The four shapes:
 //! 1. `(:wat::test::deftest <name> ...)` — direct, in-process (arc 121)
-//! 2. `(:wat::test::deftest-hermetic <name> ...)` — direct, forked
-//!    subprocess (arc 124)
-//! 3. `(:alias <name> <body>)` — alias call where `:alias` was
-//!    declared via `(:wat::test::make-deftest :alias <prelude>)`
-//!    (arc 124)
-//! 4. `(:alias <name> <body>)` — alias call where `:alias` was
-//!    declared via `(:wat::test::make-deftest-hermetic :alias
-//!    <prelude>)` (arc 124)
+//! 2. `(:wat::test::deftest-hermetic <name> ...)` — direct, forked subprocess (arc 124)
+//! 3. `(:wat::test::deftest' <name> ...)` — primed in-process (arc 259 S3.5a)
+//! 4. `(:wat::test::deftest-hermetic' <name> ...)` — primed hermetic (arc 259 S3.5a)
+//! 5. `(:alias <name> ...)` — alias call where `:alias` was declared via
+//!    `(:wat::test::make-deftest :alias <prelude>)` (arc 124)
+//! 6. `(:alias <name> ...)` — alias call where `:alias` was declared via
+//!    `(:wat::test::make-deftest-hermetic :alias <prelude>)` (arc 124)
 //!
-//! Used by the `wat::test!` proc macro at expansion time to enumerate
-//! every deftest under the configured path. The proc macro then emits
-//! one `#[test] fn` per discovered site so cargo's libtest sees each
-//! deftest as a first-class test.
+//! Uses the REAL `wat-reader` parser so a malformed `.wat` file (e.g. unclosed
+//! parenthesis) causes a `DiscoverError::Malformed` which flows to a
+//! `compile_error!` at macro-expansion time. The old hand-rolled lexer silently
+//! dropped deftests below the malformed form; this implementation cannot diverge.
 //!
-//! At the runner layer, the four shapes are indistinguishable —
-//! `deftest` and `deftest-hermetic` both expand at wat-side macro
-//! expansion to a `:wat::core::define` of a function returning
-//! `:wat::test::TestResult`; the runner just looks up the function
-//! by keyword name and calls it. Hermetic vs in-process is
-//! encoded INSIDE the wat-side body (the choice between
-//! `run-sandboxed-ast` and `run-sandboxed-hermetic-ast`). Same for
-//! alias forms — `make-deftest` builds a defmacro that ultimately
-//! expands to `deftest`, `make-deftest-hermetic` to
-//! `deftest-hermetic`. The proc-macro scanner doesn't care about
-//! the inner choice; it just emits the `#[test] fn`.
-//!
-//! This is a tiny lexer — NOT a full wat parser. Recognizing
-//! `(:wat::test::deftest <name>` (or any of the other shapes) is
-//! unambiguous textually:
-//!
-//! - paren balance (skipping comments and string literals)
-//! - at depth 1, the head keyword names the discovery shape
-//! - the next non-whitespace, non-comment token is the deftest's
-//!   name (a keyword starting with `:`)
-//!
-//! Aliases are tracked per-file. The scanner walks top-to-bottom; a
-//! `make-deftest` / `make-deftest-hermetic` registration must
-//! precede the alias's first use (matches wat's runtime defmacro
-//! ordering). Late-declared aliases silently drop — the wat-level
-//! type checker surfaces the real error.
-//!
-//! Comments: `;` to end-of-line. Standard wat comment syntax.
-//! Strings: `"..."` with `\\` and `\"` escapes.
+//! Annotations (`(:wat::test::ignore "reason")`, `(:wat::test::should-panic
+//! "expected")`, `(:wat::test::time-limit "dur")`) are sibling forms preceding
+//! a deftest. The pending state attaches to the next deftest; any non-annotation
+//! form (including `make-deftest` declarations) clears it.
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use wat_reader::{parse_all_with_file, WatAST};
 
 /// One discovered deftest site.
 #[derive(Debug, Clone)]
@@ -87,6 +64,9 @@ pub struct DeftestSite {
 /// Walk `root` (file or directory) and return every deftest site found
 /// in `.wat` files under it. Recursive for directories. Sorted by
 /// (file_path, name) for stable expansion order.
+///
+/// Returns `Err(DiscoverError::Malformed(...))` for any `.wat` file that
+/// fails to parse — this propagates to a `compile_error!` in the proc macro.
 pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError> {
     let mut files: Vec<PathBuf> = Vec::new();
     collect_wat_files(root, &mut files)?;
@@ -96,7 +76,18 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
     for file in &files {
         let src = fs::read_to_string(file)
             .map_err(|e| DiscoverError::Read(file.clone(), e.to_string()))?;
-        for parsed in scan_file(&src) {
+        let path_str = file.to_string_lossy();
+        let forms = parse_all_with_file(&src, &path_str).map_err(|e| {
+            DiscoverError::Malformed(MalformedFile {
+                path: file.clone(),
+                line: e.span.line,
+                col: e.span.col,
+                // The kind alone (no file:line:col prefix) — the prefix is
+                // redundant with the structured :path/:line/:col fields.
+                error: e.kind.to_string(),
+            })
+        })?;
+        for parsed in scan_forms(&forms) {
             sites.push(DeftestSite {
                 file_path: file.clone(),
                 name: parsed.name,
@@ -111,8 +102,8 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
     Ok(sites)
 }
 
-/// One deftest as parsed from a single file. `discover_deftests`
-/// adds the `file_path` to produce a full `DeftestSite`.
+/// One deftest as discovered from a single file's parsed AST.
+/// `discover_deftests` adds the `file_path` to produce a full `DeftestSite`.
 #[derive(Debug, Clone)]
 pub struct ParsedSite {
     pub name: String,
@@ -175,10 +166,29 @@ pub fn parse_duration_ms(s: &str) -> Result<u64, String> {
     ))
 }
 
+/// Structured data for a `.wat` file that failed to parse. Carries the
+/// pieces separately (path / line / col / error-kind) so the diagnostic can
+/// render them as discrete EDN fields rather than a pre-flattened string.
+#[derive(Debug)]
+pub struct MalformedFile {
+    pub path: PathBuf,
+    /// 1-indexed line of the parse error (from the wat-reader span).
+    pub line: i64,
+    /// 1-indexed column of the parse error (from the wat-reader span).
+    pub col: i64,
+    /// The parse-error kind, rendered (e.g. `unclosed '('`) WITHOUT the
+    /// `file:line:col:` prefix — that is redundant with `:path`/`:line`/`:col`.
+    pub error: String,
+}
+
 #[derive(Debug)]
 pub enum DiscoverError {
     Read(PathBuf, String),
     Stat(PathBuf, String),
+    /// A `.wat` file failed to parse. Carries the structured location so the
+    /// diagnostic surfaces as a `#wat.test/DiscoveryFailed { ... }` EDN
+    /// tagged-literal envelope (the wat error idiom).
+    Malformed(MalformedFile),
 }
 
 impl std::fmt::Display for DiscoverError {
@@ -186,8 +196,66 @@ impl std::fmt::Display for DiscoverError {
         match self {
             Self::Read(p, e) => write!(f, "read {}: {}", p.display(), e),
             Self::Stat(p, e) => write!(f, "stat {}: {}", p.display(), e),
+            Self::Malformed(m) => {
+                // A malformed `.wat` aborts discovery of EVERY deftest under the
+                // root. The whole diagnostic IS a `#wat.test/DiscoveryFailed` EDN
+                // tagged-literal (wat's runtime-error idiom) — it names file / path
+                // / line / col / error, self-describing for a human reading cargo
+                // output and `read`-able by a CI parser. No prose, no banner: the
+                // EDN form is the message.
+                let filename = m
+                    .path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("<unknown>");
+                write!(f, "{}", render_malformed_edn(m, filename))
+            }
         }
     }
+}
+
+/// The EDN tag used for the discovery-failure envelope. Mirrors the
+/// `#wat.kernel/...` / `#wat.diag/...` runtime-error idiom.
+pub const DISCOVERY_ERROR_EDN_TAG: &str = "#wat.test/DiscoveryFailed";
+
+/// Render a malformed-file payload as a `#wat.test/DiscoveryFailed { ... }`
+/// EDN tagged-literal envelope, mirroring wat's runtime-error idiom
+/// (`#wat.kernel/AssertionFailure { ... }`, `#wat.diag/TypeMismatch { ... }`).
+///
+/// `wat-macros` is a proc-macro crate that `wat` depends on, so it cannot
+/// depend back on `wat::diagnostic` (circular). This renders the same EDN
+/// *shape* by hand — minimal string-escaping, the field set wat readers
+/// already understand. The result is a SELF-CONTAINED, parseable EDN form
+/// (no leading indentation): a CI parser anchors on the `#wat.test/DiscoveryFailed`
+/// tag and `read`s it directly.
+fn render_malformed_edn(m: &MalformedFile, filename: &str) -> String {
+    let mut out = String::with_capacity(160);
+    out.push_str(DISCOVERY_ERROR_EDN_TAG);
+    out.push_str(" {");
+    out.push_str(":file ");
+    push_edn_string(filename, &mut out);
+    out.push_str(" :path ");
+    push_edn_string(&m.path.display().to_string(), &mut out);
+    out.push_str(&format!(" :line {} :col {} :error ", m.line, m.col));
+    push_edn_string(&m.error, &mut out);
+    out.push('}');
+    out
+}
+
+/// Minimal EDN string escape — matches the subset `wat::diagnostic` emits.
+fn push_edn_string(s: &str, out: &mut String) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            other => out.push(other),
+        }
+    }
+    out.push('"');
 }
 
 fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), DiscoverError> {
@@ -222,47 +290,13 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
     Ok(())
 }
 
-/// Scan one `.wat` source string for the four deftest-producing
-/// shapes (per arc 121 + arc 124) and the per-test annotations that
-/// may precede each (`(:wat::test::ignore "<reason>")`,
-/// `(:wat::test::should-panic "<expected>")`,
-/// `(:wat::test::time-limit "<dur>")`) per arcs 122 + 123.
+/// Walk a parsed list of top-level `WatAST` forms and return every
+/// deftest site found, with annotations attached.
 ///
-/// The four shapes:
-/// - `(:wat::test::deftest <name> ...)` — direct, in-process
-/// - `(:wat::test::deftest-hermetic <name> ...)` — direct, forked
-/// - `(:alias <name> ...)` where `(:wat::test::make-deftest :alias
-///   <prelude>)` declared the alias upstream
-/// - `(:alias <name> ...)` where `(:wat::test::make-deftest-hermetic
-///   :alias <prelude>)` declared the alias upstream
-///
-/// Annotations are SIBLING forms preceding a deftest — pending state
-/// attaches to the next deftest discovered (regardless of which of
-/// the four shapes it takes). Encountering any non-annotation form
-/// between an annotation and a deftest CLEARS the pending
-/// annotations (including `make-deftest` / `make-deftest-hermetic`
-/// declarations themselves — annotations only attach to the
-/// immediately next deftest CALL, not to alias declarations).
-///
-/// Comments are skipped (`;` to end of line). String literals are
-/// skipped (`"..."` with `\\` and `\"` escapes). The scanner is a
-/// hand-rolled paren-balanced reader, NOT a full wat parser.
-/// Arc 138 F-NAMES-1f — convert a byte offset within `src` to a
-/// 1-indexed (line, col) pair. UTF-8 char-count for column matches
-/// the lexer's convention. Used by [`scan_file`] to record each
-/// deftest's source position for the timeout panic message.
-fn byte_offset_to_line_col(src: &str, offset: usize) -> (usize, usize) {
-    let off = offset.min(src.len());
-    let prefix = &src[..off];
-    let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
-    let last_nl = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
-    let col = src[last_nl..off].chars().count() + 1;
-    (line, col)
-}
-
-pub fn scan_file(src: &str) -> Vec<ParsedSite> {
-    let bytes = src.as_bytes();
-    let mut i = 0usize;
+/// This replaces the old hand-rolled `scan_file` — the semantics are
+/// identical but the source is the REAL parsed AST so malformed files
+/// never reach this function.
+pub fn scan_forms(forms: &[WatAST]) -> Vec<ParsedSite> {
     let mut sites: Vec<ParsedSite> = Vec::new();
 
     let mut pending_ignore: Option<String> = None;
@@ -273,309 +307,108 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
     // `(:wat::test::make-deftest :alias ...)` or
     // `(:wat::test::make-deftest-hermetic :alias ...)` are added
     // here; subsequent top-level forms whose head keyword is in
-    // the table are treated as deftest calls. Hermetic vs
-    // in-process distinction is invisible at the runner layer
-    // (the wat-side macro expansion handles dispatch).
+    // the table are treated as deftest calls.
     let mut aliases: HashMap<String, ()> = HashMap::new();
 
-    while i < bytes.len() {
-        let b = bytes[i];
+    for form in forms {
+        // Only top-level List forms are interesting. Skip everything else
+        // (strings, atoms, vectors — but those are rare at top level).
+        let (items, span) = match form {
+            WatAST::List(items, span) => (items, span),
+            _ => continue,
+        };
 
-        if b.is_ascii_whitespace() {
-            i += 1;
-            continue;
-        }
-
-        // Line comment — ; to end of line.
-        if b == b';' {
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
+        // Head must be a keyword.
+        let head_kw = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            _ => {
+                // Non-keyword head → not a test or annotation form; clears pending.
+                pending_ignore = None;
+                pending_should_panic = None;
+                pending_time_limit_ms = None;
+                continue;
             }
-            continue;
-        }
+        };
 
-        // String literal at the top level — skip (preserves
-        // pending annotations; no top-level form was opened).
-        if b == b'"' {
-            i = skip_string(bytes, i);
-            continue;
-        }
-
-        if b == b'(' {
-            // Open a top-level form. Identify by head keyword.
-            let after_paren = i + 1;
-            let head_start = skip_ws_and_comments(bytes, after_paren);
-            let head = read_keyword(bytes, head_start);
-            let head_str = head
-                .map(|h| std::str::from_utf8(h).unwrap_or(""))
-                .unwrap_or("");
-
-            match head_str {
-                ":wat::test::ignore" => {
-                    let arg_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(reason) = read_string_literal(bytes, arg_start) {
-                        pending_ignore = Some(reason);
-                    }
-                    i = skip_form(bytes, i);
+        match head_kw {
+            ":wat::test::ignore" => {
+                if let Some(WatAST::StringLit(reason, _)) = items.get(1) {
+                    pending_ignore = Some(reason.clone());
                 }
-                ":wat::test::should-panic" => {
-                    let arg_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(expected) = read_string_literal(bytes, arg_start) {
-                        pending_should_panic = Some(expected);
-                    }
-                    i = skip_form(bytes, i);
-                }
-                ":wat::test::time-limit" => {
-                    let arg_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(dur_str) = read_string_literal(bytes, arg_start) {
-                        if let Ok(ms) = parse_duration_ms(&dur_str) {
-                            pending_time_limit_ms = Some(ms);
-                        }
-                        // Parse error silently dropped here — the proc
-                        // macro re-parses + emits compile_error! with
-                        // the message at the macro-expansion site.
-                    }
-                    i = skip_form(bytes, i);
-                }
-                ":wat::test::deftest" | ":wat::test::deftest-hermetic"
-                | ":wat::test::deftest'" | ":wat::test::deftest-hermetic'" => {
-                    // Arc 121 + arc 124 — direct deftest forms.
-                    // The wat-side `deftest-hermetic` macro expands
-                    // to a `define` that calls
-                    // `run-sandboxed-hermetic-ast`; the runner
-                    // doesn't distinguish.
-                    // Arc 259 S3.5a — the PRIMED forms (`deftest'` /
-                    // `deftest-hermetic'`, the pipe-model test layer on the
-                    // new substrate) expand to the same `[name] -> TestResult`
-                    // shape; discovery is expansion-agnostic (it reads the
-                    // name + emits one `#[test] fn`), so they are recognized
-                    // here verbatim.
-                    let name_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(name_bytes) = read_keyword(bytes, name_start) {
-                        let name =
-                            std::str::from_utf8(name_bytes).unwrap_or("").to_string();
-                        // Arc 138 F-NAMES-1f — the `(` byte at offset `i`
-                        // is the deftest form's opening paren; convert to
-                        // 1-indexed (line, col).
-                        let (line, col) = byte_offset_to_line_col(src, i);
-                        sites.push(ParsedSite {
-                            name,
-                            line,
-                            col,
-                            ignore: pending_ignore.take(),
-                            should_panic: pending_should_panic.take(),
-                            time_limit_ms: pending_time_limit_ms.take(),
-                        });
-                    }
-                    i = skip_form(bytes, i);
-                }
-                ":wat::test::make-deftest" | ":wat::test::make-deftest-hermetic" => {
-                    // Arc 124 — register an alias keyword as a
-                    // deftest-producing form for the rest of this
-                    // file. The first argument after the head is
-                    // the alias keyword (e.g. `:deftest-hermetic`).
-                    // Annotations preceding a make-deftest call are
-                    // dropped — they don't attach to the alias's
-                    // declaration; an annotation must precede the
-                    // alias's CALL site to attach.
-                    let alias_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(alias_bytes) = read_keyword(bytes, alias_start) {
-                        let alias =
-                            std::str::from_utf8(alias_bytes).unwrap_or("").to_string();
-                        if !alias.is_empty() {
-                            aliases.insert(alias, ());
-                        }
-                    }
-                    pending_ignore = None;
-                    pending_should_panic = None;
-                    pending_time_limit_ms = None;
-                    i = skip_form(bytes, i);
-                }
-                other if !other.is_empty() && aliases.contains_key(other) => {
-                    // Arc 124 — alias call. Treat as a deftest with
-                    // the same shape: next keyword is the test name.
-                    let name_start =
-                        skip_ws_and_comments(bytes, head_start + head_str.len());
-                    if let Some(name_bytes) = read_keyword(bytes, name_start) {
-                        let name =
-                            std::str::from_utf8(name_bytes).unwrap_or("").to_string();
-                        let (line, col) = byte_offset_to_line_col(src, i);
-                        sites.push(ParsedSite {
-                            name,
-                            line,
-                            col,
-                            ignore: pending_ignore.take(),
-                            should_panic: pending_should_panic.take(),
-                            time_limit_ms: pending_time_limit_ms.take(),
-                        });
-                    }
-                    i = skip_form(bytes, i);
-                }
-                _ => {
-                    // Any other top-level form clears pending
-                    // annotations. An annotation only attaches to the
-                    // immediately next deftest.
-                    pending_ignore = None;
-                    pending_should_panic = None;
-                    pending_time_limit_ms = None;
-                    i = skip_form(bytes, i);
+                // do NOT clear other pending state — annotations stack
+            }
+            ":wat::test::should-panic" => {
+                if let Some(WatAST::StringLit(expected, _)) = items.get(1) {
+                    pending_should_panic = Some(expected.clone());
                 }
             }
-            continue;
+            ":wat::test::time-limit" => {
+                if let Some(WatAST::StringLit(dur_str, _)) = items.get(1) {
+                    if let Ok(ms) = parse_duration_ms(dur_str) {
+                        pending_time_limit_ms = Some(ms);
+                    }
+                    // Parse error silently dropped here — the proc macro
+                    // re-parses + emits compile_error! at the macro-expansion
+                    // site with the message.
+                }
+            }
+            ":wat::test::deftest"
+            | ":wat::test::deftest-hermetic"
+            | ":wat::test::deftest'"
+            | ":wat::test::deftest-hermetic'" => {
+                // Arc 121 + arc 124 + arc 259 S3.5a
+                if let Some(WatAST::Keyword(name, _)) = items.get(1) {
+                    let line = span.line as usize;
+                    let col = span.col as usize;
+                    sites.push(ParsedSite {
+                        name: name.clone(),
+                        line,
+                        col,
+                        ignore: pending_ignore.take(),
+                        should_panic: pending_should_panic.take(),
+                        time_limit_ms: pending_time_limit_ms.take(),
+                    });
+                }
+            }
+            ":wat::test::make-deftest" | ":wat::test::make-deftest-hermetic" => {
+                // Arc 124 — register an alias keyword.
+                // Annotations preceding a make-deftest call are dropped —
+                // they don't attach to the alias declaration; an annotation
+                // must precede the alias's CALL site to attach.
+                if let Some(WatAST::Keyword(alias, _)) = items.get(1) {
+                    if !alias.is_empty() {
+                        aliases.insert(alias.clone(), ());
+                    }
+                }
+                pending_ignore = None;
+                pending_should_panic = None;
+                pending_time_limit_ms = None;
+            }
+            other if !other.is_empty() && aliases.contains_key(other) => {
+                // Arc 124 — alias call. Treat as a deftest with the same shape.
+                if let Some(WatAST::Keyword(name, _)) = items.get(1) {
+                    let line = span.line as usize;
+                    let col = span.col as usize;
+                    sites.push(ParsedSite {
+                        name: name.clone(),
+                        line,
+                        col,
+                        ignore: pending_ignore.take(),
+                        should_panic: pending_should_panic.take(),
+                        time_limit_ms: pending_time_limit_ms.take(),
+                    });
+                }
+            }
+            _ => {
+                // Any other top-level form clears pending annotations.
+                pending_ignore = None;
+                pending_should_panic = None;
+                pending_time_limit_ms = None;
+            }
         }
-
-        // Stray byte at top level — advance.
-        i += 1;
     }
 
     sites
-}
-
-/// Read a `:keyword` starting at `pos`. Returns the keyword's byte
-/// length (including the leading `:`) or `None` if the byte at
-/// `pos` is not the start of a keyword.
-///
-/// A wat keyword: `:` followed by one or more identifier chars
-/// (alphanumerics, underscore, hyphen, plus `:` for FQDN segments).
-fn read_keyword(bytes: &[u8], pos: usize) -> Option<&[u8]> {
-    if pos >= bytes.len() || bytes[pos] != b':' {
-        return None;
-    }
-    let mut end = pos + 1;
-    while end < bytes.len() && is_keyword_byte(bytes[end]) {
-        end += 1;
-    }
-    if end == pos + 1 {
-        return None;
-    }
-    Some(&bytes[pos..end])
-}
-
-fn is_keyword_byte(b: u8) -> bool {
-    // Arc 259 S3.5a — `'` is a keyword byte: wat keywords end in a PRIME
-    // (`spawn-program'`, `recv'`, `deftest'`). Without it, `read_keyword` on
-    // `:wat::test::deftest'` stopped at the prime, returned the unprimed head,
-    // and the discovery silently skipped every primed deftest.
-    b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b':' || b == b'\''
-}
-
-fn skip_ws_and_comments(bytes: &[u8], mut pos: usize) -> usize {
-    while pos < bytes.len() {
-        let b = bytes[pos];
-        if b.is_ascii_whitespace() {
-            pos += 1;
-            continue;
-        }
-        if b == b';' {
-            while pos < bytes.len() && bytes[pos] != b'\n' {
-                pos += 1;
-            }
-            continue;
-        }
-        break;
-    }
-    pos
-}
-
-/// Skip a string literal starting at `pos` (where `bytes[pos] ==
-/// b'"'`). Returns the position one past the closing quote.
-/// Honors `\\` and `\"` escapes.
-fn skip_string(bytes: &[u8], mut pos: usize) -> usize {
-    debug_assert_eq!(bytes[pos], b'"');
-    pos += 1;
-    while pos < bytes.len() {
-        if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
-            pos += 2;
-            continue;
-        }
-        if bytes[pos] == b'"' {
-            return pos + 1;
-        }
-        pos += 1;
-    }
-    pos
-}
-
-/// Read a string literal starting at `pos` (which should point at
-/// `"`). Returns the unescaped string contents, or None if `pos`
-/// is not the start of a string. Handles `\\`, `\"`, `\n`, `\t`,
-/// `\r` escapes.
-fn read_string_literal(bytes: &[u8], pos: usize) -> Option<String> {
-    if pos >= bytes.len() || bytes[pos] != b'"' {
-        return None;
-    }
-    let mut out = String::new();
-    let mut p = pos + 1;
-    while p < bytes.len() {
-        let b = bytes[p];
-        if b == b'\\' && p + 1 < bytes.len() {
-            let escape = bytes[p + 1];
-            let ch = match escape {
-                b'\\' => '\\',
-                b'"' => '"',
-                b'n' => '\n',
-                b't' => '\t',
-                b'r' => '\r',
-                _ => {
-                    // Unknown escape — preserve verbatim.
-                    out.push('\\');
-                    out.push(escape as char);
-                    p += 2;
-                    continue;
-                }
-            };
-            out.push(ch);
-            p += 2;
-            continue;
-        }
-        if b == b'"' {
-            return Some(out);
-        }
-        out.push(b as char);
-        p += 1;
-    }
-    Some(out)
-}
-
-/// Skip a paren-form starting at `pos` (where `bytes[pos] == b'('`).
-/// Returns the position one past the matching close paren.
-/// Respects nested parens, comments, and string literals.
-fn skip_form(bytes: &[u8], mut pos: usize) -> usize {
-    debug_assert_eq!(bytes[pos], b'(');
-    let mut depth: i32 = 0;
-    while pos < bytes.len() {
-        let b = bytes[pos];
-        if b == b';' {
-            while pos < bytes.len() && bytes[pos] != b'\n' {
-                pos += 1;
-            }
-            continue;
-        }
-        if b == b'"' {
-            pos = skip_string(bytes, pos);
-            continue;
-        }
-        if b == b'(' {
-            depth += 1;
-            pos += 1;
-            continue;
-        }
-        if b == b')' {
-            depth -= 1;
-            pos += 1;
-            if depth == 0 {
-                return pos;
-            }
-            continue;
-        }
-        pos += 1;
-    }
-    pos
 }
 
 /// Sanitize a deftest's keyword name into a valid Rust identifier
@@ -616,9 +449,15 @@ pub fn sanitize_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wat_reader::parse_all_with_file;
+
+    fn parse_and_scan(src: &str) -> Vec<ParsedSite> {
+        let forms = parse_all_with_file(src, "<test>").expect("parse succeeds");
+        scan_forms(&forms)
+    }
 
     fn names_only(src: &str) -> Vec<String> {
-        scan_file(src).into_iter().map(|s| s.name).collect()
+        parse_and_scan(src).into_iter().map(|s| s.name).collect()
     }
 
     #[test]
@@ -701,9 +540,9 @@ mod tests {
 
     #[test]
     fn scan_handles_empty_input() {
-        assert!(scan_file("").is_empty());
-        assert!(scan_file("   \n  \t  ").is_empty());
-        assert!(scan_file(";; only comments").is_empty());
+        assert!(names_only("").is_empty());
+        assert!(names_only("   \n  \t  ").is_empty());
+        assert!(names_only(";; only comments").is_empty());
     }
 
     #[test]
@@ -723,7 +562,7 @@ mod tests {
             (:wat::test::ignore "broken on Windows")
             (:wat::test::deftest :my::flaky ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::flaky");
         assert_eq!(sites[0].ignore.as_deref(), Some("broken on Windows"));
@@ -736,7 +575,7 @@ mod tests {
             (:wat::test::should-panic "divide by zero")
             (:wat::test::deftest :my::div-zero ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::div-zero");
         assert_eq!(sites[0].ignore, None);
@@ -750,7 +589,7 @@ mod tests {
             (:wat::test::should-panic "expected substring")
             (:wat::test::deftest :my::combined ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].ignore.as_deref(), Some("intermittent"));
         assert_eq!(sites[0].should_panic.as_deref(), Some("expected substring"));
@@ -765,7 +604,7 @@ mod tests {
             (:user::compute 1 2 3)
             (:wat::test::deftest :my::clean ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::clean");
         assert_eq!(sites[0].ignore, None);
@@ -778,7 +617,7 @@ mod tests {
             (:wat::test::deftest :my::test ())
             (:wat::test::ignore "trailing — never attaches")
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].ignore, None);
     }
@@ -792,7 +631,7 @@ mod tests {
             (:wat::test::deftest :my::first ())
             (:wat::test::deftest :my::second ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 2);
         assert_eq!(sites[0].name, ":my::first");
         assert_eq!(sites[0].ignore.as_deref(), Some("for first only"));
@@ -806,7 +645,7 @@ mod tests {
             (:wat::test::ignore "with \"quote\" and \\backslash")
             (:wat::test::deftest :my::escaped ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(
             sites[0].ignore.as_deref(),
@@ -892,7 +731,7 @@ mod tests {
             (:wat::test::time-limit "500ms")
             (:wat::test::deftest :my::bounded ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::bounded");
         assert_eq!(sites[0].time_limit_ms, Some(500));
@@ -904,7 +743,7 @@ mod tests {
             (:wat::test::time-limit "30s")
             (:wat::test::deftest :my::slower ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites[0].time_limit_ms, Some(30_000));
     }
 
@@ -914,7 +753,7 @@ mod tests {
             (:wat::test::time-limit "5m")
             (:wat::test::deftest :my::integration ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites[0].time_limit_ms, Some(300_000));
     }
 
@@ -926,7 +765,7 @@ mod tests {
             (:wat::test::should-panic "expected")
             (:wat::test::deftest :my::all-three ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].ignore.as_deref(), Some("intermittent"));
         assert_eq!(sites[0].should_panic.as_deref(), Some("expected"));
@@ -940,7 +779,7 @@ mod tests {
             (:user::compute 1 2 3)
             (:wat::test::deftest :my::no-attach ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].time_limit_ms, None);
     }
@@ -987,7 +826,7 @@ mod tests {
             (:wat::test::ignore "hangs in arc 119")
             (:deftest-hermetic :my::flaky ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::flaky");
         assert_eq!(sites[0].ignore.as_deref(), Some("hangs in arc 119"));
@@ -1002,7 +841,7 @@ mod tests {
             (:wat::test::make-deftest :deftest ())
             (:deftest :my::clean ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::clean");
         assert_eq!(sites[0].ignore, None);
@@ -1082,9 +921,81 @@ mod tests {
             (:wat::test::time-limit "200ms")
             (:deftest-hermetic :my::bounded ())
         "#;
-        let sites = scan_file(src);
+        let sites = parse_and_scan(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].name, ":my::bounded");
         assert_eq!(sites[0].time_limit_ms, Some(200));
+    }
+
+    #[test]
+    fn malformed_file_errors_loudly() {
+        // A file with an unclosed paren must fail to parse — the error
+        // propagates to a compile_error! (verified in Phase 4).
+        let src = "(:wat::test::deftest :my::test (";
+        let result = parse_all_with_file(src, "<test>");
+        assert!(result.is_err(), "unclosed paren must fail parse");
+    }
+
+    #[test]
+    fn malformed_renders_edn_tagged_literal_envelope() {
+        // The diagnostic surfaces as a `#wat.test/DiscoveryFailed { ... }` EDN
+        // tagged-literal envelope — the same idiom as `#wat.kernel/...` /
+        // `#wat.diag/...`. Structured fields: :file :path :line :col :error.
+        let m = MalformedFile {
+            path: PathBuf::from("/abs/path/service-stop-resp.wat"),
+            line: 47,
+            col: 1,
+            error: "unclosed '('".to_string(),
+        };
+        let env = render_malformed_edn(&m, "service-stop-resp.wat");
+        // Self-contained, flush-left EDN form (no leading indentation) — a CI
+        // parser anchors on the `#wat.test/DiscoveryFailed` tag and `read`s it.
+        assert!(env.starts_with("#wat.test/DiscoveryFailed {"), "tag head, flush-left");
+        assert!(env.contains(r#":file "service-stop-resp.wat""#), "file field");
+        assert!(env.contains(r#":path "/abs/path/service-stop-resp.wat""#), "path field");
+        assert!(env.contains(":line 47"), "line field");
+        assert!(env.contains(":col 1"), "col field");
+        assert!(env.contains(r#":error "unclosed '('""#), "error field");
+        assert!(env.ends_with('}'), "closes the map, nothing trailing");
+    }
+
+    #[test]
+    fn malformed_display_is_the_edn_form() {
+        // The Display IS the `#wat.test/DiscoveryFailed { ... }` EDN tagged
+        // literal — no prose, no banner, no sentinel prefix. A CI parser anchors
+        // on the tag and `read`s the whole Display as one EDN form.
+        let e = DiscoverError::Malformed(MalformedFile {
+            path: PathBuf::from("/abs/path/service-stop-resp.wat"),
+            line: 47,
+            col: 1,
+            error: "unclosed '('".to_string(),
+        });
+        let edn = e.to_string();
+        assert!(edn.starts_with(DISCOVERY_ERROR_EDN_TAG), "EDN tag head, flush-left");
+        assert!(edn.ends_with('}'), "EDN map closed; nothing trailing");
+        // Balanced braces — the whole Display is one complete EDN form.
+        assert_eq!(
+            edn.chars().filter(|&c| c == '{').count(),
+            edn.chars().filter(|&c| c == '}').count(),
+            "braces balanced — parseable as one EDN form"
+        );
+    }
+
+    #[test]
+    fn malformed_display_names_the_file_and_location() {
+        // The diagnostic must name WHICH file and WHERE — carried as EDN fields,
+        // straight off the wat-reader parse-error span.
+        let e = DiscoverError::Malformed(MalformedFile {
+            path: PathBuf::from("/abs/path/service-stop-resp.wat"),
+            line: 47,
+            col: 1,
+            error: "unclosed '('".to_string(),
+        });
+        let s = e.to_string();
+        assert!(s.contains("#wat.test/DiscoveryFailed {"), "EDN tagged literal");
+        assert!(s.contains(r#":file "service-stop-resp.wat""#), "names the file");
+        assert!(s.contains(":line 47"), "names the line");
+        assert!(s.contains(":col 1"), "names the col");
+        assert!(s.contains(r#":error "unclosed '('""#), "names the parse error");
     }
 }
