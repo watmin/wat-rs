@@ -1,6 +1,6 @@
 # Arc 291 — Strike 3b: `stop → resp` decouple (the out-locus mirror of `:init`)
 
-**Status: STRIKE-READY.** Closes the DESIGN §3 decouple. `:init` builds State from EDN args **in**-locus;
+**Status: ✅ SHIPPED (`4962e925`, weighed pure — SET-diff ∅).** Closes the DESIGN §3 decouple. `:init` builds State from EDN args **in**-locus;
 `:stop` projects the final State to a serializable `resp` **out**-locus. Symmetric; mirror of strike 2.
 
 ## The contract (pinned — Option A, builder-confirmed)

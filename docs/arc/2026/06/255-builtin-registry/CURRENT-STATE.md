@@ -1,7 +1,7 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-23; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `7c9d0f29`
-(`arc 291 strike-3a-ii-β: stop is OWNER-ONLY`) or later. Tree clean at last curare. All committed work
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `4962e925`
+(`arc 291 strike-3b: stop → resp decouple`) or later. Tree clean at last curare. All committed work
 below is pushed.
 
 > ⚠ **Arc 292 (timer) is DONE/INSCRIBED.** The live work is **arc 291 (defservice durable state)**, well
@@ -54,9 +54,16 @@ just discarding its messages.
   `Launched<S,R,Sh,Lu>`. **5 probes migrated** (`.rs`-embedded → hand-edited; the wat-fix boundary — see
   `NOTE-wat-fixes-rust.md`). Weighed: `admin_stop` 2/2 + `counter_on`/`seeded` 4/4 + 5 probes green; SET-diff ∅.
   Detail: `STRIKE-3a-facet-split.md` §"3a-ii-β SHIPPED".
-- **▶ NEXT — strike 3b** (`stop → resp` decouple): split today's stop-returns-State into a serializable `resp`
-  (EDN, decoupled from State) so non-EDN State services return an honest summary; couples to the graceful-drain
-  shape (`NOTE-remote-as-a-class.md` §5). Then **strike 4** (`hibernate`/`resume` = the prophecy → PROBATUM EST).
+- **3b — SHIPPED** (`4962e925`): `stop → resp` decouple — defservice grows a `:stop (fn [s<-:State] -> :Resp)`
+  projection (emitted `<fqdn>::stop-project`; default identity → `Resp=State`, back-compat); `resp-ty` threaded
+  through `LineageUp::Final[resp]` + serve `Admin::Stop` + `<fqdn>/stop -> resp-ty`. The out-locus mirror of
+  `:init` (pure-wat, ZERO Rust). Contract A: single-arg, graceful-only — normal/crash is the STRUCTURAL
+  `Final(resp)|channel-close` sum, never a reason flag. RED probe `service-stop-resp.wat` (`:stop`→i64) green
+  both tiers; SET-diff ∅. **Unblocks arc 290** (non-EDN cache: host + stop with an EDN summary). Detail:
+  `STRIKE-3b-stop-resp.md`.
+- **▶ NEXT — strike 4** (`hibernate`/`resume` = the prophecy → **PROBATUM EST**): type-gated on EdnRepresentable;
+  hibernate → EDN Snapshot → process-kill → resume in a fresh process → continue. THE done-gate (R1 fulfillment).
+  See `DESIGN.md` §sub-strike-4 (the EDN-encode-gate probe: compile-error vs runtime for a non-EDN State).
 - **DEFERRED CAPABILITY (NOT an arc — builder's call):** `wat-fixes-rust` / `wat-fixes-wat-in-rust` (proc-macro2
   token shim → reuse `fix-text` core; `wat-in-rust` = wat-fixes-rust ∘ fix.wat). Build it **when a mammoth
   refactor forces it** (forcing-function discipline — "make it when we need it"), not before. Design-on-shelf:
@@ -97,6 +104,6 @@ just discarding its messages.
 
 > ⛔ **You are a NEW instance.** You did NOT live the above — it is a cache in a familiar voice. recolligere
 > FIRST: grimoire + 4 primers (datamancy MCP — RESOURCE mcp), `git log --oneline -15`, `git status`,
-> freshness probe HEAD==`7c9d0f29`(or later). **Arc 291 is IN PROGRESS — strike 3a CLOSED (owner-only stop);
-> next = strike 3b** (`stop → resp` decouple) per `291-…/STRIKE-3a-facet-split.md` + `DESIGN.md`, or ask the
-> builder. Ground every claim against the disk before you move. *NON SEPARABIMUR — the thread is kept; gather it.*
+> freshness probe HEAD==`4962e925`(or later). **Arc 291 is IN PROGRESS — strike 3 CLOSED (3a owner-only +
+> 3b stop→resp); next = strike 4** (`hibernate`/`resume` = PROBATUM EST) per `291-…/DESIGN.md` §sub-strike-4, or
+> ask the builder. Ground every claim against the disk before you move. *NON SEPARABIMUR — the thread is kept; gather it.*
