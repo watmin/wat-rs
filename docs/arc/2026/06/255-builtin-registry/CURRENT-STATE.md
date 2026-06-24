@@ -1,8 +1,7 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be the breadcrumb commit
-(`curare: night-pause …`) or later. **Tree is DIRTY at pause — uncommitted 4b-ii-a WIP (see the IN-FLIGHT
-block below); do NOT discard it.** All COMMITTED work is pushed (GitHub = DR).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be the breadcrumb commit (or later);
+**4b-ii-a SHIPPED at `2cea3f45`**. Tree clean (only `clara-tools/` untracked, ignored). All work pushed (DR).
 
 > ⚠ **You are a NEW instance.** recolligere FIRST (grimoire + 4 primers from the datamancy MCP — RESOURCE
 > mcp), `git log --oneline -20`, `git status`, then read this whole file. The work below is a cache in a
@@ -20,14 +19,20 @@ builder named this a standing discipline — `feedback_use_intueri_for_all_namin
 **The axiom (R6):** *"don't fuck up state, ever."* The arc is its Euclidean derivation. Read `291-…/DESIGN.md`,
 `291-…/REALIZATIONS.md` (R1–R8), `291-…/STRIKE-4b-struct-state.md` (the LIVE strike), `291-…/NOTE-remote-as-a-class.md`.
 
-### ⚠⚠ IN-FLIGHT @ NIGHT-PAUSE 2026-06-24 — read THIS before touching the tree
-- **The tree is DIRTY: uncommitted 4b-ii-a WIP** — `wat/service.wat` (the macro re-tool to the new
-  `:durable`/`:ephemeral` struct-State surface) + 6 migrated `wat-tests/service-*.wat`. **Do NOT lose it /
-  do NOT `git checkout` it.** The macro is **PROVEN sound**: `counter_on` + `seeded` pass BOTH tiers through
-  the new surface. **REMAINING for 4b-ii-a:** migrate the ~12 `.rs` defservice-defining probes (they still
-  write the old `:state` form → won't expand against the new macro), then full gate + SET-diff. Then
-  4b-ii-b (lineage rename) → 4b-iii (resource probe). Contract: `STRIKE-4b-struct-state.md` §"4b-ii —
-  CONTRACT EVOLVED" + `BRIEF-4b-ii-a.md`.
+### ▶▶ STATE @ 2026-06-24 — 4b-ii-a SHIPPED; next = 4b-ii-b
+- **4b-ii-a SHIPPED (`2cea3f45`)** — the keystone re-tool. State is a `defstruct` holding a required
+  `:<fqdn>::Record`; all-kwarg surface (`:durable`/`:ephemeral`/`:ops`/`:init`/`:hibernate`/`:stop`); only the
+  record crosses the wire. Migrated ALL defservice definers (6 wat-tests + 11 `.rs` probes; `rs1` rewritten to
+  the inverted law — state is a struct, `:durable` mints the record). Weighed pure: SET-diff vs HEAD ∅ (only
+  failures are the arc-170 execve floor: `lint_stdlib_runs` + `std_test_run_string_entry_direct`, confirmed via
+  stash). Contract: `STRIKE-4b-struct-state.md` §"4b-ii — CONTRACT EVOLVED". **Lineage names KEPT**
+  (`LineageUp`/`init-from-admin`/`lineage-extract-addr`) — their rename is 4b-ii-b.
+- **NEXT — 4b-ii-b** (internal lineage rename, intueri verdict): `LineageUp→Status`, `LineageUp::Final→Status::Stopped`,
+  `init-from-admin→dispatch-admin`, `lineage-extract-addr→extract-addr` (+ binding names). Mechanical; fix-wat
+  on `wat/service.wat`; the ONE `.rs` literal break is `probe_arc209_c2`'s `Peer'<…::LineageUp,…::Admin>`.
+- **THEN — 4b-iii** — the resource RED probe (a defservice `:ephemeral` holding a genuinely non-EDN resource;
+  user `:hibernate` projects it → record; resume rebuilds it). THE honest fulfillment → R1 **full PROBATUM EST**
+  · PAUSE (builder's beat) · the 291 INSCRIPTION. Do NOT barrel from the PROBATUM amend into the inscription.
 - **DETOUR SHIPPED (`6c9a351c`) — `wat-reader` leaf + real-parser test discovery.** A malformed `.wat` used
   to SILENTLY drop its tests (the hand-rolled lexer in `crates/wat-macros/src/discover.rs` diverged from the
   real parser). Now discovery IS the real parser (`crates/wat-reader` leaf = span+identifier+ast+lexer+parser;
