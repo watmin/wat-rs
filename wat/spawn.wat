@@ -212,7 +212,8 @@
                       ship          <- :Sh
                       init          <- :wat::core::keyword
                       serve         <- :wat::core::keyword
-                      service-forms <- :wat::core::Vector<wat::WatAST>] -> :wat::spawn::Launched<S,R>))
+                      service-forms <- :wat::core::Vector<wat::WatAST>
+                      lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R>))
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
@@ -222,7 +223,7 @@
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
-  (launch [self ship init serve service-forms]
+  (launch [self ship init serve service-forms lu-addr-kw]
     (:wat::core::let
       [b  (:wat::kernel::listener' self :S :R)
        sp (:wat::kernel::spawn-program' self
@@ -242,13 +243,14 @@
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
 ;; The (process) literal lives ONLY here — the per-locus arm owns its transport.
 (:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
-  (launch [self ship init serve service-forms]
+  (launch [self ship init serve service-forms lu-addr-kw]
     (:wat::core::let
       [prog (:wat::core::concat
               (:wat::core::forms
                 (:wat::core::def :wat::spawn::service-locus (:wat::spawn::process)))
               service-forms)
        svc  (:wat::kernel::spawn-program' self prog)
-       addr (:wat::kernel::recv' svc)
+       lu   (:wat::kernel::recv' svc)
+       addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])
        _    (:wat::kernel::send' svc ship)]
       (:wat::spawn::Launched/new svc addr))))

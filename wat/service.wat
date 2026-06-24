@@ -207,6 +207,84 @@
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Op,"
                             (:wat::core::string::concat fqdn-str "::Reply>")))))
+
+     ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
+     ;; Admin enum:     :<fqdn>::Admin  — what the owner sends DOWN the lineage peer.
+     ;;   :Init [seed <- :ship-ty]  — startup init-args (replaces raw ship)
+     ;;   :Stop                     — owner-initiated stop (3a-ii-β dispatches this)
+     ;; LineageUp enum: :<fqdn>::LineageUp — what the service sends UP the lineage peer.
+     ;;   :Started [addr <- :addr-ty]    — startup address handoff (replaces raw addr)
+     ;;   :Final   [state <- :state-ty]  — stop response (3a-ii-β uses this)
+     ;;
+     ;; self-peer type in child-main-form: Peer'<LineageUp, Admin>
+     ;;   child sends LineageUp up, receives Admin down.
+     ;;
+     ;; init-from-admin: fn [ai <- Admin] -> State
+     ;;   wraps the startup handshake: matches Admin::Init, applies <fqdn>::init.
+     ;;   Passed to Locus/launch by-name in place of the raw init keyword.
+     ;;
+     ;; lineage-extract-addr: fn [lu <- LineageUp] -> addr-ty
+     ;;   matches LineageUp::Started, returns the Address'. Passed to launch as
+     ;;   lu-addr-kw so the generic ProcessOpts impl can extract addr without
+     ;;   naming per-service types.
+     admin-ty-str   (:wat::core::string::interpolate "{fqdn-str}::Admin" :fqdn-str fqdn-str)
+     admin-ty       (:wat::core::keyword/from-string admin-ty-str)
+     lineage-up-ty-str (:wat::core::string::interpolate "{fqdn-str}::LineageUp" :fqdn-str fqdn-str)
+     lineage-up-ty  (:wat::core::keyword/from-string lineage-up-ty-str)
+     admin-init-kw  (:wat::core::keyword/from-string
+                      (:wat::core::string::interpolate "{fqdn-str}::Admin::Init" :fqdn-str fqdn-str))
+     admin-stop-kw  (:wat::core::keyword/from-string
+                      (:wat::core::string::interpolate "{fqdn-str}::Admin::Stop" :fqdn-str fqdn-str))
+     lineage-started-kw (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Started" :fqdn-str fqdn-str))
+     init-from-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::init-from-admin" :fqdn-str fqdn-str)
+     init-from-admin-name (:wat::core::keyword/from-string init-from-admin-name-str)
+     lineage-extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::lineage-extract-addr" :fqdn-str fqdn-str)
+     lineage-extract-addr-name (:wat::core::keyword/from-string lineage-extract-addr-name-str)
+
+     ;; ── arc 291 3a-ii-α: Admin + LineageUp defenums ──────────────────────────
+     ;; Admin: Init carries the seed (ship-ty); Stop is unit (3a-ii-β dispatches it).
+     ;; LineageUp: Started carries the minted Address'; Final carries the final state.
+     ;; :Stop and :Shutdown are unit variants (bare keyword, no field vector) —
+     ;; matches as a bare keyword pattern (ev.fields.is_empty() ✓).
+     admin-enum-def `(:wat::core::defenum ~admin-ty
+                       :Init [seed <- ~ship-ty]
+                       :Stop)
+     lineage-up-enum-def `(:wat::core::defenum ~lineage-up-ty
+                             :Started [addr <- ~addr-ty]
+                             :Final   [state <- ~state-ty])
+
+     ;; ── arc 291 3a-ii-α: init-from-admin defn ────────────────────────────────
+     ;; fn [ai <- Admin] -> State
+     ;;   (match ai ((Admin::Init seed) (<fqdn>::init seed))
+     ;;             (Admin::Stop (assertion-failed! "Stop before Init")))
+     ;; `ai` is a param in [ai <- admin-ty] Vector → checker does not recurse into
+     ;; Vector children, so the literal symbol `ai` is hygienic.
+     ;; `seed` and `_ignored` in match arms are match-arm binders → checker skips.
+     init-from-admin-def `(:wat::core::defn ~init-from-admin-name [ai <- ~admin-ty] -> ~state-ty
+                            (:wat::core::match ai -> ~state-ty
+                              ((~admin-init-kw seed) (~init-name seed))
+                              (~admin-stop-kw
+                                (:wat::kernel::assertion-failed!
+                                  "defservice init-from-admin: Stop received before Init (protocol error)"
+                                  :wat::core::None
+                                  :wat::core::None))))
+
+     ;; ── arc 291 3a-ii-α: lineage-extract-addr defn ───────────────────────────
+     ;; fn [lu <- LineageUp] -> addr-ty
+     ;;   (match lu ((LineageUp::Started addr) addr))
+     ;; Passed to Locus/launch as lu-addr-kw so the generic ProcessOpts impl
+     ;; can extract the Address' without naming per-service LineageUp types.
+     lu-sym     (:wat::core::symbol-node "lu")
+     lineage-extract-addr-def `(:wat::core::defn ~lineage-extract-addr-name
+                                  [lu <- ~lineage-up-ty] -> ~addr-ty
+                                  (:wat::core::match lu -> ~addr-ty
+                                    ((~lineage-started-kw addr) addr)
+                                    (_ (:wat::kernel::assertion-failed!
+                                         "defservice lineage-extract-addr: unexpected LineageUp variant (expected Started)"
+                                         :wat::core::None
+                                         :wat::core::None))))
+
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
 
      ;; ── C.3: per-op Request records ───────────────────────────────────────────────
@@ -688,16 +766,21 @@
      cm-und-sym  (:wat::core::symbol-node "_")
      cm-ship-sym (:wat::core::symbol-node "ship")
      cm-st-sym   (:wat::core::symbol-node "st")
+     ;; arc 291 3a-ii-α: child-main-form uses the lineage protocol.
+     ;; self-peer: Peer'<LineageUp, Admin>
+     ;;   child sends LineageUp::Started(addr) UP, receives Admin DOWN.
+     ;; The send' wraps addr in LineageUp::Started (was: raw addr).
+     ;; The recv' gets Admin; init-from-admin applies to it (was: init applied to raw ship).
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name)
-                           ~cm-self-sym (:wat::program::self-peer ~addr-ty ~ship-ty)
+                           ~cm-self-sym (:wat::program::self-peer ~lineage-up-ty ~admin-ty)
                            ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
-                                            (:wat::spawn::Bound/address ~cm-b-sym))
+                                            (~lineage-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
                            ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
                            ~cm-st-sym   (:wat::core::apply -> ~state-ty
-                                            (:wat::core::keyword/from-string ~init-name-str)
+                                            (:wat::core::keyword/from-string ~init-from-admin-name-str)
                                             ~cm-ship-sym [])]
                           (:wat::core::apply -> :wat::core::nil
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
@@ -722,16 +805,25 @@
                             (:wat::core::defn ~serve-name ~serve-params
                               -> :wat::core::nil ~serve-body)
                             ~init-def
+                            ~admin-enum-def
+                            ~lineage-up-enum-def
+                            ~init-from-admin-def
+                            ~lineage-extract-addr-def
                             ~child-main-form))
 
      ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
      ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
+     ;; arc 291 3a-ii-α: ship is wrapped in Admin::Init so the lineage peer carries Admin values.
+     ;; init-from-admin-name is passed in place of init-name so both tiers apply it.
+     ;; lineage-extract-addr-name is passed as lu-addr-kw for the ProcessOpts impl.
      start-params  `[locus <- :wat::spawn::Locus  ~@init-param]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw locus ~ship-ref
-                                 (:wat::core::keyword/from-string ~init-name-str)
+                      [~lr-sym (~launch-head-kw locus
+                                 (~admin-init-kw ~ship-ref)
+                                 (:wat::core::keyword/from-string ~init-from-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
-                                 (~service-forms-kw))]
+                                 (~service-forms-kw)
+                                 (:wat::core::keyword/from-string ~lineage-extract-addr-name-str))]
                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
                                     (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
@@ -764,8 +856,12 @@
        ~@response-records
        (:wat::core::defenum ~enum-name ~@variants)
        (:wat::core::defenum ~reply-name ~@reply-variants)
+       ~admin-enum-def
+       ~lineage-up-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
        ~init-def
+       ~init-from-admin-def
+       ~lineage-extract-addr-def
        ~@constructors
        ~@methods
        ~service-forms-def

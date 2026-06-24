@@ -2251,12 +2251,12 @@ fn tagged_to_value(
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
                 Some(crate::types::TypeDef::Record(_)) => {
-                    reconstruct_record(ns, name, entries, types)
+                    reconstruct_record(ns, name, entries, types, allow_caps)
                 }
-                _ => reconstruct_struct(ns, name, entries, types),
+                _ => reconstruct_struct(ns, name, entries, types, allow_caps),
             }
         }
-        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types),
+        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps),
         Edn::Nil => reconstruct_enum_unit(ns, name, types),
         // Arc 234 Stone 234.7b — holon-tagged body: a #wat-edn.holon/* tagged value
         // under a class tag. If the class resolves to TypeDef::Record, this is a
@@ -2341,6 +2341,7 @@ fn reconstruct_struct(
     name: &str,
     entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
+    allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     let def = match types.get(&path) {
@@ -2378,7 +2379,7 @@ fn reconstruct_struct(
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnknownStructField { type_path: path.clone(), key: fname.clone() } }
         })?;
-        let inner = edn_to_value(fv, Some(types))?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps)?;
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
@@ -2399,6 +2400,7 @@ fn reconstruct_record(
     name: &str,
     entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
+    allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     let def = match types.get(&path) {
@@ -2432,7 +2434,7 @@ fn reconstruct_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value(fv, Some(types))?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps)?;
         // Apply Option-rewrapping when field_types is present and the field is Option<T>.
         let wrapped = if let Some(ftys) = &def.field_types {
             if let Some(fty) = ftys.get(i) {
@@ -2578,6 +2580,7 @@ fn reconstruct_enum_tagged(
     variant_name: &str,
     items: &[OwnedValue],
     types: &crate::types::TypeEnv,
+    allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_enum_path(ns);
     let def = match types.get(&path) {
@@ -2608,7 +2611,7 @@ fn reconstruct_enum_tagged(
     };
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {
-        let inner = edn_to_value(item, Some(types))?;
+        let inner = edn_to_value_caps(item, Some(types), allow_caps)?;
         let wrapped = match declared_fields.get(idx) {
             Some((_, fty)) => rewrap_option_field(fty, inner),
             None => inner,
