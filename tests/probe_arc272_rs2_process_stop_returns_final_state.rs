@@ -33,7 +33,7 @@ const PROGRAM: &str = r#"
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _     (:my::counter/increment c (:my::counter/increment-request 5))
      ;; arc 291 3a-ii-β: stop is now OWNER-ONLY — takes the Handle (h), not the client peer (c).
-     ;; The final state rides UP the lineage channel (LineageUp::Final), not the client reply.
+     ;; The final state rides UP the lineage channel (Status::Stopped), not the client reply.
      ;; arc 291 4b-ii: stop returns ::Record (the durable soul), read via Record/count.
      final (:my::counter/stop h)]
     (:my::counter::Record/count final)))

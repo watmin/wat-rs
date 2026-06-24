@@ -29,7 +29,7 @@ use wat::runtime::{Environment, Value};
 // The counter as ONE defservice — C.3 wrapped-record shape (single format). C.2 must generate
 // Op (C.1), Reply, and serve. Probe hand-drives serve directly.
 // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; serve takes ::State (struct).
-// Initial state for hand-driven serve: (State/new (Record 0)). LineageUp kept (4b-ii-b renames).
+// Initial state for hand-driven serve: (State/new (Record 0)).
 const PROGRAM: &str = r#"
 (:wat::service::defservice :my::counter
   :durable [count <- :wat::core::i64]
@@ -58,11 +58,10 @@ const PROGRAM: &str = r#"
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::counter::Op :my::counter::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<LineageUp,Admin>),
+     ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
-     ;; LineageUp name kept — 4b-ii-b renames it to Status.
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::LineageUp,my::counter::Admin>] -> :wat::core::nil
+            (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
                 (:my::counter::State/new (:my::counter::Record 0)))))

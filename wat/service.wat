@@ -329,31 +329,31 @@
      ;; Admin enum:     :<fqdn>::Admin  — what the owner sends DOWN the lineage peer.
      ;;   :Init [seed <- :ship-ty]  — startup init-args (replaces raw ship)
      ;;   :Stop                     — owner-initiated stop (3a-ii-β dispatches this)
-     ;; LineageUp enum: :<fqdn>::LineageUp — what the service sends UP the lineage peer.
+     ;; Status enum: :<fqdn>::Status — what the service sends UP the lineage peer.
      ;;   :Started [addr <- :addr-ty]    — startup address handoff (replaces raw addr)
-     ;;   :Final   [state <- :state-ty]  — stop response (3a-ii-β uses this)
+     ;;   :Stopped   [state <- :state-ty]  — stop response (3a-ii-β uses this)
      ;;
-     ;; self-peer type in child-main-form: Peer'<LineageUp, Admin>
-     ;;   child sends LineageUp up, receives Admin down.
+     ;; self-peer type in child-main-form: Peer'<Status, Admin>
+     ;;   child sends Status up, receives Admin down.
      ;;
-     ;; init-from-admin: fn [ai <- Admin] -> State
+     ;; dispatch-admin: fn [ai <- Admin] -> State
      ;;   wraps the startup handshake: matches Admin::Init, applies <fqdn>::init.
      ;;   Passed to Locus/launch by-name in place of the raw init keyword.
      ;;
-     ;; lineage-extract-addr: fn [lu <- LineageUp] -> addr-ty
-     ;;   matches LineageUp::Started, returns the Address'. Passed to launch as
+     ;; extract-addr: fn [lu <- Status] -> addr-ty
+     ;;   matches Status::Started, returns the Address'. Passed to launch as
      ;;   lu-addr-kw so the generic ProcessOpts impl can extract addr without
      ;;   naming per-service types.
      admin-ty-str   (:wat::core::string::interpolate "{fqdn-str}::Admin" :fqdn-str fqdn-str)
      admin-ty       (:wat::core::keyword/from-string admin-ty-str)
-     lineage-up-ty-str (:wat::core::string::interpolate "{fqdn-str}::LineageUp" :fqdn-str fqdn-str)
-     lineage-up-ty  (:wat::core::keyword/from-string lineage-up-ty-str)
-     ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends LineageUp UP, recvs Admin DOWN.
+     status-ty-str (:wat::core::string::interpolate "{fqdn-str}::Status" :fqdn-str fqdn-str)
+     status-ty  (:wat::core::keyword/from-string status-ty-str)
+     ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer'<Reply,Op>).
      lineage-peer-ty (:wat::core::keyword/from-string
                        (:wat::core::string::concat "wat::kernel::Peer'<"
                          (:wat::core::string::concat fqdn-str
-                           (:wat::core::string::concat "::LineageUp,"
+                           (:wat::core::string::concat "::Status,"
                              (:wat::core::string::concat fqdn-str "::Admin>")))))
      admin-init-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::Admin::Init" :fqdn-str fqdn-str))
@@ -364,22 +364,22 @@
                           (:wat::core::string::interpolate "{fqdn-str}::Admin::Hibernate" :fqdn-str fqdn-str))
      admin-resume-kw  (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{fqdn-str}::Admin::Resume" :fqdn-str fqdn-str))
-     lineage-started-kw (:wat::core::keyword/from-string
-                          (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Started" :fqdn-str fqdn-str))
-     ;; arc 291 3a-ii-β: LineageUp::Final — service replies with final state on admin stop.
-     lineage-final-kw  (:wat::core::keyword/from-string
-                          (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Final" :fqdn-str fqdn-str))
-     ;; arc 291 4a: LineageUp::Hibernated — service replies with full state on hibernate.
-     lineage-hibernated-kw (:wat::core::keyword/from-string
-                             (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Hibernated" :fqdn-str fqdn-str))
-     init-from-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::init-from-admin" :fqdn-str fqdn-str)
-     init-from-admin-name (:wat::core::keyword/from-string init-from-admin-name-str)
-     lineage-extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::lineage-extract-addr" :fqdn-str fqdn-str)
-     lineage-extract-addr-name (:wat::core::keyword/from-string lineage-extract-addr-name-str)
+     status-started-kw (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::Status::Started" :fqdn-str fqdn-str))
+     ;; arc 291 3a-ii-β: Status::Stopped — service replies with final state on admin stop.
+     status-stopped-kw  (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::Status::Stopped" :fqdn-str fqdn-str))
+     ;; arc 291 4a: Status::Hibernated — service replies with full state on hibernate.
+     status-hibernated-kw (:wat::core::keyword/from-string
+                             (:wat::core::string::interpolate "{fqdn-str}::Status::Hibernated" :fqdn-str fqdn-str))
+     dispatch-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::dispatch-admin" :fqdn-str fqdn-str)
+     dispatch-admin-name (:wat::core::keyword/from-string dispatch-admin-name-str)
+     extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::extract-addr" :fqdn-str fqdn-str)
+     extract-addr-name (:wat::core::keyword/from-string extract-addr-name-str)
 
-     ;; ── arc 291 3a-ii-α: Admin + LineageUp defenums ──────────────────────────
+     ;; ── arc 291 3a-ii-α: Admin + Status defenums ──────────────────────────
      ;; Admin: Init carries the seed (ship-ty); Stop is unit (3a-ii-β dispatches it).
-     ;; LineageUp: Started carries the minted Address'; Final carries the final state.
+     ;; Status: Started carries the minted Address'; Final carries the final state.
      ;; :Stop and :Shutdown are unit variants (bare keyword, no field vector) —
      ;; matches as a bare keyword pattern (ev.fields.is_empty() ✓).
      ;; arc 291 4b-ii: Admin now has four variants:
@@ -390,51 +390,51 @@
                        :Stop
                        :Hibernate
                        :Resume   [snapshot <- ~record-ty])
-     ;; arc 291 4b-ii: LineageUp::Hibernated carries ::Record (not ::State).
-     lineage-up-enum-def `(:wat::core::defenum ~lineage-up-ty
+     ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
+     status-enum-def `(:wat::core::defenum ~status-ty
                              :Started   [addr     <- ~addr-ty]
-                             :Final     [resp     <- ~resp-ty]
+                             :Stopped     [resp     <- ~resp-ty]
                              :Hibernated [snapshot <- ~record-ty])
 
-     ;; ── arc 291 3a-ii-α: init-from-admin defn ────────────────────────────────
+     ;; ── arc 291 3a-ii-α: dispatch-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
      ;;   (match ai ((Admin::Init seed) (<fqdn>::init seed))
      ;;             (Admin::Stop (assertion-failed! "Stop before Init")))
      ;; `ai` is a param in [ai <- admin-ty] Vector → checker does not recurse into
      ;; Vector children, so the literal symbol `ai` is hygienic.
      ;; `seed` and `_ignored` in match arms are match-arm binders → checker skips.
-     ;; arc 291 4b-ii: init-from-admin must stay exhaustive over all four Admin variants.
+     ;; arc 291 4b-ii: dispatch-admin must stay exhaustive over all four Admin variants.
      ;;   Init(seed)       → (init seed)       — normal startup: init builds struct from record
      ;;   Resume(snapshot) → (init snapshot)   — resume: init rebuilds struct from saved record
      ;;   Stop             → assertion-failed! (not a startup message)
      ;;   Hibernate        → assertion-failed! (not a startup message)
-     init-from-admin-def `(:wat::core::defn ~init-from-admin-name [ai <- ~admin-ty] -> ~state-ty
+     dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty] -> ~state-ty
                             (:wat::core::match ai -> ~state-ty
                               ((~admin-init-kw seed)     (~init-name seed))
                               ((~admin-resume-kw snapshot) (~init-name snapshot))
                               (~admin-stop-kw
                                 (:wat::kernel::assertion-failed!
-                                  "defservice init-from-admin: Stop received before Init/Resume (protocol error)"
+                                  "defservice dispatch-admin: Stop received before Init/Resume (protocol error)"
                                   :wat::core::None
                                   :wat::core::None))
                               (~admin-hibernate-kw
                                 (:wat::kernel::assertion-failed!
-                                  "defservice init-from-admin: Hibernate received before Init/Resume (protocol error)"
+                                  "defservice dispatch-admin: Hibernate received before Init/Resume (protocol error)"
                                   :wat::core::None
                                   :wat::core::None))))
 
-     ;; ── arc 291 3a-ii-α: lineage-extract-addr defn ───────────────────────────
-     ;; fn [lu <- LineageUp] -> addr-ty
-     ;;   (match lu ((LineageUp::Started addr) addr))
+     ;; ── arc 291 3a-ii-α: extract-addr defn ───────────────────────────
+     ;; fn [lu <- Status] -> addr-ty
+     ;;   (match lu ((Status::Started addr) addr))
      ;; Passed to Locus/launch as lu-addr-kw so the generic ProcessOpts impl
-     ;; can extract the Address' without naming per-service LineageUp types.
+     ;; can extract the Address' without naming per-service Status types.
      lu-sym     (:wat::core::symbol-node "lu")
-     lineage-extract-addr-def `(:wat::core::defn ~lineage-extract-addr-name
-                                  [lu <- ~lineage-up-ty] -> ~addr-ty
+     extract-addr-def `(:wat::core::defn ~extract-addr-name
+                                  [lu <- ~status-ty] -> ~addr-ty
                                   (:wat::core::match lu -> ~addr-ty
-                                    ((~lineage-started-kw addr) addr)
+                                    ((~status-started-kw addr) addr)
                                     (_ (:wat::kernel::assertion-failed!
-                                         "defservice lineage-extract-addr: unexpected LineageUp variant (expected Started)"
+                                         "defservice extract-addr: unexpected Status variant (expected Started)"
                                          :wat::core::None
                                          :wat::core::None))))
 
@@ -663,7 +663,7 @@
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
      ;; or value positions — the checker only fires for let/fn binder Vectors.
-     ;; arc 291 3a-ii-β: Admin::Stop arm — sends LineageUp::Final(state) back up the
+     ;; arc 291 3a-ii-β: Admin::Stop arm — sends Status::Stopped(state) back up the
      ;; lineage peer (self), then terminates (returns nil, no recur). Admin::Init arriving
      ;; post-startup is a protocol error (assertion-failed!).
      ;; arc 291 4a: serve Admin dispatch must stay exhaustive over all four variants.
@@ -679,11 +679,11 @@
                        (:wat::core::match admin-msg -> :wat::core::nil
                          (~admin-stop-kw
                            (:wat::core::do
-                             (:wat::kernel::send' self (~lineage-final-kw (~stop-project-name state)))
+                             (:wat::kernel::send' self (~status-stopped-kw (~stop-project-name state)))
                              nil))
                          (~admin-hibernate-kw
                            (:wat::core::do
-                             (:wat::kernel::send' self (~lineage-hibernated-kw (~hibernate-project-name state)))
+                             (:wat::kernel::send' self (~status-hibernated-kw (~hibernate-project-name state)))
                              nil))
                          ((~admin-init-kw _seed)
                            (:wat::kernel::assertion-failed!
@@ -815,7 +815,7 @@
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
      ;; Takes the Handle (unforgeable; never handed to clients); sends Admin::Stop down the
-     ;; lineage peer (Handle/handle h); recv's LineageUp::Final → extracts and returns state.
+     ;; lineage peer (Handle/handle h); recv's Status::Stopped → extracts and returns state.
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      stop-discard-sym  (:wat::core::symbol-node "_")
      stop-r-sym        (:wat::core::symbol-node "r")
@@ -828,9 +828,9 @@
                           [~stop-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
                            ~stop-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym -> ~resp-ty
-                            ((~lineage-final-kw resp) resp)
+                            ((~status-stopped-kw resp) resp)
                             (_ (:wat::kernel::assertion-failed!
-                                 "defservice stop: expected LineageUp::Final"
+                                 "defservice stop: expected Status::Stopped"
                                  :wat::core::None
                                  :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
@@ -839,7 +839,7 @@
 
      ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
      ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
-     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recv's LineageUp::Hibernated
+     ;; Sends Admin::Hibernate (bare unit kw) down the lineage peer; recv's Status::Hibernated
      ;; which carries the WHOLE State (not a projection — that's what distinguishes hibernate from stop).
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
      hib-discard-sym   (:wat::core::symbol-node "_")
@@ -851,9 +851,9 @@
                                [~hib-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
                                 ~hib-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                                (:wat::core::match ~hib-r-sym -> ~record-ty
-                                 ((~lineage-hibernated-kw snapshot) snapshot)
+                                 ((~status-hibernated-kw snapshot) snapshot)
                                  (_ (:wat::kernel::assertion-failed!
-                                      "defservice hibernate: expected LineageUp::Hibernated"
+                                      "defservice hibernate: expected Status::Hibernated"
                                       :wat::core::None
                                       :wat::core::None))))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
@@ -887,7 +887,7 @@
      ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
-     ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,LineageUp> — Sh=Admin (ship), Lu=LineageUp.
+     ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,Status> — Sh=Admin (ship), Lu=Status.
      launch-head-kw (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
                         (:wat::core::string::concat fqdn-str
@@ -898,7 +898,7 @@
                                   (:wat::core::string::concat "::State,"
                                     (:wat::core::string::concat fqdn-str
                                       (:wat::core::string::concat "::Admin,"
-                                        (:wat::core::string::concat fqdn-str "::LineageUp>")))))))))))
+                                        (:wat::core::string::concat fqdn-str "::Status>")))))))))))
 
      ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
@@ -922,20 +922,20 @@
      cm-ship-sym (:wat::core::symbol-node "ship")
      cm-st-sym   (:wat::core::symbol-node "st")
      ;; arc 291 3a-ii-α: child-main-form uses the lineage protocol.
-     ;; self-peer: Peer'<LineageUp, Admin>
-     ;;   child sends LineageUp::Started(addr) UP, receives Admin DOWN.
-     ;; The send' wraps addr in LineageUp::Started (was: raw addr).
-     ;; The recv' gets Admin; init-from-admin applies to it (was: init applied to raw ship).
+     ;; self-peer: Peer'<Status, Admin>
+     ;;   child sends Status::Started(addr) UP, receives Admin DOWN.
+     ;; The send' wraps addr in Status::Started (was: raw addr).
+     ;; The recv' gets Admin; dispatch-admin applies to it (was: init applied to raw ship).
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name)
-                           ~cm-self-sym (:wat::program::self-peer ~lineage-up-ty ~admin-ty)
+                           ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
                            ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
-                                            (~lineage-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
+                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
                            ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
                            ~cm-st-sym   (:wat::core::apply -> ~state-ty
-                                            (:wat::core::keyword/from-string ~init-from-admin-name-str)
+                                            (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])]
                           (:wat::core::apply -> :wat::core::nil
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
@@ -964,33 +964,33 @@
                             ~stop-project-def
                             ~hibernate-project-def
                             ~admin-enum-def
-                            ~lineage-up-enum-def
-                            ~init-from-admin-def
-                            ~lineage-extract-addr-def
+                            ~status-enum-def
+                            ~dispatch-admin-def
+                            ~extract-addr-def
                             ~child-main-form))
 
      ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
      ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
      ;; arc 291 3a-ii-α: ship is wrapped in Admin::Init so the lineage peer carries Admin values.
-     ;; init-from-admin-name is passed in place of init-name so both tiers apply it.
-     ;; lineage-extract-addr-name is passed as lu-addr-kw for the ProcessOpts impl.
+     ;; dispatch-admin-name is passed in place of init-name so both tiers apply it.
+     ;; extract-addr-name is passed as lu-addr-kw for the ProcessOpts impl.
      start-params  `[locus <- :wat::spawn::Locus  ~@init-param]
      start-body    `(:wat::core::let
                       [~lr-sym (~launch-head-kw locus
                                  (~admin-init-kw ~ship-ref)
-                                 (:wat::core::keyword/from-string ~init-from-admin-name-str)
+                                 (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw)
-                                 (:wat::core::keyword/from-string ~lineage-extract-addr-name-str))]
+                                 (:wat::core::keyword/from-string ~extract-addr-name-str))]
                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
                                     (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
      ;; ── arc 291 4b-ii: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
      ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~record-ty] -> ~handle-name
-     ;;   (let [lr (launch<…> locus (Admin::Resume snapshot) init-from-admin serve service-forms lu-addr)]
+     ;;   (let [lr (launch<…> locus (Admin::Resume snapshot) dispatch-admin serve service-forms lu-addr)]
      ;;     (Handle (Launched/handle lr) (Launched/address lr))))
-     ;; init-from-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
+     ;; dispatch-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
      ;; launch is UNCHANGED — resume reuses the same machinery.
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
      snapshot-sym   (:wat::core::symbol-node "snapshot")
@@ -1002,28 +1002,28 @@
      resume-body    `(:wat::core::let
                        [~lr-sym (~launch-head-kw locus
                                   (~admin-resume-kw ~snapshot-sym)
-                                  (:wat::core::keyword/from-string ~init-from-admin-name-str)
+                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)
                                   (~service-forms-kw)
-                                  (:wat::core::keyword/from-string ~lineage-extract-addr-name-str))]
+                                  (:wat::core::keyword/from-string ~extract-addr-name-str))]
                        (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
                                      (:wat::spawn::Launched/address ~lr-sym)))
      resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
      ;; (Record::def <fqdn>::Handle
-     ;;   [handle <- Peer'<Admin,LineageUp>
+     ;;   [handle <- Peer'<Admin,Status>
      ;;    addr   <- :wat::kernel::Address'<fqdn::Op,fqdn::Reply>])
      ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
-     ;; Peer'<Admin,LineageUp> — owner sends Admin (down), receives LineageUp (up).
-     ;; Thread'<Admin,LineageUp> and Process'<Admin,LineageUp> both satisfy this field
+     ;; Peer'<Admin,Status> — owner sends Admin (down), receives Status (up).
+     ;; Thread'<Admin,Status> and Process'<Admin,Status> both satisfy this field
      ;; (send'/recv' intrinsics accept Thread'|Process'|Peer' uniformly).
      ;; addr carries the typed Address'<Op,Reply> for client connect'.
      handle-peer-ty (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::kernel::Peer'<"
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Admin,"
-                            (:wat::core::string::concat fqdn-str "::LineageUp>")))))
+                            (:wat::core::string::concat fqdn-str "::Status>")))))
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
      handle-record `(:wat::Record::def ~handle-name ~handle-fields)]
 
@@ -1047,13 +1047,13 @@
        (:wat::core::defenum ~enum-name ~@variants)
        (:wat::core::defenum ~reply-name ~@reply-variants)
        ~admin-enum-def
-       ~lineage-up-enum-def
+       ~status-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
        ~init-def
        ~stop-project-def
        ~hibernate-project-def
-       ~init-from-admin-def
-       ~lineage-extract-addr-def
+       ~dispatch-admin-def
+       ~extract-addr-def
        ~@constructors
        ~@methods
        ~service-forms-def
