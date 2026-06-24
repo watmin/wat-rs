@@ -178,6 +178,42 @@ firing into the open wrinkle would STOP on exactly it (the armor would catch it,
 lineage protocol, control flow) = HERE · 3b (`stop → resp`, the return path — couples to the wrinkle above)
 · strike 4 (`hibernate`/`resume`) = PROBATUM EST. Two stones laid; the door is opening.
 
+## ✅✅ 3a-ii RESOLVED — the lineage protocol (control DOWN / result UP), both directions
+
+The wrinkle is resolved: the lineage channel (self-peer) carries a **symmetric protocol** — `Admin` DOWN
+(owner→service), `LineageUp` UP (service→owner). Uniform across tiers (no per-tier join split).
+
+```
+self-peer : Peer'<:<fqdn>::LineageUp, :<fqdn>::Admin>   ; sends LineageUp, receives Admin
+(defenum :<fqdn>::Admin     :Init [seed <- :ship-ty]   :Stop [])
+(defenum :<fqdn>::LineageUp :Started [addr <- :addr-ty]  :Final [state <- :state-ty])
+```
+
+**Startup handshake (migrated, NO behavior change):** child `send' self (LineageUp::Started addr)` →
+owner/launch `recv'` → match `Started(addr)` → owner `send' (Admin::Init seed)` → child `recv'` → match
+`Init(seed)` → `(<fqdn>::init seed)` → State → serve. (`init-from-admin` passed to launch by-name so the
+generic thread closure never names `Admin`.)
+
+**Stop (the new control flow):** owner `(stop h)` → `send' (Handle.handle) (Admin::Stop)` → serve loop's
+`ServiceEvent::Admin(Admin::Stop)` arm → `send' self (LineageUp::Final state)` → terminate (nil) → owner
+`recv' (Handle.handle)` → match `Final(state)` → return state. **`Handle.handle` re-typed:**
+`:wat::spawn::Spawned` → `Peer'<:<fqdn>::Admin, :<fqdn>::LineageUp>` (the owner's lineage peer — Thread'/Process'
+both ARE peers, so it stays locus-agnostic).
+
+### The α/β cut (fire α first; it de-risks β, verified by existing green)
+- **3a-ii-α — protocols + handshake migration (NO new behavior):** emit both defenums + `init-from-admin`;
+  self-peer `Peer'<LineageUp, Admin>`; migrate the child/launch handshake to `Started`/`Init`; launch passes
+  `init-from-admin` by-name; the serve-loop `ServiceEvent::Admin` arm stays a re-loop STUB (no Stop yet).
+  **Verify:** `service-locus-parity.wat` + `service-init-parity.wat` stay GREEN (startup works via the
+  protocol); SET-diff = the floor.
+- **3a-ii-β — stop dispatch + the return + the Handle method:** serve-loop `Admin::Stop` → `LineageUp::Final(state)`
+  + terminate; `Handle.handle` → `Peer'<Admin,LineageUp>`; `<fqdn>/stop [h <- Handle]` sends Stop + recv's Final.
+  **Verify:** un-ignore `service-admin-facet.wat` → GREEN.
+
+**STOP-α triggers:** if `Handle.handle` re-typing to `Peer'<Admin,LineageUp>` breaks locus-agnosticism
+(Thread'/Process' must both satisfy it), STOP + report. If the `LineageUp`/`Admin` protocol migration breaks
+the existing startup (locus-parity/init-parity go red), STOP — α must keep them green (it's a pure migration).
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
