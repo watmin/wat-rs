@@ -1,7 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-23; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `df9a86ea`
-(`arc 291 strike-3a: fork RESOLVED + mechanism grounded`) or later. All below committed + pushed.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `0a3888ab`
+(`arc 291 strike-3a-ii: RESOLVED — the symmetric lineage protocol`) or later. **NOTE: the working tree may be
+DIRTY** — a 3a-ii-α shadowdancer was in flight at compaction (see the IN-FLIGHT note below; check `git status`
+FIRST). All committed work below is pushed.
 
 > ⚠ **Arc 292 (timer) is DONE/INSCRIBED.** The live work is **arc 291 (defservice durable state)**, well
 > underway. This breadcrumb lives in 255/ by convention.
@@ -33,10 +35,23 @@ just discarding its messages.
   non-exhaustive (a real cascade my brief missed — param-free ≠ variant-free); resolved via the existing
   `Connection`-stub precedent (Admin arm on all 6 match sites; 5 `select'` sites "can't happen", service.wat
   re-loops). Weighed: 281/2/56, SET-diff = the known floor. **Emission verified by reading; 3a-ii exercises it.**
-- **3a-ii — NEXT (the macro reshape):** emit `<fqdn>::Admin` enum (`Stop`; later `Hibernate`); self-peer R =
-  `Admin`; child-main `recv'`s `Admin::Init(ship)` (unify the startup handshake with the admin channel);
-  service.wat's serve-loop `ServiceEvent::Admin` arm becomes REAL dispatch; `stop` → `<fqdn>/stop [h <- Handle]`
-  sending `Admin::Stop` on `Handle.handle`. Un-ignores `service-admin-facet.wat` → GREEN. (`STRIKE-3a-facet-split.md`.)
+- **3a-ii — RESOLVED design** (`0a3888ab`, in `STRIKE-3a-facet-split.md` §"3a-ii RESOLVED"): the **symmetric
+  lineage protocol** — `Admin` DOWN (`Init[seed]`/`Stop`), `LineageUp` UP (`Started[addr]`/`Final[state]`),
+  uniform across tiers. control DOWN the channel, result UP via `LineageUp::Final`. `Handle.handle` re-types
+  `Spawned` → `Peer'<Admin,LineageUp>`. **α/β cut:** 3a-ii-α = protocols + startup handshake migration (pure,
+  existing tests green) → 3a-ii-β = stop dispatch + the Handle method (un-ignores `service-admin-facet.wat`).
+- **⚠ IN FLIGHT AT COMPACTION (2026-06-23):** a shadowdancer (`a53cf41d`) was firing **3a-ii-α** — its edits
+  are **UNCOMMITTED in the tree** after HEAD `0a3888ab`. **ON WAKE, FIRST:** `git status` + `git diff --stat`.
+  → If `wat/service.wat`+`wat/spawn.wat` show lineage-protocol edits (the agent landed): **WEIGH it** —
+  `cargo test --test test counter_on` (service-locus-parity + service-init-parity MUST be green; it's a pure
+  migration) + `cargo test --test test 2>&1|tail -3` (SET-diff = the 2-test floor) + read the diff; commit on
+  green as `arc 291 strike-3a-ii-α`. → If it STOP'd or left a broken/partial tree (red, type errors): read the
+  agent transcript (`/tmp/claude-1000/.../tasks/a53cf41dd83fe3237.output` via the task tools, NOT `cat`), weigh
+  the finding, fix or `git checkout` + re-fire 3a-ii-α per the brief. → If the tree is CLEAN: the agent didn't
+  land — re-fire 3a-ii-α. **Then 3a-ii-β.**
+- **DOCTRINE (banked this session, `feedback_loaded_context_is_the_asset_keep_building`):** the loaded
+  context IS the smooth — keep building, don't preemptively bank/fire-fresh; compact only when forced (~90%+).
+  The debates/designs ARE installed programs (R6/R17). recolligere cheaply re-loads from this trail.
 
 ### Then (the rest of 291)
 - **Strike 3b** — `stop → resp` decouple (return decoupled from State).
