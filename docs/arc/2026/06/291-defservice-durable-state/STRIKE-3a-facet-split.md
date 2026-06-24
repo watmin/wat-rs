@@ -249,6 +249,41 @@ re-type the thread closure self-peer** (`spawn.wat` ThreadOpts/launch `fn [self-
 handshake (shared memory: it captures `ship=Admin::Init` and `launch` already holds `Bound/address`) — that
 asymmetry is correct and stays; only the self-peer TYPE needs the β re-type.
 
+## ✅✅✅✅ 3a-ii-β SHIPPED — strike 3a CLOSED (owner-only stop, by construction)
+
+Two commits: **β-foundation** (`77773580`) + **β-proper** (`7c9d0f29`).
+
+**β-foundation — `Thread'/Process' ARE Peer's` (N-loci-general).** STOP-1 (the thread lineage-peer
+typing) resolved at the root: the spawn handle IS the parent end of the lineage channel = a peer, but the
+type model only had `Parametric → Path` in `assignable` (Thread'<X,Y> satisfied the `:Spawned` marker, not
+`Peer'<X,Y>`). Added `(derive Thread'/Process' Peer')` + a generic `Parametric <: Parametric` arm in
+`check.rs assignable` (head-derives-head via `is_subtype` + pairwise-invariant args). **Driven by the derive
+graph, never a `{Thread',Process'}` enumeration** — the builder's N-remote-loci constraint: a future
+`Remote'` joins with one `(derive Remote' Peer')`, zero checker edits. Pure addition; SET-diff ∅.
+
+**β-proper — the annihilation + relocation.** ANNIHILATED the client lifecycle backdoor (`Op::Stop`/
+`Reply::Stop`/`StopRequest`/`StopResponse`/auto serve-arm/ctor/client `stop [c]` method); KEPT `Outcome::Stop`
+(live user-op cooperative-terminate, replies with its own variant). RELOCATED: serve-loop `Admin::Stop` →
+`LineageUp::Final(state)` + terminate; `<fqdn>/stop [h <- Handle]` sends Stop + recv's Final;
+`Handle.handle :Spawned → Peer'<Admin,LineageUp>`; lineage types threaded through `launch<S,R,St,Sh,Lu>` +
+`Launched<S,R,Sh,Lu>{handle:Peer'<Sh,Lu>}`; thread closure self-peer + serve `self` re-typed (the β-implication
+above, resolved). **Bug found+fixed in the weigh:** unit variant `Admin::Stop` was constructed as `(~admin-stop-kw)`
+(a call) → bare `~admin-stop-kw`.
+
+**The blast radius was wider than briefed — 5 probes, not 2** (examinare's "tests assert the very thing the
+change removes"): arc272 rs1/rs2×2 (`/stop c`→`/stop h`); arc209 c1/c2 (dropped `Op::Stop`/`Reply::Stop` arms;
+c2's white-box serve-driver self-peer → lineage type). All `.rs`-embedded wat → **hand-edited (the wat-fix
+boundary: the toolkit rewrites `.wat` source, not wat-in-Rust-strings)**. See `NOTE-wat-fixes-rust.md` for the
+future capability that would close that boundary.
+
+**Verified (against the disk):** `admin_stop` 2/2 both tiers (RED probe fulfilled — owner-only stop returns
+final state); `counter_on`+`seeded` 4/4 (back-compat); 5 migrated probes green; full-pkg SET-diff vs HEAD = ∅
+(lone +1 `deporder_verify_stdlib_runs` passes isolated — the arc-170 execve cascade flap).
+
+**Done = the gate (3a): MET.** `service-admin-facet.wat` GREEN both tiers; `stop` owner-only by construction
+(a client literally has no stop method — `(/stop c)` doesn't typecheck); back-compat holds. **Strike 3a CLOSED.**
+Next: **3b** (`stop → resp` decouple) → **strike 4** (`hibernate`/`resume` = PROBATUM EST).
+
 ## STOP triggers (for the eventual build)
 - STOP if the dual-facet serve wait (3a-i) needs a primitive that doesn't exist and can't be cleanly added —
   surface the exact gap, don't bolt a homogeneous hack that puts admin+client in one vector (illegal: types differ).
