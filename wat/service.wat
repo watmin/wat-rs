@@ -231,12 +231,22 @@
      admin-ty       (:wat::core::keyword/from-string admin-ty-str)
      lineage-up-ty-str (:wat::core::string::interpolate "{fqdn-str}::LineageUp" :fqdn-str fqdn-str)
      lineage-up-ty  (:wat::core::keyword/from-string lineage-up-ty-str)
+     ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends LineageUp UP, recvs Admin DOWN.
+     ;; serve binds `self` to this (distinct from the client peer-ty Peer'<Reply,Op>).
+     lineage-peer-ty (:wat::core::keyword/from-string
+                       (:wat::core::string::concat "wat::kernel::Peer'<"
+                         (:wat::core::string::concat fqdn-str
+                           (:wat::core::string::concat "::LineageUp,"
+                             (:wat::core::string::concat fqdn-str "::Admin>")))))
      admin-init-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::Admin::Init" :fqdn-str fqdn-str))
      admin-stop-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}::Admin::Stop" :fqdn-str fqdn-str))
      lineage-started-kw (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Started" :fqdn-str fqdn-str))
+     ;; arc 291 3a-ii-β: LineageUp::Final — service replies with final state on admin stop.
+     lineage-final-kw  (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::LineageUp::Final" :fqdn-str fqdn-str))
      init-from-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::init-from-admin" :fqdn-str fqdn-str)
      init-from-admin-name (:wat::core::keyword/from-string init-from-admin-name-str)
      lineage-extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::lineage-extract-addr" :fqdn-str fqdn-str)
@@ -499,60 +509,10 @@
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
 
-     ;; ── rs-2: AUTO stop op (standalone — not threaded through user-op folds) ───────
-     ;; The stop op has a different shape at every fold: nullary request, state-carrying
-     ;; response, auto serve body, state-typed client method. Built standalone and conj'd
-     ;; into each collection before final assembly.
-     ;;
-     ;; StopRequest [] — nullary; client sends it to terminate the service.
-     stop-req-name   (:wat::core::keyword/from-string
-                       (:wat::core::string::interpolate "{fqdn-str}::StopRequest" :fqdn-str fqdn-str))
-     stop-req-record `(:wat::Record::def ~stop-req-name [])
-     ;; StopResponse [state <- <state-ty>] — carries the final state to the client.
-     stop-resp-name  (:wat::core::keyword/from-string
-                       (:wat::core::string::interpolate "{fqdn-str}::StopResponse" :fqdn-str fqdn-str))
-     stop-resp-fields `[state <- ~state-ty]
-     stop-resp-record `(:wat::Record::def ~stop-resp-name ~stop-resp-fields)
-     ;; Op::Stop variant [req <- StopRequest]
-     stop-op-variant-kw (:wat::core::keyword/from-string
-                          (:wat::core::string::interpolate "{fqdn-str}::Op::Stop" :fqdn-str fqdn-str))
-     stop-op-req-field `[req <- ~stop-req-name]
-     ;; Reply::Stop variant [resp <- StopResponse]
-     stop-reply-variant-kw (:wat::core::keyword/from-string
-                             (:wat::core::string::interpolate "{fqdn-str}::Reply::Stop" :fqdn-str fqdn-str))
-     stop-reply-resp-field `[resp <- ~stop-resp-name]
-     ;; Auto serve arm for Op::Stop:
-     ;;   ((Op::Stop req)
-     ;;     (match (Outcome::Stop state (StopResponse state))
-     ;;       ((Outcome::Stop final-state resp)
-     ;;         (do (send' (nth clients idx) (Reply::Stop resp)) nil))))
-     ;; `state` is the serve param (value position in match). The outer outcome-match
-     ;; structure is duplicated here (no user body to bind; direct auto handler).
-     stop-resp-acc (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{fqdn-str}::StopResponse/state" :fqdn-str fqdn-str))
-     stop-serve-arm `((~stop-op-variant-kw req)
-                       (:wat::core::match
-                         (:wat::service::Outcome::Stop state (~stop-resp-name state))
-                         -> :wat::core::nil
-                         ((:wat::service::Outcome::Reply _ _) nil)
-                         ((:wat::service::Outcome::Stop final-state resp)
-                           (:wat::core::do
-                             (:wat::kernel::send'
-                               (:wat::core::nth clients idx)
-                               (~stop-reply-variant-kw resp))
-                             nil))))
-     ;; Extend the record/enum/serve-arm collections now (before serve-body + service-forms-def
-     ;; use them). constructors/methods are extended after their user-op folds complete below.
-     request-records  (:wat::core::conj request-records stop-req-record)
-     response-records (:wat::core::conj response-records stop-resp-record)
-     variants         (:wat::core::conj (:wat::core::conj variants :Stop) stop-op-req-field)
-     reply-variants   (:wat::core::conj (:wat::core::conj reply-variants :Stop) stop-reply-resp-field)
-     serve-op-arms    (:wat::core::conj serve-op-arms stop-serve-arm)
-
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
      ;; self/l/clients/state in the Vector are fine as literal symbols.
-     serve-params `[self    <- ~peer-ty
+     serve-params `[self    <- ~lineage-peer-ty
                     l       <- ~listener-ty
                     clients <- ~vector-ty
                     state   <- ~state-ty]
@@ -560,12 +520,24 @@
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
      ;; or value positions — the checker only fires for let/fn binder Vectors.
+     ;; arc 291 3a-ii-β: Admin::Stop arm — sends LineageUp::Final(state) back up the
+     ;; lineage peer (self), then terminates (returns nil, no recur). Admin::Init arriving
+     ;; post-startup is a protocol error (assertion-failed!).
      serve-body   `(:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
                      (:wat::spawn::ServiceEvent::Shutdown nil)
                      ((:wat::spawn::ServiceEvent::Connection peer)
                        (~serve-name self l (:wat::core::conj clients peer) state))
-                     ((:wat::spawn::ServiceEvent::Admin _admin-msg)
-                       (~serve-name self l clients state))
+                     ((:wat::spawn::ServiceEvent::Admin admin-msg)
+                       (:wat::core::match admin-msg -> :wat::core::nil
+                         (~admin-stop-kw
+                           (:wat::core::do
+                             (:wat::kernel::send' self (~lineage-final-kw state))
+                             nil))
+                         ((~admin-init-kw _seed)
+                           (:wat::kernel::assertion-failed!
+                             "defservice serve: Admin::Init after startup (protocol error)"
+                             :wat::core::None
+                             :wat::core::None))))
                      ((:wat::spawn::ServiceEvent::Message idx op)
                        (:wat::core::match op -> :wat::core::nil
                          ~@serve-op-arms))
@@ -683,32 +655,30 @@
                      (:wat::core::Vector :wat::WatAST)
                      clauses)
 
-     ;; ── rs-2: stop constructor + method (extended after user-op folds complete) ───
-     ;; Constructor: (defn <fqdn>/stop-request [] -> StopRequest (StopRequest))
-     stop-ctor-name  (:wat::core::keyword/from-string
-                       (:wat::core::string::interpolate "{fqdn-str}/stop-request" :fqdn-str fqdn-str))
-     stop-ctor       `(:wat::core::defn ~stop-ctor-name [] -> ~stop-req-name (~stop-req-name))
-     ;; Method: (defn <fqdn>/stop [c <- client-peer-ty] -> state-ty ...)
-     ;; Sends Op::Stop(StopRequest) over c, recv's Reply, matches Reply::Stop → extracts state.
+     ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
+     ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
+     ;; Takes the Handle (unforgeable; never handed to clients); sends Admin::Stop down the
+     ;; lineage peer (Handle/handle h); recv's LineageUp::Final → extracts and returns state.
      ;; Uses symbol-node for `_` and `r` let binders (hygiene: Unquote at def time).
-     stop-discard-sym (:wat::core::symbol-node "_")
-     stop-r-sym       (:wat::core::symbol-node "r")
-     stop-method-name (:wat::core::keyword/from-string
-                        (:wat::core::string::interpolate "{fqdn-str}/stop" :fqdn-str fqdn-str))
-     stop-method-params `[c <- ~client-peer-ty]
-     stop-method-body `(:wat::core::let
-                          [~stop-discard-sym (:wat::kernel::send' c (~stop-op-variant-kw (~stop-req-name)))
-                           ~stop-r-sym       (:wat::kernel::recv' c)]
+     stop-discard-sym  (:wat::core::symbol-node "_")
+     stop-r-sym        (:wat::core::symbol-node "r")
+     stop-method-name  (:wat::core::keyword/from-string
+                         (:wat::core::string::interpolate "{fqdn-str}/stop" :fqdn-str fqdn-str))
+     handle-handle-acc (:wat::core::keyword/from-string
+                         (:wat::core::string::interpolate "{fqdn-str}::Handle/handle" :fqdn-str fqdn-str))
+     stop-method-params `[h <- ~handle-name]
+     stop-method-body  `(:wat::core::let
+                          [~stop-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
+                           ~stop-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym -> ~state-ty
-                            ((~stop-reply-variant-kw resp) (~stop-resp-acc resp))
+                            ((~lineage-final-kw state) state)
                             (_ (:wat::kernel::assertion-failed!
-                                 "defservice stop method: unexpected reply variant (protocol violation)"
+                                 "defservice stop: expected LineageUp::Final"
                                  :wat::core::None
                                  :wat::core::None))))
-     stop-method      `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~state-ty ~stop-method-body)
-     ;; Extend constructors and methods with the auto stop op.
-     constructors     (:wat::core::conj constructors stop-ctor)
-     methods          (:wat::core::conj methods stop-method)
+     stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~state-ty ~stop-method-body)
+     ;; Extend methods with the owner-only stop.
+     methods           (:wat::core::conj methods stop-method)
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
@@ -737,13 +707,18 @@
      ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
+     ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,LineageUp> — Sh=Admin (ship), Lu=LineageUp.
      launch-head-kw (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
                         (:wat::core::string::concat fqdn-str
                           (:wat::core::string::concat "::Op,"
                             (:wat::core::string::concat fqdn-str
                               (:wat::core::string::concat "::Reply,"
-                                (:wat::core::string::concat fqdn-str "::State>")))))))
+                                (:wat::core::string::concat fqdn-str
+                                  (:wat::core::string::concat "::State,"
+                                    (:wat::core::string::concat fqdn-str
+                                      (:wat::core::string::concat "::Admin,"
+                                        (:wat::core::string::concat fqdn-str "::LineageUp>")))))))))))
 
      ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
@@ -830,12 +805,19 @@
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────
      ;; (Record::def <fqdn>::Handle
-     ;;   [handle <- :wat::spawn::Spawned
+     ;;   [handle <- Peer'<Admin,LineageUp>
      ;;    addr   <- :wat::kernel::Address'<fqdn::Op,fqdn::Reply>])
-     ;; handle is the locus-agnostic spawn-handle marker: Thread'/Process'/future-remote
-     ;; all derive :wat::spawn::Spawned so any concrete handle satisfies this field.
+     ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
+     ;; Peer'<Admin,LineageUp> — owner sends Admin (down), receives LineageUp (up).
+     ;; Thread'<Admin,LineageUp> and Process'<Admin,LineageUp> both satisfy this field
+     ;; (send'/recv' intrinsics accept Thread'|Process'|Peer' uniformly).
      ;; addr carries the typed Address'<Op,Reply> for client connect'.
-     handle-fields `[handle <- :wat::spawn::Spawned addr <- ~addr-ty]
+     handle-peer-ty (:wat::core::keyword/from-string
+                      (:wat::core::string::concat "wat::kernel::Peer'<"
+                        (:wat::core::string::concat fqdn-str
+                          (:wat::core::string::concat "::Admin,"
+                            (:wat::core::string::concat fqdn-str "::LineageUp>")))))
+     handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
      handle-record `(:wat::Record::def ~handle-name ~handle-fields)]
 
     ;; Assemble the final `do`:

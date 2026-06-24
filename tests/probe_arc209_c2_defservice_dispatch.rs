@@ -45,8 +45,7 @@ const PROGRAM: &str = r#"
 (:wat::core::defn :user::reply-value [r <- :my::counter::Reply] -> :wat::core::i64
   (:wat::core::match r -> :wat::core::i64
     ((:my::counter::Reply::Get resp) (:my::counter::GetResponse/value resp))
-    ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))
-    ((:my::counter::Reply::Stop resp) (:my::counter::State/count (:my::counter::StopResponse/state resp)))))
+    ((:my::counter::Reply::Increment resp) (:my::counter::IncrementResponse/value resp))))
 
 ;; Hand-drive the GENERATED serve (C.3 will wrap start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +
@@ -56,8 +55,10 @@ const PROGRAM: &str = r#"
     [pair (:wat::kernel::listener' (:wat::spawn::thread) :my::counter::Op :my::counter::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
+     ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<LineageUp,Admin>),
+     ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>] -> :wat::core::nil
+            (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::LineageUp,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
                 (:my::counter::State 0))))

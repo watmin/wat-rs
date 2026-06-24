@@ -53,8 +53,7 @@ const PROGRAM: &str = r#"
                     op  (:my::counter::Op::Increment req)]
     (:wat::core::match op -> :wat::core::i64
       ((:my::counter::Op::Get _r) 0)
-      ((:my::counter::Op::Increment req) (:my::counter::IncrementRequest/n req))
-      ((:my::counter::Op::Stop _r) 0))))
+      ((:my::counter::Op::Increment req) (:my::counter::IncrementRequest/n req)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;

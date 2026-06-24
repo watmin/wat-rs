@@ -41,7 +41,9 @@ const PROGRAM: &str = r#"
     [h     (:my::counter/start (:wat::spawn::thread) (:my::counter::State 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _     (:my::counter/increment c (:my::counter/increment-request 5))
-     final (:my::counter/stop c)]
+     ;; arc 291 3a-ii-β: stop is now OWNER-ONLY — takes the Handle (h), not the client peer (c).
+     ;; The final state rides UP the lineage channel (LineageUp::Final), not the client reply.
+     final (:my::counter/stop h)]
     (:my::counter::State/count final)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

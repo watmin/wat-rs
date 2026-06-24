@@ -162,8 +162,12 @@
 ;; `handle` is the owner-side spawn handle (Thread'/Process'/future-remote all derive :Spawned).
 ;; `address` is what clients dial via connect'.
 ;; `start` unwraps Launched into the Handle record — locus-agnostic launch, locus-agnostic start.
-(:wat::core::defstruct :wat::spawn::Launched<S,R>
-  [handle  <- :wat::spawn::Spawned
+;; arc 291 3a-ii-β: handle is the lineage PEER (Peer'<Sh,Lu> — sends Sh=Admin, recvs
+;; Lu=LineageUp), no longer the opaque :Spawned marker. Thread'<Sh,Lu>/Process'<Sh,Lu>
+;; bind it via the `derive …Peer'` foundation. This is what makes owner-only `stop` able
+;; to send'/recv' on the Handle's handle. S,R = the client (listener/dial) channel.
+(:wat::core::defstruct :wat::spawn::Launched<S,R,Sh,Lu>
+  [handle  <- :wat::kernel::Peer'<Sh,Lu>
    address <- :wat::kernel::Address'<S,R>])
 
 ;; ── The Keymaker's masterwork (the spawn-program' defclause) ─────────────────
@@ -218,12 +222,14 @@
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients state) -> nil.
 (:wat::core::defprotocol :wat::spawn::Locus
-  (launch<S,R,St,Sh> [self          <- :wat::spawn::Locus
-                      ship          <- :Sh
-                      init          <- :wat::core::keyword
-                      serve         <- :wat::core::keyword
-                      service-forms <- :wat::core::Vector<wat::WatAST>
-                      lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R>))
+  ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
+  ;; The returned Launched carries the lineage peer as Peer'<Sh,Lu>.
+  (launch<S,R,St,Sh,Lu> [self          <- :wat::spawn::Locus
+                         ship          <- :Sh
+                         init          <- :wat::core::keyword
+                         serve         <- :wat::core::keyword
+                         service-forms <- :wat::core::Vector<wat::WatAST>
+                         lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>))
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
@@ -237,7 +243,7 @@
     (:wat::core::let
       [b  (:wat::kernel::listener' self :S :R)
        sp (:wat::kernel::spawn-program' self
-            (:wat::core::fn [self-peer <- :wat::kernel::Peer'<R,S>] -> :wat::core::nil
+            (:wat::core::fn [self-peer <- :wat::kernel::Peer'<Lu,Sh>] -> :wat::core::nil
               (:wat::core::apply -> :wat::core::nil serve self-peer
                 (:wat::spawn::Bound/listener b)
                 (:wat::core::Vector :wat::kernel::Peer'<R,S>)

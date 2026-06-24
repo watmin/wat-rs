@@ -29,7 +29,6 @@
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.
 ;; stop takes the HANDLE (h), not the client peer (c) — owner-only by construction.
-(:wat::test::ignore "arc 291 strike-3a RED probe — admin/data facet split unbuilt; un-ignore on strike-3 green")
 (:wat::test::deftest' :wat-tests::service::admin-stop-on-thread
   ()
   (:wat::test::assert-eq
@@ -42,7 +41,6 @@
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::ignore "arc 291 strike-3a RED probe — admin/data facet split unbuilt; un-ignore on strike-3 green")
 (:wat::test::deftest' :wat-tests::service::admin-stop-on-process
   ()
   (:wat::test::assert-eq
