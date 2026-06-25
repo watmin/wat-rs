@@ -1365,8 +1365,13 @@ pub fn register_record_methods(
             body: FunctionBody::Wat(Arc::new(ctor_body)),
             closed_env: None,
         };
+        // Arc 293.3-records — Record::def macros now emit the typed recordtype form
+        // (field_types = Some), so macro-defined records and directly-declared records
+        // are no longer distinguished by field_types. The macro-emitted defn forms
+        // already registered the constructor and accessors at step 6. Skip auto-gen
+        // for any record whose constructor is already in the symbol table.
         if sym.functions.contains_key(&constructor_path) {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+            continue;
         }
         sym.functions.insert(constructor_path, Arc::new(ctor_func));
 

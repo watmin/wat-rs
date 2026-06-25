@@ -32,7 +32,7 @@
 ;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
 (:wat::Record::def :wat::kernel::SocketAddressWire
   [minter-pid <- :wat::core::i64
-   name       <- :wat::core::Vector<:wat::core::i64>])
+   name       <- :wat::core::Vector<wat::core::i64>])
 
 ;; ── Per-env launch records (what each env hands the post-spawn hook) ─────────
 ;; ThreadLaunch is empty — no fields yet; grows if a need appears (don't build

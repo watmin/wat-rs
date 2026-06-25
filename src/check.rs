@@ -14243,7 +14243,21 @@ pub(crate) fn assignable(
                         |fty, mty| assignable(fty, mty, subst, types),
                     );
                 }
-                // actual is not a struct — fall through to unify.
+                if let Some(crate::types::TypeDef::Record(rd)) = types.get(ap) {
+                    // field_types = Some once Record::def emits the typed form. None (string-literal record) → cannot satisfy.
+                    if let Some(fts) = rd.field_types.clone() {
+                        let names = rd.field_names.clone(); // clone to release the `types` borrow
+                        let pairs: Vec<(String, crate::types::TypeExpr)> =
+                            names.into_iter().zip(fts).collect();
+                        return crate::types::surface::struct_satisfies_surface(
+                            &pairs,
+                            &surf_clone,
+                            |fty, mty| assignable(fty, mty, subst, types),
+                        );
+                    }
+                    // field_types == None → fall through to unify (no types to match → cannot structurally satisfy).
+                }
+                // actual is not a struct or record — fall through to unify.
             }
         }
     }
