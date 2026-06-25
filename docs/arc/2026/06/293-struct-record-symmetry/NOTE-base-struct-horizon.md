@@ -37,6 +37,39 @@ repr-collapse stays the optional horizon.** The builder untangled a conflation i
 > repr-collapse below is correct ONLY if this categorical key survives as a substrate property (the constraint
 > already pinned in "THE CONSTRAINT THAT MUST SURVIVE"). Pairs `feedback_ground_codebase_claims_in_codesign`.
 
+## VERIFIED — holon is a record-refinement, not a third wire-kind (disk-grounded 2026-06-25)
+
+A read of the holon encoding (Explore agent + cross-checked greps) CONFIRMED the builder's model with
+three mechanism corrections (months-cold memory had the wire direction inverted). The grounded truth:
+
+- **Holon records are EDN-portable + wire-shippable** — `TypeDef::Record`, pass `is_portable_type`; encode
+  `edn_shim.rs:2973-2976`, decode `:2472-2556`.
+- **EDN ↔ hologram are two interconvertible encodings of the SAME data.** `struct_form` (positional fields)
+  and `holon_form` (the symbolic `Bind/Bundle/Atom` hologram) are each derivable from the other.
+- **`holon_form` is DERIVED from the fields** — `to-holon` per field (`Record.wat:225-265`).
+- **The hologram is precomputed in memory** (`value/value.rs:336`, `holon_form: Arc<HolonAST>`); base records
+  carry only `struct_form`, NO `holon_form` (`value/value.rs` `wat__Record`).
+- **All USER EDN round-trips through holon losslessly** (`holon-rs/.../holon_ast.rs:695-745`; only the internal
+  `SlotMarker` sentinel is non-encodable — not data).
+
+THREE corrections to the spoken model:
+1. **The wire ships the `holon_form` (as an EDN tagged literal), NOT the raw field data** — `struct_form` is
+   PROJECTED from the hologram's Bundle leaves on receipt, NO recompute (`edn_shim.rs:2480-2506`; arc 234.7b =
+   "no recompute"). The hologram is canonical on the wire; the field-view derives from it.
+2. **"the vectors" = the symbolic `HolonAST`, not a dense hypervector.** The dense float vector (similarity math)
+   is never stored on the value and never transmitted — computed from the AST on demand. "Don't transmit the
+   vectors" is true for the DENSE vectors; the symbolic form that crosses IS EDN.
+3. **"self-update for parity" → immutable coherent-rebuild.** There IS a named PARITY invariant
+   (`runtime.rs:8754`) but wat is value-semantic: `assoc` (`runtime.rs:13706-13778`) returns a NEW record with
+   BOTH `struct_form` + `holon_form` rebuilt coherently. No in-place mutation exists.
+
+**The resolved label model (unchanged by the corrections):** ONE categorical wire wall — **struct vs record**
+(edn-repr / `is_portable_type`). holon is **not a third categorical wire-kind**; it is a **structural + repr
+refinement of record** — it carries `struct_form` (so it satisfies core-record surfaces BY CONSTRUCTION), plus
+`holon_form` as canonical identity, plus the VSA surface. The nominal `holon::Record <: Record` edge
+(`types.rs:1422`) is REDUNDANT for surface satisfaction (structural covers it, once records carry field types —
+293.3-records). The only irreducibly-nominal thing is the struct/record edn-repr wall.
+
 ## The builder's model (verbatim intent)
 
 > *"it is best to have struct and record just be built on the same foundation and the 'struct-ness' vs
