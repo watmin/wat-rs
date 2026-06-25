@@ -40,11 +40,65 @@ pub fn expand_all(
         if is_defmacro_form(&expanded) {
             let def = parse_defmacro_form(expanded)?;
             registry.register(def)?;
+        } else if is_do_containing_defmacro(&expanded) {
+            // Arc 260.1b — a macro-generating-macro (e.g. defn's kwargs branch) may
+            // emit a `do` form whose children include a `defmacro` registration. Walk
+            // the `do`'s children: register any defmacro children immediately (so
+            // subsequent forms in the stream can invoke the new macro) and strip them
+            // from the `do` body, keeping the remaining non-defmacro children.
+            let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
+            // After hoisting, the do may have become a single-child do or still be
+            // a multi-child do — push it either way; `eval_do` handles both.
+            out.push(rebuilt);
         } else {
             out.push(expanded);
         }
     }
     Ok(out)
+}
+
+/// Returns `true` if `form` is a `(:wat::core::do ...)` form that has at least
+/// one `(:wat::core::defmacro ...)` child. Used by `expand_all` to detect
+/// macro-generating-macros (e.g. `defn`'s kwargs branch) that emit their
+/// `defmacro` registration inside a `do` wrapper.
+fn is_do_containing_defmacro(form: &WatAST) -> bool {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if head == ":wat::core::do" {
+                return items.iter().skip(1).any(is_defmacro_form);
+            }
+        }
+    }
+    false
+}
+
+/// Walk a `(:wat::core::do ...)` form, registering any `defmacro` children
+/// immediately and stripping them from the `do` body. The non-defmacro children
+/// are kept in order. Returns the rebuilt `do` form (with the defmacro children
+/// removed). Called only when `is_do_containing_defmacro` returns true.
+fn hoist_defmacros_from_do(
+    form: WatAST,
+    registry: &mut MacroRegistry,
+) -> Result<WatAST, MacroError> {
+    let (items, span) = match form {
+        WatAST::List(items, span) => (items, span),
+        other => return Ok(other), // guard: caller guarantees it's a List
+    };
+    let mut new_items = Vec::with_capacity(items.len());
+    let mut iter = items.into_iter();
+    // Keep the `do` keyword head.
+    if let Some(head) = iter.next() {
+        new_items.push(head);
+    }
+    for child in iter {
+        if is_defmacro_form(&child) {
+            let def = parse_defmacro_form(child)?;
+            registry.register(def)?;
+        } else {
+            new_items.push(child);
+        }
+    }
+    Ok(WatAST::List(new_items, span))
 }
 
 /// One macro-expansion step. Arc 030 — the core of

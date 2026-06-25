@@ -1669,6 +1669,7 @@
   (:wat::core::let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
                     ;; strip it to get the bare FQDN matching (:wat::core::type fact).
                     raw-name  (:wat::core::ast-name name)
+                    ;; strip-leading-colon inline (can't call user-defn from program-body macro)
                     name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
                                  (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
                                  raw-name)

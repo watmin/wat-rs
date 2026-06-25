@@ -619,12 +619,11 @@
 (:wat::core::defn :wat::fix::rename-ident-char? [c <- :wat::core::String] -> :wat::core::bool
   (:wat::core::string::contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
 
-;; rename-strip-colon — strip the leading ":" from a keyword prefix if present.
+;; rename-strip-colon — thin alias over :wat::core::string::strip-leading-colon.
 ;; ":t::Old" → "t::Old"; "t::Old" → "t::Old" (idempotent on bare strings).
+;; Promoted to core in Arc 260.1b Part A; kept here so call sites at lines 722/723 are untouched.
 (:wat::core::defn :wat::fix::rename-strip-colon [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::= (:wat::core::string::subs s 0 1) ":")
-    (:wat::core::string::subs s 1 (:wat::core::string::length s))
-    s))
+  (:wat::core::string::strip-leading-colon s))
 
 ;; rename-valid-match? — true iff old-bare (colon-stripped prefix) matches at index i in name
 ;; with a valid left and right boundary.

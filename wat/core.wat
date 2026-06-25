@@ -177,6 +177,130 @@
       (:wat::core::f64::/ x y)
       rest)))
 
+;; ─── kwargs-lower — shared kwargs lowering macro (Arc 260.1b Part B) ─────────
+;;
+;; Extracted from the inlined companion macro body inside `defn`'s kwargs branch.
+;; Called by each companion macro that `defn` emits; the companion is now a thin
+;; forwarder that supplies the baked-in constants and splices the call-args.
+;;
+;; Parameters (all :wat::WatAST — macro params are always unevaluated syntax):
+;;   impl-kw    — WatAST Keyword node for the $impl fn (e.g. :<name>$impl)
+;;   kwargs-ty  — WatAST Keyword node for the Kwargs record type (e.g. :<name>::Kwargs)
+;;   field-names — WatAST Vector node of field-name Symbol nodes in declared order
+;;   n-pos      — WatAST IntLit: count of leading positional params
+;;   ns         — WatAST Keyword node for pascal->kebab-in namespace scoping
+;;   call-args  — rest: the actual call arguments (positional + kwargs / map / record)
+;;
+;; EXTRACTION from WatAST params:
+;;   n-pos-int: (Option/expect (string::to-i64 (write-forms n-pos)) "...")
+;;   fnames:    (ast->children field-names)   — field-names is already a Vector node
+;;   ns-kw:     (keyword/from-string (keyword/to-string ns))
+;;
+;; NOTE: strip-leading-colon (Arc 260.1b Part A) is a defn and cannot be called
+;; from a macro program-body (not in is_pure_total). The `:foo-bar` → `foo-bar` strip
+;; uses `(string::subs ks 1 (string::length ks))` directly (always present for callers).
+(:wat::core::defmacro :wat::core::kwargs-lower
+  [impl-kw    <- :wat::WatAST
+   kwargs-ty  <- :wat::WatAST
+   field-names <- :wat::WatAST
+   n-pos      <- :wat::WatAST
+   ns         <- :wat::WatAST
+   & call-args <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let
+    [;; Extract typed values from the WatAST params
+     n-pos-int  (:wat::core::Option/expect
+                   (:wat::core::string::to-i64 (:wat::core::write-forms n-pos))
+                   "kwargs-lower: n-pos must be an integer literal")
+     fnames     (:wat::core::ast->children field-names)
+     nf         (:wat::core::length fnames)
+     ns-kw      (:wat::core::keyword/from-string (:wat::core::keyword/to-string ns))
+     ;; Split call-args into positional and tail
+     pos        (:wat::core::take call-args n-pos-int)
+     tail       (:wat::core::drop call-args n-pos-int)
+     tlen       (:wat::core::length tail)
+     ;; is-map: tail has exactly 1 element and it is a map literal
+     is-map     (:wat::core::if (:wat::core::= tlen 1)
+                   -> :wat::core::bool
+                   (:wat::core::= (:wat::core::ast-kind (:wat::core::first tail)) "map")
+                   false)
+     ;; is-pt: passthrough — tail has 1 element and it is NOT a map (explicit record)
+     is-pt      (:wat::core::if (:wat::core::= tlen 1)
+                   -> :wat::core::bool
+                   (:wat::core::if is-map -> :wat::core::bool false true)
+                   false)
+     ;; kvflat: flat [k0 v0 k1 v1 …] — either ast->children of map node or tail itself
+     kvflat     (:wat::core::if is-map
+                   -> :wat::core::Vector<wat::WatAST>
+                   (:wat::core::ast->children (:wat::core::first tail))
+                   tail)
+     nkv        (:wat::core::i64::/ (:wat::core::length kvflat) 2)]
+    (:wat::core::if is-pt
+      -> :wat::WatAST
+      ;; Passthrough: explicit-record call; splice pos-args + single record arg
+      `(~impl-kw ~@pos ~(:wat::core::first tail))
+      ;; Normal: reorder by field declaration order using pascal->kebab-in matching
+      (:wat::core::let
+        [ovals
+         (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                            fi  <- :wat::core::i64]
+             -> :wat::core::Vector<wat::WatAST>
+             (:wat::core::let
+               [fn-node
+                (:wat::core::Option/expect
+                  (:wat::core::get fnames fi)
+                  "kwargs-lower: field index OOB")
+                fkebab
+                (:wat::core::string::pascal->kebab-in ns-kw
+                  (:wat::core::ast-name fn-node))
+                ;; Scan kvflat for the key matching fkebab; accumulate in a
+                ;; single-element Vector (found) to preserve the matched value.
+                found
+                (:wat::core::foldl
+                  (:wat::core::fn [iacc <- :wat::core::Vector<wat::WatAST>
+                                   ki   <- :wat::core::i64]
+                    -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::let
+                      [kn
+                       (:wat::core::Option/expect
+                         (:wat::core::get kvflat (:wat::core::i64::* ki 2))
+                         "kwargs-lower: kv-key index OOB")
+                       ks
+                       (:wat::core::ast-name kn)
+                       ;; Strip leading ":" from ":foo-bar" → "foo-bar"
+                       ;; (string::strip-leading-colon is a defn, not in is_pure_total;
+                       ;;  callers always provide keywords so the colon is always present)
+                       kkb
+                       (:wat::core::string::subs ks 1 (:wat::core::string::length ks))
+                       vn
+                       (:wat::core::Option/expect
+                         (:wat::core::get kvflat (:wat::core::i64::+ (:wat::core::i64::* ki 2) 1))
+                         "kwargs-lower: kv-val index OOB")]
+                      ;; Only record the first match (iacc empty → still searching)
+                      (:wat::core::if (:wat::core::empty? iacc)
+                        -> :wat::core::Vector<wat::WatAST>
+                        (:wat::core::if (:wat::core::= kkb fkebab)
+                          -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::conj iacc vn)
+                          iacc)
+                        iacc)))
+                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::range 0 nkv))
+                ;; If no key matched → macro-error; otherwise take found[0]
+                v
+                (:wat::core::if (:wat::core::empty? found)
+                  -> :wat::WatAST
+                  (:wat::core::macro-error
+                    (:wat::core::string::concat "kwargs-lower: missing argument :" fkebab))
+                  (:wat::core::Option/expect
+                    (:wat::core::get found 0)
+                    "kwargs-lower: found[0]"))]
+               (:wat::core::conj acc v)))
+           (:wat::core::Vector :wat::WatAST)
+           (:wat::core::range 0 nf))]
+        `(~impl-kw ~@pos (~kwargs-ty ~@ovals))))))
+
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
 ;; Arc 260.1a — defn detects a trailing `& [argspec]` kwargs section:
@@ -315,13 +439,67 @@
                             (:wat::core::Vector :wat::WatAST)
                             field-indices)
          ;; Wrap let-binder-items as a WatAST::Vector (kw-argvec is the shape template)
-         let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)]
-        ;; Emit: (do record-def (def name (fn reshaped-params -> ret (let binders body…))))
+         let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)
+         ;; ── Arc 260.1b: companion macro additions ────────────────────────────
+         ;; impl-head-colon-str: ":<name>$impl" — the $impl fn's keyword string
+         impl-head-colon-str (:wat::core::string::concat ":"
+                               (:wat::core::string::concat name-str "$impl"))
+         ;; kwargs-ty-colon-str: ":<name>::Kwargs" — for keyword-node in the companion body
+         kwargs-ty-colon-str (:wat::core::string::concat ":" kwargs-ty-str)
+         ;; n-pos: count of leading positional params (all params before `& [...]`)
+         n-pos               (:wat::core::i64::/ (:wat::core::i64::- params-len 2) 3)
+         ;; fname-nodes: Vector<WatAST> of field-name symbol nodes in declared order
+         fname-nodes         (:wat::core::map
+                               (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
+                                 (:wat::core::Option/expect
+                                   (:wat::core::get kw-ch (:wat::core::i64::* i 3))
+                                   "defn kwargs fname-nodes: index"))
+                               (:wat::core::range 0 n-kw-fields))
+         ;; field-names-ast-vec: WatAST Vector node of fname symbol nodes
+         ;; (baked into the companion macro via (:wat::core::quote ~field-names-ast-vec))
+         field-names-ast-vec (:wat::core::with-children kw-argvec fname-nodes)
+         ;; impl-name-node: WatAST Keyword node for the $impl fn (used in the def form)
+         impl-name-node      (:wat::core::keyword-node impl-head-colon-str)
+         ;; call-args-sym: rest-arg binder for the companion defmacro.
+         ;; symbol-node (not fresh-symbol): the argspec name key is stored as a bare string
+         ;; by parse_defmacro_form (ident.as_str()); env_key for a scoped fresh-symbol would
+         ;; NOT match the bare "call-args" binding key inserted by expand_program_body.
+         ;; No capture risk: call-args is an internal macro parameter, not user-visible.
+         call-args-sym       (:wat::core::symbol-node "call-args")]
+        ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
+        ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
+        ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
+        ;;   ~n-pos, ~name-str, ~impl-name-node, ~kwargs-ty-colon-str, ~field-names-ast-vec.
+        ;; The companion's program-body (let) binds these baked values and builds the
+        ;; kwargs-lower call form at companion-invocation time; kwargs-lower macro expands it.
+        ;;
+        ;; HYGIENE NOTE: All symbol binders inside this quasiquote use ~(symbol-node "name")
+        ;; (depth-1 unquote that fires at defn-expansion time, producing a Symbol value).
+        ;; Literal Symbol nodes at binder positions would trip the defn macro's own
+        ;; check_quasiquote_for_literal_binders gate (ProgramBodyIntroducesName). The Unquote
+        ;; form `~(...)` is a List node at check time — not a Symbol — so it passes the gate.
         `(:wat::core::do
            ~record-def
-           (:wat::core::def ~name
+           (:wat::core::def ~impl-name-node
              (:wat::core::fn ~reshaped-params -> ~ret-type
-               (:wat::core::let ~let-binders-vec ~@body-forms)))))
+               (:wat::core::let ~let-binders-vec ~@body-forms)))
+           (:wat::core::defmacro ~name
+             [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+             -> :wat::WatAST
+             ;; ── Thin forwarder to :wat::core::kwargs-lower ───────────────────────
+             ;; Baked-in constants (substituted at defn-expansion time via depth-1 ~):
+             ;;   _kl-impl: keyword node for the $impl fn
+             ;;   _kl-kty:  keyword node for the Kwargs type
+             ;;   _kl-fvec: the field-names Vector AST node (via quote, for ast->children)
+             ;;   _kl-np:   i64 literal: count of positional params
+             ;;   _kl-ns:   keyword node for function namespace (for pascal->kebab-in)
+             (:wat::core::let
+               [~(:wat::core::symbol-node "_kl-impl") ~impl-name-node
+                ~(:wat::core::symbol-node "_kl-kty")  (:wat::core::keyword-node ~kwargs-ty-colon-str)
+                ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
+                ~(:wat::core::symbol-node "_kl-np")   ~n-pos
+                ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-str))]
+               `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))))
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
       `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
 

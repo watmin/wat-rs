@@ -49,6 +49,27 @@ const KWARGS_SUGAR: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
+/// Disconfirmer: a field declared as PascalCase (FooBar) must be matchable
+/// by `:foo-bar` in the call site. This proves the pascal->kebab-in path is
+/// exercised (naive string-compare would fail FooBar ≠ foo-bar).
+const PASCAL_KWARGS: &str = r#"
+(:wat::core::defn :user::pascal-fn
+  [& [FooBar <- :wat::core::i64]]
+  -> :wat::core::i64
+  FooBar)
+
+;; Wrapper functions that invoke the companion macro at startup (macro expansion time).
+;; eval_in_frozen calls runtime::eval, which doesn't expand macros; the macro calls
+;; must be expanded at startup inside these wrapper fn bodies.
+(:wat::core::defn :user::via-kv-pascal [] -> :wat::core::i64
+  (:user::pascal-fn :foo-bar 42))
+
+(:wat::core::defn :user::via-map-pascal [] -> :wat::core::i64
+  (:user::pascal-fn {:foo-bar 99}))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
 fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, world, &Environment::new())
@@ -68,4 +89,26 @@ fn kwargs_call_sugar_kv_map_and_record_all_agree() {
              (connect::Kwargs 443 true)) → 443 + 1; got {got:?}"
         );
     }
+}
+
+/// Disconfirmer: `:foo-bar` in the call site matches a field declared as `FooBar`.
+/// Proves the pascal->kebab-in matching path (arc 265 registry). A naive
+/// string-compare `:foo-bar` vs `FooBar` would fail; the correct path converts
+/// `FooBar` → `"foo-bar"` and strips `:` from `:foo-bar` → `"foo-bar"`.
+#[test]
+fn pascal_case_field_matched_by_kebab_call_key() {
+    let world = startup_from_source(PASCAL_KWARGS, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
+    // via-kv-pascal calls (:user::pascal-fn :foo-bar 42) — lowered by companion macro at startup
+    let got = eval_to_i64(&world, "(:user::via-kv-pascal)");
+    assert!(
+        matches!(got, Value::i64(42)),
+        "expected 42: :foo-bar should match FooBar via pascal->kebab-in; got {got:?}"
+    );
+    // via-map-pascal calls (:user::pascal-fn {{:foo-bar 99}}) — map literal path
+    let got_map = eval_to_i64(&world, "(:user::via-map-pascal)");
+    assert!(
+        matches!(got_map, Value::i64(99)),
+        "expected 99 via map literal {{:foo-bar 99}}; got {got_map:?}"
+    );
 }

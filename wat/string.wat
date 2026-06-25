@@ -34,3 +34,13 @@
   (:wat::core::string::join ""
     (:wat::core::map :wat::core::string::capitalize
       (:wat::core::string::split s "-"))))
+
+;; :wat::core::string::strip-leading-colon — strip a leading ":" from s if present; else s unchanged.
+;; ":foo-bar" → "foo-bar"; "foo-bar" → "foo-bar" (idempotent on bare strings).
+;; Promoted from :wat::fix::rename-strip-colon (Arc 260.1b Part A dedup).
+(:wat::core::defn :wat::core::string::strip-leading-colon
+  [s <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::string::subs s 0 1) ":")
+    (:wat::core::string::subs s 1 (:wat::core::string::length s))
+    s))
