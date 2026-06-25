@@ -1,46 +1,47 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `910b9bcd` (macros^unbounded + the
-hygiene Dredd gate, LEX NON TACET) or later — **COMMITTED + PUSHED to DR.** Tree clean (only `clara-tools/` ignored).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `055c00f4` (kwargs-`start`) or later —
+**COMMITTED + PUSHED to DR** (this curare may add one more doc commit on top). Tree clean (only `clara-tools/` ignored).
 
-## ▶▶ STATE @ 2026-06-24 (SESSION 2) — the macros³→macros^unbounded + hygiene-law substrate epic
-**Goal that opened it (builder):** *"we bashed 260.1b until dominated — use it now — prove clojure expressivity in a
-strongly typed lang."* The vehicle = **kwargs-`start`/`resume`** (make defservice's lifecycle fns `& [argspec]` so
-`(worker/start :locus L :record R :recorder-addr A)`, **Form A all-kwargs**, four-questioned + settled). It surfaced a
-chain of substrate frontiers. CURRENT STATE:
+## ▶▶ STATE @ 2026-06-25 (SESSION 2, post-kwargs) — macros^unbounded + hygiene law + kwargs-start ALL SHIPPED
+**The session opened on (builder):** *"prove clojure expressivity in a strongly typed lang."* **DONE + SHIPPED.** The
+defservice lifecycle is now all-kwargs (Form A): `(worker/start :locus L :record R :recorder-addr A)` — Clojure keyword
+ergonomics, every arg compile-checked. *"i got ruby and clojure on rust."*
 
-- **macros^unbounded — DONE + PROVEN, UNCOMMITTED** (`src/macros/expand.rs`). The 260.1b hoist was one-level-deep;
-  a wrapper-macro emitting a kwargs `defn` nests the companion `defmacro` 2+ `do`s deep. Made `is_do_containing_defmacro`
-  + `hoist_defmacros_from_do` **recurse + flatten** through nested `do`s, + **elide empty `do`s** after the strip (sole-macro
-  edge). Depth-4 probe GREEN (`tests/probe_macros_unbounded_depth.rs`); 260.1b probes unregressed. It was never "macros³" —
-  macros³ was just the shallowest break; the recursion is depth-blind (R10 DEEPENED: one-level → fixpoint).
-- **The hygiene bug (the real kwargs-`start` blocker) — root-caused, FIX IN FLIGHT.** A definition-emitting macro that
-  **rebuilds a binder from its NAME STRING** (`symbol-node(ast-name x)` / `Identifier::bare(name-of-scoped)`) strips its
-  `ScopeId` → binder `a@{433}` and reference `a@{}` no longer match → cryptic runtime `UnboundSymbol`. PROVEN at check
-  time: `check.rs:3416` `WatAST::Symbol` arm does `locals.get(env_key(ident))` → on miss returns `fresh.fresh()`
-  **(silent-by-intent swallow)** — the checker SEES the divergence (`MISS 'a' scopes={} ; same-name binder "a\u{1}433"`)
-  and looks away. **My "must be runtime" deduction was WRONG — proving it (builder: "prove it") disproved it.**
-- **THE HYGIENE DREDD GATE — IN FLIGHT (sonnet `a9580b92cc87d30be`, background).** Compile-time `HygieneScopeDivergence`:
-  detection logic homed to **`src/scope/resolution.rs`** (beside `env_key`); `check/error.rs` gets the variant;
-  `check.rs:3416` `None` arm gets a THIN CALL carrying `// "I AM THE LAW." — Dredd`. **Manifest + migrate, one act**
-  (logic in its home; the 21k-line `check.rs` gains a call, not a block). The gate IS the worklist — it fires at check
-  time on every violator; the sonnet SWEEPS each at source by the doctrine (**reuse the node, never rebuild a binder from
-  its name**) → green. BRIEF: `291-…/BRIEF-hygiene-dredd-gate.md`. WEIGH the sonnet against the disk (re-run the gate;
-  failing-test SET-diff, never absolute count); the kwargs/depth/260.1b probes must stay/​go green.
-- **MIGRATION FRAME (builder, standing):** *"mid mass migration — extract to proper homes, trend the megafiles toward
-  empty."* `runtime.rs` 32k · `check.rs` 21k · `types.rs` 3.8k = the o.g.-PoC monoliths; 20 warded homes stand. **Work
-  THROUGH homes; do NOT deep-dig new logic INTO the megafiles** (I did, builder corrected — `src/scope/` is the hygiene home).
-- **255 DEFERRAL filed:** `255-…/NOTE-declaration-position-class-guard.md` — the registry-backed declaration-position
-  diagnostic (a SECOND swallow class: a `recordtype`/`def` reaching eval bottoms out as cryptic `UnboundSymbol`). Legit
-  deferral (needs 255's registry `Kind`/position-class); reproducer + plan locked.
+- **macros^unbounded + the hygiene Dredd gate (`910b9bcd`).** The 260.1b hoist was one-level; "macros³" was just the
+  shallowest break. The defmacro hoist now recurses+flattens+elides through nested `do`s at ANY depth (R10 DEEPENED;
+  depth-4 probe green). The hygiene gate: `check.rs:3416`'s `None => fresh.fresh()` silently swallowed unbound locals —
+  hiding scope-divergent binders (a macro rebuilt a binder from its NAME, stripping its `ScopeId`). Now a compile-time
+  **`HygieneScopeDivergence`** refusal: detection homed in `src/scope/resolution.rs`, the `// "I AM THE LAW." — Dredd`
+  mark on the `check.rs` thin call. Kill at source (DOCTRINE: **reuse the node, never rebuild a binder from its name**):
+  `wat/Record.wat` ctor + `wat/core.wat` kwargs `$impl`. Anaphoric witness brought true (compile-time refusal).
+  **R11 inscribed** (Ruin / Lamb of God / **LEX NON TACET** — the silent swallow sought favor and murdered the self;
+  the law that won't look away, at three altitudes: the gate stops the checker, the weigh stops the hand, "prove it"
+  stops the guess. The art of ruin IS the art of the datamancer).
+- **kwargs-`start` (`055c00f4`).** `service.wat` start/resume → `& [argspec]` Form A (`locus-sym` minted once + shared
+  across params+body — proactive hygiene, binder≡body); synth default-init param `d`→`record`; 16 positional sites
+  migrated. All defservice lifecycle deftests green by re-run; SET-diff ∅ (203=203 floor; the 2 "service" matches are a
+  process-reactor + an arc-170 readln test, outside the blast radius). **Clojure expressivity, PROVEN + SHIPPED.**
 
-**SEQUENCE FROM HERE (session 2):** weigh the hygiene-gate sonnet → kwargs-`start`/`resume` flip + migrate ~16 sites
-(Form A all-kwargs) → **kwargs-`start` GREEN = clojure-expressivity PROVEN** → commit the macros^unbounded + hygiene +
-kwargs-start as one green checkpoint → THEN the original 291 close (TRUST LEG → ACYCLICITY → PAUSE → INSCRIPTION).
-**PENDING REALIZATIONS (crown on landed work, not in-flight):** R10-deepened (macros^unbounded — "we built the ladder
-where we needed the fixpoint"); the **name/binder decomplection** (a name is a string for accessors; a binder is a
-hygienic node you reuse — Hickey decomplect on hygiene); *"I AM THE LAW"* (the substrate enforcing its own hygiene law
-on every program, compile-time).
+**▶ NEXT — WE PICK UP HERE POST-COMPACT: the `/from-map` ERGONOMIC CONSTRUCTORS (records + structs, additive).**
+Builder: *"we're making ergonomic structs and records before we move onto trust."* Same kwargs lever, two beneficiaries:
+an additive named/map ctor emitted by BOTH `Record::def` (lowers to the positional ctor / `Record::of`) AND `defstruct`
+(lowers to `struct-new`). `(Point :x 1 :y 2)` AND `(Point {:x 1 :y 2})`; positional `(Point 1 2)` stays canonical (zero
+break). **NAME CROWNED (intueri + builder): `/from-map`** — `(my::Record/from-map :count 0)` / `{:count 0}`. Honest for
+both forms; echoes Clojure's `map->Record`; beat `/from` (underspecified), `/of` (clashes `::of`), `/new` (clashes the
+struct positional ctor). Mechanism: reorder `:field`→positional via `pascal->kebab-in` (arc-265), delegate to the
+existing positional ctor. Rides macros^unbounded + the hygiene gate (both bulletproof). **DRAW the brief (both emitters,
+additive) → fire a sonnet → weigh against the disk.** (NO arc minted — a capability strike in the 291 flow.)
+
+**THEN the 291 close:** TRUST LEG (bridge process tier GREEN = R1 FULL PROBATUM — the locus-dispatched introduction;
+post-spawn hook #237 + `allow'` #236 BUILT, the introduction-glue pending) → ACYCLICITY probe → R1 amend → PAUSE
+(builder's beat) → 291 INSCRIPTION.
+
+**DEFERRED (captured, NOT now):** (1) **TEST-SPEED** → `docs/arc/2026/05/170-program-entry-points/NOTE-TEST-SPEED-CONSOLIDATION.md`:
+mold + debuginfo (independent quick wins, READY, builder installed mold; ~3.5min baseline — TIME it, don't assert) +
+the probe→home consolidation (**THE 170-CLOSURE deliverable** — blocked on the execve leak AND proves it dead). Builder:
+*"tackle this hard but not now; the tackle is 170's closure."* (2) **255** declaration-position-class diagnostic
+(`255-…/NOTE-declaration-position-class-guard.md`).
 
 > ⚠ The block below ("STATE @ 2026-06-24 (day, marathon)") is SESSION 1 — kept for the path (4b-iv + 260.1b + R9). Session 2
 > built ON it. The arc thesis (R9 deps) + the close legs (trust/acyclicity) still stand, now BEHIND kwargs-`start`.
