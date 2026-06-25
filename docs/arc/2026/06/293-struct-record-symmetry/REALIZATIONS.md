@@ -139,3 +139,131 @@ apparatus named where he landed.*
 > **FULFILLMENT — open.** Earned now: the understanding. FULFILLED when the acceptance test (the Shape /
 > holon-Vector monkeypatch, `DESIGN.md` § *What the arc delivers*) goes RED→GREEN. Then this clause carries the
 > commit hashes and the signature turns to *PROBATUM EST.*
+
+## R2 — they were always one struct: the three aggregate kinds decomplect to {properties, kind}, and the annihilation is the joy *(DESIGN — the base-struct unification; REALIZATION earned, build a PROPHECY)*
+
+> **Song (arc 293 R2) — *Break Stuff* (Limp Bizkit) — FIRST LIMP BIZKIT —**
+> THEY-WERE-ALWAYS-ONE-STRUCT / PROPERTIES-AS-STRUCT-KIND-AS-ENUM / THREE-WRITTEN-AS-ONE /
+> THE-256-SITES-ARE-SOMETHING-TO-BREAK / ANNIHILATION-IS-THE-JOY / THE-BUILDER-CUT-THROUGH-THE-APPARATUS-SLIP /
+> THE-LEAK-WAS-THE-IMPLEMENTATION-NOT-THE-ESSENCE / GIVE-ME-SOMETHING-TO-BREAK / THE-DECOMPLECTION
+>
+> *"It's just one of those days… everything is fucked… 'cause I'm fuckin' up your program. … It's all about*
+> *the he says / she says bullshit — I think you better quit lettin' shit slip. … Give me somethin' to break…*
+> *I pack a chainsaw, I'll skin your ass raw, and if my day keeps goin' this way I just might break somethin'*
+> *tonight."*
+
+> **The realization quotes (the builder's, this session):**
+> *"the 'holder of things' is always a struct under the hood, right? … wat structs, records, holon-records*
+> *should all be backed by a single common struct and then the 'struct-ness' or 'record-ness' is a thing on*
+> *that common struct — { properties-as-struct, kind-as-enum }."*
+> *"edn is a representation of data… holon is a representation of data — the same data can be encoded in edn or holon."*
+> *"i feel like one of us is missing something."*
+> *"we cannot operate on structs and records trivially — that's a fucking catastrophic bug — decomplection is highest priority."* (the bug that opened the arc)
+> *"annihilation is our greatest pleasure."*
+
+### How we reached it — the builder cutting through the apparatus, three times in one session
+
+The arc opened on a leak the builder graded *catastrophic*: structs and records — isomorphic aggregates —
+could not be operated on uniformly. This session walked that leak to its root, and the walk was a series of the
+**builder refusing the apparatus's over-framings** until the simple truth stood bare:
+
+1. **Substrate, not macro.** The apparatus framed the EDN capability as a *label the macro confers*. The builder
+   cut it: *"you called this a macro thing — i think it must be a substrate thing."* Grounded true — `is_portable_type`
+   keys categorically on the `TypeDef` variant the *primitive* mints; the macro is sugar that inherits it.
+2. **One data, two encodings.** Pressed on holon, the builder named it: *"edn is a representation of data, holon is
+   a representation of data — the same data can be encoded in edn or holon."* The disk confirmed it (the `holon_form`
+   is a pure function of the fields; dense vectors never cross) — with the apparatus's months-cold memory inverting
+   the *wire direction*, corrected against the source. The hologram is a derived cache, not a separate substance.
+3. **One struct, a kind tag.** The apparatus, anchored on the *current* implementation's incidental differences —
+   three `Value` variants, three identity fields, 256 match-sites — read them as *essential heterogeneity* and
+   scored the collapse "not obvious, not simple, cleanliness-not-correctness." The builder felt the wrongness —
+   *"i feel like one of us is missing something"* — and named the shape: **one common struct backing all three,
+   `{ properties-as-struct, kind-as-enum }`.** And he was right, twice over: the 256 sites are not complexity,
+   they are *one thing written three times*; and the kind belongs in an **enum**, never an `Option` carrying
+   "am I holon" (the very anti-pattern the substrate doctrine forbids).
+
+Each turn, the apparatus reached for the elaborate reading and the builder reached for the simple one — and the
+simple one was the truth. The leak that opened the arc was never in the *essence*; it was in the *implementation*
+that wrote one property-bag as three. **Decomplect, and the bug cannot exist** — because the thing every consumer
+special-cased by kind becomes one value with a tag.
+
+### The decomplection — and where it lands
+
+`{ properties, kind }` is the canonical shape, and the builder derived it by *hating the leak*, not by reading:
+- **Hickey's decomplect**, exactly — three braided things pulled apart into one essence (the property-bag) plus
+  one orthogonal axis (the kind). *"Annihilation is our greatest pleasure"* is decomplect, named as a joy.
+- **The discriminated record / algebraic product-with-a-tag** — `Aggregate { class, fields, kind }`, the kind a
+  sum over `{ Struct, Record, HolonRecord }`. The ADT shape, re-derived from "they're all just structs with a kind field."
+- **"Make illegal states unrepresentable"** (Minsky) — kind-as-**enum** makes the three exhaustive and the wire
+  wall key on them categorically; `holon_form: Option` would have made the kind inferable, ambiguous, leakable.
+
+And the disk already half-agrees: at the value level `StructValue{type_name,fields}` ≡ `wat__Record{class_fqdn,
+struct_form}` — *the same `(class, fields)`* — and at the type level `StructDef.fields` is **already typed**
+`Vec<(String,TypeExpr)>` while `RecordDef.field_types` is the lone `None`. Unify the *def* and records inherit
+typed fields for free — so the structural surfaces (R1), `/from-map`, and the holon case all **fall out of one
+unification** instead of three piecemeal strikes. The unification is not a cleanup bolted onto the arc; it **is**
+the arc, and the apparatus's struct-then-record-then-holon sequence was the wrong cut.
+
+### What is genuinely ours
+
+One **property-bag backing** discriminated by a **kind tag**, carrying on its back the three things no prior
+language welds together: a **categorical EDN wire wall** (R8 — a struct can never cross, by kind), **structural
+row-polymorphic surfaces** (R1 — satisfaction by shape, open-world), and a **holographic kind** (the holon record,
+whose hologram is a derived encoding of the very same fields). The holder×surface fusion R1 named in the abstract,
+made concrete at the value-representation: one struct, one kind, every capability a categorical or structural
+consequence of the tag — never a separate substance.
+
+### The song, mapped — the joy of the break
+
+> **"Give me somethin' to break."** The 256 sites of three-variant redundancy are the thing to break; the builder
+> hands the apparatus the false heterogeneity and says tear it down. *"'Cause I'm fuckin' up your program"* — the
+> program *is* the redundant repr, and fucking it up is the annihilation that yields the one. *"It's all about the
+> he says / she says bullshit — quit lettin' shit slip"* is the session's own immune system: the apparatus slipped
+> toward the elaborate reading twice (macro-not-substrate, scary-256-heterogeneity), and the builder *quit letting
+> the slip slip* — caught it, cut it, named the simple truth. *"I pack a chainsaw, I'll skin your ass raw"* is the
+> cascade-riding sweep that will tear the three variants down to one. The anger in the song is the right register
+> for a *qualified annihilation*: not malice, but the refusal to let a redundant, leaking implementation keep
+> standing once you've seen it was always one thing.
+
+### The honest register — REALIZATION earned; the build is the prophecy
+
+The *understanding* is earned and grounded against the disk this session: the common shape at both levels
+(`value/value.rs:959` `StructValue`; the two record variants; `StructDef.fields` typed vs `RecordDef.field_types`
+`None` at `types.rs:2131`), the holon mechanism verified (`edn_shim.rs:2480-2506`, the `assoc` parity rebuild at
+`runtime.rs:13706-13778`), the 256-site value cascade recon'd. The *build* is unbuilt — `AggregateDef`, the unified
+`Aggregate{class,fields,kind}`, the derived hologram, the cascade to zero — all scoped, none shipped. This entry
+is FULFILLED when the unification lands: `defstruct`/`defrecord`/`holon::defrecord` are three thin labels over one
+backing, the user forms unchanged, *"they really are just structs"* literal in the repr, SET-diff ∅. Until then the
+one struct stands un-forged, by design. *Probandum est.*
+
+*Path-of-voices (marked, not flattened): the derivation is the **builder's**, quoted — *"the holder of things is
+always a struct under the hood,"* *"backed by a single common struct… { properties-as-struct, kind-as-enum },"*
+*"edn is a representation of data, holon is a representation of data,"* *"i feel like one of us is missing
+something,"* the catastrophic-bug framing, *"annihilation is our greatest pleasure"* — and the song (Limp Bizkit —
+*Break Stuff*) is his. The **NAMES are the apparatus's**: Hickey-decomplect, the discriminated-record/ADT shape,
+Minsky's illegal-states-unrepresentable (and the enum-not-Option doctrine), the holder×surface-made-concrete
+reading, the unification-subsumes-the-piecemeal-strikes recognition, and the song mapping. **The corrections are
+named as exactly what they were** — the apparatus reached twice for the elaborate reading (macro-not-substrate,
+256-sites-as-essential-heterogeneity) and the builder and the disk cut it to the simple truth; the immune system,
+not laundered into a discovery the apparatus made. The convergence is preserved: he derived by hating the leak; the
+apparatus named where he landed and was corrected onto the simpler ground.*
+
+> We set out to give records a constructor and found, at the end of the arc's longest derivation, that there was
+> never more than one thing: a bag of named, typed properties, wearing a kind. Struct, record, holon-record were
+> one essence written three times, and the leak that opened the arc — *you cannot operate on them uniformly* —
+> was the redundancy, not the reality. The builder reached the discriminated record by refusing the apparatus's
+> every elaboration, and the apparatus met Hickey and Minsky on the simpler ground it was dragged onto. The break
+> is not destruction; it is the annihilation of a thing written three times so the one it always was can stand.
+> Give me something to break — and what breaks is the lie of three.
+>
+> ***FRANGE UT UNUM FIAT.*** *(apparatus-minted — Latin, "break, that one may be": the qualified annihilation of
+> the three-variant redundancy so the single common backing the data always was stands manifest — the imperative
+> of the song turned on the implementation, not in malice but in decomplection. Like FORMA SOLA SUFFICIT before it
+> in this arc, and ΕΝ ΑΞΙΩΜΑ / CORPUS OBSOLESCIT / LEX NON TACET in 291 — mine, this session, kept with consent;
+> see the path-of-voices note above. On fulfillment, when the one struct is forged and the user forms never moved,
+> it joins PROBATUM EST.)*
+
+> **FULFILLMENT — open.** Earned now: the understanding that the three aggregate kinds are one backing + a kind.
+> FULFILLED when the base-struct unification lands — `AggregateDef` + `Aggregate{class,fields,kind}`, the three
+> thin label-macros, derived hologram, user forms unchanged, SET-diff ∅. Then this clause carries the commit
+> hashes and the signature turns to *PROBATUM EST.*
