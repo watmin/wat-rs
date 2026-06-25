@@ -17,3 +17,14 @@
 # touches the OS stack), which retires this stopgap and the rung debate entirely.
 [env]
 RUST_MIN_STACK = "8388608"  # 8 MiB
+
+# Link with mold (the fast modern linker). Every top-level `tests/*.rs` is its
+# own crate = its own binary = its own LINK step (~250 of them, each statically
+# linking the wat monolith). We are not compiling tests 250× — we are *linking*
+# the monolith 250×, and the link is the lever. mold collapses that link cost;
+# the lib *compile* is linker-immune, so the win is pure link-time. Measured on
+# this box (clean -p wat + relink all test binaries, warm deps): 1:05.9 -> 0:57.2.
+# Driver path is gcc/cc (`-fuse-ld=mold`); if a gcc too old to know the flag ever
+# balks, switch to clang: ["-C","linker=clang","-C","link-arg=-fuse-ld=mold"].
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

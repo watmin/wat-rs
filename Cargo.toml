@@ -41,6 +41,14 @@ default-members = [
     "examples/interrogate",
 ]
 
+# Trim dev debuginfo from full DWARF to line tables only. The full `tests/*.rs`
+# dev gate links ~250 binaries; full debuginfo bloats every link. line-tables-only
+# keeps the line-numbered panic backtraces we lean on (NOT debug=0, which would
+# strip them) while cutting the link payload. `--release` already has debug=0, so
+# this only touches the dev path. Pairs the mold linker switch in .cargo/config.toml.
+[profile.dev]
+debug = "line-tables-only"
+
 [package]
 name = "wat"
 version = "0.1.0"
