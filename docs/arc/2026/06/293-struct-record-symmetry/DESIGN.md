@@ -103,7 +103,12 @@ surface's method members, reusing arc 232's `extract-classifier` + `apply`.
 a `typealias`-over-a-new-structural-type. It names a `[name <- :type …]` + `(method [self] -> :ret)` set, usable
 two ways: a **structural constraint** in type position (`[s <- :geo::Shape]`) and **spliceable** into bodies for
 DRY (`[~@:geo::Planar  radius <- :f64]`). It **subsumes `defprotocol`** (a protocol is a method-only surface) —
-`defprotocol` is annihilated. Name (`definterface`/`defsurface`/`defspec`) is an **intueri cast**.
+`defprotocol` is annihilated. **Name CROWNED `defsurface`** (intueri 2026-06-26 + builder): the only candidate
+with zero false connotation — the builder's own word ("surface area exposed"). Rejected Level-1 lies:
+`definterface` (Java-nominal `implements` baggage), `deftrait` (Rust/Scala `impl Trait for T`), `defspec`
+(`clojure.spec` collision); `defshape` mumbles (implies an *exact* outline; a surface is a *minimum*). The
+concept + internal variant = **`Surface`** / `TypeExpr::Surface` (user-vocab == compiler-vocab; `Row` rejected
+as type-theory-obscure). `extend-type` is KEPT (not renamed), demoted to the foreign-type accessor adapter.
 
 ### `extend-type` — the typed, compile-checked foreign-accessor adapter (survives, demoted)
 Its one real job: add accessors to a type you don't own (the monkeypatch — `:wat::holon::Vector`). Solves the
@@ -142,7 +147,8 @@ A confluence derived by solving (*"why do we even need parent?"*), not by readin
 - **Surface** (NEW): a structural-product matching path in `assignable` (does the candidate's type have ⊇ the required accessors), keyed off a named ArgSpec (`src/argspec/`) or inline `[fields]`.
 - **Protocols** (`defprotocol`→annihilate / subsume; `extend-type`→keep+demote): arc 232 `extract-classifier`+`apply` dispatcher machinery reused under `definterface`.
 - **Reprs** (UNTOUCHED — the wire law stays variant-level): `Value::Struct` / `Value::wat__Record` (`value/value.rs`).
-- **Home:** mint `src/<aggregate>/` (intueri) — lift the construction + surface machinery out of `runtime.rs`(32k)/`check.rs`(21k)/`types.rs` (the *"move out of `src/*.rs`"* directive); reprs stay in `value/`.
+- **Home:** mint **`src/aggregate/`** (CROWNED — intueri 2026-06-26 + builder; `src/product/` was the
+  type-theory alt, not chosen) — lift the construction + surface machinery out of `runtime.rs`(32k)/`check.rs`(21k)/`types.rs` (the *"move out of `src/*.rs`"* directive); reprs stay in `value/`.
 
 ## Decomposition (sub-strikes → the demo as final GREEN gate)
 - **293.0 — the acceptance probe.** The demo program above as a RED test (RED at HEAD: `definterface`/structural-surface/`/from-map`/the monkeypatch don't exist). Commit before build.

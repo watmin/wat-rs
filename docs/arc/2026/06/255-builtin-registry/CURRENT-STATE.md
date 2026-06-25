@@ -27,8 +27,11 @@ COMMITTED + PUSHED to DR. Tree clean (only `clara-tools/` ignored).
 **▶ NEXT — WE PICK UP HERE: BUILD arc 293, decomposition `293.0`→`293.5` is in the DESIGN.**
 `293.0` = author the acceptance probe (the demo program) as a RED test, verify RED at HEAD, commit. Then `293.1`
 aggregate HOME → `293.2` construction symmetry + `defrecord`/`defstruct` rename + `/from-map` → `293.3` structural
-surfaces + `definterface` → `293.4` methods-are-accessors (demo GREEN) → `293.5` close + unblock 291. **Intueri owed:**
-the aggregate-home name + `definterface`'s name. (Builder: *"we build it tomorrow."*)
+surfaces + `defsurface` → `293.4` methods-are-accessors (demo GREEN) → `293.5` close + unblock 291. **NAMES CROWNED
+(intueri 2026-06-26):** `defsurface` (the structural-surface form; SUBSUMES `defprotocol`) · `Surface`/`TypeExpr::Surface`
+(concept+variant) · `src/aggregate/` (home) · `extend-type` KEPT but demoted to the foreign-type accessor adapter.
+293.3 RED probe committed (`058f6035`, structural surface). NEXT: re-point probe at the NAMED `defsurface` surface
+(keyword path, current syntax — `[...]` bracket is fn-type-only, idealized future) → build 293.3-core.
 
 **THEN (291, now BEHIND 293):** TRUST LEG (process-tier bridge GREEN = R1 FULL PROBATUM) → ACYCLICITY probe → R1
 amend → PAUSE → 291 INSCRIPTION. **`/from-map` is SUBSUMED into 293** (falls out of the shared emission layer).
