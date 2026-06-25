@@ -7,7 +7,7 @@
 //!
 //! NEW INVARIANT: defservice's `:durable [fields]` mints `:<fqdn>::Record` (EDN, record? = true
 //! on holon variant); `:<fqdn>::State` is a `defstruct` (record? = FALSE on the struct).
-//! The holon `:record-parent` now parents the `::Record` (not the State struct), so
+//! The holon `:durable-parent` now parents the `::Record` (not the State struct), so
 //! `(record? (State/durable s))` is TRUE while `(record? s)` is FALSE.
 //!
 //! KEPT VALID: bare scalar in `:durable` is still rejected; unknown clause still rejected.
@@ -45,7 +45,7 @@ const BASE_STATE: &str = r#"
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
-// Holon — `:record-parent :wat::holon::Record` now parents the `::Record` (the durable soul),
+// Holon — `:durable-parent :wat::holon::Record` now parents the `::Record` (the durable soul),
 // NOT the State struct. So `(record? (State/durable s))` is TRUE (holon record);
 // `(record? s)` is FALSE (s is a defstruct, not a record).
 const HOLON_STATE: &str = r#"
@@ -57,7 +57,7 @@ const HOLON_STATE: &str = r#"
                    -> [yes <- :wat::core::bool]
      (:wat::service::Outcome::Reply s (:my::hcounter::IsHolonRecordResponse
                                         (:wat::core::record? (:my::hcounter::State/durable s)))))]
-  :record-parent :wat::holon::Record)
+  :durable-parent :wat::holon::Record)
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
@@ -98,16 +98,16 @@ fn durable_field_vector_mints_record_soul_round_trips() {
 }
 
 #[test]
-fn record_parent_holon_parents_the_durable_record_not_the_struct() {
+fn durable_parent_holon_parents_the_durable_record_not_the_struct() {
     let world = startup_from_source(HOLON_STATE, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed (rs-1 inverted: :record-parent parents the ::Record, not the State struct)");
+        .expect("startup should succeed (rs-1 inverted: :durable-parent parents the ::Record, not the State struct)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .map(|tv| tv.value_owned())
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::bool(true)),
-        "expected true: :record-parent :wat::holon::Record parents the ::Record (soul); \
+        "expected true: :durable-parent :wat::holon::Record parents the ::Record (soul); \
          (record? (State/durable s)) must be TRUE (holon record); got {got:?}"
     );
 }

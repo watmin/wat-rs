@@ -49,6 +49,20 @@
   :Reply [state <- :S  reply <- :R]
   :Stop  [state <- :S  reply <- :R])
 
+;; ── The canonical clause order — the story a service tells ──────────────────────
+;; A defservice reads top-to-bottom as a sentence about an actor. Order is
+;; compiler-free (all-kwargs); this is house style. Foundation precedes, elaboration
+;; follows — a parent founds the durable record (leads it); :calls elaborates the
+;; ephemeral peers (trails them).
+;;
+;;   :durable-parent   what I'm built from   (optional — the durable record's parent; e.g. holon)
+;;   :durable          what I remember       (the soul: EDN, crosses the wire, survives hibernation)
+;;   :ephemeral        what I carry          (the body: resources + peer clients; never crosses)
+;;   :calls            who I call            (install each callee's client contract — arc 291 4b-iv)
+;;   :init             how I'm built         ((Record, …operating-inputs) -> State)
+;;   :hibernate        how I rest            (State -> Record; optional, defaults)
+;;   :stop             how I end             (State -> Resp; optional, defaults)
+;;   :ops              what I do             (the typed message API)
 (:wat::core::defmacro :wat::service::defservice
   [fqdn    <- :wat::WatAST     ;; :my::counter
    & clauses <- :wat::core::Vector<wat::WatAST>]  ;; all-kwargs: [:durable [..] :ephemeral [..] :ops [..] ...]
@@ -63,7 +77,7 @@
      ;; ── 4b-ii: fold ALL clauses into a kwargs MAP (all-kwargs surface) ──────
      ;; clauses is the rest param: a flat [:key val :key val …] list. We fold it into a
      ;; HashMap ONCE, rejecting any key not in `known-clauses` DIRECTLY — named.
-     ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, record-parent.
+     ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, durable-parent.
      known-clauses  (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
                         (:wat::core::HashMap/assoc
@@ -78,7 +92,7 @@
                             "init" true)
                           "hibernate" true)
                         "stop" true)
-                      "record-parent" true)
+                      "durable-parent" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -107,7 +121,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :record-parent"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
      ;; :ops is REQUIRED
@@ -141,12 +155,12 @@
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
      has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
 
-     ;; :record-parent — optional, default :wat::Record
-     state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "record-parent")
+     ;; :durable-parent — optional, default :wat::Record
+     state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable-parent")
                       -> :wat::WatAST
                       (:wat::core::Option/expect
-                        (:wat::core::HashMap/get clause-map "record-parent")
-                        "defservice: :record-parent needs a value")
+                        (:wat::core::HashMap/get clause-map "durable-parent")
+                        "defservice: :durable-parent needs a value")
                       :wat::Record)
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
