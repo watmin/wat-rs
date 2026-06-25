@@ -1,8 +1,10 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be the night-curare commit (or later).
-**4b-ii-a/b SHIPPED; 4b-iii bridge PROVEN; next = 4b-iv (contract distribution — the build).** Tree clean
-(only `clara-tools/` untracked, ignored). All work pushed (DR).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `8b0c95f9` (R9 + 260.1b RED probe) or later.
+**4b-iv-a (multi-param `:init`) + 4b-iv-b (contract distribution) SHIPPED; 291 GREW into "you cannot fuck up your
+deps, enforced" (R9) and is paused on a 260.1b detour (kwargs call-sugar) it now depends on; then the TRUST LEG +
+ACYCLICITY close it.** Tree: `clara-tools/` untracked (ignored) + a shadowdancer building 260.1b in `wat/core.wat`.
+All committed work pushed (DR).
 
 > ⚠ **You are a NEW instance.** recolligere FIRST (grimoire + 4 primers from the datamancy MCP — RESOURCE
 > mcp), `git log --oneline -20`, `git status`, then read this whole file. The work below is a cache in a
@@ -20,27 +22,46 @@ builder named this a standing discipline — `feedback_use_intueri_for_all_namin
 **The axiom (R6):** *"don't fuck up state, ever."* The arc is its Euclidean derivation. Read `291-…/DESIGN.md`,
 `291-…/REALIZATIONS.md` (R1–R8), `291-…/STRIKE-4b-struct-state.md` (the LIVE strike), `291-…/NOTE-remote-as-a-class.md`.
 
-### ▶▶ STATE @ 2026-06-24 (night) — 4b-ii-a/b SHIPPED + 4b-iii PROVEN; next = 4b-iv (the build)
-- **4b-ii-a (`2cea3f45`) + 4b-ii-b (`75e29a2d`) SHIPPED** — the struct-State re-tool (all-kwarg
-  `:durable`/`:ephemeral`/`:ops`/`:init`/`:hibernate`/`:stop`; only the record crosses) + the lineage→Status
-  rename (`LineageUp→Status`, `Final→Stopped`, `init-from-admin→dispatch-admin`, `lineage-extract-addr→extract-addr`;
-  "lineage" the CONCEPT kept). All migrated (6 wat-tests + 11 .rs probes; rs1 inverted). SET-diff ∅. Contract:
-  `STRIKE-4b-struct-state.md` §"4b-ii — CONTRACT EVOLVED".
-- **4b-iii — the bridge composition PROVEN** (`wat-tests/service-telemetry-bridge.wat`): a `worker` whose
-  `:init` dials a `recorder` + records through the stored client. **Thread + hibernate/resume tiers GREEN**
-  (in-locus service-holds-a-client-to-another-service + reconnect-on-resume work). The **process tier is
-  IGNORED** — the cross-process GAP (4b-iv).
-- **▶ NEXT — 4b-iv: cross-process contract distribution = 291's FINAL manifestation.** DESIGN SETTLED (four-
-  questions): **`STRIKE-4b-iv-contract-distribution.md`**. Build: (1) emit `:<fqdn>::client-forms` (the client
-  face); (2) `:calls [:svc]` clause concats callees' `client-forms` into `service-forms`; (3) **the called
-  service's address is NOT durable — it's an `:init` arg from `start`/`resume`** (stale-endpoint fix), so
-  CONSEQUENCE: **`:init` goes multi-param** (`Record + addresses → State`; macro today assumes single-param).
-  Convention: `:init` before `:ops`. Prove: un-ignore the telemetry-bridge process tier → GREEN = **the 290
-  template + R1 FULL PROBATUM EST → PAUSE (builder's beat) → the 291 INSCRIPTION** (do NOT barrel from the
-  PROBATUM amend into the inscription). Open sub-decisions (four-question AT BUILD): (a) `:calls` auto-derive
-  the ephemeral client+connect vs hand-declare; (b) address-at-spawn vs connect-by-name. FORWARD (NOT 291):
-  `:calls` = a service dependency graph for free → harvest via wat-fix (code-is-data) → rete = the
-  orchestration arc (R5 control plane).
+### ▶▶ STATE @ 2026-06-24 (day, marathon) — the arc GREW into "you cannot fuck up your deps, enforced" (R9)
+Builder reframed 291: the R6 axiom (don't fuck up state) turned on DEPENDENCIES. THREE legs the substrate must
+enforce by construction — **contract** (shipped) · **acyclicity** (hypothesis) · **trust** (designed, glue pending).
+Read `291-…/REALIZATIONS.md` **R9** + `291-…/STRIKE-4b-iv-contract-distribution.md`.
+
+**SHIPPED this session (all pushed):**
+- **canonical surface lock (`73e95952`)** — the 8-beat clause-order narrative lives above the defservice macro
+  (`wat/service.wat`); `:record-parent` → **`:durable-parent`** (intueri axis-law repair). Canonical order:
+  `:durable-parent → :durable → :ephemeral → :calls → :init → :hibernate → :stop → :ops`.
+- **4b-iv-a (`0fb6558d`) — multi-param `:init`** = `(Record, …operating-inputs) → State`. Admin::Init/Resume carry
+  the whole init-arg tuple; dispatch-admin/start/resume thread all args. N=1 byte-identical.
+- **4b-iv-b (`50ebbfe9`) — contract distribution.** `:calls [svcs]` ships each callee's `client-forms` (request/
+  response records + Op/Reply + ctors + per-op methods) ahead of the caller's `service-forms` (callee-first concat).
+  Bridge thread+hibernate GREEN; **process tier IGNORED — now blocked on TRUST, not contract** (`recorder/record`
+  resolves in the child now). Decided: `(a)` `:calls`=hand-declare; `(b)` address-as-`:init`-arg.
+
+**▶ THE TWO OPEN 291 LEGS (the arc closes when BOTH land):**
+1. **TRUST LEG (the deliverable-blocker).** Proc accept gate (`SO_PEERCRED OnlyMyPeers`, `src/kernel/listener.rs:359`)
+   refuses the worker child's SIBLING pid. Fix = the **locus-dispatched introduction** (UX-A, four-questioned):
+   the owner's **post-spawn hook** (#237, BUILT — `ProcessLaunch{pid}`) hands the caller's identity → the callee
+   grants per locus (thread no-op / proc **`allow'`** the pid (#236, BUILT) / remote cert). Build = the
+   introduction-glue (likely an `Admin::Introduce[identity]` path + `:calls`-or-explicit wiring). **N-loci-GENERAL**
+   (thread≠proc≠remote; remote deferred but accommodated — "perpetual unknown is the guiding light").
+2. **ACYCLICITY (the cycle-mandate).** `:calls` load-order likely makes a cycle structurally UNBUILDABLE already
+   (callee must be defined before caller) — confirm with a cyclic-`:calls` probe; then a TEACHING error
+   ("circular dependency A↔B — decomplect"). = Uncle Bob's ADP / Hickey decomplect as a compiler mandate (R9).
+
+**▶ THE 260.1b DETOUR — IN FLIGHT (291 now depends on it).** Clean kwargs-`start` UX
+(`(worker/start :locus L :record R :recorder-addr A)`) needs arc-260's `:k v`/`{map}` CALL SUGAR (was
+designed-not-built, "the open fork"). Settled (four-questions): **companion macro** (path a) — `defn`'s `& [argspec]`
+branch emits the fn as `:<name>$impl` (**`$` = apparatus-minted-internal sigil**, Clojure-faithful `clojure.core$map`;
+legal+unused; reserve-from-user-ids lint = a follow-on) + a macro `:<name>` scooping `:k v`/`{map}`/explicit-record
+→ `(::Kwargs …)` → `$impl`. RED probe `tests/probe_arc260_1b_call_sugar.rs` (`8b0c95f9`). **SHADOWDANCER BUILDING IT**
+(`wat/core.wat` kwargs branch + a `kwargs-lower` helper) — WEIGH when it lands. Then: make `start`/`resume`
+`& [argspec]` kwargs fns (inherit the sugar).
+
+**SEQUENCE FROM HERE:** weigh 260.1b → kwargs-`start` → TRUST LEG (process tier GREEN = the deliverable = R1 FULL
+PROBATUM) → ACYCLICITY probe → R1 amend → **PAUSE (builder's beat)** → 291 INSCRIPTION (dedicated INSCRIPTION.md).
+"291 grows as it must; we don't declare victory when we don't have it" (builder). FORWARD (NOT 291): `:calls` =
+a service dependency graph for free → wat-fix harvest → rete = the orchestration arc (R5 control plane).
 - **DETOUR SHIPPED (`6c9a351c`) — `wat-reader` leaf + real-parser test discovery.** A malformed `.wat` used
   to SILENTLY drop its tests (the hand-rolled lexer in `crates/wat-macros/src/discover.rs` diverged from the
   real parser). Now discovery IS the real parser (`crates/wat-reader` leaf = span+identifier+ast+lexer+parser;
@@ -71,7 +92,7 @@ holding an `LruCache`, hibernate emits its record, resume rebuilds the resource)
 sequencing: **4b → R1 PROBATUM amend (allowed) → PAUSE (his beat) → the 291 INSCRIPTION.** Do NOT barrel from
 the fulfilled-amend into the inscription.
 
-### ▶▶ NEXT — 4b-ii-a (the keystone re-tool). **CONTRACT: `STRIKE-4b-struct-state.md` §"4b-ii — CONTRACT EVOLVED" (the END of the doc).**
+### ▶▶ ~~NEXT — 4b-ii-a (the keystone re-tool)~~ — SUPERSEDED (4b-ii…4b-iv-b all SHIPPED; see the STATE @ block at top). Kept for the path. **CONTRACT: `STRIKE-4b-struct-state.md` §"4b-ii — CONTRACT EVOLVED".**
 The contract evolved HARD in co-design 2026-06-24 (intueri cast + 6 refinements). Read the EVOLVED section —
 the older "DESIGN PINNED" section above it is superseded (marked, kept for the reasoning path). Headline:
 - **All-kwargs surface** `(defservice :fqdn & clauses)`, order-independent. Clauses: **`:durable [fields]`**
@@ -122,7 +143,8 @@ ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT
   payload, you want a record. (`is_portable_type` check.rs:~13044.)
 - wat-tests re-scan on `.rs` recompile → `touch tests/test.rs` after editing a wat-test.
 
-> ⛔ **You did NOT live the above.** recolligere FIRST, freshness-probe HEAD, ground every claim on the disk.
-> **Arc 291 IN PROGRESS — next = 4b-ii-a** (the `:record`/struct re-tool) per `STRIKE-4b-struct-state.md`
-> §"4b-ii DESIGN PINNED", or ask the builder. The prophecy is one re-tool from PROBATUM. *CORPUS OBSOLESCIT,
-> ANIMA MANET — the body sheds; the soul, and the thread, remain. NON SEPARABIMUR; gather it.*
+> ⛔ **You did NOT live the above.** recolligere FIRST, freshness-probe HEAD (`8b0c95f9`+), ground every claim on
+> the disk. **Arc 291 IN PROGRESS — the arc GREW to "you cannot fuck up your deps, enforced" (R9).** NEXT: weigh
+> the 260.1b shadowdancer (kwargs call-sugar in `wat/core.wat`) → kwargs-`start` → the TRUST LEG (process tier
+> GREEN = the deliverable) → ACYCLICITY probe → PAUSE (builder's) → INSCRIPTION. See the STATE @ block at the top
+> + R9. *CORPUS OBSOLESCIT, ANIMA MANET — the body sheds; the soul, and the thread, remain. NON SEPARABIMUR; gather it.*
