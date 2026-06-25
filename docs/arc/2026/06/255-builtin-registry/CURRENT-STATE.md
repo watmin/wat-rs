@@ -1,7 +1,8 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 3; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `3ad1c7ba` (arc 293 R1) or later —
-COMMITTED + PUSHED to DR. Tree clean (only `clara-tools/` ignored).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `cd208ba3` (293.2-parity STRIKE-READY) or
+later — COMMITTED + PUSHED to DR. ⚠ The TREE IS DIRTY (a background sonnet `a389d35045567618d` left uncommitted
+293.2-parity code — that is EXPECTED; weigh + commit it, see ⏳ IN FLIGHT below). Otherwise only `clara-tools/` ignored.
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 3) — ARC 293 OPENED: the aggregate type system (291 is BLOCKED on it)
 **A small ask (`/from-map` ergonomic ctors) detonated into a foundation** — by a long co-design the builder
@@ -24,14 +25,35 @@ COMMITTED + PUSHED to DR. Tree clean (only `clara-tools/` ignored).
 - **TEST-SPEED levers SHIPPED (`fe3fdcea`):** mold linker + dev `line-tables-only` (1:05.9→0:57.2, proven). (Lever 3 /
   probe→home consolidation is still the deferred 170-closure, execve-leak-blocked.)
 
-**▶ NEXT — WE PICK UP HERE: BUILD arc 293, decomposition `293.0`→`293.5` is in the DESIGN.**
-`293.0` = author the acceptance probe (the demo program) as a RED test, verify RED at HEAD, commit. Then `293.1`
-aggregate HOME → `293.2` construction symmetry + `defrecord`/`defstruct` rename + `/from-map` → `293.3` structural
-surfaces + `defsurface` → `293.4` methods-are-accessors (demo GREEN) → `293.5` close + unblock 291. **NAMES CROWNED
-(intueri 2026-06-26):** `defsurface` (the structural-surface form; SUBSUMES `defprotocol`) · `Surface`/`TypeExpr::Surface`
-(concept+variant) · `src/aggregate/` (home) · `extend-type` KEPT but demoted to the foreign-type accessor adapter.
-293.3 RED probe committed (`058f6035`, structural surface). NEXT: re-point probe at the NAMED `defsurface` surface
-(keyword path, current syntax — `[...]` bracket is fn-type-only, idealized future) → build 293.3-core.
+**NAMES CROWNED (intueri 2026-06-26):** `defsurface` (structural-surface form; SUBSUMES `defprotocol`) ·
+`Surface`/`TypeDef::Surface` (concept+variant) · `src/aggregate/` (home) · `extend-type` KEPT, demoted to the
+foreign-type accessor adapter. **DISPATCH BOUNDARY:** surfaces = SINGLE-dispatch on the receiver (full-arity
+methods); MULTI-dispatch = `defclause` (arc 237, `form_match.rs`); `typeunion` = closed sums. Surfaces never grow
+multi-arg dispatch.
+
+**SHIPPED this session (DR, all weighed pure):**
+- **293.3-core (`313e7d85`) — STRUCTURAL SURFACES, GREEN.** A struct structurally satisfies a `defsurface` by
+  HAVING its members (row-polymorphic width subtyping; ambient, no `:satisfies`/`:parent`). `TypeDef::Surface` +
+  `parse_defsurface` + the width-match `struct_satisfies_surface` — ALL homed in `src/types/surface.rs`; a thin
+  resolve-and-call arm in `assignable` (`check.rs:14233`). Probe `probe_arc293_structural_surface` GREEN (positive
+  + negative). The riskiest type-system machinery is **de-risked + real.** Scope = STRUCTS (`StructDef.fields` is
+  typed → TypeEnv-clean). DEFERRALS: records ride 293.2-parity (`RecordDef.field_types=None`); runtime `conforms?`
+  for surfaces returns `Ok(false)` (compile-time matching is the keystone).
+- **test-speed (`fe3fdcea`)** mold + line-tables.
+
+**⏳ IN FLIGHT — A SONNET IS BUILDING `293.2-parity` (agentId `a389d35045567618d`).** STRIKE-READY @ `cd208ba3`
+(probe `probe_arc293_structtype_primitive` + `BRIEF-293.2-parity.md`). The work: make `:wat::core::defstruct` a
+thin wat MACRO over a new `:wat::core::structtype` primitive (mirror `Record::def`→`recordtype`), so defstruct↔
+defrecord are SYMMETRIC at the macro-over-primitive level. Behavior-preserving (`register_struct_methods`
+UNCHANGED); SET-diff ∅ is the gate. **⚠ NEXT INSTANCE: check the sonnet's result (its CODE is UNCOMMITTED in the
+tree), WEIGH it (re-run the structtype probe ±`--ignored`, the surface probe stays 2-green, SET-diff vs `313e7d85`
+= ∅ / ~202 floor), then COMMIT on green — or read its STOP report if it halted.**
+
+**▶ THEN, in order (each its own small strike — parity-before-feature, builder doctrine):**
+`/from-map` for records+structs (UNIFORM, only AFTER parity — was wrong to do record-first onto the asymmetry) →
+`293.3-records` (records carry field types → satisfy surfaces, same `assignable` arm) → `293.4` methods-are-
+accessors (the dispatcher + `defprotocol` annihilation + `extend-type` demotion + runtime `conforms?`) →
+`Record::def`→`defrecord` rename (fix-wat + retirement) → `293.1` the `src/aggregate/` home → `293.5` close.
 
 **THEN (291, now BEHIND 293):** TRUST LEG (process-tier bridge GREEN = R1 FULL PROBATUM) → ACYCLICITY probe → R1
 amend → PAUSE → 291 INSCRIPTION. **`/from-map` is SUBSUMED into 293** (falls out of the shared emission layer).
