@@ -13075,6 +13075,10 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 Some(crate::types::TypeDef::Alias(_)) => true,
                 // Union: conservative — members may include non-portable types.
                 Some(crate::types::TypeDef::Union(_)) => false,
+                // Arc 293.3-core — Surface is a structural interface, not a concrete value type.
+                // The actual value flowing through a surface-typed parameter is a struct;
+                // the surface itself is not a portable concrete type. Conservative false.
+                Some(crate::types::TypeDef::Surface(_)) => false,
                 // Unknown path — this is a formal type parameter (e.g. `:T`
                 // in a parametric function body). Type parameters are
                 // portable by convention: portability of the concrete type
@@ -14222,6 +14226,25 @@ pub(crate) fn assignable(
                 .all(|(x, y)| unify(x, y, subst, types).is_ok())
         {
             return true;
+        }
+    }
+    // Arc 293.3-core — structural surface satisfaction (row-polymorphic width subtyping).
+    // Logic lives in `types::surface::struct_satisfies_surface` (homes discipline).
+    if let TypeExpr::Path(ep) = &e {
+        if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
+            // Clone to release the borrow of `types` before re-entering `assignable`.
+            let surf_clone = surf.clone();
+            if let TypeExpr::Path(ap) = &a {
+                if let Some(crate::types::TypeDef::Struct(sd)) = types.get(ap) {
+                    let fields_clone = sd.fields.clone();
+                    return crate::types::surface::struct_satisfies_surface(
+                        &fields_clone,
+                        &surf_clone,
+                        |fty, mty| assignable(fty, mty, subst, types),
+                    );
+                }
+                // actual is not a struct — fall through to unify.
+            }
         }
     }
     unify(actual, expected, subst, types).is_ok()

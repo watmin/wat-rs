@@ -27,7 +27,6 @@ use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
 #[test]
-#[ignore = "arc 293.3-core RED probe — defsurface + structural satisfaction unbuilt; run with --ignored to confirm the gap"]
 fn record_structurally_satisfies_a_defsurface() {
     let src = r#"
         (:wat::core::defsurface :geo::Shape
@@ -51,5 +50,34 @@ fn record_structurally_satisfies_a_defsurface() {
         world.is_ok(),
         ":geo::Circle should structurally satisfy :geo::Shape via field-match; got: {:?}",
         world.err()
+    );
+}
+
+/// Arc 293.3-core negative gate: a struct MISSING the surface member must FAIL to type-check.
+///
+/// `:geo::Bare` has `other <- :i64` but NOT `color <- :String`, so it does NOT
+/// satisfy `:geo::Shape`. Passing a `:geo::Bare` where `:geo::Shape` is expected must
+/// be a type error — the surface is a real lower bound, not a rubber stamp.
+#[test]
+fn missing_surface_member_is_rejected() {
+    let src = r#"
+        (:wat::core::defsurface :geo::Shape
+          [color <- :wat::core::String])
+
+        (:wat::core::defstruct :geo::Bare
+          [other <- :wat::core::i64])
+
+        (:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
+          true)
+
+        (:wat::core::defn :user::main [] -> :wat::core::bool
+          (:geo::accepts-shape (:geo::Bare/new 42)))
+    "#;
+    // GREEN TARGET: startup FAILS (type error) because :geo::Bare lacks `color`
+    // and therefore does NOT structurally satisfy :geo::Shape.
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    assert!(
+        world.is_err(),
+        ":geo::Bare (missing `color`) should NOT satisfy :geo::Shape; but startup succeeded"
     );
 }

@@ -1440,6 +1440,8 @@ pub fn register_type_predicates(
             TypeDef::Union(u) => &u.name,
             // Stone S-B.1 — record class inherits ∀T is-<Name>? synthesis.
             TypeDef::Record(r) => &r.name,
+            // Arc 293.3-core — surface gets an is-<Name>? predicate (structural conformance).
+            TypeDef::Surface(s) => &s.name,
             TypeDef::Alias(_) => continue,
         };
 
@@ -9519,6 +9521,8 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
         crate::types::TypeDef::Alias(a) => (a.name.clone(), &a.type_params),
         // Stone 237.1 — typeunion is a type-level grouping; signature is its name.
         crate::types::TypeDef::Union(u) => (u.name.clone(), &u.type_params),
+        // Arc 293.3-core — surface signature: name + optional type params.
+        crate::types::TypeDef::Surface(s) => (s.name.clone(), &s.type_params),
     };
     let head_kw = if type_params.is_empty() {
         base
@@ -9553,6 +9557,8 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
         crate::types::TypeDef::Union(_) => ":wat::core::typeunion",
         // Stone S-B.1 — record class declaration form.
         crate::types::TypeDef::Record(_) => ":wat::core::recordtype",
+        // Arc 293.3-core — structural surface declaration form.
+        crate::types::TypeDef::Surface(_) => ":wat::core::defsurface",
     };
     let name_kw = WatAST::Keyword(def.name().to_string(), span.clone());
     let sentinel = WatAST::List(
@@ -12861,6 +12867,10 @@ fn conforms_check(
                 // struct). Every value from `(:wat::Record::def ...)` is a subtype; conforms?
                 // against :wat::Record returns true for any record value — NOT just exact match.
                 // Same for :wat::holon::Record (the holonic-record umbrella). Arc 259.
+                // Arc 293.3-core — Surface: runtime structural conformance (conforms? against a
+                // surface) is not yet implemented; falls through as false. The static type checker
+                // (`assignable`) handles structural surface satisfaction at compile time.
+                Some(TypeDef::Surface(_)) => Ok(false),
                 Some(TypeDef::Struct(_))
                 | Some(TypeDef::Enum(_))
                 | Some(TypeDef::Newtype(_))

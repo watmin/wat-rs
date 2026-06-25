@@ -38,6 +38,8 @@ pub mod error;
 pub use error::{TypeError, TypeErrorKind};
 pub(crate) mod defstruct;
 pub(crate) use defstruct::parse_defstruct;
+pub(crate) mod surface;
+pub(crate) use surface::parse_defsurface;
 
 use crate::ast::WatAST;
 use crate::span::Span;
@@ -208,7 +210,21 @@ pub struct RecordDef {
     pub field_types: Option<Vec<TypeExpr>>,
 }
 
-/// One of the six declaration variants.
+/// Surface declaration — structural interface (arc 293.3-core).
+///
+/// `(:wat::core::defsurface :Name [member <- :T ...])` declares a named
+/// structural surface. A struct (or record, future arc) satisfies a surface
+/// by having every member with a field-type assignable to the member's type
+/// (row-polymorphic width subtyping — extra fields are fine). No `:satisfies`,
+/// no `:parent`, no declaration at the use site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SurfaceDef {
+    pub name: String,
+    pub type_params: Vec<String>,
+    pub members: Vec<(String, TypeExpr)>,
+}
+
+/// One of the seven declaration variants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeDef {
     Struct(StructDef),
@@ -220,6 +236,8 @@ pub enum TypeDef {
     Union(UnionDef),
     /// Stone S-B.1 — record class as a real TypeDef. See [`RecordDef`].
     Record(RecordDef),
+    /// Arc 293.3-core — structural surface for row-polymorphic width subtyping.
+    Surface(SurfaceDef),
 }
 
 impl TypeDef {
@@ -232,6 +250,8 @@ impl TypeDef {
             TypeDef::Union(u) => &u.name,
             // Stone S-B.1
             TypeDef::Record(r) => &r.name,
+            // Arc 293.3-core
+            TypeDef::Surface(s) => &s.name,
         }
     }
 }
@@ -1631,6 +1651,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
                 ":wat::core::typeunion" => return Some("typeunion"),
                 // Stone S-B.1 — record class as a real TypeDef.
                 ":wat::core::recordtype" => return Some("recordtype"),
+                // Arc 293.3-core — structural surface.
+                ":wat::core::defsurface" => return Some("defsurface"),
                 _ => {}
             }
         }
@@ -1668,6 +1690,8 @@ fn parse_type_decl(
         "typeunion" => parse_typeunion(iter.collect(), decl_span),
         // Stone S-B.1 — record class as a real TypeDef.
         "recordtype" => parse_recordtype(iter.collect(), decl_span),
+        // Arc 293.3-core — structural surface.
+        "defsurface" => parse_defsurface(iter.collect(), decl_span),
         _ => unreachable!(),
     }
 }

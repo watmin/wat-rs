@@ -1535,6 +1535,8 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::defenum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
+            // Arc 293.3-core — structural surface.
+            | ":wat::core::defsurface"
             | ":wat::load-file!"
             | ":wat::digest-load!"
             | ":wat::signed-load!"
@@ -1573,6 +1575,8 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::typealias"
             // Stone 241.12 — defalias is a declaration form (alias binding).
             | ":wat::core::defalias"
+            // Arc 293.3-core — structural surface.
+            | ":wat::core::defsurface"
     )
 }
 

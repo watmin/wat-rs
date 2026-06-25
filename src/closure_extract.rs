@@ -1336,6 +1336,8 @@ fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
         // the macro's emitted accessors; parent is a hierarchy edge, not a
         // contained TypeExpr).
         TypeDef::Record(_) => vec![],
+        // Arc 293.3-core — surface members are typed; return their TypeExprs.
+        TypeDef::Surface(s) => s.members.iter().map(|(_, t)| t.clone()).collect(),
     }
 }
 
@@ -2403,6 +2405,23 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             ],
             span,
         ),
+        // Arc 293.3-core — reconstruct defsurface form: [member <- :T ...].
+        TypeDef::Surface(s) => {
+            let mut member_vec_items = Vec::with_capacity(s.members.len() * 3);
+            for (mname, mty) in &s.members {
+                member_vec_items.push(WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()));
+                member_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
+                member_vec_items.push(WatAST::Keyword(crate::check::format_type(mty), span.clone()));
+            }
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::defsurface".into(), span.clone()),
+                    WatAST::Keyword(format_type_decl_name(&s.name, &s.type_params), span.clone()),
+                    WatAST::Vector(member_vec_items, span.clone()),
+                ],
+                span,
+            )
+        }
     }
 }
 
