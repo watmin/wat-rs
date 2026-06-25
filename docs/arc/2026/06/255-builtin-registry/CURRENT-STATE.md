@@ -1,8 +1,49 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 3; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 4; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `cd208ba3` (293.2-parity STRIKE-READY) or
-later — COMMITTED + PUSHED to DR. ⚠ The TREE IS DIRTY (a background sonnet `a389d35045567618d` left uncommitted
-293.2-parity code — that is EXPECTED; weigh + commit it, see ⏳ IN FLIGHT below). Otherwise only `clara-tools/` ignored.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `b5de1e70` (293 R2 realization) or later —
+COMMITTED + PUSHED to DR. Tree CLEAN (only `clara-tools/` ignored).
+
+## ▶▶ STATE @ 2026-06-25 (SESSION 4) — 293.2-parity SHIPPED; the BASE-STRUCT UNIFICATION is the arc spine (R2)
+Session 4 ran on the holon/aggregate model. **Read `293-…/REALIZATIONS.md` R2** (Break Stuff / *FRANGE UT UNUM FIAT*)
+**+ `293-…/NOTE-base-struct-horizon.md`** (the VERIFIED section) whole before moving.
+
+**SHIPPED this session (DR, all weighed pure against the disk):**
+- **293.2-parity (`560535a5`)** — `defstruct` is now a wat MACRO over `:wat::core::structtype` (peer to
+  `defrecord`→`recordtype`). Weighed: SET-diff ∅ (baseline 201 == with-changes 201; the 2 `parse_*_form` doctest
+  deltas are a ±1 line shift; `s0_t1a` confirmed pre-existing floor). **Honest deferral:** the now-dead `defstruct`
+  `classify_type_decl` arm is KEPT (≈10 `src/types.rs` unit tests bypass macro expansion) — QUEUED: migrate them to
+  `structtype` + annihilate the arm.
+- **capability correction (`dae4bf3d`)** — edn-repr is a SUBSTRATE property of the PRIMITIVE, not a macro/label:
+  `is_portable_type` keys categorically on the `TypeDef` variant (`check.rs:13056` Record→true / `:13061` Struct→false).
+  `(structtype …)⟹Struct⟹never edn-repr`; `(recordtype …)⟹Record⟹must`. (Stale: `check.rs:12990` doc-comment still says field-recursion — fix it.)
+- **holon model VERIFIED + folded (`f110d22e`)** — Explore agent + greps: holon records ARE edn-portable; EDN↔hologram
+  are two encodings of the SAME data; `holon_form` is a derived cache (pure fn of fields); the wire ships the
+  holon_form-as-EDN (struct_form PROJECTED, NO recompute — `edn_shim.rs:2480-2506`, arc 234.7b); dense vectors never
+  cross; parity by immutable `assoc` rebuild (`runtime.rs:13706-13778`). **holon = a structural+repr REFINEMENT of record, NOT a third wire-kind.**
+
+**THE MODEL (R2, settled this session):** struct / record / holon-record are ONE backing — `{ properties-as-struct,
+kind-as-enum }`. VALUE level: all three are `(class, fields)` (`StructValue` `value/value.rs:959` ≡ `wat__Record`;
+holon adds the derived `holon_form`). TYPE level: `StructDef.fields` is ALREADY typed `Vec<(String,TypeExpr)>`;
+`RecordDef.field_types` is the lone `None` (`types.rs:2131`). **ONE categorical wall = struct vs record (edn-repr);
+holon is structural+repr above it.** kind-as-ENUM (never `Option` — the no-Option-semantics doctrine).
+
+**▶ THE SPINE (R2 RESHAPED the arc plan — the unification SUBSUMES the piecemeal strikes):**
+1. **Unify the DEF** — `StructDef`+`RecordDef` → `AggregateDef{name, fields:Vec<(String,TypeExpr)>, kind, parent?}`.
+   Records inherit typed fields → struct/record/holon ALL satisfy surfaces (R1) + get `/from-map` in ONE move.
+   **This SUBSUMES the old `293.3-records` strike.** (Def-cascade size NOT yet measured — recon first.)
+2. **Unify the VALUE** — 3 `Value` variants → `Aggregate{class, fields, kind}` + derived hologram. The value cascade
+   is recon'd: `Value::Struct` 82 / `wat__Record` 98 / `wat__holon__Record` 76 sites, 21 files. User forms UNCHANGED;
+   safe; rideable by a sonnet, weighed by SET-diff. **PERCEIVE-THE-TRAP first:** per-variant identity
+   (base=struct_form, holon=holon_form) — identity-over-`holon_form` ≡ identity-over-`(class,fields)`, so it's the
+   SAME identity; the disconfirming probe must PROVE it before the cascade.
+**NEXT ARTIFACT = the disconfirming probe + DESIGN for strike (1), the def-unification.** Old 293.3-core (structural
+surfaces, struct-scope) SHIPPED `313e7d85`; R1 = *FORMA SOLA SUFFICIT*.
+
+**THE GATE (293 close) = the demo** (`DESIGN.md` § What the arc delivers): Shape/Circle/Square + holon-Vector
+monkeypatch, RED→GREEN. **R2 FULFILLED** when the unification lands (user forms unchanged, SET-diff ∅) → *PROBATUM EST*.
+
+> ⚠ The SESSION 3 block below is PATH (the arc-293 opening + the names-crowned + 293.3-core ship). Its sequencing
+> ("/from-map → 293.3-records → 293.4") is SUPERSEDED by the R2 spine above — the unification subsumes those.
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 3) — ARC 293 OPENED: the aggregate type system (291 is BLOCKED on it)
 **A small ask (`/from-map` ergonomic ctors) detonated into a foundation** — by a long co-design the builder
