@@ -46,8 +46,15 @@ Four-questioned. **α — address on the `:durable` record FAILED Honest, decisi
 tomorrow, using the dependency graph). The service holds the **client**, never the address. *(This corrects
 the original 4b-iii probe, which wrongly put the address on `:durable`.)*
 
-### Convention — `:init` before `:ops` (constructor before methods). Canonical clause order:
-`:durable → :ephemeral → :calls → :init → :ops`. (Macro is order-independent; this is what we DEMONSTRATE.)
+### Convention — canonical clause order (intueri-settled + shipped `73e95952`)
+Full 8-clause canonical order — **foundation precedes, elaboration follows**:
+`:durable-parent → :durable → :ephemeral → :calls → :init → :hibernate → :stop → :ops`.
+(`:record-parent` renamed `:durable-parent` — the axis-law repair, intueri-weighed, shipped `73e95952`;
+the 8-beat narrative — *what I'm built from → what I remember → what I carry → who I call → how I'm built →
+how I rest → how I end → what I do* — lives above the macro in `wat/service.wat`.) Macro is order-
+independent; this is what we DEMONSTRATE.
+> SUPERSEDED 2026-06-24: the earlier line read `:durable → :ephemeral → :calls → :init → :ops` (5 clauses —
+> `:calls`-after-`:ephemeral` was right, but incomplete). Kept for the path.
 
 ## The corrected user UX (the template 290 references)
 
@@ -111,13 +118,17 @@ the original 4b-iii probe, which wrongly put the address on `:durable`.)*
    un-ignore the process-tier deftest → GREEN. Keep thread + hibernate green. SET-diff vs HEAD = ∅.
    **That green process tier = the 290 template + R1 FULL PROBATUM EST → PAUSE (builder's) → INSCRIPTION.**
 
-## OPEN sub-decisions (each its own FOUR-QUESTIONS when building — builder's rule)
-- **(a)** Does `:calls [:recorder]` **auto-derive** the `:ephemeral` client field + the `connect'` (less
-  typing, more derived structure, but consistent with `:durable`→Record derive), or stay **hand-declared**
-  (the UX above)? Lean: settle at build.
-- **(b)** Address-at-spawn (β, above) vs **connect-by-name** to a well-known service (the name resolves the
-  CURRENT server → no address threading at all; fits a well-known telemetry service). connect-by-name exists
-  (272, task #225). Lean: β is the general mechanism; γ is a clean special case for well-known infra.
+## RESOLVED sub-decisions (four-questioned on materialized forms, 2026-06-24)
+- **(a) — HAND-DECLARED wins.** `:calls` does ONE thing: bundle the callee's `client-forms` into the
+  caller's runtime. The user hand-writes the `:ephemeral` client field + the `connect'` in `:init`.
+  Materializing **auto-derive** showed it collides with the user-owned `:init`/`State/new` (the macro can't
+  splice a client into the user's constructor without seizing `:init` entirely) — fails Simple. Auto-derive
+  is deferrable sugar IF the macro ever owns `:init`.
+- **(b) — ADDRESS-AS-`:init`-ARG (β) wins.** It's the general mechanism AND it exercises the multi-param
+  `:init` law (the address IS the operating-input). **connect-by-name** (γ) was materialized: it makes
+  `:init` single-param again and gives free resume-after-move, but it *bypasses* multi-param `:init` and
+  needs name-registration — a clean future special-case for well-known infra, not the model reference.
+  (connect-by-name exists — 272, task #225.)
 
 ## FORWARD NOTE (NOT 291 — the orchestration arc)
 `:calls` declarations ARE a **service dependency graph**, for free (declared, not inferred). Harvest the
