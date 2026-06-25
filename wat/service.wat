@@ -85,14 +85,16 @@
                             (:wat::core::HashMap/assoc
                               (:wat::core::HashMap/assoc
                                 (:wat::core::HashMap/assoc
-                                  (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                                  "durable" true)
-                                "ephemeral" true)
-                              "ops" true)
-                            "init" true)
-                          "hibernate" true)
-                        "stop" true)
-                      "durable-parent" true)
+                                  (:wat::core::HashMap/assoc
+                                    (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                                    "durable" true)
+                                  "ephemeral" true)
+                                "ops" true)
+                              "init" true)
+                            "hibernate" true)
+                          "stop" true)
+                        "durable-parent" true)
+                      "calls" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -121,7 +123,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :calls"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
      ;; :ops is REQUIRED
@@ -154,6 +156,15 @@
      ;; Is ephemeral non-empty? (child count > 0)
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
      has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
+
+     ;; :calls [svcs] — optional list of callee service keywords; their client-forms are
+     ;; prepended to service-forms so the child process loads callee contracts before its own.
+     calls-svcs     (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "calls")
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "calls")
+                        "defservice: :calls needs a value")
+                      empty-vec)
 
      ;; :durable-parent — optional, default :wat::Record
      state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable-parent")
@@ -783,7 +794,8 @@
      ;; Unquote nodes at definition time → checker skips them.
      ;; method-params `[c <- ~peer-ty req <- ~req-ty]` is a Vector → checker skips it.
      ;; `resp` in the match arm is a match-pattern binder (not let/fn) → fine as literal.
-     methods       (:wat::core::foldl
+     ;; op-methods = per-op client methods only (no stop/hibernate); used for client-forms-def.
+     op-methods    (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
                                       clause <- :wat::WatAST]
                        -> :wat::core::Vector<wat::WatAST>
@@ -852,8 +864,8 @@
                                  :wat::core::None
                                  :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
-     ;; Extend methods with the owner-only stop.
-     methods           (:wat::core::conj methods stop-method)
+     ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, NOT in client-forms).
+     methods           (:wat::core::conj op-methods stop-method)
 
      ;; ── arc 291 4a: owner-only hibernate method (mirror of stop) ─────────────────
      ;; Method: (defn <fqdn>/hibernate [h <- Handle] -> state-ty ...)
@@ -875,7 +887,7 @@
                                       :wat::core::None
                                       :wat::core::None))))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
-     ;; Extend methods with the owner-only hibernate.
+     ;; Extend methods with the owner-only hibernate (stop + hibernate, not in client-forms).
      methods           (:wat::core::conj methods hibernate-method)
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
@@ -923,6 +935,19 @@
      ;; service-forms-kw: the keyword :<fqdn>::service-forms — the name of the emitted def.
      service-forms-kw (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{fqdn-str}::service-forms" :fqdn-str fqdn-str))
+     ;; client-forms-kw: the keyword :<fqdn>::client-forms — the client face (per-op methods only).
+     client-forms-kw  (:wat::core::keyword/from-string
+                        (:wat::core::string::interpolate "{fqdn-str}::client-forms" :fqdn-str fqdn-str))
+     ;; callee-cf-calls: for each svc keyword in :calls, a 0-arg call `(:<svc>::client-forms)`.
+     ;; Used to prepend callee client contracts ahead of this service's own service-forms.
+     callee-cf-calls  (:wat::core::map
+                        (:wat::core::fn [svc-kw <- :wat::WatAST] -> :wat::WatAST
+                          (:wat::core::let
+                            [svc-str (:wat::core::keyword/to-string svc-kw)
+                             cf-kw   (:wat::core::keyword/from-string
+                                       (:wat::core::string::interpolate "{svc-str}::client-forms" :svc-str svc-str))]
+                            `(~cf-kw)))
+                        (:wat::core::ast->children calls-svcs))
      ;; The agnostic child :user::main: binds on :wat::spawn::service-locus (a FREE
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends
      ;; `(def :wat::spawn::service-locus (process))` before spawning, so the child
@@ -967,25 +992,53 @@
      ;; preregister_fn_defs_in_do, so the checker sees it before checking start-fn.
      ;; The ProcessOpts launch arm receives the Vector value (the runtime evaluates the
      ;; call before dispatch, so it arrives as the actual Vec).
+     ;; own-forms-call: the full service-forms body (this service's server internals + child main).
+     ;; When :calls is non-empty, callee client-forms are prepended via foldr+concat so they load
+     ;; BEFORE this service's own forms (worker's State def references recorder::Op/Reply).
+     own-forms-call  `(:wat::core::forms
+                        ~record-def
+                        ~state-def
+                        ~@request-records
+                        ~@response-records
+                        (:wat::core::defenum ~enum-name ~@variants)
+                        (:wat::core::defenum ~reply-name ~@reply-variants)
+                        (:wat::core::defn ~serve-name ~serve-params
+                          -> :wat::core::nil ~serve-body)
+                        ~init-def
+                        ~stop-project-def
+                        ~hibernate-project-def
+                        ~admin-enum-def
+                        ~status-enum-def
+                        ~dispatch-admin-def
+                        ~extract-addr-def
+                        ~child-main-form)
+     ;; service-forms-body: if :calls is non-empty, foldr with concat prepends each callee's
+     ;; client-forms ahead of own-forms-call. foldr(f, init=own-forms-call, xs=callee-cf-calls)
+     ;; → (concat cf0 (concat cf1 … own-forms-call)) — callee forms first, correct load order.
+     service-forms-body (:wat::core::if (:wat::core::i64::> (:wat::core::length callee-cf-calls) 0)
+                          -> :wat::WatAST
+                          (:wat::core::foldr
+                            (:wat::core::fn [cf-call <- :wat::WatAST  acc <- :wat::WatAST] -> :wat::WatAST
+                              `(:wat::core::concat ~cf-call ~acc))
+                            own-forms-call
+                            callee-cf-calls)
+                          own-forms-call)
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>
-                          (:wat::core::forms
-                            ~record-def
-                            ~state-def
-                            ~@request-records
-                            ~@response-records
-                            (:wat::core::defenum ~enum-name ~@variants)
-                            (:wat::core::defenum ~reply-name ~@reply-variants)
-                            (:wat::core::defn ~serve-name ~serve-params
-                              -> :wat::core::nil ~serve-body)
-                            ~init-def
-                            ~stop-project-def
-                            ~hibernate-project-def
-                            ~admin-enum-def
-                            ~status-enum-def
-                            ~dispatch-admin-def
-                            ~extract-addr-def
-                            ~child-main-form))
+                          ~service-forms-body)
+     ;; client-forms-def: the CLIENT face — request/response records, Op/Reply enums,
+     ;; per-op constructors, per-op methods (op-methods only — no stop/hibernate).
+     ;; Shipped to callee consumers via :calls so their child processes can resolve
+     ;; callee/method and callee/x-request without carrying the server internals.
+     client-forms-def `(:wat::core::defn ~client-forms-kw
+                         [] -> :wat::core::Vector<wat::WatAST>
+                         (:wat::core::forms
+                           ~@request-records
+                           ~@response-records
+                           (:wat::core::defenum ~enum-name ~@variants)
+                           (:wat::core::defenum ~reply-name ~@reply-variants)
+                           ~@constructors
+                           ~@op-methods))
 
      ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
      ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
@@ -1074,6 +1127,7 @@
        ~@constructors
        ~@methods
        ~service-forms-def
+       ~client-forms-def
        ~start-fn
        ~resume-fn
        ~handle-record)))
