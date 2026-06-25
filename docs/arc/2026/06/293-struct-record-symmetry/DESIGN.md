@@ -129,49 +129,66 @@ named accessors · **`/from-map`** · predicate; differing only in `{portable?, 
 (:wat::core::defstruct  :my::Cache [cap <- :i64  lru <- :my::Lru])  ; same surface, struct-new, NON-portable
 ```
 
-### ⚠ THE ONE CONTRACT DECISION (the architecture fork — settle before the build)
+### THE ARCHITECTURE DECISION — SETTLED: (C) full annihilation (four-questioned 2026-06-25)
 
-How do the three macros emit the ctor + accessors?
+How do the macros emit the ctor + accessors? Three options, run through the four-questions (flat YES/NO;
+Obvious + Simple + Honest must hold before UX):
 
-- **(A) Macros-emit-everything** (the current `Record::def` shape). Each macro emits `(do (<typereg>…)
-  (defn ctor…) (accessors…) (from-map…))` as wat forms; `defstruct` moves OFF `register_struct_methods`
-  (kept ONLY for the 15 built-ins). **Pro:** maximal self-hosting (ctor/accessor gen becomes visible wat),
-  advances "move out of `src/*.rs`" hardest, fully uniform. **Con:** the bigger macros must reproduce
-  `register_*_methods`' subtle logic (record parent-inheritance flattening; struct class-safety) in wat.
-- **(B) Thin-macros-over-Rust-gen** (the current `defstruct` shape). Each macro emits `(do (<typed-typereg>…)
-  (from-map-companion…))`; `register_*_methods` (Rust, relocated to the home) keep generating ctor +
-  accessors from the registered `TypeDef`. **Pro:** smallest macros, reuses the proven Rust gen (incl.
-  parent-inheritance), lower risk. **Con:** ctor/accessor gen stays in Rust (relocated, not self-hosted);
-  records move from untyped-recordtype-emission to typed-recordtype + Rust-gen (touches the parent + holon paths).
+| | **A** — macros emit for user forms; `register_struct_methods` kept for the 15 built-ins | **B** — thin macros (from-map only); `register_*_methods` (relocated) gen for **all** | **C** — macros emit everything for **all** (built-ins → wat `defstruct`); `register_*_methods` **annihilated** |
+|---|---|---|---|
+| **Obvious?** | **NO** — structs get methods two ways (user-macro vs built-in-Rust); a *decomplection* arc shipping a dual path contradicts its thesis | YES — one gen path + one thin from-map macro | YES — ONE mechanism for every aggregate, user and built-in |
+| **Simple?** | **NO** — two emission paths for one kind = braided | YES — one gen concept + one thin macro | YES — one concept, no Rust gen, no dual path |
+| **Honest?** | marginal — claims "one surface" while keeping a struct split | YES — uniform surface; honest that gen stays Rust-relocated | YES — fully uniform AND self-hosted |
+| **Good UX?** | (moot — disqualified) | YES | YES |
+| **verdict** | **DISQUALIFIED** | PASSES (but defers the engine decomplect — a deferral in costume) | **PASSES + qualified annihilation + idealized self-hosted state — CHOSEN** |
 
-**Recommendation: (A)**, on the self-hosting ethos + the explicit "move out of `src/*.rs`" directive — but
-this is the load-bearing fork and is the builder's call. (A) makes the aggregate logic *wat*, leaving the
-home holding only the intrinsics (`struct-new`/`Record::of`/`field-at`/`struct-field`) + the TypeDefs + parse
-+ the built-in-struct gen — the irreducible Rust floor. **SETTLE THIS before drafting strike briefs.**
+**DECISION (builder, 2026-06-25): (C).** *"annihilation is our greatest pleasure."* `register_struct_methods`
+and `register_record_methods` are **annihilated**; the 15 built-in structs migrate to wat `defstruct` forms;
+every aggregate — user and built-in, record and struct — flows through ONE wat macro emitting the full
+surface (typereg · positional ctor · named accessors · `/from-map` · predicate). The Rust floor shrinks to
+the irreducible intrinsics (`struct-new` / `Record::of` / `field-at` / `struct-field`) + the `TypeDef`s +
+parse. (A was my first, glib pick; the four-questions caught that it re-introduces the very split this arc
+exists to kill — the discipline overturned the recommendation. Recorded per `feedback_self_prompt_injection`.)
+
+**The one feasibility crux to conquer (the boss):** record **parent-inheritance** — `register_record_methods`
+walks the parent chain at *registration* to flatten inherited fields into the ctor (`runtime.rs:1286`;
+the `program::Env` typed-extensible chain). A wat macro emits at *expand* time and cannot, by default, query
+its parent's field list. **293.0b probe:** is there (or can there cheaply be) a macro-expand-time reflection
+intrinsic that yields a registered type's fields, so the macro flattens inherited fields itself? If YES → C
+is total. If NO and one can't be cleanly minted → `register_record_methods` survives as the **single named,
+bounded** Rust exception for the typed-extensible-parent path ONLY (never silent, never a wholesale B
+fallback). Structs appear flat (no parent walk in `register_struct_methods`) → struct-side C is unobstructed
+(confirm at strike-grounding). Default stance: **annihilate; make the substrate force the reflection
+intrinsic into existence** (`feedback_substrate_forces_idealized_state`).
 
 ## Decomposition (sequenced; refine once the fork above is settled)
 
 > Order obeys `feedback_qualified_annihilations_are_priority` (the decomplect precedes the additive) and
 > `examinare` (each strike re-grounds its sites + carries its own RED probe + weighs against the disk).
 
-- **293.0 — DESIGN (this doc) + RED probe.** A probe asserting the target surface (`(:T/from-map :x 1)` and
+- **293.0a — DESIGN (this doc) + RED probe.** A probe asserting the target surface (`(:T/from-map :x 1)` and
   uniform construct/access on BOTH a record and a struct) — RED at HEAD. Commit before build.
+- **293.0b — the parent-inheritance feasibility probe (the boss-scout).** Determine whether a
+  macro-expand-time reflection intrinsic for a registered type's fields exists / can be cheaply minted (the
+  crux above). Decides whether C is total or carries the one named `register_record_methods` exception.
 - **293.1 — the aggregate HOME.** Mint `src/<aggregate>/` (intueri the name). LIFT `register_*_methods`,
   `eval_struct_new/field`, `eval_record_of/holon/field_at`, `infer_record_of/holon`, `parse_recordtype`,
   `StructDef`/`RecordDef` from `runtime.rs`/`check.rs`/`types.rs` into it (re-export at old paths to absorb
   churn — the 251.2 / wat-reader pattern). Pure relocation, zero behavior change, SET-diff ∅. Earns the
   megafile-shrink + co-locates the surface for what follows.
-- **293.2 — the shared emission layer + `defstruct` macro.** Build the shared ctor/accessor/`from-map`
-  emission (per the settled fork). Introduce the `defstruct` MACRO (the struct user form gains the macro
-  layer); structs get `/from-map` + uniform ctor. `register_struct_methods` retained for built-ins (or
-  built-ins migrated to wat — decide at strike).
-- **293.3 — `defrecord` / `holon::defrecord` (the rename + `/from-map`).** Rename `Record::def` →
-  `:wat::core::defrecord`, `holon::Record::def` → `:wat::holon::defrecord`; route both through the shared
-  layer; records gain `/from-map`. fix-wat the `.wat` sites; scripted-substitute the `.rs` sites; retirement
-  table the old heads. PRIME-suffix migration discipline (`project_prime_suffix_replaces_then_drops`) where it fits.
-- **293.4 — close + amend.** The RED probe green on BOTH kinds; full workspace SET-diff ∅; the home warded.
-  Amend 291's `CURRENT-STATE` breadcrumb to unblock `/from-map` (now trivial, falls out of the shared layer)
-  → resume 291.
+- **293.2 — the shared emission layer + `defstruct` macro + built-in migration + the FIRST annihilation.**
+  Build the shared ctor/accessor/`from-map` wat emission. Introduce the `defstruct` MACRO; migrate the 15
+  built-in structs (`register_builtin(TypeDef::Struct)`) to wat `defstruct` forms; **ANNIHILATE
+  `register_struct_methods`.** Structs get `/from-map` + uniform ctor, all-wat.
+- **293.3 — `defrecord` / `holon::defrecord` (rename + `/from-map`) + the SECOND annihilation.** Rename
+  `Record::def` → `:wat::core::defrecord`, `holon::Record::def` → `:wat::holon::defrecord`; route both
+  through the shared layer; records gain `/from-map`; **ANNIHILATE `register_record_methods`** (or reduce it
+  to the single named parent-inheritance exception if 293.0b forces it). fix-wat the `.wat` sites;
+  scripted-substitute the `.rs` sites; retirement-table the old heads. PRIME-suffix discipline
+  (`project_prime_suffix_replaces_then_drops`) where it fits.
+- **293.4 — close + amend.** The RED probe green on BOTH kinds; `register_*_methods` gone (or the lone named
+  exception); full workspace SET-diff ∅; the home warded. Amend 291's `CURRENT-STATE` breadcrumb to unblock
+  `/from-map` (now trivial, falls out of the shared layer) → resume 291.
 
 ## Out of scope (affirmative cuts)
 
@@ -180,8 +197,8 @@ home holding only the intrinsics (`struct-new`/`Record::of`/`field-at`/`struct-f
   near-term gain. The variant-level distinction *is* the wire law; keep it. (A future arc may revisit.)
 - **The dotted clojure-symbolic surface** (`wat.core/defrecord` ↔ `:wat::core::defrecord`) — that is arc 251's
   `:wat::` → `wat.` surface, a separate large axis. 293 picks 251-ready names; it does NOT switch notation.
-- **Migrating the 15 built-in structs to wat `defstruct` forms** — uniform-by-construction but a separate
-  sweep; built-ins keep `register_struct_methods` unless 293.2 makes the move cheap.
+- (Migrating the 15 built-in structs to wat `defstruct` forms is now **IN scope** — 293.2 — per the (C)
+  decision; `register_*_methods` is annihilated, so the built-ins must move.)
 
 ## Intueri casts owed (standing naming discipline)
 
