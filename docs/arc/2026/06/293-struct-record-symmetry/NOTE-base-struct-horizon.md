@@ -1,8 +1,25 @@
 # NOTE — the base-struct horizon: one foundation, kind-as-a-capability-label
 
-**Status: HORIZON / north-star (builder, 2026-06-26, pre-compaction).** Captured durably before the gap. NOT
-the immediate next strike — the current work (293.2-parity, `/from-map`, surfaces-for-records) proceeds on the
-3-variant model and *converges toward* this; the repr unification is a later, bigger strike.
+**Status: RESOLVED into TWO layers (builder, 2026-06-26) — the user-facing layer is IN 293; the substrate
+repr-collapse stays the optional horizon.** The builder untangled a conflation in the first draft of this NOTE:
+
+- **LAYER 1 — user-facing label-unification (IN SCOPE for 293, = the (C) construction unification, reframed).**
+  `(wat.core/defstruct)` / `(wat.core/defrecord)` / `(wat.holon/defrecord)` become **three thin LABEL-MACROS
+  over ONE shared base-struct emission** (ctor · accessors · `/from-map` · surfaces — identical for all three),
+  differing ONLY in `{which type-reg primitive they emit, the capability}`. The behavior is enforced by *which
+  primitive the label emits*: `defstruct → structtype → Value::Struct → never crosses`; `defrecord → recordtype
+  → Value::wat__Record → always crosses`; holon adds VSA. **The label IS the capability gate; R8's wall is free**
+  (each label produces the right variant → the existing hard `is_portable_type` wall holds). The caller can't
+  know or care which variant — only the behavior. *"defstruct never satisfies edn-repr; defrecord must always."*
+  293.2-parity (`defstruct → macro over structtype`) is the FIRST step; it generalizes to all three labels over
+  one base. **One alignment to fold in:** the ctor convention (`defstruct` builds via `:T/new`, `defrecord` via
+  `:T`) becomes ONE convention for all three.
+- **LAYER 2 — substrate repr-collapse (STILL the optional horizon, NOT required for Layer 1).** Collapsing the
+  three `Value` variants → one repr + a label. Layer 1 ships WITHOUT it (three variants stay, R8 intact). This
+  is the high-blast-radius part (serialization, the gate, closure-extract) and remains a later, deliberate,
+  optional strike — pursued only if the label can carry the categorical wall (see constraint below). The whole
+  reason it's separable: **the caller can't know or care what the substrate is doing** — so the substrate's
+  variant-count is invisible to the user-facing label-unification.
 
 ## The builder's model (verbatim intent)
 
