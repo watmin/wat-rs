@@ -31,7 +31,6 @@
 ;; The offset is the second :init arg — the live operating-input the law exists for.
 ;; IGNORED pending arc 291 4b-iv-a: dispatch-admin applies init to ONE arg (service.wat:427); the
 ;; ship (Admin::Init/Resume) must carry the WHOLE init-arg tuple. RED-marker; 4b-iv-a un-ignores green.
-(:wat::test::ignore "arc 291 4b-iv-a multi-param :init PENDING — Admin::Init carries one field; dispatch-admin applies init to one arg (service.wat:427). The ship must carry all init args.")
 (:wat::test::deftest' :wat-tests::service::multiparam-init-on-thread
   ()
   (:wat::test::assert-eq
@@ -44,7 +43,6 @@
     105))
 
 ;; process tier: identical except the locus — the live offset crosses the wire as EDN in Admin::Init.
-(:wat::test::ignore "arc 291 4b-iv-a multi-param :init PENDING — same gap as the thread tier; the offset must ride Admin::Init across the wire.")
 (:wat::test::deftest' :wat-tests::service::multiparam-init-on-process
   ()
   (:wat::test::assert-eq

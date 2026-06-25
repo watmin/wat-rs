@@ -197,10 +197,14 @@
      init-body      (:wat::core::first (:wat::core::drop init-fn-ch 4))
      ;; init-param: the children of the params vector — the 3-token binder [name <- :T]
      init-param     (:wat::core::ast->children init-params-vec)
-     ;; ship-ref: the symbol name for the init param (becomes start's 2nd param ref)
-     ship-ref       (:wat::core::first init-param)
-     ;; ship-ty: the type of the init param — now always ::Record
-     ship-ty        record-ty
+     ;; init-arg-names: the list of param NAME nodes (tokens at indices 0, 3, 6, …)
+     ;; init-param has 3 tokens per binder: [name <- :T]; extract the name at each i*3.
+     init-arg-names (:wat::core::map
+                      (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
+                        (:wat::core::Option/expect
+                          (:wat::core::get init-param (:wat::core::i64::* i 3))
+                          "defservice: init param name out of bounds"))
+                      (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length init-param) 3)))
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
      init-name-str  (:wat::core::string::interpolate "{fqdn-str}::init" :fqdn-str fqdn-str)
      init-name      (:wat::core::keyword/from-string init-name-str)
@@ -400,10 +404,10 @@
      ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
      admin-enum-def `(:wat::core::defenum ~admin-ty
-                       :Init     [seed     <- ~ship-ty]
+                       :Init     ~init-params-vec
                        :Stop
                        :Hibernate
-                       :Resume   [snapshot <- ~record-ty])
+                       :Resume   ~init-params-vec)
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      status-enum-def `(:wat::core::defenum ~status-ty
                              :Started   [addr     <- ~addr-ty]
@@ -424,8 +428,8 @@
      ;;   Hibernate        → assertion-failed! (not a startup message)
      dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty] -> ~state-ty
                             (:wat::core::match ai -> ~state-ty
-                              ((~admin-init-kw seed)     (~init-name seed))
-                              ((~admin-resume-kw snapshot) (~init-name snapshot))
+                              ((~admin-init-kw ~@init-arg-names)   (~init-name ~@init-arg-names))
+                              ((~admin-resume-kw ~@init-arg-names) (~init-name ~@init-arg-names))
                               (~admin-stop-kw
                                 (:wat::kernel::assertion-failed!
                                   "defservice dispatch-admin: Stop received before Init/Resume (protocol error)"
@@ -699,12 +703,12 @@
                            (:wat::core::do
                              (:wat::kernel::send' self (~status-hibernated-kw (~hibernate-project-name state)))
                              nil))
-                         ((~admin-init-kw _seed)
+                         ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
                              :wat::core::None
                              :wat::core::None))
-                         ((~admin-resume-kw _snapshot)
+                         ((~admin-resume-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Resume after startup (protocol error)"
                              :wat::core::None
@@ -991,7 +995,7 @@
      start-params  `[locus <- :wat::spawn::Locus  ~@init-param]
      start-body    `(:wat::core::let
                       [~lr-sym (~launch-head-kw locus
-                                 (~admin-init-kw ~ship-ref)
+                                 (~admin-init-kw ~@init-arg-names)
                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw)
@@ -1007,15 +1011,14 @@
      ;; dispatch-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
      ;; launch is UNCHANGED — resume reuses the same machinery.
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
-     snapshot-sym   (:wat::core::symbol-node "snapshot")
      resume-name    (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}/resume" :fqdn-str fqdn-str))
-     ;; resume-params: [locus <- :wat::spawn::Locus  snapshot <- ~record-ty]
-     ;; Vector → checker does not recurse into Vector children.
-     resume-params  `[locus <- :wat::spawn::Locus  ~snapshot-sym <- ~record-ty]
+     ;; resume-params: mirrors start-params — [locus <- :wat::spawn::Locus  ~@init-param]
+     ;; All init binders are spliced in; resume re-accepts all live operating-inputs.
+     resume-params  `[locus <- :wat::spawn::Locus  ~@init-param]
      resume-body    `(:wat::core::let
                        [~lr-sym (~launch-head-kw locus
-                                  (~admin-resume-kw ~snapshot-sym)
+                                  (~admin-resume-kw ~@init-arg-names)
                                   (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)
                                   (~service-forms-kw)
