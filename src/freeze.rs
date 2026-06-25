@@ -1531,6 +1531,8 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
+            // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+            | ":wat::core::structtype"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
             | ":wat::core::defenum"
             | ":wat::core::newtype"
@@ -1569,6 +1571,8 @@ pub fn is_declaration_form(head: &str) -> bool {
             | ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
+            // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+            | ":wat::core::structtype"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
             | ":wat::core::defenum"
             | ":wat::core::newtype"

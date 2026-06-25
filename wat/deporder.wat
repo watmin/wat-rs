@@ -77,6 +77,8 @@
                              ":wat::core::defclause"
                              ":wat::core::typealias"
                              ":wat::core::defstruct"
+                             ;; Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+                             ":wat::core::structtype"
                              ":wat::core::newtype"
                              ":wat::core::extend-type"
                              ":wat::core::derive"

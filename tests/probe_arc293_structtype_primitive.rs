@@ -19,7 +19,6 @@ use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
 #[test]
-#[ignore = "arc 293.2-parity RED probe — the structtype primitive is unbuilt; run with --ignored to confirm the gap"]
 fn structtype_primitive_registers_a_struct() {
     let src = r#"
         (:wat::core::structtype :my::Point

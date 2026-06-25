@@ -1643,6 +1643,8 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
             match k.as_str() {
                 // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
                 ":wat::core::defstruct" => return Some("defstruct"),
+                // Arc 293.2-parity — structtype is the low-level primitive defstruct (now a macro) expands to.
+                ":wat::core::structtype" => return Some("structtype"),
                 // Stone 241.9 — defenum replaces enum (HARD CUT).
                 ":wat::core::defenum" => return Some("defenum"),
                 ":wat::core::newtype" => return Some("newtype"),
@@ -1682,6 +1684,8 @@ fn parse_type_decl(
     match head {
         // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
         "defstruct" => parse_defstruct(iter.collect(), decl_span),
+        // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+        "structtype" => parse_defstruct(iter.collect(), decl_span),
         // Stone 241.9 — defenum replaces enum (HARD CUT).
         "defenum" => parse_defenum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),

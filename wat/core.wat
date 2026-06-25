@@ -1028,3 +1028,22 @@
         -> :wat::WatAST
         (:wat::core::first pieces)
         `(:wat::core::string::concat ~@pieces)))))
+
+;; ─── Arc 293.2-parity: defstruct as a thin macro over structtype ──────────────
+;;
+;; Mirror: :wat::Record::def (macro) → :wat::core::recordtype (Rust primitive).
+;;         :wat::core::defstruct (macro) → :wat::core::structtype (Rust primitive).
+;;
+;; :wat::core::defstruct is now a macro that splices ALL its args straight through
+;; to :wat::core::structtype (name + optional metadata-map + field-vector — same
+;; 2-arg or 3-arg shape). No code-gen here — struct method synthesis stays in
+;; register_struct_methods (Rust, unchanged). The sole win: defstruct is now a
+;; macro, enabling a uniform /from-map companion macro (like defrecord) in a
+;; later arc.
+;;
+;; Load-order note: structtype is a Rust type-registration head, always known
+;; before any macro expansion runs. No ordering gap.
+(:wat::core::defmacro :wat::core::defstruct
+  [& args <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  `(:wat::core::structtype ~@args))

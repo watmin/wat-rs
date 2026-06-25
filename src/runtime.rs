@@ -2050,6 +2050,7 @@ fn build_delegate_body(
 }
 
 /// Stone 241.8 — detect `(:wat::core::defstruct :Name ...)` shape.
+/// Arc 293.2-parity — also matches `:wat::core::structtype` (the primitive defstruct expands to).
 /// Replaces legacy struct / struct-restricted detection (HARD CUT).
 fn is_struct_form(form: &WatAST) -> bool {
     matches!(
@@ -2058,7 +2059,7 @@ fn is_struct_form(form: &WatAST) -> bool {
             if matches!(
                 items.first(),
                 Some(WatAST::Keyword(k, _))
-                    if k == ":wat::core::defstruct"
+                    if k == ":wat::core::defstruct" || k == ":wat::core::structtype"
             )
     )
 }
@@ -23934,6 +23935,8 @@ fn is_mutation_head(head: &str) -> bool {
         ":wat::core::defmacro"
             // Stone 241.8 — defstruct replaces struct (HARD CUT).
             | ":wat::core::defstruct"
+            // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+            | ":wat::core::structtype"
             // Stone 241.9 — defenum replaces enum (HARD CUT).
             | ":wat::core::defenum"
             | ":wat::core::newtype"

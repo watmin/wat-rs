@@ -640,6 +640,10 @@ fn walk_free_symbols(
                         ":wat::core::defstruct" => {
                             return walk_struct_form(rest, state);
                         }
+                        // Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
+                        ":wat::core::structtype" => {
+                            return walk_struct_form(rest, state);
+                        }
                         // Stone 241.9 — defenum replaces enum (HARD CUT).
                         ":wat::core::defenum" => {
                             return walk_defenum_form(rest, state);

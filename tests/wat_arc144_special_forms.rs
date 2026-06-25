@@ -243,12 +243,22 @@ fn lookup_form_quasiquote_returns_special_form() {
 
 #[test]
 fn lookup_form_struct_returns_special_form() {
-    assert_special_form(":wat::core::defstruct", ":wat::core::defstruct");
-    let (_, sig, _) = three_probes(":wat::core::defstruct");
+    // Arc 293.2-parity: :wat::core::defstruct is now a WAT MACRO (not a special form).
+    // lookup-define returns the macro definition (head :wat::core::defmacro); the macro
+    // body expands all args through to :wat::core::structtype (the new low-level primitive).
+    // This test is updated from "assert special form" to "assert macro with structtype expansion."
+    let (define_line, _, _) = three_probes(":wat::core::defstruct");
     assert!(
-        sig.contains("<name>") && sig.contains("[<field> <- <type>]+"),
-        "expected <name>/[<field> <- <type>]+ in defstruct signature, got: {}",
-        sig
+        define_line.contains(":wat::core::defmacro"),
+        "Arc 293.2-parity: defstruct should now be a macro; lookup-define should contain \
+         :wat::core::defmacro; got: {}",
+        define_line
+    );
+    assert!(
+        define_line.contains(":wat::core::structtype"),
+        "Arc 293.2-parity: defstruct macro body should expand to :wat::core::structtype; \
+         got: {}",
+        define_line
     );
 }
 
