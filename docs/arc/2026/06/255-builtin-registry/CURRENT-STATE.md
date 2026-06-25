@@ -1,7 +1,7 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 4; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `b5de1e70` (293 R2 realization) or later —
-COMMITTED + PUSHED to DR. Tree CLEAN (only `clara-tools/` ignored).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `bd0935db` (293.3-records SHIPPED) or
+later — COMMITTED + PUSHED to DR. Tree CLEAN (only `clara-tools/` ignored).
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 4) — 293.2-parity SHIPPED; the BASE-STRUCT UNIFICATION is the arc spine (R2)
 Session 4 ran on the holon/aggregate model. **Read `293-…/REALIZATIONS.md` R2** (Break Stuff / *FRANGE UT UNUM FIAT*)
@@ -20,6 +20,15 @@ Session 4 ran on the holon/aggregate model. **Read `293-…/REALIZATIONS.md` R2*
   are two encodings of the SAME data; `holon_form` is a derived cache (pure fn of fields); the wire ships the
   holon_form-as-EDN (struct_form PROJECTED, NO recompute — `edn_shim.rs:2480-2506`, arc 234.7b); dense vectors never
   cross; parity by immutable `assoc` rebuild (`runtime.rs:13706-13778`). **holon = a structural+repr REFINEMENT of record, NOT a third wire-kind.**
+- **293.3-records (`bd0935db`) — records carry typed fields → core AND holon records satisfy surfaces** (R2
+  headline LITERAL in the checker). Both record macros emit the typed `recordtype` form (`[~@fields]` — DELETED
+  the name-strings holon round-trip) → `RecordDef.field_types=Some`; `assignable` gained a Record arm mirroring
+  the Struct arm. Weighed pure: probe `probe_arc293_record_surface` 3 GREEN; `core_record_def` deftests 7 GREEN;
+  all SocketAddressWire consumers GREEN; floor 201 (the 6 `arc234_stone2a` nursery fails are PRE-EXISTING — proven
+  identical at baseline `919f825e`). FORCED 2 fixes: `register_record_methods` skip-when-ctor-registered (macro
+  records now look like direct recordtype records; genuine-dup guard relocated to the defn path); `spawn.wat:35`
+  `SocketAddressWire.name` illegal `Vector<:wat::core::i64>` → `<wat::core::i64>` (a latent unchecked-type bug the
+  typed emission exposed). `RecordDef` now carries the same typed-field data as `StructDef` → merge-ready.
 
 **THE MODEL (R2, settled this session):** struct / record / holon-record are ONE backing — `{ properties-as-struct,
 kind-as-enum }`. VALUE level: all three are `(class, fields)` (`StructValue` `value/value.rs:959` ≡ `wat__Record`;
@@ -27,17 +36,19 @@ holon adds the derived `holon_form`). TYPE level: `StructDef.fields` is ALREADY 
 `RecordDef.field_types` is the lone `None` (`types.rs:2131`). **ONE categorical wall = struct vs record (edn-repr);
 holon is structural+repr above it.** kind-as-ENUM (never `Option` — the no-Option-semantics doctrine).
 
-**▶ THE SPINE (R2 RESHAPED the arc plan — the unification SUBSUMES the piecemeal strikes):**
-1. **Unify the DEF** — `StructDef`+`RecordDef` → `AggregateDef{name, fields:Vec<(String,TypeExpr)>, kind, parent?}`.
-   Records inherit typed fields → struct/record/holon ALL satisfy surfaces (R1) + get `/from-map` in ONE move.
-   **This SUBSUMES the old `293.3-records` strike.** (Def-cascade size NOT yet measured — recon first.)
-2. **Unify the VALUE** — 3 `Value` variants → `Aggregate{class, fields, kind}` + derived hologram. The value cascade
-   is recon'd: `Value::Struct` 82 / `wat__Record` 98 / `wat__holon__Record` 76 sites, 21 files. User forms UNCHANGED;
-   safe; rideable by a sonnet, weighed by SET-diff. **PERCEIVE-THE-TRAP first:** per-variant identity
-   (base=struct_form, holon=holon_form) — identity-over-`holon_form` ≡ identity-over-`(class,fields)`, so it's the
-   SAME identity; the disconfirming probe must PROVE it before the cascade.
-**NEXT ARTIFACT = the disconfirming probe + DESIGN for strike (1), the def-unification.** Old 293.3-core (structural
-surfaces, struct-scope) SHIPPED `313e7d85`; R1 = *FORMA SOLA SUFFICIT*.
+**▶ THE SPINE (R2 — the base-struct unification; strike 1 DONE):**
+1. ✅ **293.3-records — records carry typed fields → satisfy surfaces** (`bd0935db`, SHIPPED above). The first cut:
+   it both delivers the R2 prize AND makes `RecordDef` field-compatible with `StructDef` (the merge precondition).
+2. **NEXT — unify the DEF (the AggregateDef merge):** `StructDef`+`RecordDef` → `AggregateDef{name,
+   fields:Vec<(String,TypeExpr)>, kind, parent?}`. Both now carry typed fields → the merge is structural +
+   behavior-preserving (SET-diff ∅ oracle, no single RED probe). Def-cascade RECON'D: `TypeDef::Struct` 50 / `TypeDef::Record`
+   38 / `StructDef` 28 / `RecordDef` 28 sites, ~16 files. Ride the cascade; the trap = per-kind identity
+   (struct=`StructValue.type_name`+fields; record=`class_fqdn`+`struct_form`; holon adds `holon_form`).
+3. **THEN — unify the VALUE:** 3 `Value` variants → `Aggregate{class, fields, kind}` + derived hologram. Cascade
+   recon'd: `Value::Struct` 82 / `wat__Record` 98 / `wat__holon__Record` 76 sites, 21 files. User forms UNCHANGED.
+   PERCEIVE-THE-TRAP first: identity-over-`holon_form` ≡ identity-over-`(class,fields)` — the probe must PROVE it.
+**NEXT ARTIFACT = recon + disconfirming approach for strike 2 (the AggregateDef merge).** Old 293.3-core (struct
+surfaces) SHIPPED `313e7d85` / R1 = *FORMA SOLA SUFFICIT*; R2 (base-struct unification) = *FRANGE UT UNUM FIAT*.
 
 **THE GATE (293 close) = the demo** (`DESIGN.md` § What the arc delivers): Shape/Circle/Square + holon-Vector
 monkeypatch, RED→GREEN. **R2 FULFILLED** when the unification lands (user forms unchanged, SET-diff ∅) → *PROBATUM EST*.
