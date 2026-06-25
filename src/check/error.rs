@@ -193,6 +193,15 @@ pub enum CheckErrorKind {
         clause_index: usize,
         reason: String,
     },
+    /// Arc 291 — hygiene-scope divergence: a reference is unbound, but a
+    /// binder of the SAME NAME exists under a DIFFERENT hygiene scope.
+    /// This is always a faulty macro that rebuilt a binder from its name
+    /// (stripping/changing its ScopeId) instead of reusing the original node.
+    HygieneScopeDivergence {
+        name: String,
+        ref_key: String,
+        binder_key: String,
+    },
 }
 
 impl CheckErrorKind {
@@ -564,6 +573,21 @@ impl CheckErrorKind {
                     reason,
                 )
             }
+            CheckErrorKind::HygieneScopeDivergence { name, ref_key, binder_key } => {
+                write!(
+                    f,
+                    "{}hygiene-scope divergence: reference `{}` (scope {{{}}}) is unbound, \
+                     but a binder `{}` exists under a different scope {{{}}} — \
+                     a macro rebuilt this binder from its name instead of reusing the node; \
+                     reuse the original AST node.",
+                    prefix,
+                    name,
+                    // ref_key is "name" for bare or "name\u{1}scopes" for scoped; extract scope part
+                    ref_key.splitn(2, '\u{1}').nth(1).unwrap_or(""),
+                    name,
+                    binder_key.splitn(2, '\u{1}').nth(1).unwrap_or(""),
+                )
+            }
         }
     }
 }
@@ -853,6 +877,13 @@ impl CheckError {
                     .field("defclause_name", defclause_name.as_str())
                     .field("clause_index", *clause_index)
                     .field("reason", reason.as_str());
+                loc_field(diag, "span", span)
+            }
+            CheckErrorKind::HygieneScopeDivergence { name, ref_key, binder_key } => {
+                let diag = Diagnostic::new("HygieneScopeDivergence")
+                    .field("name", name.as_str())
+                    .field("ref_key", ref_key.as_str())
+                    .field("binder_key", binder_key.as_str());
                 loc_field(diag, "span", span)
             }
         }

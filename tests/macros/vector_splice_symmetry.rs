@@ -112,15 +112,22 @@ fn splice_of_vector_bound_symbol_succeeds() {
 /// passed before 249.5b only because name-only resolution allowed the
 /// accidental capture.
 ///
+/// Arc 291: the refusal is now caught at COMPILE time. The `HygieneScopeDivergence`
+/// gate (`check.rs` / `src/scope/resolution.rs`) sees the body's `a{scope 433}`
+/// reference miss its binder while a same-name `a{}` binder exists under a
+/// different scope — and refuses it with a typed check error, earlier and
+/// stronger than the old runtime `UnboundSymbol`. (Stale `:AST<…>` rest-param
+/// syntax migrated to `:wat::core::Vector<wat::WatAST>` / `-> :wat::WatAST`.)
+///
 /// PERMANENT witness — never "fix" this; fixing it would mean breaking
 /// hygiene. The hygienic way to write this macro is the sibling test below.
 #[test]
-#[should_panic(expected = "UnboundSymbol")]
+#[should_panic(expected = "hygiene-scope divergence")]
 fn anaphoric_splice_capture_refused_by_hygiene() {
     let src = r#"
         (:wat::core::defmacro :my::make-adder
-          [& params <- :AST<wat::core::Vector<wat::WatAST>>]
-          -> :AST<wat::core::nil>
+          [& params <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::fn [~@params] -> :wat::core::i64
               (:wat::core::i64::+ a b)))
 

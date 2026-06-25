@@ -109,6 +109,39 @@ pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
     }
 }
 
+/// A hygiene-scope divergence: `ident` is unbound (its env_key missed), but a
+/// binder of the SAME NAME exists under a DIFFERENT hygiene scope. Only ever a
+/// faulty macro that rebuilt a binder from its name (changing its ScopeId)
+/// instead of reusing the original node — never a legitimate polymorphic
+/// placeholder. Returns the diverging binder's key.
+///
+/// Logic: let `me = env_key(ident)`. For each key `k` in `local_keys`, extract
+/// the NAME part (everything before the first `'\u{1}'`, or the whole key if
+/// none). If `name_part(k) == ident.as_str()` AND `k != me`, return
+/// `k.to_owned()` (a same-name, different-scope binder). Else `None`.
+///
+/// Examples:
+/// - bare ref `"a"` (me = `"a"`) vs scoped binder `"a\u{1}433"` → Some
+/// - scoped ref `"a\u{1}7"` (me = `"a\u{1}7"`) vs bare binder `"a"` → Some
+/// - same key both sides → None
+/// - different name → None
+pub fn scope_divergent_binder<'a>(
+    ident: &Identifier,
+    local_keys: impl Iterator<Item = &'a str>,
+) -> Option<String> {
+    let me = env_key(ident);
+    let me_ref: &str = me.as_ref();
+    let my_name = ident.as_str();
+    for k in local_keys {
+        // Extract name part: everything before the first SOH separator.
+        let name_part = k.splitn(2, '\u{1}').next().unwrap_or(k);
+        if name_part == my_name && k != me_ref {
+            return Some(k.to_owned());
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +196,52 @@ mod tests {
         let a = Identifier::bare("x").add_scope(s1).add_scope(s2);
         let b = Identifier::bare("x").add_scope(s2).add_scope(s1);
         assert_eq!(env_key(&a), env_key(&b), "multi-scope key must be order-independent");
+    }
+
+    // --- scope_divergent_binder tests ---
+
+    #[test]
+    fn scope_divergent_binder_bare_ref_scoped_binder_detects() {
+        // bare ref "a" vs scoped binder "a\u{1}433" → Some
+        let bare_ref = Identifier::bare("a");
+        let scoped_key = "a\u{1}433";
+        let result = super::scope_divergent_binder(&bare_ref, std::iter::once(scoped_key));
+        assert_eq!(result, Some(scoped_key.to_owned()), "bare ref vs scoped binder must detect divergence");
+    }
+
+    #[test]
+    fn scope_divergent_binder_scoped_ref_bare_binder_detects() {
+        // scoped ref "a\u{1}7" vs bare binder "a" → Some
+        let s = fresh_scope();
+        let scoped_ref = Identifier::bare("a").add_scope(s);
+        let bare_key = "a";
+        let result = super::scope_divergent_binder(&scoped_ref, std::iter::once(bare_key));
+        assert_eq!(result, Some(bare_key.to_owned()), "scoped ref vs bare binder must detect divergence");
+    }
+
+    #[test]
+    fn scope_divergent_binder_same_key_no_detection() {
+        // same key both sides → None
+        let bare_ref = Identifier::bare("a");
+        let same_key = "a";
+        let result = super::scope_divergent_binder(&bare_ref, std::iter::once(same_key));
+        assert_eq!(result, None, "same key must not detect divergence");
+    }
+
+    #[test]
+    fn scope_divergent_binder_different_name_no_detection() {
+        // different name → None
+        let bare_ref = Identifier::bare("a");
+        let different_key = "b\u{1}433";
+        let result = super::scope_divergent_binder(&bare_ref, std::iter::once(different_key));
+        assert_eq!(result, None, "different name must not detect divergence");
+    }
+
+    #[test]
+    fn scope_divergent_binder_empty_locals_no_detection() {
+        // empty locals → None
+        let bare_ref = Identifier::bare("a");
+        let result = super::scope_divergent_binder(&bare_ref, std::iter::empty());
+        assert_eq!(result, None, "empty locals must not detect divergence");
     }
 }

@@ -3413,13 +3413,27 @@ pub(crate) fn infer(
             } }])
         }
         WatAST::Keyword(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::keyword".into())),
-        WatAST::Symbol(ident, _) => {
+        WatAST::Symbol(ident, sp) => {
             match locals.get(crate::scope::resolution::env_key(ident).as_ref()).cloned() {
                 Some(ty) => CheckResult::ok(ty),
-                // HARVEST (236.1): silent-by-intent — symbol not found in local scope;
-                // type is not knowable at this point (polymorphic placeholder).
-                // Callers that need type-checking will unify the fresh var.
-                None => CheckResult::ok(fresh.fresh()),
+                None => {
+                    match crate::scope::resolution::scope_divergent_binder(ident, locals.keys().map(|s| s.as_str())) {
+                        // "I AM THE LAW." — Dredd. A binder of this name exists under a different hygiene scope:
+                        // this reference can never bind it. A macro rebuilt the binder from its name instead of
+                        // reusing the node. Refuse at compile time — the program does not get to run.
+                        Some(binder_key) => {
+                            CheckResult::errs(vec![CheckError { span: sp.clone(), kind: CheckErrorKind::HygieneScopeDivergence {
+                                name: ident.as_str().to_owned(),
+                                ref_key: crate::scope::resolution::env_key(ident).into_owned(),
+                                binder_key,
+                            }}])
+                        }
+                        // HARVEST (236.1): genuinely unbound (no same-name binder) — symbol not found
+                        // in local scope; type is not knowable at this point (polymorphic placeholder).
+                        // Callers that need type-checking will unify the fresh var.
+                        None => CheckResult::ok(fresh.fresh()),
+                    }
+                }
             }
         }
         WatAST::List(items, _) => {

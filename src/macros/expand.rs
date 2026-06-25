@@ -49,7 +49,15 @@ pub fn expand_all(
             let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
             // After hoisting, the do may have become a single-child do or still be
             // a multi-child do — push it either way; `eval_do` handles both.
-            out.push(rebuilt);
+            // EXCEPT: if hoisting stripped EVERY body form (a generator whose do
+            // contained only defmacros, at any nesting depth — the depth-unbounded
+            // sole-macro case), the do is now empty. An empty `(do)` is a no-op (its
+            // registrations are already done) AND the checker rejects "do requires at
+            // least one form" — so elide it entirely.
+            match &rebuilt {
+                WatAST::List(items, _) if items.len() <= 1 => { /* empty do — elide */ }
+                _ => out.push(rebuilt),
+            }
         } else {
             out.push(expanded);
         }
@@ -57,25 +65,38 @@ pub fn expand_all(
     Ok(out)
 }
 
-/// Returns `true` if `form` is a `(:wat::core::do ...)` form that has at least
-/// one `(:wat::core::defmacro ...)` child. Used by `expand_all` to detect
-/// macro-generating-macros (e.g. `defn`'s kwargs branch) that emit their
-/// `defmacro` registration inside a `do` wrapper.
+/// Returns `true` if `form` is a `(:wat::core::do ...)` form that contains a
+/// `(:wat::core::defmacro ...)` at ANY `do`-nesting depth. Used by `expand_all`
+/// to detect macro-generating-macros (e.g. `defn`'s kwargs branch) that emit
+/// their `defmacro` registration inside a `do` wrapper.
+///
+/// Recurses through nested `do`s: a macro that emits a macro that emits a macro
+/// (e.g. `defservice` → a kwargs `defn` → its companion `defmacro`) nests the
+/// `defmacro` two `do`s deep. The check is depth-unbounded — it does not count
+/// levels (one rung → a fixpoint), so self-emission composes at any nesting.
 fn is_do_containing_defmacro(form: &WatAST) -> bool {
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if head == ":wat::core::do" {
-                return items.iter().skip(1).any(is_defmacro_form);
+                return items
+                    .iter()
+                    .skip(1)
+                    .any(|child| is_defmacro_form(child) || is_do_containing_defmacro(child));
             }
         }
     }
     false
 }
 
-/// Walk a `(:wat::core::do ...)` form, registering any `defmacro` children
-/// immediately and stripping them from the `do` body. The non-defmacro children
-/// are kept in order. Returns the rebuilt `do` form (with the defmacro children
-/// removed). Called only when `is_do_containing_defmacro` returns true.
+/// Walk a `(:wat::core::do ...)` form, registering any `defmacro` at ANY
+/// `do`-nesting depth and stripping it from the body; non-defmacro children are
+/// kept in order. Returns the rebuilt `do` form. Called only when
+/// `is_do_containing_defmacro` returns true.
+///
+/// Recurses into nested `do` children that themselves contain a `defmacro` (the
+/// macros-emitting-macros-emitting-macros case): a child `(do … (defmacro …))`
+/// is rebuilt by hoisting from it too, so a `defmacro` born any number of
+/// macro-emission hops deep still registers. Depth-unbounded by construction.
 fn hoist_defmacros_from_do(
     form: WatAST,
     registry: &mut MacroRegistry,
@@ -94,6 +115,21 @@ fn hoist_defmacros_from_do(
         if is_defmacro_form(&child) {
             let def = parse_defmacro_form(child)?;
             registry.register(def)?;
+        } else if is_do_containing_defmacro(&child) {
+            // A defmacro nested in a child `do` (a macro emitted by a macro
+            // emitted by a macro). Recurse to register the nested defmacro, then
+            // FLATTEN the nested do's surviving children up into THIS do — so the
+            // emitted `def`/`Record::def` siblings land at the same registerable
+            // level as the single-emission case. Left buried in a nested do they
+            // would be evaluated as runtime expressions, not registered as
+            // definitions (a `Record::def` would try to eval its field names).
+            // A do is only flattened here because it CONTAINS a defmacro — i.e. it
+            // is a macro-emission wrapper, never a value-position do.
+            let rebuilt = hoist_defmacros_from_do(child, registry)?;
+            match rebuilt {
+                WatAST::List(inner, _) => new_items.extend(inner.into_iter().skip(1)),
+                other => new_items.push(other),
+            }
         } else {
             new_items.push(child);
         }

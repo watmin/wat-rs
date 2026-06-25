@@ -425,8 +425,16 @@
                                                  (:wat::core::get kw-ch i)
                                                  "defn kwargs let-binder: field name index")
                                  fname-str     (:wat::core::ast-name fname-node)
-                                 ;; HYGIENIC field binder: symbol-node → Unquote at def time
-                                 binder-sym    (:wat::core::symbol-node fname-str)
+                                 ;; HYGIENIC field binder: REUSE the original argspec symbol node
+                                 ;; (fname-node), NOT a string rebuild. The argspec binder and the
+                                 ;; fn body are authored in the same hygiene context, so they share a
+                                 ;; scope; rebuilding via (symbol-node fname-str) would mint a fresh
+                                 ;; EMPTY-scope symbol that matches the body only at top level (where
+                                 ;; both are scope-less) but NOT when the defn is emitted inside
+                                 ;; another macro's quasiquote (which stamps a scope on both the
+                                 ;; argspec and the body). Reusing fname-node keeps binder ≡ body at
+                                 ;; any macro-emission depth.
+                                 binder-sym    fname-node
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
                                  accessor-kw   (:wat::core::keyword/from-string
                                                  (:wat::core::string::concat kwargs-ty-str

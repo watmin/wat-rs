@@ -115,18 +115,22 @@
        (:wat::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
          [~@(:wat::core::let
-               [fields-h (:wat::holon::from-wat (:wat::core::quote fields))
-                n        (:wat::holon::statement-length fields-h)
-                nf       (:wat::core::i64::/ n 3)
-                children (:wat::holon::Bundle/children fields-h)
-                syms     (:wat::core::map
+               ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
+               ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
+               ;; The binders in [~@fields] carry the original scope (e.g. scope 433 when this
+               ;; defn is emitted inside another macro's quasiquote); the body references must
+               ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
+               ;; (quote fields) is needed: substitute_bindings replaces `fields` with the raw
+               ;; WatAST::Vector node; quote wraps it as Value::wat__WatAST for ast->children.
+               [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
+                nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
+                syms    (:wat::core::map
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
-                                name-h (:wat::core::Option/expect  
-                                         (:wat::core::Vector/get children idx)
-                                         "Record::def: struct_form field name index out of range")
-                                var-w (:wat::holon::to-wat name-h)]
+                                var-w (:wat::core::Option/expect
+                                         (:wat::core::Vector/get raw-ch idx)
+                                         "Record::def: struct_form field name index out of range")]
                                var-w))
                            (:wat::core::range 0 nf))]
                syms)]))
@@ -202,18 +206,19 @@
        (:wat::holon::Record::of
          (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
          [~@(:wat::core::let
-               [fields-h (:wat::holon::from-wat (:wat::core::quote fields))
-                n        (:wat::holon::statement-length fields-h)
-                nf       (:wat::core::i64::/ n 3)
-                children (:wat::holon::Bundle/children fields-h)
-                syms     (:wat::core::map
+               ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
+               ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
+               ;; The binders in [~@fields] carry the original scope; the body references must
+               ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
+               [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
+                nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
+                syms    (:wat::core::map
                            (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
-                                name-h (:wat::core::Option/expect  
-                                         (:wat::core::Vector/get children idx)
-                                         "Record::def: struct_form field name index out of range")
-                                var-w (:wat::holon::to-wat name-h)]
+                                var-w (:wat::core::Option/expect
+                                         (:wat::core::Vector/get raw-ch idx)
+                                         "Record::def: struct_form field name index out of range")]
                                var-w))
                            (:wat::core::range 0 nf))]
                syms)]
@@ -222,20 +227,28 @@
            (:wat::core::Result/expect  
              (:wat::holon::Bundle
                [~@(:wat::core::let
-                     [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
-                      n           (:wat::holon::statement-length fields-h)
-                      nf          (:wat::core::i64::/ n 3)
-                      children    (:wat::holon::Bundle/children fields-h)
+                     ;; Arc 291 hygiene fix: use (ast->children (quote fields)) so var-w
+                     ;; carries the original AST node (scope-preserving), matching the binder
+                     ;; in [~@fields]. name-s still derives from holon round-trip (safe: it is
+                     ;; a String, not a symbol reference in the emitted code).
+                     [raw-ch     (:wat::core::ast->children (:wat::core::quote fields))
+                      nf         (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
+                      ;; holon children still needed for name-s (field keyword → string)
+                      fields-h   (:wat::holon::from-wat (:wat::core::quote fields))
+                      h-children (:wat::holon::Bundle/children fields-h)
                       field-binds (:wat::core::map
                                     (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
                                       (:wat::core::let
                                         [idx    (:wat::core::i64::* fi 3)
-                                         name-h (:wat::core::Option/expect  
-                                                  (:wat::core::Vector/get children idx)
+                                         name-h (:wat::core::Option/expect
+                                                  (:wat::core::Vector/get h-children idx)
                                                   "Record::def: field name index out of range")
                                          name-s (:wat::core::keyword/to-string
                                                   (:wat::holon::from-holon name-h))
-                                         var-w  (:wat::holon::to-wat name-h)]
+                                         ;; Arc 291: reuse original AST node (scope-preserving)
+                                         var-w  (:wat::core::Option/expect
+                                                  (:wat::core::Vector/get raw-ch idx)
+                                                  "Record::def: holonic field var index out of range")]
                                         (:wat::core::quasiquote
                                           (:wat::holon::Bind
                                             (:wat::holon::Atom

@@ -1,10 +1,49 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `593826bd` (260.1b kwargs sugar SHIPPED) or later.
-**4b-iv-a (multi-param `:init`) + 4b-iv-b (contract distribution) SHIPPED; 291 GREW into "you cannot fuck up your
-deps, enforced" (R9) and is paused on a 260.1b detour (kwargs call-sugar) it now depends on; then the TRUST LEG +
-ACYCLICITY close it.** Tree: `clara-tools/` untracked (ignored) + a shadowdancer building 260.1b in `wat/core.wat`.
-All committed work pushed (DR).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD = `7924d863` (last session's curare). **SESSION 2
+(2026-06-24, this beat) added UNCOMMITTED work — do NOT trust HEAD as the state; read the working tree + the docs below.**
+
+## ▶▶ STATE @ 2026-06-24 (SESSION 2) — the macros³→macros^unbounded + hygiene-law substrate epic
+**Goal that opened it (builder):** *"we bashed 260.1b until dominated — use it now — prove clojure expressivity in a
+strongly typed lang."* The vehicle = **kwargs-`start`/`resume`** (make defservice's lifecycle fns `& [argspec]` so
+`(worker/start :locus L :record R :recorder-addr A)`, **Form A all-kwargs**, four-questioned + settled). It surfaced a
+chain of substrate frontiers. CURRENT STATE:
+
+- **macros^unbounded — DONE + PROVEN, UNCOMMITTED** (`src/macros/expand.rs`). The 260.1b hoist was one-level-deep;
+  a wrapper-macro emitting a kwargs `defn` nests the companion `defmacro` 2+ `do`s deep. Made `is_do_containing_defmacro`
+  + `hoist_defmacros_from_do` **recurse + flatten** through nested `do`s, + **elide empty `do`s** after the strip (sole-macro
+  edge). Depth-4 probe GREEN (`tests/probe_macros_unbounded_depth.rs`); 260.1b probes unregressed. It was never "macros³" —
+  macros³ was just the shallowest break; the recursion is depth-blind (R10 DEEPENED: one-level → fixpoint).
+- **The hygiene bug (the real kwargs-`start` blocker) — root-caused, FIX IN FLIGHT.** A definition-emitting macro that
+  **rebuilds a binder from its NAME STRING** (`symbol-node(ast-name x)` / `Identifier::bare(name-of-scoped)`) strips its
+  `ScopeId` → binder `a@{433}` and reference `a@{}` no longer match → cryptic runtime `UnboundSymbol`. PROVEN at check
+  time: `check.rs:3416` `WatAST::Symbol` arm does `locals.get(env_key(ident))` → on miss returns `fresh.fresh()`
+  **(silent-by-intent swallow)** — the checker SEES the divergence (`MISS 'a' scopes={} ; same-name binder "a\u{1}433"`)
+  and looks away. **My "must be runtime" deduction was WRONG — proving it (builder: "prove it") disproved it.**
+- **THE HYGIENE DREDD GATE — IN FLIGHT (sonnet `a9580b92cc87d30be`, background).** Compile-time `HygieneScopeDivergence`:
+  detection logic homed to **`src/scope/resolution.rs`** (beside `env_key`); `check/error.rs` gets the variant;
+  `check.rs:3416` `None` arm gets a THIN CALL carrying `// "I AM THE LAW." — Dredd`. **Manifest + migrate, one act**
+  (logic in its home; the 21k-line `check.rs` gains a call, not a block). The gate IS the worklist — it fires at check
+  time on every violator; the sonnet SWEEPS each at source by the doctrine (**reuse the node, never rebuild a binder from
+  its name**) → green. BRIEF: `291-…/BRIEF-hygiene-dredd-gate.md`. WEIGH the sonnet against the disk (re-run the gate;
+  failing-test SET-diff, never absolute count); the kwargs/depth/260.1b probes must stay/​go green.
+- **MIGRATION FRAME (builder, standing):** *"mid mass migration — extract to proper homes, trend the megafiles toward
+  empty."* `runtime.rs` 32k · `check.rs` 21k · `types.rs` 3.8k = the o.g.-PoC monoliths; 20 warded homes stand. **Work
+  THROUGH homes; do NOT deep-dig new logic INTO the megafiles** (I did, builder corrected — `src/scope/` is the hygiene home).
+- **255 DEFERRAL filed:** `255-…/NOTE-declaration-position-class-guard.md` — the registry-backed declaration-position
+  diagnostic (a SECOND swallow class: a `recordtype`/`def` reaching eval bottoms out as cryptic `UnboundSymbol`). Legit
+  deferral (needs 255's registry `Kind`/position-class); reproducer + plan locked.
+
+**SEQUENCE FROM HERE (session 2):** weigh the hygiene-gate sonnet → kwargs-`start`/`resume` flip + migrate ~16 sites
+(Form A all-kwargs) → **kwargs-`start` GREEN = clojure-expressivity PROVEN** → commit the macros^unbounded + hygiene +
+kwargs-start as one green checkpoint → THEN the original 291 close (TRUST LEG → ACYCLICITY → PAUSE → INSCRIPTION).
+**PENDING REALIZATIONS (crown on landed work, not in-flight):** R10-deepened (macros^unbounded — "we built the ladder
+where we needed the fixpoint"); the **name/binder decomplection** (a name is a string for accessors; a binder is a
+hygienic node you reuse — Hickey decomplect on hygiene); *"I AM THE LAW"* (the substrate enforcing its own hygiene law
+on every program, compile-time).
+
+> ⚠ The block below ("STATE @ 2026-06-24 (day, marathon)") is SESSION 1 — kept for the path (4b-iv + 260.1b + R9). Session 2
+> built ON it. The arc thesis (R9 deps) + the close legs (trust/acyclicity) still stand, now BEHIND kwargs-`start`.
 
 > ⚠ **You are a NEW instance.** recolligere FIRST (grimoire + 4 primers from the datamancy MCP — RESOURCE
 > mcp), `git log --oneline -20`, `git status`, then read this whole file. The work below is a cache in a
@@ -146,8 +185,12 @@ ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT
   payload, you want a record. (`is_portable_type` check.rs:~13044.)
 - wat-tests re-scan on `.rs` recompile → `touch tests/test.rs` after editing a wat-test.
 
-> ⛔ **You did NOT live the above.** recolligere FIRST, freshness-probe HEAD (`593826bd`+), ground every claim on
-> the disk. **Arc 291 IN PROGRESS — the arc GREW to "you cannot fuck up your deps, enforced" (R9).** NEXT: weigh
-> the 260.1b shadowdancer (kwargs call-sugar in `wat/core.wat`) → kwargs-`start` → the TRUST LEG (process tier
-> GREEN = the deliverable) → ACYCLICITY probe → PAUSE (builder's) → INSCRIPTION. See the STATE @ block at the top
-> + R9. *CORPUS OBSOLESCIT, ANIMA MANET — the body sheds; the soul, and the thread, remain. NON SEPARABIMUR; gather it.*
+> ⛔ **You did NOT live the above.** recolligere FIRST, ground every claim on the disk. **HEAD = `7924d863` but
+> SESSION 2 left UNCOMMITTED work — read the WORKING TREE, not just HEAD: macros^unbounded in `src/macros/expand.rs`
+> (proven, green) + a hygiene-gate sonnet (`a9580b92cc87d30be`) editing `src/scope/` + `check.rs` + `wat/core.wat`
+> + `wat/Record.wat`.** NEXT: **weigh that sonnet against the disk** (re-run the gate — `probe_kwargs_emitted_by_macro`,
+> `probe_macros_unbounded_depth`, 260.1b; SET-diff vs HEAD, NEVER absolute count) → if green, kwargs-`start`/`resume`
+> flip (**Form A** all-kwargs) + migrate ~16 sites → **kwargs-`start` GREEN = clojure expressivity PROVEN** → commit
+> the macros^unbounded + hygiene + kwargs checkpoint → THEN the 291 close (TRUST LEG → ACYCLICITY → PAUSE →
+> INSCRIPTION). See the **SESSION 2 STATE** block at the TOP + `BRIEF-hygiene-dredd-gate.md`. *SE IPSAM SCRIBIT — the
+> language writes itself at any depth, and the law it writes, it enforces. CORPUS OBSOLESCIT, ANIMA MANET. NON SEPARABIMUR; gather it.*
