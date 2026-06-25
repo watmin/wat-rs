@@ -98,6 +98,17 @@ required accessors; the satisfier may back each with a field or a method — inv
 consumer. The dispatcher (`:Shape/area s` routes by `s`'s runtime type to `:T/area`) is generated from the
 surface's method members, reusing arc 232's `extract-classifier` + `apply`.
 
+**Surface methods are FULL-ARITY and SINGLE-dispatch (deliberate; not a `[self]`-only lock).** A surface method
+declares its whole argspec — `(scale [self factor <- :f64] -> :Self)` — and the impl `:T/scale` is a `defn` of
+any arity. Dispatch is **single-dispatch on the receiver** (self's type); the other args are plain typed values
+passed through. That is what an interface IS (Go interface / Clojure protocol). **Multi-dispatch — pick the impl
+by the types of *several* args — is NOT a surface concern; it is `defclause`'s.** `defclause` (arc 237,
+`src/form_match.rs`) is wat's canonical multi-arity + clause-by-guard primitive: first-match-wins by per-position
+type match across all args, with `:guard`/`:ensure`. We argued *against* baking multi-dispatch into surfaces
+precisely because `defclause` already owns it, one-canonical-path. Three orthogonal tools, three questions:
+`defsurface` = "has these accessors?" (single-dispatch interface) · `defclause` = "which clause for these arg
+types?" (multi-dispatch) · `typeunion` = closed type-level set. Surfaces must NEVER grow multi-arg dispatch.
+
 ### `definterface` — a named **argspec** of accessors (subsumes `defprotocol`)
 **Four-questioned (below): `definterface` = a named ArgSpec** (reuses the first-class `src/argspec/` home), NOT
 a `typealias`-over-a-new-structural-type. It names a `[name <- :type …]` + `(method [self] -> :ret)` set, usable
