@@ -1,6 +1,6 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `8b0c95f9` (R9 + 260.1b RED probe) or later.
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `593826bd` (260.1b kwargs sugar SHIPPED) or later.
 **4b-iv-a (multi-param `:init`) + 4b-iv-b (contract distribution) SHIPPED; 291 GREW into "you cannot fuck up your
 deps, enforced" (R9) and is paused on a 260.1b detour (kwargs call-sugar) it now depends on; then the TRUST LEG +
 ACYCLICITY close it.** Tree: `clara-tools/` untracked (ignored) + a shadowdancer building 260.1b in `wat/core.wat`.
@@ -49,16 +49,19 @@ Read `291-…/REALIZATIONS.md` **R9** + `291-…/STRIKE-4b-iv-contract-distribut
    (callee must be defined before caller) — confirm with a cyclic-`:calls` probe; then a TEACHING error
    ("circular dependency A↔B — decomplect"). = Uncle Bob's ADP / Hickey decomplect as a compiler mandate (R9).
 
-**▶ THE 260.1b DETOUR — IN FLIGHT (291 now depends on it).** Clean kwargs-`start` UX
-(`(worker/start :locus L :record R :recorder-addr A)`) needs arc-260's `:k v`/`{map}` CALL SUGAR (was
-designed-not-built, "the open fork"). Settled (four-questions): **companion macro** (path a) — `defn`'s `& [argspec]`
-branch emits the fn as `:<name>$impl` (**`$` = apparatus-minted-internal sigil**, Clojure-faithful `clojure.core$map`;
-legal+unused; reserve-from-user-ids lint = a follow-on) + a macro `:<name>` scooping `:k v`/`{map}`/explicit-record
-→ `(::Kwargs …)` → `$impl`. RED probe `tests/probe_arc260_1b_call_sugar.rs` (`8b0c95f9`). **SHADOWDANCER BUILDING IT**
-(`wat/core.wat` kwargs branch + a `kwargs-lower` helper) — WEIGH when it lands. Then: make `start`/`resume`
-`& [argspec]` kwargs fns (inherit the sugar).
+**▶ THE 260.1b DETOUR — DONE (`593826bd`), all-wat.** kwargs CALL SUGAR shipped: a `& [argspec]` fn is callable
+`(f :k v)` / `(f {:k v})` / explicit-record → lowers to `(f$impl (f::Kwargs …))`, acronym-correct via
+`pascal->kebab-in` (Arc-265, REUSED — no second translator). `defn` emits a thin companion macro forwarding to ONE
+shared `:wat::core::kwargs-lower` macro (no copy-paste). **THE ONE NEW SUBSTRATE CAPABILITY = macros emit macros**
+(`src/macros/expand.rs hoist_defmacros_from_do`, ~54 Rust lines — the ONLY Rust; a `defmacro` born inside a macro's
+`(do)` now registers at expansion; the one form-kind never lifted before). `$` = apparatus-minted-internal sigil
+(Clojure-faithful `clojure.core$map`). **F5 fact** (recurs): user defns aren't callable at macro-expansion → shared
+macro-context helpers must be MACROS, not defns. R10 (Song #110, SE IPSAM SCRIBIT) marks the threshold. NEXT:
+make `start`/`resume` `& [argspec]` kwargs fns (inherit the sugar). FORWARD HORIZON (not 291): the AWS-SDK generator
+(AWS JSON models → wat defservice forms) = the codegen manifestation of R1 ("AWS on a CPU"); buildable on today's
+substrate (codegen + defservice + a JSON front-end); calling real AWS needs the remote locus, perf needs the CEK reactor.
 
-**SEQUENCE FROM HERE:** weigh 260.1b → kwargs-`start` → TRUST LEG (process tier GREEN = the deliverable = R1 FULL
+**SEQUENCE FROM HERE:** kwargs-`start` (`start`/`resume` → `& [argspec]` kwargs fns) → TRUST LEG (process tier GREEN = the deliverable = R1 FULL
 PROBATUM) → ACYCLICITY probe → R1 amend → **PAUSE (builder's beat)** → 291 INSCRIPTION (dedicated INSCRIPTION.md).
 "291 grows as it must; we don't declare victory when we don't have it" (builder). FORWARD (NOT 291): `:calls` =
 a service dependency graph for free → wat-fix harvest → rete = the orchestration arc (R5 control plane).
@@ -143,7 +146,7 @@ ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT
   payload, you want a record. (`is_portable_type` check.rs:~13044.)
 - wat-tests re-scan on `.rs` recompile → `touch tests/test.rs` after editing a wat-test.
 
-> ⛔ **You did NOT live the above.** recolligere FIRST, freshness-probe HEAD (`8b0c95f9`+), ground every claim on
+> ⛔ **You did NOT live the above.** recolligere FIRST, freshness-probe HEAD (`593826bd`+), ground every claim on
 > the disk. **Arc 291 IN PROGRESS — the arc GREW to "you cannot fuck up your deps, enforced" (R9).** NEXT: weigh
 > the 260.1b shadowdancer (kwargs call-sugar in `wat/core.wat`) → kwargs-`start` → the TRUST LEG (process tier
 > GREEN = the deliverable) → ACYCLICITY probe → PAUSE (builder's) → INSCRIPTION. See the STATE @ block at the top
