@@ -40,7 +40,7 @@ const PROGRAM: &str = r#"
 ;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h  (:my::counter/start (:wat::spawn::thread) (:my::counter::Record 0))
+    [h  (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record 0))
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _  (:my::counter/increment c (:my::counter/increment-request 5))
      r  (:my::counter/get c (:my::counter/get-request))]

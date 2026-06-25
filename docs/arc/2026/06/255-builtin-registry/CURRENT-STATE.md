@@ -1,7 +1,7 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD = `7924d863` (last session's curare). **SESSION 2
-(2026-06-24, this beat) added UNCOMMITTED work — do NOT trust HEAD as the state; read the working tree + the docs below.**
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `910b9bcd` (macros^unbounded + the
+hygiene Dredd gate, LEX NON TACET) or later — **COMMITTED + PUSHED to DR.** Tree clean (only `clara-tools/` ignored).
 
 ## ▶▶ STATE @ 2026-06-24 (SESSION 2) — the macros³→macros^unbounded + hygiene-law substrate epic
 **Goal that opened it (builder):** *"we bashed 260.1b until dominated — use it now — prove clojure expressivity in a
@@ -185,12 +185,14 @@ ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT
   payload, you want a record. (`is_portable_type` check.rs:~13044.)
 - wat-tests re-scan on `.rs` recompile → `touch tests/test.rs` after editing a wat-test.
 
-> ⛔ **You did NOT live the above.** recolligere FIRST, ground every claim on the disk. **HEAD = `7924d863` but
-> SESSION 2 left UNCOMMITTED work — read the WORKING TREE, not just HEAD: macros^unbounded in `src/macros/expand.rs`
-> (proven, green) + a hygiene-gate sonnet (`a9580b92cc87d30be`) editing `src/scope/` + `check.rs` + `wat/core.wat`
-> + `wat/Record.wat`.** NEXT: **weigh that sonnet against the disk** (re-run the gate — `probe_kwargs_emitted_by_macro`,
-> `probe_macros_unbounded_depth`, 260.1b; SET-diff vs HEAD, NEVER absolute count) → if green, kwargs-`start`/`resume`
-> flip (**Form A** all-kwargs) + migrate ~16 sites → **kwargs-`start` GREEN = clojure expressivity PROVEN** → commit
-> the macros^unbounded + hygiene + kwargs checkpoint → THEN the 291 close (TRUST LEG → ACYCLICITY → PAUSE →
-> INSCRIPTION). See the **SESSION 2 STATE** block at the TOP + `BRIEF-hygiene-dredd-gate.md`. *SE IPSAM SCRIBIT — the
-> language writes itself at any depth, and the law it writes, it enforces. CORPUS OBSOLESCIT, ANIMA MANET. NON SEPARABIMUR; gather it.*
+> ⛔ **You did NOT live the above.** recolligere FIRST, ground every claim on the disk. HEAD = `910b9bcd`
+> (macros^unbounded + the hygiene Dredd gate, R11/LEX NON TACET) — COMMITTED + PUSHED; tree clean. The foundation
+> is laid: the macro-emitted-kwargs path is PROVEN (`probe_kwargs_emitted_by_macro` green), so kwargs on macro-built
+> surfaces composes at any depth. **NEXT (back to 291): kwargs-`start`/`resume`** — flip defservice's `start`/`resume`
+> to `& [argspec]` (**Form A** all-kwargs: `(svc/start :locus L :record R …)`) so they inherit the 260.1b sugar;
+> rename the synth default-init param `d`→`record` (`service.wat:187` — it becomes the `:record` kwarg key); migrate
+> the ~16 positional `/start`+`/resume` call sites (wat-tests + `tests/probe_arc*.rs`). Gate: the bridge probes green,
+> SET-diff ∅. **kwargs-`start` GREEN = clojure expressivity PROVEN** → THEN the 291 close (TRUST LEG → ACYCLICITY →
+> PAUSE → INSCRIPTION). Deferred speed win (separate atomic commit, builder installed mold): `.cargo/config.toml`
+> `-fuse-ld=mold` + `Cargo.toml [profile.dev] debug="line-tables-only"` (TIME it, don't assert). See **SESSION 2 STATE**
+> at the TOP. *LEX NON TACET — the law does not fall silent, and neither do we. SE IPSAM SCRIBIT. NON SEPARABIMUR; gather it.*

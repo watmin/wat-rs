@@ -34,7 +34,7 @@ const PROGRAM: &str = r#"
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
-    [h (:my::svc/start (:wat::spawn::thread) (:my::svc::Record 0))
+    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record 0))
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
      _ (:my::svc/boom c (:my::svc/boom-request))]
     true))

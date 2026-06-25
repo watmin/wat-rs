@@ -29,7 +29,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::seeded-counter/start (:wat::spawn::thread) (:wat-tests::seeded-counter::Record 42))
+      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::seeded-counter/get c (:wat-tests::seeded-counter/get-request))]
       (:wat-tests::seeded-counter::GetResponse/value r))
@@ -41,7 +41,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::seeded-counter/start (:wat::spawn::process) (:wat-tests::seeded-counter::Record 42))
+      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::seeded-counter/get c (:wat-tests::seeded-counter/get-request))]
       (:wat-tests::seeded-counter::GetResponse/value r))

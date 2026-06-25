@@ -183,8 +183,9 @@
      ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
      ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State/new d))
      ;;   when :ephemeral is empty. When :ephemeral non-empty and :init absent → macro-error.
-     ;; A synthetic symbol-node "d" for the default init param (hygiene: Unquote at def time).
-     d-sym          (:wat::core::symbol-node "d")
+     ;; A synthetic symbol-node "record" for the default init param (hygiene: Unquote at def time).
+     ;; arc 291 kwargs-start: renamed "d"→"record" so the default-init start kwarg is :record.
+     d-sym          (:wat::core::symbol-node "record")
      s-sym          (:wat::core::symbol-node "s")
      ;; state-new-kw: :<fqdn>::State/new — the struct ctor
      state-new-kw   (:wat::core::keyword/from-string
@@ -917,6 +918,9 @@
      ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
+     ;; arc 291 kwargs-start: locus-sym minted once so start-params + start-body (and resume pair)
+     ;; share the same scope node — avoids HygieneScopeDivergence when kwargs-defn rebuilds $impl.
+     locus-sym     (:wat::core::symbol-node "locus")
      ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,Status> — Sh=Admin (ship), Lu=Status.
      launch-head-kw (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
@@ -1045,9 +1049,10 @@
      ;; arc 291 3a-ii-α: ship is wrapped in Admin::Init so the lineage peer carries Admin values.
      ;; dispatch-admin-name is passed in place of init-name so both tiers apply it.
      ;; extract-addr-name is passed as lu-addr-kw for the ProcessOpts impl.
-     start-params  `[locus <- :wat::spawn::Locus  ~@init-param]
+     ;; arc 291 kwargs-start: flip to Form A all-kwargs; locus-sym shared with body for hygiene.
+     start-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      start-body    `(:wat::core::let
-                      [~lr-sym (~launch-head-kw locus
+                      [~lr-sym (~launch-head-kw ~locus-sym
                                  (~admin-init-kw ~@init-arg-names)
                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
@@ -1066,11 +1071,11 @@
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
      resume-name    (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{fqdn-str}/resume" :fqdn-str fqdn-str))
-     ;; resume-params: mirrors start-params — [locus <- :wat::spawn::Locus  ~@init-param]
+     ;; arc 291 kwargs-start: mirrors start-params — kwargs Form A; locus-sym shared for hygiene.
      ;; All init binders are spliced in; resume re-accepts all live operating-inputs.
-     resume-params  `[locus <- :wat::spawn::Locus  ~@init-param]
+     resume-params  `[& [~locus-sym <- :wat::spawn::Locus  ~@init-param]]
      resume-body    `(:wat::core::let
-                       [~lr-sym (~launch-head-kw locus
+                       [~lr-sym (~launch-head-kw ~locus-sym
                                   (~admin-resume-kw ~@init-arg-names)
                                   (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)

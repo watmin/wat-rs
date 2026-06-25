@@ -26,10 +26,10 @@
   :durable   [job-count <- :wat::core::i64]
   :ephemeral [recorder  <- :wat::kernel::Peer'<wat-tests::recorder::Op,wat-tests::recorder::Reply>]
   :calls     [:wat-tests::recorder]
-  :init (:wat::core::fn [r             <- :wat-tests::worker::Record
+  :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- :wat::kernel::Address'<wat-tests::recorder::Op,wat-tests::recorder::Reply>]
           -> :wat-tests::worker::State
-          (:wat-tests::worker::State/new r (:wat::kernel::connect' recorder-addr)))
+          (:wat-tests::worker::State/new record (:wat::kernel::connect' recorder-addr)))
   :ops
   [(:Work [s <- :State n <- :wat::core::i64]
           -> [done <- :wat::core::bool]
@@ -45,10 +45,10 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [rh (:wat-tests::recorder/start (:wat::spawn::thread) (:wat-tests::recorder::Record 0))
-       wh (:wat-tests::worker/start (:wat::spawn::thread)
-            (:wat-tests::worker::Record 0)
-            (:wat-tests::recorder::Handle/addr rh))
+      [rh (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record 0))
+       wh (:wat-tests::worker/start :locus (:wat::spawn::thread)
+            :record (:wat-tests::worker::Record 0)
+            :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
        _  (:wat-tests::worker/work wc (:wat-tests::worker/work-request 5))
        _2 (:wat-tests::worker/work wc (:wat-tests::worker/work-request 3))
@@ -67,10 +67,10 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [rh (:wat-tests::recorder/start (:wat::spawn::process) (:wat-tests::recorder::Record 0))
-       wh (:wat-tests::worker/start (:wat::spawn::process)
-            (:wat-tests::worker::Record 0)
-            (:wat-tests::recorder::Handle/addr rh))
+      [rh (:wat-tests::recorder/start :locus (:wat::spawn::process) :record (:wat-tests::recorder::Record 0))
+       wh (:wat-tests::worker/start :locus (:wat::spawn::process)
+            :record (:wat-tests::worker::Record 0)
+            :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
        _  (:wat-tests::worker/work wc (:wat-tests::worker/work-request 5))
        _2 (:wat-tests::worker/work wc (:wat-tests::worker/work-request 3))
@@ -85,15 +85,15 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [rh   (:wat-tests::recorder/start (:wat::spawn::thread) (:wat-tests::recorder::Record 0))
-       wh   (:wat-tests::worker/start (:wat::spawn::thread)
-              (:wat-tests::worker::Record 0)
-              (:wat-tests::recorder::Handle/addr rh))
+      [rh   (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record 0))
+       wh   (:wat-tests::worker/start :locus (:wat::spawn::thread)
+              :record (:wat-tests::worker::Record 0)
+              :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc   (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
        _    (:wat-tests::worker/work wc (:wat-tests::worker/work-request 5))
        snap (:wat-tests::worker/hibernate wh)
-       wh2  (:wat-tests::worker/resume (:wat::spawn::thread) snap
-              (:wat-tests::recorder::Handle/addr rh))
+       wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
+              :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc2  (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh2))
        _2   (:wat-tests::worker/work wc2 (:wat-tests::worker/work-request 3))
        rc   (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))

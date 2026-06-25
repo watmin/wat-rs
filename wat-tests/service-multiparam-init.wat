@@ -14,10 +14,10 @@
 (:wat::service::defservice :wat-tests::offset-counter
   :durable   [count <- :wat::core::i64]
   :ephemeral [base <- :wat::core::i64]
-  :init (:wat::core::fn [r      <- :wat-tests::offset-counter::Record
+  :init (:wat::core::fn [record <- :wat-tests::offset-counter::Record
                          offset <- :wat::core::i64]
           -> :wat-tests::offset-counter::State
-          (:wat-tests::offset-counter::State/new r offset))
+          (:wat-tests::offset-counter::State/new record offset))
   :ops
   [(:Total [s <- :State]
            -> [value <- :wat::core::i64]
@@ -35,8 +35,8 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::offset-counter/start (:wat::spawn::thread)
-           (:wat-tests::offset-counter::Record 5) 100)
+      [h (:wat-tests::offset-counter/start :locus (:wat::spawn::thread)
+           :record (:wat-tests::offset-counter::Record 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::offset-counter/total c (:wat-tests::offset-counter/total-request))]
       (:wat-tests::offset-counter::TotalResponse/value r))
@@ -47,8 +47,8 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::offset-counter/start (:wat::spawn::process)
-           (:wat-tests::offset-counter::Record 5) 100)
+      [h (:wat-tests::offset-counter/start :locus (:wat::spawn::process)
+           :record (:wat-tests::offset-counter::Record 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::offset-counter/total c (:wat-tests::offset-counter/total-request))]
       (:wat-tests::offset-counter::TotalResponse/value r))

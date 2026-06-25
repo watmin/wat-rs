@@ -39,7 +39,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start (:wat::spawn::thread) (:wat-tests::deadline::Record 0))
+      [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
       (:wat-tests::deadline::WaitTickResponse/fired r))
@@ -50,7 +50,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start (:wat::spawn::process) (:wat-tests::deadline::Record 0))
+      [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
       (:wat-tests::deadline::WaitTickResponse/fired r))

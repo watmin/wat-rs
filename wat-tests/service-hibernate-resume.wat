@@ -37,11 +37,11 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h     (:wat-tests::hib-counter/start (:wat::spawn::thread) (:wat-tests::hib-counter::Record 0))
+      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record 0))
        c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
        _     (:wat-tests::hib-counter/increment c (:wat-tests::hib-counter/increment-request 7))
        snap  (:wat-tests::hib-counter/hibernate h)
-       h2    (:wat-tests::hib-counter/resume (:wat::spawn::thread) snap)
+       h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::thread) :record snap)
        c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
        _2    (:wat-tests::hib-counter/increment c2 (:wat-tests::hib-counter/increment-request 3))
        final (:wat-tests::hib-counter/stop h2)]
@@ -53,11 +53,11 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h     (:wat-tests::hib-counter/start (:wat::spawn::process) (:wat-tests::hib-counter::Record 0))
+      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record 0))
        c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
        _     (:wat-tests::hib-counter/increment c (:wat-tests::hib-counter/increment-request 7))
        snap  (:wat-tests::hib-counter/hibernate h)
-       h2    (:wat-tests::hib-counter/resume (:wat::spawn::process) snap)
+       h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::process) :record snap)
        c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
        _2    (:wat-tests::hib-counter/increment c2 (:wat-tests::hib-counter/increment-request 3))
        final (:wat-tests::hib-counter/stop h2)]
