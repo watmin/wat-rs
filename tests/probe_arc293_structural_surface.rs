@@ -1,43 +1,55 @@
-//! Arc 293.3 — DISCONFIRMING PROBE for STRUCTURAL SURFACE satisfaction (the riskiest new machinery).
+//! Arc 293.3-core — DISCONFIRMING PROBE for STRUCTURAL SURFACE satisfaction (the keystone).
 //!
-//! The model (arc 293): a function param `[s <- [color <- :String]]` declares a STRUCTURAL surface — "s
-//! is anything that structurally exposes a `color -> :String` accessor." A record/struct satisfies it
-//! AMBIENTLY by having the field/accessor (row-polymorphic width subtyping; no `:satisfies`, no `:parent`).
+//! The model (arc 293): `(:wat::core::defsurface :geo::Shape [color <- :String])` declares a STRUCTURAL
+//! surface — "anything that structurally exposes a `color` field/accessor of type `:String`." A record
+//! satisfies it AMBIENTLY by *having* the field (row-polymorphic width subtyping — no `:satisfies`, no
+//! `:parent`, no declaration). So a `:geo::Circle` value is accepted wherever a `:geo::Shape` is expected.
 //!
-//! RED at HEAD (the gap this probe isolates): `[name <- :type]` does NOT parse in type position — the
-//! `[...]` bracket is fn-type-only (`parse_fn_type_bracket`, types.rs:2390, needs a `:->` arrow). So the
-//! type parser rejects the structural surface before the checker ever runs. This probe proves the gap is
-//! exactly there (the type parser), not somewhere downstream.
+//! This is the MINIMAL keystone: prove SATISFACTION (the `assignable` structural field-match), not yet
+//! reading-through-the-surface (the dispatcher, which rides 293.4 alongside methods).
 //!
-//! GREEN when 293.3 lands: `TypeExpr::Surface` (a row variant) + the parser dual-read (`<-` triples →
-//! Surface, `:->` → Fn) + a structural-match arm in `assignable` (the candidate type has ⊇ the surface's
-//! members). Then `:geo::Circle` structurally satisfies `[color <- :String]` with no declaration.
+//! Uses the CURRENT record form `:wat::Record::def` (the `defrecord` rename is 293.2); the ONLY new things
+//! are `defsurface` and the named `:geo::Shape` surface in type position (the keyword path — no parser
+//! bracket change; the `[...]`-in-type-position fn-type bracket is the idealized-future syntax, untouched).
+//!
+//! RED at HEAD (the gap this isolates): `defsurface` is an unknown declaration head and `:geo::Shape` does
+//! not resolve to a type. GREEN when 293.3-core lands: `defsurface` (over the existing `ArgSpec` parser) +
+//! `TypeExpr::Surface` + the keyword resolution + the structural field-match arm in `assignable`.
+//!
+//! 293.3-core uses a `defstruct` candidate ON PURPOSE: a struct carries its field TYPES in the TypeEnv
+//! (`StructDef.fields: Vec<(String, TypeExpr)>`), so the `assignable` match is pure-TypeEnv — no SymbolTable
+//! entanglement. A `Record::def` record's field types live in its accessors (SymbolTable), NOT its RecordDef
+//! (`field_types = None`), so SOUND record-matching rides 293.2 (which gives records their field types). The
+//! same `assignable` Surface arm then serves both kinds.
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
 
 #[test]
-#[ignore = "arc 293.3 RED probe — structural surfaces do not parse in type position yet; run with --ignored to confirm the gap"]
-fn structural_surface_field_satisfaction_is_ambient() {
-    // Note: uses the CURRENT `:wat::Record::def` (the `defrecord` rename is 293.2). The new thing here is
-    // ONLY the inline structural surface `[color <- :String]` in the `describe` param's type position.
+#[ignore = "arc 293.3-core RED probe — defsurface + structural satisfaction unbuilt; run with --ignored to confirm the gap"]
+fn record_structurally_satisfies_a_defsurface() {
     let src = r#"
-        (:wat::Record::def :geo::Circle
+        (:wat::core::defsurface :geo::Shape
+          [color <- :wat::core::String])
+
+        (:wat::core::defstruct :geo::Circle
           [color <- :wat::core::String  radius <- :wat::core::f64])
 
-        (:wat::core::defn :geo::describe [s <- [color <- :wat::core::String]] -> :wat::core::String
-          (:geo::Circle/color s))
+        ;; accepts ANYTHING with the Shape surface; Circle has `color` ⇒ structurally satisfies it
+        ;; (and `radius` is extra — width subtyping, fine).
+        (:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
+          true)
 
-        (:wat::core::defn :user::main [] -> :wat::core::String
-          (:geo::describe (:geo::Circle "red" 2.0)))
+        (:wat::core::defn :user::main [] -> :wat::core::bool
+          (:geo::accepts-shape (:geo::Circle/new "red" 2.0)))
     "#;
-    // GREEN TARGET: startup succeeds — Circle ambiently satisfies the [color <- :String] surface.
-    // RED AT HEAD: fails in the type parser (the structural surface is unparseable in type position).
+    // GREEN TARGET: Circle structurally satisfies :geo::Shape (width subtyping) ⇒ startup type-checks.
+    // RED AT HEAD: defsurface is unknown; :geo::Shape does not resolve.
     let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
         world.is_ok(),
-        "structural surface [color <- :String] should type-check via width subtyping; got: {:?}",
+        ":geo::Circle should structurally satisfy :geo::Shape via field-match; got: {:?}",
         world.err()
     );
 }
