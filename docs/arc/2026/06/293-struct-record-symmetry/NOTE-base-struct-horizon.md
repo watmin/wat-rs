@@ -21,6 +21,22 @@ repr-collapse stays the optional horizon.** The builder untangled a conflation i
   reason it's separable: **the caller can't know or care what the substrate is doing** — so the substrate's
   variant-count is invisible to the user-facing label-unification.
 
+> **SHARPENED (builder, 2026-06-25 — SUBSTRATE, not macro/label):** I wrote "the label IS the capability gate"
+> above; the builder corrected the locus — **the EDN-repr capability is a SUBSTRATE property of the PRIMITIVE,
+> not a macro/label thing.** Grounded: `is_portable_type` (`check.rs:13001`) is the substrate's edn-repr gate
+> and it keys **categorically on the `TypeDef` variant the primitive mints** — `TypeDef::Record(_) => true`
+> (`:13056`), `TypeDef::Struct(_) => false` (`:13061`, the 4b-i/R8 wall; the `:12990` doc-comment "portable iff
+> every field portable" is STALE pre-4b-i, fix it). **There is NO wat-level edn-repr surface/predicate** — it
+> is this Rust function on the variant. So the builder's rule, verbatim on the substrate:
+> **`(structtype …) ⟹ TypeDef::Struct ⟹ can NEVER satisfy edn-repr`; `(recordtype …) ⟹ TypeDef::Record ⟹ MUST
+> satisfy edn-repr`** — categorical, enforced by the substrate, keyed on the minting primitive. The macro
+> (`defstruct`/`defrecord`/`holon::defrecord`) is **PURE SUGAR that inherits it**; it neither sees nor carries
+> the gate. This RELOCATES "the label IS the capability gate" → **the SUBSTRATE PRIMITIVE is the gate; the label
+> is only which primitive you spelled.** edn-repr is the 293 **nominal HOLDER** wall (DESIGN § HOLDER), not a
+> structural surface — "satisfy" = holder-membership, checked categorically, NEVER a field-check. The Layer-2
+> repr-collapse below is correct ONLY if this categorical key survives as a substrate property (the constraint
+> already pinned in "THE CONSTRAINT THAT MUST SURVIVE"). Pairs `feedback_ground_codebase_claims_in_codesign`.
+
 ## The builder's model (verbatim intent)
 
 > *"it is best to have struct and record just be built on the same foundation and the 'struct-ness' vs
