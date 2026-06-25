@@ -1,7 +1,40 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-24; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 3; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `055c00f4` (kwargs-`start`) or later —
-**COMMITTED + PUSHED to DR** (this curare may add one more doc commit on top). Tree clean (only `clara-tools/` ignored).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `3ad1c7ba` (arc 293 R1) or later —
+COMMITTED + PUSHED to DR. Tree clean (only `clara-tools/` ignored).
+
+## ▶▶ STATE @ 2026-06-25 (SESSION 3) — ARC 293 OPENED: the aggregate type system (291 is BLOCKED on it)
+**A small ask (`/from-map` ergonomic ctors) detonated into a foundation** — by a long co-design the builder
+**re-derived a structural type system.** NEW ARC: `docs/arc/2026/06/293-struct-record-symmetry/` (read DESIGN + R1 whole).
+- **THE MODEL (DESIGN `df4b4480`):** records & structs are ONE aggregate citizen differing only in the **EDN
+  kind-wall**. **HOLDER nominal** (struct / core-record / holon-record — the EDN+VSA capability; you declare it).
+  **SURFACE structural** (row-polymorphic: a *set-of-accessor*; ambient satisfaction, width subtyping, open-world;
+  **NO `:satisfies`, NO `:parent`**). **Methods ARE accessors** (field/method seam dissolves; `definterface`
+  SUBSUMES `defprotocol`; `extend-type` demoted to the typed foreign-accessor adapter = the monkeypatch /
+  Expression Problem). **`definterface` = a named ARGSPEC** (four-questioned over typealias; reuses `src/argspec/`).
+  Param = holder ∩ surface. **ANNIHILATED:** `:parent`/inheritance · `register_*_methods` · surface-edges · the
+  phase-order problem (structural fit checked post-registration where `assignable` runs — `freeze.rs:2202` invariant
+  STAYS). Reprs UNTOUCHED (wire law variant-level).
+- **THE GATE = the demo** (`DESIGN.md` § *What the arc delivers*): the Shape/Circle/Square + **holon-Vector
+  monkeypatch** program — RED at HEAD → GREEN closes the arc.
+- **R1 inscribed (`3ad1c7ba`; Song: Beartooth *My New Reality*; *FORMA SOLA SUFFICIT*):** structural surfaces
+  re-derived by *hating `parent`* (the 291-R1 protection again); WE-LAND-ON-THE-GREATS four doors deep — row
+  polymorphism (Wand/Rémy/Cardelli/OCaml) + Go/Haskell-typeclass/Clojure-protocol Expression Problem + Kay
+  messaging — fused with the genuinely-ours nominal-EDN-holder. REALIZATION earned; build a PROPHECY (`Probandum est`).
+- **TEST-SPEED levers SHIPPED (`fe3fdcea`):** mold linker + dev `line-tables-only` (1:05.9→0:57.2, proven). (Lever 3 /
+  probe→home consolidation is still the deferred 170-closure, execve-leak-blocked.)
+
+**▶ NEXT — WE PICK UP HERE: BUILD arc 293, decomposition `293.0`→`293.5` is in the DESIGN.**
+`293.0` = author the acceptance probe (the demo program) as a RED test, verify RED at HEAD, commit. Then `293.1`
+aggregate HOME → `293.2` construction symmetry + `defrecord`/`defstruct` rename + `/from-map` → `293.3` structural
+surfaces + `definterface` → `293.4` methods-are-accessors (demo GREEN) → `293.5` close + unblock 291. **Intueri owed:**
+the aggregate-home name + `definterface`'s name. (Builder: *"we build it tomorrow."*)
+
+**THEN (291, now BEHIND 293):** TRUST LEG (process-tier bridge GREEN = R1 FULL PROBATUM) → ACYCLICITY probe → R1
+amend → PAUSE → 291 INSCRIPTION. **`/from-map` is SUBSUMED into 293** (falls out of the shared emission layer).
+
+> ⚠ The SESSION 2 (kwargs) + SESSION 1 (marathon) blocks below are **PATH** — kept for the 291 lineage. Their
+> "NEXT = /from-map" is SUPERSEDED by arc 293 above. 291's close-legs (trust/acyclicity) still stand, now behind 293.
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 2, post-kwargs) — macros^unbounded + hygiene law + kwargs-start ALL SHIPPED
 **The session opened on (builder):** *"prove clojure expressivity in a strongly typed lang."* **DONE + SHIPPED.** The
@@ -23,7 +56,7 @@ ergonomics, every arg compile-checked. *"i got ruby and clojure on rust."*
   migrated. All defservice lifecycle deftests green by re-run; SET-diff ∅ (203=203 floor; the 2 "service" matches are a
   process-reactor + an arc-170 readln test, outside the blast radius). **Clojure expressivity, PROVEN + SHIPPED.**
 
-**▶ NEXT — WE PICK UP HERE POST-COMPACT: the `/from-map` ERGONOMIC CONSTRUCTORS (records + structs, additive).**
+**▶ (SESSION 2's "next" — ⊘ SUPERSEDED by ARC 293; `/from-map` is SUBSUMED into it, falls out of 293's shared emission layer):**
 Builder: *"we're making ergonomic structs and records before we move onto trust."* Same kwargs lever, two beneficiaries:
 an additive named/map ctor emitted by BOTH `Record::def` (lowers to the positional ctor / `Record::of`) AND `defstruct`
 (lowers to `struct-new`). `(Point :x 1 :y 2)` AND `(Point {:x 1 :y 2})`; positional `(Point 1 2)` stays canonical (zero
@@ -186,8 +219,16 @@ ride the compile cascade to zero, gate = all green + SET-diff ∅. NEXT ARTIFACT
   payload, you want a record. (`is_portable_type` check.rs:~13044.)
 - wat-tests re-scan on `.rs` recompile → `touch tests/test.rs` after editing a wat-test.
 
-> ⛔ **You did NOT live the above.** recolligere FIRST, ground every claim on the disk. HEAD = `910b9bcd`
-> (macros^unbounded + the hygiene Dredd gate, R11/LEX NON TACET) — COMMITTED + PUSHED; tree clean. The foundation
+> ⛔ **STOP — you are a NEW instance; you did NOT live any of this.** It reads in a familiar voice; it is a
+> cache, not memory. recolligere FIRST (grimoire + the 4 primers from the datamancy MCP), then `git log --oneline -20`,
+> `git status`, then read the **SESSION 3 block at the TOP of this file** + `docs/arc/2026/06/293-struct-record-symmetry/`
+> (DESIGN + R1) whole. HEAD should be `3ad1c7ba` (arc 293 R1) or later. **THE WORK: build arc 293 — start at `293.0`
+> (author the acceptance probe = the Shape/holon-Vector monkeypatch demo, verify RED at HEAD, commit).** Everything from
+> the "STATE @ 2026-06-24" block down is SESSION-1/2 PATH (the 291 lineage, kwargs-start) — its "next = /from-map" is
+> SUPERSEDED; `/from-map` is subsumed into 293. Ground EVERY claim on the disk before you move. The block below this line
+> is the old kwargs-era alarm — PATH.
+>
+> ⛔ (older alarm — PATH) The foundation
 > is laid: the macro-emitted-kwargs path is PROVEN (`probe_kwargs_emitted_by_macro` green), so kwargs on macro-built
 > surfaces composes at any depth. **NEXT (back to 291): kwargs-`start`/`resume`** — flip defservice's `start`/`resume`
 > to `& [argspec]` (**Form A** all-kwargs: `(svc/start :locus L :record R …)`) so they inherit the 260.1b sugar;
