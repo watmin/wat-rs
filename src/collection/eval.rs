@@ -1257,7 +1257,7 @@ pub(crate) fn record_get_inner(
             reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
         } }.into()),
     };
-    match record_def.field_names.iter().position(|n| n == &key_name) {
+    match record_def.field_names().position(|n| n == key_name.as_str()) {
         Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(struct_form[idx].clone())))),
         None => Ok(Value::Option(std::sync::Arc::new(None))),
     }
@@ -1307,7 +1307,7 @@ pub(crate) fn record_contains_field_q_inner(
             reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
         } }.into()),
     };
-    Ok(Value::bool(record_def.field_names.iter().any(|n| n == &key_name)))
+    Ok(Value::bool(record_def.field_names().any(|n| n == key_name.as_str())))
 }
 
 /// Arc-278-A2 — `record_length_inner`: field count of a Record.

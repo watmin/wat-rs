@@ -625,7 +625,7 @@ fn alpha_pass(
             let field_names: Vec<String> = sym
                 .types()
                 .and_then(|t| match t.get(&type_key) {
-                    Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+                    Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names().map(|s| s.to_string()).collect()),
                     Some(crate::types::TypeDef::Struct(sd)) => {
                         Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
                     }
@@ -1510,7 +1510,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                     let type_key = format!(":{}", fact_class);
                     sym.types()
                         .and_then(|t| match t.get(&type_key) {
-                            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+                            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names().map(|s| s.to_string()).collect()),
                             Some(crate::types::TypeDef::Struct(sd)) => {
                                 Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
                             }

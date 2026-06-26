@@ -243,14 +243,21 @@ mod waist_proof {
 
     /// Build a minimal TypeEnv with SocketAddressWire registered — enough for the codec tests.
     fn make_types_with_wire() -> TypeEnv {
-        use crate::types::{RecordDef, TypeDef};
+        use crate::types::{RecordDef, TypeDef, TypeExpr};
         // with_builtins seeds :wat::Record (the required parent) + other kernel builtins.
         let mut env = TypeEnv::with_builtins();
         env.register_stdlib(TypeDef::Record(RecordDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),
             parent: ":wat::Record".to_string(),
-            field_names: vec!["minter-pid".to_string(), "name".to_string()],
-            field_types: None,
+            // minter-pid <- :wat::core::i64
+            // name       <- :wat::core::Vector<wat::core::i64>
+            fields: vec![
+                ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
+                ("name".to_string(), TypeExpr::Parametric {
+                    head: "wat::core::Vector".to_string(),
+                    args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                }),
+            ],
         }))
         .expect("SocketAddressWire registration must succeed in tests");
         env

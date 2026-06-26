@@ -199,15 +199,21 @@ pub struct UnionDef {
 pub struct RecordDef {
     pub name: String,
     pub parent: String,
-    /// Field names in declaration order. Empty for zero-field records.
+    /// Fields in declaration order: (name, TypeExpr). Empty for zero-field records.
     /// Name-based access (keyword-accessor, assoc, record->map) looks up
     /// the index here, then reads/writes `struct_form[index]`.
-    pub field_names: Vec<String>,
-    /// Field types in declaration order, parallel to `field_names`.
-    /// Populated when the `recordtype` form uses the typed-field syntax
-    /// `[name <- :type ...]`; `None` when the string-literal syntax
-    /// `["name" ...]` is used (type information not available at that layer).
-    pub field_types: Option<Vec<TypeExpr>>,
+    pub fields: Vec<(String, TypeExpr)>,
+}
+
+impl RecordDef {
+    /// Iterator over field names in declaration order.
+    pub fn field_names(&self) -> impl Iterator<Item = &str> {
+        self.fields.iter().map(|(n, _)| n.as_str())
+    }
+    /// Iterator over field types in declaration order.
+    pub fn field_types(&self) -> impl Iterator<Item = &TypeExpr> {
+        self.fields.iter().map(|(_, t)| t)
+    }
 }
 
 /// Surface declaration — structural interface (arc 293.3-core).
@@ -2125,39 +2131,13 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             })
         }
     };
-    // Field names: a vector literal in one of two forms:
-    //   1. String-literal form (emitted by :wat::Record::def macro):
-    //      ["field1" "field2"]
-    //      field_types = None (type info not provided at this layer).
-    //   2. Typed-declaration form (direct user code, mirrors Record::def input syntax):
-    //      [name <- :type  name2 <- :type2]
-    //      Groups of 3 elements: (Symbol|Keyword name, Symbol "<-", Keyword type).
-    //      field_types = Some(vec![...]) populated for register_record_methods.
-    let (field_names, field_types) = match fields_arg {
+    // Fields: a typed-declaration vector `[name <- :type  name2 <- :type2]`.
+    // Groups of 3 elements: (Symbol|Keyword name, Symbol "<-", Keyword type).
+    // Empty `[]` → fields: vec![].
+    let fields = match fields_arg {
         WatAST::Vector(elems, _) => {
             if elems.is_empty() {
-                (Vec::new(), None)
-            } else if matches!(&elems[0], WatAST::StringLit(_, _)) {
-                // String-literal form: every element must be a StringLit.
-                let mut names = Vec::with_capacity(elems.len());
-                for elem in elems.iter() {
-                    match elem {
-                        WatAST::StringLit(s, _) => names.push(s.clone()),
-                        other => {
-                            return Err(TypeError {
-                                span: decl_span,
-                                kind: TypeErrorKind::MalformedDecl {
-                                    head: "recordtype".into(),
-                                    reason: format!(
-                                        "field-names vector must contain string literals; got {}",
-                                        other.variant_name()
-                                    ),
-                                },
-                            });
-                        }
-                    }
-                }
-                (names, None)
+                Vec::new()
             } else {
                 // Typed-declaration form: groups of 3 — (name, <-, type).
                 if elems.len() % 3 != 0 {
@@ -2173,8 +2153,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                     });
                 }
                 let nf = elems.len() / 3;
-                let mut names = Vec::with_capacity(nf);
-                let mut types_out = Vec::with_capacity(nf);
+                let mut fields_out = Vec::with_capacity(nf);
                 for i in 0..nf {
                     let name_elem = &elems[i * 3];
                     let arrow_elem = &elems[i * 3 + 1];
@@ -2223,10 +2202,9 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                             reason: format!("typed field [{}]: bad type expr: {:?}", i, e.kind),
                         },
                     })?;
-                    names.push(field_name);
-                    types_out.push(field_type);
+                    fields_out.push((field_name, field_type));
                 }
-                (names, Some(types_out))
+                fields_out
             }
         }
         other => {
@@ -2235,14 +2213,14 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
                 kind: TypeErrorKind::MalformedDecl {
                     head: "recordtype".into(),
                     reason: format!(
-                        "third arg must be a vector of field-name strings (e.g. [\"field1\" \"field2\"] or []); got {}",
+                        "third arg must be a typed field vector (e.g. [name <- :type ...] or []); got {}",
                         other.variant_name()
                     ),
                 },
             });
         }
     };
-    Ok(TypeDef::Record(RecordDef { name, parent, field_names, field_types }))
+    Ok(TypeDef::Record(RecordDef { name, parent, fields }))
 }
 
 // Stone 241.9 — `parse_field` DELETED. Its only caller was `parse_enum_variant`,

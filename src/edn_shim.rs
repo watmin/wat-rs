@@ -2424,9 +2424,9 @@ fn reconstruct_record(
             by_key.insert(kw.name().to_string(), v);
         }
     }
-    // Walk declared field_names in declaration order.
-    let mut fields: Vec<Value> = Vec::with_capacity(def.field_names.len());
-    for (i, fname) in def.field_names.iter().enumerate() {
+    // Walk declared fields in declaration order.
+    let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
+    for (fname, fty) in def.fields.iter() {
         let fv = by_key.get(fname.as_str()).ok_or_else(|| EdnReadError {
             span: Span::unknown(),
             kind: EdnReadErrorKind::UnknownStructField {
@@ -2435,16 +2435,8 @@ fn reconstruct_record(
             },
         })?;
         let inner = edn_to_value_caps(fv, Some(types), allow_caps)?;
-        // Apply Option-rewrapping when field_types is present and the field is Option<T>.
-        let wrapped = if let Some(ftys) = &def.field_types {
-            if let Some(fty) = ftys.get(i) {
-                rewrap_option_field(fty, inner)
-            } else {
-                inner
-            }
-        } else {
-            inner
-        };
+        // Apply Option-rewrapping when the field is Option<T>.
+        let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
     // class_fqdn stored without leading ':'; path has it — strip.
@@ -2742,14 +2734,21 @@ mod cap_decode_boundary {
     const CAP_TAG_GENERAL: &str = "#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
 
     fn make_types() -> crate::types::TypeEnv {
-        use crate::types::{RecordDef, TypeDef};
+        use crate::types::{RecordDef, TypeDef, TypeExpr};
         // with_builtins seeds :wat::Record (required parent for SocketAddressWire).
         let mut env = crate::types::TypeEnv::with_builtins();
         env.register_stdlib(TypeDef::Record(RecordDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),
             parent: ":wat::Record".to_string(),
-            field_names: vec!["minter-pid".to_string(), "name".to_string()],
-            field_types: None,
+            // minter-pid <- :wat::core::i64
+            // name       <- :wat::core::Vector<wat::core::i64>
+            fields: vec![
+                ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
+                ("name".to_string(), TypeExpr::Parametric {
+                    head: "wat::core::Vector".to_string(),
+                    args: vec![TypeExpr::Path(":wat::core::i64".to_string())],
+                }),
+            ],
         }))
         .expect("SocketAddressWire registration must succeed");
         env
@@ -2982,7 +2981,7 @@ pub fn value_to_edn_with(
             let tag = tag_from_type_path(class_fqdn);
             let type_key = format!(":{}", class_fqdn);
             let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Record(def)) => def.field_names.clone(),
+                Some(crate::types::TypeDef::Record(def)) => def.field_names().map(|s| s.to_string()).collect(),
                 _ => (0..struct_form.len()).map(|i| format!("field-{}", i)).collect(),
             };
             let entries: Vec<(OwnedValue, OwnedValue)> = struct_form

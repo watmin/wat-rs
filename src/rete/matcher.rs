@@ -133,7 +133,7 @@ pub(crate) fn eval_alpha_match(
         .types()
         .and_then(|t| match t.get(&type_key) {
             Some(crate::types::TypeDef::Record(rd)) => {
-                Some(rd.field_names.clone())
+                Some(rd.field_names().map(|s| s.to_string()).collect())
             }
             Some(crate::types::TypeDef::Struct(sd)) => {
                 Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
@@ -671,7 +671,7 @@ pub(crate) fn eval_step_payload(
     let sfact_field_names: Vec<String> = sym
         .types()
         .and_then(|t| match t.get(&type_key) {
-            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names.clone()),
+            Some(crate::types::TypeDef::Record(rd)) => Some(rd.field_names().map(|s| s.to_string()).collect()),
             Some(crate::types::TypeDef::Struct(sd)) => {
                 Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
             }

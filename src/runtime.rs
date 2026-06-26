@@ -1277,11 +1277,8 @@ pub fn register_record_methods(
                 TypeDef::Record(r) => r,
                 _ => continue,
             };
-            // Only typed-declaration form records need auto-generation.
-            let own_types = match &rec_def.field_types {
-                Some(ft) => ft.clone(),
-                None => continue,
-            };
+            // All records are typed (fields: Vec<(String, TypeExpr)>).
+            let own_types: Vec<TypeExpr> = rec_def.field_types().cloned().collect();
 
             // Collect inherited fields by walking up the parent chain via sym.
             // The parent's constructor function (registered at step 6) carries
@@ -1308,7 +1305,7 @@ pub fn register_record_methods(
 
             out.push(RecordEntry {
                 name: rec_def.name.clone(),
-                own_field_names: rec_def.field_names.clone(),
+                own_field_names: rec_def.field_names().map(|s| s.to_string()).collect(),
                 own_field_types: own_types,
                 inherited_field_names: inherited_names,
                 inherited_field_types: inherited_types,
@@ -5330,8 +5327,8 @@ fn keyword_accessor_record(
             } }.into());
         }
     };
-    let available: Vec<String> = record_def.field_names.clone();
-    match record_def.field_names.iter().position(|n| n == bare_name) {
+    let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
+    match record_def.field_names().position(|n| n == bare_name) {
         Some(i) => Ok(struct_form[i].clone()),
         None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
             record_class: class_fqdn.as_ref().to_string(),
@@ -13477,8 +13474,8 @@ fn record_field_map(
             };
             // Build keyword-keyed map: :<field-name> → struct_form[i] in declaration order.
             let mut map: std::collections::HashMap<Value, Value> =
-                std::collections::HashMap::with_capacity(record_def.field_names.len());
-            for (i, field_name) in record_def.field_names.iter().enumerate() {
+                std::collections::HashMap::with_capacity(record_def.fields.len());
+            for (i, (field_name, _)) in record_def.fields.iter().enumerate() {
                 let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
                 let val = struct_form[i].clone();
                 map.insert(key, val);
@@ -13618,8 +13615,8 @@ fn record_assoc_inner(
                 } }.into());
             }
         };
-        let available: Vec<String> = record_def.field_names.clone();
-        let field_index = match record_def.field_names.iter().position(|n| n == &key_name) {
+        let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
+        let field_index = match record_def.field_names().position(|n| n == key_name.as_str()) {
             Some(i) => i,
             None => {
                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
@@ -13696,8 +13693,8 @@ fn record_assoc_inner(
             } }.into());
         }
     };
-    let available: Vec<String> = record_def.field_names.clone();
-    let field_index = match record_def.field_names.iter().position(|n| n == &key_name) {
+    let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
+    let field_index = match record_def.field_names().position(|n| n == key_name.as_str()) {
         Some(i) => i,
         None => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
