@@ -1,65 +1,64 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 7; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `cd7609c6` or later.** Tree clean.
-Suite **fully green + fast**: `cargo nextest run --release -p wat` = **3462 passed / 0 failed / 113 skipped, ~30s**
-(the 113 skips are RED-at-HEAD `#[ignore]`'d disconfirming probes — 8 arc-255 + the 293 holder-bound/rename/demo
-gates). If HEAD is older than `cd7609c6`, this breadcrumb is stale — trust the git log + the named docs over it.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `f5f7fa4c` or later.** Tree clean.
+Suite **fully green + fast**: `cargo nextest run --release -p wat` = **~3462 passed / 0 failed / ~114 skipped, ~30s**
+(skips are RED-at-HEAD `#[ignore]`'d disconfirming probes — STRIKE-READY gates). If HEAD is older than `f5f7fa4c`,
+this breadcrumb is stale — trust the git log + the named docs over it.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is written below; it is a lossy cache in a familiar voice. Run
 > **recolligere** against the disk (grimoire via the signed `datamancy` MCP, this breadcrumb, the git log, the named
 > arc docs) BEFORE you propose or move. The feeling of continuity is the failure, not the all-clear.
 
-## ▶▶ THE ACTIVE ARC IS 293 — `docs/arc/2026/06/293-struct-record-symmetry/`. 291 is BLOCKED behind it.
+## ▶▶ THE ACTIVE ARC IS 294 — `docs/arc/2026/06/294-holon-returns-to-vsa/DESIGN.md`. Read it; it is the contract.
 
-**The live truth is `293/DESIGN.md` § "THE HOLDER × SURFACE MODEL — CRYSTALLIZED" + REALIZATIONS R1–R5, NOT the
-older decomposition list** (large parts ⊘ SUPERSEDED — path-preserved history). Read DESIGN bottom-up.
+**294 is a FOUNDATION GUT discovered inside 293.** Chasing 293's construction parity surfaced that the **holon
+record was built backwards**, and the thread unravelled **one inversion** (*the derived encoding usurped the
+canonical data*) expressed as **six grounded flaws**. **293's HOLDER × SURFACE thesis (R2/R3/R4) STANDS and is
+proven** — 294 is the **value-layer foundation beneath it**; 293's ctor-parity + `/from-map` **fold into 294**.
+291 remains BLOCKED behind this stack.
 
-### ✅ 293 THESIS — DONE + PROVEN (the novel thing exists and is sound)
-- **R2 `FRANGE UT UNUM FIAT`** — one struct + a kind tag: `Holder{Struct,Record,HolonRecord}` + `AggregateDef{holder,
-  parent}` + `TypeDef::Aggregate` (unify-2a/2b/2b-fix; `0dab460a`).
-- **R3 `SUB SUPERFICIE QUOD ES`** — the categorical Holder beneath the structural Surface; the `:holder` surface
-  bound (R3's `foobar` form) landed `5fcb9aa7`, weighed clean.
-- **R4 `PROBA NE DUBITES`** — PROBATUM (`ad78e752`, the build_env annihilation).
-- **The aggregate trio at FINAL names** — `defstruct` / `:wat::core::defrecord` / `:wat::holon::defrecord`, all macros
-  over `structtype`/`recordtype` (`60d7d99a`, the 99-file fix-wat rename, weighed clean in 30s).
-- **Chronicle:** R5 / song #116 *We Got The Moves* (`HABEMUS MOTUS`, `9aa166b7`) — the rhythm reclaimed; the 170
-  ledger reconciled (#110→#116) + arc-170-as-generative-root (`75b12f02`).
+### The target (294/DESIGN.md is the full contract — every flaw cited to file:line)
+- **EDN is the ONE canonical data + wire + portability form.** Wire = plain native EDN; annihilate
+  `HolonRepresentable` (wire-only, redundant — `holon-repr == edn-repr`), the `#wat-edn.holon/*` tags, the
+  HolonAST↔tagged-EDN round-trip. Portability = EDN-repr = the Holder wall (`is_portable = holder != Struct`).
+- **The hologram is a DERIVED INDEX over EDN** — one codec `build-hologram` (a form-walker over `EdnRepresentable`;
+  already ≈ `to_holon_inner`). Classifier-wrap `(Bind (Atom TypeName) …)` carries type. **Kanerva law:**
+  width-bounded per `Bundle` frame (`:dims`/`:capacity-mode`, user-tunable `CapacityExceeded`), **depth UNBOUNDED.**
+  Capacity bites at the derive site, never at construction.
+- **Holon record = EDN data (canonical, identity by data) + a lazily-derived hologram.** Constructs identically to
+  a core record. Holon-ness = a VSA capability over EDN, not a third storage repr.
+- **Construction = ONE holder-dispatched primitive** `(aggregate-new :T field…)` (varargs — `struct-new`'s shape
+  won the four-questions). `struct-new`/`Record::of`/`holon::Record::of`/`:T/new` die into it. Subsumes 293 ctor-parity.
+- **HolonAST returns to pure VSA** — WatAST is the AST now (3412 vs 1161 mentions); HolonAST-as-code-AST + the
+  `watast_to_holon`/`holon_to_watast` glue are vestigial; reflection-IR (signatures) migrates. The strange loop closes.
 
-### ✅ DECIDED (on disk, `293/NOTE-base-struct-horizon.md`, `d96bfb7d`+`cd7609c6`)
-**CONSTRUCTION PARITY — unify on `:T`, annihilate `/new` TOTALLY.** Every type-name is its own constructor —
-struct, core-record, holon-record, AND newtype — all via bare `:T`: `(:geo::SPt 1 2)` == `(:Price 100.0)` ==
-`(:geo::Circle "red" 2.0)`. It IS the DESIGN's (C) annihilation: `defstruct` becomes a full macro emitting
-`:T`+accessors(+`/from-map`), `register_struct_methods`/newtype `/new` codegen DIES. Builder's call. (Broader
-`/new` audit deferred.)
+### ✅ LANDED (the 293 thesis — proven, stands under 294)
+Holder trit + `AggregateDef{holder,parent}` (`0dab460a`) · `:holder` surface bound (`5fcb9aa7`) · the aggregate
+trio at final names `defstruct`/`defrecord`/`holon::defrecord` (`60d7d99a`) · ctor-parity DECIDED (unify on `:T`,
+drop `/new` totally incl. newtypes — `293/NOTE-base-struct-horizon.md`) · R5/#116 *We Got The Moves* +170 ledger.
 
-### ⏳ THE GATE — `tests/types/probe_arc293_acceptance_demo.rs` (`e214a5cb`, `#[ignore]`'d RED)
-The Shape/Circle/Square + holon-Vector monkeypatch from DESIGN § "what the arc delivers". When it flips GREEN, R1
-`FORMA SOLA SUFFICIT` is fulfilled and 293's thesis is *demonstrated*. RED on exactly the 293.4 gap: the dispatcher
-accessors `:geo::Shape/{color,label,area}` don't resolve.
+### ⏳ STRIKE-READY RED gates (committed, `#[ignore]`'d, verified RED)
+`probe_arc293_ctor_parity` (294.4 — struct+newtype via `:T`, `f5f7fa4c`) · `probe_arc293_acceptance_demo` (R1
+monkeypatch demo, `e214a5cb`) · `probe_arc293_holder_bound` · `probe_arc293_defrecord_rename`.
 
-## ▶ THEN, in order (today's grind — each: study lair → RED probe → BRIEF → sonnet → WEIGH → commit)
-1. **CTOR-PARITY strike** — drop `/new`, struct+newtype construct via `:T`; `defstruct`→full macro,
-   `register_struct_methods`/newtype-`/new` annihilated. Blast radius ~8 `.wat` + a few `.rs` fixtures (fix-wat the
-   `.wat`, hand-sub the `.rs` — AUDIT PROSE per the 293.2-rename `sed`-corrupts-comments lesson, `291/NOTE-wat-fixes-rust`).
-2. **`/from-map`** — falls out of the shared emission layer (the companion macro emits the bare-`:T` ctor per holder).
-   Arc 291's ORIGINAL ask — the thing that opened 293.
-3. **293.4 — methods-are-accessors** — method members in `defsurface` + the generated single-dispatch dispatcher
-   (reuse arc 232 `extract-classifier`+`apply`) + `extend-type` as the foreign-accessor adapter + **`defprotocol`
-   ANNIHILATED** (it is LIVE in `wat/spawn.wat` + `wat/service.wat` — migrate the running code, don't rush it). →
-   the acceptance demo (`e214a5cb`) flips GREEN.
-4. **293 INSCRIPTION** (R1 → PROBATUM; turn R2/R3 PROBANDUM→PROBATUM) + amend `291/CURRENT-STATE.md` to UNBLOCK →
-   resume arc 291 (defservice durable state: trust leg / acyclicity / inscription).
+## ▶ THEN, in order (294 — each: study lair → RED probe → BRIEF → sonnet → WEIGH → commit)
+0. **Resolve the 6 OPEN four-questions** in `294/DESIGN.md` (load-bearing: hologram stays-a-named-type?;
+   holon-record lazy-vs-eager storage; the full HolonAST census before the purge). The **census + RED probes
+   (294.0)** answers half with grounded numbers, not debate.
+1. **294.1** `build-hologram` — the sole clean EDN→hologram codec. **294.2** flip holon record EDN-canonical.
+   **294.3** wire = plain EDN (annihilate `HolonRepresentable` + tags). **294.4** `aggregate-new` + ctor-parity +
+   `/from-map`. **294.5** HolonAST-as-AST purge + reflection migration. **294.6** close + amend 293 → resume 291.
 
 ## Standing discipline (verbatim, non-negotiable)
-Work ONLY in `wat-rs/`. NEVER worktrees. Sonnets `model: "sonnet"`, LEAF (no sub-subagents). Commit msgs end
-`Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. **Weigh EVERY sonnet against the disk
-yourself** (forced clean build; failing-test-SET-diff — but the floor is now 0, so a binary `is-anything-red?` read,
-[[project_test_floor_was_stale_fixture_cover]] / R5). **Run `cargo nextest run`, NEVER `cargo test`.** Read the diff
-end-to-end (a green suite ≠ correct bytes — the `sed`-corrupts-prose catch). PRIMED forms only. Commit+push often
-(GitHub=DR). Amend docs with recognition (never delete). Cast **intueri** for ALL naming. Decide via **four-questions**
-(Obvious/Simple/Honest/UX, flat YES/NO) — NOT AskUserQuestion. **curare at a reasonable rate — anticipate compaction,
-don't fear it.** **Operate as the datamancer — ground against the disk and ACT; cast the spells, don't recite them;
-never declare green on silence; relentless annihilation.**
+Work ONLY in `wat-rs/`. NEVER worktrees. Sonnets `model: "sonnet"`, LEAF. Commit msgs end `Co-Authored-By: Claude
+Opus 4.8 (1M context) <noreply@anthropic.com>`. **Weigh EVERY sonnet against the disk yourself** (forced clean
+build; floor is 0 → a binary is-anything-red? read; **`cargo nextest run`, NEVER `cargo test`**; read diffs
+end-to-end — the `sed`-corrupts-prose catch). PRIMED forms only. Commit+push often (GitHub=DR). Amend docs with
+recognition (never delete). **intueri** for ALL naming · **four-questions** (flat YES/NO) NOT AskUserQuestion ·
+**there is never 1+ ways to do a thing — two paths IS the catastrophic flaw.** curare at a reasonable rate. **When
+I assert about existing code, GROUND it this session — I over-claimed "HolonAST stays load-bearing" and the disk
+(WatAST 3412 vs 1161) corrected me; re-ground when pushed, never defend.** Operate as the datamancer — ground
+against the disk and ACT; never declare green on silence; relentless annihilation.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight sonnet
 > against the disk; do not trust a single line you did not re-verify this session.**
