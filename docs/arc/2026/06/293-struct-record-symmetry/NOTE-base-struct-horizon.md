@@ -25,11 +25,14 @@ repr-collapse stays the optional horizon.** The builder untangled a conflation i
   > +`/from-map`, `register_struct_methods` dies; Honest: extends the existing record overload, no new lie; UX: the
   > "operate on them uniformly" the arc exists for). **Blast radius:** ~8 `.wat` + a handful of `.rs` wat-string
   > fixtures carry `:T/new` struct construction → fix-wat the `.wat`, hand-sub the `.rs` (audit prose per the
-  > 293.2-rename lesson). **OPEN sub-question (builder's call):** **newtypes** also ctor via `:T/new`
-  > (`:wat::spawn::Launched/new`, arity-1 tuple-struct codegen) — unify them to `:T` too (total consistency), or keep
-  > `/new` as the wrapper marker? Apparatus leans total-consistency; deferred to a fresh four-questions. This RESOLVES
-  > the "one convention for all three" alignment above → it is `:T`, and feeds the 293.2 `/from-map` strike (the
-  > companion macro emits the bare-`:T` ctor call for every holder).
+  > 293.2-rename lesson). **NEWTYPES FOLD IN (builder, 2026-06-26):** *"the name is the ctor just like records… we'll
+  > fold the newtype ctor into 293."* So newtypes ALSO drop `:T/new` → `(:Price 100.0)`. The rule is now **TOTAL: every
+  > type-name is its own constructor** — struct, core-record, holon-record, AND newtype, all via bare `:T`, no `/new`
+  > anywhere. Newtypes share the `register_struct_methods`/`register_newtype_methods` `/new` codegen
+  > (`runtime.rs:~1172`, arity-1 tuple-struct), so the annihilation covers them in the same strike. This RESOLVES the
+  > "one convention for all three" alignment above → it is `:T` for ALL aggregate+newtype citizens, and feeds the
+  > 293.2 `/from-map` strike (the companion macro emits the bare-`:T` ctor for every holder). *(Other `/new` or
+  > construction-convention sites — a broader audit — deferred; builder: "we'll audit more stuff later.")*
 - **LAYER 2 — substrate repr-collapse (STILL the optional horizon, NOT required for Layer 1).** Collapsing the
   three `Value` variants → one repr + a label. Layer 1 ships WITHOUT it (three variants stay, R8 intact). This
   is the high-blast-radius part (serialization, the gate, closure-extract) and remains a later, deliberate,
