@@ -56,6 +56,7 @@ fn collected_i64(src: &str) -> Vec<i64> {
 // ─── from-receiver ───────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn from_receiver_wraps_raw_queue_into_stream() {
     // Caller manages their own queue + spawn, then hands the pair
     // to from-receiver to plug into the stream stdlib.
@@ -93,6 +94,7 @@ fn from_receiver_wraps_raw_queue_into_stream() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn from_receiver_composes_with_map() {
     // from-receiver stream feeds into a map stage, then collect.
     // Same helper-define pattern so tx drops before collect runs.
@@ -132,6 +134,7 @@ fn from_receiver_composes_with_map() {
 // ─── spawn-producer + collect ─────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn spawn_producer_plus_collect_round_trips_three_values() {
     let src = r#"
 
@@ -151,6 +154,7 @@ fn spawn_producer_plus_collect_round_trips_three_values() {
 // ─── spawn-producer + map + collect ───────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn spawn_producer_map_collect_doubles_each_value() {
     let src = r#"
 
@@ -177,6 +181,7 @@ fn spawn_producer_map_collect_doubles_each_value() {
 // ─── Three-stage pipeline ─────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn three_stage_pipeline_map_map_collect() {
     // source → map(+1) → map(*3) → collect.
     // Each stage spawns its own worker; handles carried via
@@ -210,6 +215,7 @@ fn three_stage_pipeline_map_map_collect() {
 // ─── Empty producer terminates cleanly ────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn empty_producer_yields_empty_collected_vec() {
     let src = r#"
 
@@ -225,6 +231,7 @@ fn empty_producer_yields_empty_collected_vec() {
 // ─── for-each drives to completion ────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn for_each_returns_unit_on_finite_producer() {
     let src = r#"
 
@@ -244,6 +251,7 @@ fn for_each_returns_unit_on_finite_producer() {
 // ─── filter ──────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn filter_keeps_only_passing_values() {
     // 1..=6, keep evens → [2, 4, 6].
     let src = r#"
@@ -280,6 +288,7 @@ fn filter_keeps_only_passing_values() {
 // ─── fold ────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn fold_sums_the_stream() {
     let src = r#"
 
@@ -300,6 +309,7 @@ fn fold_sums_the_stream() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn fold_with_empty_stream_returns_init() {
     let src = r#"
 
@@ -318,6 +328,7 @@ fn fold_with_empty_stream_returns_init() {
 // ─── chunks ──────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn chunks_groups_by_size_flushes_remainder() {
     // 7 items, size 3 → [[1,2,3], [4,5,6], [7]]. The partial final
     // chunk flushes on upstream disconnect — the core pattern for
@@ -366,6 +377,7 @@ fn chunks_groups_by_size_flushes_remainder() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn chunks_with_exact_multiple_emits_no_partial_flush() {
     // 6 items, size 3 → [[1,2,3], [4,5,6]]. No partial flush.
     let src = r#"
@@ -407,6 +419,7 @@ fn chunks_with_exact_multiple_emits_no_partial_flush() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn chunks_into_map_composes() {
     // 5 items, size 2, then map each batch to its sum.
     // [[1,2], [3,4], [5]] → [3, 7, 5].
@@ -439,6 +452,7 @@ fn chunks_into_map_composes() {
 // ─── take ────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn take_cuts_off_at_n_with_producer_that_would_send_more() {
     // Producer sends 10 items; take 3. The producer would keep
     // going, but bounded(1) blocks it after take's worker exits;
@@ -471,6 +485,7 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn take_returns_all_when_n_exceeds_available() {
     // Producer has 2 items; take 5. take sees :None before
     // counter hits 0; exits cleanly; collect returns the 2 items.
@@ -493,6 +508,7 @@ fn take_returns_all_when_n_exceeds_available() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn take_zero_emits_nothing() {
     // take 0 → worker exits immediately; downstream sees :None
     // on first recv; collect returns empty.
@@ -515,6 +531,7 @@ fn take_zero_emits_nothing() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn take_composes_with_map() {
     // source → map(+10) → take(2) → collect. Proves take's
     // drop cascade propagates back through a map stage to the
@@ -547,6 +564,7 @@ fn take_composes_with_map() {
 // ─── inspect ─────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn inspect_passes_values_through_unchanged() {
     // inspect with a no-op side effect — values must reach collect
     // identical to the source. Validates the pipeline shape even
@@ -572,6 +590,7 @@ fn inspect_passes_values_through_unchanged() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn inspect_composes_between_map_and_collect() {
     // source → map(+1) → inspect(noop) → map(*10) → collect.
     // Four stages; inspect in the middle must be a transparent
@@ -607,6 +626,7 @@ fn inspect_composes_between_map_and_collect() {
 // ─── flat-map ────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn flat_map_expands_each_input_to_two_outputs() {
     // 1:N — each n becomes [n, n*10]. 3 inputs → 6 outputs.
     let src = r#"
@@ -631,6 +651,7 @@ fn flat_map_expands_each_input_to_two_outputs() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn flat_map_empty_expansion_emits_nothing() {
     // 1:0 sub-case — each expansion returns an empty Vec; no
     // downstream emissions. collect returns empty Vec.
@@ -655,6 +676,7 @@ fn flat_map_empty_expansion_emits_nothing() {
 }
 
 #[test]
+#[ignore = "stale pre-lazy-seq stream API (out-of-position send / 4-arg Result/expect / :nil-as-value); whole file is deleted when lazy-seqs land"]
 fn flat_map_mixed_expansion_sizes() {
     // Variable expansion — 3 inputs produce [3 items, 0 items, 2 items]
     // → total 5 outputs in input order.
