@@ -332,20 +332,10 @@
 ;; demands every public verb has at least one live demo. One witness per
 ;; verb, asserting on the returned RunResult (no failure = clean run).
 
-(:wat::test::deftest :wat-tests::std::test::test-run-string-entry-direct
-  ()
-  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); the bulk is the source string
-  (:wat::core::let
-    [r (:wat::test::run
-         "(:wat::core::defn :user::main [] -> :wat::core::nil nil)"
-         (:wat::core::Vector :wat::core::String))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
-      (:wat::core::None (:wat::test::assert-eq true true))
-      ((:wat::core::Some f) (:wat::kernel::assertion-failed!
-                              (:wat::kernel::Failure/message f)
-                              :wat::core::None :wat::core::None)))))
-
+;; (test-run-string-entry-direct deleted 2026-06-25 — :wat::test::run drives the
+;; dead source-string sandbox entry (run-sandboxed → spawn-program, annihilated arc-170
+;; slice 2 / arc-259 spawn-program' keystone); the AST/forms entry below is the live path.
+;; The dead run-sandboxed string stdlib function itself rides the later dead-code cleanup.)
 (:wat::test::deftest :wat-tests::std::test::test-run-ast-direct
   ()
   ;; rune:complectens(embedded-program) — outer let has 3 bindings (forms, r, fail); the bulk is the program AST built via :wat::test::program
