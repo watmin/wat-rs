@@ -34,7 +34,6 @@ use wat::load::InMemoryLoader;
 /// `:env::HEnv` is a holon record with the `slot` member, so it satisfies `:env::Holon`
 /// both structurally (has `slot`) AND categorically (holder == HolonRecord).
 #[test]
-#[ignore = "RED at HEAD: arc-293 :holder surface bound not built; un-ignore when the :holder additive layer lands"]
 fn holon_record_satisfies_holder_bound_surface() {
     let src = r#"
         (:wat::core::defsurface :env::Holon
@@ -61,7 +60,6 @@ fn holon_record_satisfies_holder_bound_surface() {
 /// `HolonRecord`, so the `:holder :holon-record` bound must reject it. The rejection must CITE
 /// the surface (a holder mismatch), NOT be the incidental MalformedDecl parse error of HEAD.
 #[test]
-#[ignore = "RED at HEAD: arc-293 :holder surface bound not built; un-ignore when the :holder additive layer lands"]
 fn core_record_rejected_by_holon_holder_bound() {
     let src = r#"
         (:wat::core::defsurface :env::Holon

@@ -14227,6 +14227,7 @@ pub(crate) fn assignable(
         }
     }
     // Arc 293.3-core — structural surface satisfaction (row-polymorphic width subtyping).
+    // Arc 293 R3 — plus optional categorical :holder bound (hard rejection).
     // Logic lives in `types::surface::struct_satisfies_surface` (homes discipline).
     if let TypeExpr::Path(ep) = &e {
         if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
@@ -14236,11 +14237,18 @@ pub(crate) fn assignable(
                 // Arc 293.2b — Struct + Record both satisfy surfaces identically (collapse).
                 if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
                     let fields_clone = agg.fields.clone();
-                    return crate::types::surface::struct_satisfies_surface(
+                    let agg_holder = agg.holder; // Copy before fields_clone consumes the borrow.
+                    let structural = crate::types::surface::struct_satisfies_surface(
                         &fields_clone,
                         &surf_clone,
                         |fty, mty| assignable(fty, mty, subst, types),
                     );
+                    // Arc 293 R3 — categorical holder check (hard, orthogonal to structural).
+                    let holder_ok = match surf_clone.holder {
+                        Some(req) => agg_holder == req,
+                        None => true, // no bound → structural-only (today's behavior)
+                    };
+                    return structural && holder_ok;
                 }
                 // actual is not an aggregate — fall through to unify.
             }

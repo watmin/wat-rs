@@ -11,7 +11,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 
-use super::{SurfaceDef, TypeDef, TypeExpr, TypeError, TypeErrorKind};
+use super::{Holder, SurfaceDef, TypeDef, TypeExpr, TypeError, TypeErrorKind};
 
 const HEAD: &str = ":wat::core::defsurface";
 
@@ -46,13 +46,16 @@ where
 ///
 /// Empty member list is legal (zero-member surface — every struct satisfies it).
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    if args.len() != 2 {
+    // Valid arities: 2 (name + members) or 4 (name + :holder + value + members).
+    if args.len() != 2 && args.len() != 4 {
         return Err(TypeError {
             span: decl_span.clone(),
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
-                    "expected (:wat::core::defsurface :Name [members]); got {} args after head",
+                    "expected (:wat::core::defsurface :Name [members]) or \
+                     (:wat::core::defsurface :Name :holder :<kw> [members]); \
+                     got {} args after head",
                     args.len()
                 ),
             },
@@ -65,8 +68,53 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let name_kw = iter.next().unwrap();
     let (name, _type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
-    // Slot 1 — member-vector.
-    let members_node = iter.next().unwrap();
+    // Slot 1 — either the member-vector (arity 2) or `:holder` keyword (arity 4).
+    let next = iter.next().unwrap();
+    let holder: Option<Holder> = match &next {
+        WatAST::Keyword(k, _) if k == ":holder" => {
+            // Slot 2 — holder-value keyword.
+            let val_node = iter.next().unwrap();
+            let holder_val = match &val_node {
+                WatAST::Keyword(v, _) => match v.as_str() {
+                    ":struct"       => Holder::Struct,
+                    ":record"       => Holder::Record,
+                    ":holon-record" => Holder::HolonRecord,
+                    other => {
+                        return Err(TypeError {
+                            span: val_node.span().clone(),
+                            kind: TypeErrorKind::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    ":holder value must be :struct, :record, or :holon-record; got {}",
+                                    other
+                                ),
+                            },
+                        });
+                    }
+                },
+                other => {
+                    return Err(TypeError {
+                        span: other.span().clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: ":holder value must be a keyword (:struct, :record, or :holon-record)".into(),
+                        },
+                    });
+                }
+            };
+            Some(holder_val)
+        }
+        // No :holder clause — next arg must be the member-vector (handled below).
+        _ => None,
+    };
+
+    // The member-vector: either `next` (when no :holder) or the remaining arg (after :holder + value).
+    let members_node = if holder.is_some() {
+        iter.next().unwrap()
+    } else {
+        next
+    };
+
     let (member_items, member_span) = match members_node {
         WatAST::Vector(items, span) => (items, span),
         other => {
@@ -98,5 +146,6 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         name,
         type_params: vec![],
         members,
+        holder,
     }))
 }

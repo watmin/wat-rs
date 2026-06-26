@@ -234,6 +234,9 @@ pub struct SurfaceDef {
     pub name: String,
     pub type_params: Vec<String>,
     pub members: Vec<(String, TypeExpr)>,
+    /// Arc 293 R3 — optional categorical holder bound. `None` → pure-structural (today's behavior).
+    /// `Some(h)` → the aggregate's `holder` must equal `h` (enforced in `assignable`).
+    pub holder: Option<Holder>,
 }
 
 /// One of the declaration variants (arc 293.2b: Struct+Record merged → Aggregate).
