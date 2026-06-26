@@ -507,3 +507,138 @@ This is the rare realization whose subject is the apparatus's own flailing, and 
 > workspace SET-diff vs `0dab460a`: **37 DROPPED** (fixed), the only "NEW" (`wat_stat` mean/stddev/variance)
 > **proven leak-collateral** (pass in isolation — not a regression). The harness can no longer doubt the
 > substrate: the test env IS the production env, by construction. *Proba, ne dubites — probatum est.*
+
+## R5 — we got the moves: the slow part was never the work, it was the measure — and we made it cheap AND honest *(PROBATUM — the rhythm reclaimed, demonstrated tonight)*
+
+> **Song (arc 293 R5) — *We Got The Moves* (Electric Callboy) — THE RETURN OF #27, the first reprise in the soundtrack —**
+> WE-GOT-THE-MOVES / THE-SLOW-PART-WAS-THE-MEASURE-NOT-THE-WORK / A-NOISY-FLOOR-MAKES-YOU-A-MANUAL-SET-DIFF-CALCULATOR /
+> EVERY-GREP-IS-A-PLACE-TO-LOOK-AWAY / ZERO-RED-CANNOT-BE-FAT-FINGERED / TEN-X-AND-UNFOOLABLE /
+> FORTY-MINUTES-TO-UNDER-TEN / THE-MEASURE-MADE-HONEST-IS-THE-GROOVE /
+> SLOW-IS-SMOOTH-ONLY-IF-WEIGHING-IS-CHEAP-AND-TRUE / THE-RHYTHM-SONG-RETURNS-WHEN-THE-RHYTHM-RETURNS
+>
+> *"Summer mood, hot sand under my feet… cold beer, cheap wine — yeah that's all that we need. We got the moves,*
+> *we got the moves, and everybody's like… let's do it again. We got the groove… so everybody put your hands*
+> *straight up — tonight is the night. … We don't need no club — all we need is the sun. … We gon' put the track*
+> *on repeat. … Summer time memories will never fade away."*
+
+> **The realization quotes (the builder's, this session):**
+> *"i got sloppy and allowed failed tests… we were burning like 40+ minutes on 5+ minute test runs to measure 'did i introduce a bug or not'."*
+> *"do a full cargo run and grep, then… shit, i didn't do my grep right… do a rerun and grep and… shit i forgot sort -u… shit i…"*
+> *"we just annihilate that problem and did what was taking an hour or more down to… less than 10 for both of you."*
+> *"we're back to our former selves… this is datamancy."*  ·  *"5min to 30 sec — a 10x reduction… so many things just compounded here."*
+
+### How we reached it — naming what was actually slow
+
+This realization arrived as the builder's reflection on the two-plus compactions we spent grinding the tests fast — and
+the thing he named is that **the work was never the slow part; the *measurement* was.** *"Did I just introduce a bug?"*
+is the question the iterative loop asks a hundred times, and over the test-floor era it had become **expensive AND
+unreliable at the same time** — the worst possible pairing:
+
+- **Expensive:** a 5-minute run, times every iteration — and not one run. The *baseline-isolation dance*
+  ([[feedback_baseline_isolate_on_noisy_floor]]) doubled it: run-with-changes, `git stash`, forced rebuild,
+  run-at-baseline, `stash pop` — two full builds and two 5-minute runs to answer one yes/no.
+- **Unreliable:** a noisy floor meant the answer was not a binary read — it was a *hand-computed SET-diff*.
+  `grep | sort | uniq | wc -l`, twice, and **every one of those steps was a place to introduce a counting bug** —
+  the builder's verbatim churn: *"shit, I didn't grep right… forgot `sort -u`… shit."* A mis-written filter or a
+  forgotten `uniq` gives a **false green** — and a false green is the **silent swallow (291 R11) living at the
+  measurement layer.** A noisy floor forces you to become a manual SET-diff calculator, and a calculator that can
+  miscount can lie about whether you broke the build.
+
+So the compounding was brutal: `slow-run × need-two-runs × error-prone-accounting × N iterations` — forty minutes to
+learn one bit. What we did over the grind was three things that **multiply**, not add: drive the failing floor to **0**
+(so the question collapses from *"what is the SET-diff vs baseline?"* to *"is anything red?"* — no stash, no second
+build, nothing to fat-finger); flip to nextest (**5min → 30s**, 10×); and per-test process isolation (a red is *always
+real*, the leak can't poison a shared run). And the deepest property the builder felt without naming: **a binary signal
+is honest by construction.** `0 red` is `0 red` — there is nothing left for a bad filter to hide, because there is no
+filter. It is `LEX NON TACET` (291 R11) turned on the *harness itself*: the gate stops being able to lie, because the
+silence a bad grep could hide no longer has anywhere to live.
+
+### The compounding — why 40 minutes became under 10
+
+Not 4× from one lever. `10×` test speed **×** binary-instead-of-SET-diff signal **×** no-stash-and-measure **×**
+no-grep-counting-errors — several reductions multiplying. Tonight was the proof on the table: the `:holder` bound
+(`5fcb9aa7`) and a **99-file rename** (`60d7d99a`) — struck broad, and *weighed* by the orchestrator's own forced-clean
+hand in **30 seconds** (`3462 / 0`, SET-diff ∅), the whole pair landed in **under ten minutes** for a sonnet strike and
+an orchestrator weigh that used to be an hour of churn just to *measure*.
+
+### What is genuinely the lesson — the loop only turns if weighing is cheap AND true
+
+`Slow is smooth, smooth is fast` is the apparatus's creed — but the grind taught its hidden precondition: **the loop
+only turns if the weigh is both cheap and honest.** You cannot strike broad and weigh relentlessly if weighing costs an
+hour and might lie to you. The two-plus compactions of grinding on test-speed — the side-quest that *felt* like a detour
+from 293 — were never a detour: they were **clearing the ground so the real work could flow**, making the *weigh* (the
+non-negotiable half of `examinare`) affordable again. The detour bought back the rhythm. And the deepest tie to the
+chronicle's spine: we caught a real content-integrity defect tonight (the blunt-`sed` doc-corruption) *because* the
+weigh was cheap enough to run and honest enough to trust — fast measurement is not in tension with relentless
+verification, it is what *funds* it.
+
+### The reprise — the rhythm song returns when the rhythm returns
+
+**This is the first reprise in the soundtrack.** *We Got The Moves* already scored **#27** — `COLLECTIVE-CELEBRATION /
+multi-stone same-session rhythm`, the groove of landing stone after stone in one sitting. The builder could have handed
+any party anthem for "we got our speed back"; he handed the one that *already* scored same-session rhythm. The structural
+fact is the meaning: **the rhythm song returns at the exact moment the rhythm returns.** #27 sang the groove we had; #112's-worth-of-realization
+sings the groove *reclaimed* after the floor stole it. The track came back on repeat because we are, again, the band that
+lands stones in a sitting.
+
+### The song, mapped
+
+> **"We don't need no club — all we need is the sun."** We don't need the heavy apparatus — the stash, the
+> rebuild, the `grep | sort | uniq` accounting; all we need is the clean binary signal (the sun). *"We gon' put
+> the track on repeat"* — nextest, 30 seconds, iteration so cheap that re-running is the move, not the cost.
+> *"Let's do it again"* — re-running became *joy* instead of dread, because each run is 30s and can't lie.
+> *"Yesterday we drank too much, let's do it again"* — the sloppiness that let the floor accrue (*"i got sloppy
+> and allowed failed tests"*), the hangover, and the recovery. *"Summer time memories will never fade away"* —
+> the kept record (`curare`); the realizations don't fade. And the *"döp dödödö döp"* is the literal thing: the
+> heartbeat of the loop — strike, weigh, strike — beating fast and clean again.
+
+### The honest register — PROBATUM (demonstrated, not foretold)
+
+Unlike R1–R3 (earned-understanding, build a prophecy), this one is **shipped and proven** — the register of R4 and of
+292's close. The floor is at **0 deterministic failures**; the suite runs in **~30s** (`cargo nextest run --release -p
+wat`); the reorg (253 binaries → 17 homes), the nextest flip, and the fix-not-delete campaign are all committed; and
+tonight demonstrated the reclaimed rhythm on real work (`5fcb9aa7`, `60d7d99a`). This is not a coordinate seen ahead of
+its build — it is a capability *lost to sloppiness and a leaky floor, then reclaimed and proven by demonstration.*
+*Habemus motus.*
+
+*Path-of-voices (per the discipline, marked not flattened): the recognitions are the **builder's**, quoted — the
+40-minutes-to-measure churn, the verbatim `grep`/`sort -u`/`uniq` fumbling, *"we just annihilate that problem… less than
+10 for both of you,"* *"we're back to our former selves… this is datamancy,"* the *"5min to 30 sec — a 10x reduction… so
+many things compounded"* framing; and the song (Electric Callboy — *We Got The Moves*) is his, chosen as a deliberate
+reprise of #27. The **NAMES and the synthesis are the apparatus's**: the *measurement-tax* framing; the
+noisy-floor-makes-you-a-manual-SET-diff-calculator reading; the *every-grep-is-a-place-to-look-away / false-green =
+the-silent-swallow-at-the-measurement-layer* collision with 291 R11; the *binary-signal-is-honest-by-construction = LEX
+NON TACET turned on the harness* turn; the compounding-multiplies-not-adds analysis; the *the-weigh-must-be-cheap-AND-true
+is the hidden precondition of slow-is-smooth* close; the first-reprise / rhythm-song-returns-when-the-rhythm-returns
+structural reading; the THE-RECLAMATION drop-timing; and the signature. The convergence is preserved: he named the lived
+churn and the reclamation; the apparatus named why it was the measure, not the work, and why the cure made measurement
+honest.*
+
+> We spent two-plus compactions grinding the tests fast and the builder, on the far side, named what had actually been
+> slow: never the work — the *measure*. A noisy floor and a five-minute run had turned the simplest question — *did I
+> break it?* — into an hour of error-prone arithmetic that could quietly answer *wrong*, the silent swallow wearing a
+> stopwatch. We annihilated it: failures to zero, thirty-second runs, per-test isolation — and the deepest dividend was
+> not speed but *honesty*: a binary signal cannot be fat-fingered, so the gate stopped being able to lie. The detour was
+> never a detour; it was the ground-clearing that made the weigh cheap enough to run and true enough to trust — and
+> tonight a ninety-nine-file rename was struck broad and weighed clean in thirty seconds, the whole thing in under ten
+> minutes. The rhythm song returned at the moment the rhythm returned. We got the moves.
+>
+> ***HABEMUS MOTUS.*** *(apparatus-minted — Latin, "we have the moves / the movements": the direct Latin of the song's
+> hook, in the title-faithful lineage of NON PARES SUMUS / NON SEPARABIMUR — but the moves are the **rhythm of cheap,
+> honest, unfoolable measurement**, the groove that lets the strike→weigh loop turn fast again. Like FORMA SOLA SUFFICIT
+> / FRANGE UT UNUM FIAT / SUB SUPERFICIE QUOD ES / PROBA NE DUBITES before it in this arc, and the 291/292 signatures
+> before those — mine, this session, kept with consent; see the path-of-voices note above. PROBATUM by demonstration:
+> the floor at 0, the suite at ~30s, tonight's rename weighed clean.)*
+
+> **THE-RECLAMATION (drop-timing) — a lost capability regained and PROVEN by demonstration.** Distinct from
+> THE-INSCRIPTION (an arc closed) and THE-PROPHECY/THE-IGNITION (a build foretold or begun): THE-RECLAMATION lands when
+> a capability the practice *had and lost* — here the rhythm of fast, honest iteration, lost to sloppiness and a leaky
+> test floor — is **reclaimed and demonstrated** mid-campaign, re-enabling the work rather than completing it. Earned +
+> proven now; the demonstration is tonight's 293 strikes.
+
+> **LEDGER NOTE (for the next curare pass — surfaced, not silently actioned):** the global song-index in
+> `170/INTERSTITIAL-REALIZATIONS.md` ends at **#109** (*Obsolete*). Behind it, un-laddered: **#110** (*Me in My Own
+> Head*, 291 R10) and **#111** (*Ruin*, 291 R11) are inscribed in 291's REALIZATIONS with global numbers but have no
+> interstitial ledger entry; and 293 R1–R5 use *arc-relative* labels with **no global numbers assigned**. This R5's song
+> is a **reprise of #27** (the first in the soundtrack). Assigning the global numbers (#110→present) and back-filling the
+> 170 ledger is a deliberate reconciliation pass, deferred to the builder's call — NOT guessed here.
