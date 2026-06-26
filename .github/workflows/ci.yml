@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: "8388608"   # matches .cargo/config.toml [env]
+
+jobs:
+  test:
+    name: build + nextest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (+ clippy, rustfmt)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # nextest: prebuilt binary, installed into the ephemeral CI container in seconds.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      # The authoritative test gate. Per-test process isolation neutralizes the
+      # arc-170 global-state leak; the per-test deadline (.config/nextest.toml)
+      # turns a deadlock into a clean timeout instead of a wedged run.
+      - name: Test (nextest)
+        run: cargo nextest run --profile ci --release -p wat
+
+      # clippy is informational for now (the tree still carries known cruft);
+      # tighten to `-- -D warnings` once the warning floor is driven to zero.
+      - name: Clippy
+        run: cargo clippy --release -p wat

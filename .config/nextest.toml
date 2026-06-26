@@ -1,0 +1,17 @@
+# nextest config — the test-runner gate for wat-rs.
+#
+# WHY: each test runs in its OWN forked process, so the arc-170 execve
+# global-state leak (a non-execve'd spawn leaking globals) cannot cross tests —
+# the consolidated test homes stop polluting each other. A test that exceeds the
+# deadline is SIGTERM'd then SIGKILL'd, so the leak's intermittent deadlock
+# becomes a clean per-test timeout failure instead of a wedged run (no manual kills).
+[profile.default]
+# Most tests finish <1s; spawn-heavy ones <10s; a deadlocked test hangs forever.
+slow-timeout = { period = "15s", terminate-after = 2 }   # warn at 15s, kill at 30s
+retries = 0
+fail-fast = false
+
+[profile.ci]
+slow-timeout = { period = "20s", terminate-after = 3 }   # a touch more headroom in CI
+retries = 1                                              # absorb a rare leak-flake; surfaces as flaky, not failed
+fail-fast = false
