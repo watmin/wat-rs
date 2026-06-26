@@ -21,7 +21,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :user::Temp [value <- :wat::core::i64])\n\
+(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // Condition: a Temp whose :value binds ?t and must be > 20.

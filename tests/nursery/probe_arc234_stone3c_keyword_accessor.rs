@@ -42,7 +42,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_keyword_accessor_on_single_field_record() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -64,7 +64,7 @@ fn probe_1_keyword_accessor_on_single_field_record() {
 #[test]
 fn probe_2_keyword_accessor_on_multi_field_record() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
@@ -88,7 +88,7 @@ fn probe_2_keyword_accessor_on_multi_field_record() {
 #[test]
 fn probe_3_unknown_field_on_record_errors() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let

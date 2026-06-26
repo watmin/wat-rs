@@ -22,7 +22,7 @@ use wat::runtime::{Environment, Value};
 const PROGRAM: &str = r#"
 (:wat::core::defprotocol :t::Greeter
   (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::Record::def :t::Robot [])
+(:wat::core::defrecord :t::Robot [])
 (:wat::core::extend-type :t::Robot :t::Greeter
   (greet [self loudness] "beep"))
 
@@ -56,7 +56,7 @@ fn p_typed_param_accepts_an_extender() {
 const NON_EXTENDER: &str = r#"
 (:wat::core::defprotocol :t::Greeter
   (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::Record::def :t::Rock [])
+(:wat::core::defrecord :t::Rock [])
 (:wat::core::defn :user::takes-greeter [g <- :t::Greeter] -> :wat::core::i64 99)
 (:wat::core::defn :user::go [] -> :wat::core::i64
   (:user::takes-greeter (:t::Rock)))

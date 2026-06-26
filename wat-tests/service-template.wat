@@ -81,7 +81,7 @@
    ;; never mutate in place). Two counter fields here demonstrate the
    ;; pattern; in your service, these are your real domain fields
    ;; (an LRU map, a treasury record, a registry table, etc.).
-   (:wat::Record::def :svc::State
+   (:wat::core::defrecord :svc::State
      [push-count <- :wat::core::i64
       ack-count  <- :wat::core::i64])
 

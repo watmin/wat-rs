@@ -2013,9 +2013,9 @@ mod tests {
 
     /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
     const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 \n\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when\n\
@@ -2253,7 +2253,7 @@ mod tests {
 
         // 1-condition world: only the Temp record type + main fn (no defrule).
         const TEMP_WORLD: &str = "\
-(:wat::Record::def :user::Temp [value <- :wat::core::i64])\n\
+(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
         let world = startup_from_source(TEMP_WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -2342,8 +2342,8 @@ mod tests {
 
         // 2-condition world: Temperature + WindSpeed (no defrule — raw Rule).
         const JOIN_WORLD: &str = "\
-(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -2427,8 +2427,8 @@ mod tests {
         use crate::runtime::Environment;
 
         const JOIN_WORLD: &str = "\
-(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
@@ -2500,8 +2500,8 @@ mod tests {
         use crate::runtime::Environment;
 
         const JOIN_WORLD: &str = "\
-(:wat::Record::def :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))

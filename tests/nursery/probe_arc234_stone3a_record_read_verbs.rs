@@ -50,7 +50,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_record_q_true_on_record() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
@@ -93,7 +93,7 @@ fn probe_2_record_q_false_on_i64() {
 #[test]
 fn probe_3_record_to_map_single_field() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -121,7 +121,7 @@ fn probe_3_record_to_map_single_field() {
 #[test]
 fn probe_4_record_to_map_multi_field_heterogeneous() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
@@ -150,7 +150,7 @@ fn probe_4_record_to_map_multi_field_heterogeneous() {
 #[test]
 fn probe_5_record_to_map_zero_field() {
     let src = r#"
-(:wat::Record::def :myapp::Tag [])
+(:wat::core::defrecord :myapp::Tag [])
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
@@ -176,7 +176,7 @@ fn probe_5_record_to_map_zero_field() {
 #[test]
 fn probe_6_predicate_then_map_composition() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let

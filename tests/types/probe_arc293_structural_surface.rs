@@ -8,7 +8,7 @@
 //! This is the MINIMAL keystone: prove SATISFACTION (the `assignable` structural field-match), not yet
 //! reading-through-the-surface (the dispatcher, which rides 293.4 alongside methods).
 //!
-//! Uses the CURRENT record form `:wat::Record::def` (the `defrecord` rename is 293.2); the ONLY new things
+//! Uses the CURRENT record form `:wat::core::defrecord` (the `defrecord` rename is 293.2); the ONLY new things
 //! are `defsurface` and the named `:geo::Shape` surface in type position (the keyword path — no parser
 //! bracket change; the `[...]`-in-type-position fn-type bracket is the idealized-future syntax, untouched).
 //!

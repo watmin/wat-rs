@@ -17,8 +17,8 @@ use wat::runtime::{Environment, Value};
 
 /// A world whose single rule (namespace `:wg`) filters Temperature by `(where (> ?c 0))`.
 const WORLD_CMP: &str = "\
-(:wat::Record::def :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :wg::Gate            [celsius <- :wat::core::i64])\n\
+(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :wg::Gate            [celsius <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :wg::cold-gate\n\
   :when\n\
@@ -31,8 +31,8 @@ const WORLD_CMP: &str = "\
 
 /// A world whose rule filters by a USER-fn predicate `(where (:test::big? ?c))`.
 const WORLD_USERFN: &str = "\
-(:wat::Record::def :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :wb::Gate            [celsius <- :wat::core::i64])\n\
+(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :wb::Gate            [celsius <- :wat::core::i64])\n\
 \n\
 (:wat::core::defn :test::big? [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::> n 100))\n\
 \n\
@@ -47,8 +47,8 @@ const WORLD_USERFN: &str = "\
 
 /// A world whose rule's `where` is IMPURE (io) — the fence must reject it at compile.
 const WORLD_IMPURE: &str = "\
-(:wat::Record::def :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :wf::Gate            [celsius <- :wat::core::i64])\n\
+(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :wf::Gate            [celsius <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :wf::bad-gate\n\
   :when\n\

@@ -42,7 +42,7 @@ use wat::runtime::{Environment, Value};
 /// Constructor: `(:test::rd::HPt 7 8)` — positional field order (x=7, y=8).
 /// Accessor: `(:test::rd::HPt/x h)` — slash-accessor for field `x`.
 const PROG: &str = r#"
-    (:wat::holon::Record::def :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+    (:wat::holon::defrecord :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 
     (:wat::core::defn :user::write-hpt [] -> :wat::core::String
         (:wat::core::let [h (:test::rd::HPt 7 8)]

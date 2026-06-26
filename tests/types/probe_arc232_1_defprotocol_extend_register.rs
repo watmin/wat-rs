@@ -26,7 +26,7 @@ const PROGRAM: &str = r#"
   (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
 
 ;; A concrete record joins the protocol — the satisfaction edge + the impl body.
-(:wat::Record::def :t::Robot [])
+(:wat::core::defrecord :t::Robot [])
 (:wat::core::extend-type :t::Robot :t::Greeter
   (greet [self loudness] "beep"))
 

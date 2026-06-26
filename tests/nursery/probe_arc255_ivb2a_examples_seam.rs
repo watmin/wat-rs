@@ -15,7 +15,7 @@
 //! heterogeneous tuples) because R7's unidirectional `Value` makes a tuple's
 //! universal-top elements un-passable to the typed `eval-ast!` (the firewall, R3).
 //!
-//! The records are `Value::wat__Record` (the `:wat::Record::def` representation —
+//! The records are `Value::wat__Record` (the `:wat::core::defrecord` representation —
 //! EDN-representable data is a wat-record, not a `Value::Struct`; that's the
 //! builder doctrine, and it's what makes the named field accessors work). GREEN:
 //! a `Vector` of `:wat::intrinsic::Example` records including

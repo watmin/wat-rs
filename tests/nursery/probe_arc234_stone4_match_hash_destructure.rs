@@ -41,7 +41,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_match_record_single_field() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -62,7 +62,7 @@ fn probe_1_match_record_single_field() {
 #[test]
 fn probe_2_match_record_multi_field() {
     let src = r#"
-(:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
@@ -146,7 +146,7 @@ fn probe_5_fall_through_on_non_receiver() {
     // We test this by passing an i64 scrutinee and confirming we get the
     // wildcard arm's value.
     let src2 = r#"
-(:wat::Record::def :myapp::Tag [label <- :wat::core::String])
+(:wat::core::defrecord :myapp::Tag [label <- :wat::core::String])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
@@ -168,7 +168,7 @@ fn probe_5_fall_through_on_non_receiver() {
 #[test]
 fn probe_6_mixed_match_arm_selection() {
     let src = r#"
-(:wat::Record::def :myapp::Sensor [reading <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Sensor [reading <- :wat::core::f64])
 
 (:wat::core::defn :user::compute-from-record [] -> :wat::core::String
   (:wat::core::let

@@ -34,7 +34,7 @@ use wat::runtime::{Environment, Value};
 /// Shared program source: declares a base record `:test::rd::Pt` with fields `x` and `y`,
 /// then defines compute functions we can call via eval_in_frozen.
 const PROG: &str = r#"
-    (:wat::Record::def :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+    (:wat::core::defrecord :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
     (:wat::core::defn :user::write-pt [] -> :wat::core::String
         (:wat::core::let [p (:test::rd::Pt 3 4)]

@@ -22,8 +22,8 @@ fn gen_world(depth: usize) -> String {
     let mut s = String::new();
     for k in 0..=depth {
         s.push_str(&format!(
-            "(:wat::Record::def :casc::Stage{k} [id <- :wat::core::i64])\n\
-             (:wat::Record::def :casc::Tag{k}   [id <- :wat::core::i64])\n"
+            "(:wat::core::defrecord :casc::Stage{k} [id <- :wat::core::i64])\n\
+             (:wat::core::defrecord :casc::Tag{k}   [id <- :wat::core::i64])\n"
         ));
     }
     s.push_str("(:wat::core::defn :user::main [] -> :wat::core::nil nil)");

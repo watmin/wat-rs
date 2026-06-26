@@ -13,7 +13,7 @@ use wat::load::InMemoryLoader;
 #[test]
 fn core_record_accepted_where_record_wanted() {
     let src = r#"
-        (:wat::Record::def :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::defn :u::wants-record [r <- :wat::Record] -> :wat::Record r)
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:u::wants-record (:geo::Pt 1 2))
@@ -32,7 +32,7 @@ fn core_record_accepted_where_record_wanted() {
 #[test]
 fn holon_record_accepted_where_record_wanted() {
     let src = r#"
-        (:wat::holon::Record::def :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::holon::defrecord :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::defn :u::wants-record [r <- :wat::Record] -> :wat::Record r)
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:u::wants-record (:geo::HPt 1 2))
@@ -51,7 +51,7 @@ fn holon_record_accepted_where_record_wanted() {
 #[test]
 fn holon_record_accepted_where_holon_wanted() {
     let src = r#"
-        (:wat::holon::Record::def :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::holon::defrecord :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:u::wants-holon (:geo::HPt 1 2))
@@ -71,7 +71,7 @@ fn holon_record_accepted_where_holon_wanted() {
 #[test]
 fn core_record_rejected_where_holon_wanted() {
     let src = r#"
-        (:wat::Record::def :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+        (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
         (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:u::wants-holon (:geo::Pt 1 2))

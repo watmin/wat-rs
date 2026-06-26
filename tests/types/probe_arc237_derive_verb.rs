@@ -25,8 +25,8 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROGRAM: &str = r#"
-(:wat::Record::def :t::A [])
-(:wat::Record::def :t::B [])
+(:wat::core::defrecord :t::A [])
+(:wat::core::defrecord :t::B [])
 
 ;; derive both onto a marker — the typesub/isa? axis, no methods.
 (:wat::core::derive :t::A :t::Marker)

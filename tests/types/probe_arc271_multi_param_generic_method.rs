@@ -30,7 +30,7 @@ const PROGRAM: &str = r#"
 (:wat::core::defprotocol :t::Combiner
   (combine<A,B> [self <- :t::Combiner  x <- :A  y <- :B] -> :A))
 
-(:wat::Record::def :t::C [])
+(:wat::core::defrecord :t::C [])
 (:wat::core::extend-type :t::C :t::Combiner (combine [self x y] x))
 
 ;; Call with (i64, String): A must instantiate to i64 (the return), B to String (the y arg — a

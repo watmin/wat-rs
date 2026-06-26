@@ -385,7 +385,7 @@
                            nil
                            (:wat::core::range 0 n-kw-fields))
          ;; Mint record form: (:wat::Record::def :<name>::Kwargs <kw-argvec>)
-         record-def      `(:wat::Record::def ~kwargs-ty ~kw-argvec)
+         record-def      `(:wat::core::defrecord ~kwargs-ty ~kw-argvec)
          ;; HYGIENIC hidden kwargs binder: fresh-symbol stamps a fresh unique scope (arc 274.1) so the
          ;; binder is capture-proof BY CONSTRUCTION — it cannot collide with any caller variable, even one
          ;; literally named "kwargs". (The field binders below stay plain symbol-node — they are

@@ -2,13 +2,15 @@
 //!
 //! See `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-S-C3.md`.
 //!
-//! `:wat::Record::def` → BASE (struct only; recordtype parent :wat::Record).
-//! `:wat::holon::Record::def` → HOLONIC (struct + holon; parent :wat::holon::Record <: :wat::Record).
+//! `:wat::core::defrecord` → BASE (struct only; recordtype parent :wat::Record).
+//! `:wat::holon::defrecord` → HOLONIC (struct + holon; parent :wat::holon::Record <: :wat::Record).
 //! The recordtype parent IS the Liskov mechanism: a func wanting :wat::holon::Record rejects a
 //! base-defined record at CHECK time; wanting :wat::Record accepts both.
 //!
-//! RED today: `:wat::holon::Record::def` does not exist, and `:wat::Record::def` still builds
-//! holonic (so base ops + to-holon-error + Liskov rejection are unmet). GREEN after the stone.
+//! RED at the arc-237 strike: `:wat::holon::Record::def` did not exist, and `:wat::Record::def` still
+//! built holonic (so base ops + to-holon-error + Liskov rejection were unmet). GREEN after the stone.
+//! (Both macros were later renamed — arc 293.2 — to `:wat::core::defrecord` / `:wat::holon::defrecord`,
+//! the names used in the design lines above.)
 //!
 //! Coverage (feedback_logic_coverage_mandate): base ops · holonic preserved · Liskov accept/reject
 //! · cross-flavor.
@@ -20,8 +22,8 @@ use wat::runtime::{Environment, Value};
 
 // base :my::Pt [x y] + holonic :my::HPt [x y] (same field names → cross-flavor same-data? true).
 const PRELUDE: &str = "\
-(:wat::Record::def :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])\n\
-(:wat::holon::Record::def :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])\n";
+(:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])\n\
+(:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])\n";
 
 /// Eval `expr` (typed `:bool`) → Value or error string.
 fn eval(expr: &str) -> Result<Value, String> {
@@ -59,7 +61,7 @@ fn check(decls: &str) -> Result<(), String> {
         .map_err(|e| format!("{:?}", e))
 }
 
-// ─── BASE flavor (:my::Pt via :wat::Record::def) ──────────────────────────────
+// ─── BASE flavor (:my::Pt via :wat::core::defrecord) ──────────────────────────────
 #[test] fn base_construct_and_field() { assert_eq!(i64_field("(:my::Pt/x (:my::Pt 1 2))"), 1); }
 #[test] fn base_accessor() { assert_eq!(i64_field("(:my::Pt/y (:my::Pt 1 2))"), 2); }
 #[test] fn base_predicate_true() { assert!(is_true("(:my::is-Pt? (:my::Pt 1 2))")); }
@@ -74,7 +76,7 @@ fn check(decls: &str) -> Result<(), String> {
     assert!(h.is_err(), "to-holon on a BASE record must error; got {:?}", h);
 }
 
-// ─── HOLONIC flavor (:my::HPt via :wat::holon::Record::def) ────────────────────
+// ─── HOLONIC flavor (:my::HPt via :wat::holon::defrecord) ────────────────────
 #[test] fn holonic_construct_field() { assert_eq!(i64_field("(:my::HPt/x (:my::HPt 7 8))"), 7); }
 #[test] fn holonic_predicate_true() { assert!(is_true("(:my::is-HPt? (:my::HPt 7 8))")); }
 #[test] fn holonic_to_holon_ok() {

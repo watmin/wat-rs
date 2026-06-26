@@ -36,7 +36,7 @@ use wat::runtime::Value;
 // A world that has `app::Env` (a :wat::Record SUBTYPE) + a named env-fn loaded — i.e. the
 // type's code is present, exactly as it is in the spawned universe that runs the env-fn.
 const PROGRAM: &str = r#"
-(:wat::Record::def :app::Env [token <- :wat::core::i64])
+(:wat::core::defrecord :app::Env [token <- :wat::core::i64])
 (:wat::core::defn :app::make-env [] -> :wat::Record (:app::Env 7))
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;

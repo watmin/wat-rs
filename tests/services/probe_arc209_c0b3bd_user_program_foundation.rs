@@ -27,7 +27,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROGRAM: &str = r#"
-(:wat::Record::def :user::MyEnv [token <- :wat::core::i64])
+(:wat::core::defrecord :user::MyEnv [token <- :wat::core::i64])
 (:wat::core::defn :user::main [] -> :wat::Record
   (:wat::program::Env/user.program (:wat::program::env)))
 "#;

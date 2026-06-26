@@ -85,14 +85,14 @@ fn run_compute(src: &str) -> Result<Value, String> {
 // The canonical composition: extract-classifier → string::concat → keyword/
 // from-string → apply. Two distinct return strings prove dispatch is
 // classifier-driven (not constant or first-impl-wins).
-// Stone 234.6 migration: :wat::Record::def instances are Value::wat__Record.
+// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record.
 // Dispatcher and per-type impls take :wat::Record (not HolonAST).
 // extract-classifier on :wat::Record returns String directly (Stone 234.5).
 #[test]
 fn probe_1_dispatcher_routes_to_per_type_impl() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::Record::def :myapp::Celsius [degrees <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Celsius [degrees <- :wat::core::f64])
 
 (:wat::core::defn :myapp::Voltage/Formattable-format
   [self <- :wat::Record] -> :wat::core::String
@@ -149,7 +149,7 @@ fn probe_1_dispatcher_routes_to_per_type_impl() {
 #[test]
 fn probe_2_open_extension_after_dispatcher() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :myapp::Formattable/format
   [self <- :wat::Record] -> :wat::core::String
@@ -190,7 +190,7 @@ fn probe_2_open_extension_after_dispatcher() {
 #[test]
 fn probe_3_missing_impl_raises_observable_error() {
     let src = r#"
-(:wat::Record::def :myapp::Unhandled [v <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Unhandled [v <- :wat::core::i64])
 
 (:wat::core::defn :myapp::Formattable/format
   [self <- :wat::Record] -> :wat::core::String

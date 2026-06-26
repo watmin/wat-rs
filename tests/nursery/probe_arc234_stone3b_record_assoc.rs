@@ -37,7 +37,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_single_field_update() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -60,7 +60,7 @@ fn probe_1_single_field_update() {
 #[test]
 fn probe_2_multi_field_update_one() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
@@ -85,7 +85,7 @@ fn probe_2_multi_field_update_one() {
 #[test]
 fn probe_3_unknown_field_errors() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute [] -> :wat::Record
@@ -107,7 +107,7 @@ fn probe_3_unknown_field_errors() {
 #[test]
 fn probe_4_type_mismatch_errors() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::Record
   (:wat::core::let
@@ -134,7 +134,7 @@ fn probe_4_type_mismatch_errors() {
 #[test]
 fn probe_5_original_record_unchanged() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -157,7 +157,7 @@ fn probe_5_original_record_unchanged() {
 #[test]
 fn probe_6_compose_multiple_assocs() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String

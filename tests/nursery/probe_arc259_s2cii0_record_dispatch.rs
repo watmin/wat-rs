@@ -32,7 +32,7 @@ use wat::runtime::{Environment, Value};
 #[test]
 fn s2cii0_defclause_dispatches_on_record_class() {
     let src = r#"
-        (:wat::Record::def :user::Tag [])
+        (:wat::core::defrecord :user::Tag [])
         (:wat::core::defclause :user::id-tag
           ([t <- :user::Tag] -> :wat::core::i64 7))
         (:wat::core::defn :user::compute [] -> :wat::core::i64

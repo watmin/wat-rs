@@ -1,9 +1,9 @@
-//! Diagnostic probe — `:wat::Record::def` macro (arc 234 Stone 234.2b).
+//! Diagnostic probe — `:wat::core::defrecord` macro (arc 234 Stone 234.2b).
 //!
 //! FM 2-bis empirical probe authored BEFORE the Stone 234.2b BRIEF. Verifies
 //! the wat-side macro that the user invokes to mint a new record-type:
 //!
-//!   (:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+//!   (:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 //!
 //! expands to (in `(:wat::core::do …)`):
 //!   - Constructor `:myapp::Voltage` returning `:wat::Record`
@@ -12,7 +12,7 @@
 //!
 //! The macro consumes Stone 234.2a's substrate primitives (`:wat::Record::of`
 //! + `:wat::Record/field-at`) plus the holon-form construction pattern proven
-//! by `:wat::Record::def` (arc 227 Stone 227.2 v3).
+//! by `:wat::core::defrecord` (arc 227 Stone 227.2 v3).
 //!
 //! Probe contracts (6):
 //!   1. Single-field expansion + invocation — constructor returns
@@ -23,7 +23,7 @@
 //!   5. Multi-field (3 fields) expansion + all three accessors work
 //!   6. Zero-field expansion — constructor + predicate work
 //!
-//! Initial state: 6/6 FAIL with `UnknownFunction(":wat::Record::def")` (the
+//! Initial state: 6/6 FAIL with `UnknownFunction(":wat::core::defrecord")` (the
 //! macro does not exist yet).
 //!
 //! Post-stone: 6/6 PASS. The macro expands cleanly + generated fns work.
@@ -55,7 +55,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_single_field_construction() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::Record (:myapp::Voltage 5.0))
 "#;
@@ -96,7 +96,7 @@ fn probe_1_single_field_construction() {
 #[test]
 fn probe_2_per_field_accessor_returns_value() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -124,7 +124,7 @@ fn probe_2_per_field_accessor_returns_value() {
 #[test]
 fn probe_3_predicate_true_on_matching_class() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
@@ -155,8 +155,8 @@ fn probe_3_predicate_true_on_matching_class() {
 #[test]
 fn probe_4_predicate_false_on_non_matching_class() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::Record::def :myapp::Counter [count <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Counter [count <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
@@ -188,7 +188,7 @@ fn probe_4_predicate_false_on_non_matching_class() {
 #[test]
 fn probe_5_multi_field_accessors_in_order() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 
 (:wat::core::defn :user::compute-a [] -> :wat::core::i64
@@ -243,7 +243,7 @@ fn probe_5_multi_field_accessors_in_order() {
 #[test]
 fn probe_6_zero_field_defrecord() {
     let src = r#"
-(:wat::Record::def :myapp::Tag [])
+(:wat::core::defrecord :myapp::Tag [])
 
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let

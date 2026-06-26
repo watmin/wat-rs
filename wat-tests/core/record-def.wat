@@ -25,14 +25,14 @@
 ;; ─── Top-level type declarations ────────────────────────────────────────────
 
 ;; BASE record: two i64 fields.
-(:wat::Record::def :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 ;; Second BASE record (different class_fqdn, one field) — used in predicate-false
 ;; and class-guard tests.
-(:wat::Record::def :test::rd::Box [w <- :wat::core::i64])
+(:wat::core::defrecord :test::rd::Box [w <- :wat::core::i64])
 
 ;; HOLONIC record: two i64 fields.
-(:wat::holon::Record::def :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::holon::defrecord :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 ;; Liskov helper: accepts ANY :wat::Record (base OR holonic) and returns true.
 (:wat::core::defn :test::rd::accepts-base? [v <- :wat::Record] -> :wat::core::bool true)

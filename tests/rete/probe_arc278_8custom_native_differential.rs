@@ -17,9 +17,9 @@ use wat::runtime::{Environment, Value};
 /// World with a PURE custom fold (`sum-of-squares`) + a rule using it as an accumulator, gated by `gate`.
 fn world(gate: &str) -> String {
     format!(
-        "(:wat::Record::def :w::Station [location <- :wat::core::String])\n\
-         (:wat::Record::def :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::Record::def :w::Flagged [location <- :wat::core::String])\n\
+        "(:wat::core::defrecord :w::Station [location <- :wat::core::String])\n\
+         (:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+         (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
          \n\
          ;; a PURE∧DET custom fold: sum of squares of the gathered values\n\
          (:wat::core::defn :w::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
@@ -94,8 +94,8 @@ fn differential_custom_empty() {
 /// 4 — the compile FENCE rejects an IMPURE custom fold (calls println). The rule must fail to compile.
 #[test]
 fn fence_rejects_impure_fold() {
-    let src = "(:wat::Record::def :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::Record::def :w::Flagged [location <- :wat::core::String])\n\
+    let src = "(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+         (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
          ;; an IMPURE fold — side-effects (println) → must be rejected by the pure∧det fence\n\
          (:wat::core::defn :w::bad-fold [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
            (:wat::core::do\n\

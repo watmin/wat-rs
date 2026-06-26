@@ -88,7 +88,7 @@
 
 ;; ─── BASE macro (:wat::Record::def) ──────────────────────────────────────────
 
-(:wat::core::defmacro :wat::Record::def
+(:wat::core::defmacro :wat::core::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
   -> :wat::WatAST
@@ -163,7 +163,7 @@
 
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
 
-(:wat::core::defmacro :wat::holon::Record::def
+(:wat::core::defmacro :wat::holon::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
   -> :wat::WatAST

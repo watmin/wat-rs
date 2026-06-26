@@ -77,7 +77,7 @@ fn run_or_catch(src: &str) -> Result<Value, String> {
 #[test]
 fn probe_1_correct_class_accessor_returns_value() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -103,8 +103,8 @@ fn probe_1_correct_class_accessor_returns_value() {
 #[test]
 fn probe_2_wrong_class_panics() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -131,8 +131,8 @@ fn probe_2_wrong_class_panics() {
 #[test]
 fn probe_3_panic_message_names_both_classes() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -167,9 +167,9 @@ fn probe_3_panic_message_names_both_classes() {
 #[test]
 fn probe_4_multi_field_each_accessor_checks_class() {
     let src = r#"
-(:wat::Record::def :myapp::Triple
+(:wat::core::defrecord :myapp::Triple
   [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
-(:wat::Record::def :myapp::Other [x <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Other [x <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
@@ -208,8 +208,8 @@ fn probe_4_multi_field_each_accessor_checks_class() {
 #[test]
 fn probe_5_predicate_gated_pattern_avoids_panic() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
-(:wat::Record::def :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Point [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let

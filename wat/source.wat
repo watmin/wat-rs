@@ -11,6 +11,6 @@
 ;;
 ;; Loads immediately after core.wat (before deporder, which references it).
 
-(:wat::Record::def :wat::source::File
+(:wat::core::defrecord :wat::source::File
   [path   <- :wat::core::String
    source <- :wat::core::String])

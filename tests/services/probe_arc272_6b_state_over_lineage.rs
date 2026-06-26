@@ -30,7 +30,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROGRAM: &str = r#"
-(:wat::Record::def :user::Counter [base <- :wat::core::i64])
+(:wat::core::defrecord :user::Counter [base <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
@@ -38,7 +38,7 @@ const PROGRAM: &str = r#"
            (:wat::core::forms
              ;; the child runs a FRESH startup (stdlib + these forms only) — the record must be
              ;; defined here too so the crossed Counter reconstructs in the child universe.
-             (:wat::Record::def :user::Counter [base <- :wat::core::i64])
+             (:wat::core::defrecord :user::Counter [base <- :wat::core::i64])
              ;; the serve loop, now threading `state` (the Counter): reply derives base + n.
              (:wat::core::defn :user::serve
                [self    <- :wat::kernel::Peer'<wat::kernel::Address'<wat::core::i64,wat::core::i64>,user::Counter>

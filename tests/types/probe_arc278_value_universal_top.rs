@@ -113,7 +113,7 @@ fn down_value_is_not_subtype_of_string() {
 #[test]
 fn widen_record_value_field_accepts_i64_and_string() {
     let src = "\
-(:wat::Record::def :my::Box [slot <- :wat::core::Value])\n\
+(:wat::core::defrecord :my::Box [slot <- :wat::core::Value])\n\
 (:wat::core::defn :my::box-int [] -> :my::Box (:my::Box 7))\n\
 (:wat::core::defn :my::box-str [] -> :my::Box (:my::Box \"hi\"))";
     assert!(

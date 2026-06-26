@@ -9,7 +9,7 @@
 //!
 //! ── T1 — macro-emitted type declaration is picked up by the registration pass ──
 //!
-//! The `:wat::Record::def` / `:wat::holon::Record::def` macros must emit a
+//! The `:wat::core::defrecord` / `:wat::holon::defrecord` macros must emit a
 //! type-declaration form (today: struct/typeunion; soon: a `typesub` edge) and
 //! have it (a) register a TypeDef in the TypeEnv and (b) flow through
 //! `register_type_predicates` so `is-<Name>?` auto-synthesizes — the ∀T predicate

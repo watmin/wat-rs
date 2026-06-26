@@ -16,7 +16,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PROGRAM: &str = r#"
-(:wat::Record::def :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+(:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
@@ -25,7 +25,7 @@ const PROGRAM: &str = r#"
               ;; The forked child runs a FRESH startup (stdlib prelude + these forms only) — it does
               ;; NOT inherit the parent's top-level defs. So the record must be defined HERE too (D1's
               ;; SocketAddressWire avoids this by living in spawn.wat/stdlib, loaded in every universe).
-              (:wat::Record::def :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+              (:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let
                   ;; the child mints a plain base record and hands it to the parent over the self-peer.

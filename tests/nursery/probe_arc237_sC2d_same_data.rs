@@ -22,8 +22,8 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PRELUDE: &str = "\
-(:wat::Record::def :my::Pt    [x <- :wat::core::i64  y <- :wat::core::i64])\n\
-(:wat::Record::def :my::Coord [x <- :wat::core::i64  y <- :wat::core::i64])\n";
+(:wat::core::defrecord :my::Pt    [x <- :wat::core::i64  y <- :wat::core::i64])\n\
+(:wat::core::defrecord :my::Coord [x <- :wat::core::i64  y <- :wat::core::i64])\n";
 
 fn eq(expr: &str) -> bool {
     let full = format!(

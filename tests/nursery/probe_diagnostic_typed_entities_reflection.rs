@@ -73,16 +73,16 @@ fn run_compute(src: &str) -> Result<Value, String> {
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
-// `extract-classifier` on a :wat::Record::def instance returns the class name.
+// `extract-classifier` on a :wat::core::defrecord instance returns the class name.
 // Defines a single-field record, builds an instance, asks for its classifier.
 // Stone 234.5: for :wat::Record, extract-classifier returns String directly
 // (not Option<String>) — the class_fqdn is always present at construction.
-// Stone 234.6 migration: :wat::Record::def instances are Value::wat__Record;
+// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record;
 // extract-classifier returns :String (not Option<String>) for record args.
 #[test]
 fn probe_1_extract_classifier_on_defrecord_instance() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
@@ -131,15 +131,15 @@ fn probe_2_extract_classifier_on_bare_atom() {
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
-// `Bind/right` on the holon-form of a :wat::Record::def instance returns Some(right Bundle).
+// `Bind/right` on the holon-form of a :wat::core::defrecord instance returns Some(right Bundle).
 // The instance's holon-form is `Bind(Atom("myapp::Voltage"), Bundle(field-binds))`;
 // `Bind/right` on the HolonAST form should return the Bundle half.
-// Stone 234.6 migration: :wat::Record::def instances are Value::wat__Record;
+// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record;
 // Bind/right expects HolonAST — coerce via :wat::holon::to-holon first.
 #[test]
 fn probe_3_bind_right_on_defrecord_instance() {
     let src = r#"
-(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
@@ -206,10 +206,10 @@ fn probe_4_bind_right_on_non_bind() {
 // Probe asserts the children Vector has length 2.
 #[test]
 fn probe_5_composed_walk_to_field_binds() {
-    // Stone 234.6 migration: :wat::Record::def instances are Value::wat__Record;
+    // Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record;
     // coerce to holon-form via :wat::holon::to-holon before applying HolonAST reflection.
     let src = r#"
-(:wat::holon::Record::def :myapp::Point
+(:wat::holon::defrecord :myapp::Point
   [x <- :wat::core::i64
    y <- :wat::core::i64])
 
@@ -238,14 +238,14 @@ fn probe_5_composed_walk_to_field_binds() {
 
 // ─── Probe 6 ────────────────────────────────────────────────────────────────
 //
-// `Bind/left` on the holon-form of a :wat::Record::def instance returns Some(left Atom).
+// `Bind/left` on the holon-form of a :wat::core::defrecord instance returns Some(left Atom).
 // The holon-form is `Bind(Atom("myapp::Voltage"), Bundle(field-binds))`;
 // `Bind/left` should return the Atom("myapp::Voltage") half.
 // Stone 234.6 migration: coerce to holon-form via :wat::holon::to-holon before applying Bind/left.
 #[test]
 fn probe_6_bind_left_on_defrecord_instance() {
     let src = r#"
-(:wat::holon::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::holon::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let

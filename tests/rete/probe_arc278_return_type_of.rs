@@ -11,7 +11,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 fn ev(expr: &str) -> Value {

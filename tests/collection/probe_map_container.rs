@@ -112,11 +112,11 @@ fn persistentmap_assoc_immutable() {
     }
 }
 
-// ── assoc round-trip — base Record (:wat::Record::def) ───────────────────────
+// ── assoc round-trip — base Record (:wat::core::defrecord) ───────────────────────
 
 #[test]
 fn base_record_assoc_field_updated() {
-    let preamble = r#"(:wat::Record::def :probe::mr::Pt [x <- :wat::core::i64  y <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::mr::Pt [x <- :wat::core::i64  y <- :wat::core::i64])"#;
     // assoc :y → 99; read :y back from the updated record.
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::i64
@@ -134,7 +134,7 @@ fn base_record_assoc_field_updated() {
 
 #[test]
 fn base_record_assoc_preserves_other_fields() {
-    let preamble = r#"(:wat::Record::def :probe::mr::Coord [x <- :wat::core::i64  y <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::mr::Coord [x <- :wat::core::i64  y <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::i64
           (:wat::core::let
@@ -149,11 +149,11 @@ fn base_record_assoc_preserves_other_fields() {
     }
 }
 
-// ── assoc round-trip — holonic Record (:wat::holon::Record::def) ─────────────
+// ── assoc round-trip — holonic Record (:wat::holon::defrecord) ─────────────
 
 #[test]
 fn holonic_record_assoc_field_updated() {
-    let preamble = r#"(:wat::holon::Record::def :probe::mr::Volt [value <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::holon::defrecord :probe::mr::Volt [value <- :wat::core::i64])"#;
     // assoc :value → 77; read it back.
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::i64
@@ -173,7 +173,7 @@ fn holonic_record_assoc_field_updated() {
 
 #[test]
 fn record_get_existing_field_returns_some() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Sensor [id <- :wat::core::i64  label <- :wat::core::String])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Sensor [id <- :wat::core::i64  label <- :wat::core::String])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
           (:wat::core::let
@@ -192,7 +192,7 @@ fn record_get_existing_field_returns_some() {
 
 #[test]
 fn record_get_missing_field_returns_none() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Sensor2 [id <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Sensor2 [id <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
           (:wat::core::let
@@ -213,7 +213,7 @@ fn record_get_missing_field_returns_none() {
 
 #[test]
 fn record_contains_existing_field_true() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Node [x <- :wat::core::i64  y <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Node [x <- :wat::core::i64  y <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::bool
           (:wat::core::let
@@ -229,7 +229,7 @@ fn record_contains_existing_field_true() {
 
 #[test]
 fn record_contains_missing_field_false() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Node2 [x <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Node2 [x <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::bool
           (:wat::core::let
@@ -247,7 +247,7 @@ fn record_contains_missing_field_false() {
 
 #[test]
 fn record_length_field_count() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Triple [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Triple [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::i64
           (:wat::core::let
@@ -265,7 +265,7 @@ fn record_length_field_count() {
 
 #[test]
 fn record_empty_q_nonempty_false() {
-    let preamble = r#"(:wat::Record::def :probe::rgal::Pair [a <- :wat::core::i64  b <- :wat::core::i64])"#;
+    let preamble = r#"(:wat::core::defrecord :probe::rgal::Pair [a <- :wat::core::i64  b <- :wat::core::i64])"#;
     let defn = r#"
         (:wat::core::defn :p::f [] -> :wat::core::bool
           (:wat::core::let

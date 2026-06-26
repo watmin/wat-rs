@@ -26,7 +26,7 @@ use wat::runtime::{Environment, Value};
 /// `MyEnv{port: 8080}`; the peer reads `user.program`'s port back. Parent asserts 8080.
 #[test]
 fn thread_init_populates_user_program() {
-    let src = "(:wat::Record::def :user::MyEnv [port <- :wat::core::i64]) \
+    let src = "(:wat::core::defrecord :user::MyEnv [port <- :wat::core::i64]) \
                (:wat::core::defn :user::compute [] -> :wat::core::i64 \
                  (:wat::core::let \
                    [peer (:wat::kernel::spawn-program' \

@@ -10,7 +10,7 @@
 ;; RETURNS these records (:wat::intrinsic::examples) is a Rust intrinsic and does
 ;; not need the record type at registration time — only at call time.
 
-(:wat::Record::def :wat::intrinsic::Example
+(:wat::core::defrecord :wat::intrinsic::Example
   [fqdn          <- :wat::core::keyword
    expr          <- :wat::WatAST
    expected      <- :wat::core::Option<wat::WatAST>
@@ -20,7 +20,7 @@
 
 ;; ─── Doctest failure record ───────────────────────────────────────────
 
-(:wat::Record::def :wat::doctest::Failure
+(:wat::core::defrecord :wat::doctest::Failure
   [fqdn   <- :wat::core::keyword
    reason <- :wat::core::String])
 

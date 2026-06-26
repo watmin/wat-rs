@@ -16,16 +16,16 @@ use wat::runtime::{Environment, Value};
 
 // Records only — for the query-only tests (rule built by hand).
 const WORLD_PLAIN: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // Records + a defrule — for the defrule tests (fails to freeze at HEAD: defrule undefined).
 const WORLD_WITH_RULE: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when\n\
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))\n\

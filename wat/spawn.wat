@@ -30,15 +30,15 @@
 ;; (as Vector<i64>, since wat has no byte scalar). Encodes as:
 ;;   #wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
 ;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
-(:wat::Record::def :wat::kernel::SocketAddressWire
+(:wat::core::defrecord :wat::kernel::SocketAddressWire
   [minter-pid <- :wat::core::i64
    name       <- :wat::core::Vector<wat::core::i64>])
 
 ;; ── Per-env launch records (what each env hands the post-spawn hook) ─────────
 ;; ThreadLaunch is empty — no fields yet; grows if a need appears (don't build
 ;; the forcing function). ProcessLaunch carries the child pid, owner-side.
-(:wat::Record::def :wat::spawn::ThreadLaunch [])
-(:wat::Record::def :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
+(:wat::core::defrecord :wat::spawn::ThreadLaunch [])
+(:wat::core::defrecord :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
 
 ;; ── The keys (locus opts records) ───────────────────────────────────────────
 ;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::Record.
@@ -47,10 +47,10 @@
 ;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
 ;; the peer is spawned, before spawn-program' returns, for effects. Receives
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
-(:wat::Record::def :wat::spawn::ThreadOpts
+(:wat::core::defrecord :wat::spawn::ThreadOpts
   [init-fn       <- :wat::core::Fn()->wat::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
-(:wat::Record::def :wat::spawn::ProcessOpts
+(:wat::core::defrecord :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64])

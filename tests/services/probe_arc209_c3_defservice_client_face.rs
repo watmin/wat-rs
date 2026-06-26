@@ -2,7 +2,7 @@
 //!
 //! C.2 made `defservice` emit `Op` + `Reply` (inline-field variants) + `serve`. C.3 refines the
 //! surface to full-gRPC and ADDS the client face:
-//!   - per op, a standalone **Request** + **Response** record (`:wat::Record::def`);
+//!   - per op, a standalone **Request** + **Response** record (`:wat::core::defrecord`);
 //!   - `Op`/`Reply` WRAP them (one field per variant: `req` / `resp`) — not inline fields;
 //!   - `serve` unwraps the request, runs the body, wraps the Response in `Reply`;
 //!   - **request constructors** `<fqdn>/<op>-request`, type-safe **methods** `<fqdn>/<op>`

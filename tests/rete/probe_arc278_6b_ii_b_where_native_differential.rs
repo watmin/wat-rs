@@ -18,9 +18,9 @@ use wat::runtime::{Environment, Value};
 /// (Temperature ⋈ WindSpeed at the same location); the where filters by the temperature.
 fn world(threshold: i64) -> String {
     format!(
-        "(:wat::Record::def :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-         (:wat::Record::def :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
-         (:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+        "(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+         (:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
+         (:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
          \n\
          (:wat::rete::defrule :weather::cold-and-windy\n\
            :when\n\

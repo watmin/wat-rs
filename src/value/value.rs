@@ -340,8 +340,8 @@ pub enum Value {
     /// the class (`RecordDef.field_names`, S-C.2ab); name→index access rides that
     /// path. Structural identity over `(class_fqdn, struct_form)`. Holon-ops are a
     /// teaching error — base has no holon flavor (use a holonic record via
-    /// `:wat::holon::Record::def`). Unconstructed at the wat surface until S-C.3
-    /// mints `:wat::Record::def` → base.
+    /// `:wat::holon::defrecord`). Unconstructed at the wat surface until S-C.3
+    /// mints `:wat::core::defrecord` → base.
     wat__Record {
         /// Record class FQDN — e.g. `"my::Pt"` (no leading colon).
         class_fqdn: Arc<String>,

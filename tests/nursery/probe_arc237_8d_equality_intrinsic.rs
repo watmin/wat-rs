@@ -59,7 +59,7 @@ fn checks_ok(body: &str) -> bool {
 }
 
 const PT: &str =
-    "(:wat::Record::def :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])";
+    "(:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // REGRESSION — uniform `=`/`not=` over every type. GREEN at HEAD and after.

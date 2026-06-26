@@ -18,7 +18,7 @@
 ;; EmptyEnv — the 0-field nominal default for `user.program`.
 ;; A real record, never nil: "didn't provide one" is honest because there is no nil branch.
 ;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::Record (the root).
-(:wat::Record::def :wat::program::EmptyEnv [])
+(:wat::core::defrecord :wat::program::EmptyEnv [])
 
 ;; Seven kernel-stamped fields (arc 259 — The Forced Hand):
 ;;   wat.started-at      — the app epoch (CLI-boot instant), INHERITED unchanged down the spawn tree.
@@ -36,7 +36,7 @@
 ;;                         distinct from platform-owned fields.
 ;; All `wat.*` fields are reserved/platform-owned. Subtypes extend this base — see
 ;; docs/arc/2026/06/259-forced-hand/DESIGN.md.
-(:wat::Record::def :wat::program::Env
+(:wat::core::defrecord :wat::program::Env
   [wat.started-at <- :wat::time::Instant
    wat.peer-started-at <- :wat::time::Instant
    wat.process-id <- :wat::core::i64

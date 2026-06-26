@@ -15,9 +15,9 @@ use wat::runtime::{Environment, Value};
 
 // Two rules in :weather, a NON-rule defn in :weather (must be excluded), and one rule in :other.
 const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))\n\
          (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]\n\

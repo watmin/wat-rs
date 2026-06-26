@@ -113,7 +113,7 @@ pub(crate) fn eval_intrinsic_examples(
             };
 
             // Builder doctrine (2026-06-21): EDN-representable data → `Value::wat__Record`
-            // (the `:wat::Record::def` representation, so the generated named accessors
+            // (the `:wat::core::defrecord` representation, so the generated named accessors
             // `:wat::intrinsic::Example/<field>` work); `Value::Struct` is reserved for
             // payloads that are NOT EDN-able. An Example is fully EDN-representable
             // (keyword + WatASTs + bools), so it's a wat__Record. `class_fqdn` carries

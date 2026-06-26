@@ -17,7 +17,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const PRELUDE: &str = "\
-(:wat::Record::def :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])\n";
+(:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])\n";
 
 /// Evaluate a `(= ...)` expr; return the bool, panic with the actual value on anything else
 /// (a `TypeMismatch` Err is the RED state this probe documents).

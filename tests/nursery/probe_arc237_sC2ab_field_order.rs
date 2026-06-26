@@ -15,7 +15,7 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
-const PRELUDE: &str = "(:wat::Record::def :my::Pt [x <- :wat::core::f64  y <- :wat::core::f64])\n";
+const PRELUDE: &str = "(:wat::core::defrecord :my::Pt [x <- :wat::core::f64  y <- :wat::core::f64])\n";
 
 fn eval_f64(compute_expr: &str) -> f64 {
     let full = format!(

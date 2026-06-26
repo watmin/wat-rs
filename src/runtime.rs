@@ -12910,7 +12910,7 @@ fn conforms_check(
                 }
                 // Struct / Enum / Newtype / Record → nominal identity check.
                 // Special case: :wat::Record is the root record supertype (opaque umbrella
-                // struct). Every value from `(:wat::Record::def ...)` is a subtype; conforms?
+                // struct). Every value from `(:wat::core::defrecord ...)` is a subtype; conforms?
                 // against :wat::Record returns true for any record value — NOT just exact match.
                 // Same for :wat::holon::Record (the holonic-record umbrella). Arc 259.
                 // Arc 293.3-core — Surface: runtime structural conformance (conforms? against a
@@ -12937,7 +12937,7 @@ fn conforms_check(
                         Ok(concrete_type_name_matches(value, name))
                     } else {
                         // Not a TypeDef, not a built-in.
-                        // Record classes declared via `(:wat::Record::def ...)` expand
+                        // Record classes declared via `(:wat::core::defrecord ...)` expand
                         // to `defn` forms and are NOT registered in the TypeEnv — their
                         // type identity lives in `Value::wat__holon__Record.class_fqdn`.
                         // For a wat__holon__Record value, check class_fqdn directly (the value
@@ -13234,7 +13234,7 @@ fn eval_subtype(
 /// - `struct-form`: `Vector<T>` of field values in declaration order.
 ///
 /// Returns `Value::wat__Record { class_fqdn, struct_form }`.
-/// Consumed by the Stone S-C.3 `:wat::Record::def` (BASE) macro.
+/// Consumed by the Stone S-C.3 `:wat::core::defrecord` (BASE) macro.
 fn eval_record_of(
     args: &[WatAST],
     list_span: &Span,
@@ -13294,7 +13294,7 @@ fn eval_record_of(
 /// - `holon-form`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
 ///
 /// Returns `Value::wat__holon__Record { class_fqdn, struct_form, holon_form }`.
-/// Consumed by the Stone S-C.3 `:wat::holon::Record::def` (HOLONIC) macro.
+/// Consumed by the Stone S-C.3 `:wat::holon::defrecord` (HOLONIC) macro.
 fn eval_holon_record_of(
     args: &[WatAST],
     list_span: &Span,
@@ -14561,13 +14561,13 @@ fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
             return Ok(Value::holon__HolonAST(Arc::new(holon_form.as_ref().clone())));
         }
         // Stone S-C.2c — Bucket C teaching error: base record has no holon flavor.
-        // Constructing a holonic record (`:wat::holon::Record::def`) is the remedy.
+        // Constructing a holonic record (`:wat::holon::defrecord`) is the remedy.
         Value::wat__Record { class_fqdn, .. } => {
             return Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::holon::to-holon".into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::Record::def`) to use holon operations",
+                     (`:wat::holon::defrecord`) to use holon operations",
                     class_fqdn
                 )
             } }.into());
@@ -15962,7 +15962,7 @@ fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, 
             head: op.into(),
             reason: format!(
                 "base record `{}` has no holon flavor; construct a holonic record \
-                 (`:wat::holon::Record::def`) to use holon operations",
+                 (`:wat::holon::defrecord`) to use holon operations",
                 class_fqdn
             )
         } }.into()),
@@ -16312,7 +16312,7 @@ fn pair_values_to_vectors(
                 head: op.into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::Record::def`) to use holon operations",
+                     (`:wat::holon::defrecord`) to use holon operations",
                     class_fqdn
                 )
             } }.into());
@@ -16326,7 +16326,7 @@ fn pair_values_to_vectors(
                 head: op.into(),
                 reason: format!(
                     "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::Record::def`) to use holon operations",
+                     (`:wat::holon::defrecord`) to use holon operations",
                     class_fqdn
                 )
             } }.into());
@@ -32115,8 +32115,8 @@ mod tests {
             err_msg
         );
         assert!(
-            err_msg.contains(":wat::holon::Record::def"),
-            "error must contain ':wat::holon::Record::def'; got: {}",
+            err_msg.contains(":wat::holon::defrecord"),
+            "error must contain ':wat::holon::defrecord'; got: {}",
             err_msg
         );
     }
@@ -32196,8 +32196,8 @@ mod tests {
         const SRC: &str = r#"
 (:wat::core::defprotocol :t::Swimmer
   (swim [self <- :t::Swimmer laps <- :wat::core::i64] -> :wat::core::String))
-(:wat::Record::def :t::Dog [])
-(:wat::Record::def :t::Rock [])
+(:wat::core::defrecord :t::Dog [])
+(:wat::core::defrecord :t::Rock [])
 (:wat::core::extend-type :t::Dog :t::Swimmer (swim [self laps] "splash"))
 
 ;; Callers typed over :t::Dog — safe.

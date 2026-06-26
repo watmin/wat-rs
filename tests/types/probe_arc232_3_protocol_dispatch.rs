@@ -25,8 +25,8 @@ use wat::runtime::{Environment, Value};
 const PROGRAM: &str = r#"
 (:wat::core::defprotocol :t::Greeter
   (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::Record::def :t::Robot [])
-(:wat::Record::def :t::Dog [])
+(:wat::core::defrecord :t::Robot [])
+(:wat::core::defrecord :t::Dog [])
 (:wat::core::extend-type :t::Robot :t::Greeter (greet [self loudness] "beep"))
 (:wat::core::extend-type :t::Dog   :t::Greeter (greet [self loudness] "woof"))
 

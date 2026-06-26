@@ -130,7 +130,7 @@ fn assoc_base_record_returns_base_record_struct_only() {
     // is still a `:my::Voltage` base record with the field updated.
     assert_eq!(
         eval_value(
-            r#"(:wat::Record::def :my::Voltage [value <- :wat::core::i64])
+            r#"(:wat::core::defrecord :my::Voltage [value <- :wat::core::i64])
                (:wat::core::defn :user::compute [] -> :wat::core::i64
                  (:my::Voltage/value
                                     (:wat::core::assoc (:my::Voltage 10) :value 42)))"#
@@ -142,7 +142,7 @@ fn assoc_base_record_returns_base_record_struct_only() {
 
 #[test]
 fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
-    // Same shape but holonic (`:wat::holon::Record::def`). The holonic arm in
+    // Same shape but holonic (`:wat::holon::defrecord`). The holonic arm in
     // `eval_record_assoc` rebuilds BOTH struct_form AND holon_form in parity.
     // The post-7c intrinsic must route through the same path, preserving flavor.
     //
@@ -153,7 +153,7 @@ fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
     // For the probe, the load-bearing assertion is the round-trip i64.
     assert_eq!(
         eval_value(
-            r#"(:wat::holon::Record::def :my::HolonicVoltage [value <- :wat::core::i64])
+            r#"(:wat::holon::defrecord :my::HolonicVoltage [value <- :wat::core::i64])
                (:wat::core::defn :user::compute [] -> :wat::core::i64
                  (:my::HolonicVoltage/value
                                     (:wat::core::assoc (:my::HolonicVoltage 10) :value 42)))"#

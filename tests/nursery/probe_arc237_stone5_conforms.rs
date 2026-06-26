@@ -41,8 +41,8 @@ use wat::runtime::{Environment, Value};
 
 /// Shared type declarations.
 const PRELUDE: &str = r#"
-(:wat::Record::def :my::Circle [radius <- :wat::core::f64])
-(:wat::Record::def :my::Square [side <- :wat::core::f64])
+(:wat::core::defrecord :my::Circle [radius <- :wat::core::f64])
+(:wat::core::defrecord :my::Square [side <- :wat::core::f64])
 (:wat::core::typeunion :my::Shape [:my::Circle :my::Square])
 (:wat::core::typeunion :my::Numeric [:wat::core::i64 :wat::core::f64])
 (:wat::core::typealias :my::Bytes :wat::core::Vector<wat::core::u8>)

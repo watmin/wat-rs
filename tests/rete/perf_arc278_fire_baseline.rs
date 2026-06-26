@@ -25,9 +25,9 @@ use wat::load::InMemoryLoader;
 use wat::runtime::Environment;
 
 const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // N Temperatures + N WindSpeeds at N distinct locations → N same-loc joins → N derived ColdAndWindy.

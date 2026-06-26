@@ -23,11 +23,11 @@
 ;; ─── Typed records (uncompilable on a wrong shape) ────────────────────
 ;; The source-unit `:wat::source::File` lifted to wat/source.wat (arc 283) — shared by every tool.
 
-(:wat::Record::def :wat::deporder::SymDef
+(:wat::core::defrecord :wat::deporder::SymDef
   [file <- :wat::core::String
    kind <- :wat::core::String])
 
-(:wat::Record::def :wat::deporder::Violation
+(:wat::core::defrecord :wat::deporder::Violation
   [referencer     <- :wat::core::String
    referencer-pos <- :wat::core::i64
    definer        <- :wat::core::String

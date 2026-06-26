@@ -25,21 +25,21 @@
 ;;   (the pair is heterogeneous: a Record + an i64, which a bare PV cannot honestly type).
 ;;   Load-bearing for TM: the chain grows one tuple per condition as the token flows through joins.
 ;; bindings: {?var → value} — variable bindings accumulated left-to-right.
-(:wat::Record::def :wat::rete::Token
+(:wat::core::defrecord :wat::rete::Token
   [matches  <- :wat::core::PersistentVector<(wat::Record,wat::core::i64)>
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
 ;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query-by-type).
 ;; bindings: alpha-bindings extracted by the alpha node's tests.
-(:wat::Record::def :wat::rete::Element
+(:wat::core::defrecord :wat::rete::Element
   [fact     <- :wat::Record
    bindings <- :wat::core::PersistentMap])
 
 ;; Activation — a ProductionNode queued to fire.
 ;; production-id: the id of the ProductionNode to fire (intueri: NOT node-id).
 ;; token: the matching Token that triggered this activation.
-(:wat::Record::def :wat::rete::Activation
+(:wat::core::defrecord :wat::rete::Activation
   [production-id <- :wat::core::i64
    token         <- :wat::rete::Token])
 
@@ -49,7 +49,7 @@
 ;; name: the namespaced rule name.
 ;; lhs:  conditions (form::matches?-shaped clauses) — PersistentVector<WatAST> so foldl works.
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
-(:wat::Record::def :wat::rete::Rule
+(:wat::core::defrecord :wat::rete::Rule
   [name <- :wat::core::String
    lhs  <- :wat::core::PersistentVector<wat::WatAST>
    rhs  <- :wat::core::PersistentVector<wat::WatAST>])
@@ -61,7 +61,7 @@
 ;; id:       unique node id (i64).
 ;; tests:    PersistentVector of test forms (form::matches? clauses) — typed for foldl.
 ;; children: PersistentVector of child node ids — typed as i64 for foldl.
-(:wat::Record::def :wat::rete::AlphaNode
+(:wat::core::defrecord :wat::rete::AlphaNode
   [id       <- :wat::core::i64
    tests    <- :wat::core::PersistentVector<wat::WatAST>
    children <- :wat::core::PersistentVector<wat::core::i64>])
@@ -70,7 +70,7 @@
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
 ;; binding-keys: PersistentVector of variable keys (Strings) bound at this join.
-(:wat::Record::def :wat::rete::RootJoinNode
+(:wat::core::defrecord :wat::rete::RootJoinNode
   [id           <- :wat::core::i64
    children     <- :wat::core::PersistentVector<wat::core::i64>
    binding-keys <- :wat::core::PersistentVector<wat::core::String>])
@@ -79,7 +79,7 @@
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
 ;; binding-keys: PersistentVector of join-key variable names (Strings).
-(:wat::Record::def :wat::rete::HashJoinNode
+(:wat::core::defrecord :wat::rete::HashJoinNode
   [id           <- :wat::core::i64
    children     <- :wat::core::PersistentVector<wat::core::i64>
    binding-keys <- :wat::core::PersistentVector<wat::core::String>])
@@ -87,7 +87,7 @@
 ;; ProductionNode — the terminal node; triggers an activation on a full token.
 ;; id:        unique node id.
 ;; rule-name: the namespaced rule name whose RHS this node fires.
-(:wat::Record::def :wat::rete::ProductionNode
+(:wat::core::defrecord :wat::rete::ProductionNode
   [id        <- :wat::core::i64
    rule-name <- :wat::core::String])
 
@@ -95,7 +95,7 @@
 ;; id:       unique node id.
 ;; expr:     the pure∧deterministic WatAST predicate (stored as a value; fence checked at compile).
 ;; children: PersistentVector of child node ids (ProductionNode or further TestNodes).
-(:wat::Record::def :wat::rete::TestNode
+(:wat::core::defrecord :wat::rete::TestNode
   [id       <- :wat::core::i64
    expr     <- :wat::WatAST
    children <- :wat::core::PersistentVector<wat::core::i64>])
@@ -106,7 +106,7 @@
 ;; id:              unique node id.
 ;; negated-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check absence against.
 ;; children:        PersistentVector of child node ids (ProductionNode or further filter nodes).
-(:wat::Record::def :wat::rete::NegationNode
+(:wat::core::defrecord :wat::rete::NegationNode
   [id              <- :wat::core::i64
    negated-alpha-id <- :wat::core::i64
    children        <- :wat::core::PersistentVector<wat::core::i64>])
@@ -120,7 +120,7 @@
 ;; id:           unique node id.
 ;; exists-alpha-id: the AlphaNode id whose alpha-memory holds the facts to check presence against.
 ;; children:     PersistentVector of child node ids (ProductionNode or further filter nodes).
-(:wat::Record::def :wat::rete::ExistsNode
+(:wat::core::defrecord :wat::rete::ExistsNode
   [id              <- :wat::core::i64
    exists-alpha-id  <- :wat::core::i64
    children        <- :wat::core::PersistentVector<wat::core::i64>])
@@ -134,7 +134,7 @@
 ;; acc-form:      the accumulator form (WatAST), e.g. (:wat::rete::acc::count) or (:wat::rete::acc::sum ?v).
 ;; from-alpha-id: the AlphaNode id whose alpha-memory holds the :from facts.
 ;; children:      PersistentVector of child node ids (ProductionNode, TestNode, NegationNode, etc.).
-(:wat::Record::def :wat::rete::AccumulateNode
+(:wat::core::defrecord :wat::rete::AccumulateNode
   [id            <- :wat::core::i64
    result-var    <- :wat::core::String
    acc-form      <- :wat::WatAST
@@ -145,7 +145,7 @@
 ;; id:         unique node id.
 ;; query-name: the namespaced query name.
 ;; param-keys: PersistentVector of query parameter variable names (Strings).
-(:wat::Record::def :wat::rete::QueryNode
+(:wat::core::defrecord :wat::rete::QueryNode
   [id         <- :wat::core::i64
    query-name <- :wat::core::String
    param-keys <- :wat::core::PersistentVector<wat::core::String>])
@@ -175,7 +175,7 @@
 ;;   production-memory: node-id → PV<:wat::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
-(:wat::Record::def :wat::rete::Session
+(:wat::core::defrecord :wat::rete::Session
   [network           <- :wat::core::PersistentMap
    rules             <- :wat::core::PersistentVector<wat::rete::Rule>
    alpha-memory      <- :wat::core::PersistentMap
@@ -190,7 +190,7 @@
 ;;   rule:  the rule name that derived the fact (for Why.rule in P12b).
 ;;   token: the producing Token; token.matches = the support chain (for :via in P12b).
 ;; EPHEMERAL — carried only in Explained; never serialized / from-edn.
-(:wat::Record::def :wat::rete::Support
+(:wat::core::defrecord :wat::rete::Support
   [rule  <- :wat::core::String
    token <- :wat::rete::Token])
 
@@ -198,7 +198,7 @@
 ;;   session: the same frozen Session the fast path produces (same closure, same derived facts).
 ;;   support: PersistentMap<derived-fact, Support> — the provenance index.
 ;; EPHEMERAL — re-derived per explain; never serialized.
-(:wat::Record::def :wat::rete::Explained
+(:wat::core::defrecord :wat::rete::Explained
   [session <- :wat::rete::Session
    support <- :wat::core::PersistentMap])
 
@@ -212,7 +212,7 @@
 ;;         Empty (length 0) ⟺ base/asserted fact (the leaf).
 ;;         Non-empty ⟺ derived fact (each step explains one supporting input).
 ;; EPHEMERAL — produced by explain; never serialized.
-(:wat::Record::def :wat::rete::DerivationNode
+(:wat::core::defrecord :wat::rete::DerivationNode
   [fact <- :wat::Record
    rule <- :wat::core::Option<wat::core::String>
    via  <- :wat::core::PersistentVector<wat::rete::DerivationStep>])
@@ -225,7 +225,7 @@
 ;;   constraints: the rule's satisfied predicates with bound values substituted.
 ;;                Rendered as WatAST, e.g. (:wat::core::< -5 0) from (:wat::core::< ?c 0) with ?c=-5.
 ;; EPHEMERAL — produced by explain; never serialized.
-(:wat::Record::def :wat::rete::DerivationStep
+(:wat::core::defrecord :wat::rete::DerivationStep
   [supporting  <- :wat::rete::DerivationNode
    pattern     <- :wat::core::String
    bindings    <- :wat::core::PersistentMap<wat::core::String,wat::core::Value>
@@ -388,14 +388,14 @@
 ;; dedup:   HashMap<String,i64> — maps a structural key to the existing node id;
 ;;          avoids rescanning the network to detect shareable nodes.
 ;; WHY a record: cleaner than a Tuple at call sites; fields are domain nouns.
-(:wat::Record::def :wat::rete::CompileState
+(:wat::core::defrecord :wat::rete::CompileState
   [network <- :wat::core::PersistentMap
    next-id <- :wat::core::i64
    dedup   <- :wat::core::HashMap<wat::core::String,wat::core::i64>])
 
 ;; MintResult — result of find-or-mint: the resolved node id + updated state.
 ;; WHY a record: named fields communicate intent at call sites better than positional.
-(:wat::Record::def :wat::rete::MintResult
+(:wat::core::defrecord :wat::rete::MintResult
   [id    <- :wat::core::i64
    state <- :wat::rete::CompileState])
 
@@ -520,7 +520,7 @@
 ;;   3. wire alpha→join child edge
 ;;   4. wire prev-parent→join child edge (if prev-parent >= 0)
 ;;   5. return updated state with parent-id = join-id
-(:wat::Record::def :wat::rete::CondFoldAcc
+(:wat::core::defrecord :wat::rete::CondFoldAcc
   [state     <- :wat::rete::CompileState
    parent-id <- :wat::core::i64])
 

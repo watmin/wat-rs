@@ -34,7 +34,7 @@ pub(crate) fn stdlib_files() -> &'static [WatSource] {
 const STDLIB_FILES: &[WatSource] = &[
     // wat/core.wat MUST be first: foundational aliases + defclauses that
     // other stdlib files eval-depend on. No eval-deps on any other file
-    // (its only outward refs are :wat::Record::def [a defmacro = order-free]
+    // (its only outward refs are :wat::core::defrecord [a defmacro = order-free]
     // and :wat::holon::HolonAST [a builtin]).
     WatSource {
         path: "wat/core.wat",
@@ -91,12 +91,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/Trigram.wat",
         source: include_str!("../wat/holon/Trigram.wat"),
     },
-    // Arc 234 Stone 234.2b — :wat::Record::def macro. Mints user-defined
+    // Arc 234 Stone 234.2b — :wat::core::defrecord macro. Mints user-defined
     // record-types as dual-form holograms (Value::wat__holon__Record): struct_form
     // (Rust-fast) + holon_form (VSA-aligned), both addressable, both canonical.
     // Generates constructor + per-field accessors + predicate. Consumes Stone
     // 234.2a substrate primitives (:wat::Record::of + :wat::Record/field-at).
-    // :wat::holon::defrecord RETIRED at Stone 234.6 (HARD CUT; see git history).
+    // Arc 293.2-rename — :wat::holon::defrecord RECLAIMED (was retired at Stone 234.6;
+    // now the canonical holonic record macro head, peer to :wat::core::defrecord).
     WatSource {
         path: "wat/Record.wat",
         source: include_str!("../wat/Record.wat"),
@@ -104,14 +105,14 @@ const STDLIB_FILES: &[WatSource] = &[
     // Arc 258 A2 — :wat::program::Env as a typed extensible recordtype base.
     // Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a
     // proper record: one field `wat.started-at : :wat::time::Instant`. Loaded
-    // AFTER Record.wat (uses :wat::Record::def) and :wat::time::Instant (builtin).
+    // AFTER Record.wat (uses :wat::core::defrecord) and :wat::time::Instant (builtin).
     WatSource {
         path: "wat/program.wat",
         source: include_str!("../wat/program.wat"),
     },
     // Arc 259 (The Forced Hand) — the host opts for spawn-program (the Keymaker):
     // ThreadOpts / ProcessOpts / RemoteOpts + their constructors. Loaded AFTER
-    // Record.wat (uses :wat::Record::def).
+    // Record.wat (uses :wat::core::defrecord).
     WatSource {
         path: "wat/spawn.wat",
         source: include_str!("../wat/spawn.wat"),
@@ -328,7 +329,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // HashJoinNode/ProductionNode/QueryNode), the Node defenum sum, the Session
     // record, and a render-dag inspection fn. All on stone-0 persistent
     // collections (PersistentMap/PersistentVector). No compile, no fire.
-    // Loads AFTER Record.wat (uses :wat::Record::def); PersistentMap/PersistentVector
+    // Loads AFTER Record.wat (uses :wat::core::defrecord); PersistentMap/PersistentVector
     // are Rust intrinsics — always available.
     WatSource {
         path: "wat/rete.wat",

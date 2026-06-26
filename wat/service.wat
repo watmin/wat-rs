@@ -280,8 +280,8 @@
      state-parent-str (:wat::core::keyword/to-string state-parent)
      record-def   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
                     -> :wat::WatAST
-                    `(:wat::holon::Record::def ~record-ty ~durable-fields)
-                    `(:wat::Record::def ~record-ty ~durable-fields))
+                    `(:wat::holon::defrecord ~record-ty ~durable-fields)
+                    `(:wat::core::defrecord ~record-ty ~durable-fields))
      ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
      ;; Strategy: use quasiquote to build the durable-field prefix vector `[durable <- ~record-ty]`,
      ;; extract its 3 children, then prepend them to the ephemeral children via foldl.
@@ -490,7 +490,7 @@
                             ;; Reuse argvec as the Vector carrier; with-children replaces children
                             req-fieldvec (:wat::core::with-children argvec in-fieldch)]
                            (:wat::core::conj acc
-                             `(:wat::Record::def ~req-name ~req-fieldvec))))
+                             `(:wat::core::defrecord ~req-name ~req-fieldvec))))
                        (:wat::core::Vector :wat::WatAST)
                        clauses)
 
@@ -512,7 +512,7 @@
                              ;; Reuse out-fieldvec as the Vector carrier
                              resp-fieldvec (:wat::core::with-children out-fieldvec out-fieldch)]
                             (:wat::core::conj acc
-                              `(:wat::Record::def ~resp-name ~resp-fieldvec))))
+                              `(:wat::core::defrecord ~resp-name ~resp-fieldvec))))
                         (:wat::core::Vector :wat::WatAST)
                         clauses)
 
@@ -1100,7 +1100,7 @@
                           (:wat::core::string::concat "::Admin,"
                             (:wat::core::string::concat fqdn-str "::Status>")))))
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
-     handle-record `(:wat::Record::def ~handle-name ~handle-fields)]
+     handle-record `(:wat::core::defrecord ~handle-name ~handle-fields)]
 
     ;; Assemble the final `do`:
     ;;   request + response records (before enums — spliced as type-decls)

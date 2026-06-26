@@ -16,10 +16,10 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
-(:wat::Record::def :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
+(:wat::core::defrecord :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
+(:wat::core::defrecord :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
 \n\
 (:wat::rete::defrule :weather::cold-and-windy\n\
   :when\n\

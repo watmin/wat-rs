@@ -14,7 +14,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :net::Packet [src <- :wat::core::String])\n\
+(:wat::core::defrecord :net::Packet [src <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Wrap `body` in a let binding `els` = a PV of 3 Elements with bindings {?bytes, ?port} + Packet facts,

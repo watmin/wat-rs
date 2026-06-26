@@ -21,7 +21,7 @@ use wat::runtime::{Environment, Value};
 /// epoch-millis (i64) so we can assert a concrete value end-to-end.
 fn eval_dotted_field_roundtrip() -> Result<i64, String> {
     let src = "\
-        (:wat::Record::def :user::Probe [wat.started-at <- :wat::time::Instant])\n\
+        (:wat::core::defrecord :user::Probe [wat.started-at <- :wat::time::Instant])\n\
         (:wat::core::defn :user::compute [] -> :wat::core::i64\n\
           (:wat::time::epoch-millis\n\
             (:user::Probe/wat.started-at (:user::Probe (:wat::time::at-millis 1234)))))\n\

@@ -1,7 +1,7 @@
 //! Arc 293.2-parity — DISCONFIRMING PROBE for the `structtype` primitive.
 //!
 //! The parity move: `defstruct` becomes a wat MACRO over a new low-level `:wat::core::structtype`
-//! type-registration primitive — exactly mirroring how `:wat::Record::def` (a macro) sits over
+//! type-registration primitive — exactly mirroring how `:wat::core::defrecord` (a macro) sits over
 //! `:wat::core::recordtype` (the primitive). This makes `defstruct` and `defrecord` SYMMETRIC at the
 //! macro-over-primitive level, so `/from-map` (a companion macro) can later be emitted by BOTH uniformly.
 //!

@@ -67,7 +67,7 @@ fn probe_1_concrete_receiver_fails_at_check_time() {
 #[test]
 fn probe_2_record_receiver_keyword_accessor_works() {
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
@@ -124,7 +124,7 @@ fn probe_4_polymorphic_receiver_accepted() {
     // Construct a polymorphic context: identity over T → call :field on
     // the bound T. Should type-check (T is unresolved at check site).
     let src = r#"
-(:wat::Record::def :myapp::Voltage [magnitude <- :wat::core::f64])
+(:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 ;; Generic helper: take a record-typed arg and apply :magnitude
 (:wat::core::defn :user::pluck [v <- :wat::Record] -> :wat::core::f64 (:magnitude v))

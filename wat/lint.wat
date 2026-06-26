@@ -30,7 +30,7 @@
 ;; new-text:  the replacement source text.
 ;; Position-based (not flat-offset-based): the rule has the spans but NOT the source;
 ;; the applier (apply-fixes) holds the source and flattens via fix-text-offset-of.
-(:wat::Record::def :wat::lint::FixEdit
+(:wat::core::defrecord :wat::lint::FixEdit
   [start-line <- :wat::core::i64
    start-col  <- :wat::core::i64
    end-line   <- :wat::core::i64
@@ -47,7 +47,7 @@
 ;; severity: "error" | "warn" | "info"  (L1/L2/L3)
 ;; message:  human-readable description + cure
 ;; fix:      Some(FixEdit) = an auto-fix is available; None = report-only.
-(:wat::Record::def :wat::lint::Finding
+(:wat::core::defrecord :wat::lint::Finding
   [rule     <- :wat::core::String
    file     <- :wat::core::String
    line     <- :wat::core::i64

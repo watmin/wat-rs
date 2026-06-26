@@ -26,10 +26,10 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :weather::ColdAndWindy [location <- :wat::core::String])\n\
-(:wat::Record::def :weather::WeatherAlert [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::WeatherAlert [location <- :wat::core::String])\n\
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // Build the fired session for a given WindSpeed location, then gather ALL derived facts across every

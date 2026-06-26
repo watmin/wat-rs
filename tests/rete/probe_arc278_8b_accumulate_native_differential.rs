@@ -14,9 +14,9 @@ use wat::runtime::{Environment, Value};
 
 fn world(acc: &str, gate: &str) -> String {
     format!(
-        "(:wat::Record::def :w::Station  [location <- :wat::core::String])\n\
-         (:wat::Record::def :w::Reading  [location <- :wat::core::String  value <- :wat::core::i64])\n\
-         (:wat::Record::def :w::Busy     [location <- :wat::core::String  n <- :wat::core::i64])\n\
+        "(:wat::core::defrecord :w::Station  [location <- :wat::core::String])\n\
+         (:wat::core::defrecord :w::Reading  [location <- :wat::core::String  value <- :wat::core::i64])\n\
+         (:wat::core::defrecord :w::Busy     [location <- :wat::core::String  n <- :wat::core::i64])\n\
          \n\
          (:wat::rete::defrule :w::busy\n\
            :when\n\

@@ -1,7 +1,7 @@
 //! FM 2-bis probe — arc 237 Stone S-B.2: defrecord emits `recordtype` + drops its predicate.
 //!
 //! See `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-S-B2-defrecord-emits-recordtype.md`.
-//! Rewires the `:wat::Record::def` macro (wat/Record.wat) to (1) emit
+//! Rewires the `:wat::core::defrecord` macro (wat/Record.wat) to (1) emit
 //! `(:wat::core::recordtype ~fqdn :wat::Record)` so the class becomes a real
 //! `TypeDef::Record` (B.1), and (2) DROP its hand-rolled `is-<Name>?` predicate so
 //! the type system's `register_type_predicates` synthesizes it ∀T autonomously.
@@ -33,8 +33,8 @@ use wat::runtime::{Environment, Value};
 
 /// Two record classes via the EVERYDAY defrecord surface.
 const PRELUDE: &str = r#"
-(:wat::Record::def :my::Circle [radius <- :wat::core::f64])
-(:wat::Record::def :my::Square [side <- :wat::core::f64])
+(:wat::core::defrecord :my::Circle [radius <- :wat::core::f64])
+(:wat::core::defrecord :my::Square [side <- :wat::core::f64])
 "#;
 
 fn run(compute_expr: &str, ret_ty: &str) -> Result<Value, String> {

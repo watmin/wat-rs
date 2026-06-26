@@ -14,9 +14,9 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::Record::def :ops::Maintenance     [location <- :wat::core::String])\n\
-(:wat::Record::def :alert::Unattended    [location <- :wat::core::String])\n\
+(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
+(:wat::core::defrecord :ops::Maintenance     [location <- :wat::core::String])\n\
+(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])\n\
 \n\
 (:wat::rete::defrule :alert::unattended\n\
   :when\n\

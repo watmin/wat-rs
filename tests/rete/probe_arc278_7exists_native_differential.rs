@@ -16,9 +16,9 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 const WORLD: &str = "\
-(:wat::Record::def :w::Station [location <- :wat::core::String])\n\
-(:wat::Record::def :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-(:wat::Record::def :w::Watched [location <- :wat::core::String])\n\
+(:wat::core::defrecord :w::Station [location <- :wat::core::String])\n\
+(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
+(:wat::core::defrecord :w::Watched [location <- :wat::core::String])\n\
 \n\
 (:wat::rete::defrule :w::watched\n\
   :when\n\

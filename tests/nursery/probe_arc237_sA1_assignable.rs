@@ -45,8 +45,8 @@ fn check(src: &str) -> Result<(), String> {
 
 /// Two record classes via the everyday `defrecord` surface (S-B.2 emits recordtype).
 const PRELUDE: &str = "\
-(:wat::Record::def :my::Circle [radius <- :wat::core::f64])\n\
-(:wat::Record::def :my::Square [side <- :wat::core::f64])\n";
+(:wat::core::defrecord :my::Circle [radius <- :wat::core::f64])\n\
+(:wat::core::defrecord :my::Square [side <- :wat::core::f64])\n";
 
 const MAIN: &str = "\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 

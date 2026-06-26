@@ -39,7 +39,7 @@ fn holon_record_satisfies_holder_bound_surface() {
         (:wat::core::defsurface :env::Holon
           :holder :holon-record
           [slot <- :wat::core::i64])
-        (:wat::holon::Record::def :env::HEnv [slot <- :wat::core::i64])
+        (:wat::holon::defrecord :env::HEnv [slot <- :wat::core::i64])
         (:wat::core::defn :env::wants-holon [x <- :env::Holon] -> :wat::core::bool
           true)
         (:wat::core::defn :user::main [] -> :wat::core::bool
@@ -65,7 +65,7 @@ fn core_record_rejected_by_holon_holder_bound() {
         (:wat::core::defsurface :env::Holon
           :holder :holon-record
           [slot <- :wat::core::i64])
-        (:wat::Record::def :env::CEnv [slot <- :wat::core::i64])
+        (:wat::core::defrecord :env::CEnv [slot <- :wat::core::i64])
         (:wat::core::defn :env::wants-holon [x <- :env::Holon] -> :wat::core::bool
           true)
         (:wat::core::defn :user::main [] -> :wat::core::bool
