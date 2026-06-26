@@ -14,6 +14,22 @@ repr-collapse stays the optional horizon.** The builder untangled a conflation i
   293.2-parity (`defstruct → macro over structtype`) is the FIRST step; it generalizes to all three labels over
   one base. **One alignment to fold in:** the ctor convention (`defstruct` builds via `:T/new`, `defrecord` via
   `:T`) becomes ONE convention for all three.
+
+  > **RESOLVED (builder, 2026-06-26): CONSTRUCTION PARITY — unify on `:T`; DROP `/new` for structs.** The builder's
+  > call: *"i want parity in construction… using structs vs core-records vs holon-records should be identical…
+  > dropping /new feels like the better thing — i haven't had any complaints with our use of records."* So all three
+  > aggregate holders construct by the **bare type name** — `(:geo::SPt 1 2)` exactly like `(:geo::Circle "red" 2.0)` —
+  > and `:T/new` is annihilated for structs. The keyword does double duty (type in `[x <- :T]`, ctor fn in `(:T …)`);
+  > records already do this and it is accepted. Four-questions clean (Obvious: one rule = the type name is the ctor;
+  > Simple: one convention, and it IS the (C) annihilation — `defstruct` becomes a full macro emitting `:T`+accessors
+  > +`/from-map`, `register_struct_methods` dies; Honest: extends the existing record overload, no new lie; UX: the
+  > "operate on them uniformly" the arc exists for). **Blast radius:** ~8 `.wat` + a handful of `.rs` wat-string
+  > fixtures carry `:T/new` struct construction → fix-wat the `.wat`, hand-sub the `.rs` (audit prose per the
+  > 293.2-rename lesson). **OPEN sub-question (builder's call):** **newtypes** also ctor via `:T/new`
+  > (`:wat::spawn::Launched/new`, arity-1 tuple-struct codegen) — unify them to `:T` too (total consistency), or keep
+  > `/new` as the wrapper marker? Apparatus leans total-consistency; deferred to a fresh four-questions. This RESOLVES
+  > the "one convention for all three" alignment above → it is `:T`, and feeds the 293.2 `/from-map` strike (the
+  > companion macro emits the bare-`:T` ctor call for every holder).
 - **LAYER 2 — substrate repr-collapse (STILL the optional horizon, NOT required for Layer 1).** Collapsing the
   three `Value` variants → one repr + a label. Layer 1 ships WITHOUT it (three variants stay, R8 intact). This
   is the high-blast-radius part (serialization, the gate, closure-extract) and remains a later, deliberate,
