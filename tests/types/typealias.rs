@@ -190,7 +190,7 @@ fn alias_over_fn_type_works_at_spawn() {
                       [job
                         (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
                           (:wat::core::do
-                            (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
+                            (:wat::core::Result/expect (:wat::kernel::send tx 7) "test producer: tx disconnected")
                             ()))
                        pair
                         (:wat::kernel::make-channel :wat::core::i64)

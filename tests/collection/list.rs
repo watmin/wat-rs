@@ -118,14 +118,10 @@ fn list_empty_q_false() {
 
 #[test]
 fn list_first_returns_some() {
-    // Use (:wat::core::first list) → returns Option<T>
-    // match arm syntax: ((pattern) body)
+    // (:wat::core::first list) returns T directly (arc-278 — no Option wrapper).
     let v = eval_value(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match (:wat::core::first (:wat::core::List/of 10 20 30))
-                      -> :wat::core::bool
-                      ((:wat::core::Some x) (:wat::core::= x 10))
-                      (:None false)))
+          (:wat::core::= (:wat::core::first (:wat::core::List/of 10 20 30)) 10))
     "#);
     assert_eq!(v, Value::bool(true), "first of (10 20 30) should be 10");
 }
@@ -153,27 +149,22 @@ fn list_rest_preserves_list_type() {
 
 #[test]
 fn list_conj_prepends() {
-    // List/conj should PREPEND. After conj(List(2,3), 1) → List(1,2,3)
-    // Verify first element is 1 (the prepended item)
+    // List/conj should PREPEND. After conj(List(2,3), 1) → List(1,2,3).
+    // first returns T directly (arc-278 — no Option wrapper).
     let v = eval_value(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match (:wat::core::first (:wat::core::List/conj (:wat::core::List/of 2 3) 1))
-                      -> :wat::core::bool
-                      ((:wat::core::Some x) (:wat::core::= x 1))
-                      (:None false)))
+          (:wat::core::= (:wat::core::first (:wat::core::List/conj (:wat::core::List/of 2 3) 1)) 1))
     "#);
     assert_eq!(v, Value::bool(true), "List/conj prepends: first of conj(List(2,3), 1) should be 1");
 }
 
 #[test]
 fn vector_conj_appends_distinct_from_list() {
-    // Vector/conj APPENDS — first element should still be 2 (the original head)
+    // Vector/conj APPENDS — first element should still be 2 (the original head).
+    // first returns T directly (arc-278 — no Option wrapper).
     let v = eval_value(r#"
         (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match (:wat::core::first (:wat::core::Vector/conj [2 3] 1))
-                      -> :wat::core::bool
-                      ((:wat::core::Some x) (:wat::core::= x 2))
-                      (:None false)))
+          (:wat::core::= (:wat::core::first (:wat::core::Vector/conj [2 3] 1)) 2))
     "#);
     assert_eq!(v, Value::bool(true), "Vector/conj appends: first of conj([2,3], 1) should still be 2");
 }

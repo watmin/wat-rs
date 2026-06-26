@@ -56,14 +56,12 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
     let src = r#"
 
         (:wat::core::defmacro :my::vec-of
-          [& items <- :AST<wat::holon::Holons>]
-          -> :AST<wat::holon::HolonAST>
+          [& items <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
-                      ((:wat::core::Some n) n)
-                      (:wat::core::None -1)))
+          (:wat::core::first (:my::vec-of 10 20 30)))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
 }
@@ -75,8 +73,8 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
     let src = r#"
 
         (:wat::core::defmacro :my::empty-vec
-          [& items <- :AST<wat::holon::Holons>]
-          -> :AST<wat::holon::HolonAST>
+          [& items <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::Vector :wat::core::i64 ~@items))
 
         (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::empty-vec))
@@ -100,9 +98,9 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
     let src = r#"
 
         (:wat::core::defmacro :my::sum-of
-          [init <- :AST<wat::core::i64>
-           & items <- :AST<wat::holon::Holons>]
-          -> :AST<wat::holon::HolonAST>
+          [init <- :wat::WatAST
+           & items <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+ acc x))

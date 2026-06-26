@@ -142,12 +142,12 @@ fn macroexpand_self_recursive_macro_fails_with_macro_expansion_failed() {
     let src = r#"
 (:wat::core::defmacro :my::ping
   []
-  -> :AST
+  -> :wat::WatAST
   `(:my::pong))
 
 (:wat::core::defmacro :my::pong
   []
-  -> :AST
+  -> :wat::WatAST
   `(:my::ping))
 
 (:wat::core::defn :probe::run-macroexpand [] -> :wat::WatAST

@@ -68,8 +68,8 @@ fn run_compute(src: &str) -> Value {
 fn splice_of_vector_bound_symbol_succeeds() {
     let src = r#"
         (:wat::core::defmacro :my::splice-vec
-          [xs <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [xs <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::Vector :wat::core::i64 ~@xs))
 
         (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::splice-vec [10 20 30]))
@@ -164,11 +164,11 @@ fn anaphoric_splice_capture_refused_by_hygiene() {
 fn hygienic_splice_adder_binds_via_spliced_names() {
     let src = r#"
         (:wat::core::defmacro :my::make-adder
-          [& params <- :AST<wat::core::Vector<wat::WatAST>>]
-          -> :AST<wat::core::nil>
+          [& params <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           (:wat::core::let
-            [n0 (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::get params 0) "make-adder: missing param name 0")
-             n1 (:wat::core::Option/expect -> :wat::holon::HolonAST (:wat::core::get params 3) "make-adder: missing param name 1")]
+            [n0 (:wat::core::Option/expect (:wat::core::get params 0) "make-adder: missing param name 0")
+             n1 (:wat::core::Option/expect (:wat::core::get params 3) "make-adder: missing param name 1")]
             `(:wat::core::fn [~@params] -> :wat::core::i64
                 (:wat::core::i64::+ ~n0 ~n1))))
 
@@ -197,13 +197,13 @@ fn vector_splice_round_trip_matches_list_splice() {
     // the same runtime value. Pre-arc-200 only the first worked.
     let src = r#"
         (:wat::core::defmacro :my::sum-list
-          [& xs <- :AST<wat::core::Vector<wat::WatAST>>]
-          -> :AST<wat::core::nil>
+          [& xs <- :wat::core::Vector<wat::WatAST>]
+          -> :wat::WatAST
           `(:wat::core::i64::+ ~@xs))
 
         (:wat::core::defmacro :my::sum-vec
-          [xs <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [xs <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::i64::+ ~@xs))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
