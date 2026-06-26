@@ -5996,8 +5996,8 @@ fn infer_list(
                         }
                         Some(TypeExpr::Path(p)) => matches!(
                             env.types().get(p.as_str()),
-                            Some(crate::types::TypeDef::Struct(_))
-                                | Some(crate::types::TypeDef::Record(_))
+                            // Arc 293.2b — Struct + Record collapsed into Aggregate.
+                            Some(crate::types::TypeDef::Aggregate(_))
                         ),
                         Some(TypeExpr::Parametric { head, .. })
                             if head == "wat::core::HashMap" =>
@@ -6039,8 +6039,8 @@ fn infer_list(
                     if let Some(stem) = accessor_stem {
                         let stem_is_record = matches!(
                             env.types().get(stem),
-                            Some(crate::types::TypeDef::Record(_))
-                                | Some(crate::types::TypeDef::Struct(_))
+                            // Arc 293.2b — Struct + Record collapsed into Aggregate.
+                            Some(crate::types::TypeDef::Aggregate(_))
                         );
                         if stem_is_record {
                             // The stem is a known record/struct but `k` has no scheme →
@@ -11868,7 +11868,8 @@ fn process_let_binding(
                         }
                     };
                     let struct_def = match env.types().get(&struct_name) {
-                        Some(crate::types::TypeDef::Struct(sd)) => sd.clone(),
+                        // Arc 293.2b — struct-destructure requires Aggregate with kind==Struct.
+                        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a.clone(),
                         _ => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
@@ -12345,7 +12346,8 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
     if !from_string { return None; }
     let WatAST::StringLit(s, _) = items.get(1)? else { return None };
     let class_name = format!(":{}", s);
-    matches!(env.types().get(&class_name), Some(crate::types::TypeDef::Record(_)))
+    // Arc 293.2b — record aggregates (kind != Struct) are the records.
+    matches!(env.types().get(&class_name), Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct)
         .then(|| TypeExpr::Path(class_name))
 }
 
@@ -12617,9 +12619,9 @@ fn infer_form_matches(
         }
     };
 
-    // Resolve struct fields.
+    // Resolve struct fields. Arc 293.2b — matches? only works on Struct aggregates.
     let fields: Vec<(String, TypeExpr)> = match env.types().get(type_name) {
-        Some(crate::types::TypeDef::Struct(s)) => s.fields.clone(),
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a.fields.clone(),
         Some(_) => {
             local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
@@ -12986,8 +12988,8 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 ///   `Vector`, `List`, `HashMap`, `HashSet`, `Option`, `Result`, `Tuple`.
 /// - **Tuples**: all elements must be portable.
 /// - **User types** (Path resolved via TypeEnv):
-///   - `TypeDef::Record` — portable by construction (holon-representable).
-///   - `TypeDef::Struct` — portable iff every field type is portable (recurse).
+///   - `TypeDef::Aggregate(kind=Record|HolonRecord)` — portable by construction (holon-representable).
+///   - `TypeDef::Aggregate(kind=Struct)` — categorically non-portable (structs never cross the wire).
 ///   - `TypeDef::Enum` — portable iff every variant's field types are portable.
 ///   - `TypeDef::Newtype` — portable iff inner type is portable.
 ///   - `TypeDef::Alias` — transparent (expand_alias handles this in `reduce`).
@@ -13052,13 +13054,9 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             }
             // Look up user-defined types.
             match types.get(p) {
-                // Record types: holon-representable by construction → portable.
-                Some(crate::types::TypeDef::Record(_)) => true,
-                // Struct: categorically non-portable — struct ↛ wire by kind (arc 291 4b
-                // supersedes 254.1's field-recursion). A struct holds resources + EDN in
-                // the same body; only records (EDN-only, :wat::Record::def) cross the wire.
-                // If you want a portable-payload type with i64/bool/enum fields, use a record.
-                Some(crate::types::TypeDef::Struct(_)) => false,
+                // Arc 293.2b — Holder::is_portable() encodes the wire wall:
+                // Record | HolonRecord → portable; Struct → non-portable.
+                Some(crate::types::TypeDef::Aggregate(a)) => a.holder.is_portable(),
                 // Enum: treated as portable at the type level. Enum variant
                 // fields may include Receiver<T> in substrate service-control
                 // enums (e.g. StdOutService::Event) — recursing into them
@@ -14235,23 +14233,16 @@ pub(crate) fn assignable(
             // Clone to release the borrow of `types` before re-entering `assignable`.
             let surf_clone = surf.clone();
             if let TypeExpr::Path(ap) = &a {
-                if let Some(crate::types::TypeDef::Struct(sd)) = types.get(ap) {
-                    let fields_clone = sd.fields.clone();
+                // Arc 293.2b — Struct + Record both satisfy surfaces identically (collapse).
+                if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
+                    let fields_clone = agg.fields.clone();
                     return crate::types::surface::struct_satisfies_surface(
                         &fields_clone,
                         &surf_clone,
                         |fty, mty| assignable(fty, mty, subst, types),
                     );
                 }
-                if let Some(crate::types::TypeDef::Record(rd)) = types.get(ap) {
-                    let pairs: Vec<(String, crate::types::TypeExpr)> = rd.fields.clone();
-                    return crate::types::surface::struct_satisfies_surface(
-                        &pairs,
-                        &surf_clone,
-                        |fty, mty| assignable(fty, mty, subst, types),
-                    );
-                }
-                // actual is not a struct or record — fall through to unify.
+                // actual is not an aggregate — fall through to unify.
             }
         }
     }

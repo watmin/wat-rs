@@ -1251,7 +1251,7 @@ pub(crate) fn record_get_inner(
         reason: "record get requires the type registry".into()
     } })?;
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Record(rd)) => rd,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
@@ -1301,7 +1301,7 @@ pub(crate) fn record_contains_field_q_inner(
         reason: "record contains? requires the type registry".into()
     } })?;
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Record(rd)) => rd,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)

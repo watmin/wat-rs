@@ -1511,8 +1511,9 @@ fn edn_to_typed_value_inner(
                     path: String::new(),
                 })?;
                 match env.get(p) {
-                    Some(crate::types::TypeDef::Struct(def)) => {
-                        coerce_struct_path(p, def, edn, types)
+                    // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                        coerce_struct_path(p, a, edn, types)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
                         coerce_enum_path(p, def, edn, types)
@@ -1608,8 +1609,9 @@ fn edn_to_typed_value_inner(
                 let path = format!(":{}", head);
                 let env = types.ok_or_else(|| mismatch(target, edn))?;
                 match env.get(&path) {
-                    Some(crate::types::TypeDef::Struct(def)) => {
-                        coerce_struct_path(&path, def, edn, types)
+                    // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                        coerce_struct_path(&path, a, edn, types)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
                         coerce_enum_path(&path, def, edn, types)
@@ -1667,9 +1669,10 @@ fn edn_to_typed_value_inner(
     }
 }
 
+// Arc 293.2b — AggregateDef with kind==Struct replaces StructDef.
 fn coerce_struct_path(
     type_path: &str,
-    def: &crate::types::StructDef,
+    def: &crate::types::AggregateDef,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnCoerceError> {
@@ -1875,9 +1878,10 @@ pub fn value_to_edn_notag(
     match v {
         // ── Struct: drop tag; body is the named-field map ───────
         Value::Struct(sv) => {
+            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
-                Some(crate::types::TypeDef::Struct(def)) => {
-                    def.fields.iter().map(|(name, _)| name.clone()).collect()
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                    a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
             };
@@ -1994,9 +1998,10 @@ pub fn value_to_json_natural(
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
         Value::Struct(sv) => {
+            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
-                Some(crate::types::TypeDef::Struct(def)) => {
-                    def.fields.iter().map(|(name, _)| name.clone()).collect()
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                    a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
             };
@@ -2244,13 +2249,14 @@ fn tagged_to_value(
     let types = types.ok_or(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::NoTypeRegistry })?;
 
     // Body shape disambiguates struct vs enum.
-    // For Map bodies, resolve the TypeDef to route: Struct → reconstruct_struct,
-    // Record → reconstruct_record, neither → reconstruct_struct returns UnknownTag.
+    // Arc 293.2b: For Map bodies, resolve the TypeDef to route:
+    //   Aggregate(kind!=Struct) → reconstruct_record,
+    //   Aggregate(kind==Struct) or unknown → reconstruct_struct (returns UnknownTag on miss).
     match body {
         Edn::Map(entries) => {
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
-                Some(crate::types::TypeDef::Record(_)) => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => {
                     reconstruct_record(ns, name, entries, types, allow_caps)
                 }
                 _ => reconstruct_struct(ns, name, entries, types, allow_caps),
@@ -2259,13 +2265,13 @@ fn tagged_to_value(
         Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps),
         Edn::Nil => reconstruct_enum_unit(ns, name, types),
         // Arc 234 Stone 234.7b — holon-tagged body: a #wat-edn.holon/* tagged value
-        // under a class tag. If the class resolves to TypeDef::Record, this is a
-        // holon record (encoded by the 234.7b encode arm as holon_form-as-edn).
+        // under a class tag. If the class resolves to a record Aggregate (kind!=Struct),
+        // this is a holon record (encoded by the 234.7b encode arm as holon_form-as-edn).
         // Base records have Edn::Map bodies (handled above) — these are distinct.
         Edn::Tagged(inner_tag, _) if inner_tag.namespace() == "wat-edn.holon" => {
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
-                Some(crate::types::TypeDef::Record(_)) => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => {
                     reconstruct_holon_record(ns, name, body, types)
                 }
                 _ => {
@@ -2344,8 +2350,9 @@ fn reconstruct_struct(
     allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
+    // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
     let def = match types.get(&path) {
-        Some(crate::types::TypeDef::Struct(d)) => d,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
         _ => {
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "map" } });
@@ -2391,10 +2398,8 @@ fn reconstruct_struct(
 
 /// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::wat__Record`.
 ///
-/// Mirror of `reconstruct_struct` for `TypeDef::Record`. Uses `field_names` /
-/// `field_types` (parallel vecs on `RecordDef`) rather than `Vec<(name,ty)>` on
-/// `StructDef`. `field_types` is `Option<Vec<TypeExpr>>` — falls back to no
-/// `rewrap_option_field` when absent (untyped string-syntax record declarations).
+/// Arc 293.2b: uses `AggregateDef` (kind=Record|HolonRecord) instead of the annihilated
+/// `RecordDef`. Fields are always-typed (D2), so `rewrap_option_field` applies.
 fn reconstruct_record(
     ns: &str,
     name: &str,
@@ -2403,8 +2408,9 @@ fn reconstruct_record(
     allow_caps: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
+    // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let def = match types.get(&path) {
-        Some(crate::types::TypeDef::Record(d)) => d,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => {
             return Err(EdnReadError {
                 span: Span::unknown(),
@@ -2734,12 +2740,16 @@ mod cap_decode_boundary {
     const CAP_TAG_GENERAL: &str = "#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
 
     fn make_types() -> crate::types::TypeEnv {
-        use crate::types::{RecordDef, TypeDef, TypeExpr};
+        use crate::types::{AggregateDef, Holder, TypeDef, TypeExpr};
         // with_builtins seeds :wat::Record (required parent for SocketAddressWire).
         let mut env = crate::types::TypeEnv::with_builtins();
-        env.register_stdlib(TypeDef::Record(RecordDef {
+        // Arc 293.2b — use AggregateDef (holder=Record) instead of the annihilated RecordDef.
+        env.register_stdlib(TypeDef::Aggregate(AggregateDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),
+            type_params: vec![],
+            holder: Holder::Record,
             parent: ":wat::Record".to_string(),
+            restrictions: None,
             // minter-pid <- :wat::core::i64
             // name       <- :wat::core::Vector<wat::core::i64>
             fields: vec![
@@ -2860,10 +2870,10 @@ pub fn value_to_edn_with(
         // ── User-declared struct / enum ──────────────────────────
         Value::Struct(sv) => {
             let tag = tag_from_type_path(&sv.type_name);
-            // Look up the StructDef so we can name fields.
+            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
-                Some(crate::types::TypeDef::Struct(def)) => {
-                    def.fields.iter().map(|(name, _ty)| name.clone()).collect()
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                    a.fields.iter().map(|(name, _ty)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
             };
@@ -2975,13 +2985,13 @@ pub fn value_to_edn_with(
         }
         // Arc 234 Stone 234.7a — wat__Record (base): named-field tagged-map.
         // class_fqdn has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
-        // Mirror the Struct arm (2264-2288) exactly, using TypeDef::Record.
+        // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
         // Fallback to field-{i} when no def is found (no-types or unregistered class).
         Value::wat__Record { class_fqdn, struct_form } => {
             let tag = tag_from_type_path(class_fqdn);
             let type_key = format!(":{}", class_fqdn);
             let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Record(def)) => def.field_names().map(|s| s.to_string()).collect(),
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a.field_names().map(|s| s.to_string()).collect(),
                 _ => (0..struct_form.len()).map(|i| format!("field-{}", i)).collect(),
             };
             let entries: Vec<(OwnedValue, OwnedValue)> = struct_form

@@ -900,8 +900,9 @@ pub fn register_struct_methods(
     use crate::types::TypeDef;
 
     for (_name, def) in types.iter() {
+        // Arc 293.2b — only Aggregate with kind==Struct gets struct methods.
         let struct_def = match def {
-            TypeDef::Struct(s) => s,
+            TypeDef::Aggregate(a) if a.holder == crate::types::Holder::Struct => a,
             _ => continue,
         };
 
@@ -1229,6 +1230,37 @@ pub fn register_newtype_methods(
     Ok(())
 }
 
+/// Arc 293.2b fix — collect ALL fields (own + inherited from parent chain) for a record type.
+///
+/// Walks up the parent hierarchy, stopping at root holders (`:wat::Record`, `:wat::holon::Record`)
+/// or the Value top (`:wat::core::Value`). Returns the complete flat field list in struct_form order:
+/// grandparent fields first, then parent's own fields, then the target's own fields.
+///
+/// Used by `register_record_methods` to determine inherited fields for records with
+/// non-root parents (e.g. a user record extending `:wat::program::Env`).
+fn collect_all_record_fields(
+    type_name: &str,
+    types: &crate::types::TypeEnv,
+) -> Vec<(String, crate::types::TypeExpr)> {
+    use crate::types::{TypeDef, TypeExpr};
+    const ROOT_PARENTS: &[&str] = &[
+        ":wat::core::Value",
+        ":wat::Record",
+        ":wat::holon::Record",
+    ];
+    let Some(TypeDef::Aggregate(agg)) = types.get(type_name) else {
+        return Vec::new();
+    };
+    if ROOT_PARENTS.contains(&agg.parent.as_str()) {
+        // Parent is a root holder — own fields are the complete set.
+        return agg.fields.clone();
+    }
+    // Non-root parent: collect parent's total fields first, then append own.
+    let mut all = collect_all_record_fields(&agg.parent, types);
+    all.extend(agg.fields.iter().cloned());
+    all
+}
+
 /// Arc 258 A2 — auto-mint constructor + per-field accessors for every `TypeDef::Record`
 /// that carries typed-field information (`field_types = Some(...)`).
 ///
@@ -1273,35 +1305,33 @@ pub fn register_record_methods(
     let entries: Vec<RecordEntry> = {
         let mut out = Vec::new();
         for (_key, def) in types.iter() {
+            // Arc 293.2b — only Aggregate with holder != Struct (i.e. Record | HolonRecord)
+            // gets record methods.
             let rec_def = match def {
-                TypeDef::Record(r) => r,
+                TypeDef::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
                 _ => continue,
             };
-            // All records are typed (fields: Vec<(String, TypeExpr)>).
+            // All records are typed (fields: Vec<(String, TypeExpr)>) — D2.
             let own_types: Vec<TypeExpr> = rec_def.field_types().cloned().collect();
 
-            // Collect inherited fields by walking up the parent chain via sym.
-            // The parent's constructor function (registered at step 6) carries
-            // the inherited param names + types in declaration order.
-            let mut inherited_names: Vec<String> = Vec::new();
-            let mut inherited_types: Vec<TypeExpr> = Vec::new();
-            {
-                let parent = &rec_def.parent; // e.g. ":wat::program::Env"
-                // Walk the parent chain: stop when we hit ":wat::Record" or
-                // ":wat::holon::Record" (the root types, no user constructor).
-                if parent != ":wat::Record" && parent != ":wat::holon::Record" {
-                    if let Some(parent_fn) = sym.functions.get(parent) {
-                        // The parent constructor's params are the inherited fields
-                        // in declaration order. Collect them (but skip the very first
-                        // if it's the grandparent's inherited fields — actually the
-                        // parent constructor already has ALL its fields flattened).
-                        for (pname, ptype) in parent_fn.params.iter().zip(parent_fn.param_types.iter()) {
-                            inherited_names.push(pname.clone());
-                            inherited_types.push(ptype.clone());
-                        }
-                    }
-                }
-            }
+            // Collect inherited fields from the parent hierarchy when the parent is a
+            // non-root extensible record (e.g. `:wat::program::Env`). Root holders
+            // (`:wat::Record`, `:wat::holon::Record`) and the Value top have no
+            // user-constructable fields — nothing to inherit from them.
+            const ROOT_PARENTS: &[&str] = &[
+                ":wat::core::Value",
+                ":wat::Record",
+                ":wat::holon::Record",
+            ];
+            let (inherited_names, inherited_types) = if ROOT_PARENTS.contains(&rec_def.parent.as_str()) {
+                (Vec::new(), Vec::new())
+            } else {
+                // Transitively collect the parent's complete field list (own + inherited).
+                let parent_fields = collect_all_record_fields(&rec_def.parent, types);
+                let names = parent_fields.iter().map(|(n, _)| n.clone()).collect();
+                let tys   = parent_fields.iter().map(|(_, t)| t.clone()).collect();
+                (names, tys)
+            };
 
             out.push(RecordEntry {
                 name: rec_def.name.clone(),
@@ -1436,12 +1466,11 @@ pub fn register_type_predicates(
     for (_name, def) in types.iter() {
         // Skip Alias — it names a type, not introduces one; no predicate.
         let fqdn = match def {
-            TypeDef::Struct(s) => &s.name,
+            // Arc 293.2b — Struct + Record collapsed into Aggregate.
+            TypeDef::Aggregate(a) => &a.name,
             TypeDef::Enum(e) => &e.name,
             TypeDef::Newtype(n) => &n.name,
             TypeDef::Union(u) => &u.name,
-            // Stone S-B.1 — record class inherits ∀T is-<Name>? synthesis.
-            TypeDef::Record(r) => &r.name,
             // Arc 293.3-core — surface gets an is-<Name>? predicate (structural conformance).
             TypeDef::Surface(s) => &s.name,
             TypeDef::Alias(_) => continue,
@@ -5315,8 +5344,9 @@ fn keyword_accessor_record(
         head: OP.into(),
         reason: "record keyword-accessor requires the type registry".into()
     } })?;
+    // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Record(rd)) => rd,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -5351,8 +5381,9 @@ fn keyword_accessor_struct(
         head: OP.into(),
         reason: "struct keyword-accessor requires the type registry".into()
     } })?;
+    // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
     let struct_def = match types.get(&sv.type_name) {
-        Some(crate::types::TypeDef::Struct(sd)) => sd,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -6668,13 +6699,14 @@ fn bind_let_binding(
                 head: ":wat::core::let".into(),
                 reason: "struct destructure requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
             } })?;
+            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let struct_def = match types.get(&sv.type_name) {
-                Some(crate::types::TypeDef::Struct(sd)) => sd,
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
                 _ => {
                     return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "struct destructure: rhs type {} is not registered as a struct in the TypeEnv (programmer error: a Value::Struct exists at runtime without a corresponding StructDef)",
+                            "struct destructure: rhs type {} is not registered as a struct in the TypeEnv (programmer error: a Value::Struct exists at runtime without a corresponding AggregateDef{{kind=Struct}})",
                             sv.type_name
                         )
                     } }.into());
@@ -9511,14 +9543,18 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
 fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
     let span = Span::unknown();
     let (base, type_params) = match def {
-        // Stone S-B.1 — record has no type params; emit name only.
-        crate::types::TypeDef::Record(r) => {
-            return WatAST::List(
-                vec![WatAST::Keyword(r.name.clone(), span.clone())],
-                span,
-            );
+        // Arc 293.2b — Aggregate: record kind has no type params (emit name only);
+        // struct kind may have type params (fall through to normal path).
+        crate::types::TypeDef::Aggregate(a) => {
+            if a.holder != crate::types::Holder::Struct {
+                // Record | HolonRecord — no type params.
+                return WatAST::List(
+                    vec![WatAST::Keyword(a.name.clone(), span.clone())],
+                    span,
+                );
+            }
+            (a.name.clone(), &a.type_params)
         }
-        crate::types::TypeDef::Struct(s) => (s.name.clone(), &s.type_params),
         crate::types::TypeDef::Enum(e) => (e.name.clone(), &e.type_params),
         crate::types::TypeDef::Newtype(n) => (n.name.clone(), &n.type_params),
         crate::types::TypeDef::Alias(a) => (a.name.clone(), &a.type_params),
@@ -9550,16 +9586,22 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
 fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     let span = Span::unknown();
     let head_kw = match def {
-        // Stone 241.8 — defstruct replaces struct.
-        crate::types::TypeDef::Struct(_) => ":wat::core::defstruct",
+        // Arc 293.2b — Aggregate branches on kind for the correct declaration head.
+        crate::types::TypeDef::Aggregate(a) => {
+            if a.holder == crate::types::Holder::Struct {
+                // Stone 241.8 — defstruct replaces struct.
+                ":wat::core::defstruct"
+            } else {
+                // Stone S-B.1 — record class declaration form.
+                ":wat::core::recordtype"
+            }
+        }
         // Stone 241.9 — defenum replaces enum (HARD CUT).
         crate::types::TypeDef::Enum(_) => ":wat::core::defenum",
         crate::types::TypeDef::Newtype(_) => ":wat::core::newtype",
         crate::types::TypeDef::Alias(_) => ":wat::core::typealias",
         // Stone 237.1 — typeunion is type-only; no runtime artifact.
         crate::types::TypeDef::Union(_) => ":wat::core::typeunion",
-        // Stone S-B.1 — record class declaration form.
-        crate::types::TypeDef::Record(_) => ":wat::core::recordtype",
         // Arc 293.3-core — structural surface declaration form.
         crate::types::TypeDef::Surface(_) => ":wat::core::defsurface",
     };
@@ -10750,11 +10792,12 @@ fn eval_form_matches(
     // harnesses that bypass freeze) — the result is that bindings
     // can't resolve, so the matcher returns false at the first
     // binding clause.
+    // Arc 293.2b — Struct aggregates (kind==Struct) replace TypeDef::Struct.
     let field_names: Vec<String> = sym
         .types()
         .and_then(|t| match t.get(type_name) {
-            Some(crate::types::TypeDef::Struct(sd)) => {
-                Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
+            Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                Some(a.fields.iter().map(|(n, _)| n.clone()).collect())
             }
             _ => None,
         })
@@ -12874,11 +12917,10 @@ fn conforms_check(
                 // surface) is not yet implemented; falls through as false. The static type checker
                 // (`assignable`) handles structural surface satisfaction at compile time.
                 Some(TypeDef::Surface(_)) => Ok(false),
-                Some(TypeDef::Struct(_))
+                // Arc 293.2b — Aggregate (Struct + Record collapsed) + Enum + Newtype.
+                Some(TypeDef::Aggregate(_))
                 | Some(TypeDef::Enum(_))
-                | Some(TypeDef::Newtype(_))
-                // Stone S-B.1 — record class: nominal exact (mirror Struct; no parent-walk).
-                | Some(TypeDef::Record(_)) => {
+                | Some(TypeDef::Newtype(_)) => {
                     let stripped_name = name.strip_prefix(':').unwrap_or(name.as_str());
                     if stripped_name == "wat::Record" || stripped_name == "wat::holon::Record" {
                         return Ok(matches!(
@@ -13460,8 +13502,9 @@ fn record_field_map(
                 head: op.into(),
                 reason: "record->map requires the type registry".into()
             } })?;
+            // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
             let record_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Record(rd)) => rd,
+                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
                 _ => {
                     return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: op.into(),
@@ -13603,8 +13646,9 @@ fn record_assoc_inner(
             head: OP.into(),
             reason: "record assoc requires the type registry".into()
         } })?;
+        // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
         let record_def = match types.get(&type_key) {
-            Some(crate::types::TypeDef::Record(rd)) => rd,
+            Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
             _ => {
                 return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
@@ -13681,8 +13725,9 @@ fn record_assoc_inner(
         head: OP.into(),
         reason: "record assoc requires the type registry".into()
     } })?;
+    // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Record(rd)) => rd,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),

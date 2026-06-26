@@ -162,8 +162,8 @@ pub use runtime::{
 };
 pub use value::{EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
 pub use types::{
-    parse_type_expr, register_stdlib_types, register_types, AliasDef, EnumDef, EnumVariant,
-    NewtypeDef, StructDef, TypeDef, TypeEnv, TypeError, TypeExpr,
+    parse_type_expr, register_stdlib_types, register_types, AggregateDef, Holder,
+    AliasDef, EnumDef, EnumVariant, NewtypeDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
 use holon::{encode, ScalarEncoder, Vector, VectorManager};

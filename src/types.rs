@@ -121,19 +121,54 @@ pub struct StructRestrictions {
     pub field_restrictions: HashMap<String, Vec<String>>,
 }
 
-/// Struct declaration — named product type.
+/// Arc 293.2b — `Holder` is the one categorical axis for aggregates: the EDN capability trit.
+/// Three variants:
+///   Struct      = named product type (stays in process, never crosses the wire)
+///   Record      = base record (`:wat::Record` hierarchy, wire-portable)
+///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Holder {
+    Struct,
+    Record,
+    HolonRecord,
+}
+
+impl Holder {
+    /// The R8 wire wall: structs never cross the wire; records (core + holon) do.
+    pub fn is_portable(&self) -> bool { !matches!(self, Holder::Struct) }
+}
+
+/// Arc 293.2b — unified product-type declaration (replaces the annihilated `StructDef` +
+/// `RecordDef`). Carries `holder: Holder` (the categorical EDN-capability axis) and
+/// `parent: String` (the base edge; `:wat::core::Value` for structs / direct root-children;
+/// the actual extensible base for records with a non-root parent).
+///
+/// Produced by:
+///   - `parse_defstruct` → `holder: Struct, parent: ":wat::core::Value", restrictions: Some/None`
+///   - `parse_recordtype` → `holder: Record | HolonRecord, parent: <parent arg>, restrictions: None`
+///   - `register_builtin_types` → `holder: Struct, parent: ":wat::core::Value"` for all builtins
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructDef {
+pub struct AggregateDef {
     pub name: String,
-    pub type_params: Vec<String>,
-    pub fields: Vec<(String, TypeExpr)>,
-    /// Arc 203 — `None` for plain `:wat::core::struct` declarations;
-    /// `Some(_)` for `:wat::core::struct-restricted` declarations.
-    /// When present, `register_struct_methods` writes the ctor + per-field
-    /// whitelists into `SymbolTable.binding_metadata` (under `:restricted-to`)
-    /// alongside the synthesized Function entries (Stone 241.14 — migrated
-    /// from the deleted `defined_value_restrictions` field).
+    pub type_params: Vec<String>,         // structs use; records leave empty
+    pub fields: Vec<(String, TypeExpr)>,  // always-typed (D2)
+    pub holder: Holder,
+    /// Base edge. `:wat::core::Value` for structs and direct-root-children (no lattice edge
+    /// registered). Actual parent FQDN for records with an extensible base (e.g. `program::Env`).
+    pub parent: String,
+    /// Arc 203 — access-control restrictions. Struct-only; always `None` for records.
     pub restrictions: Option<StructRestrictions>,
+}
+
+impl AggregateDef {
+    /// Iterator over field names in declaration order.
+    pub fn field_names(&self) -> impl Iterator<Item = &str> {
+        self.fields.iter().map(|(n, _)| n.as_str())
+    }
+    /// Iterator over field types in declaration order.
+    pub fn field_types(&self) -> impl Iterator<Item = &TypeExpr> {
+        self.fields.iter().map(|(_, t)| t)
+    }
 }
 
 /// Enum declaration — coproduct type. Variants are either unit
@@ -187,35 +222,6 @@ pub struct UnionDef {
     pub members: Vec<TypeExpr>,
 }
 
-/// Record class declaration — Stone S-B.1.
-///
-/// `(:wat::core::recordtype :my::Circle :wat::Record ["field1" "field2"])` declares
-/// a record class as a real `TypeDef` so it inherits the type system's uniform
-/// services: ∀T `is-<Name>?` synthesis + `typesub` hierarchy membership.
-/// Field names are a CLASS property (Ruby model: class defines attrs, instance
-/// holds values); `struct_form` stays positional `Arc<Vec<Value>>`.
-/// NOT fed to `register_struct_methods` — dedicated kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordDef {
-    pub name: String,
-    pub parent: String,
-    /// Fields in declaration order: (name, TypeExpr). Empty for zero-field records.
-    /// Name-based access (keyword-accessor, assoc, record->map) looks up
-    /// the index here, then reads/writes `struct_form[index]`.
-    pub fields: Vec<(String, TypeExpr)>,
-}
-
-impl RecordDef {
-    /// Iterator over field names in declaration order.
-    pub fn field_names(&self) -> impl Iterator<Item = &str> {
-        self.fields.iter().map(|(n, _)| n.as_str())
-    }
-    /// Iterator over field types in declaration order.
-    pub fn field_types(&self) -> impl Iterator<Item = &TypeExpr> {
-        self.fields.iter().map(|(_, t)| t)
-    }
-}
-
 /// Surface declaration — structural interface (arc 293.3-core).
 ///
 /// `(:wat::core::defsurface :Name [member <- :T ...])` declares a named
@@ -230,18 +236,17 @@ pub struct SurfaceDef {
     pub members: Vec<(String, TypeExpr)>,
 }
 
-/// One of the seven declaration variants.
+/// One of the declaration variants (arc 293.2b: Struct+Record merged → Aggregate).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeDef {
-    Struct(StructDef),
+    /// Arc 293.2b — unified product-type declaration (struct or record, discriminated by kind).
+    Aggregate(AggregateDef),
     Enum(EnumDef),
     Newtype(NewtypeDef),
     Alias(AliasDef),
     /// Stone 237.1 — named bounded set of types for bounded-existential
     /// unification. See [`UnionDef`].
     Union(UnionDef),
-    /// Stone S-B.1 — record class as a real TypeDef. See [`RecordDef`].
-    Record(RecordDef),
     /// Arc 293.3-core — structural surface for row-polymorphic width subtyping.
     Surface(SurfaceDef),
 }
@@ -249,13 +254,12 @@ pub enum TypeDef {
 impl TypeDef {
     pub fn name(&self) -> &str {
         match self {
-            TypeDef::Struct(s) => &s.name,
+            // Arc 293.2b — Struct + Record collapsed into Aggregate.
+            TypeDef::Aggregate(a) => &a.name,
             TypeDef::Enum(e) => &e.name,
             TypeDef::Newtype(n) => &n.name,
             TypeDef::Alias(a) => &a.name,
             TypeDef::Union(u) => &u.name,
-            // Stone S-B.1
-            TypeDef::Record(r) => &r.name,
             // Arc 293.3-core
             TypeDef::Surface(s) => &s.name,
         }
@@ -420,26 +424,30 @@ impl TypeEnv {
             validate_union_members(&name, &union.members, &span)?;
             check_union_no_cycle(&name, &union.members, self, &span)?;
         }
-        // Stone S-B.1 — record type: verify parent is known, wire subtype edge.
-        if let TypeDef::Record(rec) = &def {
-            let parent = rec.parent.clone();
-            // Parent must already be registered in the TypeEnv. The built-in
-            // roots `:wat::Record` and `:wat::holon::Record` are registered as
-            // opaque TypeDef::Struct entries, so `contains_key` is the right gate.
-            if !self.types.contains_key(&parent) {
-                return Err(TypeError {
-                    span,
-                    kind: TypeErrorKind::MalformedDecl {
-                        head: "recordtype".into(),
-                        reason: format!(
-                            "parent '{}' is not a known type; declare it before this recordtype",
-                            parent
-                        ),
-                    },
-                });
+        // Arc 293.2b — record aggregate: wire subtype edge to the stored `parent`.
+        // Structs and root-children use `parent == ":wat::core::Value"` — skip (Value-top is a
+        // rule, not a registered edge; `is_subtype` handles it implicitly).
+        if let TypeDef::Aggregate(agg) = &def {
+            if agg.parent != ":wat::core::Value" {
+                // Parent must already be registered — either a root holder
+                // (`:wat::Record` / `:wat::holon::Record`) or an extensible record base
+                // (e.g. `:wat::program::Env`).
+                if !self.types.contains_key(&agg.parent) {
+                    return Err(TypeError {
+                        span,
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: "recordtype".into(),
+                            reason: format!(
+                                "parent '{}' is not a known type; declare it before this recordtype",
+                                agg.parent
+                            ),
+                        },
+                    });
+                }
+                let parent = agg.parent.clone();
+                self.types.insert(name.clone(), def);
+                return self.register_subtype(&name, &parent, span);
             }
-            self.types.insert(name.clone(), def);
-            return self.register_subtype(&name, &parent, span);
         }
         self.types.insert(name, def);
         Ok(())
@@ -511,7 +519,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // budget). The two fields are honest: cost is what the Bundle was
     // asked to hold; budget is what the substrate could hold. Both
     // i64 because wat integer literals are i64.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::holon::CapacityExceeded".into(),
         type_params: vec![],
         fields: vec![
@@ -596,7 +604,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Plus the constructor :wat::core::EvalError/new for cases where
     // user code wants to synthesize one (rare — normally produced by
     // the runtime).
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::core::EvalError".into(),
         type_params: vec![],
         fields: vec![
@@ -878,7 +886,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload
     // needs to cite file:line:col.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::Location".into(),
         type_params: vec![],
         fields: vec![
@@ -895,7 +903,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `RUST_BACKTRACE` is enabled (otherwise the frames vec is empty).
     // Each field is Option because Rust's backtrace symbol resolution
     // can fail per-frame (stripped symbols, jit frames).
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::Frame".into(),
         type_params: vec![],
         fields: vec![
@@ -929,7 +937,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // message / location / frames from `catch_unwind`; slice 3's
     // `:wat::test::assert-*` primitives additionally populate actual /
     // expected when the panic payload carries an AssertionPayload.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::Failure".into(),
         type_params: vec![],
         fields: vec![
@@ -971,7 +979,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // everything the sandboxed `:user::main` wrote through its stdio
     // channels, line by line. `failure` is `:None` on success; slice 2b
     // populates it with a `Failure` when `catch_unwind` catches.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::RunResult".into(),
         type_params: vec![],
         fields: vec![
@@ -1023,7 +1031,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Auto-generated `StartupError/new` + `StartupError/message`
     // accessor land in the symbol table at freeze time via
     // register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::StartupError".into(),
         type_params: vec![],
         fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
@@ -1065,7 +1073,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `Process/new` + per-field accessors land in the
     // symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::Process".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1113,7 +1121,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Auto-generated `Thread/new` + per-field accessors (`Thread/input`,
     // `Thread/output`, `Thread/join`) land in the symbol table at
     // freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::Thread".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1179,7 +1187,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // accessors directly — the substrate verbs reach into the struct
     // by index — but they exist for future stones and for diagnostic
     // introspection.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::ThreadPeer".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1260,7 +1268,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // behavior-preserving. The dishonest `rust::crossbeam_channel::*`
     // names are retired from the FIELD DECLARATIONS here (Stone C3);
     // the alias registrations in channel.wat remain as the alias target.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::kernel::ProcessPeer".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1322,7 +1330,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `CoincidentExplanation/new` + per-field accessors
     // land in the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::holon::CoincidentExplanation".into(),
         type_params: vec![],
         fields: vec![
@@ -1360,7 +1368,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `RunResultIO/new` + per-field accessors land in
     // the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::test::RunResultIO".into(),
         type_params: vec!["O".into()],
         fields: vec![
@@ -1398,7 +1406,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // contains the path and `env.types().get(":wat::Record")` resolves
     // cleanly. Per-class types (`:myapp::Voltage` as `:wat::Record` aliases)
     // ship in Stone 234.2b when the defrecord macro lands.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -1416,7 +1424,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `register_type_predicates` to synthesize `:wat::holon::is-Record?` for it
     // (same as `:wat::Record` already gets `:wat::is-Record?`). This is correct —
     // it is a type. See SCORE-STONE-S-A § Honest deltas.
-    env.register_builtin(TypeDef::Struct(StructDef {
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct, parent: ":wat::core::Value".to_string(),
         name: ":wat::holon::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -2052,14 +2060,15 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 ///
 /// Three positional slots after the head keyword (consumed by `parse_type_decl`):
 ///   args[0] — name keyword (e.g. `:my::Circle`)
-///   args[1] — parent type keyword (e.g. `:wat::Record` or `:wat::holon::Record`)
+///   args[1] — parent type keyword — MUST be `:wat::Record` or `:wat::holon::Record`
+///              (arc 293.2b: any other parent → MalformedDecl error; kind encodes core-vs-holon)
 ///   args[2] — vector of field-name string literals in declaration order
 ///              (e.g. `["radius"]` or `[]` for zero-field records)
 ///
 /// HARD CUT: 2-arg form is rejected. A 0-field record passes `[]`.
 ///
-/// → `TypeDef::Record(RecordDef { name, parent, field_names })`. Parent validity is
-/// checked at registration time (in `register_with_span`).
+/// → `TypeDef::Aggregate(AggregateDef { holder: Record | HolonRecord, parent: <parent arg>, … })`.
+/// Parent validity is checked at registration time (in `register_with_span`).
 fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 3 {
         return Err(TypeError {
@@ -2104,19 +2113,18 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             })
         }
     };
-    // Parent: plain type keyword.
-    let parent = match parent_kw {
+    // Parent: any plain type keyword. The holder is derived directly:
+    //   - `:wat::holon::Record` → HolonRecord
+    //   - anything else        → Record
+    // (A record extending a non-root base like `:wat::program::Env` is a Record — its holder
+    // is determined by the root of the parent chain, not the immediate parent. The simple
+    // direct-parent check is correct here because holon extension is always declared against
+    // `:wat::holon::Record` itself; extending a non-root holon base is not supported and would
+    // be a STOP-1 trigger.)
+    let (holder, parent) = match parent_kw {
         WatAST::Keyword(k, _) => {
-            if !k.starts_with(':') {
-                return Err(TypeError {
-                    span: decl_span,
-                    kind: TypeErrorKind::MalformedDecl {
-                        head: "recordtype".into(),
-                        reason: format!("parent must begin with ':'; got {}", k),
-                    },
-                });
-            }
-            k
+            let h = if k == ":wat::holon::Record" { Holder::HolonRecord } else { Holder::Record };
+            (h, k)
         }
         other => {
             return Err(TypeError {
@@ -2220,7 +2228,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             });
         }
     };
-    Ok(TypeDef::Record(RecordDef { name, parent, fields }))
+    Ok(TypeDef::Aggregate(AggregateDef { name, type_params: vec![], fields, holder, parent, restrictions: None }))
 }
 
 // Stone 241.9 — `parse_field` DELETED. Its only caller was `parse_enum_variant`,
@@ -3302,14 +3310,14 @@ mod tests {
         assert!(rest.is_empty());
         let def = env.get(":project::market::Candle").expect("registered");
         match def {
-            TypeDef::Struct(s) => {
-                assert_eq!(s.name, ":project::market::Candle");
-                assert!(s.type_params.is_empty());
-                assert_eq!(s.fields.len(), 4);
-                assert_eq!(s.fields[0].0, "open");
-                assert_eq!(s.fields[0].1, TypeExpr::Path(":wat::core::f64".into()));
+            TypeDef::Aggregate(a) => {
+                assert_eq!(a.name, ":project::market::Candle");
+                assert!(a.type_params.is_empty());
+                assert_eq!(a.fields.len(), 4);
+                assert_eq!(a.fields[0].0, "open");
+                assert_eq!(a.fields[0].1, TypeExpr::Path(":wat::core::f64".into()));
             }
-            _ => panic!("expected Struct"),
+            _ => panic!("expected Aggregate"),
         }
     }
 
@@ -3324,11 +3332,11 @@ mod tests {
         .unwrap();
         let def = env.get(":my::Container").expect("registered");
         match def {
-            TypeDef::Struct(s) => {
-                assert_eq!(s.type_params, vec!["T".to_string()]);
-                assert_eq!(s.fields[0].1, TypeExpr::Path(":T".into()));
+            TypeDef::Aggregate(a) => {
+                assert_eq!(a.type_params, vec!["T".to_string()]);
+                assert_eq!(a.fields[0].1, TypeExpr::Path(":T".into()));
             }
-            _ => panic!("expected Struct"),
+            _ => panic!("expected Aggregate"),
         }
     }
 
@@ -3342,10 +3350,10 @@ mod tests {
         )
         .unwrap();
         let def = env.get(":my::Pair").expect("registered");
-        if let TypeDef::Struct(s) = def {
-            assert_eq!(s.type_params, vec!["K".to_string(), "V".to_string()]);
+        if let TypeDef::Aggregate(a) = def {
+            assert_eq!(a.type_params, vec!["K".to_string(), "V".to_string()]);
         } else {
-            panic!("expected Struct");
+            panic!("expected Aggregate");
         }
     }
 

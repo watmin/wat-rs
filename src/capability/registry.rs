@@ -243,12 +243,15 @@ mod waist_proof {
 
     /// Build a minimal TypeEnv with SocketAddressWire registered — enough for the codec tests.
     fn make_types_with_wire() -> TypeEnv {
-        use crate::types::{RecordDef, TypeDef, TypeExpr};
+        use crate::types::{AggregateDef, Holder, TypeDef, TypeExpr};
         // with_builtins seeds :wat::Record (the required parent) + other kernel builtins.
         let mut env = TypeEnv::with_builtins();
-        env.register_stdlib(TypeDef::Record(RecordDef {
+        env.register_stdlib(TypeDef::Aggregate(AggregateDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),
+            type_params: vec![],
+            holder: Holder::Record,
             parent: ":wat::Record".to_string(),
+            restrictions: None,
             // minter-pid <- :wat::core::i64
             // name       <- :wat::core::Vector<wat::core::i64>
             fields: vec![

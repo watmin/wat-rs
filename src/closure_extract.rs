@@ -1320,7 +1320,9 @@ fn extract_user_types_to_fixpoint(
 /// enum variant fields, newtype inner, alias target).
 fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
     match def {
-        TypeDef::Struct(s) => s.fields.iter().map(|(_, t)| t.clone()).collect(),
+        // Arc 293.2b — Aggregate carries fields for both struct and record kinds.
+        // Records also have typed fields (D2), so return them. Struct fields were already returned.
+        TypeDef::Aggregate(a) => a.fields.iter().map(|(_, t)| t.clone()).collect(),
         TypeDef::Enum(e) => {
             let mut out = Vec::new();
             for v in &e.variants {
@@ -1336,10 +1338,6 @@ fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
         TypeDef::Alias(a) => vec![a.expr.clone()],
         // Stone 237.1 — typeunion members are the inner type references.
         TypeDef::Union(u) => u.members.clone(),
-        // Stone S-B.1 — record has no inner type references (fields live in
-        // the macro's emitted accessors; parent is a hierarchy edge, not a
-        // contained TypeExpr).
-        TypeDef::Record(_) => vec![],
         // Arc 293.3-core — surface members are typed; return their TypeExprs.
         TypeDef::Surface(s) => s.members.iter().map(|(_, t)| t.clone()).collect(),
     }
@@ -1877,9 +1875,14 @@ fn encode_struct(
 ) -> Result<WatAST, ExtractionError> {
     // Pull field names from the TypeEnv (if available) for nicer path
     // diagnostics; positional order is what `<Type>/new` expects.
+    // Arc 293.2b — AggregateDef with kind==Struct replaces StructDef.
     let field_names: Option<Vec<String>> = state.parent_types.get(&sv.type_name).and_then(|td| {
-        if let TypeDef::Struct(sd) = td {
-            Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
+        if let TypeDef::Aggregate(a) = td {
+            if a.holder == crate::types::Holder::Struct {
+                Some(a.fields.iter().map(|(n, _)| n.clone()).collect())
+            } else {
+                None
+            }
         } else if let TypeDef::Newtype(_) = td {
             Some(vec!["0".to_string()])
         } else {
@@ -2314,23 +2317,38 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
     // Reconstruct the source-form for a TypeDef.
     let span = Span::unknown();
     match def {
-        TypeDef::Struct(s) => {
-            // Stone 241.8 — emit defstruct triple-form: [field <- :T ...].
-            let mut field_vec_items = Vec::with_capacity(s.fields.len() * 3);
-            for (fname, fty) in &s.fields {
-                field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
-                field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
-                field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
+        // Arc 293.2b — Aggregate branches on holder to reconstruct the right source form.
+        TypeDef::Aggregate(a) => match a.holder {
+            crate::types::Holder::Struct => {
+                // Stone 241.8 — emit defstruct triple-form: [field <- :T ...].
+                let mut field_vec_items = Vec::with_capacity(a.fields.len() * 3);
+                for (fname, fty) in &a.fields {
+                    field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
+                    field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
+                    field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
+                }
+                WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::defstruct".into(), span.clone()),
+                        WatAST::Keyword(format_type_decl_name(&a.name, &a.type_params), span.clone()),
+                        WatAST::Vector(field_vec_items, span.clone()),
+                    ],
+                    span,
+                )
             }
-            WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::defstruct".into(), span.clone()),
-                    WatAST::Keyword(format_type_decl_name(&s.name, &s.type_params), span.clone()),
-                    WatAST::Vector(field_vec_items, span.clone()),
-                ],
-                span,
-            )
-        }
+            _ => {
+                // Stone S-B.1 — reconstruct recordtype form from AggregateDef.
+                // Use the stored parent directly (it's a field again — arc 293.2b fix).
+                WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
+                        WatAST::Keyword(a.name.clone(), span.clone()),
+                        WatAST::Keyword(a.parent.clone(), span.clone()),
+                    ],
+                    span,
+                )
+            }
+        },
         TypeDef::Enum(e) => {
             // Stone 241.9 — emit defenum positional grammar:
             //   :V1_unit_kw  :V2_tagged_kw [f1 <- :T1 ...]  :V3_unit_kw ...
@@ -2400,15 +2418,6 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                 span,
             )
         }
-        // Stone S-B.1 — reconstruct recordtype form from RecordDef.
-        TypeDef::Record(r) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
-                WatAST::Keyword(r.name.clone(), span.clone()),
-                WatAST::Keyword(r.parent.clone(), span.clone()),
-            ],
-            span,
-        ),
         // Arc 293.3-core — reconstruct defsurface form: [member <- :T ...].
         TypeDef::Surface(s) => {
             let mut member_vec_items = Vec::with_capacity(s.members.len() * 3);

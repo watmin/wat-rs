@@ -11,7 +11,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
 
-use super::{StructDef, StructRestrictions, TypeDef, TypeExpr, TypeError, TypeErrorKind};
+use super::{AggregateDef, Holder, StructRestrictions, TypeDef, TypeExpr, TypeError, TypeErrorKind};
 
 const HEAD: &str = ":wat::core::defstruct";
 
@@ -365,10 +365,12 @@ pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<Type
         })
     };
 
-    Ok(TypeDef::Struct(StructDef {
+    Ok(TypeDef::Aggregate(AggregateDef {
         name,
         type_params,
         fields,
+        holder: Holder::Struct,
+        parent: ":wat::core::Value".to_string(),
         restrictions,
     }))
 }
