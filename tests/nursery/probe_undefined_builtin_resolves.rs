@@ -51,6 +51,7 @@ const VALID_OPERATOR: &str = r#"
 
 // RED at HEAD: freezes clean today (deferred to runtime); GREEN after the fix.
 #[test]
+#[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn wrong_operator_leaf_is_a_check_error() {
     let result = check_result(WRONG_OPERATOR_LEAF);
     assert!(
@@ -63,6 +64,7 @@ fn wrong_operator_leaf_is_a_check_error() {
 
 // RED at HEAD.
 #[test]
+#[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn bogus_leaf_under_known_namespace_is_a_check_error() {
     let result = check_result(BOGUS_LEAF);
     assert!(

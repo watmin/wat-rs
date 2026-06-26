@@ -42,6 +42,7 @@ fn metadata_of_is_some(src: &str, name_kw: &str) -> bool {
 
 // RED at HEAD: a rust builtin is not registered → metadata-of returns None.
 #[test]
+#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_a_rust_builtin() {
     assert!(
         metadata_of_is_some("", ":wat::core::i64::+"),
@@ -53,6 +54,7 @@ fn metadata_of_answers_for_a_rust_builtin() {
 
 // RED at HEAD: a bare user defn has no guaranteed baseline → metadata-of None.
 #[test]
+#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn user_form_carries_guaranteed_baseline() {
     let src = "(:wat::core::defn :my::f [x <- :wat::core::i64] -> :wat::core::i64 x)";
     assert!(
@@ -147,6 +149,7 @@ fn enum_variant(v: &Value) -> String {
 }
 
 #[test]
+#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
     let map = metadata_of_map(":wat::core::Bytes::to-hex");
 
@@ -174,6 +177,7 @@ fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
 }
 
 #[test]
+#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_bytes_from_hex_intrinsic() {
     let map = metadata_of_map(":wat::core::Bytes::from-hex");
 

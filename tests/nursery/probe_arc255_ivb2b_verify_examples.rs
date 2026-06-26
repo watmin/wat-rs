@@ -41,6 +41,7 @@ fn verify_examples_failure_count() -> Result<usize, String> {
 }
 
 #[test]
+#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn verify_examples_reports_no_failures() {
     // RED at HEAD: the verb doesn't exist → eval errors here.
     let n = verify_examples_failure_count()
