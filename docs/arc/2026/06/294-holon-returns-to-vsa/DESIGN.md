@@ -179,6 +179,40 @@ in `runtime.rs`/`types.rs`/`check.rs`. (Construction homes to `src/aggregate/` p
 - **Q-E — NOT a question; the SURVEY** (in flight): the role-census + blast-radius sizing. Grounds execution,
   decides nothing. (Builder: *"more like a survey."*)
 
+## Census (294.0) — measured + WEIGHED against the disk (2026-06-27)
+
+The Explore survey + the orchestrator's own spot-check (`PROBA NE DUBITES`). 1161 HolonAST mentions / 23 files
+(±5-10% per-role estimates):
+
+| role | ~count | fate |
+|---|---|---|
+| **VSA-ALGEBRA** (Atom/Bind/Bundle/Permute/encode/hologram store/codec) | ~375 | **KEEP** → `Hologram` in `src/holon/` |
+| **LEAVES/TYPES** (leaf variants, `BundleResult`/`Holons` aliases, type paths) | ~200 | **KEEP** (the `Hologram` type) |
+| **REFLECTION-IR** (signatures-as-Bundle) | ~175 | **MIGRATE → WatAST** (Q-A) |
+| **CONVERSION-GLUE** (`watast↔holon`, the verb handlers) | ~175 | mostly **DIES**; `to-holon` survives as the codec |
+| **WIRE** (`HolonRepresentable` + tags + round-trip) | ~136 | **ANNIHILATE** |
+| **TESTS** | ~100 | follow their subject |
+| **VESTIGIAL CODE-AST** | **0** | confirmed empty — HolonAST is NEVER the engine code-AST |
+
+**Verdicts (weighed):**
+- **Q-E:** VESTIGIAL=0 confirmed (own grep + survey). Real volume, sound direction, no surprise coupling.
+- **Q-A (reflection → WatAST):** **BOUNDED.** Option A — `function_to_signature_ast` returns WatAST,
+  `DefInfo.signature: WatAST`, rewrite the **3 positional walkers** (`extract-arg-names`/`-types`/`rename-callable-name`
+  — they key on the `Symbol("->")` sentinel + `children[0]`), ~**15 call sites**; the public verbs
+  (`signature-of-defn`/`-fn`) can emit at the boundary for back-compat. Not trivial, not deep.
+- **Q-C (eager parity):** **IMPLEMENTABLE.** `holon_form` has exactly 4 read contexts (identity / wire / VSA ops /
+  `record-assoc` rebuild); the rebuild already derives from `(class_fqdn, RecordDef.field_names, struct_form)`
+  (`runtime.rs:13753+`), so maintaining parity on every mutation is the existing path made canonical. (The survey's
+  "lazy viable" verdict is moot per the builder's eager call — recorded.)
+- **Q-D (EDN identity):** **NO VETO, CONFIRMED against the disk** — `hologram.rs:68` is `Vec<HashMap<HolonAST,
+  HolonAST>>` (records never keys); similarity is cosine on `Vector`. Pre-condition (defrecord the sole constructor,
+  isomorphism held across all 3 ctor paths) holds.
+
+**FLAW #7 (census bonus) — the equality split-brain.** Rust `PartialEq` keys on `holon_form` (`value.rs:676`,
+comment *"struct_form is access optimization; not identity"* — the backwards framing); wat-surface `=` keys on
+`struct_form` (`runtime.rs:8129`). Two equality contracts on one type, equivalent only by the construction
+invariant. **Q-D collapses them into ONE contract on the data** — the flip is a decomplection, not just an enabler.
+
 ## Decomposition (provisional — sequence after the open questions settle)
 - **294.0** — the census + the disconfirming probes (EDN-wire round-trip without tags; `build-hologram` over a
   nested EDN value; a holon record equal-by-data). Commit RED.
