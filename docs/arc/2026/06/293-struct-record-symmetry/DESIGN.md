@@ -180,6 +180,80 @@ the old heads so nothing drifts silently.
 - **The dotted clojure-symbolic surface** (`wat.core/defrecord` ↔ `:wat::core::defrecord`) — arc 251's axis; pick 251-ready names, don't switch notation here.
 - **Anonymous structural *unions*** — NO. Sums stay nominal (`defenum`, arc 258). Structural is for product *surfaces* only.
 
+## THE HOLDER × SURFACE MODEL — CRYSTALLIZED (2026-06-26, the base-struct co-design / R2)
+
+> **AMEND-WITH-RECOGNITION.** This is the settled model the arc converged on across the long base-struct
+> co-design. It SUPERSEDES three earlier framings (path preserved, marked ⊘): the `[holder ∩ surface]`
+> **inline-vec intersection** is ANNIHILATED; the unify-D1 "parent derived-and-dropped" is superseded by
+> "extension is structural"; the "kind 2-way vs 3-way" question is resolved — 3-way, named **`Holder`**.
+
+### The two axes — orthogonal, both first-class in type position
+
+**HOLDER (nominal, categorical — the trit).** `Holder = { Struct, Record, HolonRecord }` — the ONE
+categorical axis, a balanced trit / capability ladder:
+- **`Struct` (−1):** in-locus, holds non-portable resources, NEVER crosses the wire (`is_portable=false`, R8/4b-i).
+- **`Record` (0):** EDN-representable, crosses. The canonical middle.
+- **`HolonRecord` (+1):** EDN **+** a holographic VSA encoding (`bind`/`bundle`/`similarity`).
+
+Enforced **HARD** by the checker — it reads the value's actual holder, not its method names — because
+holon-ness, like edn-repr, is a categorical capability a structural surface *cannot* impose: a core record
+with a hand-written `bind` method is still not a holon (no `holon_form`), the same leak class as a struct
+with record-shaped fields crossing the wire. `is_portable = holder != Struct`.
+
+**SURFACE (structural — the only composite).** `Surface { name, holder: Option<Holder>, members }`. A named
+constraint = an **optional `:holder` bound** (the categorical requirement) **+ structural members**
+(row-polymorphic width subtyping, 293.3). Satisfied structurally, and — when `:holder` is present —
+categorically too.
+
+### Type position is ALWAYS a single named reference
+
+A param/return type is ONE reference: a concrete type, a built-in holder (`wat.holon/Record`), or a surface.
+**Never an inline vector.** Intersections compose by **NAMING** (declare a surface carrying `:holder` +
+members). This preserves the argspec uniformity (four rounds of hardening) — no sometimes-vecs.
+⊘ SUPERSEDES the `[:holder :surface]` inline intersection (annihilated).
+
+```clojure
+(wat.core/defsurface user/EnvHolon
+  :holder :holon-record           ; categorical — HARD; a wat.core/Record is REJECTED
+  [env-field <- :T  ...])         ; structural members
+(wat.core/def user/foobar [x :- user/EnvHolon] -> :wat.type/bool ...)  ; one named reference
+(wat.core/def g [x :- wat.holon/Record] ...)   ; the bare holder = "any holon record"
+(wat.core/def h [x :- user.type/Bespoke]  ...) ; a concrete type = exact
+```
+
+### Extension is STRUCTURAL (the `program::Env` fix)
+
+A record "extends" `:wat::program::Env` by **satisfying its field-surface** (record-satisfies-record over the
+field set), NOT a nominal parent edge. ⊘ SUPERSEDES the nominal record `parent`: a holon record can satisfy
+`program::Env`'s shape AND be `holder: HolonRecord` — no contradiction. (The old nominal parent FORCED the
+kind: `holon::Record::def` hardcodes `:wat::holon::Record` as parent, so a holon could *never* share a core
+base's shape — the pre-existing limitation this dissolves. The unify-2b crash — `recordtype` rejecting
+`program::Env` as a parent — was this conflation surfacing.)
+
+### The precedent — `defservice` already IS the trit
+
+`:ephemeral` = **`Struct`** (−1, the body, in-locus); `:durable` = **`Record`** (0) by default,
+**`HolonRecord`** (+1) via `:durable-parent :holon`. The 291-4b State partition was the Holder ladder before
+the word existed; `:durable-parent :holon` is the **`:holder` bound in the wild**.
+
+### Naming (intueri cast, 2026-06-26 — weighed + accepted)
+
+**`Holder`** (the categorical axis; pairs with **`Surface`** structural — the R1 holder×surface fusion;
+the design's own word; `Kind`-suffix dilutes; `RecordKind` *lies* by enrolling `Struct`). Variants
+`Struct` / `Record` / `HolonRecord` (Level 0; `HolonRecord` compound makes the `+1`-extends-`Record` step
+visible). Surface clause **`:holder`** (specific to the axis; symmetric with a structural clause; beat
+`:requires` (too wide) and `:kind` (mumbles)).
+
+### The shapes
+```
+Holder = { Struct, Record, HolonRecord }                                    // the trit — one categorical axis
+AggregateDef { name, type_params, fields, holder: Holder, restrictions }    // unify-2b's merge, holder-named
+SurfaceDef   { name, holder: Option<Holder>, members }                      // :holder bound + structural members
+```
+unify-2a (`RecordDef` → typed `fields`) and unify-2b (the `StructDef`+`RecordDef` → `AggregateDef{holder}`
+merge) STAND; the fix re-scopes 2b: drop the nominal record-parent, route extension to surfaces, add the
+`:holder` bound. Acceptance = the `foobar` form + `c02`'s `extends program::Env`, GREEN and baseline-clean.
+
 ## Pairs
 `291/STRIKE-4b-struct-state.md` (the wire law) · `291/CURRENT-STATE.md` (the blocked `/from-map`) ·
 `232-defprotocol-extend-type/DESIGN.md` (the dispatcher machinery `extend-type` reuses) ·
