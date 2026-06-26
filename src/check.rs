@@ -19385,14 +19385,9 @@ fn register_builtins(env: &mut CheckEnv) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macros::{
-        expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry,
-    };
-    use crate::runtime::{
-        register_defines, register_stdlib_defines, register_struct_methods, Environment,
-        SymbolTable,
-    };
-    use crate::types::{parse_type_expr, register_stdlib_types, register_types, TypeEnv};
+    use crate::macros::{expand_all, register_defmacros, MacroRegistry};
+    use crate::runtime::{register_defines, Environment, SymbolTable};
+    use crate::types::{parse_type_expr, register_types, TypeEnv};
     use std::sync::OnceLock;
 
     /// The stdlib is always part of the language. Test harnesses
@@ -19400,29 +19395,19 @@ mod tests {
     /// state per test. This mirrors `startup_from_source`'s stdlib
     /// passes without running user-source phases, so every check()
     /// call sees `:wat::std::*` names, macros, and typealiases.
+    ///
+    /// Delegates to the canonical [`crate::freeze::env::build_env`]
+    /// pipeline so the test environment CANNOT drift from production.
+    /// The 13 check::tests:: failures that fired before arc-293's
+    /// extirpare were caused by this copy discarding the stdlib
+    /// residue and therefore skipping `preregister_stdlib_defclause_stub`
+    /// + `register_stdlib_runtime_defs`. One pipeline, no drift.
     fn stdlib_loaded() -> &'static (SymbolTable, MacroRegistry, TypeEnv) {
         static LOADED: OnceLock<(SymbolTable, MacroRegistry, TypeEnv)> = OnceLock::new();
         LOADED.get_or_init(|| {
-            let stdlib = crate::stdlib::stdlib_forms().expect("stdlib parses");
-            let mut macros = MacroRegistry::new();
-            let stdlib_post_macros =
-                register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
-            let expanded_stdlib = expand_all(
-                stdlib_post_macros,
-                &mut macros,
-                &Environment::default(),
-                &SymbolTable::default(),
-            )
-            .expect("stdlib macro expansion");
-            let mut types = TypeEnv::with_builtins();
-            let stdlib_post_types =
-                register_stdlib_types(expanded_stdlib, &mut types).expect("stdlib types");
-            let mut symbols = SymbolTable::new();
-            let _ = register_stdlib_defines(stdlib_post_types, &mut symbols)
-                .expect("stdlib defines");
-            register_struct_methods(&types, &mut symbols)
-                .expect("built-in struct methods");
-            (symbols, macros, types)
+            let b = crate::freeze::env::build_env(vec![])
+                .expect("stdlib env builds");
+            (b.symbols, b.macros, b.types)
         })
     }
 

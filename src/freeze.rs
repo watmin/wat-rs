@@ -49,25 +49,24 @@
 //!   into their vectors (`:wat::holon::cosine`,
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
+pub(crate) mod env;
+
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
 use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config, ConfigError};
 use crate::load::{resolve_loads, LoadError, SourceLoader};
-use crate::macros::{
-    expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
-};
+use crate::macros::{MacroError, MacroRegistry};
 use crate::parser::{parse_all_with_file, ParseError};
-use crate::stdlib::{stdlib_forms, StdlibError};
-use crate::resolve::{normalize_symbol_refs, resolve_references, ResolveError};
+use crate::stdlib::StdlibError;
+use crate::resolve::ResolveError;
 use crate::runtime::{
-    apply_function, register_defines, register_stdlib_defines, EvalBreak, Environment,
+    apply_function, EvalBreak, Environment,
     FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
 };
 use crate::value::EncodingCtx;
 use crate::span::Span;
 use crate::services::ThreadId;
-use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
-use std::collections::HashMap;
+use crate::types::{TypeEnv, TypeError, TypeExpr};
 use std::fmt;
 use std::sync::Arc;
 
@@ -786,274 +785,19 @@ fn startup_from_forms_post_config(
     //    via `&*loader` (Arc deref) rather than owning.
     let loaded = resolve_loads(post_config, base_canonical, &*loader)?;
 
-    // 3a. Baked stdlib. Registered ahead of user code so any
-    //     `(:wat::holon::Subtract …)` / `(:wat::holon::Amplify …)` call
-    //     in user source resolves during step 4's macro expansion
-    //     without an explicit `load!`. Per FOUNDATION § "Where Each
-    //     Lives" (line 2088), each `wat/**/*.wat` file ships one form
-    //     whose keyword path matches the file path.
-    let stdlib = stdlib_forms()?;
-
-    // 4. Macro registration + expansion. Stdlib defmacros register
-    //    first; user defmacros layer on top and can shadow (subject
-    //    to the reserved-prefix gate) or reference stdlib forms.
-    let mut macros = MacroRegistry::new();
-    let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
-    let post_macro_reg = register_defmacros(loaded, &mut macros)?;
-
-    // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
-    // expand_all preceding register_defines. User/stdlib defns are not yet
-    // registered at expand time — a reference to one cannot resolve, so only
-    // blessed builtins + inline lambdas (body-validated) are reachable. If
-    // register_defines is ever moved before this block, the fenced evaluator
-    // alone no longer guarantees purity; a gate at apply_function becomes
-    // necessary (see eval.rs header "Load-bearing invariant").
-    //
-    // Expand BOTH stdlib non-defmacro residue and user forms against
-    // the combined macro registry. Stdlib functions are authored
-    // against stdlib defmacros too — e.g., :wat::stream bodies
-    // use :wat::holon::Subtract / list helpers / etc.
-    let mut macro_sym = SymbolTable::default();
-    // Arc 265 — pre-register declare-acronyms forms into macro_sym BEFORE
-    // expand_all so defservice's pascal->kebab-in call at expand time can
-    // consult the registry. This is the ORDERING guarantee: declare-acronyms
-    // must appear BEFORE the defservice that reads them in the user program.
-    // (The later preregister_acronyms at step 6.96 populates `symbols` so
-    // runtime eval also sees the registry; this pre-pass covers the macro-sym
-    // carrier that expand_all reads.)
-    crate::runtime::preregister_acronyms(&post_macro_reg, &mut macro_sym)
-        .map_err(|e| match e {
-            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
-            crate::runtime::EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
-    let expanded_stdlib = expand_all(
-        stdlib_post_macros,
-        &mut macros,
-        &Environment::default(),
-        &macro_sym,
-    )?;
-    let expanded_user = expand_all(
-        post_macro_reg,
-        &mut macros,
-        &Environment::default(),
-        &macro_sym,
-    )?;
-
-    // 4b. Arc 163 slice 3g phase A — bare-legacy walker on raw
-    //     post-expansion forms BEFORE register_types/register_defines
-    //     consume the structural data (which would hide sig-position
-    //     type-keywords like `:i64` in `(define (a :i64) -> :i64)`
-    //     from check_program's walker). Walks user forms only;
-    //     stdlib forms are substrate-authored and audited via
-    //     in-repo discipline. The bare-legacy walker (arc 109 slice
-    //     1c) is wired here so the diagnostic stream covers ALL
-    //     user-written type-position keywords, not just expression-
-    //     position ones. Slice 3g sweeps remaining bare-form sites
-    //     based on these diagnostics; slice 3h retires the
-    //     canonicalize=true upgrade arms once the sweep is complete.
-    {
-        let mut bare_errors: Vec<crate::check::CheckError> = Vec::new();
-        for form in &expanded_user {
-            crate::check::validate_bare_legacy_primitives(form, &mut bare_errors);
-        }
-        // Arc 170 slice 2 — substrate-as-teacher walker for the
-        // spawn-verb consolidation + `:user::main` 4-arg + ExitCode
-        // contract change. User-source only (stdlib paths continue
-        // to call legacy verbs through the sweep window; slice 4
-        // retires both walker bodies + legacy dispatch arms).
-        for form in &expanded_user {
-            crate::check::validate_arc170_legacy_callsites(form, &mut bare_errors);
-        }
-        if !bare_errors.is_empty() {
-            return Err(StartupError::Check(crate::check::CheckErrors(bare_errors)));
-        }
-    }
-
-    // 5. Type declarations. Seeded with wat-rs's own :wat::*
-    //    built-in types (e.g., :wat::holon::CapacityExceeded)
-    //    before stdlib and user source land; those declarations
-    //    cannot be re-declared by user code (the reserved-prefix
-    //    gate blocks at `TypeEnv::register`).
-    let mut types = TypeEnv::with_builtins();
-    let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
-    let post_types = register_types(expanded_user, &mut types)?;
-
-    // 6. Function definitions. Stdlib defines bypass the reserved-
-    //    prefix gate (they live under :wat::std::* by design); user
-    //    defines still go through register_defines where the gate
-    //    blocks mis-namespaced user source.
-    let mut symbols = SymbolTable::new();
-    // Stone 237.8b — capture stdlib residue so defclause forms reach register_runtime_defs.
-    // The stdlib residue is NOT included in the user `residue` (it hasn't been through
-    // resolver step 7). Instead, we:
-    //   (a) pre-register defclause stubs so the checker sees them as callable names
-    //   (b) extract just the defclause forms for processing by register_runtime_defs
-    let stdlib_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
-    // (a) Pre-register stubs into sym.functions so checker sees them.
-    for form in &stdlib_residue {
-        crate::runtime::preregister_stdlib_defclause_stub(form, &mut symbols);
-    }
-    // (b) Extract the stdlib forms that need RUNTIME registration via runtime_defs:
-    // defclause (clause sets), defprotocol (protocol defs), and extend-type (impl
-    // dispatch entries). Other stdlib forms are already processed. Arc 209
-    // host-parity-4a: `:wat::spawn::Locus` is the FIRST stdlib protocol/extend-type —
-    // before it only defclause reached this pass, so defprotocol/extend-type were
-    // silently dropped here (registered for user source at runtime.rs:1812/1820, but
-    // never for stdlib). Broadened so stdlib protocol impls reach runtime dispatch.
-    let stdlib_runtime_def_forms: Vec<crate::ast::WatAST> = stdlib_residue.into_iter()
-        .filter(|form| {
-            if let crate::ast::WatAST::List(items, _) = form {
-                matches!(items.first(), Some(crate::ast::WatAST::Keyword(k, _))
-                    if matches!(k.as_str(),
-                        ":wat::core::defclause" | ":wat::core::defprotocol" | ":wat::core::extend-type"
-                        // Arc 255 escape-hatch — scalar stdlib `def` forms (e.g. MAX-READLN-BYTES)
-                        // must reach runtime_def_values so the `readln` macro's expanded
-                        // `readln'` call can evaluate the keyword to its i64 value.
-                        | ":wat::core::def"))
-            } else {
-                false
-            }
-        })
-        .collect();
-    let mut residue = register_defines(post_types, &mut symbols)?;
-
-    // 6a. Struct auto-methods. For every `(:wat::core::defstruct ...)`
-    //     declaration (built-in + user), synthesize its `/new`
-    //     constructor and one `/<field>` accessor per field, all as
-    //     ordinary `Function` entries in the symbol table. Runs
-    //     after user defines so collisions with user-authored names
-    //     surface as `DuplicateDefine`.
-    //     (Stone 241.8: renamed from :wat::core::struct to :wat::core::defstruct)
-    crate::runtime::register_struct_methods(&types, &mut symbols)?;
-    // 6.5. Enum variant constructors — arc 048. Walks enum decls
-    //      and synthesizes per-variant constructors (units into
-    //      `unit_variants` map; tagged variants as Function entries
-    //      whose bodies invoke `:wat::core::enum-new`).
-    crate::runtime::register_enum_methods(&types, &mut symbols)?;
-    // 6.7. Newtype auto-methods — arc 049. For each `(:wat::core::newtype
-    //      :Type :Inner)` decl, synthesize `:Type/new` constructor and
-    //      `:Type/0` accessor. Newtype values are represented as
-    //      `Value::Struct` of arity 1, reusing the existing struct-new
-    //      and struct-field primitives.
-    crate::runtime::register_newtype_methods(&types, &mut symbols)?;
-    // 6.8a. Arc 258 A2 — auto-mint constructor + per-field accessors for
-    //       `TypeDef::Record` entries that were declared with the typed-field
-    //       syntax `[name <- :type ...]` (field_types = Some(...)). Records
-    //       from :wat::Record::def macro already have their constructor/accessor
-    //       registered from the macro-emitted defn forms (field_types = None);
-    //       those are skipped. Positioned after register_newtype_methods so
-    //       the TypeEnv is fully populated before record-method synthesis begins.
-    crate::runtime::register_record_methods(&types, &mut symbols)?;
-    // 6.9. Arc 237 Stone 237.6 — auto-mint `:ns::is-<Name>?` membership predicates.
-    //      One pass over the TypeEnv; for every non-Alias TypeDef (Struct / Enum /
-    //      Newtype / Union) synthesize a Function whose body is
-    //      `(:wat::core::conforms? v :<FQDN>)` — the one mechanism, not a
-    //      second computation. Positioned after register_newtype_methods so the
-    //      TypeEnv is fully populated before predicate synthesis begins.
-    crate::runtime::register_type_predicates(&types, &mut symbols)?;
-
-    // 6.8. Arc 198 slice 2 Stone 1 — drain the `inventory` registry of
-    //      Rust-side `RestrictionEntry` declarations into
-    //      Stone 241.14 — migrated from `defined_value_restrictions` to
-    //      `binding_metadata`. The Rust-side RestrictionEntry inventory
-    //      channel (arc 198 slice 2) populates `binding_metadata` here;
-    //      the wat-side `def`/`defn` metadata-map path populates it during
-    //      `register_defines`. Both feeds land in one `binding_metadata`
-    //      map so the walker (`walk_for_restricted_call`) sees a unified
-    //      `:restricted-to` whitelist regardless of origin.
-    //
-    //      Positioned AFTER all `register_*` calls (so the map isn't
-    //      stomped) and BEFORE step 7.5 (which propagates other config to
-    //      `symbols` for check_program). Subsequent stones that annotate
-    //      substrate fns with `#[restricted_to(...)]` plug into this
-    //      channel without changing the iteration shape.
-    // Stone 241.14 (migrated from arc 198 def-restricted path) — populate
-    // `binding_metadata` with `:restricted-to` entries from the Rust-side
-    // `RestrictionEntry` inventory channel. Arc 170 Stone B's restrictions
-    // on `Thread/join-result` + `Process/join-result` land here unchanged;
-    // only the populate-target changes (binding_metadata instead of the
-    // deleted defined_value_restrictions).
-    //
-    // The `:restricted-to` value is a WatAST::List whose first item is the
-    // `:wat::core::Vector` head (matching the brace-form parser's encoding
-    // of `[p1 p2 ...]`) and whose remaining items are prefix keywords. The
-    // walker `walk_for_restricted_call` calls `extract_prefix_list_from_metadata`
-    // to unpack this structure at check time.
-    // rune:sequi(ambient-context) — inventory::iter::<RestrictionEntry> consumes
-    // a compile-time static linker table populated by inventory::submit! entries
-    // across the workspace; the registry is link-time fixed binary state, not
-    // runtime domain state; threading it as a runtime parameter would impose
-    // the registry's compile-time nature into every startup-pipeline call site.
-    for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
-        let name = entry.wat_name.to_string();
-        // Build WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...], Span)
-        // matching the brace-form encoding that `extract_prefix_list_from_metadata` expects.
-        let mut prefix_items = vec![WatAST::Keyword(":wat::core::Vector".into(), Span::unknown())];
-        for p in entry.prefixes {
-            prefix_items.push(WatAST::Keyword(p.to_string(), Span::unknown()));
-        }
-        let restricted_to_ast = WatAST::List(prefix_items, Span::unknown());
-        let mut meta: HashMap<String, WatAST> = HashMap::new();
-        meta.insert(":restricted-to".to_string(), restricted_to_ast);
-        symbols.binding_metadata.entry(name).or_insert_with(HashMap::new).extend(meta);
-    }
-
-    // 6.95. Arc 232 Stone 232.3 — pre-register defprotocol names into
-    // runtime_def_values BEFORE the resolve pass (step 7). The resolver's
-    // `is_resolvable_call_head` needs to distinguish `:P/method` protocol-method
-    // call heads from unknown keywords; it does this by checking whether the
-    // stem (before the last `/`) is a registered protocol via runtime_def_values.
-    // Full defprotocol + extend-type registration happens in FrozenWorld::freeze
-    // (step 9) via register_runtime_defs; this pre-pass covers ONLY defprotocol
-    // so the resolve pass can accept `:P/method` call heads without error.
-    crate::runtime::preregister_protocol_names(&residue, &mut symbols)
-        .map_err(|e| match e {
-            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
-            crate::runtime::EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
-
-    // 6.96. Arc 265 — pre-register declare-acronyms forms into sym.acronym_registry
-    // so runtime calls to pascal->kebab-in / kebab->pascal-in see the registry.
-    // Macro-expand-time registration (for defservice's expand-time pascal->kebab-in
-    // call) was done at step 4 into macro_sym. This pass covers the runtime
-    // SymbolTable so the intrinsics are also available at eval time.
-    // Idempotent; parse errors silently skipped here (infer_list arm reports them).
-    crate::runtime::preregister_acronyms(&residue, &mut symbols)
-        .map_err(|e| match e {
-            crate::runtime::EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
-            crate::runtime::EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
-
-    // 7. Name resolution.
-    // Stone 251.1b — normalize namespaced symbol refs (`wat.core/+` →
-    // `WatAST::Keyword(":wat::core::+", span)`) BEFORE resolve_references so
-    // the rewritten AST flows through check + eval with keyword heads.
-    residue = normalize_symbol_refs(residue, &symbols, &macros)?;
-    resolve_references(&residue, &symbols, &macros)?;
+    // 3a–7.6. Build the full registered environment (macros + types +
+    //         symbols + user residue) via the canonical single pipeline.
+    let mut bundle = env::build_env(loaded)?;
 
     // 7.5. Arc 157 slice 1a-ii — propagate redef config flags to the
     // SymbolTable carrier BEFORE check_program so that CheckEnv::from_symbols
     // sees the correct redef_allowed flag (check happens at step 8;
     // FrozenWorld::freeze at step 9 would be too late).
-    symbols.redef_allowed = config.redef_allowed;
-    symbols.eval_redef_allowed = config.eval_redef_allowed;
-
-    // 7.6 Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib defclause /
-    // defprotocol / extend-type forms into runtime_def_values. Uses privileged
-    // parsers that bypass the reserved-prefix check (`:wat::core::*` / `:wat::spawn::*`
-    // are reserved from user code but legal for the stdlib). These forms have already
-    // been through macro-expansion at step 4; they're stdlib-privileged.
-    crate::runtime::register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
-        .map_err(|e| StartupError::Runtime(Box::new(e)))?;
+    bundle.symbols.redef_allowed = config.redef_allowed;
+    bundle.symbols.eval_redef_allowed = config.eval_redef_allowed;
 
     // 8. Type check.
-    check_program(&residue, &symbols, &types)?;
+    check_program(&bundle.residue, &bundle.symbols, &bundle.types)?;
 
     // 9. Freeze. The loader moves into the frozen world's
     //    SymbolTable so runtime primitives (`:wat::eval-file!` and
@@ -1062,14 +806,13 @@ fn startup_from_forms_post_config(
     //    same capability that handled startup loads.
     FrozenWorld::freeze(
         config,
-        types,
-        macros,
-        symbols,
-        residue,
+        bundle.types,
+        bundle.macros,
+        bundle.symbols,
+        bundle.residue,
         loader,
     )
 }
-
 // ─── :user::main invocation ─────────────────────────────────────────────
 
 /// Canonical path for the user's entry-point slot. Per FOUNDATION.md

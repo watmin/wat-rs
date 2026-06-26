@@ -25992,6 +25992,13 @@ mod tests {
     /// `SymbolTable::new()` values where `:wat::std::*` names resolve
     /// to `UnknownFunction` — dishonest framing of what "standard
     /// library" means.
+    ///
+    /// Delegates to the canonical [`crate::freeze::env::build_env`]
+    /// pipeline so the test environment CANNOT drift from production.
+    /// The 13 check::tests:: failures that fired before arc-293's
+    /// extirpare were caused by the old copy discarding the stdlib
+    /// residue and therefore skipping `preregister_stdlib_defclause_stub`
+    /// + `register_stdlib_runtime_defs`. One pipeline, no drift.
     fn stdlib_loaded() -> &'static (
         SymbolTable,
         crate::macros::MacroRegistry,
@@ -26003,31 +26010,9 @@ mod tests {
             crate::types::TypeEnv,
         )> = OnceLock::new();
         LOADED.get_or_init(|| {
-            let stdlib = crate::stdlib::stdlib_forms().expect("stdlib parses");
-            let mut macros = crate::macros::MacroRegistry::new();
-            let stdlib_post_macros =
-                crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
-                    .expect("stdlib defmacros register");
-            // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
-            let expanded_stdlib = crate::macros::expand_all(
-                stdlib_post_macros,
-                &mut macros,
-                &Environment::default(),
-                &SymbolTable::default(),
-            )
-            .expect("stdlib macro expansion");
-            let mut types = crate::types::TypeEnv::with_builtins();
-            let stdlib_post_types =
-                crate::types::register_stdlib_types(expanded_stdlib, &mut types)
-                    .expect("stdlib types register");
-            let mut symbols = SymbolTable::new();
-            let _ = register_stdlib_defines(stdlib_post_types, &mut symbols)
-                .expect("stdlib defines register");
-            register_struct_methods(&types, &mut symbols)
-                .expect("built-in struct methods register");
-            register_enum_methods(&types, &mut symbols)
-                .expect("built-in enum methods register");
-            (symbols, macros, types)
+            let b = crate::freeze::env::build_env(vec![])
+                .expect("stdlib env builds");
+            (b.symbols, b.macros, b.types)
         })
     }
 
