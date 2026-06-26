@@ -107,16 +107,23 @@ Each layer derives the next, one direction. The classifier-wrap `(Bind (Atom Typ
 ### The Kanerva law — width-bounded per frame, depth-UNBOUNDED
 Capacity (`:dims` / `:capacity-mode`, user-tunable `CapacityExceeded` vs panic — `config.rs`) caps **fan-out per
 `Bundle` frame** (≈ N items at d dims — e.g. 100 @ 10k). **Depth is free** (nesting is hologram composition). So
-*any* EDN of any depth encodes; capacity bites **only at the `build-hologram` derive site**, where it is a true
-statement about the *encoding*, never about whether the data/record can exist. (This is *why* the EDN-canonical
-flip is correct: data is unbounded; the index is where the bound honestly lives.)
+*any* EDN of any depth encodes; the width-per-frame bound is the only limit. **Capacity bites wherever the hologram
+is (re)built — and per Q-C that is EAGERLY, on every holon-record mutation (the parity guarantee).** So a holon
+record's data IS capacity-bound (it must always carry a valid, in-parity hologram); plain records / raw EDN are
+unbounded. `CapacityExceeded` (user-tunable) fires at the mutation, loud, never silent — *"this data won't fit a
+hologram of these dims."* (⊘ SUPERSEDES an earlier draft that said capacity bites "only at a lazy derive site" —
+Q-C is eager parity, not lazy.)
 
-### A holon record = EDN data (canonical) + a derived hologram (side-by-side, local)
-- Stores the **fields (EDN)** — canonical, identical to a core record. Identity / Eq / Hash key on the **data**.
-- The hologram is derived via `build-hologram` **on demand** for VSA ops (similarity), and may sit side-by-side
-  as a *local* cache — but it is never the wire form and never the identity.
-- Constructs **identically** to a core record. Holon-ness becomes *"this record's data can be holographically
-  encoded for VSA,"* a capability over EDN — not a third storage repr, not a wire tier.
+### A holon record = EDN data (canonical) + a hologram held in PARITY at all times (Q-C, builder-decided)
+- Stores the **fields (EDN)** — canonical. **Identity / Eq / Hash key on the EDN data** (Q-D: *"the edn is the
+  identity"*), never the hologram. The wire ships plain EDN.
+- The hologram is **derived AND held in strict parity with the data at all times** (Q-C: *"the hologram must be in
+  parity with data at all time, whatever the cost to compute it … callers can not dodge the data and hologram being
+  out of sync — this is a strong guarantee"*). Every mutation (`assoc`/`dissoc`/construct) rebuilds BOTH coherently;
+  you can never observe a record whose hologram ≠ its data. **NOT lazy.** The hologram is derived (data is canonical)
+  but never stale and never absent — the parity invariant (existing `runtime.rs:8754`) is KEPT and made law.
+- Constructs **identically** to a core record (same EDN fields); holon-ness adds the in-parity hologram. Holon-ness
+  is a capability over EDN — not a third storage repr, not a wire tier.
 
 ### Construction = ONE holder-dispatched primitive
 `(aggregate-new :T field…)` — **varargs** (the `struct-new` shape won the four-questions: mirrors the user
@@ -152,19 +159,25 @@ moved**. Net: the megafiles SHED their HolonAST footprint; the holon concern get
 homing** — every 294 strike lands its survivors in `src/holon/` (or `src/aggregate/` for construction), never back
 in `runtime.rs`/`types.rs`/`check.rs`. (Construction homes to `src/aggregate/` per 293; the two homes are siblings.)
 
-## Open questions (to resolve before/within the strike — four-questions each)
+## Open questions — RESOLVED (builder, 2026-06-27) + the one deferred
 
-1. **Does the hologram stay a NAMED type or become `build-hologram`'s anonymous output?** (Is "HolonAST the VSA
-   type" kept under a cleaner name e.g. `Hologram`, or is it just composed Bind/Bundle/Atom values?)
-2. **Reflection-IR migration:** signatures-as-`HolonAST::Bundle` (arc 143/201, `metadata-of`/docs) → WatAST, or a
-   dedicated reflection form? Scope of that sub-strike.
-3. **`build-hologram` home + name** (intueri): a wat verb? `:wat::holon::build-hologram` over `EdnRepresentable`?
-4. **Holon record storage:** derive-hologram-lazily (store only fields) vs eager side-by-side cache? (The Kanerva
-   bound argues lazy — don't pay/limit until VSA is asked.)
-5. **Identity semantics:** confirm Eq/Hash by data is correct for VSA use (does any consumer *need* holographic
-   identity? — grep the `holon_form`-keyed Eq consumers before flipping).
-6. **How much of the 1161 HolonAST mentions is genuinely vestigial** vs VSA vs reflection — a full census before
-   the purge (this DESIGN sampled, did not exhaust).
+- **Q1 — hologram a named type? RESOLVED:** keep it, **rename `HolonAST → Hologram`**, home `src/holon/` (the
+  keystone § above).
+- **Q-A — reflection-IR migration? RESOLVED:** signatures-as-`HolonAST::Bundle` is *"an abuse of holon-ast — it must
+  migrate to **wat-ast**"* (builder). Reflection signatures move to **WatAST**, not `Hologram`. Consumers to carry:
+  `metadata-of` / `signature-of-defn`/`-fn` / the docs system. (The measurement sizes the sub-strike.)
+- **Q-C — storage: lazy vs eager? RESOLVED → EAGER PARITY.** The hologram is in parity with the data at ALL times,
+  whatever the compute cost; every mutation (`assoc`/construct) rebuilds both coherently; callers cannot observe a
+  desync — a **strong guarantee.** (⊘ Supersedes the apparatus's earlier 'lazy, Kanerva argues lazy' lean.) Capacity
+  bites at the mutation, user-tunable.
+- **Q-D — identity safety? RESOLVED → the EDN is the identity** (builder). Eq/Hash key on the data; no
+  holographic-identity veto. (The measurement still confirms no live consumer breaks on the flip — execution check,
+  not a decision.)
+- **Q-B — codec name + home? DEFERRED to its strike (intueri).** `build-hologram` was a placeholder *to communicate
+  the concept* (builder: *"i made this up … intueri names it /if we must have/ — idk if we have such a thing"*).
+  `to-holon` may already BE the codec (no new name). Decide at the strike — IF a distinct named thing is needed.
+- **Q-E — NOT a question; the SURVEY** (in flight): the role-census + blast-radius sizing. Grounds execution,
+  decides nothing. (Builder: *"more like a survey."*)
 
 ## Decomposition (provisional — sequence after the open questions settle)
 - **294.0** — the census + the disconfirming probes (EDN-wire round-trip without tags; `build-hologram` over a
