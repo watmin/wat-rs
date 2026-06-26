@@ -49,17 +49,13 @@ fn contract_01_kind_preserved_vector_stays_non_list() {
             r#"(:wat::core::not
                  (:wat::core::List?
                    (:wat::core::with-children
-                     (:wat::core::Option/expect -> :wat::WatAST
+                     (:wat::core::first
+                       (:wat::core::ast->children
+                         (:wat::core::read-string "[a b]")))
+                     (:wat::core::ast->children
                        (:wat::core::first
                          (:wat::core::ast->children
-                           (:wat::core::read-string "[a b]")))
-                       "vec")
-                     (:wat::core::ast->children
-                       (:wat::core::Option/expect -> :wat::WatAST
-                         (:wat::core::first
-                           (:wat::core::ast->children
-                             (:wat::core::read-string "[a b]")))
-                         "vec")))))"#
+                           (:wat::core::read-string "[a b]")))))))"#
         ),
         Ok(true),
         "a Vector node, decomposed and rebuilt via with-children, stays a Vector (not a List)"
@@ -74,17 +70,13 @@ fn contract_02_list_stays_list() {
         eval_bool(
             r#"(:wat::core::List?
                  (:wat::core::with-children
-                   (:wat::core::Option/expect -> :wat::WatAST
+                   (:wat::core::first
+                     (:wat::core::ast->children
+                       (:wat::core::read-string "(a b)")))
+                   (:wat::core::ast->children
                      (:wat::core::first
                        (:wat::core::ast->children
-                         (:wat::core::read-string "(a b)")))
-                     "lst")
-                   (:wat::core::ast->children
-                     (:wat::core::Option/expect -> :wat::WatAST
-                       (:wat::core::first
-                         (:wat::core::ast->children
-                           (:wat::core::read-string "(a b)")))
-                       "lst"))))"#
+                         (:wat::core::read-string "(a b)"))))))"#
         ),
         Ok(true),
         "a List node, decomposed and rebuilt via with-children, stays a List"

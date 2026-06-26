@@ -26,7 +26,7 @@ const PROGRAM: &str = r#"
   (:wat::core::keyword-node ":foo"))
 
 (:wat::core::defn :user::probe-line [] -> :wat::core::i64
-  (:wat::core::Option/expect -> :wat::core::i64
+  (:wat::core::Option/expect
     (:wat::core::HashMap/get
       (:wat::core::ast-span (:wat::core::macroexpand-1 (:wat::core::quote (:user::mk-kw))))
       :line)

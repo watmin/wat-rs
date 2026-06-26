@@ -94,8 +94,8 @@ fn macro_alias_expands_to_same_hash_as_direct_primitive() {
     // expand_all and the remaining output is one form: (:my::prim 42 99 1 -1).
     let src_a = r#"
         (:wat::core::defmacro :test::MyAlias
-          [x <- :AST y <- :AST]
-          -> :AST
+          [x <- :wat::WatAST y <- :wat::WatAST]
+          -> :wat::WatAST
           `(:my::prim ~x ~y 1 -1))
         (:test::MyAlias 42 99)
     "#;

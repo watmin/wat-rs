@@ -49,12 +49,11 @@ const PROGRAM: &str = r#"
      nopen  (:wat::core::second final)
      out    (:wat::core::string::concat kept
               (:wat::core::string::concat "|" (:wat::core::i64::to-string nopen)))]
-    (:wat::core::Option/expect -> :wat::WatAST
-      (:wat::core::first
-        (:wat::core::ast->children
-          (:wat::core::read-string
-            (:wat::core::string::concat "\"" (:wat::core::string::concat out "\"")))))
-      "strip-braces: node")))
+    (:wat::core::first
+      (:wat::core::ast->children
+        (:wat::core::read-string
+          (:wat::core::string::concat "\"" (:wat::core::string::concat out "\"")))))
+    ))
 
 (:wat::core::defn :user::probe [] -> :wat::core::String (:user::strip-braces "a{b{c"))
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

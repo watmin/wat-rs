@@ -31,11 +31,9 @@ const PROGRAM: &str = r#"
 ;; [10 20 30])` → children [10 20 30] → drop 1 → [20 30] → first → the `20` node → returned
 ;; directly (value_to_watast emits it) → the program sees literal 20.
 (:wat::core::defmacro :user::second-child
-  [v <- :wat::holon::HolonAST]
-  -> :wat::holon::HolonAST
-  (:wat::core::Option/expect -> :wat::WatAST
-     (:wat::core::first (:wat::core::drop (:wat::core::ast->children v) 1))
-     "second-child: need at least 2 children"))
+  [v <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::first (:wat::core::drop (:wat::core::ast->children v) 1)))
 
 (:wat::core::defn :user::probe-walk [] -> :wat::core::i64
   (:user::second-child [10 20 30]))
@@ -44,8 +42,8 @@ const PROGRAM: &str = r#"
 ;; Program-body path again. `(:user::drop-first [10 20 30])` → with-children v (drop children 1)
 ;; → the `[20 30]` node → returned directly → a 2-element vector; length 2.
 (:wat::core::defmacro :user::drop-first
-  [v <- :wat::holon::HolonAST]
-  -> :wat::holon::HolonAST
+  [v <- :wat::WatAST]
+  -> :wat::WatAST
   (:wat::core::with-children v
      (:wat::core::drop (:wat::core::ast->children v) 1)))
 

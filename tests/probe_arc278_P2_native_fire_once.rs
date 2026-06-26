@@ -68,7 +68,7 @@ fn native_derives_the_right_fact() {
     // The native-derived fact is a ColdAndWindy at "Oslo" (content, not just count).
     let setup = format!(
         "(:wat::core::let [{} fired (:wat::rete::fire-once' s2) \
-           cw (:wat::core::Option/expect -> :wat::Record \
+           cw (:wat::core::Option/expect \
                 (:wat::core::get (:wat::rete::query fired :weather::ColdAndWindy) 0) \"cw\")]",
         staged("Oslo")
     );

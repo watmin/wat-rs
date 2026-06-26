@@ -42,12 +42,12 @@ fn setup(wind_loc: &str) -> String {
    fired (:wat::rete::fire-rules sess2)\
    network (:wat::rete::Session/network fired)\
    pmem  (:wat::rete::Session/production-memory fired)\
-   pid   (:wat::core::Option/expect -> :wat::core::i64 \
+   pid   (:wat::core::Option/expect \
             (:wat::core::get \
               (:wat::core::filter \
                 (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
                   (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
                                  \"ProductionNode\")) \
                 (:wat::core::PersistentMap/keys network)) \
               0) \"pid\")\
@@ -74,7 +74,7 @@ fn production_fires_one_fact_on_matching_loc() {
 fn derived_fact_is_cold_and_windy_at_oslo() {
     let s = setup("Oslo");
     let binds = format!("(:wat::core::let [{s} \
-        fact (:wat::core::Option/expect -> :wat::Record (:wat::core::get pfacts 0) \"fact\")]");
+        fact (:wat::core::Option/expect (:wat::core::get pfacts 0) \"fact\")]");
     // The derived fact is a :weather::ColdAndWindy whose location field came from the token's ?loc binding.
     assert_eq!(ev(&format!("{binds} (:wat::core::type fact))")),
         Value::String(Arc::new("weather::ColdAndWindy".to_string())), "derived fact is a ColdAndWindy");
@@ -103,12 +103,12 @@ const SETUP_2X2: &str = "\
    fired (:wat::rete::fire-rules s4)\
    network (:wat::rete::Session/network fired)\
    pmem  (:wat::rete::Session/production-memory fired)\
-   pid   (:wat::core::Option/expect -> :wat::core::i64 \
+   pid   (:wat::core::Option/expect \
             (:wat::core::get \
               (:wat::core::filter \
                 (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
                   (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
                                  \"ProductionNode\")) \
                 (:wat::core::PersistentMap/keys network)) 0) \"pid\")\
    pfacts (:wat::core::match (:wat::core::PersistentMap/get pmem pid) -> :wat::core::PersistentVector \

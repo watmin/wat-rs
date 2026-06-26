@@ -63,8 +63,8 @@ fn empty_for_a_namespace_with_no_rules() {
 fn collected_values_are_rules_with_the_right_names() {
     // Sorted-by-name order: "cold-and-windy" < "cold-temp".
     let s = "(:wat::core::let [rs (:wat::rete::collect-rules :weather)]";
-    assert_eq!(ev(&format!("{s} (:wat::rete::Rule/name (:wat::core::Option/expect -> :wat::rete::Rule (:wat::core::get rs 0) \"r0\")))")),
+    assert_eq!(ev(&format!("{s} (:wat::rete::Rule/name (:wat::core::Option/expect (:wat::core::get rs 0) \"r0\")))")),
         Value::String(Arc::new("weather::cold-and-windy".to_string())), "first rule (sorted) is cold-and-windy");
-    assert_eq!(ev(&format!("{s} (:wat::rete::Rule/name (:wat::core::Option/expect -> :wat::rete::Rule (:wat::core::get rs 1) \"r1\")))")),
+    assert_eq!(ev(&format!("{s} (:wat::rete::Rule/name (:wat::core::Option/expect (:wat::core::get rs 1) \"r1\")))")),
         Value::String(Arc::new("weather::cold-temp".to_string())), "second rule (sorted) is cold-temp");
 }

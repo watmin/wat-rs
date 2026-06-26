@@ -48,10 +48,8 @@ fn contract_01_ast_name_reads_symbol_verbatim() {
         eval_bool(
             r#"(:wat::core::=
                  (:wat::core::ast-name
-                   (:wat::core::Option/expect -> :wat::WatAST
-                     (:wat::core::first
-                       (:wat::core::ast->children (:wat::core::read-string "<-")))
-                     "sym"))
+                   (:wat::core::first
+                     (:wat::core::ast->children (:wat::core::read-string "<-"))))
                  "<-")"#
         ),
         Ok(true),
@@ -66,10 +64,8 @@ fn contract_02_ast_kind_discriminates_keyword() {
         eval_bool(
             r#"(:wat::core::=
                  (:wat::core::ast-kind
-                   (:wat::core::Option/expect -> :wat::WatAST
-                     (:wat::core::first
-                       (:wat::core::ast->children (:wat::core::read-string ":-")))
-                     "kw"))
+                   (:wat::core::first
+                     (:wat::core::ast->children (:wat::core::read-string ":-"))))
                  "keyword")"#
         ),
         Ok(true),

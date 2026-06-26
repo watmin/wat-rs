@@ -44,11 +44,9 @@ fn contract_01_ast_children_is_walkable() {
     assert_eq!(
         eval_bool(
             r#"(:wat::core::List?
-                 (:wat::core::Option/expect -> :wat::WatAST
-                   (:wat::core::first
-                     (:wat::core::ast->children
-                       (:wat::core::read-string "((:a 1) (:b 2))")))
-                   "empty"))"#
+                 (:wat::core::first
+                   (:wat::core::ast->children
+                     (:wat::core::read-string "((:a 1) (:b 2))"))))"#
         ),
         Ok(true),
         "ast->children yields a Vector the first/map vocab walks"
@@ -62,15 +60,11 @@ fn contract_02_recursion_works() {
     assert_eq!(
         eval_bool(
             r#"(:wat::core::List?
-                 (:wat::core::Option/expect -> :wat::WatAST
-                   (:wat::core::first
-                     (:wat::core::ast->children
-                       (:wat::core::Option/expect -> :wat::WatAST
-                         (:wat::core::first
-                           (:wat::core::ast->children
-                             (:wat::core::read-string "((:a 1) (:b 2))")))
-                         "L1")))
-                   "L2"))"#
+                 (:wat::core::first
+                   (:wat::core::ast->children
+                     (:wat::core::first
+                       (:wat::core::ast->children
+                         (:wat::core::read-string "((:a 1) (:b 2))"))))))"#
         ),
         Ok(true),
         "ast->children of an ast->children result still walks — recursion is expressible in wat"

@@ -56,8 +56,8 @@ fn fire_stores_only_the_matching_element() {
     // full alpha-match (not just the type head).
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}\
-           aid   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
-           elems (:wat::core::Option/expect -> :wat::core::PersistentVector (:wat::core::PersistentMap/get amem aid) \"elems\")]\
+           aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
+           elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) \"elems\")]\
           (:wat::core::length elems))"
     ));
     assert_eq!(got, Value::i64(1), "only the matching fact (25) becomes an Element; got {got:?}");
@@ -68,9 +68,9 @@ fn fire_element_carries_alpha_bindings() {
     // The stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
     let got = ev(&format!(
         "(:wat::core::let [{SETUP}\
-           aid   (:wat::core::Option/expect -> :wat::core::i64 (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
-           elems (:wat::core::Option/expect -> :wat::core::PersistentVector (:wat::core::PersistentMap/get amem aid) \"elems\")\
-           elem  (:wat::core::Option/expect -> :wat::rete::Element (:wat::core::get elems 0) \"elem\")\
+           aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
+           elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) \"elems\")\
+           elem  (:wat::core::Option/expect (:wat::core::get elems 0) \"elem\")\
            binds (:wat::rete::Element/bindings elem)]\
           (:wat::core::PersistentMap/get binds \"?t\"))"
     ));

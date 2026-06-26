@@ -53,7 +53,7 @@ fn eval_i64(decls: &str, body: &str) -> Result<Value, String> {
 // rest, seeded with the fixed params, so x, y, and rest all must resolve.
 const MAKE_REST_SUM: &str = "\
 (:wat::core::defmacro :test::make-rest-sum \
-  [] -> :AST<wat::holon::HolonAST> \
+  [] -> :wat::WatAST \
   `(:wat::core::defclause :test::rest-sum \
      ([x <- :wat::core::i64 y <- :wat::core::i64 \
        & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64 \

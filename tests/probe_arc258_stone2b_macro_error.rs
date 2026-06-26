@@ -54,7 +54,7 @@ fn contract_03_macro_error_surfaces_its_message() {
     // at HEAD `macro-error` is not on the pure-combinator allow-list, so expansion refuses
     // it generically and the message never surfaces.
     let r = check_src(
-        "(:wat::core::defmacro :user::boom [] -> :AST<wat::holon::HolonAST> \
+        "(:wat::core::defmacro :user::boom [] -> :wat::WatAST \
            (:wat::core::macro-error \"kaboom-sentinel-9173\"))\n\
          (:wat::core::defn :user::h [] -> :wat::core::i64 (:user::boom))",
     );

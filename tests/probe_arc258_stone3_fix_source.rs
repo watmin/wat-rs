@@ -34,9 +34,7 @@ use wat::runtime::{Environment, Value};
 /// home `wat/fix.wat` is pinned when 258.3b drives the corpus). Built with BARE ifs.
 const FIX: &str = r#"
 (:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST
-  (:wat::core::Option/expect -> :wat::WatAST
-    (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src)))
-    "topform: empty source"))
+  (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))
 
 (:wat::core::defn :user::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
@@ -50,8 +48,8 @@ const FIX: &str = r#"
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? (:wat::core::drop ch 2))
         false
-        (:wat::core::let [head (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first ch) "head")
-                          c2   (:wat::core::Option/expect -> :wat::WatAST (:wat::core::first (:wat::core::drop ch 2)) "c2")]
+        (:wat::core::let [head (:wat::core::first ch)
+                          c2   (:wat::core::first (:wat::core::drop ch 2))]
           (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::if")
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind c2) "symbol")
               (:wat::core::= (:wat::core::ast-name c2) "->")
@@ -164,10 +162,8 @@ fn contract_04_fix_source_strips_if_annotation() {
     assert_eq!(
         eval_bool(&format!(
             "(:wat::core::= (:wat::core::ast-kind \
-               (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::drop \
-                   (:wat::core::ast->children (:user::fix-source (:user::topform \"{}\"))) 2)) \
-                 \"c2\")) \
+               (:wat::core::first (:wat::core::drop \
+                 (:wat::core::ast->children (:user::fix-source (:user::topform \"{}\"))) 2))) \
                \"int\")",
             embed(ANNOTATED_IF)
         )),
@@ -220,9 +216,8 @@ fn contract_07_end_to_end_clean_source() {
     assert_eq!(
         eval_bool(&format!(
             "(:wat::core::= (:wat::core::ast-name \
-               (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::ast->children \
-                   (:user::fix-source (:user::topform \"{}\")))) \"head\")) \
+               (:wat::core::first (:wat::core::ast->children \
+                 (:user::fix-source (:user::topform \"{}\"))))) \
                \":wat::core::if\")",
             embed(ANNOTATED_IF)
         )),
@@ -246,8 +241,7 @@ fn contract_08_maturity_quasiquote_in_defn() {
             (:wat::core::List? (:user::qq \
               (:user::topform \"true\") (:user::topform \"1\") (:user::topform \"2\")))) \
          (:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST \
-            (:wat::core::Option/expect -> :wat::WatAST \
-              (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))) \"t\"))\n\
+            (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))\n\
          (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
     );
     let result = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))

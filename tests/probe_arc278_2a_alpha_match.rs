@@ -49,7 +49,7 @@ fn alpha_match_binds_and_constrains() {
     // MATCH: 25 binds ?t and 25 > 20 holds → Some({"?t": 25}); PersistentMap/get "?t" → Some(25).
     let got = ev(&w, &format!(
         "(:wat::core::PersistentMap/get \
-           (:wat::core::Option/expect -> :wat::core::PersistentMap \
+           (:wat::core::Option/expect \
              (:wat::rete::alpha-match {COND} (:user::Temp 25)) \"matched\") \
            \"?t\")"
     ));
