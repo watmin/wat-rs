@@ -1,6 +1,6 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 4; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `bd0935db` (293.3-records SHIPPED) or
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `15157c3d` (293 unify-2a SHIPPED) or
 later — COMMITTED + PUSHED to DR. Tree CLEAN (only `clara-tools/` ignored).
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 4) — 293.2-parity SHIPPED; the BASE-STRUCT UNIFICATION is the arc spine (R2)
@@ -36,19 +36,28 @@ holon adds the derived `holon_form`). TYPE level: `StructDef.fields` is ALREADY 
 `RecordDef.field_types` is the lone `None` (`types.rs:2131`). **ONE categorical wall = struct vs record (edn-repr);
 holon is structural+repr above it.** kind-as-ENUM (never `Option` — the no-Option-semantics doctrine).
 
-**▶ THE SPINE (R2 — the base-struct unification; strike 1 DONE):**
-1. ✅ **293.3-records — records carry typed fields → satisfy surfaces** (`bd0935db`, SHIPPED above). The first cut:
-   it both delivers the R2 prize AND makes `RecordDef` field-compatible with `StructDef` (the merge precondition).
-2. **NEXT — unify the DEF (the AggregateDef merge):** `StructDef`+`RecordDef` → `AggregateDef{name,
-   fields:Vec<(String,TypeExpr)>, kind, parent?}`. Both now carry typed fields → the merge is structural +
-   behavior-preserving (SET-diff ∅ oracle, no single RED probe). Def-cascade RECON'D: `TypeDef::Struct` 50 / `TypeDef::Record`
-   38 / `StructDef` 28 / `RecordDef` 28 sites, ~16 files. Ride the cascade; the trap = per-kind identity
-   (struct=`StructValue.type_name`+fields; record=`class_fqdn`+`struct_form`; holon adds `holon_form`).
-3. **THEN — unify the VALUE:** 3 `Value` variants → `Aggregate{class, fields, kind}` + derived hologram. Cascade
-   recon'd: `Value::Struct` 82 / `wat__Record` 98 / `wat__holon__Record` 76 sites, 21 files. User forms UNCHANGED.
-   PERCEIVE-THE-TRAP first: identity-over-`holon_form` ≡ identity-over-`(class,fields)` — the probe must PROVE it.
-**NEXT ARTIFACT = recon + disconfirming approach for strike 2 (the AggregateDef merge).** Old 293.3-core (struct
-surfaces) SHIPPED `313e7d85` / R1 = *FORMA SOLA SUFFICIT*; R2 (base-struct unification) = *FRANGE UT UNUM FIAT*.
+**▶▶ DECISIONS LOCKED (four-questioned + builder-confirmed "you found the answers"):**
+**D1** = `AggregateKind` 3-way `{Struct, Record, HolonRecord}`, `parent` derived-and-dropped (option A 2-way+parent
+FAILED Obvious/Simple/Honest — holon is a label, not a parent-flavor). **D2** = fields ALWAYS-typed (no Option).
+**D3** = strike 2 decomposes 2a (field-align) → 2b (variant merge).
+
+**▶ THE SPINE (R2 — the base-struct unification; strikes 1 + 2a DONE):**
+1. ✅ **293.3-records** (`bd0935db`) — records carry typed fields → satisfy surfaces (R2 prize + merge precondition).
+2a. ✅ **unify-2a** (`15157c3d`) — `RecordDef {field_names, field_types:Option}` → `{fields: Vec<(String,TypeExpr)>}`,
+   now field-IDENTICAL to `StructDef`. Killed the dead string-literal `recordtype` branch; net −25 lines. Weighed pure
+   (the 3 enum/field-named fails PROVEN pre-existing at baseline; the E0560/E0063 were STALE mid-edit diagnostics —
+   forced 29s recompile clean).
+2b. **NEXT — unify the DEF (the AggregateDef merge):** `StructDef`+`RecordDef` → `AggregateDef{name, type_params,
+   fields:Vec<(String,TypeExpr)>, kind: AggregateKind, restrictions}` (D1: 3-way kind; D2: always-typed; `parent`
+   DERIVED from kind & dropped). `TypeDef::Struct`+`TypeDef::Record` → `TypeDef::Aggregate`. `is_portable_type =
+   kind != Struct`. Behavior-preserving (SET-diff oracle, no RED probe). Cascade: `TypeDef::Struct` 50 / `TypeDef::Record`
+   38 sites, 7 files touch BOTH (check/closure_extract/edn_shim/rete×2/runtime/types). Now that 2a aligned the
+   shapes, the merge is mechanical. WEIGH DISCIPLINE: the floor is the arc-170 execve-leak NURSERY/holon-global class
+   (nondeterministic, ~201-204); deterministic record/struct/surface tests + forced clean recompile are the truth oracle.
+3. **THEN — unify the VALUE:** 3 `Value` variants → `Aggregate{class, fields, kind}` + derived hologram (256-site
+   cascade). User forms UNCHANGED. PERCEIVE-THE-TRAP: identity-over-`holon_form` ≡ identity-over-`(class,fields)`.
+**NEXT ARTIFACT = draw 2b (the AggregateDef merge) strike-ready.** Old 293.3-core (struct surfaces) `313e7d85` /
+R1 = *FORMA SOLA SUFFICIT*; R2 (base-struct unification) = *FRANGE UT UNUM FIAT*.
 
 **THE GATE (293 close) = the demo** (`DESIGN.md` § What the arc delivers): Shape/Circle/Square + holon-Vector
 monkeypatch, RED→GREEN. **R2 FULFILLED** when the unification lands (user forms unchanged, SET-diff ∅) → *PROBATUM EST*.
