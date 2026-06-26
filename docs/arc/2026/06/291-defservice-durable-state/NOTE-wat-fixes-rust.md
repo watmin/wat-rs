@@ -58,10 +58,25 @@ the token→fix-text bridge + the wat-string delegation + tests/oracle. That is 
 `fix.wat` func. Hence ARC-CANDIDATE, deferred ("not yet"), surfaced for the builder's call — per
 `feedback_dont_greedily_create_arcs` (don't unilaterally mint).
 
+## Motivating cases (the forcing function accruing)
+
+- **291 strike-3a-ii-β** — 5 probe `.rs` files hand-edited (the removed `Op::Stop` assertions).
+- **293.2-rename (`60d7d99a`)** — the `Record::def → defrecord` rename: **12 `.wat` files** flowed through the
+  self-hosted fix-wat codemod cleanly, but **81 `.rs`** wat-in-string fixtures were swept with a blunt `sed`
+  — and `sed` **corrupted prose comments** that intentionally named the OLD form (a probe doc-comment, an
+  arc-237 *"RED today: X does not exist"* historical state, an arc-209 mixed doc). Tests stayed green; the
+  *record lied*. The weigh (not the suite) caught it; 3 docs were repaired by hand. **This is the sharper
+  argument for the tool:** a `proc-macro2`-token shim renames only inside the wat-bearing `Literal` tokens and
+  **never touches a `//`/`///`/`//!` comment** — the exact distinction `sed` is blind to. The boundary isn't
+  merely "tedious to hand-edit"; an unguided textual sweep is *unsound over prose*.
+
 ## Until it exists (the standing boundary)
 
 wat-in-Rust-string `.rs` fixtures are **Rust edits** (hand-edited or via Rust tooling), NOT wat-fix targets.
-`.wat` source is wat-fix's domain. This NOTE is the marker that the boundary is *known and intentional*, with
+`.wat` source is wat-fix's domain. **A blunt `sed`/text-replace over `.rs` is NOT a safe substitute** — it
+cannot tell a wat-string-literal from a prose comment, so it corrupts historical/contrast comments (the
+293.2-rename incident above). Until the tool exists: rename inside string literals only, and audit comment
+substitutions by hand in the weigh. This NOTE is the marker that the boundary is *known and intentional*, with
 a designed exit.
 
 ## Pairs
