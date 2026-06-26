@@ -221,14 +221,24 @@ members). This preserves the argspec uniformity (four rounds of hardening) — n
 (wat.core/def h [x :- user.type/Bespoke]  ...) ; a concrete type = exact
 ```
 
-### Extension is STRUCTURAL (the `program::Env` fix)
+### Extension is NOMINAL, same-kind (the `program::Env` fix — REFINED 2026-06-26)
 
-A record "extends" `:wat::program::Env` by **satisfying its field-surface** (record-satisfies-record over the
-field set), NOT a nominal parent edge. ⊘ SUPERSEDES the nominal record `parent`: a holon record can satisfy
-`program::Env`'s shape AND be `holder: HolonRecord` — no contradiction. (The old nominal parent FORCED the
-kind: `holon::Record::def` hardcodes `:wat::holon::Record` as parent, so a holon could *never* share a core
-base's shape — the pre-existing limitation this dissolves. The unify-2b crash — `recordtype` rejecting
-`program::Env` as a parent — was this conflation surfacing.)
+> ⊘ SUPERSEDES the prior "extension is STRUCTURAL" framing in THIS section (an apparatus over-application). The
+> builder's dissolution: *you do not put a holon AS the env; the env is a core-record; a holon goes in as a FIELD.*
+
+A record "extends" `:wat::program::Env` by **declaring it as its parent — same-kind, nominal.** `program::Env` is
+a **core record** (it ships to spawned processes — tasks #211/#238, "data-shaped" — so it MUST be EDN-portable,
+`holder: Record`). A record extending it is **also** a `Record` — **you never extend across the trit.** A user
+who needs holon data in an env gives the env **a field whose type is a holon-record** (composition); that field
+is itself EDN-portable (R2/R3), so the whole env still crosses clean. "A holon can't extend a core base" is NOT a
+limitation — it is correct: **holon-ness is compositional (a field), never inheritance.**
+
+The fix (the unify-2b crash): `parse_recordtype` derives `holder` from the parent's **transitive root**
+(`program::Env` roots at `:wat::Record` → `holder: Record`) and ACCEPTS any parent that roots at a valid holder —
+not a hardcoded 2-element root-whitelist. **`parent` STAYS** on the def (the base edge; `:wat::core::Value` for
+structs / direct-children, the actual base for records; the lattice registers it only when `≠ Value`). The
+`:holder` bound + structural surface (above) is for **param typing only** (`foobar`), orthogonal to extension.
+The holder-lattice Liskov rule under all this is PROVEN (`tests/probe_arc293_holder_substitution.rs`, `394190db`).
 
 ### The precedent — `defservice` already IS the trit
 
@@ -246,9 +256,9 @@ visible). Surface clause **`:holder`** (specific to the axis; symmetric with a s
 
 ### The shapes
 ```
-Holder = { Struct, Record, HolonRecord }                                    // the trit — one categorical axis
-AggregateDef { name, type_params, fields, holder: Holder, restrictions }    // unify-2b's merge, holder-named
-SurfaceDef   { name, holder: Option<Holder>, members }                      // :holder bound + structural members
+Holder = { Struct, Record, HolonRecord }                                                  // the trit — one categorical axis
+AggregateDef { name, type_params, fields, holder: Holder, parent: String, restrictions }  // parent = base edge (`:wat::core::Value` for structs); holder = root-of(parent) for records
+SurfaceDef   { name, holder: Option<Holder>, members }                                     // :holder bound + structural members
 ```
 unify-2a (`RecordDef` → typed `fields`) and unify-2b (the `StructDef`+`RecordDef` → `AggregateDef{holder}`
 merge) STAND; the fix re-scopes 2b: drop the nominal record-parent, route extension to surfaces, add the
