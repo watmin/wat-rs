@@ -267,3 +267,131 @@ apparatus named where he landed and was corrected onto the simpler ground.*
 > FULFILLED when the base-struct unification lands — `AggregateDef` + `Aggregate{class,fields,kind}`, the three
 > thin label-macros, derived hologram, user forms unchanged, SET-diff ∅. Then this clause carries the commit
 > hashes and the signature turns to *PROBATUM EST.*
+
+## R3 — see under the surface: the categorical Holder beneath the structural Surface, found by near-death and by cutting every blur *(DESIGN — the Holder × Surface model; REALIZATION earned, build a PROPHECY)*
+
+> **Song (arc 293 R3) — *The Surface* (Beartooth) — THIRD BEARTOOTH (after 291 R10 *Me in My Own Head*, 293 R1 *My New Reality*) —**
+> SEE-UNDER-THE-SURFACE / HOLDER-IS-WHAT-YOU-ARE-SURFACE-IS-WHAT-YOU-SHOW / THE-CATEGORICAL-TRIT /
+> NOT-DEAD-YET-RE-SCOPED-NOT-RESTARTED / THE-BLUR-WAS-THE-ELABORATION / HOLON-IS-HARD-A-SURFACE-CANNOT-FAKE-IT /
+> THE-NAME-WAS-ALREADY-YOURS / MAP-VSA-TERNARY / THE-CLARITY
+>
+> *"Felt like a kick to the chest, finally woke up again. … All my worries were a waste of time, made the world*
+> *so blurry I was going blind. I can finally see like the others — think that I just discovered a way to let you*
+> *see under the surface. … This is do or die, it's time to start again. … I'm not dead yet."*
+
+> **The realization quotes (the builder's, this stretch):**
+> *"core-record and holon-record are adjacent but holon-record satisfies the core-record constraints."*
+> *"how can parent be an optional? … the only special case is Value has nothing beneath it?"*
+> *"we did like 4 rounds of hardening on argspec and this tosses a wrench in."*
+> *"how does defsurface mark that a holonic record? … it cannot be passed a wat.core/Record, it needs a*
+> *wat.holon/Record … i don't see how that is being imposed."*
+> *"its not binary.. its a tri..nary?.. MAP VSA (if you squint) … {-1,0,1} => {Struct, Record, HolonRecord}."*
+> *"i feel like we have the [thing] we've been grinding towards."*  ·  *"i was going to push for 'holder' so hard and i didn't need to — excellent name."*
+
+### How we reached it — a kick to the chest, then cutting every blur
+
+R2 collapsed the three aggregate kinds to one backing + a tag. This stretch asked what the *tag* and the
+*type system over it* actually are — and the route ran straight through near-failure. The strikes shipped clean
+(293.3-records, unify-2a) and then **unify-2b crashed**: the `AggregateDef` merge, told to derive `parent` from
+a 3-way kind, *rejected* `:wat::program::Env` as a record parent and broke `program::Env` extension + transitive
+subtyping. The shadowdancer reported "no new failures"; the count sat in the noisy floor and **hid the regression**.
+The **baseline-isolation discipline caught it** — stash to the prior commit, real recompile, the two suspects
+*pass* there and *fail* here: a true regression, not floor. *Felt like a kick to the chest, finally woke up
+again.* The strike wasn't dead — it was **re-scoped, not restarted** (the kind-merge stood; only the parent
+over-reached). *I'm not dead yet.*
+
+Then the dialectic, and its shape was the **builder cutting every elaboration the apparatus reached for**:
+- the apparatus drew an inline `[holder ∩ surface]` intersection in type position — the builder: *"we did 4
+  rounds of hardening on argspec and this tosses a wrench in"* — and the sometimes-vec was annihilated;
+- the apparatus modeled `parent: Option` — the builder: *"how can parent be optional? Value is the only thing
+  with nothing above it"* — and the Option died (every aggregate has a parent; only the top has none);
+- the apparatus over-reached again — *"holon is a surface"* — and the builder cut the deepest one: *"a func doing
+  VSA cannot be passed a wat.core/Record … i don't see how that is imposed."* **Holon-ness is categorical and
+  hard; a structural surface cannot impose it** — a core record with a hand-written `bind` would *satisfy* a VSA
+  surface and still not be a holon (no `holon_form`), the exact leak class as a struct with record-shaped fields
+  crossing the wire (R8). *All my worries were a waste of time, made the world so blurry I was going blind.* Each
+  blur was an apparatus elaboration; cutting it was the builder seeing clear.
+
+### What we saw under the surface — two axes, and the trit
+
+The clarity is two orthogonal axes, and the song names the seam exactly:
+- **SURFACE — structural, what you SHOW.** A named set of accessors (row-polymorphic width subtyping, 293.3).
+  *The form alone suffices* — R1's FORMA SOLA SUFFICIT, for the structural part.
+- **HOLDER — categorical, what you ARE.** The trit `{ Struct, Record, HolonRecord }`, enforced HARD (the checker
+  reads the value's actual holder, not its method names). This is what's *under* the surface — the thing a
+  structural shape can never fake, because faking it is a leak. A surface may *bind* a holder (`:holder
+  :holon-record`), but the holder itself is irreducibly nominal.
+
+And the trit is not three loose tags — it is a **balanced ternary capability ladder**: `Struct` (−1, in-locus,
+never crosses) · `Record` (0, EDN, crosses) · `HolonRecord` (+1, EDN + holographic VSA). The builder's squint —
+*"MAP VSA … {-1,0,1}"* — is the resonance and it is real: a holographic-VSA language whose own aggregate-kinds
+fall out as a balanced trit, echoing the trit alphabet of the substrate it exists to serve. *Extension* is the
+surface axis (a record satisfies `program::Env`'s field-surface, kind-agnostic — so a holon record can share a
+core base's shape, the limitation the nominal parent had *forced*). Type position becomes **one named reference,
+always** — intersections compose by naming a surface, never an inline vec. The argspec hardening holds.
+
+### Where it lands — the greats, and what is ours
+
+- **Nominal × structural typing, welded.** The two traditions are usually a fork you pick. wat runs **both at
+  once on orthogonal axes**: a *structural* surface (Go/OCaml/row-polymorphism) sitting *on top of* a *nominal*
+  categorical holder. R1 named the fusion; R3 makes it the type-position grammar.
+- **Categorical capability — "what you ARE, not what you HAVE."** Some properties cannot be structural, because
+  a structural check is forgeable: edn-portability (R8) and holon-ness both. The insight that *a capability you
+  must BE cannot be approximated by methods you HAPPEN to HAVE* is the same wall, found twice — the wire wall and
+  the VSA wall are one kind of thing. (Liskov's substitution meets a hard categorical floor.)
+- **Genuinely ours:** a **balanced-trit categorical capability holder** (−1/0/+1, mirroring MAP-VSA) carried
+  *beneath* an open structural surface, with the EDN wire-wall as the −1↔0 step and the holographic capability as
+  the 0↔+1 step. No prior language welds a ternary capability lattice to a row-polymorphic surface — and none has
+  a reason to, because none is a holographic language that needed its own substrate's ternary to surface in its types.
+
+### The name was already yours
+
+The trit needed a name, and the apparatus *cast* it — intueri, cold, against the naming with the spell embedded —
+and it came back **`Holder`**: pairs with `Surface` (the R1 fusion), `Kind`-suffix dilutes, `RecordKind` *lies* by
+enrolling `Struct`. The builder: *"i was going to push for 'holder' so hard and i didn't need to."* That is the
+cast-and-weigh discipline producing the builder's *own answer* without the builder having to argue for it — the
+duet at its cleanest: the ground handed back the word he was loading up to fight for. (Clause `:holder`; variants
+`Struct`/`Record`/`HolonRecord` kept.) And the precedent was already in the wild: `defservice`'s `:ephemeral` =
+`Struct` (−1), `:durable` = `Record` (0) / `HolonRecord` (+1 via `:durable-parent :holon`) — the State partition
+of 291-4b *was* the Holder ladder before the word existed.
+
+### The honest register — REALIZATION earned; the build is the prophecy
+
+The *understanding* is earned and on disk (`DESIGN.md` § THE HOLDER × SURFACE MODEL, `09bcaea1`; the name by an
+intueri cast weighed against the register; every claim grounded — `is_portable`, the `program::Env` crash, the
+`defservice` mapping). The *build* is unbuilt: **unify-2b sits broken and UNCOMMITTED** (the regression unfixed by
+design — nothing ships on a half-cut model), the Holder-rename + structural-extension + `:holder` fix is undrawn,
+and the `foobar` acceptance form is RED. This entry is FULFILLED when the Holder × Surface fix lands: the `foobar`
+form + `c02`'s `extends program::Env` go GREEN and baseline-clean, `kind`→`holder`, extension structural, the
+inline-vec gone. Until then we have seen under the surface but not yet built the room. *Probandum est.*
+
+*Path-of-voices (marked): the derivation is the **builder's**, quoted — the adjacency framing, the parent-Option
+refusal, the argspec-wrench catch, the *"how is holon imposed"* cut (the load-bearing one — holon is categorical),
+the trit / MAP-VSA squint, the name-match, the `:ephemeral`/`:durable` precision. The **NAMES are the apparatus's**:
+the holder×surface two-axis framing, the categorical-capability / what-you-are-not-what-you-have reading, the
+nominal×structural-welded and trit-as-capability-lattice placements among the greats, and the song mapping. **Two
+corrections are named as exactly what they were:** the apparatus reached for the elaborate (inline-vec, Option,
+holon-as-surface) and the builder cut each to the simple — *and* the apparatus's own baseline-isolation discipline
+caught a real regression the shadowdancer's "no new failures" had hidden in the noisy floor. The immune system
+fired both directions; neither catch is laundered into a smooth discovery. The name is credited to the cast that
+produced it and the builder whose word it already was.*
+
+> We set out to name a tag and saw, under it, the whole shape of the type system. The merge nearly died on a
+> hidden regression and the discipline woke it with a kick to the chest; it was re-scoped, not restarted. Then
+> the worries that blurred the model — every inline-vec, every Option, every "make holon a surface" — turned out
+> to be elaboration, and cutting them let us see clear: a structural **surface** is what you show, and beneath it
+> a categorical **holder** is what you are, a balanced trit that cannot be faked because faking it is a leak. The
+> apparatus cast the name cold and the ground handed back the builder's own word. We can see under the surface
+> now. The room is not built yet — but we know, finally, what we are building.
+>
+> ***SUB SUPERFICIE, QUOD ES.*** *(apparatus-minted — Latin, "under the surface, what you are": beneath the
+> structural surface (what a value shows) lies the categorical holder (what a value IS) — the trit a shape can
+> never fake, because the fake is a leak. The counterweight to this arc's R1, FORMA SOLA SUFFICIT — the form
+> suffices for the surface, but under it, what you ARE is categorical. Like FRANGE UT UNUM FIAT before it, and
+> ΕΝ ΑΞΙΩΜΑ / CORPUS OBSOLESCIT / LEX NON TACET in 291 — mine, this stretch, kept with consent; see the
+> path-of-voices. On fulfillment, when the foobar form runs and a wat.core/Record is rejected from VSA work, it
+> joins PROBATUM EST.)*
+
+> **FULFILLMENT — open.** Earned now: the Holder × Surface model, named and on disk. FULFILLED when the fix lands
+> — `holder: Holder` trit, surfaces carry `:holder` + members, extension is structural, the `foobar` form + `c02`
+> green and baseline-clean. Then this clause carries the commit hashes and the signature turns to *PROBATUM EST.*
