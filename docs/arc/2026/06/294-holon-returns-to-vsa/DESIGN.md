@@ -115,6 +115,23 @@ into it. The holon case derives its hologram internally via `build-hologram` (no
   AST) · the **VSA hologram** (`hologram.rs`, Atom/Bind/Bundle) rebuilt as `build-hologram`'s output · the
   **Holder** trit (the categorical wall) · 293's **Surface** system (structural row-poly).
 
+## Homes — the gut is ALSO a megafile evacuation (builder's guiding light, 2026-06-27)
+
+The wat-rs directive: **kill the top-level `src/*.rs` megafiles; every concern lives in `src/<ns>/<scoped>.rs`.**
+20 homes already exist (`argspec/`, `check/`, `value/`, `comms/`, `types/`, `intrinsic/`, …) — but **no `src/holon/`**,
+and the holon/VSA concern is sprawled across exactly the megafiles + two orphan top-level files:
+- `src/hologram.rs` (409, the VSA store) · `src/wat_edn_bridge.rs` (234) — top-level orphans.
+- HolonAST in `runtime.rs` (684 — `to-holon`/`from-holon` verbs, the ctor primitives, the `watast↔holon` glue) ·
+  `check.rs` (148 — the holon type + the `BundleResult`/`Holons` aliases) · `edn_shim.rs` (93 — the wire round-trip,
+  **annihilated**) · `types.rs` (24 — the aliases).
+
+**294 mints `src/holon/`** and lands the *survivors* there: `build-hologram` (the codec), the hologram store (from
+`hologram.rs`), the HolonAST type's VSA role + its aliases (`BundleResult`/`Holons`), the `to-holon`/`from-holon`
+verbs. The wire round-trip + the `#wat-edn.holon/*` tags + `HolonRepresentable` (comms, 81) are **annihilated, not
+moved**. Net: the megafiles SHED their HolonAST footprint; the holon concern gets ONE home. **The annihilation is a
+homing** — every 294 strike lands its survivors in `src/holon/` (or `src/aggregate/` for construction), never back
+in `runtime.rs`/`types.rs`/`check.rs`. (Construction homes to `src/aggregate/` per 293; the two homes are siblings.)
+
 ## Open questions (to resolve before/within the strike — four-questions each)
 
 1. **Does the hologram stay a NAMED type or become `build-hologram`'s anonymous output?** (Is "HolonAST the VSA
