@@ -31,8 +31,7 @@ use wat::runtime::{Environment, Value};
 fn eval_string(body: &str) -> Result<String, String> {
     let src = format!(
         "(:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST \
-            (:wat::core::Option/expect -> :wat::WatAST \
-              (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))) \"topform\"))\n\
+            (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))\n\
          (:wat::core::defn :user::compute [] -> :wat::core::String {body})\n\
          (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
     );

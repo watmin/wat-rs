@@ -48,12 +48,11 @@ const FORM: &str =
 /// head = `(first (ast->children FORM))` — the head keyword `:wat::core::map` (col 2).
 fn head_span_field(key: &str) -> Result<i64, String> {
     eval_i64(&format!(
-        "(:wat::core::Option/expect -> :wat::core::i64 \
+        "(:wat::core::Option/expect \
            (:wat::core::HashMap/get \
              (:wat::core::ast-span \
-               (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::ast->children \
-                   (:wat::core::Option/expect -> :wat::WatAST {FORM} \"form\"))) \"head\")) \
+               (:wat::core::first (:wat::core::ast->children \
+                 {FORM}))) \
              {key}) \
            \"field\")"
     ))
@@ -73,12 +72,11 @@ fn c02_ast_span_head_col() {
 fn c03_ast_span_symbol_col() {
     // The form's second child (symbol `x`) starts at col 18.
     let got = eval_i64(&format!(
-        "(:wat::core::Option/expect -> :wat::core::i64 \
+        "(:wat::core::Option/expect \
            (:wat::core::HashMap/get \
              (:wat::core::ast-span \
-               (:wat::core::Option/expect -> :wat::WatAST \
-                 (:wat::core::first (:wat::core::rest (:wat::core::ast->children \
-                   (:wat::core::Option/expect -> :wat::WatAST {FORM} \"form\")))) \"x\")) \
+               (:wat::core::first (:wat::core::rest (:wat::core::ast->children \
+                 {FORM})))) \
              :col) \
            \"field\")"
     ));

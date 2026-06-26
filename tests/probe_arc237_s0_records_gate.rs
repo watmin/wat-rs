@@ -46,8 +46,8 @@ use wat::load::InMemoryLoader;
 fn s0_t1a_macro_emitted_struct_synthesizes_is_predicate() {
     let src = r#"
         (:wat::core::defmacro :my::defthing
-          [name <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [name <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::defstruct ~name [n <- :wat::core::i64]))
 
         (:my::defthing :my::g::Widget)
@@ -69,8 +69,8 @@ fn s0_t1a_macro_emitted_struct_synthesizes_is_predicate() {
 fn s0_t1b_macro_emitted_typeunion_synthesizes_is_predicate() {
     let src = r#"
         (:wat::core::defmacro :my::defnum
-          [name <- :AST<wat::core::nil>]
-          -> :AST<wat::core::nil>
+          [name <- :wat::WatAST]
+          -> :wat::WatAST
           `(:wat::core::typeunion ~name [:wat::core::i64 :wat::core::f64]))
 
         (:my::defnum :my::g::Num)

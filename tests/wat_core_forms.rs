@@ -111,9 +111,7 @@ fn forms_composes_with_run_sandboxed_ast() {
                           (:wat::kernel::println "hello-from-inside"))
                        captured (:wat::kernel::RunResult/stdout r)
                        line
-                        (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                          ((:wat::core::Some s) s)
-                          (:wat::core::None ""))]
+                        (:wat::core::first captured)]
                       line))
     "##;
     // (:wat::kernel::println "hello-from-inside") EDN-serializes strings with quotes.
@@ -156,9 +154,7 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
                           (:wat::kernel::println "hi"))
                        captured (:wat::kernel::RunResult/stdout r)
                        line
-                        (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                          ((:wat::core::Some s) s)
-                          (:wat::core::None ""))]
+                        (:wat::core::first captured)]
                       line))
     "##;
     // (:wat::kernel::println "hi") EDN-serializes strings with quotes.

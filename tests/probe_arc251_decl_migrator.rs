@@ -34,9 +34,7 @@ fn migrator_source() -> String {
 /// topform helper — reads the first top-level form from a source string.
 const TOPFORM: &str = r#"
 (:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST
-  (:wat::core::Option/expect -> :wat::WatAST
-    (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src)))
-    "topform: empty source"))
+  (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))
 "#;
 
 /// Build a complete program source: migrator + topform helper + a `compute` defn + a

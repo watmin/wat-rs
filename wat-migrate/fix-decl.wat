@@ -25,10 +25,8 @@
 ;; A name without `<` splits to a single piece; first = the full name; same path.
 ;; Always produces a Symbol, never a parametric form.
 (:wat::core::defn :migrate::name-fix [kw <- :wat::WatAST] -> :wat::WatAST
-  (:wat::core::let [stripped (:wat::core::Option/expect  
-                                (:wat::core::first
-                                  (:wat::core::string::split (:wat::core::ast-name kw) "<"))
-                                "name-fix: split returned empty")]
+  (:wat::core::let [stripped (:wat::core::first
+                                (:wat::core::string::split (:wat::core::ast-name kw) "<"))]
     (:wat::core::if (:wat::core::string::contains? stripped "::")
       (:wat::core::keyword/to-symbol (:wat::core::keyword-node stripped))
       (:wat::core::symbol-node
@@ -63,7 +61,7 @@
 (:wat::core::defn :migrate::fix-types [items <- :wat::core::Vector<wat::WatAST>] -> :wat::core::Vector<wat::WatAST>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::WatAST)
-    (:wat::core::let [h   (:wat::core::Option/expect   (:wat::core::first items) "fix-types: head")
+    (:wat::core::let [h   (:wat::core::first items)
                       out (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
                             (:wat::core::keyword/to-type-form h)
                             (:wat::fix::fix-source h))]
@@ -89,21 +87,18 @@
 (:wat::core::defn :migrate::fix-form [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch   (:wat::core::ast->children node)
-                      head (:wat::core::Option/expect  
-                              (:wat::core::first ch) "fix-form: empty list")]
+                      head (:wat::core::first ch)]
       (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
                         (:migrate::name-head? (:wat::core::ast-name head))
                         false)
-        (:wat::core::let [ch1   (:wat::core::Option/expect  
-                                   (:wat::core::first (:wat::core::drop ch 1)) "fix-form: no name")
+        (:wat::core::let [ch1   (:wat::core::first (:wat::core::drop ch 1))
                           rest2  (:wat::core::drop ch 2)
                           fixed-head (:wat::core::keyword/to-symbol head)
                           fixed-name (:migrate::name-fix ch1)
                           fixed-rest (:wat::core::if (:migrate::type-slot-2? (:wat::core::ast-name head))
                                        (:wat::core::if (:wat::core::empty? rest2)
                                          (:wat::core::Vector :wat::WatAST)
-                                         (:wat::core::let [ch2   (:wat::core::Option/expect  
-                                                                     (:wat::core::first rest2) "fix-form: no type")
+                                         (:wat::core::let [ch2   (:wat::core::first rest2)
                                                            rest3  (:wat::core::rest rest2)]
                                            (:wat::core::concat
                                              (:wat::core::Vector :wat::WatAST
@@ -112,8 +107,7 @@
                                      (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::typeunion")
                                        (:wat::core::if (:wat::core::empty? rest2)
                                          (:wat::core::Vector :wat::WatAST)
-                                         (:wat::core::let [uch2  (:wat::core::Option/expect  
-                                                                    (:wat::core::first rest2) "fix-form: no member vector")
+                                         (:wat::core::let [uch2  (:wat::core::first rest2)
                                                            urest (:wat::core::rest rest2)]
                                            (:wat::core::concat
                                              (:wat::core::Vector :wat::WatAST

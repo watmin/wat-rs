@@ -141,13 +141,13 @@ fn named_define_as_stream_map_fn() {
                         (:wat::stream::spawn-producer
                           (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
                             (:wat::core::do
-                              (:wat::core::Result/expect -> :wat::core::nil
+                              (:wat::core::Result/expect
                                 (:wat::kernel::send tx 1)
                                 "producer: tx disconnected on send 1")
-                              (:wat::core::Result/expect -> :wat::core::nil
+                              (:wat::core::Result/expect
                                 (:wat::kernel::send tx 2)
                                 "producer: tx disconnected on send 2")
-                              (:wat::core::Result/expect -> :wat::core::nil
+                              (:wat::core::Result/expect
                                 (:wat::kernel::send tx 3)
                                 "producer: tx disconnected on send 3")
                               ())))
@@ -155,9 +155,7 @@ fn named_define_as_stream_map_fn() {
                         (:wat::stream::map source :my::double)
                        collected (:wat::stream::collect doubled)
                        first
-                        (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
-                          ((:wat::core::Some n) n)
-                          (:wat::core::None -1))
+                        (:wat::core::first collected)
                        len (:wat::core::length collected)]
                       (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
                         -> :wat::core::i64

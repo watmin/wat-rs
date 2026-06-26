@@ -114,7 +114,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :wat::core::foldl)
                           "expected Some")
                        renamed
@@ -161,7 +161,7 @@ fn rename_callable_name_no_type_params() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::my-double)
                           "expected Some")
                        renamed
@@ -212,7 +212,7 @@ fn rename_callable_name_error_from_mismatch() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::my-neg)
                           "expected Some")
                        renamed
@@ -241,7 +241,7 @@ fn extract_arg_names_foldl_returns_three_names() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :wat::core::foldl)
                           "expected Some")
                        names
@@ -295,7 +295,7 @@ fn extract_arg_names_zero_args_returns_empty() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::constant)
                           "expected Some")
                        names
@@ -325,7 +325,7 @@ fn extract_arg_names_stops_before_return_type() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::my-add)
                           "expected Some")
                        names
@@ -404,7 +404,7 @@ fn rename_then_extract_preserves_arg_names() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::my-add)
                           "expected Some")
                        renamed

@@ -53,7 +53,7 @@ fn eval_i64(decls: &str, body: &str) -> Result<Value, String> {
 // vector node, so bind-key == lookup-key and the clause body executes correctly.
 const MAKE_MACRO_ADD: &str = "\
 (:wat::core::defmacro :test::make-macro-add \
-  [] -> :AST<wat::holon::HolonAST> \
+  [] -> :wat::WatAST \
   `(:wat::core::defclause :test::macro-add \
      ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 \
        (:wat::core::i64::+ x y))))";
@@ -62,7 +62,7 @@ const MAKE_MACRO_ADD: &str = "\
 const CALL_MAKE_MACRO_ADD: &str = "(:test::make-macro-add)";
 
 const CAPTURE_MACRO: &str = "(:wat::core::defmacro :test::add-via-tmp \
-     [x <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+     [x <- :wat::WatAST] -> :wat::WatAST \
      `(:wat::core::let [tmp 100] (:wat::core::i64::+ tmp ~x)))";
 
 /// DEFCLAUSE MACRO HYGIENE GUARD — proves that a macro-generated defclause
@@ -151,9 +151,9 @@ fn classic_macro_capture_is_prevented() {
 fn two_scope_identifier_resolves_correctly_end_to_end() {
     let decls = "\
         (:wat::core::defmacro :test::make-add-inner \
-          [] -> :AST<()> \
+          [] -> :wat::WatAST \
           `(:wat::core::defmacro :test::inner-add \
-             [x <- :wat::holon::HolonAST] -> :AST<wat::holon::HolonAST> \
+             [x <- :wat::WatAST] -> :wat::WatAST \
              `(:wat::core::let [tmp 10] (:wat::core::i64::+ tmp ~x)))) \
         (:test::make-add-inner)";
     let body = "(:test::inner-add 7)";
