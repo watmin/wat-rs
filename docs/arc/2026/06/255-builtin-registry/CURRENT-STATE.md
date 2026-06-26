@@ -1,7 +1,55 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-25 SESSION 4; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-26 SESSION 5; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `15157c3d` (293 unify-2a SHIPPED) or
-later — COMMITTED + PUSHED to DR. Tree CLEAN (only `clara-tools/` ignored).
+Branch `arc-170-gap-j-v5-deadlock-state`. Freshness probe: HEAD should be `e358f827` (2b-fix STRIKE-READY) or later.
+⚠ **THE TREE IS DIRTY ON PURPOSE** — a sonnet (`a2715b543ebb4f245`) is patching the broken unify-2b merge in the
+working tree (UNCOMMITTED ~12 files). That is EXPECTED; weigh + commit it (see ⏳ IN FLIGHT). Else only `clara-tools/`.
+
+## ▶▶ STATE @ 2026-06-26 (SESSION 5) — the HOLDER × SURFACE type model, settled + named + proven
+**A long co-design crystallized wat's aggregate type system.** READ FIRST, whole: `293-…/DESIGN.md` § "THE HOLDER ×
+SURFACE MODEL" + `293-…/REALIZATIONS.md` **R3** (*The Surface* / Beartooth / *SUB SUPERFICIE QUOD ES*).
+
+**THE MODEL (settled):** TWO orthogonal axes.
+- **HOLDER (nominal, categorical — the TRIT `Holder = {Struct, Record, HolonRecord}`):** the ONE categorical axis,
+  a balanced `{-1,0,+1}` capability ladder (Struct=in-locus/never-crosses/`is_portable=false`; Record=EDN/crosses;
+  HolonRecord=EDN+holographic-VSA). Enforced HARD — the checker reads the value's actual holder, NOT its method
+  names — because holon-ness, like edn-repr (R8), is categorical: a core record with a hand-written `bind` is still
+  not a holon (no `holon_form`); a structural surface CANNOT impose it. `is_portable = holder != Struct`.
+- **SURFACE (structural):** `Surface{name, holder: Option<Holder>, members}` — optional `:holder` bound (categorical)
+  + structural members (row-poly width subtyping). Type position is ALWAYS a SINGLE named reference (concrete type,
+  holder, or surface); intersections compose by NAMING a surface; the inline-vec `[A ∩ B]` is ANNIHILATED.
+- **Extension is NOMINAL same-kind:** a record extending `program::Env` is a Record (holder = parent's root family);
+  `parent` STAYS on the def (Value for structs). **Holon-ness is COMPOSITIONAL (a field), NEVER inheritance** — you
+  never extend across the trit. `defservice` IS the trit already (`:ephemeral`=Struct, `:durable`=Record/HolonRecord).
+- **Liskov:** HolonRecord <: Record <: Value; Struct on a separate branch. Widen-yes (holon→record), narrow-NO
+  (core↛holon even if fields match), struct-separate. **PROVEN** — `tests/probe_arc293_holder_substitution.rs`.
+- **Names (intueri cast, weighed):** `Holder` (pairs with `Surface`; `Kind`-suffix dilutes; `RecordKind` lies by
+  enrolling Struct) · variants `Struct`/`Record`/`HolonRecord` · clause `:holder`.
+
+**SHIPPED this stretch (DR, all weighed pure):**
+- **293.3-records (`bd0935db`)** records carry typed fields → satisfy surfaces. **unify-2a (`15157c3d`)** RecordDef →
+  typed `fields` (StructDef-shaped). **HOLDER-SUBSTITUTION PROOF (`394190db`)** the Liskov rule, 5 cases green
+  (case-4 narrow-rejection hardened to assert it cites the holder). **DESIGN crystallization + 2 amends
+  (`09bcaea1`→`4e457726`)**. **R3 (`9af01e20`)** *SUB SUPERFICIE QUOD ES*.
+
+**⏳ IN FLIGHT — sonnet `a2715b543ebb4f245` is patching the broken unify-2b (UNCOMMITTED in tree).** STRIKE-READY
+@ `e358f827` (`293-…/BRIEF-293-unify-2b-fix.md`). The 2b kind-merge (`StructDef`+`RecordDef`→`AggregateDef`,
+`TypeDef::Aggregate`) STANDS; the fix = rename `AggregateKind`→`Holder`/`kind`→`holder` + restore `parent: String` +
+`parse_recordtype` accepts ANY parent (delete the 2-element whitelist that crashed on `program::Env`) + holder =
+`(parent==holon-root ? HolonRecord : Record)` + lattice/closure_extract use `parent`. **NEXT INSTANCE: weigh it —
+forced clean build (no cached `Finished`); `c02_user_extends_program_env` GREEN (was the regression); the holder
+proof STAYS 5-green; SET-diff vs `15157c3d` with BASELINE-ISOLATION on any deterministic suspect
+([[feedback_baseline_isolate_on_noisy_floor]] — THIS is how the 2b regression was caught, twice); then commit on
+green — OR read its STOP report (STOP-1 = a holon-base extension needing the root-walk).**
+
+**▶ THEN, in order:** (1) the **`:holder` param-typing ADDITIVE layer** — surfaces gain the `:holder` bound; the
+`foobar` form (`[x :- user/EnvHolon]` with `:holder :holon-record` + members) goes green; separate strike, the R3
+acceptance. (2) `/from-map` uniform (the original 291 ask, falls out of the unified emission). (3) 293 close + amend
+291's CURRENT-STATE to unblock → resume 291 (trust leg / acyclicity / INSCRIPTION). R1=*FORMA SOLA SUFFICIT*,
+R2=*FRANGE UT UNUM FIAT*, R3=*SUB SUPERFICIE QUOD ES*.
+
+> ⚠ The SESSION 4 block below is PATH — its "extension is structural / parent dropped" + 2b-as-first-drawn are
+> SUPERSEDED by the SESSION 5 model above (extension nominal same-kind; `parent` stays; `kind`→`holder`). Kept for the
+> reasoning journey. The unify-2a ship + decisions D2(always-typed)/D3(2a→2b) still hold.
 
 ## ▶▶ STATE @ 2026-06-25 (SESSION 4) — 293.2-parity SHIPPED; the BASE-STRUCT UNIFICATION is the arc spine (R2)
 Session 4 ran on the holon/aggregate model. **Read `293-…/REALIZATIONS.md` R2** (Break Stuff / *FRANGE UT UNUM FIAT*)
