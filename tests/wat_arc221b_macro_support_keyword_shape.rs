@@ -119,7 +119,7 @@ fn probe_1_rename_callable_name_accepts_keyword_first_child() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::foo-fn)
                           "expected Some for foo-fn")
                        renamed
@@ -164,7 +164,7 @@ fn probe_2_rename_callable_name_from_mismatch_errors() {
         (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::let
                       [sig
-                        (:wat::core::Option/expect -> :wat::holon::HolonAST
+                        (:wat::core::Option/expect
                           (:wat::runtime::signature-of-defn :user::my-fn)
                           "expected Some")
                        _

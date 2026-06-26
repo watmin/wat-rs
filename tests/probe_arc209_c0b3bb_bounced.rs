@@ -68,7 +68,9 @@ const SERVICE_FORMS: &str = r#"
                  ((:wat::spawn::ServiceEvent::Closed idx)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx)))))
+                   (:user::serve self l (:wat::std::list::remove-at clients idx)))
+                 ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
+                 (_ nil)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let
                  [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)

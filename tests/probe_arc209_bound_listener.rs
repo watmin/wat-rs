@@ -53,7 +53,8 @@ const PROGRAM: &str = r#"
     ((:wat::spawn::ServiceEvent::Closed idx)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))))
+      (:user::serve self l (:wat::std::list::remove-at clients idx)))
+    (_ nil)))
 
 ;; Spawn the service, connect one client, round-trip a scalar (5*2 = 10), then
 ;; scope-exit drops `svc` → :Shutdown → the service terminates and the join completes.

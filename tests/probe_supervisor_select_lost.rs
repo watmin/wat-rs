@@ -54,7 +54,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 /// The process child immediately panics with "boom" via `Option/expect` on `None`.
 const CRASHING_CHILD_SRC: &str = r#"
     (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::Option/expect -> :wat::core::nil :wat::core::None "boom"))
+      (:wat::core::Option/expect :wat::core::None "boom"))
 "#;
 
 /// `select'` over `[child]` where child immediately crashes.

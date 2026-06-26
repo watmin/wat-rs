@@ -63,10 +63,7 @@ fn ast_entry_prints_hello() {
                         (:wat::test::run-hermetic
                           (:wat::kernel::println "hello"))
                        lines (:wat::kernel::RunResult/stdout r)
-                       line
-                        (:wat::core::match (:wat::core::first lines) -> :wat::core::String
-                          ((:wat::core::Some s) s)
-                          (:wat::core::None ""))]
+                       line  (:wat::core::first lines)]
                       line))
     "##;
     // :wat::kernel::println EDN-serializes strings with quotes.

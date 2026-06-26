@@ -76,12 +76,8 @@ fn reverse_vec_via_macro() {
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match
-                      (:wat::core::first
-                        (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3)))
-                      -> :wat::core::i64
-                      ((:wat::core::Some n) n)
-                      (:wat::core::None -1)))
+          (:wat::core::first
+            (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3))))
     "#;
     assert!(matches!(run(src), Value::i64(3)), "got {:?}", run(src));
 }
@@ -93,12 +89,8 @@ fn sort_vec_via_macro() {
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match
-                      (:wat::core::first
-                        (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1)))
-                      -> :wat::core::i64
-                      ((:wat::core::Some n) n)
-                      (:wat::core::None -1)))
+          (:wat::core::first
+            (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1))))
     "#;
     assert!(matches!(run(src), Value::i64(1)), "got {:?}", run(src));
 }

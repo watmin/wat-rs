@@ -64,7 +64,9 @@ const PROGRAM: &str = r#"
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))
                  ;; SHRINK — clients[idx]'s transport broke (remote tier; cause is a Failure).
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx)))))
+                   (:user::serve self l (:wat::std::list::remove-at clients idx)))
+                 ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
+                 (_ nil)))
              ;; the child entry: autobind (no name — unguessable capability), hand the minted
              ;; address to the parent over the self-peer (arc 272 capability handoff), then serve.
              ;; The self-peer carries Address'<i64,i64> up to the parent (S), i64 down from parent (R).

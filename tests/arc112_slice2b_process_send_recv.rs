@@ -62,7 +62,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
                        tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
                        rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
                        ;; send: use Result/expect (non-silent per arc 110).
-                       _sent (:wat::core::Result/expect -> :wat::core::nil
+                       _sent (:wat::core::Result/expect
                                (:wat::kernel::send tx 41)
                                "send failed")
                        ;; recv returns Result<Option<I>, RecvError>; match all three

@@ -84,9 +84,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
                        lines
                         (:wat::kernel::RunResult/stdout hermetic-result)
                        captured-src
-                        (:wat::core::match (:wat::core::first lines) -> :wat::core::String
-                          ((:wat::core::Some s) s)
-                          (:wat::core::None ""))]
+                        (:wat::core::first lines)]
                       (:wat::eval-edn! captured-src)))
     "#;
     let result = run(src);

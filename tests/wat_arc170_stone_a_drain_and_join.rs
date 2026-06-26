@@ -98,13 +98,13 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
            tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
           (:wat::core::let
-            [_ (:wat::core::Result/expect -> :wat::core::nil
+            [_ (:wat::core::Result/expect
                  (:wat::kernel::send tx 1)
                  "send 1 failed — receiver dropped before drain")
-             _ (:wat::core::Result/expect -> :wat::core::nil
+             _ (:wat::core::Result/expect
                  (:wat::kernel::send tx 2)
                  "send 2 failed — receiver dropped before drain")
-             _ (:wat::core::Result/expect -> :wat::core::nil
+             _ (:wat::core::Result/expect
                  (:wat::kernel::send tx 3)
                  "send 3 failed — receiver dropped before drain")]
             nil))
@@ -173,7 +173,7 @@ fn stone_a_thread_drain_and_join_panic_returns_err() {
           [_rx <- :wat::kernel::Receiver<wat::core::i64>
            _tx <- :wat::kernel::Sender<wat::core::i64>]
           -> :wat::core::nil
-          (:wat::core::Option/expect -> :wat::core::nil
+          (:wat::core::Option/expect
             :wat::core::None
             "intentional panic from stone-a thread test"))
 
@@ -222,7 +222,7 @@ fn stone_a_process_drain_and_join_panic_returns_err() {
     let world = freeze_ok(PARENT_TRIVIAL);
     let child = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::Option/expect -> :wat::core::nil
+          (:wat::core::Option/expect
                       :wat::core::None
                       "intentional panic from stone-a process test"))
     "#;

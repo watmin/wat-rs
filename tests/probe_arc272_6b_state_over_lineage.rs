@@ -58,7 +58,9 @@ const PROGRAM: &str = r#"
                  ((:wat::spawn::ServiceEvent::Closed idx)
                    (:user::serve self l (:wat::std::list::remove-at clients idx) state))
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx) state))))
+                   (:user::serve self l (:wat::std::list::remove-at clients idx) state))
+                 ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
+                 (_ nil)))
              ;; the child entry: autobind (no name), hand the capability up (child→parent, proven),
              ;; then RECEIVE state0 down from the parent over the lineage (parent→child — the gap),
              ;; then serve with it. self-peer: S = Address' (up), R = Counter (down).

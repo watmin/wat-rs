@@ -347,15 +347,16 @@ fn row_b_eprintln_unpopulated_returns_service_not_running() {
 fn row_c_readln_unpopulated_returns_service_not_running() {
     fresh_thread();
     let world = freeze_skeleton();
-    // Must use the annotated form (bare `(:wat::kernel::readln)` is MalformedForm).
-    let ast = wat::parse_one!("(:wat::kernel::readln -> :wat::core::String)")
-        .expect("parse readln form");
+    // Must use the prime form directly (readln is a defmacro; readln' is the
+    // kernel-restricted positional primitive that eval can dispatch to).
+    let ast = wat::parse_one!("(:wat::kernel::readln' 524288 -> :wat::core::String)")
+        .expect("parse readln' form");
     let env = Environment::new();
     let err = eval_in_frozen(&ast, &world, &env)
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
         RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
-            assert_eq!(op, ":wat::kernel::readln");
+            assert_eq!(op, ":wat::kernel::readln'");
         }
         other => panic!("expected ServiceNotRunning; got {:?}", other),
     }
@@ -405,8 +406,8 @@ fn row_f_readln_populated_returns_received_form() {
     universe.feed_line("\"ok\"");
 
     let result = universe
-        .readln_eval("(:wat::kernel::readln -> :wat::core::String)")
-        .expect("readln succeeds");
+        .readln_eval("(:wat::kernel::readln' 524288 -> :wat::core::String)")
+        .expect("readln' succeeds");
 
     // The service reads the raw line, the peer routes reply_of → "ok" (without quotes),
     // then eval_kernel_readln parses the EDN "\"ok\"" → coerces to String "ok".
@@ -576,11 +577,11 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
     // ── Send Req(tid_a) then Req(tid_b) ──────────────────────────────
     let req_a = Value::Struct(Arc::new(wat::runtime::StructValue {
         type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid_a)],
+        fields: vec![Value::i64(tid_a), Value::i64(524288)],
     }));
     let req_b = Value::Struct(Arc::new(wat::runtime::StructValue {
         type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid_b)],
+        fields: vec![Value::i64(tid_b), Value::i64(524288)],
     }));
     stdin_input_tx
         .send(ServiceMsg::Req(req_a))
@@ -661,7 +662,7 @@ fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
     // Send a Req — the handle will read None → assertion-failed! → panic.
     let req = Value::Struct(Arc::new(wat::runtime::StructValue {
         type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid)],
+        fields: vec![Value::i64(tid), Value::i64(524288)],
     }));
     // The send may succeed (the loop hadn't panicked yet) or fail (it already did).
     let _ = stdin_input_tx.send(ServiceMsg::Req(req));
