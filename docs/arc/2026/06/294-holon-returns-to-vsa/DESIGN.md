@@ -84,6 +84,26 @@ type-checks: `(Bind (Atom "i64") (Atom 42))` ⇒ "an i64 holding 42". Worked exa
 `{#{1 2 3} true}` ⇒ `(Bind (Atom "Map") (Bundle (Bind (Bind (Atom "Set") (Bundle (Bind (Atom "i64") (Atom 1))…))
 (Bind (Atom "Bool") (Atom true)))))`.
 
+### HolonAST reduces to `Hologram` — the keystone (RESOLVES open Q#1)
+
+Strip HolonAST's borrowed roles (code-AST → WatAST; wire → plain EDN) and what remains is **not a syntax tree** —
+it is `Atom`/`Bind`/`Bundle`/`Permute`/`Thermometer`/`Blend`, the **MAP-VSA algebra** (`holon_ast.rs:59`,
+comments: *"MAP's M / A / P"*) that `encode(ast, vm, scalar) -> Vector` (`holon_ast.rs:695`) evaluates into a point
+in hyperspace. It was never an AST; it was the **hologram** wearing an AST's coat — the truth hiding in the first
+half of its own name. **So `HolonAST` is RENAMED `Hologram`** (intueri), homed to `src/holon/`. The strange loop
+closes *in the rename itself*: returning HolonAST to VSA is not a migration, it is calling it what it always was.
+This is the arc's keystone — *holon returns to VSA*, made literal in one word.
+
+### The canonical three-layer pipeline
+```
+EDN (the data; canonical; the wire) ──(build-hologram)──▶ Hologram (symbolic MAP algebra; Atom/Bind/Bundle;
+                                                                    the type-classifier-wrap imposes types)
+                                       ──(encode)────────▶ Vector (dense hyperspace; where similarity lives)
+```
+Each layer derives the next, one direction. The classifier-wrap `(Bind (Atom TypeName) …)` rides in the
+**Hologram** layer and is what `from-holon` reads to recover a *typed* value on the way back. `{k v}` →
+`(Bind (Atom "Map") (Bundle (Bind k-enc v-enc) …))` — a tagged-map holding a bundle that impls the map.
+
 ### The Kanerva law — width-bounded per frame, depth-UNBOUNDED
 Capacity (`:dims` / `:capacity-mode`, user-tunable `CapacityExceeded` vs panic — `config.rs`) caps **fan-out per
 `Bundle` frame** (≈ N items at d dims — e.g. 100 @ 10k). **Depth is free** (nesting is hologram composition). So
