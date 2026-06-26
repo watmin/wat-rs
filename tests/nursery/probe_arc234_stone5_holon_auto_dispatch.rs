@@ -153,7 +153,7 @@ fn probe_4_bundle_accepts_records_as_children() {
       [r1 (:myapp::Voltage 1.0)
        r2 (:myapp::Voltage 2.0)
        r3 (:myapp::Voltage 3.0)]
-      (:wat::core::Result/expect -> :wat::holon::HolonAST
+      (:wat::core::Result/expect
         (:wat::holon::Bundle [r1 r2 r3])
         "Bundle failed in Probe 4")))
 "#;
@@ -212,7 +212,7 @@ fn probe_6_mixed_records_and_holon_asts() {
        classifier (:wat::holon::Atom (:wat::holon::to-holon "wrapper"))]
       (:wat::holon::Bind
         classifier
-        (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::core::Result/expect
           (:wat::holon::Bundle
             [r
              (:wat::holon::Atom (:wat::holon::to-holon "marker"))])

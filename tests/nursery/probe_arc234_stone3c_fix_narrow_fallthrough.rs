@@ -92,7 +92,7 @@ fn probe_3_hashmap_receiver_keyword_accessor_works() {
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
       [p (:port {:port 8080})]
-      (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::Option/expect
         p
         "probe 3: :port key present")))
 "#;

@@ -64,7 +64,9 @@ const PROGRAM: &str = r#"
     ;; diagnostic (a Failure). Emitted by the remote tier; the thread tier never
     ;; raises this, but the arm is built for the union.
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))))
+      (:user::serve self l (:wat::std::list::remove-at clients idx)))
+    ;; Admin variant added in arc 291; not used in this test — wildcard for exhaustiveness.
+    (_ nil)))
 
 ;; Spawn the service, connect two clients dynamically, round-trip a scalar through each,
 ;; then Stop. Returns r1 + r2 (expect 10 + 14 = 24).

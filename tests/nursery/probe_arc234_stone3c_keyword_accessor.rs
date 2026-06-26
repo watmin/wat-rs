@@ -116,7 +116,7 @@ fn probe_4_keyword_accessor_on_hashmap_some() {
   (:wat::core::let
       [m {:port 8080}
        v (:port m)]
-      (:wat::core::Option/expect -> :wat::core::i64
+      (:wat::core::Option/expect
         v
         "probe 4: expected :port key present")))
 "#;

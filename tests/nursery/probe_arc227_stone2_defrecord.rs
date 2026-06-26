@@ -669,7 +669,7 @@ fn probe_zero_field_instance_uses_empty_bundle() {
     let bundle_src = r#"
         (:wat::core::defn :user::compute [] -> :wat::core::i64
           (:wat::holon::statement-length
-                      (:wat::core::Result/expect -> :wat::holon::HolonAST
+                      (:wat::core::Result/expect
                         (:wat::holon::Bundle [])
                         "empty bundle should not overflow")))
     "#;
@@ -717,7 +717,7 @@ fn probe_one_field_instance_uses_bundle_with_one_bind() {
                                     (:wat::holon::Atom (:wat::holon::to-holon "v"))
                                     (:wat::holon::Atom (:wat::holon::to-holon 42)))]
                       (:wat::holon::statement-length
-                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                        (:wat::core::Result/expect
                           (:wat::holon::Bundle [field-bind])
                           "single-item bundle should not overflow"))))
     "#;
@@ -786,7 +786,7 @@ fn probe_two_field_instance_bundle_has_two_binds() {
                             (:wat::holon::Atom (:wat::holon::to-holon "b"))
                             (:wat::holon::Atom (:wat::holon::to-holon "hi")))]
                       (:wat::holon::statement-length
-                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                        (:wat::core::Result/expect
                           (:wat::holon::Bundle [fa fb])
                           "two-item bundle should not overflow"))))
     "#;
@@ -856,7 +856,7 @@ fn probe_three_field_instance_bundle_has_three_binds() {
                             (:wat::holon::Atom (:wat::holon::to-holon "c"))
                             (:wat::holon::Atom (:wat::holon::to-holon true)))]
                       (:wat::holon::statement-length
-                        (:wat::core::Result/expect -> :wat::holon::HolonAST
+                        (:wat::core::Result/expect
                           (:wat::holon::Bundle [fa fb fc])
                           "three-item bundle should not overflow"))))
     "#;

@@ -135,3 +135,39 @@ path = "tests/collection/mod.rs"
 [[test]]
 name = "macros"
 path = "tests/macros/mod.rs"
+
+[[test]]
+name = "rete"
+path = "tests/rete/mod.rs"
+
+[[test]]
+name = "resolve"
+path = "tests/resolve/mod.rs"
+
+[[test]]
+name = "services"
+path = "tests/services/mod.rs"
+
+[[test]]
+name = "reflection"
+path = "tests/reflection/mod.rs"
+
+[[test]]
+name = "value"
+path = "tests/value/mod.rs"
+
+[[test]]
+name = "program"
+path = "tests/program/mod.rs"
+
+[[test]]
+name = "diagnostics"
+path = "tests/diagnostics/mod.rs"
+
+[[test]]
+name = "lint"
+path = "tests/lint/mod.rs"
+
+[[test]]
+name = "wat_lang"
+path = "tests/wat_lang/mod.rs"

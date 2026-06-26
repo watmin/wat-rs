@@ -99,7 +99,7 @@ fn probe_3_record_to_map_single_field() {
   (:wat::core::let
       [v (:myapp::Voltage 5.0)
        m (:wat::core::record->map v)]
-      (:wat::core::Option/expect -> :wat::core::f64
+      (:wat::core::Option/expect
         (:wat::core::get m :magnitude)
         "record->map probe 3: :magnitude key missing")))
 "#;
@@ -128,7 +128,7 @@ fn probe_4_record_to_map_multi_field_heterogeneous() {
   (:wat::core::let
       [t (:myapp::Triple 7 "hello" true)
        m (:wat::core::record->map t)]
-      (:wat::core::Option/expect -> :wat::core::String
+      (:wat::core::Option/expect
         (:wat::core::get m :b)
         "record->map probe 4: :b key missing")))
 "#;
@@ -184,7 +184,7 @@ fn probe_6_predicate_then_map_composition() {
       (:wat::core::if
         (:wat::core::record? v)
         -> :wat::core::f64
-        (:wat::core::Option/expect -> :wat::core::f64
+        (:wat::core::Option/expect
           (:wat::core::get (:wat::core::record->map v) :magnitude)
           "probe 6: missing :magnitude")
         -1.0)))

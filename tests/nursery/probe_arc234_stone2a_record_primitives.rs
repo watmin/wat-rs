@@ -73,7 +73,7 @@ fn probe_1_construction_returns_wat_record() {
       [5.0]
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-        (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::core::Result/expect
           (:wat::holon::Bundle
             [(:wat::holon::Bind
                (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
@@ -111,7 +111,7 @@ fn probe_2_type_returns_class_fqdn() {
            [5.0]
            (:wat::holon::Bind
              (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-             (:wat::core::Result/expect -> :wat::holon::HolonAST
+             (:wat::core::Result/expect
                (:wat::holon::Bundle
                  [(:wat::holon::Bind
                     (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
@@ -145,7 +145,7 @@ fn probe_3_struct_form_field_at_zero() {
       [42.0]
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-        (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::core::Result/expect
           (:wat::holon::Bundle
             [(:wat::holon::Bind
                (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))
@@ -184,7 +184,7 @@ fn probe_4_multi_field_construction() {
       [3 4]
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
-        (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::core::Result/expect
           (:wat::holon::Bundle
             [(:wat::holon::Bind
                (:wat::holon::Atom (:wat::holon::to-holon "x"))
@@ -229,7 +229,7 @@ fn probe_5_field_at_positional_access() {
            [3 4]
            (:wat::holon::Bind
              (:wat::holon::Atom (:wat::holon::to-holon "myapp::Point"))
-             (:wat::core::Result/expect -> :wat::holon::HolonAST
+             (:wat::core::Result/expect
                (:wat::holon::Bundle
                  [(:wat::holon::Bind
                     (:wat::holon::Atom (:wat::holon::to-holon "x"))
@@ -276,7 +276,7 @@ fn probe_7_equality_via_holon_form() {
       [5.0]
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::holon::to-holon "myapp::Voltage"))
-        (:wat::core::Result/expect -> :wat::holon::HolonAST
+        (:wat::core::Result/expect
           (:wat::holon::Bundle
             [(:wat::holon::Bind
                (:wat::holon::Atom (:wat::holon::to-holon "magnitude"))

@@ -87,7 +87,7 @@ fn probe_3_match_hashmap_single_key_some() {
   (:wat::core::let
       [m {:port 9000}]
       (:wat::core::match m -> :wat::core::i64
-        ({p :port} (:wat::core::Option/expect -> :wat::core::i64
+        ({p :port} (:wat::core::Option/expect
                      p
                      "probe 3: :port key present"))
         (_ 0))))

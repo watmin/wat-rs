@@ -218,7 +218,7 @@ fn probe_5_composed_walk_to_field_binds() {
       [p          (:myapp::Point 3 4)
        h          (:wat::holon::to-holon p)
        right-opt  (:wat::holon::Bind/right h)
-       right      (:wat::core::Option/expect -> :wat::holon::HolonAST right-opt "right missing")
+       right      (:wat::core::Option/expect right-opt "right missing")
        children   (:wat::holon::Bundle/children right)]
       (:wat::core::Vector/length children)))
 "#;

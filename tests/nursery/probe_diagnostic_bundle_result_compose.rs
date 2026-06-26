@@ -70,7 +70,7 @@ fn probe_1_bind_composes_with_bundle_via_result_expect() {
                        field-b (:wat::holon::Bind
                                  (:wat::holon::Atom (:wat::holon::to-holon "b"))
                                  (:wat::holon::Atom (:wat::holon::to-holon 2)))
-                       inner-bundle (:wat::core::Result/expect -> :wat::holon::HolonAST
+                       inner-bundle (:wat::core::Result/expect
                                       (:wat::holon::Bundle [field-a field-b])
                                       "Bundle should not overflow")
                        instance (:wat::holon::Bind
@@ -114,7 +114,7 @@ fn probe_2_canonical_instance_shape_preserves_inner_bundle() {
                        field-c (:wat::holon::Bind
                                  (:wat::holon::Atom (:wat::holon::to-holon "c"))
                                  (:wat::holon::Atom (:wat::holon::to-holon 3)))
-                       inner-bundle (:wat::core::Result/expect -> :wat::holon::HolonAST
+                       inner-bundle (:wat::core::Result/expect
                                       (:wat::holon::Bundle [field-a field-b field-c])
                                       "Bundle should not overflow")]
                       ;; statement-length on the inner Bundle should return 3 (three children)

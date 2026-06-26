@@ -58,7 +58,7 @@ fn probe_1_select_returns_ready_index_and_value() {
           (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self)))))
-        (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64>
+        (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64,wat::core::nil>
           (:wat::core::let [a (:user::mk)
                             b (:user::mk)
                             _ (:wat::kernel::send' b 7)
