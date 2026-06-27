@@ -1,15 +1,38 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 8; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `1e56c745` or later.** Tree clean.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ed1e6408` or later.** Tree clean.
 **Gate (arc-290 widened): `cargo nextest run --release` (the WHOLE workspace / default-members, NOT `-p wat`)**
-≈ **4088 passed / 0 failed / ~87 skipped**, ~35s. (Was 4089 pre-stream-kill; deletions dropped the count.) If HEAD
-is older than `1e56c745`, this breadcrumb is stale — trust git log + the docs.
+≈ **4088 passed / 0 failed / ~87 skipped**, ~35s. If HEAD is older than `ed1e6408`, this breadcrumb is stale —
+trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
 > propose or move. The feeling of continuity is the failure, not the all-clear.
 
-## ▶▶ ACTIVE — arc 118 `lazy-seqs → streams` (foundation BUILT + stream reborn; finish the family, then return to 295). Read `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN.md` — the decided blocks are at the TOP (oldest→newest), open-questions RESOLVED banner mid-file.
+## ▶▶ ACTIVE — arc 293 `struct-record-symmetry` § 293.4 (the PIVOT — **293 unblocks 118**). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN.md` (decomposition § lines 164-170 + the HOLDER×SURFACE model).
+
+**Why we're here (the chain, builder-confirmed 2026-06-27):** 118.2's HOF family needs a **`Seqable`** abstraction
+(map/filter/take over any Vec|List|Stream). Four-questions (C): `Seqable` must be a structural surface, NOT worked
+around. But `defprotocol` is **annihilated** by arc 293 (`defsurface` subsumes it — 293/DESIGN:117) — so building
+`Seqable` on `defprotocol` = building on a graveyard. `Seqable` = a **`defsurface`** whose members `first`/`rest`/
+`empty?` are **methods** — and methods-as-accessors is exactly **293.4**, the one unbuilt piece. So: **293.4 → Seqable
+(its first method-surface) → 118 HOF family.** 293 isn't a detour; `Seqable` is 293.4's proof-of-utility.
+
+**293 state (grounded 2026-06-27 — substantially BUILT, paused by prioritization not a block):** SHIPPED — 293.2
+(construction symmetry; `defstruct`/`defrecord` peer macros; `/from-map`; `register_*_methods` annihilated), 293.3
+(structural surfaces + `definterface`), unify-2a/2b (`StructDef`+`RecordDef` → `AggregateDef{Holder}` merge). **15/15
+`probe_arc293_*` GREEN** — `defsurface` + FIELD structural-satisfaction is LIVE. Worked through R5 (`HABEMUS MOTUS`,
+2026-06-26), then we pivoted to 294/295's signed-code doctrine.
+
+**293.4 — the live strike (RESUME HERE):** ① **methods-are-accessors** — surface members that are methods + the
+generated dispatcher (the gap `Seqable` needs). ② **`defprotocol` ANNIHILATED** — exactly ONE live use to migrate
+(`:wat::spawn::Locus`, `wat/spawn.wat:224`) → `definterface`; then rip the Rust handling (`runtime.rs`/`check.rs`/
+`value.rs`/`check/env.rs`/`freeze/env.rs`/`stdlib.rs`) + retirement-table the head. ③ **`extend-type` demoted** to the
+foreign-accessor adapter. The acceptance demo (`probe_arc293_acceptance_demo`) is the GREEN gate. Then **293.1's owed
+`src/aggregate/` home** (lift construction machinery out of `runtime.rs`/`types.rs` — the *"reduce src/*.rs"* directive)
++ **293.5** close. STRIKE NOT YET DRAWN — DESIGN/probe/brief is the next act.
+
+## ▷ (BLOCKED on 293.4) — arc 118 `lazy-seqs → streams`. **118.1 foundation SHIPPED + stream reborn; 118.2 STRIKE-READY but BLOCKED.** Read `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN.md` + `DESIGN-118.2-hof-family.md`. The HOF family (default-lazy `core::map`, eager opt-in `:wat::seq::*`) needs `Seqable` (← 293.4). RED probe `probe_arc118_2_lazy_map` committed (`core::map` eager today). The foundation + naming + annihilation are DONE (below).
 
 **What LANDED this session (all green, all pushed):**
 - **`74883c15` — foundation, SINGLE-PASS, NO memoization.** `Stream = Empty | Cons{head, tail} | Thunk(LazyCell{thunk})`
