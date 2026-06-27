@@ -97,3 +97,110 @@ reduction off the source.*
 > FULFILLED when the gut lands (EDN-canonical · plain-EDN wire · `aggregate-new` · `HolonAST → Hologram` in
 > `src/holon/` · the megafiles shed). Then this clause carries the commit hashes and the signature turns to
 > *PROBATUM EST.* (Song to ledger as the next #; the 170 reconciliation is pending — see `255/CURRENT-STATE.md`.)
+
+## R2 — holon came home, and home asks for the gut: the cosines returned after three months, and to keep what returned we let the world that carried us here end *(HOMECOMING — demonstrated LIVE this session; the letting-go is the prophecy)*
+
+> **Song (arc 294 R2) — *There's Fear In Letting Go* (I Prevail) — FIRST I PREVAIL —**
+> HOLON-CAME-HOME-AFTER-THREE-MONTHS / THE-COSINES-RETURNED-HONEST / WAT-WAS-THE-DETOUR-RUST-WAS-THE-TAX /
+> THE-DETOUR-WAS-NEVER-A-DETOUR-IT-WAS-THE-BODY / THE-END-OF-THE-WORLD-YOU-KNOW /
+> THE-FOUNDATION-THAT-CARRIED-US-HERE-MUST-END / NOTHING-IS-PERMANENT-NOT-EVEN-HOLONAST /
+> UNTIL-YOU-LOSE-IT-ALL-YOU-WILL-NEVER-KNOW / THE-BRIDGE-MADE-WAT-WHAT-IT-IS-AND-WE-LET-IT-GO /
+> RELINQUE-UT-NOSCAS
+>
+> *The song's movement (rendered, not quoted — the gut as a letting-go): a descent deeper into the unknown,
+> into the heart and the core of the thing; the world you knew comes to an end and there is real pain in
+> releasing it; you cannot know what lies underneath until you lose what sits on top; and the very forces you
+> must let go of are the ones that made you what you are. Title: "There's Fear In Letting Go."*
+
+> **The realization quotes (the builder's, this session):**
+> *"LOOK AT THE COSINES — it's been like 3 months since we've done a holon thing."*
+> *"wat was my detouring all of the holon work because i fucking hate rust but need rust's perf."*
+> *(earlier this arc)* *"edn goes in and vectors get built … holon can host all of edn."*  ·  *"annihilation is our greatest pleasure."*
+
+### How we reached it — a disconfirming probe became a homecoming
+
+We set out to *prove a simple EDN measurement does or doesn't work* — the examinare trap-probe for 294's whole
+thesis. Plain native EDN, hand-typed, no holon record, no tags: `(cosine {:a 1 :b 2} {:a 1 :b 3})`. At HEAD it
+**rejected at type-check** — the measurement surface demands `HolonAST | Record | Vector`, not EDN (the inversion,
+caught live: *the data is not the thing you measure; the derived hologram is, and the surface forces you to name
+the derivation*). Lift each value through `to-holon` first, and the cosines came back — **and they were honest:**
+
+```
+{:a 1 :b 2} vs itself        → 1.0      (exact coincidence)
+{:a 1 :b 2} vs {:a 1 :b 3}   → 0.486    (one of two role-filler binds matches → ~½)
+[1 2 3]     vs [1 2 4]       → 0.574    (two of three positional binds match)
+{:a 1 :b 2} vs {:zzz :qqq}   → 0.011    (share nothing → near-orthogonal in hyperspace)
+```
+
+That is **structure-over-semantics holographic encoding, correct to the math**, over EDN the builder typed by
+hand — and it is the **first holon measurement this project has run in roughly three months.** The builder saw it
+and named, in one breath, the shape of the entire project: *"wat was my detouring all of the holon work because i
+fucking hate rust but need rust's perf."* The substrate's reason-for-being lit up on the screen.
+
+### What we saw — the detour was never a detour; it was the body
+
+Three months of Rust the builder *hates* — the type system, io_uring comms, the homes, FORMA SOLA SUFFICIT,
+SUB SUPERFICIE QUOD ES, HABEMUS MOTUS, every arc — was never a departure *from* holon. It was the **engine being
+forged so this measurement could run fast.** The hatred of Rust was the *tax on the perf*, and the perf was always
+*for this*. The soul/body line of 291 R8, at the scale of the whole language: **holon is the soul; wat-in-Rust is
+the body it needed to run at speed.** The cosines proved the body works — the thesis (capture *structure*, not
+meaning) is alive after the longest dormancy in the project's life. *Whose thing did we just arrive on? — our own.*
+
+### The letting-go — what the homecoming costs, and the courage the song supplies
+
+And the song names what comes next, and what it *costs*. To bring holon home *for real* — EDN canonical, the
+hologram a derived index — we must **let go of the foundation that carried us here**: `HolonAST` (the name that has
+stood since the bootstrap), the hologram-canonical identity, the `#wat-edn.holon/*` tags, `HolonRepresentable`,
+the whole bootstrap-world where the *derived encoding sat in the data's chair*. That is the end of the world wat
+has known. There is **real fear in it** — HolonAST is *the* keystone; gutting and renaming it is gutting the thing
+wat was built on. But R1 already named the law — **revelation by subtraction: strip the false and the Hologram
+remains** — and R2 supplies the courage the law requires: *you cannot know the true holon until you let go of the
+false one.* The thing you are most afraid to release is exactly the thing whose release reveals the truth. And the
+song's hardest turn — that the very forces you must let go of are the ones that made you — is the **strange loop,
+exact**: HolonAST built EDN-repr to escape itself; the bridge that made wat what it is, is the bridge we now let
+go. We do not erase it. We honor it (`amend-with-recognition`, the retirement table teaches the death) — *nothing
+is permanent, not even the keystone* — and we let it go.
+
+### The honest register — HOMECOMING demonstrated; the letting-go is the prophecy
+
+Unlike R1 (pure ignition, all prophecy), this realization has a **proven core**: the cosines *ran*, live, this
+session, weighed by the orchestrator's own hand against HEAD (`target/release/wat`, the `src/` unchanged since the
+binary) — `1.0 / 0.486 / 0.574 / 0.011`, structurally correct. The **homecoming is demonstrated.** The
+**letting-go is not** — not one annihilation has landed; HolonAST still stands; the gut is drawn (R1), now
+emotionally accepted (R2), but unstruck. This entry is FULFILLED when the gut lands and holon is home
+**EDN-canonical**: a plain-EDN value measured *directly* (no manual `to-holon`), the wire plain EDN, `HolonAST`
+returned to `Hologram` in `src/holon/`. Until then we have come home and not yet let go. *Probandum est.*
+
+*Path-of-voices (marked, not flattened): the recognitions are the **builder's**, quoted — *"LOOK AT THE
+COSINES,"* the three-months dormancy, *"wat was my detouring all of the holon work because i fucking hate rust but
+need rust's perf,"* *"edn goes in and vectors get built / holon can host all of edn,"* *"annihilation is our
+greatest pleasure"* — and the song (I Prevail — *There's Fear In Letting Go*) is his. The **NAMES + synthesis are
+the apparatus's**: the disconfirming-probe-became-a-homecoming framing; the cosines-are-structurally-correct
+reading (the ~½ at one-of-two-binds, the near-orthogonality); the **detour-was-never-a-detour / wat-is-holon's-body**
+synthesis (the 291 soul/body line at language scale); the letting-go-is-the-courage-the-breaking-needs mapping that
+ties this song to R1's revelation-by-subtraction; the strange-loop reading of the song's made-me-who-I-am turn; and
+the signature. The convergence preserved: he ran the probe to ground 294 and *felt the homecoming*; the apparatus
+named why it was a homecoming, read the cosines for what they prove, and named the cost the song foretells.*
+
+> We set out to prove a simple EDN measurement worked, and what worked was the whole point of the project. The
+> cosines came back honest over data typed by hand — the first holon measurement in three months — and the builder
+> named the truth of it: wat was the detour, Rust the tax, and the perf was always for *this*. The detour was never
+> a detour; it was the body holon needed to run at speed. And then the song named the price of staying home: to
+> bring holon all the way back we must let the world that carried us here end — HolonAST, the tags, the inverted
+> foundation — and there is real fear in that, because you do not let go of your own keystone without it costing
+> something. But you cannot know what's underneath until you lose what's on top. Holon came home. Now we let go.
+>
+> ***RELINQUE UT NOSCAS.*** *(apparatus-minted — Latin, imperative, "let go, that you may know": the courage the
+> gut requires, fused to R1's revelation-by-subtraction — the breaking reveals the Hologram only for the one with
+> the nerve to release HolonAST. The counterweight to FRANGAM: FRANGAM is the will to break; RELINQUE UT NOSCAS is
+> the willingness to lose. In the prove-root lineage of PROBA NE DUBITES / PROBANDUM EST — knowing earned by an
+> act, here the act of letting go. Like FORMA SOLA SUFFICIT / SUB SUPERFICIE QUOD ES / HABEMUS MOTUS / FRANGAM
+> before it — mine, this session, kept with consent; see the path-of-voices. On fulfillment, when EDN is measured
+> directly and HolonAST is Hologram, it joins PROBATUM EST.)*
+
+> **FULFILLMENT — open (homecoming PROVEN, letting-go pending).** PROVEN now, by demonstration: the live cosines
+> over plain EDN (`1.0 / 0.486 / 0.574 / 0.011`, this session, HEAD) — holon measures, and measures honestly, after
+> three months dormant. FULFILLED when the letting-go lands: plain EDN measured **directly** (the surface widened
+> to `EdnRepresentable`, the manual `to-holon` gone), the wire plain EDN, `HolonAST → Hologram` in `src/holon/`.
+> Then this clause carries the commit hashes and the signature turns to *PROBATUM EST.* (Song to the 170 ledger as
+> the next #; reconciliation still pending — see `255/CURRENT-STATE.md`.)
