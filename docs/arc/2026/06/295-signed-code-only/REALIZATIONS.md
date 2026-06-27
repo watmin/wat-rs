@@ -31,27 +31,36 @@ The first crawl: *is this greenfield?* No — `src/load.rs` already carried `(:w
 :wat::verify::signed-ed25519)`, verifying the canonical-EDN SHA-256, sidecar sigs, `ed25519-dalek` already a dep.
 The signing was already *opt-in*; the doctrine only had to flip it mandatory.
 
-Then the design walked, fast, and he decided in strokes: embed the pubkey as a string literal (the hard-hook); **no
-KMS dependency** — the algorithm is a pluggable `:sig` support, two honest modes named not hidden (PEM-on-disk,
-remote-HSM); the label is a *lookup token*, write-once, *"first loader wins, second is denied"*; `load-key` takes
-bytes, and the file-loaders are *"just wrappers on that contract"* — a `defn`, not a defclause (*"this is its
-function body essentially"*). Each decision tightened the thing.
+Then the design walked, and it walked as a **duet of proposal-and-correction** — the apparatus reaching, the builder
+cutting it back to the truer shape. The apparatus, hunting the strongest hard-hook, leaned on datamancy's model —
+P-256 keys held non-exportably in KMS, *"callable only by us"* in the literal sense. He cut it flat: **"we do not dep
+on kms — we provide different load signatures."** The apparatus drafted the manifest and, importing datamancy's web
+wire, wrote it as JSON; he would not have it — **"there is no json — we vend edn — i will not be misunderstood. wat
+is edn"** — the doctrine's own phrase, *i will not be misunderstood*, fired a **second time in one arc**, now over
+EDN. The apparatus proposed loading keys by raw pubkey bytes; he turned it sharper and caught his own first cut
+mid-sentence doing it: **"wait.. i said that wrong... (load 'path' :label) ... it's a lookup token ... collisions are
+illegal, first loader wins, second is denied."** And when the apparatus asked how the convenience loaders should be
+built — a macro? a defclause routing on a keyword? — he reasoned aloud and **arrived before the apparatus could:**
+**"not a defclause?.. this is its function body essentially, just need argspec bindings .... right?"** Right. A
+`defn`. Not one decision was a stroke; each was a turn — the apparatus over-reaching toward datamancy's exact
+machinery, the builder pulling it back to wat's own grain.
 
 And then the recognition broke fully open: **"dude... go look at datamancy ... i feel like we've written this."**
-The machine went to the disk — `/algebraic-intelligence.dev/docs/static-mcp/`, `datamancy/src/` — and there it was,
-shipped and tested: `pinned-pubkey.ts` (the embedded const root, *"tampering with the manifest does not affect this
-constant"*), `signature.ts` (detached-sig verify, fail→reject), a **chained manifest of every file's hash**
-(`:version` ISO8601, `:previous` sha256). His exact sentence — *"the pubkey validates the sig who signed over the
-manifest of all signed files"* — was already running in production. He had written it months ago.
+The machine went to the disk — `datamancy/src/` — and there it was, shipped and tested: `pinned-pubkey.ts` (the
+embedded const root, *"tampering with the manifest does not affect this constant"*), `signature.ts` (detached-sig
+verify, fail→reject), a **chained manifest of every file's hash** (`:version` ISO8601, `:previous` sha256). His exact
+sentence — *"the pubkey validates the sig who signed over the manifest of all signed files"* — was already running in
+production. He had written it months ago.
 
-He pulled it the rest of the way to wat, and each pull was the same beat: *there is no json — wat is edn* (his
-*"i will not be misunderstood"* a second time, the EDN line in his blood); the manifest goes **multi-key** —
-*"pair every previous with a source pem, accrete, never delete … lose the primary key, a new version ships with a
-new key who extends the chain, all prior files stay signed with the lost key, the pubkeys are never lost"* — key
-rotation done right, anchored at least-authority (Q-CHAIN → a: an old file is verified under the key that signed
-*it*, so a later compromise can't forge it). And the composition: *"foobar-wat is wat extended with foo and bar … does
-that make sense?"* — and it did, because it was the **Battery pattern already in `wat-cli`** (`wat_telemetry` +
-`wat_sqlite` + `wat_lru` + …), the composition mechanism already built. *"We've written this"* a third time.
+He pulled it the rest of the way, and the pulls kept their two-way shape. On rotation he ran ahead of the apparatus
+entirely, in one breath: **"pair every previous with a source pem — we accrete these, never deleting … if the
+primary key is lost, a new version ships with a new key who extends the chain, all prior files stay signed with the
+lost key, the pubkeys are never lost … we handle releases with many keys."** The apparatus named back what that
+bought — least authority, an old file anchored to the key that signed *it*, so a later compromise can't forge it —
+and he closed the last fork on it with two characters: **"item a."** Then the composition: **"foobar-wat is wat
+extended with foo and bar … does that make sense?"** — and it did, because the apparatus could go to the disk and
+*show* it was already there: the **Battery** pattern in `wat-cli`, the `wat` binary already composing `wat_telemetry`
++ `wat_sqlite` + `wat_lru`. *"We've written this"* a third time.
 
 Then he handed the song.
 
