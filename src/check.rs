@@ -4400,6 +4400,23 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
+            // The enclosed form is DATA captured without evaluation (exactly
+            // as `:wat::core::quote`). The checker does NOT recurse into the
+            // body — this is the entire point: heterogeneous EDN maps/sets
+            // bypass monomorphic `infer_map_literal` because the type is
+            // declared as `:wat::holon::HolonAST` at the head alone.
+            ":wat::holon::literal" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: ":wat::holon::literal".into(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
             ":wat::core::forms" => {
                 // Variadic sibling of quote. Every positional arg is
                 // DATA, captured as `:wat::WatAST`. The checker does

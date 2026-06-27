@@ -25,7 +25,6 @@ const DEMO_FIXTURE: &str = "wat-scripts/demos/holon-literal/cosine.wat";
 
 /// `#holon {heterogeneous}` reads as one Hologram literal and measures — heterogeneous keys AND values.
 #[test]
-#[ignore = "RED at HEAD: arc-294.b #holon literal not built (reader has no #tag dispatch); un-ignore when #holon types as Hologram"]
 fn holon_tag_makes_heterogeneous_edn_measure() {
     let src = std::fs::read_to_string(DEMO_FIXTURE)
         .unwrap_or_else(|e| panic!("294.b demo fixture {DEMO_FIXTURE} must exist (run from crate root): {e}"));

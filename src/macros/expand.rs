@@ -192,7 +192,8 @@ pub(super) fn expand_form(
             //   macroexpand primitives rely on quote preserving the
             //   raw form.
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if head == ":wat::core::quasiquote" || head == ":wat::core::quote" {
+                // Arc 294.b — `:wat::holon::literal` is data, not expanded.
+                if head == ":wat::core::quasiquote" || head == ":wat::core::quote" || head == ":wat::holon::literal" {
                     return Ok(WatAST::List(items, list_span));
                 }
             }

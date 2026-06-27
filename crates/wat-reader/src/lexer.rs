@@ -119,6 +119,12 @@ pub enum Token {
     /// Distinct from arc 171's keyword-body `'` discriminator (which is
     /// absorbed by `lex_keyword` and never reaches this top-level token).
     Quote,
+    /// `#holon` reader tag (arc 294.b). Parser rewrites to
+    /// `(:wat::holon::literal X)` wrapping the following form.
+    /// Enables heterogeneous EDN maps/sets/vectors to be typed as
+    /// `Hologram` without monomorphic literal inference. Span covers
+    /// the 6 chars `#holon`; the following form keeps its own span.
+    HolonLiteral,
     /// Unquote `~` reader macro. Parser rewrites to
     /// `(:wat::core::unquote X)`. Arc 172 slice 1: source character
     /// changed from `,` to `~`; variant name unchanged.
@@ -312,6 +318,23 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         // Braces — arc 257. Emit `LBrace` / `RBrace` tokens
         // which the parser turns into `WatAST::Map`.
         //
+        // Arc 294.b — `#holon` reader tag desugars to `(:wat::holon::literal X)`.
+        // Must check BEFORE `#{` (which also starts with `#`) and before the
+        // bare-symbol fallthrough.  Only matches when the 5 chars following `#`
+        // spell "holon" AND the char immediately after is a delimiter
+        // (whitespace, `(`, `[`, `{`, `)`, `]`, `}`, `"`, `;`, `,`, `#`) or
+        // EOF — so `#holonx` (no delimiter) falls through to the symbol path.
+        if c == '#'
+            && i + 6 <= bytes.len()
+            && &bytes[i + 1..i + 6] == b"holon"
+            && (i + 6 >= bytes.len()
+                || is_symbol_break(bytes[i + 6] as char)
+                || bytes[i + 6] == b'#')
+        {
+            tokens.push(SpannedToken { token: Token::HolonLiteral, span: span_with_end(i, i + 6) });
+            i += 6;
+            continue;
+        }
         // Arc 215 stone 1 — `#{` two-character prefix emits `LHashBrace`
         // (set literal). Must check BEFORE plain `{` so `#{` is not
         // split into `Symbol("#")` + `LBrace`.

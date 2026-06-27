@@ -4005,6 +4005,11 @@ fn dispatch_keyword_head_value(
         // The type slot is ERASED at runtime; only the expr is evaluated.
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
+        // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
+        // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
+        // then lower to a hologram via `to_holon_inner` (which dispatches
+        // `Value::wat__WatAST` through `watast_to_holon` at runtime.rs:14437).
+        ":wat::holon::literal" => to_holon_inner(eval_quote(args, list_span)?, list_span),
         ":wat::core::quasiquote" => eval_quasiquote(args, list_span, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, list_span, env, sym),
         // Arc 143 slice 1 — runtime introspection: look up a named
@@ -7851,6 +7856,8 @@ fn eval_apply(
         ":wat::core::match",
         ":wat::core::quote",
         ":wat::core::quasiquote",
+        // Arc 294.b — holon literal is a special form (body is data, not a callable).
+        ":wat::holon::literal",
     ];
     if SPECIAL_FORMS.contains(&head_kw.as_str()) {
         return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {

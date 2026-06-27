@@ -152,7 +152,8 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
             match items.first() {
                 Some(WatAST::Keyword(head, _)) => {
                     // Pure literal data: skip entirely.
-                    if head == ":wat::core::quote" {
+                    // Arc 294.b — `:wat::holon::literal` is also pure data; skip.
+                    if head == ":wat::core::quote" || head == ":wat::holon::literal" {
                         return Ok(());
                     }
                     // Quasiquote: descend into the template with depth tracking.

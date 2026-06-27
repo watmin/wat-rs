@@ -265,6 +265,8 @@ impl<'a> Cursor<'a> {
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
             Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
             Token::Quote => self.parse_reader_macro(":wat::core::quote", span),
+            // Arc 294.b — `#holon <form>` → `(:wat::holon::literal <form>)`.
+            Token::HolonLiteral => self.parse_reader_macro(":wat::holon::literal", span),
             Token::Unquote => self.parse_reader_macro(":wat::core::unquote", span),
             Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing", span),
             // Arc 220 slice 2 — `\c` character literal reader macro.

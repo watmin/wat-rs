@@ -219,6 +219,8 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // Dispatch sites: `src/check.rs:3083-3107, 3401-3413` + `src/runtime.rs:2406-2407, 2421`.
     insert(&mut m, ":wat::core::quote", &["<expr>"]);
     insert(&mut m, ":wat::core::quasiquote", &["<template>"]);
+    // Arc 294.b — `#holon <form>` reader tag; desugars to this special form.
+    insert(&mut m, ":wat::holon::literal", &["<form>"]);
     // `unquote` and `unquote-splicing` are only legal INSIDE a
     // quasiquote template; at the top level they return None from
     // expression-position inference (`src/check.rs:3401-3402`).
@@ -345,6 +347,8 @@ mod tests {
             // Stone 241.15 — :wat::core::try is HARD CUT; removed from registry.
             ":wat::core::quote",
             ":wat::core::quasiquote",
+            // Arc 294.b — holon literal registered as a special form.
+            ":wat::holon::literal",
             ":wat::core::and",
             ":wat::core::macroexpand-1",
             ":wat::form::matches?",

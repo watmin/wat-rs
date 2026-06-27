@@ -210,8 +210,9 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         | WatAST::Keyword(_, _)
         | WatAST::Symbol(_, _) => true,
 
-        // quote / quasiquote sub-forms are DATA — do not recurse into them as calls.
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote") => {
+        // quote / quasiquote / holon-literal sub-forms are DATA — do not recurse into them as calls.
+        // Arc 294.b: `:wat::holon::literal` is pure (it captures data, no side-effects).
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::quote" || k == ":wat::core::quasiquote" || k == ":wat::holon::literal") => {
             true
         }
 

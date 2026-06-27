@@ -54,7 +54,8 @@ pub(super) enum Boundary {
 /// resolution walk and the symbol-ref normalization pass route through it.
 pub(super) fn quote_boundary(head: &str) -> Boundary {
     match head {
-        ":wat::core::quote" | ":wat::core::forms" | ":wat::core::define" => Boundary::AllData,
+        // Arc 294.b — body is data (same as quote); no symbol resolution inside.
+        ":wat::core::quote" | ":wat::core::forms" | ":wat::core::define" | ":wat::holon::literal" => Boundary::AllData,
         ":wat::core::quasiquote" => Boundary::Quasiquote,
         ":wat::form::matches?" => Boundary::MatchesSubject,
         ":wat::core::match" => Boundary::Match,
