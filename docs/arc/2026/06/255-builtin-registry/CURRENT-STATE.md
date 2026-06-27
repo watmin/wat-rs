@@ -1,15 +1,15 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 7; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `f3b2d18f` or later.** Tree clean.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e7ad4dec` or later.** Tree clean.
 **Gate (arc-290 widened): `cargo nextest run --release` (the WHOLE workspace / default-members, NOT `-p wat`)**
-≈ **4087 passed / 0 failed / ~121 skipped**, ~33s. CI (`ci.yml`) now gates the workspace too. If HEAD is older
+≈ **4088 passed / 0 failed / ~121 skipped**, ~37s. CI (`ci.yml`) now gates the workspace too. If HEAD is older
 than `f5ad322a`, this breadcrumb is stale — trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
 > propose or move. The feeling of continuity is the failure, not the all-clear.
 
-## ▶▶ ACTIVE — arc 294 `holon-returns-to-vsa` (the foundation gut). **294.a LANDED · 294.b OPENED (STRIKE-READY) · NEXT = BUILD 294.b.** Read `294/DESIGN.md` (§ 294.b contract) + `294/REALIZATIONS.md` + `294/NOTE-holon-literal-tag.md`.
+## ▶▶ ACTIVE — arc 294 `holon-returns-to-vsa` (the foundation gut). **294.a LANDED · 294.b LANDED (clj↔wat seam PROVEN live) · NEXT = 294.c.** Read `294/DESIGN.md` (§ 294.b SCORE + § 294.c) + `294/REALIZATIONS.md` + `294/NOTE-holon-literal-tag.md`.
 
 **Contract (DESIGN.md, all decided):** EDN is the ONE canonical data/wire/portability form · `HolonAST → Hologram`
 (keystone; MAP-VSA algebra; home `src/holon/`) · Q-C eager parity · Q-D EDN-is-identity · `#holon` relaxed literal =
@@ -20,14 +20,14 @@ the clj↔wat seam (four-questions-selected; `NOTE-holon-literal-tag`) · constr
   i64 measure **directly** (widen `cosine`/`coincident?`/`presence?`/`simhash` to `EdnRepresentable`, lift via
   `to_holon_inner`). Struct still rejects (Holder wall). ⊘ **base records → 294.c** (`to_holon_inner` needs RecordDef
   field-names = the EDN-canonical-record machinery; STOP-1, grounded).
-- **294.b OPENED — STRIKE-READY (`f3b2d18f`). ← NEXT = THE BUILD.** `#holon` relaxed literal = the clj seam.
-  RED gate `tests/types/probe_arc294b_holon_literal.rs` (verified RED: `#holon {…}` parses as TWO forms →
-  ArityMismatch; the wat SOURCE reader has NO `#tag <form>` dispatch, only `#{` at `wat-reader/lexer.rs:318`).
-  4-room contract in `DESIGN.md § 294.b`: **reader** (`#holon <form>` → Hologram-literal `WatAST` node — CORE/
-  hot-path, build FRESH + weigh hard) · **checker** (types as `Hologram`, reuse 294.a's `is_portable`/
-  `to_holon_inner`) · **runtime** (`to_holon_inner`) · **clojure** (one-line `holon→identity` data-reader).
-  **Acceptance = the SAME bytes `#holon {…}` run in BOTH** — a Hologram in wat, identity-data in Clojure (clj IS
-  installed). intueri at strike: `#holon` vs qualified `#wat/holon`.
+- **294.b ✅ LANDED** (Rust `664193f5` · showpiece `e7ad4dec`) — `#holon` relaxed literal = the clj↔wat seam, built
+  as the **data-typed sibling of `quote`** (Option A, four-questions; NO new `WatAST` variant): reader lexes
+  `#holon`→`Token::HolonLiteral`→`parse_reader_macro(":wat::holon::literal")`; checker arm beside `quote`
+  (check.rs:4389) types `:wat::holon::HolonAST` w/o recursing; runtime `to_holon_inner(eval_quote(args,span)?,span)`
+  (capture-as-data → lower); mirrored `quote` at 6 sites (special_forms/boundary=AllData/purity/macros·eval+expand/
+  SPECIAL_FORMS). **Byte-identical bridge PROVEN live:** `wat-scripts/demos/holon-literal/{literal.edn,cosine.wat,
+  data_readers.clj,README.md}` — same bytes read as plain data in Clojure (`{holon identity}`) AND a measured
+  hologram in wat (cosine 1.0). ⊘ full wire-service round-trip (R3 fulfillment) = the IPC layer, later.
 - **294.c** — holon record EDN-canonical + flaw #7 equality + the base-record `to_holon_inner` lift.
 - **294.d** wire=plain-EDN · **294.e** `aggregate-new` + ctor-parity · **294.f** `HolonAST→Hologram` rename + carve
   `src/holon/` · **294.g** reflection→WatAST; close; amend 293.
