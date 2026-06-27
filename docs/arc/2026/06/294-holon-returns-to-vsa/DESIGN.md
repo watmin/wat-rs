@@ -226,7 +226,19 @@ IS the EDN-canonical-record machinery of 294.c. The base-record check-pass/runti
 not by rejecting them. (`presence?` uses a TypeScheme registration, not a handler — left as-is; widen in a follow-up
 if its runtime needs it.) R2's letting-go is substantially met for the common EDN case.
 
-## 294.b — the `#holon` relaxed literal (ACTIVE STRIKE, opened 2026-06-27) — the clj↔wat seam
+## 294.b — the `#holon` relaxed literal (✅ LANDED 2026-06-27 — `664193f5`) — the clj↔wat seam
+**SCORE (weighed against the disk by the orchestrator's own re-runs):** `#holon` ships as the data-typed sibling of
+`quote` (Option A) across reader/checker/runtime + 6 quote-mirror registration sites — **no new `WatAST` variant**,
++62/−6 over 10 files. Probe `holon_tag_makes_heterogeneous_edn_measure` **GREEN**; the showpiece fixture
+`cosine.wat` measures **0.9999…≈1.0**; the bare heterogeneous map (no `#holon`) **still type-errors** (monomorphic
+wall intact); full workspace **4088/0**. **The byte-identical bridge is PROVEN LIVE:** one file
+`wat-scripts/demos/holon-literal/literal.edn` (the exact bytes `#holon {:kw ["a" "b"] true #{1 :foo "bar"} 3.0 nil}`)
+reads as **plain data in Clojure** (`{holon identity}` data-reader → `{:kw [...], true #{...}, 3.0 nil}`) AND as a
+**measured hologram in wat** (the same literal in `cosine.wat` → cosine 1.0). Showpiece + README + `data_readers.clj`
+homed at `wat-scripts/demos/holon-literal/`. ⊘ The full wire-service round-trip (a clj app → a *running* wat service
+→ vectors back, R3's fulfillment bar) remains for the IPC layer; 294.b proves the **literal-level** byte-identity.
+
+### (history — the strike as drawn)
 **RED gate:** `tests/types/probe_arc294b_holon_literal.rs` — re-verified RED this session on **exactly** the gap:
 `ArityMismatch { expected: 2, got: 4 }` (`#holon {…}` parses as TWO forms — the source reader has NO `#tag <form>`
 dispatch, only `#{` at `wat-reader/lexer.rs:318`) + the heterogeneous-map `TypeMismatch`es (monomorphic
