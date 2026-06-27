@@ -86,6 +86,16 @@ omits either role, is **structurally invalid — no eval.**
 - **Security payoff:** a leaked/shared dev key still cannot forge a distribution (the verifier rejects `:dev`-role) —
   its blast radius is bounded to "sign local code on your own machine," worthless to an attacker. Rides the multi-key
   manifest already here; `:role` is just a per-key field the verify policy keys off.
+- **Dev = EXACTLY ONE key + overwrite-iteration; the chain is DISTRIBUTION-only (decided 2026-06-27).** There is
+  **exactly one** `:dev` key (per repo; **not accreted** — the accretion/rotation/never-delete *chain* applies to
+  **`:distribution`** keys only). Dev signing is an **overwrite**: as you iterate, `wat sign` (dev) re-signs the
+  *current* files in place so they eval locally — fast, repeated, **ephemeral, no chain, no accretion**. The
+  distribution step **overrides** whatever dev signing left (a release-chain entry, distribution-signed, replaces the
+  dev-signed manifest state). *"The dev key … just overwrites the files to measure without a full distribute; the
+  distribution step just overrides whatever is there — they constantly step on each other as you iterate"* (builder).
+  The churn is **expected and fine**: dev = 1 key, overwrite-in-place, local-eval; distribution = the accreted chain,
+  the release. (So `### The manifest is MULTI-KEY` above = the distribution side; the dev side is single-key,
+  overwrite, un-chained.)
 
 ### The release chain — timestamped, prunable
 - **Version = ISO8601 UTC timestamp** (`2026-06-27T14-32-08Z`) — monotonic, self-ordering, signed *into* the
