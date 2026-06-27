@@ -182,9 +182,9 @@ pub(crate) fn infer_conj(
     if let Some(coll_ty) = arg0_ty {
         let reduced = reduce(&coll_ty, subst, env.types());
         // Extract the expected element type from the collection shape via the registry.
-        // SeqContainer::of_type + has_append() is the single source of truth — no
-        // hand-rolled per-container arms here. HashMap is assoc's territory (not a SeqContainer).
-        let elem_ty_opt: Option<TypeExpr> = match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+        // StreamContainer::of_type + has_append() is the single source of truth — no
+        // hand-rolled per-container arms here. HashMap is assoc's territory (not a StreamContainer).
+        let elem_ty_opt: Option<TypeExpr> = match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
             Some(container) if container.has_append() => {
                 // All has_append containers are parametric with element type T as first arg.
                 match &reduced {
@@ -552,13 +552,13 @@ pub(crate) fn infer_assoc(
 /// caller-supplied capability gate.
 ///
 /// Arc-278 strike 3 — classification now delegates to the registry:
-/// `SeqContainer::of_type` classifies the shape, the `cap` gate selects the
+/// `StreamContainer::of_type` classifies the shape, the `cap` gate selects the
 /// capability-capable subset. Adding a new container = one change to
 /// `seq_container.rs`; this function needs no edit.
 ///
 /// `cap` is the capability predicate to apply:
-/// - Pass `SeqContainer::mappable` for map/filter/foldl/foldr (order-agnostic element transform).
-/// - Pass `SeqContainer::ordered` for reverse/take/drop/concat (order-dependent sequence ops).
+/// - Pass `StreamContainer::mappable` for map/filter/foldl/foldr (order-agnostic element transform).
+/// - Pass `StreamContainer::ordered` for reverse/take/drop/concat (order-dependent sequence ops).
 ///
 /// Returns `None` for a `Var` (caller defers to the runtime backstop) or for
 /// any shape the registry doesn't classify as passing `cap` (caller emits TypeMismatch).
@@ -566,9 +566,9 @@ fn extract_seq_elem(
     reduced: &TypeExpr,
     subst: &mut Subst,
     fresh: &mut InferCtx,
-    cap: fn(crate::collection::seq_container::SeqContainer) -> bool,
+    cap: fn(crate::collection::seq_container::StreamContainer) -> bool,
 ) -> Option<(&'static str, TypeExpr)> {
-    use crate::collection::seq_container::SeqContainer;
+    use crate::collection::seq_container::StreamContainer;
 
     // Unresolved type variable — defer to the runtime backstop (same policy as
     // infer_contains/conj/get/assoc; see infer_contains for the authoritative comment).
@@ -576,7 +576,7 @@ fn extract_seq_elem(
         return None;
     }
 
-    let container = SeqContainer::of_type(reduced)?;
+    let container = StreamContainer::of_type(reduced)?;
     if !cap(container) {
         return None;
     }
@@ -588,21 +588,21 @@ fn extract_seq_elem(
     //   (e.g. un-parameterized params); fn-unification constrains it from the
     //   reducer/predicate's element param, exactly as the empty-args parametric case does.
     match (container, reduced) {
-        (SeqContainer::Vector, TypeExpr::Parametric { args: targs, .. }) => {
+        (StreamContainer::Vector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::Vector", elem_ty))
         }
-        (SeqContainer::PersistentVector, TypeExpr::Parametric { args: targs, .. }) => {
+        (StreamContainer::PersistentVector, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::PersistentVector", elem_ty))
         }
-        (SeqContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
-        (SeqContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
-        (SeqContainer::List, TypeExpr::Parametric { args: targs, .. }) => {
+        (StreamContainer::Vector, TypeExpr::Path(_)) => Some(("wat::core::Vector", fresh.fresh())),
+        (StreamContainer::PersistentVector, TypeExpr::Path(_)) => Some(("wat::core::PersistentVector", fresh.fresh())),
+        (StreamContainer::List, TypeExpr::Parametric { args: targs, .. }) => {
             let elem_ty = targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh());
             Some(("wat::core::List", elem_ty))
         }
-        (SeqContainer::List, TypeExpr::Path(_)) => Some(("wat::core::List", fresh.fresh())),
+        (StreamContainer::List, TypeExpr::Path(_)) => Some(("wat::core::List", fresh.fresh())),
         // No other containers pass the cap gate today.
         _ => None,
     }
@@ -643,7 +643,7 @@ pub(crate) fn infer_map(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
             Some((coll_head, elem_ty)) => {
                 // Unify arg[0] against fn(T)->U; U is the fresh output element type.
                 let u_var = fresh.fresh();
@@ -713,7 +713,7 @@ pub(crate) fn infer_filter(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
             Some((coll_head, elem_ty)) => {
                 // Predicate must be fn(T)->bool.
                 let expected_pred_ty = TypeExpr::Fn {
@@ -780,7 +780,7 @@ pub(crate) fn infer_foldl(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
             Some((_coll_head, elem_ty)) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
@@ -860,7 +860,7 @@ pub(crate) fn infer_foldr(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::mappable) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
             Some((_coll_head, elem_ty)) => {
                 // Accumulator type: unify a fresh Acc var against init's inferred type.
                 let acc_var = fresh.fresh();
@@ -935,7 +935,7 @@ pub(crate) fn infer_reverse(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // C<T> → C<T>: return the same container type unchanged.
                 let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
@@ -986,7 +986,7 @@ pub(crate) fn infer_take(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
@@ -1048,7 +1048,7 @@ pub(crate) fn infer_drop(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
+        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
             Some((coll_head, elem_ty)) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
@@ -1115,12 +1115,12 @@ pub(crate) fn infer_concat(
 
     if let Some(a_ty) = a_ty_opt {
         let a_reduced = reduce(&a_ty, subst, env.types());
-        match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
+        match extract_seq_elem(&a_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
             Some((coll_head_a, elem_ty_a)) => {
                 // arg[1] must be the same container kind with the same element type.
                 if let Some(b_ty) = b_ty_opt {
                     let b_reduced = reduce(&b_ty, subst, env.types());
-                    match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::SeqContainer::ordered) {
+                    match extract_seq_elem(&b_reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
                         Some((coll_head_b, elem_ty_b)) => {
                             // Same-kind check: Vector+PersistentVector is a TypeMismatch.
                             if coll_head_a != coll_head_b {

@@ -7,7 +7,7 @@
 //! every keyed op hard-rolled its own per-container `match` arms in
 //! `collection/infer.rs` AND `runtime.rs` independently. Adding a new keyed
 //! primitive (BTreeMap, ordered map, …) required touching every op on both sides
-//! by hand — the same O(ops)-per-container drift the `SeqContainer` registry
+//! by hand — the same O(ops)-per-container drift the `StreamContainer` registry
 //! killed for sequences. This file is the **keyed-collection narrow waist**:
 //!
 //! ```text
@@ -51,7 +51,7 @@ use crate::value::Value;
 /// The closed set of keyed (map-like) collection containers.
 ///
 /// Sequence containers (Vector, List, PersistentVector, …) belong to the
-/// sibling `SeqContainer` registry in `seq_container.rs`.
+/// sibling `StreamContainer` registry in `seq_container.rs`.
 ///
 /// `Record` is a member because it IS a keyed collection on the wire:
 /// `edn_shim.rs` decodes records as tagged maps; Clojure treats records as
@@ -78,7 +78,7 @@ impl MapContainer {
     ///
     /// Maps BOTH `Value::wat__Record` and `Value::wat__holon__Record` to
     /// `MapContainer::Record` (one variant, two Value variants — like
-    /// `SeqContainer::WatAstList` mapping `WatAST::List` forms).
+    /// `StreamContainer::WatAstList` mapping `WatAST::List` forms).
     pub(crate) fn of_value(v: &Value) -> Option<MapContainer> {
         match v {
             Value::wat__std__HashMap(_) => Some(MapContainer::HashMap),
@@ -94,7 +94,7 @@ impl MapContainer {
     ///
     /// Takes `&TypeEnv` because `Record` is classified by **subtype** (user
     /// records are subtypes of `:wat::Record` / `:wat::holon::Record`), which
-    /// requires the type lattice. This diverges from `SeqContainer::of_type`
+    /// requires the type lattice. This diverges from `StreamContainer::of_type`
     /// (which takes only `&TypeExpr`) — the divergence is driven by a real
     /// difference (records have a subtype lattice; seq members are matched by
     /// head/structure), so taking the lattice is honest, not ceremony.

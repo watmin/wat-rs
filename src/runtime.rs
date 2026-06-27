@@ -4007,11 +4007,11 @@ fn dispatch_keyword_head_value(
         ":wat::core::quote" => eval_quote(args, list_span),
         // Arc 118 — lazy-seq foundation primitives.
         // `seq-empty`/`cons` are NORMAL intrinsics (args evaluated).
-        ":wat::core::seq-empty" => eval_seq_empty(args, list_span),
-        ":wat::core::cons" => eval_cons(args, list_span, env, sym),
+        ":wat::stream::empty" => eval_seq_empty(args, list_span),
+        ":wat::stream::cons" => eval_cons(args, list_span, env, sym),
         // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
-        // 0-arg closure over the current env → Seq::Thunk. Mirrors `quote`.
-        ":wat::core::lazy-seq" => eval_lazy_seq(args, list_span, env),
+        // 0-arg closure over the current env → Stream::Thunk. Mirrors `quote`.
+        ":wat::stream::lazy" => eval_lazy_seq(args, list_span, env),
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
@@ -6553,7 +6553,7 @@ fn val_type_path(val: &Value) -> &'static str {
         // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(_) => ":wat::core::char",
         Value::wat__core__List(_) => ":wat::core::List",
-        Value::wat__core__Seq(_) => ":wat::core::Seq",
+        Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
         Value::wat__kernel__Receiver(_) => ":wat::kernel::Receiver",
         Value::wat__kernel__ProgramHandle(_) => ":wat::kernel::ProgramHandle",
@@ -7867,7 +7867,7 @@ fn eval_apply(
         // Arc 294.b — holon literal is a special form (body is data, not a callable).
         ":wat::holon::literal",
         // Arc 118 — lazy-seq is a special form (body is captured unevaluated, not a callable).
-        ":wat::core::lazy-seq",
+        ":wat::stream::lazy",
     ];
     if SPECIAL_FORMS.contains(&head_kw.as_str()) {
         return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
@@ -8870,24 +8870,24 @@ fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
-/// Arc 118 — `(:wat::core::seq-empty) -> Seq<T>`. The Empty terminator.
+/// Arc 118 — `(:wat::stream::empty) -> Stream<T>`. The Empty terminator.
 ///
-/// Zero-arg constructor producing `Value::wat__core__Seq(Arc::new(Seq::Empty))`.
+/// Zero-arg constructor producing `Value::wat__stream__Stream(Arc::new(Stream::Empty))`.
 fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::seq-empty".into(),
+            op: ":wat::stream::empty".into(),
             expected: 0,
             got: args.len()
         } }.into());
     }
-    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Empty)))
+    Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Empty)))
 }
 
-/// Arc 118 — `(:wat::core::cons head tail) -> Seq<T>`. Strict-head Cons cell.
+/// Arc 118 — `(:wat::stream::cons head tail) -> Stream<T>`. Strict-head Cons cell.
 ///
-/// `head` is evaluated (strict); `tail` is evaluated and must be a `Seq` (it may
-/// itself be a Thunk — O(1), no forcing). Returns a `Seq::Cons{head, tail}`.
+/// `head` is evaluated (strict); `tail` is evaluated and must be a `Stream` (it may
+/// itself be a Thunk — O(1), no forcing). Returns a `Stream::Cons{head, tail}`.
 fn eval_cons(
     args: &[WatAST],
     list_span: &Span,
@@ -8896,7 +8896,7 @@ fn eval_cons(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::cons".into(),
+            op: ":wat::stream::cons".into(),
             expected: 2,
             got: args.len()
         } }.into());
@@ -8904,21 +8904,21 @@ fn eval_cons(
     let head = eval_inner(&args[0], env, sym)?.value_owned();
     let tail_val = eval_inner(&args[1], env, sym)?.value_owned();
     let tail = match tail_val {
-        Value::wat__core__Seq(s) => s,
+        Value::wat__stream__Stream(s) => s,
         other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::cons".into(),
-            expected: "wat::core::Seq",
+            op: ":wat::stream::cons".into(),
+            expected: "wat::stream::Stream",
             got: Box::new(ValueSnapshot::of(&other))
         } }.into()),
     };
-    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Cons { head, tail })))
+    Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Cons { head, tail })))
 }
 
-/// Arc 118 — `(:wat::core::lazy-seq <body>) -> Seq<T>`. SPECIAL FORM (capture-don't-eval).
+/// Arc 118 — `(:wat::stream::lazy <body>) -> Stream<T>`. SPECIAL FORM (capture-don't-eval).
 ///
 /// The body is NOT evaluated here. Instead it is captured as a 0-arg wat closure
 /// over the current environment (`env.clone()` in `closed_env`), and wrapped in a
-/// `Seq::Thunk(LazyCell{ thunk, forced: OnceLock::new() })`. The body runs ONLY when
+/// `Stream::Thunk(LazyCell{ thunk, forced: OnceLock::new() })`. The body runs ONLY when
 /// the seq is forced (via `realize` on `first`/`rest`/`empty?`), and runs at most ONCE
 /// (memoized in the `OnceLock`).
 ///
@@ -8931,7 +8931,7 @@ fn eval_lazy_seq(
 ) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::lazy-seq".into(),
+            op: ":wat::stream::lazy".into(),
             expected: 1,
             got: args.len()
         } }.into());
@@ -8943,7 +8943,7 @@ fn eval_lazy_seq(
         type_params: Vec::new(),
         param_types: Vec::new(),
         ret_type: crate::types::TypeExpr::Parametric {
-            head: "wat::core::Seq".into(),
+            head: "wat::stream::Stream".into(),
             args: vec![crate::types::TypeExpr::Var(0)],
         },
         rest_param: None,
@@ -8951,8 +8951,8 @@ fn eval_lazy_seq(
         body: crate::value::FunctionBody::Wat(Arc::new(args[0].clone())),
         closed_env: Some(env.clone()),
     });
-    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Thunk(
-        crate::seq::LazyCell { thunk },
+    Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Thunk(
+        crate::stream::LazyCell { thunk },
     ))))
 }
 
@@ -11237,14 +11237,14 @@ fn eval_positional_accessor(
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // Classify via the registry — the only Value→container map for sequence ops.
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&v) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&v) {
         Some(container) if container.indexable() => {
             // Dispatch: each container provides its element at `index` or raises out-of-range.
             // Tuple is the heterogeneous special case; the others are homogeneous.
             match container {
-                SeqContainer::Tuple => {
+                StreamContainer::Tuple => {
                     let Value::Tuple(items) = v else { unreachable!("of_value⇒Tuple") };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -11258,7 +11258,7 @@ fn eval_positional_accessor(
                     })
                 }
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                SeqContainer::Vector => {
+                StreamContainer::Vector => {
                     let Value::Vec(items) = v else { unreachable!("of_value⇒Vector") };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -11269,7 +11269,7 @@ fn eval_positional_accessor(
                 }
                 // Arc 220 Stone 220.4 — List: O(N) nth via iterator.
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                SeqContainer::List => {
+                StreamContainer::List => {
                     let Value::wat__core__List(items) = v else { unreachable!("of_value⇒List") };
                     items.iter().nth(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -11280,7 +11280,7 @@ fn eval_positional_accessor(
                 }
                 // Arc-278-0b — PersistentVector: O(log n) index access via rpds VectorSync.
                 // Arc-278 flip: bare T, raise on out-of-range (like nth; was Option).
-                SeqContainer::PersistentVector => {
+                StreamContainer::PersistentVector => {
                     let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
                     pv.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -11292,7 +11292,7 @@ fn eval_positional_accessor(
                 // Arc 249 Stone 249.3a-ii — WatAstList: sequence of child forms.
                 // of_value guarantees this is a WatAST::List; positional access returns bare WatAST.
                 // Arc-278 flip: bare T, raise on out-of-range (was Option).
-                SeqContainer::WatAstList => {
+                StreamContainer::WatAstList => {
                     let Value::wat__WatAST(ast) = v else { unreachable!("of_value⇒WatAstList") };
                     match &*ast {
                         WatAST::List(children, _) => children.get(index)
@@ -11304,29 +11304,29 @@ fn eval_positional_accessor(
                                 } })
                             }),
                         // Unreachable: of_value only returns WatAstList for List forms.
-                        _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
+                        _ => unreachable!("StreamContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
                 }
-                // Arc 118 — Seq: realize to WHNF, return head (index 0) or nil for Empty.
+                // Arc 118 — Stream: realize to WHNF, return head (index 0) or nil for Empty.
                 // Only `first` (index=0) is supported; second/third (index>0) raise (no random access).
-                SeqContainer::Seq => {
-                    let Value::wat__core__Seq(seq) = &v else { unreachable!("of_value⇒Seq") };
+                StreamContainer::Stream => {
+                    let Value::wat__stream__Stream(seq) = &v else { unreachable!("of_value⇒Stream") };
                     if index != 0 {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
                             head: op.into(),
-                            reason: format!("{op}: lazy Seq supports only `first` (index 0); positional access at index {index} is not a Seq operation (walk via rest)")
+                            reason: format!("{op}: lazy Stream supports only `first` (index 0); positional access at index {index} is not a Stream operation (walk via rest)")
                         } }.into());
                     }
-                    let realized = crate::seq::realize(seq, sym, &args[0].span().clone())?;
+                    let realized = crate::stream::realize(seq, sym, &args[0].span().clone())?;
                     match realized.as_ref() {
                         // first of empty → nil (Clojure semantic).
-                        crate::seq::Seq::Empty => Ok(Value::Unit),
-                        crate::seq::Seq::Cons { head, .. } => Ok(head.clone()),
-                        crate::seq::Seq::Thunk(_) => unreachable!("realize returns WHNF"),
+                        crate::stream::Stream::Empty => Ok(Value::Unit),
+                        crate::stream::Stream::Cons { head, .. } => Ok(head.clone()),
+                        crate::stream::Stream::Thunk(_) => unreachable!("realize returns WHNF"),
                     }
                 }
                 // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
-                SeqContainer::HashSet =>
+                StreamContainer::HashSet =>
                     unreachable!("indexable() gate excludes HashSet"),
             }
         }
@@ -12644,22 +12644,22 @@ fn eval_length(
         } }.into()),
         None => {}
     }
-    // Arc-278 seq-1a — seq-family arms route through SeqContainer (measurable capability).
+    // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
-    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&arg_val) {
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&arg_val) {
         Some(c) if c.measurable() => match c {
-            SeqContainer::Vector => crate::collection::eval::vector_length_inner(&arg_val),
-            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_length_inner(&arg_val),
-            SeqContainer::HashSet => crate::collection::eval::hashset_length_inner(&arg_val),
-            SeqContainer::List => crate::collection::eval::list_length_inner(&arg_val),
+            StreamContainer::Vector => crate::collection::eval::vector_length_inner(&arg_val),
+            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_length_inner(&arg_val),
+            StreamContainer::HashSet => crate::collection::eval::hashset_length_inner(&arg_val),
+            StreamContainer::List => crate::collection::eval::list_length_inner(&arg_val),
             // seq-1b — filled
-            SeqContainer::Tuple => crate::collection::eval::tuple_length_inner(&arg_val),
-            SeqContainer::WatAstList => crate::collection::eval::watastlist_length_inner(&arg_val),
-            // Arc 118 — measurable() gate excludes Seq (length on a lazy/infinite seq diverges):
-            SeqContainer::Seq => unreachable!("measurable() gate excludes Seq"),
+            StreamContainer::Tuple => crate::collection::eval::tuple_length_inner(&arg_val),
+            StreamContainer::WatAstList => crate::collection::eval::watastlist_length_inner(&arg_val),
+            // Arc 118 — measurable() gate excludes Stream (length on a lazy/infinite seq diverges):
+            StreamContainer::Stream => unreachable!("measurable() gate excludes Stream"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12720,29 +12720,29 @@ fn eval_empty(
         } }.into()),
         None => {}
     }
-    // Arc 118 — Seq: empty? realizes to WHNF (force one step) and checks for Empty.
-    // Cannot route through the measurable() gate (Seq is not measurable — length diverges
+    // Arc 118 — Stream: empty? realizes to WHNF (force one step) and checks for Empty.
+    // Cannot route through the measurable() gate (Stream is not measurable — length diverges
     // on infinite seqs — but `empty?` is decidable: it forces only ONE step).
-    if let Value::wat__core__Seq(seq) = &arg_val {
-        let realized = crate::seq::realize(seq, sym, list_span)?;
-        return Ok(Value::bool(matches!(realized.as_ref(), crate::seq::Seq::Empty)));
+    if let Value::wat__stream__Stream(seq) = &arg_val {
+        let realized = crate::stream::realize(seq, sym, list_span)?;
+        return Ok(Value::bool(matches!(realized.as_ref(), crate::stream::Stream::Empty)));
     }
-    // Arc-278 seq-1a — seq-family arms route through SeqContainer (measurable capability).
+    // Arc-278 seq-1a — seq-family arms route through StreamContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
-    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&arg_val) {
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&arg_val) {
         Some(c) if c.measurable() => match c {
-            SeqContainer::Vector => crate::collection::eval::vector_empty_q_inner(&arg_val),
-            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
-            SeqContainer::HashSet => crate::collection::eval::hashset_empty_q_inner(&arg_val),
-            SeqContainer::List => crate::collection::eval::list_empty_q_inner(&arg_val),
+            StreamContainer::Vector => crate::collection::eval::vector_empty_q_inner(&arg_val),
+            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_empty_q_inner(&arg_val),
+            StreamContainer::HashSet => crate::collection::eval::hashset_empty_q_inner(&arg_val),
+            StreamContainer::List => crate::collection::eval::list_empty_q_inner(&arg_val),
             // seq-1b — filled
-            SeqContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
-            SeqContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
-            // Arc 118 — Seq handled above via early realize (not measurable). Dead arm.
-            SeqContainer::Seq => unreachable!("Seq handled by the early realize branch above"),
+            StreamContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
+            StreamContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
+            // Arc 118 — Stream handled above via early realize (not measurable). Dead arm.
+            StreamContainer::Stream => unreachable!("Stream handled by the early realize branch above"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12804,22 +12804,22 @@ fn eval_contains(
         } }.into()),
         None => {}
     }
-    // Arc-278 seq-1a — seq-family arms route through SeqContainer (searchable capability).
+    // Arc-278 seq-1a — seq-family arms route through StreamContainer (searchable capability).
     // The capability DRIVES the accepted set: the `if c.searchable()` guard is the genuine gate.
-    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&arg0_val) {
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&arg0_val) {
         Some(c) if c.searchable() => match c {
-            SeqContainer::Vector => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
-            SeqContainer::HashSet => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
-            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
+            StreamContainer::Vector => crate::collection::eval::vector_contains_q_inner(&arg0_val, &arg1_val),
+            StreamContainer::HashSet => crate::collection::eval::hashset_contains_q_inner(&arg0_val, &arg1_val),
+            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_contains_q_inner(&arg0_val, &arg1_val),
             // seq-1b — filled
-            SeqContainer::List => crate::collection::eval::list_contains_q_inner(&arg0_val, &arg1_val),
-            SeqContainer::Tuple => crate::collection::eval::tuple_contains_q_inner(&arg0_val, &arg1_val),
-            SeqContainer::WatAstList => crate::collection::eval::watastlist_contains_q_inner(&arg0_val, &arg1_val),
-            // Arc 118 — searchable() gate excludes Seq (contains? forces the whole seq):
-            SeqContainer::Seq => unreachable!("searchable() gate excludes Seq"),
+            StreamContainer::List => crate::collection::eval::list_contains_q_inner(&arg0_val, &arg1_val),
+            StreamContainer::Tuple => crate::collection::eval::tuple_contains_q_inner(&arg0_val, &arg1_val),
+            StreamContainer::WatAstList => crate::collection::eval::watastlist_contains_q_inner(&arg0_val, &arg1_val),
+            // Arc 118 — searchable() gate excludes Stream (contains? forces the whole seq):
+            StreamContainer::Stream => unreachable!("searchable() gate excludes Stream"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12861,22 +12861,22 @@ fn eval_conj(
     }
     let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
     let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
-    // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_append()).
+    // Arc-278 strike 2 — classify via the registry (StreamContainer::of_value + has_append()).
     // The registry is the single source of truth; per-type inner helpers below do the work.
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&arg0_val) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&arg0_val) {
         Some(container) if container.has_append() => {
             match container {
-                SeqContainer::Vector => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
-                SeqContainer::HashSet => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
+                StreamContainer::Vector => crate::collection::eval::vector_conj_inner(&arg0_val, &arg1_val),
+                StreamContainer::HashSet => crate::collection::eval::hashset_conj_inner(&arg0_val, &arg1_val),
                 // Arc-278-0b — PersistentVector: generic conj dispatches to persistentvector_conj_inner.
-                SeqContainer::PersistentVector => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
+                StreamContainer::PersistentVector => crate::collection::eval::persistentvector_conj_inner(&arg0_val, &arg1_val),
                 // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
-                SeqContainer::List => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
+                StreamContainer::List => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
                 // has_append() gate excludes these — named arms, genuinely dead, compiler-forced:
-                SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::Seq =>
-                    unreachable!("has_append() gate excludes Tuple/WatAstList/Seq"),
+                StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::Stream =>
+                    unreachable!("has_append() gate excludes Tuple/WatAstList/Stream"),
             }
         }
         // ∅ N/A or ○ gap: container has no append capability (Tuple, WatAstList — nature forbids / gap).
@@ -12935,23 +12935,23 @@ fn eval_get(
         } }.into()),
         None => {}
     }
-    // Arc-278 seq-1a — seq-family arms route through SeqContainer (gettable capability).
+    // Arc-278 seq-1a — seq-family arms route through StreamContainer (gettable capability).
     // The capability DRIVES the accepted set: the `if c.gettable()` guard is the genuine gate.
-    // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
+    // Exhaustive match over the closed StreamContainer enum — NO `_`. Adding a new seq container
     // forces this arm to be updated before the code compiles.
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&arg0_val) {
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&arg0_val) {
         Some(c) if c.gettable() => match c {
-            SeqContainer::Vector => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
-            SeqContainer::PersistentVector => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
+            StreamContainer::Vector => crate::collection::eval::vector_get_inner(&arg0_val, &arg1_val),
+            StreamContainer::PersistentVector => crate::collection::eval::persistentvector_get_inner(&arg0_val, &arg1_val),
             // seq-1b — filled
-            SeqContainer::List => crate::collection::eval::list_get_inner(&arg0_val, &arg1_val),
-            SeqContainer::WatAstList => crate::collection::eval::watastlist_get_inner(&arg0_val, &arg1_val),
-            SeqContainer::HashSet => crate::collection::eval::hashset_get_inner(&arg0_val, &arg1_val),
+            StreamContainer::List => crate::collection::eval::list_get_inner(&arg0_val, &arg1_val),
+            StreamContainer::WatAstList => crate::collection::eval::watastlist_get_inner(&arg0_val, &arg1_val),
+            StreamContainer::HashSet => crate::collection::eval::hashset_get_inner(&arg0_val, &arg1_val),
             // ∅ N/A — Tuple: heterogeneous product; runtime-index cannot be typed
-            SeqContainer::Tuple => unreachable!("gettable() gate excludes Tuple (∅ N/A — heterogeneous product)"),
-            // Arc 118 — gettable() gate excludes Seq (no O(1) random access; walk via rest):
-            SeqContainer::Seq => unreachable!("gettable() gate excludes Seq (∅ N/A — no random access)"),
+            StreamContainer::Tuple => unreachable!("gettable() gate excludes Tuple (∅ N/A — heterogeneous product)"),
+            // Arc 118 — gettable() gate excludes Stream (no O(1) random access; walk via rest):
+            StreamContainer::Stream => unreachable!("gettable() gate excludes Stream (∅ N/A — no random access)"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),

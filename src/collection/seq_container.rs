@@ -1,4 +1,4 @@
-//! Seq-container registry — the single source of truth for which `Value`s and
+//! Stream-container registry — the single source of truth for which `Value`s and
 //! `TypeExpr`s are sequence containers and what capabilities each one has.
 //!
 //! # Why this file exists
@@ -12,7 +12,7 @@
 //! ```text
 //!   first  second  third  rest  conj  nth  get  map  filter  fold  ...   ← OPS
 //!                 \           \        |       /          /
-//!                  ╲───── SeqContainer (capability table) ──────────╱     ← waist
+//!                  ╲───── StreamContainer (capability table) ──────────╱     ← waist
 //!                 /          /       |         \           \
 //!        Vector  List  PersistentVector  Tuple  WatAstList  HashSet  …    ← TYPES
 //! ```
@@ -54,58 +54,58 @@ use crate::ast::WatAST;
 /// variant here + filling the `of_type`/`of_value` arms + the capability
 /// methods. Any omission is a compile error before the code can ship.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SeqContainer {
+pub(crate) enum StreamContainer {
     Vector,
     List,
     PersistentVector,
     Tuple,
     WatAstList,
     HashSet,
-    /// Arc 118 — lazy seq (`Value::wat__core__Seq`). Supports `first`, `rest`, `empty?`.
-    /// NOT indexable by integer (Seq has no O(1) nth); NOT measurable (infinite seqs);
+    /// Arc 118 — lazy seq (`Value::wat__stream__Stream`). Supports `first`, `rest`, `empty?`.
+    /// NOT indexable by integer (Stream has no O(1) nth); NOT measurable (infinite seqs);
     /// NOT appendable via `conj` (use `cons`); NOT mappable at this strike (HOFs later).
-    Seq,
+    Stream,
 }
 
-impl SeqContainer {
+impl StreamContainer {
     /// Checker-side classifier: map a reduced `TypeExpr` to the container it
     /// represents, or `None` if it is not a sequence container.
     ///
-    /// This is **the only** `TypeExpr → SeqContainer` map. Every checker op
+    /// This is **the only** `TypeExpr → StreamContainer` map. Every checker op
     /// that needs to classify a sequence container must go through here.
     ///
     /// Mirrors the head/path matching already present in
     /// `infer_positional_accessor` (`src/check.rs`) and
     /// `extract_seq_elem` (`src/collection/infer.rs`).
-    pub(crate) fn of_type(reduced: &TypeExpr) -> Option<SeqContainer> {
+    pub(crate) fn of_type(reduced: &TypeExpr) -> Option<StreamContainer> {
         match reduced {
             // Parametric forms: Vector<T>, List<T>, PersistentVector<T>
             TypeExpr::Parametric { head, .. } if head == "wat::core::Vector" => {
-                Some(SeqContainer::Vector)
+                Some(StreamContainer::Vector)
             }
             TypeExpr::Parametric { head, .. } if head == "wat::core::List" => {
-                Some(SeqContainer::List)
+                Some(StreamContainer::List)
             }
             TypeExpr::Parametric { head, .. } if head == "wat::core::PersistentVector" => {
-                Some(SeqContainer::PersistentVector)
+                Some(StreamContainer::PersistentVector)
             }
             TypeExpr::Parametric { head, .. } if head == "wat::core::HashSet" => {
-                Some(SeqContainer::HashSet)
+                Some(StreamContainer::HashSet)
             }
-            // Arc 118 — Seq<T>: lazy sequence.
-            TypeExpr::Parametric { head, .. } if head == "wat::core::Seq" => {
-                Some(SeqContainer::Seq)
+            // Arc 118 — Stream<T>: lazy sequence.
+            TypeExpr::Parametric { head, .. } if head == "wat::stream::Stream" => {
+                Some(StreamContainer::Stream)
             }
             // Bare Path forms: annotations without type parameters
-            TypeExpr::Path(p) if p == ":wat::core::Vector" => Some(SeqContainer::Vector),
-            TypeExpr::Path(p) if p == ":wat::core::List" => Some(SeqContainer::List),
+            TypeExpr::Path(p) if p == ":wat::core::Vector" => Some(StreamContainer::Vector),
+            TypeExpr::Path(p) if p == ":wat::core::List" => Some(StreamContainer::List),
             TypeExpr::Path(p) if p == ":wat::core::PersistentVector" => {
-                Some(SeqContainer::PersistentVector)
+                Some(StreamContainer::PersistentVector)
             }
-            TypeExpr::Path(p) if p == ":wat::WatAST" => Some(SeqContainer::WatAstList),
-            TypeExpr::Path(p) if p == ":wat::core::Seq" => Some(SeqContainer::Seq),
+            TypeExpr::Path(p) if p == ":wat::WatAST" => Some(StreamContainer::WatAstList),
+            TypeExpr::Path(p) if p == ":wat::stream::Stream" => Some(StreamContainer::Stream),
             // Tuple is a structural type, not a named head
-            TypeExpr::Tuple(_) => Some(SeqContainer::Tuple),
+            TypeExpr::Tuple(_) => Some(StreamContainer::Tuple),
             // Unresolved type variable, named types, or non-containers
             _ => None,
         }
@@ -114,7 +114,7 @@ impl SeqContainer {
     /// Runtime-side classifier: map a `Value` to the container it represents,
     /// or `None` if it is not a sequence container.
     ///
-    /// This is **the only** `Value → SeqContainer` map for sequence ops.
+    /// This is **the only** `Value → StreamContainer` map for sequence ops.
     /// Every runtime op that needs to classify a sequence container must go
     /// through here.
     ///
@@ -123,20 +123,20 @@ impl SeqContainer {
     /// NOTE: `WatAstList` only matches `Value::wat__WatAST` wrapping a
     /// `WatAST::List` form — non-List AST values return `None` (not a
     /// sequence container; the caller handles the TypeMismatch).
-    pub(crate) fn of_value(v: &Value) -> Option<SeqContainer> {
+    pub(crate) fn of_value(v: &Value) -> Option<StreamContainer> {
         match v {
-            Value::Vec(_) => Some(SeqContainer::Vector),
-            Value::wat__core__List(_) => Some(SeqContainer::List),
-            Value::wat__core__PersistentVector(_) => Some(SeqContainer::PersistentVector),
-            Value::Tuple(_) => Some(SeqContainer::Tuple),
+            Value::Vec(_) => Some(StreamContainer::Vector),
+            Value::wat__core__List(_) => Some(StreamContainer::List),
+            Value::wat__core__PersistentVector(_) => Some(StreamContainer::PersistentVector),
+            Value::Tuple(_) => Some(StreamContainer::Tuple),
             Value::wat__WatAST(ast) => match &**ast {
-                WatAST::List(_, _) => Some(SeqContainer::WatAstList),
+                WatAST::List(_, _) => Some(StreamContainer::WatAstList),
                 // Non-List forms are not sequence containers
                 _ => None,
             },
-            Value::wat__std__HashSet(_) => Some(SeqContainer::HashSet),
+            Value::wat__std__HashSet(_) => Some(StreamContainer::HashSet),
             // Arc 118 — lazy seq.
-            Value::wat__core__Seq(_) => Some(SeqContainer::Seq),
+            Value::wat__stream__Stream(_) => Some(StreamContainer::Stream),
             _ => None,
         }
     }
@@ -153,55 +153,55 @@ impl SeqContainer {
     ///
     /// `true` for ordered containers (Vector, PersistentVector, List, Tuple,
     /// WatAstList). `false` for HashSet (unordered — no canonical "first").
-    /// Arc 118 — Seq: `true` for `first` (index=0); index>0 raises at runtime.
+    /// Arc 118 — Stream: `true` for `first` (index=0); index>0 raises at runtime.
     pub(crate) fn indexable(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::List => true,
-            SeqContainer::Tuple => true,
-            SeqContainer::WatAstList => true,
-            SeqContainer::HashSet => false,
-            // Arc 118 — Seq: `first` (index=0) is valid; higher indices raise at runtime.
-            SeqContainer::Seq => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::Tuple => true,
+            StreamContainer::WatAstList => true,
+            StreamContainer::HashSet => false,
+            // Arc 118 — Stream: `first` (index=0) is valid; higher indices raise at runtime.
+            StreamContainer::Stream => true,
         }
     }
 
     /// `rest` — return all but the first element.
     ///
     /// Un-stubbed: strike 2 migrates `rest` classification through this gate.
-    /// Arc 118 — Seq: `true` (rest returns the tail, or Empty for an empty seq).
+    /// Arc 118 — Stream: `true` (rest returns the tail, or Empty for an empty seq).
     pub(crate) fn has_tail(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::List => true,
-            SeqContainer::WatAstList => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::WatAstList => true,
             // Tuple is heterogeneous: tail changes arity+type → ∅ N/A
-            SeqContainer::Tuple => false,
+            StreamContainer::Tuple => false,
             // HashSet is unordered → ∅ N/A
-            SeqContainer::HashSet => false,
-            // Arc 118 — Seq: rest returns tail (or Empty) — always valid.
-            SeqContainer::Seq => true,
+            StreamContainer::HashSet => false,
+            // Arc 118 — Stream: rest returns tail (or Empty) — always valid.
+            StreamContainer::Stream => true,
         }
     }
 
     /// `conj` — append an element.
     ///
     /// Un-stubbed: strike 2 migrates `conj` classification through this gate.
-    /// Arc 118 — Seq: use `cons` instead of `conj` (different operation).
+    /// Arc 118 — Stream: use `cons` instead of `conj` (different operation).
     pub(crate) fn has_append(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::List => true,
-            SeqContainer::HashSet => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::HashSet => true,
             // Tuple is fixed-arity → ∅ N/A
-            SeqContainer::Tuple => false,
+            StreamContainer::Tuple => false,
             // WatAstList: runtime arm not yet built → ○ gap (treated as false until filled)
-            SeqContainer::WatAstList => false,
-            // Arc 118 — Seq: `conj` is not the Seq idiom; use `cons` explicitly. ∅ N/A.
-            SeqContainer::Seq => false,
+            StreamContainer::WatAstList => false,
+            // Arc 118 — Stream: `conj` is not the Stream idiom; use `cons` explicitly. ∅ N/A.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -213,17 +213,17 @@ impl SeqContainer {
     /// filter/foldl/foldr).
     pub(crate) fn mappable(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::List => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
             // Tuple: one fn can't map mixed types → ∅ N/A
-            SeqContainer::Tuple => false,
+            StreamContainer::Tuple => false,
             // WatAstList: ○ gap
-            SeqContainer::WatAstList => false,
+            StreamContainer::WatAstList => false,
             // HashSet → set: ○ gap (sensible but not yet built)
-            SeqContainer::HashSet => false,
-            // Arc 118 — Seq: HOFs (map/filter/etc.) are a later strike. ○ gap.
-            SeqContainer::Seq => false,
+            StreamContainer::HashSet => false,
+            // Arc 118 — Stream: HOFs (map/filter/etc.) are a later strike. ○ gap.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -234,15 +234,15 @@ impl SeqContainer {
     /// (fixed-arity heterogeneous product). Same nature predicate for all four ops.
     pub(crate) fn ordered(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::List => true,
-            SeqContainer::WatAstList => false,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::List => true,
+            StreamContainer::WatAstList => false,
             // ∅ N/A — Tuple fixed-arity heterogeneous; HashSet unordered
-            SeqContainer::Tuple => false,
-            SeqContainer::HashSet => false,
-            // Arc 118 — Seq: reverse/take/drop/concat over lazy seqs are a later strike. ○ gap.
-            SeqContainer::Seq => false,
+            StreamContainer::Tuple => false,
+            StreamContainer::HashSet => false,
+            // Arc 118 — Stream: reverse/take/drop/concat over lazy seqs are a later strike. ○ gap.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -253,18 +253,18 @@ impl SeqContainer {
     /// each have inner helpers called there (seq-1b filled).
     pub(crate) fn measurable(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::HashSet => true,
-            SeqContainer::List => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::HashSet => true,
+            StreamContainer::List => true,
             // seq-1b — filled
-            SeqContainer::Tuple => true,
+            StreamContainer::Tuple => true,
             // seq-1b — filled
-            SeqContainer::WatAstList => true,
-            // Arc 118 — Seq: length/empty? on an infinite seq would diverge. ∅ N/A for length;
-            // `empty?` IS supported via realize (handled directly in eval_empty's Seq arm, not
+            StreamContainer::WatAstList => true,
+            // Arc 118 — Stream: length/empty? on an infinite seq would diverge. ∅ N/A for length;
+            // `empty?` IS supported via realize (handled directly in eval_empty's Stream arm, not
             // routed through this gate). Keep measurable=false so `length` rejects lazy seqs.
-            SeqContainer::Seq => false,
+            StreamContainer::Stream => false,
         }
     }
 
@@ -275,17 +275,17 @@ impl SeqContainer {
     /// inner helpers called there (seq-1b filled).
     pub(crate) fn searchable(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
-            SeqContainer::HashSet => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
+            StreamContainer::HashSet => true,
             // seq-1b — wired
-            SeqContainer::List => true,
+            StreamContainer::List => true,
             // seq-1b — filled
-            SeqContainer::Tuple => true,
+            StreamContainer::Tuple => true,
             // seq-1b — filled
-            SeqContainer::WatAstList => true,
-            // Arc 118 — Seq: contains? would force the whole (possibly infinite) seq. ○ gap.
-            SeqContainer::Seq => false,
+            StreamContainer::WatAstList => true,
+            // Arc 118 — Stream: contains? would force the whole (possibly infinite) seq. ○ gap.
+            StreamContainer::Stream => false,
         }
     }
 
@@ -299,19 +299,19 @@ impl SeqContainer {
     /// — ∅ N/A, never to be filled.
     pub(crate) fn gettable(self) -> bool {
         match self {
-            SeqContainer::Vector => true,
-            SeqContainer::PersistentVector => true,
+            StreamContainer::Vector => true,
+            StreamContainer::PersistentVector => true,
             // seq-1b — wired
-            SeqContainer::List => true,
+            StreamContainer::List => true,
             // seq-1b — filled
-            SeqContainer::WatAstList => true,
+            StreamContainer::WatAstList => true,
             // seq-1b — membership-as-lookup; filled
-            SeqContainer::HashSet => true,
+            StreamContainer::HashSet => true,
             // ∅ N/A — heterogeneous product; runtime-index can't be typed;
             // use first/second/third or destructure for static access
-            SeqContainer::Tuple => false,
-            // Arc 118 — Seq: O(1) integer get is not a Seq operation (no random access). ∅ N/A.
-            SeqContainer::Seq => false,
+            StreamContainer::Tuple => false,
+            // Arc 118 — Stream: O(1) integer get is not a Stream operation (no random access). ∅ N/A.
+            StreamContainer::Stream => false,
         }
     }
 }

@@ -89,7 +89,7 @@ pub mod resolve;
 pub mod restriction_entry;
 pub mod runtime;
 pub mod runtime_error_edn;
-pub mod seq;
+pub mod stream;
 pub mod rust_deps;
 pub mod sandbox;
 pub mod panic_hook;

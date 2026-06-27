@@ -4400,32 +4400,32 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
-            // Arc 118 — `(:wat::core::lazy-seq <body>) -> Seq<T>`. SPECIAL FORM.
+            // Arc 118 — `(:wat::stream::lazy <body>) -> Stream<T>`. SPECIAL FORM.
             // The body is captured unevaluated at runtime (a thunk), but TYPED here:
-            // it must produce a `Seq<T>`, and lazy-seq returns that same `Seq<T>`.
+            // it must produce a `Stream<T>`, and lazy-seq returns that same `Stream<T>`.
             // (Unlike quote, the body IS type-checked — runtime laziness defers only
             // EVALUATION, not type-checking. A mistyped body is still a static error.)
-            ":wat::core::lazy-seq" => {
+            ":wat::stream::lazy" => {
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::lazy-seq".into(),
+                        callee: ":wat::stream::lazy".into(),
                         expected: 1,
                         got: args.len()
                     } });
                     let t = fresh.fresh();
-                    let seq_ty = TypeExpr::Parametric { head: "wat::core::Seq".into(), args: vec![t] };
+                    let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![t] };
                     return if local_errors.is_empty() { CheckResult::ok(seq_ty) } else { CheckResult::partial_with(seq_ty, local_errors) };
                 }
-                // Type-check the body and unify it with Seq<fresh_T>.
+                // Type-check the body and unify it with Stream<fresh_T>.
                 let body_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 let elem = fresh.fresh();
-                let seq_ty = TypeExpr::Parametric { head: "wat::core::Seq".into(), args: vec![elem] };
+                let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![elem] };
                 if let Some(bt) = body_ty {
                     if unify(&bt, &seq_ty, subst, env.types()).is_err() {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: ":wat::core::lazy-seq".into(),
+                            callee: ":wat::stream::lazy".into(),
                             param: "<body>".into(),
-                            expected: "wat::core::Seq<T>".into(),
+                            expected: "wat::stream::Stream<T>".into(),
                             got: format_type(&apply_subst(&bt, subst))
                         } });
                     }
@@ -5465,7 +5465,7 @@ fn infer_list(
             }
             // Arc 220 Stone 220.4 / arc-278 strike 2 — `:wat::core::rest` is polymorphic over
             // Vector<T>, List<T>, PersistentVector<T>, and WatAST (list form).
-            // Classification is routed through SeqContainer::of_type + has_tail() — the
+            // Classification is routed through StreamContainer::of_type + has_tail() — the
             // registry is the single source of truth; no hand-rolled per-container arms here.
             ":wat::core::rest" => {
                 if args.len() != 1 {
@@ -5484,7 +5484,7 @@ fn infer_list(
                 let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 let result_ty = if let Some(ty) = &arg_ty {
                     let reduced = reduce(ty, subst, env.types());
-                    match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+                    match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
                         Some(container) if container.has_tail() => {
                             // Identity-preserving: rest returns the same container type.
                             // WatAstList is a bare Path (no type param) — preserve it as-is.
@@ -10182,7 +10182,7 @@ fn infer_positional_accessor(
         // Reduce to canonical structural form; keep the surface-name form for error display.
         let reduced = reduce(&ty, subst, env.types());
         // Classify via the registry — the only TypeExpr→container map for sequence ops.
-        match crate::collection::seq_container::SeqContainer::of_type(&reduced) {
+        match crate::collection::seq_container::StreamContainer::of_type(&reduced) {
             Some(container) if container.indexable() => {
                 // Dispatch: Tuple is the heterogeneous special case (element at `index`);
                 // all homogeneous containers share the same element-type extraction path.
@@ -19176,13 +19176,13 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 118 — lazy-seq foundation: seq-empty + cons type schemes.
-    // `seq-empty :: ∀T. () -> Seq<T>` — the Empty terminator (T free, instantiated fresh).
+    // `seq-empty :: ∀T. () -> Stream<T>` — the Empty terminator (T free, instantiated fresh).
     let seq_t = || TypeExpr::Parametric {
-        head: "wat::core::Seq".into(),
+        head: "wat::stream::Stream".into(),
         args: vec![t_var()],
     };
     env.register(
-        ":wat::core::seq-empty".into(),
+        ":wat::stream::empty".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![],
@@ -19190,9 +19190,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // `cons :: ∀T. (T, Seq<T>) -> Seq<T>` — strict head + a Seq tail.
+    // `cons :: ∀T. (T, Stream<T>) -> Stream<T>` — strict head + a Stream tail.
     env.register(
-        ":wat::core::cons".into(),
+        ":wat::stream::cons".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var(), seq_t()],

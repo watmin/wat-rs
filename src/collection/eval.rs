@@ -755,19 +755,19 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
 
 pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Vector/concat";
-    use crate::collection::seq_container::SeqContainer;
-    // Arc-278 strike 3 — classify via the registry (SeqContainer::of_value + ordered()).
+    use crate::collection::seq_container::StreamContainer;
+    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
     // Same-kind constraint preserved: Vec+Vec or PersistentVector+PersistentVector only.
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
-    match SeqContainer::of_value(left) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
+    match StreamContainer::of_value(left) {
         Some(left_container) if left_container.ordered() => {
             // Right side must be the same container kind.
-            match SeqContainer::of_value(right) {
+            match StreamContainer::of_value(right) {
                 Some(right_container) if right_container == left_container => {
                     // Dispatch over the closed enum — exhaustive, no `_`.
                     // left_container == right_container is guaranteed by the guard above.
                     match left_container {
-                        SeqContainer::Vector => {
+                        StreamContainer::Vector => {
                             let Value::Vec(l) = left else { unreachable!("of_value⇒Vector") };
                             let Value::Vec(r) = right else { unreachable!("of_value⇒Vector") };
                             let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
@@ -775,7 +775,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             out.extend((*r).iter().cloned());
                             Ok(Value::Vec(Arc::new(out)))
                         }
-                        SeqContainer::PersistentVector => {
+                        StreamContainer::PersistentVector => {
                             let Value::wat__core__PersistentVector(l) = left else { unreachable!("of_value⇒PersistentVector") };
                             let Value::wat__core__PersistentVector(r) = right else { unreachable!("of_value⇒PersistentVector") };
                             let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
@@ -787,7 +787,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             }
                             Ok(Value::wat__core__PersistentVector(out))
                         }
-                        SeqContainer::List => {
+                        StreamContainer::List => {
                             let Value::wat__core__List(l) = left else { unreachable!("of_value⇒List") };
                             let Value::wat__core__List(r) = right else { unreachable!("of_value⇒List") };
                             let mut out = std::collections::LinkedList::new();
@@ -800,8 +800,8 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             Ok(Value::wat__core__List(Arc::new(out)))
                         }
                         // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-                        SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
-                            unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Seq"),
+                        StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
+                            unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream"),
                     }
                 }
                 // Right side is a different (or non-ordered) container kind.
@@ -1587,17 +1587,17 @@ pub(crate) fn eval_rest(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc-278 strike 2 — classify via the registry (SeqContainer::of_value + has_tail()).
+    // Arc-278 strike 2 — classify via the registry (StreamContainer::of_value + has_tail()).
     // The registry is the single source of truth; dispatch arms below are per-container
     // implementation only — no classification logic lives here.
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed SeqContainer enum (no `_`).
-    use crate::collection::seq_container::SeqContainer;
-    match SeqContainer::of_value(&v) {
+    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
+    use crate::collection::seq_container::StreamContainer;
+    match StreamContainer::of_value(&v) {
         Some(container) if container.has_tail() => {
             // Dispatch: each has_tail container computes its tail.
             // Identity-preserving: rest(Container<T>) → Container<T>.
             match container {
-                SeqContainer::Vector => {
+                StreamContainer::Vector => {
                     let Value::Vec(xs) = v else { unreachable!("of_value⇒Vector") };
                     if xs.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -1610,7 +1610,7 @@ pub(crate) fn eval_rest(
                 }
                 // Arc 220 Stone 220.4 — List: rest returns a new List (tail after first element).
                 // Maintains type identity: List/rest → List (not Vec).
-                SeqContainer::List => {
+                StreamContainer::List => {
                     let Value::wat__core__List(xs) = v else { unreachable!("of_value⇒List") };
                     if xs.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -1625,7 +1625,7 @@ pub(crate) fn eval_rest(
                 // a new WatAST::List of the tail. Maintains form identity (List/rest → List),
                 // mirroring the wat__core__List arm above. Empty form → MalformedForm;
                 // of_value guarantees this is a WatAST::List so non-List branch is unreachable.
-                SeqContainer::WatAstList => {
+                StreamContainer::WatAstList => {
                     let Value::wat__WatAST(ast) = v else { unreachable!("of_value⇒WatAstList") };
                     match &*ast {
                         WatAST::List(children, span) => {
@@ -1639,12 +1639,12 @@ pub(crate) fn eval_rest(
                             Ok(Value::wat__WatAST(Arc::new(WatAST::List(tail, span.clone()))))
                         }
                         // Unreachable: of_value only returns WatAstList for List forms.
-                        _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
+                        _ => unreachable!("StreamContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
                 }
                 // Arc-278-0b — PersistentVector: rest returns a new PersistentVector (tail after first element).
                 // Maintains type identity: PersistentVector/rest → PersistentVector (not Vec).
-                SeqContainer::PersistentVector => {
+                StreamContainer::PersistentVector => {
                     let Value::wat__core__PersistentVector(pv) = v else { unreachable!("of_value⇒PersistentVector") };
                     if pv.is_empty() {
                         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -1659,25 +1659,25 @@ pub(crate) fn eval_rest(
                     }
                     Ok(Value::wat__core__PersistentVector(out))
                 }
-                // Arc 118 — Seq: realize to WHNF, return the tail (or Empty for an empty seq).
+                // Arc 118 — Stream: realize to WHNF, return the tail (or Empty for an empty seq).
                 // Clojure-faithful: (rest empty-seq) → empty-seq (not an error).
-                SeqContainer::Seq => {
-                    let Value::wat__core__Seq(seq) = &v else { unreachable!("of_value⇒Seq") };
-                    let realized = crate::seq::realize(seq, sym, &args[0].span().clone())?;
+                StreamContainer::Stream => {
+                    let Value::wat__stream__Stream(seq) = &v else { unreachable!("of_value⇒Stream") };
+                    let realized = crate::stream::realize(seq, sym, &args[0].span().clone())?;
                     match realized.as_ref() {
-                        crate::seq::Seq::Empty => {
+                        crate::stream::Stream::Empty => {
                             // rest of empty → empty (Clojure semantic).
-                            Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Empty)))
+                            Ok(Value::wat__stream__Stream(Arc::new(crate::stream::Stream::Empty)))
                         }
-                        crate::seq::Seq::Cons { tail, .. } => {
-                            Ok(Value::wat__core__Seq(Arc::clone(tail)))
+                        crate::stream::Stream::Cons { tail, .. } => {
+                            Ok(Value::wat__stream__Stream(Arc::clone(tail)))
                         }
                         // realize guarantees WHNF (Empty | Cons); Thunk is impossible here.
-                        crate::seq::Seq::Thunk(_) => unreachable!("realize returns WHNF"),
+                        crate::stream::Stream::Thunk(_) => unreachable!("realize returns WHNF"),
                     }
                 }
                 // has_tail() gate excludes these — named arms, genuinely dead, compiler-forced:
-                SeqContainer::Tuple | SeqContainer::HashSet =>
+                StreamContainer::Tuple | StreamContainer::HashSet =>
                     unreachable!("has_tail() gate excludes Tuple/HashSet"),
             }
         }
