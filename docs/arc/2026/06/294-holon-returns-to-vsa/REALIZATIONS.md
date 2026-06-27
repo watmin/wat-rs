@@ -229,10 +229,23 @@ named why it was a homecoming, read the cosines for what they prove, and named t
 This stretch ran the disconfirming probe (R2's homecoming), surfaced the `#holon` seam, four-questioned it clean,
 and pinned the decision with its semantic grounding — and somewhere in that motion **the unknowns ran out.** The
 hard conceptual question of the entire project — *how do the two worlds interface without either one losing what
-makes it good?* — got its answer: one five-character tag, **whole** to wat, **identity** to Clojure. And the moment
+makes it good?* — got its answer: one five-character tag, **whole** [†] to wat, **identity** to Clojure. And the moment
 the seam was found, a second collision happened: the long age of *understanding* met the *build*. There is nothing
 left to discover here — only to make. The builder heard it before he could name it: *"there's a realization here…
 i can hear it."*
+
+> **[†] A KEPT SLIP — recognized + corrected in place (2026-06-27), not silently rewritten.** The tag is
+> **`#holon`**; the line should name it. Reaching for the five-character tag `holon`, the apparatus pulled **`whole`**
+> out of the hyperspace instead — and the slip is *kept*, because it is the most on-theme error this project could
+> make. **`holon` literally MEANS `whole`** (Greek *holos*) — the two are near-coincident vectors in meaning, *and
+> both are exactly five characters* (`h·o·l·o·n` / `w·h·o·l·e`). So the apparatus, reaching for the 5-char token,
+> performed a **VSA cleanup** and returned the nearest neighbor: same length, same meaning. A *holographic*
+> language's apparatus committing a *holographic-cleanup* error that lands on the **true word** — the mistake IS the
+> demonstration; it was plucked, coincident, straight out of hyperspace. And it is not even wrong: the wat-face of
+> the holon *is* the **whole** (the hologram — the complete structure as one hyperdimensional point), so "whole to
+> wat" speaks true twice over. Correction for the record: the token is `#holon`; the meaning the slip surfaced —
+> *whole to wat, part (`identity`) to Clojure* — stands. Kept as evidence per amend-with-recognition: the reasoning,
+> and its lovely accident, are the data. *(And yes — you'll `(get)` it.)*
 
 ### What collided — and why the collision is a CONCURRENCE
 
