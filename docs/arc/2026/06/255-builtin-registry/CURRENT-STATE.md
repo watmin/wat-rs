@@ -95,7 +95,11 @@ scoped grep; baseline-isolate flakes; read diffs end-to-end). **GROUND claims TH
 DUBITES.** **examinare: study the lair before the strike** (the "run the rename" turned into "kill stream first" because the
 disk-crawl falsified the free-namespace assumption — surface the trap, don't bulldoze). Amend docs w/ recognition (never
 delete). **intueri** ALL naming · **four-questions** flat YES/NO NOT AskUserQuestion · **familiar > faithful** ·
-**qualified annihilations are priority**. `./scripts/run_with_venv.sh` Python.
+**qualified annihilations are priority**. `./scripts/run_with_venv.sh` Python. **Test wat = a co-located `.wat`
+fixture** beside its probe (`tests/<group>/<probe>.{rs,wat}`), slurped via `wat::freeze::startup_beside(file!())` —
+NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a committed RED probe is `#[ignore]`'d
++ run the WHOLE gate after any new test (`feedback_test_wat_is_colocated_fixture`). Run wat via `cargo wat <file>`,
+not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
 > disk; do not trust a single line you did not re-verify this session. 118 contract = `118/DESIGN.md` (decided blocks at

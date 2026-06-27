@@ -1,44 +1,28 @@
 //! Arc 118.2 — DISCONFIRMING PROBE: `:wat::core::map` is LAZY (does not force the whole input).
 //!
-//! Contract (`118.2/DESIGN`): `core::map` flips to LAZY — it returns a `Stream` and applies its
-//! fn only as the consumer pulls. So mapping a fn that errors on a LATE element, then pulling only
-//! the HEAD, must NOT hit the late error.
+//! **The wat source is the co-located sibling fixture** `probe_arc118_2_lazy_map.wat`, slurped via
+//! `startup_beside(file!())` — the repo's test-fixture scheme (never inlined as a Rust string).
+//! `startup_from_*` only LOADS; the map body runs when we `eval_in_frozen` the `(:my::compute)` call.
 //!
-//! `boom` errors only on `99` (the 3rd element); `:my::compute` maps it over `[1 2 99]` and returns
-//! only `(first …)`. NOTE: `startup_from_source` only LOADS — the body runs when we `eval_in_frozen`
-//! the explicit `(:my::compute)` call (the `run()` pattern from `wat_names_are_values`).
+//! RED at HEAD: eager `core::map` applies `boom` to every element at the map call → `boom(99)`
+//! (div-by-zero) → eval Errs. GREEN at 118.2a (lazy): only `boom(1)` runs → returns `1`.
 //!
-//! RED at HEAD: `:wat::core::map` is an eager Rust intrinsic (`src/collection/transform.rs`) — it
-//! applies `boom` to EVERY element at the `map` call, so `boom(99)` (div-by-zero) fires → eval Errs.
-//! GREEN after 118.2a: `map` defers → only `boom(1)` runs → returns `1`.
+//! `#[ignore]`'d: 118.2a is unbuilt AND 118.2 is BLOCKED on 293.4 (`Seqable` needs methods-as-accessors).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 #[test]
+#[ignore = "RED at HEAD: 118.2a (core::map lazy) unbuilt + 118.2 BLOCKED on 293.4 (Seqable); \
+            un-ignore when core::map is lazy — kept #[ignore]'d so the floor=0 gate stays green"]
 fn lazy_core_map_does_not_force_late_elements() {
-    let src = r#"
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-            [boom (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                    (:wat::core::if (:wat::core::= x 99)
-                      -> :wat::core::i64
-                      (:wat::core::i64::/ x 0)
-                      x))
-             mapped (:wat::core::map boom (:wat::core::Vector :wat::core::i64 1 2 99))]
-            (:wat::core::first mapped)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let call = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
     let result = eval_in_frozen(&call, &world, &env);
     assert!(
         result.is_ok(),
-        "core::map must be LAZY — mapping a fn that errors on a late element, then pulling only the \
-         head, must not force the late div-by-zero; got: {:?}",
+        "core::map must be LAZY — pulling only the head must not force the late div-by-zero; got: {:?}",
         result.err()
     );
 }

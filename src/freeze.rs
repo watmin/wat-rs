@@ -723,6 +723,41 @@ pub fn startup_from_source(
     startup_from_forms(entry_forms, base_canonical, loader)
 }
 
+/// Slurp a workspace-relative `.wat` file and start it up — the canonical loader for
+/// tests/demos. Assumes the cwd is the crate root (where `cargo test`/`cargo wat` run).
+///
+/// **The repo filesystem architecture is the contract:** test wat lives in `.wat` files
+/// (e.g. `wat-scripts/demos/<name>.wat`), slurped by relative-name literal — NEVER inlined
+/// as a Rust string. A `.wat` fixture can be `cargo wat`-run, fix-wat-migrated, and lint-checked
+/// as real wat; an inlined string can do none of those. Deviating is more friction, not less.
+///
+/// Panics with a clear message if the path does not resolve — a fixture path that misses is a
+/// test-authoring error, surfaced loudly rather than swallowed.
+pub fn startup_from_file(rel_path: &str) -> Result<FrozenWorld, StartupError> {
+    let src = std::fs::read_to_string(rel_path)
+        .unwrap_or_else(|e| panic!("wat fixture {rel_path:?} must exist (run from crate root): {e}"));
+    startup_from_source(&src, Some(rel_path), Arc::new(crate::load::InMemoryLoader::new()))
+}
+
+/// Slurp the `.wat` fixture sitting BESIDE a probe — same basename, `.rs`→`.wat`.
+///
+/// **The co-located test-fixture scheme (intueri-derived):** a probe's fixture inherits the probe's
+/// already-structured name and lives at its side (`tests/<group>/<probe>.{rs,wat}`), so no fixture
+/// ever names its own context — the atrocious-names failure is dissolved at the root. Call as
+/// `startup_beside(file!())`: `file!()` yields the crate-root-relative `<probe>.rs`, the swap yields
+/// `<probe>.wat`. Rename-safe — rename the probe and the derived path follows. Use the explicit
+/// [`startup_from_file`] only for the rare fixture shared by multiple probes.
+///
+/// (`wat-scripts/demos/<name>/` is reserved for curated README-bearing showpieces a human reads — NOT
+/// probe inputs.)
+pub fn startup_beside(caller_rs: &str) -> Result<FrozenWorld, StartupError> {
+    let wat = caller_rs
+        .strip_suffix(".rs")
+        .map(|stem| format!("{stem}.wat"))
+        .unwrap_or_else(|| panic!("startup_beside expects a `.rs` caller path (pass file!()); got {caller_rs:?}"));
+    startup_from_file(&wat)
+}
+
 // startup_from_source_with_deps retired in arc 015 slice 3a.
 // Dep sources now install globally via `wat::source::install_dep_sources`
 // before any freezing; `stdlib_forms()` concatenates baked + installed
