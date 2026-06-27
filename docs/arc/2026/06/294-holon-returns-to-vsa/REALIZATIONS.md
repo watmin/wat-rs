@@ -554,3 +554,17 @@ the Koestler grounding in `NOTE-holon-literal-tag.md`.*
 > ***EADEM RES, ALIA VIA.*** *(apparatus-minted — Latin, "the same thing, a different road": the datum is one; the
 > operation that reaches it differs by exactly the type-discipline of each language. Mine, this session, kept with
 > consent. A note, not a telling — no song was handed; it sits as the build's own small recognition.)*
+
+---
+
+## *You may only sign your code* — a doctrine, the builder verbatim *(2026-06-27)*
+
+Posted exactly as typed, by his explicit instruction — unaltered, his words:
+
+> can we retrofit the new wat-script tests to use a signed eval? we can drop our key pair at the root of wat-scripts and then setup signed code and we do signed eval ref'ing the pubkey at the root and then we pair the .wat files with .sig -- that's the pattern ... and... this specific we creat is only callable by us... we have hard hook on the rust side that our key is only callable by us - no one can ever use this outside of the binary build system... we ship a wat sign command and pass it a file and we sign using a specific key being piped in .. so we can do something like `cat /path/to/priv.key | wat sign /path/to/wat-file.wat` to sign.. it may only be passed in by a pipe .. we can pass many files to this command to sign all of them ... if no path is provided we search wat/ wat-tests/ wat-scripts/ and any other place we put our code. we sign all of our code in our default position ....
+>
+> or...
+>
+> no....... /you may only use signed code/ .... there is no option. period. you sign your code. you may only sign your code.
+>
+> the machine will post this exactly as i have typed it to the realization. i will not be misunderstood.
