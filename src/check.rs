@@ -18620,7 +18620,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Arc 247: fn-first — (foldl f init xs) -> Acc
     // Arc-278-0d NOTE: direct calls intercepted by infer_foldl; scheme retained for aliases
-    // (:wat::list::reduce, :wat::list::fold) whose defalias derivation reads from this.
+    // (:wat::seq::reduce, :wat::seq::fold) whose defalias derivation reads from this.
     env.register(
         ":wat::core::foldl".into(),
         TypeScheme {

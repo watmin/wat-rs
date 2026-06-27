@@ -7,7 +7,7 @@
 ;; for those inputs is rejection (NoMatchingClause), covered below.
 ;;
 ;; Grounded on:
-;;   - deftest idiom:    wat-tests/core/list-fold-aliases.wat
+;;   - deftest idiom:    wat-tests/core/seq-fold-aliases.wat
 ;;   - rejection idiom:  run-hermetic body (forked subprocess catches check errors)
 ;;   - forms under test: wat/core.wat (defclauses + 2-ary typed leaves)
 ;;   - nil value:        bare `nil` (arc 242 Doctrine 1: :wat::core::nil is TYPE only)

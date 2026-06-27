@@ -7,7 +7,7 @@
 ;; behaviors documented + witnessed at their empirical failure shapes]).
 ;; Witness corpus: deftest-green(core-arithmetic + core-equality +
 ;; core-threading + core-collection-aliases + option-expect + record-def +
-;; result-expect + struct-to-form + list-fold-aliases); corpus 236/0/53;
+;; result-expect + struct-to-form + seq-fold-aliases); corpus 236/0/53;
 ;; checker-clean. Canonical record:
 ;; docs/arc/2026/06/249-total-pure-macros/WARD-COREWAT-REEARN.md.
 ;; RE-EARNED 2026-06-06T04:56:04Z (diff-scoped, the 245 clear: Stone 245.8 retired

@@ -757,7 +757,7 @@
 ;; The `_in` / `_out` channel params are unused — Layer 1 bodies
 ;; communicate via ambient stdio (the three substrate services route
 ;; println/eprintln/readln on the parent's fd 0/1/2 inside this
-;; thread). Same pattern stream.wat:91-97 uses for its producer
+;; thread). The producer-loop pattern (a tail-recursive drain) is the standard one
 ;; workers: typed Receiver<nil> / Sender<nil> ignored by the body.
 ;;
 ;; DO NOT MODIFY deftest's body (currently expands to run-thread) —
@@ -931,8 +931,8 @@
 
 ;; ── run-hermetic-drain-outputs ───────────────────────────────────────────
 ;;
-;; Tail-recursive drain of a Receiver<O> into a Vector<O>. Mirrors
-;; :wat::stream::collect-drain<T> from stream.wat. Reads until the
+;; Tail-recursive drain of a Receiver<O> into a Vector<O> (the same
+;; channel-drain pattern stream.wat's collect-drain once used — arc 118). Reads until the
 ;; channel is disconnected (child exited; tx dropped) or signals Ok(None).
 ;; Accumulates outputs into `acc` and returns when the stream is exhausted.
 ;; Called exclusively from run-hermetic-with-io-driver.

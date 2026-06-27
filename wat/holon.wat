@@ -8,7 +8,7 @@
 ;; constitute their own named holon — closures, factories, and
 ;; convenience functions that operate on existing holon primitives.
 ;;
-;; Parallels wat/stream.wat (loose :wat::stream::* HOFs) and other
+;; Parallels the other
 ;; namespace-level top-level files per § G's filesystem-path-mirrors-
 ;; FQDN doctrine. Future additions: any :wat::holon::* verb whose
 ;; name doesn't match a substrate-defined holon type lands here.

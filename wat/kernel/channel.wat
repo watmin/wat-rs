@@ -27,8 +27,8 @@
 ;;                       Err(ThreadDied) — sender thread panicked.
 ;;                       Replaces arc-110-era `:wat::kernel::Sent`.
 ;;
-;; Sister to `:wat::stream::Stream<T>` (a tuple alias in
-;; stream.wat for `(Receiver<T>, ProgramHandle<()>)`). These three
+;; Sister to the `Stream<T>` tuple alias of `(Receiver<T>, ProgramHandle<()>)`
+;; that once lived in stream.wat (annihilated — arc 118). These three
 ;; live in the `:wat::kernel::` namespace because they name kernel
 ;; substrate concepts — bare channel ends and the pair, before any
 ;; program / producer is wired around them.

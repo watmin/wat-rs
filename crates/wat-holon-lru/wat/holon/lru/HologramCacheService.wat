@@ -277,7 +277,7 @@
                 (:wat::holon::lru::HologramCache/get cache probe))
               probes)
            hit-count
-            (:wat::list::reduce
+            (:wat::seq::reduce
               (:wat::core::fn
                 [acc <- :wat::core::i64 slot <- :wat::core::Option<wat::holon::HolonAST>] -> :wat::core::i64
                 (:wat::core::match slot -> :wat::core::i64

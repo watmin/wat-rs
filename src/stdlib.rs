@@ -254,13 +254,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/string.wat",
         source: include_str!("../wat/string.wat"),
     },
-    // Arc 143 slice 7 — :wat::list::* list-operation aliases.
-    // Stone 241.12 — uses :wat::core::defalias (native substrate form) to create
-    // :wat::list::reduce and :wat::list::fold as aliases for :wat::core::foldl.
-    // Loads after core.wat so all substrate dispatch is in place.
+    // Arc 143 slice 7 — :wat::seq::* aliases (was :wat::list::, arc 118).
+    // Stone 241.12 / Arc 118 — uses :wat::core::defalias (native substrate form) to
+    // create :wat::seq::reduce and :wat::seq::fold as aliases for :wat::core::foldl.
+    // (Arc 118: :wat::list::* graduated to :wat::seq::* — the eager world of the
+    // seq/stream split.) Loads after core.wat so all substrate dispatch is in place.
     WatSource {
-        path: "wat/list.wat",
-        source: include_str!("../wat/list.wat"),
+        path: "wat/seq.wat",
+        source: include_str!("../wat/seq.wat"),
     },
     // Arc 251 — fix-source: the wat-to-wat faithful-Clojure converter (the corpus migrator,
     // written IN wat). Loads after core.wat so its substrate verbs (keyword/to-symbol,

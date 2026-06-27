@@ -13,7 +13,7 @@
 ;;   - typed_strict_i64_eq_rejects_f64_arg
 ;;
 ;; Grounded on:
-;;   - deftest idiom:   wat-tests/core/list-fold-aliases.wat
+;;   - deftest idiom:   wat-tests/core/seq-fold-aliases.wat
 ;;   - rejection idiom: run-hermetic (forked subprocess catches check errors)
 ;;   - = intrinsic:     check.rs `infer_equality` + eval-side `eval_eq`
 ;;   - nil value:       bare `nil` (arc 242 Doctrine 1: :wat::core::nil is TYPE only)

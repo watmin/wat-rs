@@ -102,16 +102,16 @@ fn c01_typealias_bare_type_slot_uses_type_form() {
 
 // ── C02: Gap B — defn with <T> name must produce a PLAIN symbol ───────────────────────
 //
-// `:wat::stream::map<T>` has `<T>`, so fix-source misfires through
-// `type-shaped-keyword?` → a parametric FORM `(wat.stream/map T)`.
-// fix-form strips `<T>` via name-fix → plain symbol `wat.stream/map`.
+// `:my::ns::map<T>` has `<T>`, so fix-source misfires through
+// `type-shaped-keyword?` → a parametric FORM `(my.ns/map T)`.
+// fix-form strips `<T>` via name-fix → plain symbol `my.ns/map`.
 #[test]
 fn c02_defn_generic_name_drops_type_params() {
-    let dirty = "(:wat::core::defn :wat::stream::map<T> [x <- :T] -> :T x)";
+    let dirty = "(:wat::core::defn :my::ns::map<T> [x <- :T] -> :T x)";
     let got = fix_and_render(dirty).expect("C02 fix-form");
     assert_eq!(
         got,
-        "(wat.core/defn wat.stream/map [x :- T] :- T x)",
+        "(wat.core/defn my.ns/map [x :- T] :- T x)",
         "C02 (gap B, LOAD-BEARING): defn name with <T> must be a plain symbol, <T> dropped"
     );
 }
