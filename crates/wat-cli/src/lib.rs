@@ -213,38 +213,27 @@ pub type Battery = (
     fn() -> &'static [wat::WatSource],
 );
 
-/// Run the wat CLI with the supplied batteries.
+/// Strip cargo's injected subcommand token from argv.
 ///
-/// Reads `std::env::args()`, runs the supplied entry `.wat` file
-/// through the full freeze + invoke pipeline, installs signal
-/// handlers, registers every supplied battery's `wat_sources` +
-/// Rust dep shims, and returns the matching exit code.
+/// `cargo X ...args...` invokes `cargo-X X ...args...`; the repeated
+/// subcommand name at argv\[1\] is an artifact of cargo's dispatch
+/// convention. This helper removes it so the resulting argv matches
+/// what a direct invocation would produce.
 ///
-/// Both halves of the external-crate contract install via
-/// process-global OnceLocks (per `wat::compose_and_run`'s docs);
-/// first caller wins, so test harnesses that spin up their own
-/// world inherit transparently. Calling `run` more than once in a
-/// process is allowed but only the first call's batteries take
-/// effect.
+/// No-op if argv\[1\] != `sub` (direct invocation or already stripped).
+pub fn strip_cargo_subcommand(mut argv: Vec<String>, sub: &str) -> Vec<String> {
+    if argv.get(1).map(String::as_str) == Some(sub) {
+        argv.remove(1);
+    }
+    argv
+}
+
+/// argv-injectable variant; `run` = `run_with_args(b, env::args())`.
 ///
-/// `run` always seeds the `RustDepsBuilder` with
-/// [`wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults`] before
-/// applying the supplied batteries — substrate-side dispatch shims
-/// (the `:wat::*` surfaces wired through `#[wat_dispatch]` inside
-/// the substrate crate) are always available without the caller
-/// having to spell them out.
-///
-/// # Example — custom CLI with selected batteries
-///
-/// ```text
-/// fn main() -> std::process::ExitCode {
-///     wat_cli::run(&[
-///         (wat_telemetry::register, wat_telemetry::wat_sources),
-///         (my_crate::register, my_crate::wat_sources),
-///     ])
-/// }
-/// ```
-pub fn run(batteries: &[Battery]) -> ExitCode {
+/// Identical to [`run`] but accepts a caller-supplied `argv` instead
+/// of reading `std::env::args()`. Used by `cargo-wat` to strip
+/// cargo's injected subcommand token before handing off.
+pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // Arc 259 — prime the boot clock at the earliest wat-controlled point,
     // before install_batteries and argv parsing. The lazy-capture is
     // triggered here so that wat.started-at reflects real boot→entry latency
@@ -260,7 +249,6 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
 
     install_batteries(batteries);
 
-    let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
 
     // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the
@@ -476,6 +464,41 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     }
 }
 
+/// Run the wat CLI with the supplied batteries.
+///
+/// Reads `std::env::args()`, runs the supplied entry `.wat` file
+/// through the full freeze + invoke pipeline, installs signal
+/// handlers, registers every supplied battery's `wat_sources` +
+/// Rust dep shims, and returns the matching exit code.
+///
+/// Both halves of the external-crate contract install via
+/// process-global OnceLocks (per `wat::compose_and_run`'s docs);
+/// first caller wins, so test harnesses that spin up their own
+/// world inherit transparently. Calling `run` more than once in a
+/// process is allowed but only the first call's batteries take
+/// effect.
+///
+/// `run` always seeds the `RustDepsBuilder` with
+/// [`wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults`] before
+/// applying the supplied batteries — substrate-side dispatch shims
+/// (the `:wat::*` surfaces wired through `#[wat_dispatch]` inside
+/// the substrate crate) are always available without the caller
+/// having to spell them out.
+///
+/// # Example — custom CLI with selected batteries
+///
+/// ```text
+/// fn main() -> std::process::ExitCode {
+///     wat_cli::run(&[
+///         (wat_telemetry::register, wat_telemetry::wat_sources),
+///         (my_crate::register, my_crate::wat_sources),
+///     ])
+/// }
+/// ```
+pub fn run(batteries: &[Battery]) -> ExitCode {
+    run_with_args(batteries, std::env::args().collect())
+}
+
 // ─── Proxy threads (arc 104c) ───────────────────────────────────────────
 //
 // Each thread bridges real OS stdio (fd 0/1/2 in the cli's process)
@@ -674,3 +697,34 @@ fn install_signal_handlers() {
 // `#[test] fn`s. The macro's runtime arm is `wat::test_runner::
 // run_and_assert` — same library code the dropped CLI subcommand
 // used, but now reachable only through cargo-style harnesses.
+
+#[cfg(test)]
+mod tests {
+    use super::strip_cargo_subcommand;
+
+    #[test]
+    fn strip_removes_injected_subcommand() {
+        // `cargo wat foo.wat` → cargo invokes `cargo-wat wat foo.wat`
+        // strip_cargo_subcommand must drop the injected "wat" at argv[1].
+        let argv = vec![
+            "cargo-wat".to_string(),
+            "wat".to_string(),
+            "foo.wat".to_string(),
+        ];
+        assert_eq!(
+            strip_cargo_subcommand(argv, "wat"),
+            vec!["cargo-wat".to_string(), "foo.wat".to_string()],
+        );
+    }
+
+    #[test]
+    fn strip_is_noop_when_argv1_is_not_subcommand() {
+        // Direct invocation: `./cargo-wat foo.wat` — argv[1] is the
+        // file path, not the subcommand name; must be left unchanged.
+        let argv = vec!["wat".to_string(), "foo.wat".to_string()];
+        assert_eq!(
+            strip_cargo_subcommand(argv.clone(), "wat"),
+            vec!["wat".to_string(), "foo.wat".to_string()],
+        );
+    }
+}
