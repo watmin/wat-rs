@@ -139,7 +139,17 @@ distribution* (one signer per distro), plural *across* distributions (the regist
 - **Q-DEFAULT-LABEL name** — the reserved default keyword (`:wat` / `:wat::self` / …) users can't bind. `intueri` at
   the strike.
 
-## Decomposition (provisional — after Q-COMPOSE settles)
+## ▶ EVAL-SIDE (the doctrine's deepest form — co-designed 2026-06-27) — see `DESIGN-chunk-read-signed-eval.md`
+The doctrine extends past LOAD to **EVAL itself: eval must be signed, mandatory, parity with load.** And the
+requirement forces a chain of deferred work: **chunk-read signed eval over a length-bounded lazy byte-stream** →
+finally **builds arc 118 lazy-seqs** (Option C) → **annihilates `wat/streams.wat`** (built wrong, successfully). All
+of it rides existing machinery (`eval_signed_in_frozen` arc 028 · `read-frame` bounded read 512 KiB + override ·
+arc 118 design). MAX = a `wat.config/` default (shared `DEFAULT_MAX_FRAME_BYTES`) + per-call override; sig/pubkey raw
+bytes (NO base64); `algo` → `:wat.crypto/Algorithm` defenum. **Build order: ① lazy byte-chunk reader (arc 118 C) ‖
+② crypto seam (`src/intrinsic/crypto.rs`) → ③ chunk-read signed eval → ④ streams.wat→lazy-seqs → ⑤ load parity.**
+The full eval-side contract is in `DESIGN-chunk-read-signed-eval.md`.
+
+## Decomposition (provisional — load-side; eval-side build order above)
 - **295.0** — RED probe: an unsigned file via `FsLoader` is rejected; a tampered file (hash≠manifest), a wrong label,
   a wrong `:sig`, a broken chain, and a write-once collision are each rejected. Commit RED.
 - **295.1** — the EDN manifest format + `wat verify` (parse, chain-walk, hash + sig check). Pure, testable.
