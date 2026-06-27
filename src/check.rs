@@ -12878,22 +12878,26 @@ fn infer_polymorphic_holon_pair_to_f64(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
+        // to the algebra-native types. The runtime lifts via to_holon_inner internally.
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
-                expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
+        // to the algebra-native types. The runtime lifts via to_holon_inner internally.
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
-                expected: ":wat::holon::HolonAST, :wat::Record, or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
@@ -13206,22 +13210,24 @@ fn infer_polymorphic_holon_pair_to_bool(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type).
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type).
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
@@ -13263,22 +13269,24 @@ fn infer_polymorphic_holon_pair_to_path(
     let b_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type).
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
     }
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type).
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }
@@ -13314,11 +13322,12 @@ fn infer_polymorphic_holon_to_i64(
     let a_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
-        if !is_holon_or_vector(&resolved, env.types()) {
+        // Arc 294.a — widen: accept any EDN-representable value (portable type).
+        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
-                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                expected: ":wat::holon::HolonAST | :wat::holon::Vector | any EDN-representable value".into(),
                 got: format_type(&resolved)
             } });
         }

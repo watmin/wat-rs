@@ -213,7 +213,20 @@ comment *"struct_form is access optimization; not identity"* — the backwards f
 `struct_form` (`runtime.rs:8129`). Two equality contracts on one type, equivalent only by the construction
 invariant. **Q-D collapses them into ONE contract on the data** — the flip is a decomplection, not just an enabler.
 
-## 294.a — direct-EDN measurement (ACTIVE STRIKE, 2026-06-27) — see `BRIEF-294.a-direct-edn-measurement.md`
+## 294.a — direct-EDN measurement (✅ LANDED 2026-06-27 — collections+scalars; base records → 294.c) — see `BRIEF-294.a-direct-edn-measurement.md`
+**SCORE (weighed against the disk by the orchestrator's own re-run):** `(:wat::holon::cosine {:a 1 :b 2} {:a 1 :b 3})`,
+`[1 2 3]`, strings, i64 — **all measure directly now**, no manual `to-holon`. Check widened (`is_holon_or_vector ||
+is_portable_type`) across the 4 measurement handlers (cosine/dot · coincident? · coincident-explain · simhash);
+runtime `pair_values_to_vectors` lifts any EDN value via `to_holon_inner`. **Struct still rejects** (Holder wall
+holds). Suite **3464/0** (my re-run, 32s). Two tests flipped to new-correct behavior (i64/string now measure — the
+old rejections were the inversion). ⊘ **Base records DEFERRED to 294.c** (`STOP-1`, grounded): `to_holon_inner`
+(`runtime.rs:14565`) cannot yet lift `Value::wat__Record` — it needs the RecordDef field-names threaded in, which
+IS the EDN-canonical-record machinery of 294.c. The base-record check-pass/runtime-reject gap **pre-existed** 294.a
+(old `is_holon_or_vector` already accepted `:wat::Record`); 294.c closes it by *lifting* base records (thesis-aligned),
+not by rejecting them. (`presence?` uses a TypeScheme registration, not a handler — left as-is; widen in a follow-up
+if its runtime needs it.) R2's letting-go is substantially met for the common EDN case.
+
+## Decomposition (provisional — sequence after the open questions settle) [original below, amended above]
 The build sequence was reordered this session (clj-unlock-forward, smallest-grounded-first): **294.a** (this) →
 294.b `#holon` literal → 294.c EDN-canonical record + flaw #7 → 294.d wire → 294.e `aggregate-new` → 294.f
 `Hologram` rename + `src/holon/` → 294.g reflection→WatAST + close. **294.a contract (pinned):** the holon

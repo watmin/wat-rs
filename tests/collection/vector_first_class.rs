@@ -207,22 +207,23 @@ fn polymorphic_simhash_ast_and_vector_agree() {
     assert_eq!(run(src), vec!["\"same\"".to_string()]);
 }
 
-// ─── Type system: cosine rejects non-holon-non-vector ───────────────
+// ─── Type system: cosine accepts EDN-representable types (arc 294.a) ───────────
 
+// Arc 294.a — UPDATED: cosine now accepts any EdnRepresentable value, lifting via
+// to_holon_inner. String IS EDN-representable (portable); the old type rejection
+// was the inversion 294.a annihilates. Renamed to document the new behavior.
 #[test]
-fn polymorphic_cosine_rejects_string() {
+fn polymorphic_cosine_accepts_string() {
     let src = r##"
         (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let [bad (:wat::holon::cosine "hello" "world")]
-                      (:wat::kernel::println (:wat::core::f64::to-string bad))))
+          (:wat::core::let [sim (:wat::holon::cosine "hello" "world")]
+                      (:wat::kernel::pprintln sim)))
     "##;
-    let err = run_expecting_check_error(src);
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     assert!(
-        err.contains("HolonAST")
-            || err.contains("Vector")
-            || err.to_lowercase().contains("type"),
-        "expected type-mismatch on string args; got {}",
-        err
+        world.is_ok(),
+        "cosine on string args must now succeed (String is EDN-representable); got: {:?}",
+        world.err()
     );
 }
 

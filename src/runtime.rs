@@ -16303,35 +16303,24 @@ fn pair_values_to_vectors(
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     // Arc 234 Stone 234.5 — D3: normalize wat::Record → HolonAST before dispatch.
     // Records carry a pre-built holon_form; coerce both sides so the existing
-    // HolonAST arms handle them. Vector arms are unchanged (no auto-dispatch needed).
-    // Stone S-C.2c: base records reject here — they have no holon_form.
+    // HolonAST arms handle them. Vector and HolonAST pass through unchanged.
+    //
+    // Arc 294.a — widen: any other value is lifted via to_holon_inner (which accepts
+    // any EdnRepresentable value — plain maps, vectors, scalars, etc. — and errors
+    // honestly on non-EDN types like Struct or resources). The base-record reject
+    // ("has no holon flavor") dies into to_holon_inner's own honest error for now;
+    // to_holon_inner must be extended to lift base records (STOP-1 gap, 294.a report).
     let a = match a {
         Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
-        Value::wat__Record { class_fqdn, .. } => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::defrecord`) to use holon operations",
-                    class_fqdn
-                )
-            } }.into());
-        }
-        other => other,
+        Value::holon__HolonAST(h) => Value::holon__HolonAST(h),
+        Value::Vector(v) => Value::Vector(v),
+        other => to_holon_inner(other, list_span)?,
     };
     let b = match b {
         Value::wat__holon__Record { holon_form, .. } => Value::holon__HolonAST(holon_form),
-        Value::wat__Record { class_fqdn, .. } => {
-            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "base record `{}` has no holon flavor; construct a holonic record \
-                     (`:wat::holon::defrecord`) to use holon operations",
-                    class_fqdn
-                )
-            } }.into());
-        }
-        other => other,
+        Value::holon__HolonAST(h) => Value::holon__HolonAST(h),
+        Value::Vector(v) => Value::Vector(v),
+        other => to_holon_inner(other, list_span)?,
     };
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
@@ -27392,10 +27381,14 @@ mod tests {
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
+    // Arc 294.a — UPDATED: dot now accepts any EdnRepresentable value by lifting via
+    // to_holon_inner. i64 is EDN-representable; the old TypeMismatch rejection was the
+    // inversion 294.a annihilates. The test is renamed to document the new behavior.
     #[test]
-    fn dot_refuses_non_holon() {
-        let err = eval_with_ctx(r#"(:wat::holon::dot 1 2)"#, 1024).unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));
+    fn dot_accepts_edn_i64() {
+        // i64 is lifted via to_holon_inner; dot returns a scalar (may be any f64).
+        let result = eval_with_ctx(r#"(:wat::holon::dot 1 2)"#, 1024);
+        assert!(result.is_ok(), "dot on i64 args must now succeed (EDN-representable); got: {:?}", result);
     }
 
     #[test]

@@ -23,7 +23,6 @@ use wat::load::InMemoryLoader;
 
 /// A plain EDN MAP measures directly — `(cosine {:a 1 :b 2} {:a 1 :b 3})`, no manual `to-holon`.
 #[test]
-#[ignore = "RED at HEAD: arc-294.a not built (cosine rejects plain EDN); un-ignore when the surface accepts EdnRepresentable"]
 fn edn_map_measures_directly() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -43,7 +42,6 @@ fn edn_map_measures_directly() {
 
 /// A plain EDN VECTOR measures directly — `(cosine [1 2 3] [1 2 4])`.
 #[test]
-#[ignore = "RED at HEAD: arc-294.a not built (cosine rejects plain EDN vec); un-ignore when the surface accepts EdnRepresentable"]
 fn edn_vec_measures_directly() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
