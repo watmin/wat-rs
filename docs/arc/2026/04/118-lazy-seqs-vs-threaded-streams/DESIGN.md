@@ -97,6 +97,20 @@ that stream is a lazy seq → which finally builds this arc → which annihilate
 >   CEK heap-allocates continuations and lifts that ceiling. The CODE is identical — "more robust after the swap,"
 >   never "different after the swap."
 
+> **⚡ DECIDED 2026-06-27 — DEFAULT LAZY, opt into eager via `:wat::seq::*` (the HOF-family contract).** Builder:
+> *"clojure's default behavior is lazy — we assume this behavior — users must opt into eager — we break what we break
+> and we fix what we must."* So `:wat::core::map`/`filter`/`take`/`drop`/`concat`/… flip to **LAZY** (return a
+> `Stream`, = `clojure.core/map`); eager is opt-in. The opt-in mechanism = the **`:wat::seq::*` namespace**, NOT a
+> `v`-suffix — **four-questioned**: `mapv`/`filterv` is Clojure-INCOMPLETE (no `takev`/`dropv`/`concatv`), so a
+> `v`-suffix gives a uniform opt-in for only 2 verbs and forces a different mechanism (`into []`) for the rest;
+> the namespace gives **ONE rule for the WHOLE family** (`seq::<anything>` = eager). The three namespaces settle:
+> `:wat::core::*` = the familiar default (aliases the lazy forms — the bare name every Clojure hand reaches for) ·
+> `:wat::stream::*` = the lazy family + primitives · `:wat::seq::*` = the eager family (uniform opt-in).
+> `first`/`rest`/`empty?` stay polymorphic in `core`. **Blast radius (accepted):** ~113 `core::map` + 36 `filter` +
+> 21 `take` + 62 `drop` + 76 `concat` sites (~50 files) — the eager-dependent ones break (index / count / `conj` /
+> re-traverse / Vector-expected); **the red-test cascade IS the progress meter**; fix each to `seq::` / `into` /
+> `doall`. **The strike: `DESIGN-118.2-hof-family.md`.**
+
 This arc closes as DESIGN-only before arc 109 is marked resolved.
 The decision is locked: **lazy seqs implemented as
 closures + recursion + thunks (Option C below)**, with an
