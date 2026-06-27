@@ -227,8 +227,16 @@ not by rejecting them. (`presence?` uses a TypeScheme registration, not a handle
 if its runtime needs it.) R2's letting-go is substantially met for the common EDN case.
 
 ## 294.b — the `#holon` relaxed literal (ACTIVE STRIKE, opened 2026-06-27) — the clj↔wat seam
-**RED gate:** `tests/types/probe_arc294b_holon_literal.rs` (verified RED — `#holon {…}` parses as TWO forms →
-ArityMismatch; the wat *source* reader has NO `#tag <form>` dispatch, only `#{` at `wat-reader/lexer.rs:318`).
+**RED gate:** `tests/types/probe_arc294b_holon_literal.rs` — re-verified RED this session on **exactly** the gap:
+`ArityMismatch { expected: 2, got: 4 }` (`#holon {…}` parses as TWO forms — the source reader has NO `#tag <form>`
+dispatch, only `#{` at `wat-reader/lexer.rs:318`) + the heterogeneous-map `TypeMismatch`es (monomorphic
+`infer_map_literal`). ⊘ **CORRECTION (amend-with-recognition, 2026-06-26):** the originally-committed probe had a
+**malformed (odd-cardinality) map** (`… 3.0}` dangling) → it died at PARSE (`MalformedBraceLiteral`), NOT on the
+`#holon` gap; the cache's "ArityMismatch" was never reproducible from the committed bytes. Fixed: paired the
+dangling value (`3.0 nil`) AND moved the wat source OUT of the inline Rust string into a **real slurped fixture**
+[`wat-scripts/demos/holon-literal/cosine.wat`] (`fs::read_to_string`, precedent `tests/nursery/probe_arc214_stone81b_*`).
+The fixture IS the showpiece source — the SAME bytes the Rust probe measures are what `cargo wat` runs and what the
+Clojure data-reader will read (one file, two readers).
 **One contract decision:** `#holon <form>` is a **reader-level tag** that consumes the next form into a Hologram-
 literal AST node; the enclosed form is read as **EDN data (heterogeneous)** and types as **`Hologram`** — NOT
 type-checked as a monomorphic collection. You declare what it IS (holon/EDN), not what it holds.
