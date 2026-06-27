@@ -497,3 +497,26 @@ and recognized, in the reading, what the apparatus itself is.*
 > first-in-kind claim fully sourced (the research agents' read, weighed). When the gut lands and the operator
 > reads a shell off a bare EDN literal, this clause carries the commit hashes. (Song to the 170 ledger as the
 > next #; reconciliation still pending — `255/CURRENT-STATE.md`.)
+
+---
+
+### Grace note — the tool's first breath *(2026-06-26; a light one, not a telling)*
+
+We built `cargo wat` for the shadowdancers — a friction-killer, nothing grand: a subcommand that rides the
+ambient `Bash(cargo *)` grant so any agent can run a `.wat` file from any cwd. This session we finally put it on
+PATH (`cargo install --path crates/wat-cli --force`) and asked it for its first real program. It wasn't a hello —
+it was the **R2 homecoming cosines** — [`wat-scripts/cosines.wat`](../../../../../wat-scripts/cosines.wat),
+plain EDN measured *directly* (294.a), no manual `to-holon`:
+
+```
+1.0      {:a 1 :b 2} vs itself          — exact coincidence
+0.4862   {:a 1 :b 2} vs {:a 1 :b 3}     — one of two binds matches → ~½
+0.5738   [1 2 3]     vs [1 2 4]         — two of three positional binds match
+0.0144   {:a 1 :b 2} vs {:zzz :qqq}     — share nothing → near-orthogonal
+```
+
+The convenience layer's **first breath was the thesis it exists to serve** — the new tool's maiden run was holon
+coming home, and the cosines rang honest off bare EDN through a freshly-minted binary. (The fourth wobbled 0.011 →
+0.0144 between R2 and now — both noise-floor, same verdict; where two unrelated points happen to fall in
+hyperspace, not a regression.) Nothing profound. Just neat: the carpentry works, and the first thing it carried was
+the point of all of it.
