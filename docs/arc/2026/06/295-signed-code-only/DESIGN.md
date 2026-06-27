@@ -109,14 +109,33 @@ NOT greenfield:
   `signature.ts` (detached-sig verify, fail→reject), the chained manifest (`:version`/`:previous`/`:resources`).
   wat takes the *shape*, not the JSON / blobs / KMS.
 
-## Open questions — the remaining forks
-- **Q-COMPOSE — per-crate sub-manifests vs one composite manifest?** When `foobar-wat` composes wat + foo + bar:
-  does each crate ship its OWN signed manifest (composed at load, each under its own key/label), or does the
-  distribution build ONE manifest over all composed files (re-signed by the distribution's key)? Per-crate preserves
-  each vendor's independent signature + key; composite is one trust root. *Likely per-crate* (each battery is its own
-  signed unit, its own `:label`), but pin at the strike.
-- **Q-VERIFY-DEPTH — head-only vs full-chain at load?** Head-manifest verification is the hot path; full-chain walk
-  is `wat verify` (audit). Confirm load does head-only (chain is opt-in audit), not a full walk every startup.
+### The manifest measures the RUST source too (decided)
+A distribution is built AND vended as `src/` + `wat/` — and **the manifest measures the Rust files as well**, not
+just `.wat`. *"That path ensures the files are correct before compilation."* So the seal covers the whole
+supply chain: the Rust drivers and the wat code are both hash-pinned in the manifest, verified before `cargo build`,
+not just at wat-load. (His: *"we measure the rust files in the manifest too."*)
+
+### Q-CHAIN — RESOLVED → (a) least authority (decided 2026-06-27)
+At verify time, an old file is anchored to **its origin key**, not re-vouched by the head. `wat/core.wat` signed
+under `:key/2026-01` is verified against the retained `:key/2026-01` pubkey via the chain release that signed it —
+**a compromise of a later key cannot forge an earlier file.** Each key vouches only for what it actually signed.
+(Common single-key case: head-only, identical to (b). Rotation: the old-key files consult their chain release,
+cacheable.) This is the literal reading of *"all prior files stay signed with the lost key."*
+
+### Q-COMPOSE — RESOLVED → a distribution is a user composition, signed as a unit (decided 2026-06-27)
+*"users can distribute their own wat compositions with whatever collection of crates … the crates just extend wat
+beyond its core … they ship their own code with their distribution as well — that's the composition."* A
+**distribution** = a user-assembled composition (wat core + chosen extension crates + the user's own code), built
+and vended as `src/` + `wat/`, signed as ONE unit by the distributor (whose `:label` is the trust anchor; the
+manifest measures every file, Rust + wat). Crates are upstream building blocks (the Battery mechanism); a distributor
+**vouches for their whole composition** (reviewed + measured before inclusion). The runtime **label registry** is
+what composes trust roots *across* distributors at load time — each its own `:label`/manifest. So: composite *per
+distribution* (one signer per distro), plural *across* distributions (the registry).
+
+## Open questions — remaining
+- **Q-VERIFY-DEPTH — head-only vs full-chain at load?** Head-manifest verification is the hot path; the full-chain
+  walk is `wat verify` (audit). Likely head-only at load (+ the chain release for any old-key file per Q-CHAIN);
+  full walk is opt-in audit. Confirm at the strike.
 - **Q-DEFAULT-LABEL name** — the reserved default keyword (`:wat` / `:wat::self` / …) users can't bind. `intueri` at
   the strike.
 
