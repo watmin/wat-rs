@@ -213,6 +213,17 @@ comment *"struct_form is access optimization; not identity"* — the backwards f
 `struct_form` (`runtime.rs:8129`). Two equality contracts on one type, equivalent only by the construction
 invariant. **Q-D collapses them into ONE contract on the data** — the flip is a decomplection, not just an enabler.
 
+## 294.a — direct-EDN measurement (ACTIVE STRIKE, 2026-06-27) — see `BRIEF-294.a-direct-edn-measurement.md`
+The build sequence was reordered this session (clj-unlock-forward, smallest-grounded-first): **294.a** (this) →
+294.b `#holon` literal → 294.c EDN-canonical record + flaw #7 → 294.d wire → 294.e `aggregate-new` → 294.f
+`Hologram` rename + `src/holon/` → 294.g reflection→WatAST + close. **294.a contract (pinned):** the holon
+measurement surface (`cosine`/`dot`/`coincident?`/`presence?`/`simhash` + explain/floor) accepts **any
+`EdnRepresentable` value** — collections, scalars, AND base records — lifting internally via `to_holon_inner`; only
+non-EDN (`Struct`) rejects (the Holder wall). ONE rule, no special cases — the *"construct a holonic record"*
+base-record rejection (`runtime.rs:16314`) IS the inversion 294 annihilates. RED gate
+`tests/types/probe_arc294a_edn_measures_directly.rs` (verified RED at HEAD). Fulfills R2's letting-go (*"plain EDN
+measured directly, the manual to-holon gone"*).
+
 ## Decomposition (provisional — sequence after the open questions settle)
 - **294.0** — the census + the disconfirming probes (EDN-wire round-trip without tags; `build-hologram` over a
   nested EDN value; a holon record equal-by-data). Commit RED.
