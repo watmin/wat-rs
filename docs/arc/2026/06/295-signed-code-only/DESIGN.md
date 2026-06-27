@@ -61,7 +61,14 @@ A real trust config is plural. The manifest carries:
 
 ### Key ROLES — dev vs distribution (decided 2026-06-27)
 Each key in the manifest **MUST carry a `:role` — `:dev` | `:distribution`** (mandatory, **no default, no option**) —
-the convenient-low-security key vs the guarded-high-security one, separated structurally:
+the convenient-low-security key vs the guarded-high-security one, separated structurally.
+
+**BOTH roles MUST be declared, and they MUST be distinct (decided 2026-06-27):** a valid manifest **MUST declare at
+least one `:dev` key AND at least one `:distribution` key** — *"the distribution and dev key must both be declared"* —
+and **`dev-pubkey ≠ distribution-pubkey`** — *"the dev key may not equal the distribution key"* (builder). A single
+keypair may **not** hold both roles: reusing one key for dev + distribution collapses the separation (a leaked dev
+key would then forge distributions), so a manifest where any `:dev` pubkey equals any `:distribution` pubkey, or that
+omits either role, is **structurally invalid — no eval.**
 - **Dev key** — `wat-scripts/dev-{priv,pub}.pem`, **per-repo, local.** Signs local code so it can eval (the doctrine:
   only signed code runs). Auto-discovered by `wat sign`; auto-generated on first use if absent. You move between
   repos and each signs with *its own* dev key. **Low stakes — because it never ships.** `dev-priv.pem` is
