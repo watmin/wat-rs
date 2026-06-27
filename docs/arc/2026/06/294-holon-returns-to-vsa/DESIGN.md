@@ -226,6 +226,25 @@ IS the EDN-canonical-record machinery of 294.c. The base-record check-pass/runti
 not by rejecting them. (`presence?` uses a TypeScheme registration, not a handler — left as-is; widen in a follow-up
 if its runtime needs it.) R2's letting-go is substantially met for the common EDN case.
 
+## 294.b — the `#holon` relaxed literal (ACTIVE STRIKE, opened 2026-06-27) — the clj↔wat seam
+**RED gate:** `tests/types/probe_arc294b_holon_literal.rs` (verified RED — `#holon {…}` parses as TWO forms →
+ArityMismatch; the wat *source* reader has NO `#tag <form>` dispatch, only `#{` at `wat-reader/lexer.rs:318`).
+**One contract decision:** `#holon <form>` is a **reader-level tag** that consumes the next form into a Hologram-
+literal AST node; the enclosed form is read as **EDN data (heterogeneous)** and types as **`Hologram`** — NOT
+type-checked as a monomorphic collection. You declare what it IS (holon/EDN), not what it holds.
+**Four rooms (grounded this session):**
+1. **Reader** — `crates/wat-reader` (lexer `:318` does `#{`; the parser/AST). Add `#holon <form>` dispatch →
+   a marked Hologram-literal `WatAST` node (mirror the `#{` set path; ground the exact node when building).
+2. **Checker** — `src/check.rs`: the marked node types as `Hologram` via the `to-holon` codec (reuse 294.a's
+   `is_portable_type` widening / `to_holon_inner` path), bypassing `infer_map_literal` (`:13615`).
+3. **Runtime** — `src/runtime.rs`: the marked node evaluates to a Hologram value via `to_holon_inner` (`:14396`).
+4. **Clojure side** — a one-line `holon → identity` data-reader (`data_readers.clj` / `*data-readers*`).
+**Acceptance test (the showpiece — Clojure IS installed):** the SAME bytes `#holon {:kw [...] true #{...} 17.0 {...}}`
+run in BOTH — a measurable `Hologram` in wat, plain identity-data in Clojure — proving the byte-identical bridge.
+**intueri (deferred to the strike):** `#holon` vs qualified `#wat/holon` (clj discourages unqualified data-reader
+tags) — weigh against the byte-identity goal. **STOP if** the reader-tag needs a new core `WatAST` variant or
+touches the lexer's hot path beyond a clean `#holon` arm — surface it.
+
 ## Decomposition (provisional — sequence after the open questions settle) [original below, amended above]
 The build sequence was reordered this session (clj-unlock-forward, smallest-grounded-first): **294.a** (this) →
 294.b `#holon` literal → 294.c EDN-canonical record + flaw #7 → 294.d wire → 294.e `aggregate-new` → 294.f
