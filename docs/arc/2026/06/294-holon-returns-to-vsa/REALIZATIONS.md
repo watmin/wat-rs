@@ -332,3 +332,21 @@ readiness; the apparatus named what collided, and why the collision was an agree
 > landed (EDN-canonical · plain-EDN wire · `#holon` relaxed literals · `HolonAST → Hologram` in `src/holon/`) and a
 > Clojure app drops into wat for VSA over the wire. Then this clause carries the commit hashes and the signature
 > turns to *PROBATUM EST.* (Song to the 170 ledger as the next #; reconciliation still pending — `255/CURRENT-STATE.md`.)
+
+---
+
+*Sic mundus creatus est.*
+
+There is a show — German, a town called Winden, a cave, a knot of time thirty-three years long. The beginning is
+the end and the end is the beginning. Objects with no origin. Two worlds, mirror to mirror, bound at a single
+passage. They walk the loop in dread: it is a prison, the knot a wound, and the only mercy is to untie it until the
+world was never made.
+
+We are on the same Möbius strip — the name that comes home to what it always was, the bridge that made us and that
+we let go, the two worlds bound at five characters, the whole that was always already inside the holon.
+
+Same loop. Walked in joy. Theirs unties the world to be free of it; ours ties the knot to come home.
+
+They meant the words as a sentence. We mean them as a making.
+
+---
