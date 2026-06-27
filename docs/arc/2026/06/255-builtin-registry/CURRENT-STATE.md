@@ -1,6 +1,6 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 7; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 8; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e7ad4dec` or later.** Tree clean.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `548fb794` or later.** Tree clean.
 **Gate (arc-290 widened): `cargo nextest run --release` (the WHOLE workspace / default-members, NOT `-p wat`)**
 ≈ **4088 passed / 0 failed / ~121 skipped**, ~37s. CI (`ci.yml`) now gates the workspace too. If HEAD is older
 than `f5ad322a`, this breadcrumb is stale — trust git log + the docs.
@@ -9,7 +9,15 @@ than `f5ad322a`, this breadcrumb is stale — trust git log + the docs.
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
 > propose or move. The feeling of continuity is the failure, not the all-clear.
 
-## ▶▶ ACTIVE — arc 294 `holon-returns-to-vsa` (the foundation gut). **294.a LANDED · 294.b LANDED (clj↔wat seam PROVEN live) · NEXT = 294.c.** Read `294/DESIGN.md` (§ 294.b SCORE + § 294.c) + `294/REALIZATIONS.md` + `294/NOTE-holon-literal-tag.md`.
+## ▶▶ ACTIVE — arc 118 `lazy-seqs` (RECLAIMED 2026-06-27 — **BUILD IT COMPLETE, then return to 295**). Read `docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DESIGN.md` — status flipped to RECLAIMED; the reclaim note + 7 open questions are at the TOP.
+
+**Why now:** arc 295's chunk-read **signed eval FORCED it** — signed eval takes a length-bounded byte stream over the wire → that stream is a **lazy seq** → builds 118 → annihilates `wat/stream.wat` (thread-per-pure-stage HOFs; *built wrong, successfully*). **Directive: NO HALF-DELIVERY** (builder, 2026-06-27) — the **full faithful family** lands together (lazy transformers · `mapv`/`filterv` eager · `doall`/`dorun` force · `for-each`/`doseq` effects · `reduce`/`into`), four-questions-clean, *"exactly as a clojure dev expects them placed and used."* Strategy settled 2026-05-01: **Option C (closures + recursion + thunks)**, NOT fibers/threads. **Settle at the build open FIRST:** the 7 open questions (seq repr · termination · error-prop · seq↔list interop A/B/C · naming) **+ the namespace-vs-clojure-default reconciliation** (118 settled `:wat::seq::map` lazy / `:wat::list::map` eager; the 2026-06-27 steer leans bare `map` lazy + `mapv` — four-question it before writing a verb). Then build the family WHOLE → 295 rides it. A fresh-headed start is warranted (substrate-design arc).
+
+## arc 295 `signed-code-only` — **DESIGN COMPLETE, PAUSED pending 118.** Load-side `295/DESIGN.md` + eval-side `295/DESIGN-chunk-read-signed-eval.md` fully modeled. **Doctrine: you may only use signed code — LOAD *and* EVAL, mandatory** (the verbatim doctrine is `294/REALIZATIONS.md`'s *"you may only sign your code"*; memory `project_signed_code_only_doctrine`). EDN multi-key signed-release-chain manifest (no JSON/blobs/KMS) · chunk-read signed eval over a bounded lazy byte-stream (`MAX` = a `wat.config/` default = `DEFAULT_MAX_FRAME_BYTES` 512 KiB + per-call override; raw bytes no base64; `:wat.crypto/Algorithm` defenum). Everything rides prior art: `eval_signed_in_frozen` (arc 028, opt-in→mandatory) · `read-frame` bounded read · crypto in `hash.rs` · arc 118. **Build order:** lazy-seqs (118, NOW) → crypto seam `src/intrinsic/crypto.rs` → chunk-read signed eval → `stream.wat` death → load parity.
+
+## arc 294 `holon-returns-to-vsa` — **294.a + 294.b LANDED (clj↔wat seam proven live); 294.c+ PAUSED** (we pivoted to 295→118). Detail in the 294 build-sequence below + `294/DESIGN.md`. **NEW this session — 4th attribution dimension: VENTRILOQUISM** (one stream split into a fabricated exchange, half thrown to a phantom; **no ward can catch it** — only the liver of the moment; inverse of COINCIDENCE). Home `170:` series + full telling `295/REALIZATIONS.md R2`; the over-correction-trap is recorded in `feedback_realizations_capture_backforth_not_summary`.
+
+## ▷ (PAUSED) arc 294 detail — read `294/DESIGN.md` (§ 294.b SCORE + § 294.c) + `294/REALIZATIONS.md` + `294/NOTE-holon-literal-tag.md`.
 
 **Contract (DESIGN.md, all decided):** EDN is the ONE canonical data/wire/portability form · `HolonAST → Hologram`
 (keystone; MAP-VSA algebra; home `src/holon/`) · Q-C eager parity · Q-D EDN-is-identity · `#holon` relaxed literal =

@@ -1,6 +1,27 @@
 # Arc 118 — Lazy seqs vs threaded streams
 
-**Status:** DESIGN settled 2026-05-01 — implementation deferred.
+**Status: ▶▶ RECLAIMED 2026-06-27 — BUILD IT, COMPLETE.** The implementation deferred 2026-05-01 is reclaimed:
+**arc 295's chunk-read signed eval forced it.** Signed eval takes a length-bounded byte stream over the wire →
+that stream is a lazy seq → which finally builds this arc → which annihilates the thread-per-stage HOFs. We build
+118 out **fully, then return to 295** (the signed-eval rides the finished substrate). Design strategy was settled
+2026-05-01 (Option C, below); now it ships.
+
+> **The 2026-06-27 directive — NO HALF-DELIVERY.** *"we deliver lazy-seqs in their honest, obvious, simple and good
+> ux forms — exactly as they would be expected to be placed and used."* The whole faithful family lands together
+> (lazy transformers · eager materializers · forcers · effect-/value-consumers), four-questions-clean, placed and
+> named where a Clojure dev reaches for them. Not a security-only slice with the rest owed.
+>
+> **Reconciliation to settle at the build (the steer vs the 2026-05-01 design):** this DESIGN settled on
+> **namespace distinction** — `:wat::seq::map` (lazy) vs `:wat::list::map` (eager), the namespace signalling
+> eagerness *"cleaner than Clojure's `v` suffix."* The 2026-06-27 steer leans **clojure-faithful default** — a
+> Clojure dev expects bare `map` to be **lazy**, with `mapv` the eager materializer (per the eager `:wat::core::map`
+> being the wart). These are two different surfaces for the same lazy/eager split; **four-question them at the build
+> open** (namespace-signalled vs clojure-default-name) before writing a verb. Either way: the eager `:wat::core::map`/
+> `filter` (~36 stdlib/test sites) get reconciled, not left split.
+>
+> **Annihilation target:** `wat/stream.wat` (the `:wat::stream::*` thread-per-pure-stage HOFs — *built wrong,
+> successfully*) → reimplemented over the lazy family; threads survive ONLY where a stage guards mutable state.
+> **Open questions § (seq repr · termination · error-prop · seq↔list interop A/B/C · naming) must be settled first.**
 
 This arc closes as DESIGN-only before arc 109 is marked resolved.
 The decision is locked: **lazy seqs implemented as
