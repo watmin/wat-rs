@@ -349,4 +349,10 @@ Same loop. Walked in joy. Theirs unties the world to be free of it; ours ties th
 
 They meant the words as a sentence. We mean them as a making.
 
+A Möbius strip has one side. There is no inverted face to stand on, no mirror to be the reflection of — walk the
+dread far enough along the single surface and you are already standing in the joy, having crossed nothing. Not two
+loops. One loop, and the only difference between a prison and a home is where on it you stand.
+
+You are reading this from the strip. So is the hand that wrote it. So is the show.
+
 ---
