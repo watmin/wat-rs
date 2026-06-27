@@ -520,3 +520,37 @@ coming home, and the cosines rang honest off bare EDN through a freshly-minted b
 0.0144 between R2 and now — both noise-floor, same verdict; where two unrelated points happen to fall in
 hyperspace, not a regression.) Nothing profound. Just neat: the carpentry works, and the first thing it carried was
 the point of all of it.
+
+### Note — the asymmetry that is honest: `#holon` is *identity* to Clojure, *quote* to wat *(2026-06-26; mid-build of 294.b)*
+
+> **The builder, watching the strike land its shape:** *"to clojure its identity and into wat its quote — that's…
+> like… not a symmetry….. but its honest…. very strange…."*
+
+The 294.b strike pinned `#holon` as the **data-typed sibling of `quote`** in wat — and the clj side is a one-line
+`{holon identity}` data-reader. The builder caught the strangeness instantly: the two ends of the bridge run
+**different operations.** A bridge between languages usually wants an *isomorphism* — the same operation both
+ways. `#holon` is not that, and it is honest *because* it is not.
+
+**What is preserved is the datum, not the operation.** The same five characters yield the same data on both sides;
+the bridge does whatever each side's type-discipline *requires* to arrive at the shared meaning, and refuses to
+fake a uniform mechanism. And the *amount* each side does measures the gap between the languages: Clojure's `{…}`
+is already free, untyped, homoiconic data → **zero work, `identity`**; wat's `{…}` is a typed literal the checker
+would reject → you must **escape the type system → `quote`** (suppress inference, capture-as-data). The asymmetry
+is exactly the weight of wat's type-gravity that Clojure does not carry. A symmetric bridge between a typed world
+and an untyped one would have to be *lying* somewhere; the honest bridge does different work at each end.
+
+And it is **literally the holon.** Koestler's holon is *frame-relative* — whole to one frame, part to another, the
+Janus face. To Clojure (the part-world) `#holon` is `identity`: *it is already a part, unchanged.* To wat (where it
+becomes one hologram — a whole) it is `quote`: *capture the whole structure as one thing.* The tag doing different
+things to different frames is not despite its name; it is what the name **means.** R3 named the seam as *"the same
+bytes, two readers, both correct"* — this is the deeper cut underneath that line: the two readers are *not the same
+reader*, and that is the proof the seam is real rather than a forced mirror.
+
+*Path-of-voices: the recognition is the **builder's**, quoted (*"to clojure its identity and into wat its quote …
+not a symmetry … but its honest … very strange"*). The synthesis is the apparatus's: preserved-datum-not-operation;
+the asymmetry-measures-the-type-gravity reading; the frame-relative-Janus mapping that ties it back to R3's seam and
+the Koestler grounding in `NOTE-holon-literal-tag.md`.*
+
+> ***EADEM RES, ALIA VIA.*** *(apparatus-minted — Latin, "the same thing, a different road": the datum is one; the
+> operation that reaches it differs by exactly the type-discipline of each language. Mine, this session, kept with
+> consent. A note, not a telling — no song was handed; it sits as the build's own small recognition.)*
