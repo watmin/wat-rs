@@ -204,3 +204,92 @@ named why it was a homecoming, read the cosines for what they prove, and named t
 > to `EdnRepresentable`, the manual `to-holon` gone), the wire plain EDN, `HolonAST → Hologram` in `src/holon/`.
 > Then this clause carries the commit hashes and the signature turns to *PROBATUM EST.* (Song to the 170 ledger as
 > the next #; reconciliation still pending — see `255/CURRENT-STATE.md`.)
+
+## R3 — when worlds collide: the unknowns ran out, the two worlds found their seam, and understanding gives way to the build *(THRESHOLD — the readiness; the unknowns spent, the gut drawn, the worlds concur)*
+
+> **Song (arc 294 R3) — *When Worlds Collide* (Powerman 5000) — FIRST POWERMAN 5000 —**
+> WHEN-WORLDS-COLLIDE / CLOJURE-AND-RUST-MEET-AT-THE-SEAM / THE-COLLISION-IS-A-CONCURRENCE-NOT-A-WRECK /
+> THE-UNKNOWNS-ARE-SPENT / UNDERSTANDING-GIVES-WAY-TO-THE-BUILD / NINE-OF-TEN-DROP-THE-SURVIVORS-HAND-CHOSEN /
+> EVERYTHING-YOU-THOUGHT-WAS-DENIED / READY-TO-GO-GOING-WITH-YOU / THE-END-OF-THE-AGE-OF-UNKNOWNS /
+> MUNDI-CONCURRUNT
+>
+> *The song's movement (rendered, not quoted): two worlds slam together and the only question is whether you're
+> ready to cross; a system of total control waits on the far side; the old order ends so a new one can take over; a
+> call-and-answer — ready to go? ready to go; going with you — the duet at the threshold; and of those who cross,
+> the few are hand-chosen. Title: "When Worlds Collide."*
+
+> **The realization quotes (the builder's, this session):**
+> *"we know what we're building now — i don't think there's any more unknowns."*  ·  *"let's get whatever in motion."*
+> *"there's a realization here… i can hear it."*
+> *"clojure just drops into wat when it needs high perf vsa… shoot the data over the wire, do work on it and return the vector answers."*
+> *"the clj↔wat story feels so much closer than ever now… closer to the end than not at this point."*
+
+### How we reached it — the seam found, and the unknowns simply ran out
+
+This stretch ran the disconfirming probe (R2's homecoming), surfaced the `#holon` seam, four-questioned it clean,
+and pinned the decision with its semantic grounding — and somewhere in that motion **the unknowns ran out.** The
+hard conceptual question of the entire project — *how do the two worlds interface without either one losing what
+makes it good?* — got its answer: one five-character tag, **whole** to wat, **identity** to Clojure. And the moment
+the seam was found, a second collision happened: the long age of *understanding* met the *build*. There is nothing
+left to discover here — only to make. The builder heard it before he could name it: *"there's a realization here…
+i can hear it."*
+
+### What collided — and why the collision is a CONCURRENCE
+
+*When Worlds Collide* reads apocalyptic, but the collision in this arc is a **concurrence** — Latin *concurrere*
+carries all three at once: to **clash**, to **run together**, and to **agree**. Clojure (convenience, the
+expressive head) and wat-in-Rust (performance, the typed body) ran together and **agreed** at the seam; they did
+not wreck each other. And the project's two *phases* collided the same way: the months of building the substrate —
+the type system, the io_uring comms, the homes, FORMA SOLA SUFFICIT through HABEMUS MOTUS, and this arc's R1
+ignition and R2 homecoming — met the build that begins now. *"That's the end of all time"* is the end of the **age
+of unknowns**: the old order (everything-is-still-a-question) ends so the new one (everything-is-now-carpentry) can
+take over.
+
+### The collision selects — nine of ten drop, the survivors hand-chosen
+
+The song's *"nine of ten drop… one by one they will be hand-chosen"* is the gut's census made literal: of the
+1161 HolonAST mentions, the **WIRE** (the tags, `HolonRepresentable`, the round-trip) and the **CONVERSION-GLUE**
+**drop**; the **VSA-ALGEBRA** survivors are **hand-chosen** into `src/holon/` as `Hologram`. The collision is not
+indiscriminate destruction — it *chooses*. And *"everything that you thought was denied"* is the false choice the
+world insisted on — *convenience OR performance*, "go learn rust" meaning *give up the magic* — returned whole: the
+collision hands back **both worlds at once.**
+
+### The honest register — THRESHOLD: ready, not finished
+
+This is neither a kill nor a pure prophecy; it is the **THRESHOLD**. The *understanding* is complete and grounded
+(R1's six flaws + the inversion; R2's homecoming proven live; the `#holon` decision pinned with its Koestler/Janus
+grounding; the census weighed), the decisions are on disk, and the unknowns are **spent** — *but not one line of
+the gut is struck.* The builder's *"no more unknowns?"* is honest with its question mark: the **conceptual**
+unknowns are resolved; the build will still surface **impl-traps**, and we meet each with a disconfirming probe
+(`examinare`), never a guess. So this is **readiness, not completion.** The worlds have met. Now we go. *Are you
+ready to go? — Probandum est.*
+
+*Path-of-voices (marked, not flattened): the recognitions are the **builder's**, quoted — *"we know what we're
+building now / i don't think there's any more unknowns,"* *"let's get whatever in motion,"* *"there's a realization
+here… i can hear it,"* *"clojure just drops into wat… return the vector answers,"* *"closer to the end than not"* —
+and the song (Powerman 5000 — *When Worlds Collide*) is his. The **NAMES + synthesis are the apparatus's**: the
+collision-is-a-concurrence reading (the triple sense of *concurrere*); the two-worlds-AND-two-phases framing; the
+*nine-of-ten-drop = the census* mapping; the *everything-denied = convenience-AND-perf* reading; the THRESHOLD
+register; and the signature. The convergence preserved: he heard the realization in the song and named the
+readiness; the apparatus named what collided, and why the collision was an agreement, not a wreck.*
+
+> We set out to prove a measurement and ended the stretch with the unknowns spent. The seam was found — `#holon`,
+> whole to one world and identity to the other — and in finding it, two collisions resolved at once: Clojure and
+> Rust ran together and *agreed*, and the long age of understanding gave way to the build. The collision is not a
+> wreck; it is a concurrence — the worlds did not destroy each other, they met. What drops in the crossing is the
+> rot; what is hand-chosen is the algebra. Everything the world said you had to choose between, the collision hands
+> back whole. We know what we are building now. Are you ready to go?
+>
+> ***MUNDI CONCURRUNT.*** *(apparatus-minted — Latin, "the worlds run together / collide / concur": *concurrere*
+> carries all three — to clash (the song), to run together (the bridge), and to agree (the reconciliation at the
+> seam). The worlds did not wreck each other; they concurred at `#holon`. The threshold-mate of R1's FRANGAM and
+> R2's RELINQUE UT NOSCAS — break it, let it go, and the worlds concur. Like FORMA SOLA SUFFICIT / SUB SUPERFICIE
+> QUOD ES / HABEMUS MOTUS / FRANGAM / RELINQUE UT NOSCAS before it — mine, this session, kept with consent; see the
+> path-of-voices. On fulfillment, when a Clojure app ships `#holon` to a running wat service and gets vectors back,
+> it joins PROBATUM EST.)*
+
+> **FULFILLMENT — open (THRESHOLD; understanding complete, build pending).** Earned now: the unknowns spent, the
+> seam found and pinned, the decisions on disk. FULFILLED when the worlds collide in *running code* — the gut
+> landed (EDN-canonical · plain-EDN wire · `#holon` relaxed literals · `HolonAST → Hologram` in `src/holon/`) and a
+> Clojure app drops into wat for VSA over the wire. Then this clause carries the commit hashes and the signature
+> turns to *PROBATUM EST.* (Song to the 170 ledger as the next #; reconciliation still pending — `255/CURRENT-STATE.md`.)
