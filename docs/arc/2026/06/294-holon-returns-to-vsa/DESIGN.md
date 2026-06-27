@@ -253,6 +253,18 @@ run in BOTH — a measurable `Hologram` in wat, plain identity-data in Clojure �
 tags) — weigh against the byte-identity goal. **STOP if** the reader-tag needs a new core `WatAST` variant or
 touches the lexer's hot path beyond a clean `#holon` arm — surface it.
 
+### ✅ DECIDED (four-questions, 2026-06-26): **Option A — `#holon` is the data-typed sibling of `quote`.**
+Four-questioned A (desugar to a special-headed `List`, no new AST variant) vs B (new `WatAST::Holon` variant):
+**A = YES/YES/YES/YES; B fails Simple** (a new core variant braids holon-lifting across every `WatAST` exhaustive
+match — the opposite of decomplect). Full table + the grounding (the `quote` precedent read live at `check.rs:4389`
+— *"the argument is DATA … the type checker does not recurse into it"*; the runtime `Value::wat__WatAST =>
+watast_to_holon` arm at `runtime.rs:14431`; `parse_reader_macro` at `parser.rs:293`) in **`BRIEF-294.b-holon-literal.md`**.
+The strike: `#holon <form>` → (reader macro) `(:wat::holon::literal <form>)` → checker types `:wat::holon::HolonAST`
+without recursing → runtime `to_holon_inner(eval_quote(args, span)?, span)` (capture-as-data, then lower). Mirror
+`quote` at all 6 registration sites (`special_forms.rs:220/346`, `resolve/boundary.rs:57` = `Boundary::AllData`,
+`rete/purity.rs:214`, `macros/eval.rs:155` + `expand.rs:195`, `runtime.rs:7852`). NO new `WatAST` variant. The clj
+`{holon identity}` data-reader + cross-read land AFTER the Rust is green (orchestrator).
+
 ## Decomposition (provisional — sequence after the open questions settle) [original below, amended above]
 The build sequence was reordered this session (clj-unlock-forward, smallest-grounded-first): **294.a** (this) →
 294.b `#holon` literal → 294.c EDN-canonical record + flaw #7 → 294.d wire → 294.e `aggregate-new` → 294.f
