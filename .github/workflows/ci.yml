@@ -29,13 +29,16 @@ jobs:
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      # The authoritative test gate. Per-test process isolation neutralizes the
-      # arc-170 global-state leak; the per-test deadline (.config/nextest.toml)
-      # turns a deadlock into a clean timeout instead of a wedged run.
+      # The authoritative test gate — the WHOLE workspace (default-members), not just
+      # the `wat` substrate crate. Arc-290: widened from `-p wat` so sibling crates
+      # (wat-cli, wat-holon-lru, wat-lru, …) can never drift unseen again — they did,
+      # for weeks, because this gate only ran `-p wat`. Per-test process isolation
+      # neutralizes the arc-170 global-state leak; the per-test deadline
+      # (.config/nextest.toml) turns a deadlock into a clean timeout instead of a wedge.
       - name: Test (nextest)
-        run: cargo nextest run --profile ci --release -p wat
+        run: cargo nextest run --profile ci --release
 
       # clippy is informational for now (the tree still carries known cruft);
       # tighten to `-- -D warnings` once the warning floor is driven to zero.
       - name: Clippy
-        run: cargo clippy --release -p wat
+        run: cargo clippy --release --workspace

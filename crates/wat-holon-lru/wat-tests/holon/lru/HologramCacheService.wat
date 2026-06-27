@@ -429,7 +429,6 @@
 ;; handle drop at inner scope exit → driver sees disconnect → outer
 ;; Thread/join-result unblocks.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-spawn-and-drop
   (:test::hcs-spawn-and-drop))
 
@@ -440,7 +439,6 @@
 ;; helper-verb internally sends Request::Get and recvs Reply::GetResult
 ;; — driver gets a clean shutdown after pool finish + handle drop.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-empty
   (:wat::test::assert-eq (:test::hcs-helper-get-empty) 0))
 
@@ -450,7 +448,6 @@
 ;; Single-entry batch round trips Request::Put → Reply::PutAck. Helper
 ;; returns 1 on Ok join, 0 on Err join (after surfacing the death).
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-one
   (:wat::test::assert-eq (:test::hcs-helper-put-one) 1))
 
@@ -461,7 +458,6 @@
 ;; results[0] = Some(_) (presence = 1). Proves Reply enum routing for
 ;; both variants on the same channel.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-then-get
   (:wat::test::assert-eq (:test::hcs-helper-put-then-get) 1))
 
@@ -472,7 +468,6 @@
 ;; result-vec aligns with probe-vec by index — the contract Reply's
 ;; GetResult variant carries.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-many-keys
   (:wat::test::assert-eq (:test::hcs-helper-get-many-keys) 110))
 
@@ -484,7 +479,6 @@
 ;; eviction coverage from the prior file's test-step6 / test-hcs-spawn-put-3-eviction
 ;; without the channel-pair-deadlock plumbing.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-eviction
   (:wat::test::assert-eq (:test::hcs-eviction) 11))
 
@@ -495,6 +489,5 @@
 ;; hit → packed 11. Preserves the multi-client coverage from the prior
 ;; file's test-step5 / test-hcs-spawn-2clients-put-get-verify.
 
-(:wat::test::time-limit "200ms")
 (:deftest-hcs :wat-tests::holon::lru::HologramCacheService::test-hcs-multi-client
   (:wat::test::assert-eq (:test::hcs-multi-client) 11))

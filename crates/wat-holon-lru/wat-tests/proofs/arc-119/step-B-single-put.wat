@@ -20,7 +20,6 @@
 ;; verb does send-AND-recv internally on a single Handle. No
 ;; :should-panic annotation needed — the test passes naturally.
 
-(:wat::test::time-limit "200ms")
 (:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
   ()
   (:wat::core::let

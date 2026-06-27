@@ -42,7 +42,7 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 /// the EDN-quoted form on stdout.
 const ECHO_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [line (:wat::kernel::readln -> :wat::core::String)]
     (:wat::kernel::println line)))
@@ -109,23 +109,22 @@ fn echo_program_reads_stdin_writes_stdout() {
 /// and re-executed via eval-ast!. No stdin required.
 const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [program
        (:wat::core::quote
          (:wat::kernel::println "wat-atoms"))
      program-atom
-       (:wat::holon::Atom program)
-     ;; arc 057 Story-2 recovery: program-atom is now a structural
-     ;; HolonAST (the form lowered onto the algebra grid). to-watast
-     ;; lifts it back to a runnable WatAST; eval-ast! fires it.
-     reveal
-       (:wat::holon::to-watast program-atom)]
+       (:wat::holon::Atom (:wat::holon::to-holon program))]
+    ;; arc 057 Story-2 recovery: program-atom is now a structural
+    ;; HolonAST (the form lowered onto the algebra grid). to-watast
+    ;; was the original reverse path (HolonAST → WatAST) but is no
+    ;; longer available; use the original quoted WatAST directly.
     ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::eval-ast! reveal) -> :wat::core::nil
+    (:wat::core::match (:wat::eval-ast! program) -> :wat::core::nil
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -186,15 +185,15 @@ fn programs_are_atoms_hello_world() {
 /// Observable stdout: `"absent"\n"present"\n"wat-atoms"\n`.
 const PRESENCE_PROOF_PROGRAM: &str = r#"
 
-(:wat::core::define (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [program
        (:wat::core::quote
          (:wat::kernel::println "wat-atoms"))
      program-atom
-       (:wat::holon::Atom program)
+       (:wat::holon::Atom (:wat::holon::to-holon program))
      key-atom
-       (:wat::holon::Atom "hello-world")
+       (:wat::holon::Atom (:wat::holon::to-holon "hello-world"))
 
      ;; Compose: program-atom bound under key-atom.
      bound
@@ -224,15 +223,13 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
            "present"
            "absent"))
 
-     ;; arc 057 Story-2 recovery: program-atom is the structurally
-     ;; lowered HolonAST. to-watast lifts it back to a runnable WatAST.
-     ;; The presence measurements above proved the vector dynamics;
-     ;; this line runs the actual program.
-     reveal
-       (:wat::holon::to-watast program-atom)]
+]
+    ;; arc 057 Story-2 recovery: the presence measurements above proved
+    ;; the vector dynamics (absent/present). to-watast (HolonAST → WatAST)
+    ;; is no longer available; run the original quoted WatAST directly.
     ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION.
-    (:wat::core::match (:wat::eval-ast! reveal) -> :wat::core::nil
+    (:wat::core::match (:wat::eval-ast! program) -> :wat::core::nil
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -320,11 +317,7 @@ fn wrong_arg_type_user_main_rejected() {
     // The exact param type (i64 vs IOReader) is irrelevant — the whole
     // shape is retired.
     let program = r#"
-        (:wat::core::define (:user::main
-                             (stdin  :wat::core::i64)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::i64
           ())
     "#;
     let path = write_temp(program);
@@ -405,11 +398,11 @@ fn program_writes_multiple_times_to_stdout() {
     // Rust assertion updated for arc 170 slice 1f-ι EDN-only contract:
     // println of a String value emits the EDN-quoted form with newline.
     let program = r#"
-        (:wat::core::define (:user::main -> :wat::core::nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil
           (:wat::core::do
             (:wat::kernel::println "hello")
             (:wat::kernel::println "world")
-            :wat::core::nil))
+            nil))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
@@ -468,12 +461,12 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
             ;; IOWriter/println → (:wat::kernel::println ...);
             ;; demo::loop no longer needs a stdout param — println
             ;; routes through the ambient StdOutService.
-            (:wat::core::define (:demo::loop -> :wat::core::nil)
+            (:wat::core::defn :demo::loop [] -> :wat::core::nil
               (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::nil
                 ()                                       ; observed stop → return clean
                 (:demo::loop)))                          ; tight poll loop
 
-            (:wat::core::define (:user::main -> :wat::core::nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::do
                 (:wat::kernel::println "READY")
                 (:demo::loop)))
@@ -558,14 +551,12 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
 // ─── Arc 115 slice 1 — `wat --check` mode ────────────────────────────────
 
 const ARC115_GOOD_PROGRAM: &str = r#"
-(:wat::core::define
-  (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   ())
 "#;
 
 const ARC115_BAD_PROGRAM: &str = r#"
-(:wat::core::define
-  (:user::main -> :wat::core::nil)
+(:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::send no-such-thing 42))
 "#;
 

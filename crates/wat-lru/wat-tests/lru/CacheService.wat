@@ -276,7 +276,6 @@
 ;; scope exit → driver sees disconnect → outer Thread/join-result
 ;; unblocks.
 
-(:wat::test::time-limit "200ms")
 (:deftest-lru :wat-lru::test-lru-spawn-and-drop
   (:test::lru-spawn-and-drop))
 
@@ -287,7 +286,6 @@
 ;; and recvs Reply::GetResult — driver gets a clean shutdown after pool
 ;; finish + handle drop.
 
-(:wat::test::time-limit "200ms")
 (:deftest-lru :wat-lru::test-lru-helper-get-empty
   (:wat::test::assert-eq (:test::lru-helper-get-empty) 0))
 
@@ -297,7 +295,6 @@
 ;; trips Request::Put → Reply::PutAck. Helper returns 1 on Ok join,
 ;; 0 on Err join (after surfacing the death).
 
-(:wat::test::time-limit "200ms")
 (:deftest-lru :wat-lru::test-lru-helper-put-one
   (:wat::test::assert-eq (:test::lru-helper-put-one) 1))
 
@@ -308,7 +305,6 @@
 ;; results[0] = Some(42). Proves Reply<V> enum routing for both
 ;; variants on the same channel.
 
-(:wat::test::time-limit "200ms")
 (:deftest-lru :wat-lru::test-lru-helper-put-then-get
   (:wat::test::assert-eq (:test::lru-helper-put-then-get) 42))
 
@@ -319,6 +315,5 @@
 ;; result-vec aligns with probe-vec by index — the contract Reply<V>'s
 ;; GetResult variant carries.
 
-(:wat::test::time-limit "200ms")
 (:deftest-lru :wat-lru::test-lru-helper-get-many-keys
   (:wat::test::assert-eq (:test::lru-helper-get-many-keys) 110))

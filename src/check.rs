@@ -691,6 +691,49 @@ impl InferCtx {
 pub(crate) type Subst = HashMap<u64, TypeExpr>;
 
 
+/// Returns `true` when `node` is a `(:wat::core::fn ...)` list — an anonymous
+/// function expression (the value side of a `def + fn` function definition).
+/// Used to detect when `infer_def` / `extract_def_binding` would call `infer_fn`
+/// on a function body that `check_function_body` already type-checks (preventing
+/// duplicate `ReturnTypeMismatch :anonymous` diagnostics).
+fn is_fn_form_expr(node: &WatAST) -> bool {
+    matches!(
+        node,
+        WatAST::List(fn_items, _) if matches!(
+            fn_items.first(),
+            Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn"
+        )
+    )
+}
+
+/// Returns `true` when `form` is a `(:wat::core::def :name (:wat::core::fn ...))` shape
+/// (with or without an optional metadata-map at items[2]) — a function-definition form
+/// whose body is registered in `sym.functions` and walked by the
+/// `for func in sym.functions.values()` loop in `check_program`.
+///
+/// Walking such a form in the `for form in forms` pre-inference validator loop would
+/// descend into the fn body a second time, producing byte-identical duplicate
+/// diagnostics (ROOT-1 of the double-emission bug).
+fn is_fn_def_form(form: &WatAST) -> bool {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return false,
+    };
+    // Accept 3-item (no metadata) or 4-item (with metadata-map) forms.
+    if items.len() != 3 && items.len() != 4 {
+        return false;
+    }
+    match items.first() {
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::def" => {}
+        _ => return false,
+    }
+    let expr_idx = if items.len() == 4 { 3 } else { 2 };
+    match items.get(expr_idx) {
+        Some(expr) => is_fn_form_expr(expr),
+        None => false,
+    }
+}
+
 /// Check every user define's body against its declared return type;
 /// verify every call-position form in the `forms` list has correct
 /// arity and argument types.
@@ -755,6 +798,17 @@ pub fn check_program(
         }
     }
     for form in forms {
+        // ROOT-1 — skip function-definition forms whose fn body is already
+        // walked by the `for func in sym.functions.values()` loop above.
+        // A `(:wat::core::def :name (:wat::core::fn ...))` form (the expanded
+        // shape of every `defn`) has its body in `sym.functions`; walking the
+        // full form here would descend into the same body a second time and
+        // emit byte-identical duplicate diagnostics. Non-function top-level
+        // forms (bare `def` values, bare expressions) are NOT in
+        // `sym.functions`, so they still receive the full validator pass.
+        if is_fn_def_form(form) {
+            continue;
+        }
         validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
         validate_channel_pair_deadlock(form, types, &mut errors);
         validate_sandbox_scope_leak(form, sym, &mut errors);
@@ -8153,7 +8207,21 @@ fn infer_def(
     };
 
     // Infer the type of the expression.
-    let expr_ty = infer(&args[expr_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // ROOT-2 — for fn-form expressions (def+fn function definitions), use the
+    // scheme already registered in env via from_symbols rather than calling
+    // infer_fn. infer_fn checks the fn body and emits `ReturnTypeMismatch
+    // :anonymous` when the body type diverges from the declared return; but
+    // check_function_body already does the same check with the named function
+    // attribution (:user::main). Calling infer here would produce an identical
+    // but less informative :anonymous duplicate. Use the scheme type directly.
+    let expr_ty = if is_fn_form_expr(&args[expr_idx]) {
+        env.get(&name).map(|scheme| {
+            let (params, ret) = instantiate(scheme, fresh);
+            TypeExpr::Fn { args: params, ret: Box::new(ret) }
+        })
+    } else {
+        infer(&args[expr_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+    };
 
     // Arc 157 slice 1a-ii — redef gating.
     //
@@ -8753,6 +8821,18 @@ fn extract_def_binding(
     let span = items[0].span().clone();
     // Stone 241.6 — expr is at items[3] (4-item) or items[2] (3-item).
     let expr_idx = if items.len() == 4 { 3 } else { 2 };
+    // ROOT-2 — for fn-form expressions, use the already-registered scheme
+    // type instead of calling infer_fn (which checks the body and emits a
+    // second :anonymous ReturnTypeMismatch). The scheme is in env via
+    // from_symbols; we need the type here only to register it in
+    // defined_values for subsequent redef checks on the same name.
+    if is_fn_form_expr(&items[expr_idx]) {
+        if let Some(scheme) = env.get(&name) {
+            let (params, ret) = instantiate(scheme, fresh);
+            let ty = TypeExpr::Fn { args: params, ret: Box::new(ret) };
+            return Some((name, ty, span));
+        }
+    }
     let mut subst = Subst::new();
     let ty = infer(&items[expr_idx], env, &HashMap::new(), fresh, &mut subst).drain_errors_into(errors)?;
     let ty = apply_subst(&ty, &subst);
