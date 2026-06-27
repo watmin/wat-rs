@@ -69,6 +69,34 @@ that stream is a lazy seq → which finally builds this arc → which annihilate
 >   `:wat::seq::*`. Declare the convention loudly in the docs (every dialect documents its vocabulary) — that is the
 >   whole "caveat": ordinary documentation, not a debt owed to Clojure.
 
+> **⚡ DECIDED 2026-06-27 — the PRODUCER model: the FUNCTIONAL producer is the SOLE solution; the stream surface is
+> CEK-STABLE; the imperative generator is a named CEK-era ADDITIVE follow-on (NOT a thread).** Working the producer
+> UX (the builder's Ruby `Enumerator.new { |y| y << 1 … }` shape) drove it to the floor:
+> - **Suspension without fibers = the thunk.** A functional producer's "where was I" is a *closure over its env*
+>   (`stream/lazy`), NOT a stack frame — so lazy PULL composition (`take`/`zip` over an infinite producer) works with
+>   **no thread and no fiber**. We built suspension-free-of-fibers.
+> - **The thread-backed generator is STRUCK.** A thread merely holds a suspended *stack* — a fiber you pay an OS
+>   thread for. The moment the producer is functional, the thunk replaces the stack and the thread is pure waste —
+>   exactly what this arc exists to kill. (An earlier floated "thread-backed `generate`" is retracted.)
+> - **CEK-STABILITY INVARIANT (the governing design law):** *the stream surface must not change when the runtime
+>   swaps to a CEK.* It rides only **closures + application** — which every evaluator has (tree-walk today, CEK later)
+>   — and deliberately uses **no reified continuation** (absent now, present later — a phantom to depend on) and **no
+>   thread** (rip-out-later). So the CEK migration is a **no-op for stream code.** Every future stream addition is
+>   held to this law: rides closures+application → ship it; needs the K → name it a CEK-era additive follow-on; needs
+>   a thread → reject (unless it genuinely guards mutable state per the arc-118 metric).
+> - **The imperative yielder (`stream/generate [yield] …` with arbitrary control flow) is a CEK-era ADDITIVE
+>   follow-on.** It needs a reified continuation (capture K at `yield`, resume on `pull`) — a CEK feature. When it
+>   lands it produces the **same `Stream` value** (same `first`/`rest`/`map` consume it): it ADDS a constructor,
+>   changes nothing existing. Until then: **don't fake it with a thread.** Known/eager items use `stream/of`;
+>   stateful-lazy production waits for the CEK.
+> - **Two threadless consumption directions:** PULL (consumer asks; thunk forces the tail; lazy `take`/`zip` compose
+>   naturally) and PUSH (producer drives via TCO recursion, calling a `yield-fn` per item; `reduced` gives early-exit
+>   so `take` can short-circuit a push producer). `for-each`/`reduce` are the push side.
+> - **Honest caveat (robustness, NOT a surface change):** under today's tree-walker, *deeply*-recursive realization
+>   (e.g. `filter` skipping a huge span) re-enters the Rust evaluator per step and is bounded by the Rust stack; the
+>   CEK heap-allocates continuations and lifts that ceiling. The CODE is identical — "more robust after the swap,"
+>   never "different after the swap."
+
 This arc closes as DESIGN-only before arc 109 is marked resolved.
 The decision is locked: **lazy seqs implemented as
 closures + recursion + thunks (Option C below)**, with an
@@ -369,6 +397,27 @@ User direction (2026-05-01):
 Scrutiny applied. Convergence: keep both.
 
 ## Open questions
+
+> **⊘ RESOLVED 2026-06-27 (kept for the record; the questions taught). The build + this session's decisions closed
+> all but one, and the remaining one is strike-survey, not a design fork:**
+> - **Q1 (representation / memoized?)** → RESOLVED: `Seq = Empty | Cons{head, tail:Arc<Seq>} | Thunk(LazyCell{thunk})`,
+>   **single-pass, NO memoization** (built, `74883c15`).
+> - **Q2 (termination)** → RESOLVED: a sentinel `Seq::Empty` variant (`seq-empty` / `stream/empty`), NOT `Option`. Built.
+> - **Q3 (error propagation)** → RESOLVED-by-build: a thunk body that errors propagates as the normal `EvalBreak`
+>   through `realize` — no forced `Result<T,E>` element type; errors ride the evaluator's existing path.
+> - **Q4 (channel interop)** → COLLAPSED under the functional model: a channel source is a **functional producer** —
+>   a thunk that `recv`s one item on force, then `lazy`-tails; the consumer's pull drives the `recv`. **No producer
+>   thread** unless the reader genuinely guards state (the arc-118 metric). The "which do I pick" fork dissolves.
+> - **Q5 (holding the head)** → RESOLVED + EVAPORATED by single-pass: no cache to pin → holding the head pins nothing
+>   → constant-memory streaming is unconditional.
+> - **Q7 (naming)** → RESOLVED: the two-world split — `:wat::seq::*` (eager) / `:wat::stream::*` (lazy). Not
+>   `:wat::lazy::*` / `:wat::iter::*`.
+> - **Q6 (which existing `:wat::stream::*` consumers benefit)** → the ONLY remainder, and it is **strike-survey, not a
+>   design decision** — enumerated DURING the `wat/stream.wat` annihilation (the HOF-family strike), not before.
+>
+> The "forced hand" — building **CEK-stable** — closed the last real architectural fork (the producer shape:
+> functional-only, thread struck, imperative generator = CEK-additive). **No design questions remain open;** what is
+> left is build-roster execution (the HOF family + the annihilation survey).
 
 1. **What's a seq's runtime representation?** A struct holding a
    thunk + a force/realized state? An enum (Cons | Nil | Lazy)?
