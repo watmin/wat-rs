@@ -6,8 +6,8 @@
 ;; it compact (one line). Proves a multi-line message crosses an OS pipe intact.
 ;;
 ;; Usage:
-;;   ./target/release/wat ./wat-scripts/intrinsic-metadata.wat \
-;;     | ./target/release/wat ./wat-scripts/read-flat.wat
+;;   cargo wat ./wat-scripts/intrinsic-metadata.wat \
+;;     | cargo wat ./wat-scripts/read-flat.wat
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::kernel::readln -> :wat::core::Value)))

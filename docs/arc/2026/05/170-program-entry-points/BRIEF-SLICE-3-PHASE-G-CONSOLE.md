@@ -62,7 +62,7 @@ Pattern: clone the `BareLegacyLambda` / `BareLegacyLetStar` template.
 5. Verify probe fires:
    ```bash
    echo '(:wat::console::spawn fn)' > /tmp/probe-console.wat
-   ./target/release/wat /tmp/probe-console.wat 2>&1 | head -5
+   cargo wat /tmp/probe-console.wat 2>&1 | head -5
    # Expected: BareLegacyConsolePath diagnostic with migration teaching
    ```
 
@@ -147,7 +147,7 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk
 
 # 2. Probe: console fires walker
 echo '(:wat::console::spawn fn)' > /tmp/probe-console.wat
-./target/release/wat /tmp/probe-console.wat 2>&1 | head -10
+cargo wat /tmp/probe-console.wat 2>&1 | head -10
 # Expected: BareLegacyConsolePath with migration teaching
 
 # 3. Final grep — :wat::console:: hits remain ONLY in historical context

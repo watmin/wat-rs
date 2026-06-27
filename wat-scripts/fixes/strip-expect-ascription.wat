@@ -17,7 +17,7 @@
 ;;
 ;; Usage (one EDN vector of EVERY path holding the forms on stdin):
 ;;   printf '["wat/Record.wat" ...]\n' \
-;;     | ./target/release/wat ./wat-scripts/fixes/strip-expect-ascription.wat
+;;     | cargo wat ./wat-scripts/fixes/strip-expect-ascription.wat
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::fix::strip-arrow-ascription src

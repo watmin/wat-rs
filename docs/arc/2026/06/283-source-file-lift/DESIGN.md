@@ -50,7 +50,7 @@ namespace carry the domain ("source code") and the type name the shape (a File =
        (:user::rename-file "wat-tests/lint.wat")
        nil))
    ```
-   Run `./target/release/wat wat/_rename_sourcefile.wat`. This renames the def head AND every ref +
+   Run `cargo wat wat/_rename_sourcefile.wat`. This renames the def head AND every ref +
    accessor (`…SourceFile/path` → `…File/path`) comment-faithfully across the three `.wat` files. **READ
    the diff of each** — only the prefix may have changed (the dogfood proof).
 3. **Relocate the def** — the renamed `(:wat::Record::def :wat::source::File [path source])` is now

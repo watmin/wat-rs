@@ -2,7 +2,7 @@
 ;; bidirectional ping-pong over kernel pipes, both shut down cleanly.
 ;;
 ;; Usage:
-;;   ./target/release/wat ./wat-scripts/ping-pong.wat
+;;   cargo wat ./wat-scripts/ping-pong.wat
 ;;
 ;; Expected output:
 ;;   round 1: ping → pong

@@ -1,7 +1,7 @@
 # BRIEF — Stone P12a: `fire-rules-explain` + the `Explained {session, support}` substrate
 
 **Executor:** one **sonnet** Shadowdancer. **No sub-agents. No `git`. No worktrees.** Do NOT run
-`./target/release/wat` (orchestrator-only). `cargo test` is yours. EMBED: this brief + the DESIGN
+`cargo wat` (orchestrator-only). `cargo test` is yours. EMBED: this brief + the DESIGN
 (`DESIGN-STONE-P12a-explain-substrate.md`) — read both fully before touching code.
 
 ## The work (one paragraph)

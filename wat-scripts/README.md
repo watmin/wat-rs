@@ -36,7 +36,7 @@ this session.
 Direct shell-pipe:
 
 ```bash
-echo /path/to/run.db | ./target/release/wat ./wat-scripts/count-logs.wat
+echo /path/to/run.db | cargo wat ./wat-scripts/count-logs.wat
 ```
 
 Or via the convenience wrapper at `scripts/query-db.sh` (handles
@@ -72,7 +72,7 @@ crossbeam channels.
 | `ping-pong-fork.wat` | Same shape as ping-pong.wat but the child runs in a **real OS process** via `:wat::kernel::fork-program-ast` instead of a thread. Inline child forms (no separate file). De-risks the always-fork wat-cli rewrite by exercising fork-program-ast under bidirectional traffic. |
 
 ```bash
-$ ./target/release/wat ./wat-scripts/ping-pong.wat
+$ cargo wat ./wat-scripts/ping-pong.wat
 round 1: ping → pong
 round 2: ping → pong
 round 3: ping → pong
@@ -80,7 +80,7 @@ round 4: ping → pong
 round 5: ping → pong
 done — 5 round trips
 
-$ ./target/release/wat ./wat-scripts/ping-pong-fork.wat
+$ cargo wat ./wat-scripts/ping-pong-fork.wat
 round 1: ping → pong (forked)
 round 2: ping → pong (forked)
 round 3: ping → pong (forked)
@@ -132,15 +132,15 @@ between them.
 | `dispatch.wat` | Read `#demo/Job {:db-path :query-program}`, spawn the named program, mediate IO. |
 
 ```bash
-$ echo /tmp/dispatch-demo.db | ./target/release/wat ./wat-scripts/seed-fixture.wat
+$ echo /tmp/dispatch-demo.db | cargo wat ./wat-scripts/seed-fixture.wat
 seeded 5 logs to: /tmp/dispatch-demo.db
 
 $ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/count-logs.wat"}' \
-    | ./target/release/wat ./wat-scripts/dispatch.wat
+    | cargo wat ./wat-scripts/dispatch.wat
 logs: 5
 
 $ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/metrics-summary.wat"}' \
-    | ./target/release/wat ./wat-scripts/dispatch.wat
+    | cargo wat ./wat-scripts/dispatch.wat
 logs: 5  metrics: 0
 ```
 
@@ -169,9 +169,9 @@ spawning — the shell is the parent here.
 
 ```bash
 $ cat wat-scripts/events.edn \
-    | ./target/release/wat ./wat-scripts/router.wat \
-    | ./target/release/wat ./wat-scripts/aggregator.wat \
-    | ./target/release/wat ./wat-scripts/sink.wat
+    | cargo wat ./wat-scripts/router.wat \
+    | cargo wat ./wat-scripts/aggregator.wat \
+    | cargo wat ./wat-scripts/sink.wat
 
 #demo/Total {:total 6}
 ```
@@ -205,7 +205,7 @@ extension, so any path under `:wat::telemetry::*` /
 
 ```bash
 # 1) Seed a fixture .db.
-echo /tmp/demo.db | ./target/release/wat ./wat-scripts/seed-fixture.wat
+echo /tmp/demo.db | cargo wat ./wat-scripts/seed-fixture.wat
 #   → seeded 5 logs to: /tmp/demo.db
 
 # 2) Query it.

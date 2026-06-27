@@ -1,6 +1,6 @@
 # BRIEF — Stone 8-custom: custom accumulators (user fold fn over the gather) + the fence
 
-**Single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `./target/release/wat`
+**Single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `cargo wat`
 (orchestrator-only; you MAY `cargo build`/`cargo test`).** Work ONLY in `/home/watmin/work/holon/wat-rs`.
 **After ANY `wat/rete.wat` edit, run a rete.wat-loading test** (`cargo test --release -p wat --test
 probe_arc278_8a_accumulate_oracle`) — `cargo build` does NOT type-check wat.

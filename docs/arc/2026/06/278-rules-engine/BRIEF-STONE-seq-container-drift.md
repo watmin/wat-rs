@@ -1,6 +1,6 @@
 # BRIEF — seq/collection checker↔runtime container parity (close 3 false-reject drifts)
 
-**Single-hop executor (sonnet). Do NOT spawn sub-agents. Do NOT run git. Do NOT run `./target/release/wat`
+**Single-hop executor (sonnet). Do NOT spawn sub-agents. Do NOT run git. Do NOT run `cargo wat`
 (orchestrator-only). You MAY `cargo build` / `cargo test`.** Work ONLY in `/home/watmin/work/holon/wat-rs`.
 
 ## The work (one paragraph)

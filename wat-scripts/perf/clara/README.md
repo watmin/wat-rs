@@ -9,7 +9,7 @@ out first on Clara's side; our native is AOT Rust).
 ## Run
 ```bash
 # our engine (native delta kernel, public fire-rules):
-echo '[20 10]' | ./target/release/wat ./wat-scripts/perf/deep-cascade.wat
+echo '[20 10]' | cargo wat ./wat-scripts/perf/deep-cascade.wat
 
 # Clara (clara-rules 0.24.0 from Clojars; Clojure CLI + JDK required):
 bash wat-scripts/perf/clara/gen-bench.sh 20 10 > /tmp/bench.clj

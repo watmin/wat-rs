@@ -11,7 +11,7 @@
 ;;
 ;; Usage (derive the set from git, then sweep):
 ;;   printf '%s' "$(git ls-files 'wat/*.wat' 'wat-tests/*.wat' | sed 's/.*/"&"/' | tr '\n' ' ' | sed 's/^/[/;s/ $/]/')" \
-;;     | ./target/release/wat ./wat-scripts/fixes/sweep-lint-fixes.wat
+;;     | cargo wat ./wat-scripts/fixes/sweep-lint-fixes.wat
 ;;
 ;; Comment-faithful + idempotent (re-running after a clean sweep yields zero `[fixed]`).
 

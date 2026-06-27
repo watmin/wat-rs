@@ -59,11 +59,11 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk
 
 # 2. Walker probe — verb form
 echo '(:wat::console::spawn fn)' > /tmp/probe-console-1.wat
-./target/release/wat /tmp/probe-console-1.wat 2>&1 | head -10
+cargo wat /tmp/probe-console-1.wat 2>&1 | head -10
 
 # 3. Walker probe — Console/out method form (catches the old service-method shape)
 echo '(:wat::console::Console/out c "x")' > /tmp/probe-console-2.wat
-./target/release/wat /tmp/probe-console-2.wat 2>&1 | head -10
+cargo wat /tmp/probe-console-2.wat 2>&1 | head -10
 
 # 4. Doc sweep verification
 grep -rln "wat::console" --include="*.wat" --include="*.md" --include="*.rs" . 2>/dev/null | grep -v "docs/arc/"

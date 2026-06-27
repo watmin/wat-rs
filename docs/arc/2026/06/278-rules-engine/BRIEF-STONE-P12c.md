@@ -1,7 +1,7 @@
 # BRIEF — Stone P12c: the EXPLAIN payload (`DerivationStep` + `:constraints`/`:bindings`/`:pattern`/`rule`)
 
 **Executor:** one **sonnet** Shadowdancer. **No sub-agents. No `git`. No worktrees.** Do NOT run
-`./target/release/wat` (orchestrator-only). `cargo test` only. EMBED + read fully:
+`cargo wat` (orchestrator-only). `cargo test` only. EMBED + read fully:
 `DESIGN-STONE-P12c-explain-payload.md` (the contract) before touching code.
 
 ## The work (one paragraph)

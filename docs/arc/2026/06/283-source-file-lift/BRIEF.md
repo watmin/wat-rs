@@ -36,7 +36,7 @@ the def + rebuild.
 
 Create `wat/_rename_sourcefile.wat` exactly as in the DESIGN (rename-file helper + main renaming
 `wat/deporder.wat`, `wat/lint.wat`, `wat-tests/lint.wat`). After `cargo build --release --bin wat`, run
-`./target/release/wat wat/_rename_sourcefile.wat`. Then **read the diff** of each renamed file to confirm
+`cargo wat wat/_rename_sourcefile.wat`. Then **read the diff** of each renamed file to confirm
 ONLY the `:wat::deporder::SourceFile` prefix changed to `:wat::source::File` (comment-faithful — nothing
 else moved). Delete the driver file when done.
 

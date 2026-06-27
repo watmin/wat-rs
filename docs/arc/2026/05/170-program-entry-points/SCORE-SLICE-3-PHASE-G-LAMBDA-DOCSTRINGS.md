@@ -224,7 +224,7 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk
 
 # 2. Walker probe
 echo '(:wat::core::lambda [x] x)' > /tmp/probe-lambda.wat
-./target/release/wat /tmp/probe-lambda.wat 2>&1 | head -5
+cargo wat /tmp/probe-lambda.wat 2>&1 | head -5
 # Expected: BareLegacyLambda fires with ":wat::core::lambda is retired (arc 155); canonical FQDN is :wat::core::fn"
 
 # 3. Final grep

@@ -62,7 +62,7 @@ the brief; it has to be self-contained.
 
 The brief becomes:
 
-> "run `cargo build --release` (or `./target/release/wat <file>`);
+> "run `cargo build --release` (or `cargo wat <file>`);
 > read the hints; apply the migration; iterate until green; report
 > what wasn't obvious."
 
@@ -99,7 +99,7 @@ A second consumer of the same diagnostic stream: the
 **orchestrator** monitoring the agent's progress.
 
 ```bash
-target/release/wat /tmp/probe.wat 2>&1 | grep -c "hint: arc N"
+cargo wat /tmp/probe.wat 2>&1 | grep -c "hint: arc N"
 ```
 
 The result IS the progress bar. The substrate's bundled stdlib

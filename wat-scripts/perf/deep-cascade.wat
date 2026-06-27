@@ -14,7 +14,7 @@
 ;; (P4a cascade fixpoint) on the SAME staged session. Emits one EDN result map per line on stdout.
 ;;
 ;; Usage (stdin = an EDN :perf::Params; stdout = an EDN map):
-;;   echo '(:perf::Params 20 3)' | ./target/release/wat ./wat-scripts/perf/deep-cascade.wat
+;;   echo '(:perf::Params 20 3)' | cargo wat ./wat-scripts/perf/deep-cascade.wat
 ;;   => {:depth 20 :width 3 :derived 120 :deepest 3 :wat-ns N :native-ns M}
 
 (:wat::Record::def :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])

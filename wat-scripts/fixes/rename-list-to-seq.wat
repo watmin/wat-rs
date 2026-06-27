@@ -11,7 +11,7 @@
 ;;
 ;; Usage (one EDN vector of EVERY path holding the prefix on stdin):
 ;;   printf '["wat/list.wat" "wat-tests/core/list-fold-aliases.wat"]\n' \
-;;     | ./target/release/wat ./wat-scripts/fixes/rename-list-to-seq.wat
+;;     | cargo wat ./wat-scripts/fixes/rename-list-to-seq.wat
 ;;
 ;; Idempotent: re-running yields zero changes (the old prefix is gone).
 

@@ -21,7 +21,7 @@
 ;;
 ;; Usage (one EDN vector of EVERY path holding `match -> :T` on stdin):
 ;;   printf '["wat/service.wat" ...]\n' \
-;;     | ./target/release/wat ./wat-scripts/fixes/strip-match-ascription.wat
+;;     | cargo wat ./wat-scripts/fixes/strip-match-ascription.wat
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::fix::strip-arrow-ascription src

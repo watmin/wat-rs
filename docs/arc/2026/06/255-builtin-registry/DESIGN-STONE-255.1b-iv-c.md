@@ -99,7 +99,7 @@ enum mirror**:
 | # | what | command | expected |
 |---|---|---|---|
 | 1 | the probe goes green | `cargo test --release -p wat --test nursery metadata_of_emits_plain_values` | 1 passed |
-| 2 | EDN is clean (no holon tags) | `./target/release/wat ./wat-scripts/intrinsic-metadata.wat` | output contains `:wat.runtime.Kind/Intrinsic`; NO `#wat-edn.holon/` substring |
+| 2 | EDN is clean (no holon tags) | `cargo wat ./wat-scripts/intrinsic-metadata.wat` | output contains `:wat.runtime.Kind/Intrinsic`; NO `#wat-edn.holon/` substring |
 | 3 | lib floor holds | `cargo test --release -p wat --lib` | 953 pass / 36 ign / 1 (pre-existing baseline) |
 | 4 | nursery: only the iv-c probe flips green | `cargo test --release -p wat --test nursery` | the 4 pre-existing fails remain; iv-c probe now passes |
 | 5 | clippy clean on touched files | `cargo clippy --release -p wat` | no new warnings on runtime.rs / intrinsic/ |

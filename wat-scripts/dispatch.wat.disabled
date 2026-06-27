@@ -8,11 +8,11 @@
 ;;
 ;; Usage:
 ;;   # First, seed a fixture database (one-time setup):
-;;   echo /tmp/demo.db | ./target/release/wat ./wat-scripts/seed-fixture.wat
+;;   echo /tmp/demo.db | cargo wat ./wat-scripts/seed-fixture.wat
 ;;
 ;;   # Then dispatch — pick db-path + query-program at the EDN line:
 ;;   echo '#demo/Job {:db-path "/tmp/demo.db" :query-program "./wat-scripts/count-logs.wat"}' \
-;;     | ./target/release/wat ./wat-scripts/dispatch.wat
+;;     | cargo wat ./wat-scripts/dispatch.wat
 ;;
 ;; Demonstrates the hologram-nesting pattern from arc 103a:
 ;;   - dispatcher.wat (outer hologram) reads the job, picks the

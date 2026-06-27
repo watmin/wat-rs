@@ -150,7 +150,7 @@ Instead — **ask the substrate.** Run the type checker on a
 hand-crafted file:
 
 ```
-target/release/wat /tmp/comm-good.wat 2>&1 | grep -c "hint: arc 111"
+cargo wat /tmp/comm-good.wat 2>&1 | grep -c "hint: arc 111"
 ```
 
 The result IS the progress bar. The substrate's baked stdlib

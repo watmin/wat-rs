@@ -63,7 +63,7 @@ grep -rln "let\*" --include="*.wat" --include="*.md" --include="*.rs" . 2>/dev/n
 
 # 3. Probe: let* still fatal at check
 echo '(:wat::core::let* [x 1] x)' > /tmp/probe-let-star.wat
-target/release/wat /tmp/probe-let-star.wat 2>&1 | head -5
+cargo wat /tmp/probe-let-star.wat 2>&1 | head -5
 # Expected: BareLegacyLetStar fires with friendly diagnostic
 
 # 4. Workspace post-sweep

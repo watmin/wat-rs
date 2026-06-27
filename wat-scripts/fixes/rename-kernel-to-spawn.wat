@@ -14,7 +14,7 @@
 ;; suffixes that share it. The three prefixes are disjoint, so order is irrelevant.
 ;;
 ;; Usage (one EDN vector of paths on stdin):
-;;   printf '["wat/spawn.wat" "wat/service.wat"]\n' | ./target/release/wat ./wat-scripts/fixes/rename-kernel-to-spawn.wat
+;;   printf '["wat/spawn.wat" "wat/service.wat"]\n' | cargo wat ./wat-scripts/fixes/rename-kernel-to-spawn.wat
 ;;
 ;; The rewrite is comment-faithful and idempotent (re-running yields zero changes — the
 ;; old prefix is gone), so it is safe to run over a clean tree.

@@ -1,7 +1,7 @@
 # BRIEF — Stone P12b: the `explain` walk (in WAT) → greens the EXPLAIN north-star
 
 **Executor:** one **sonnet** Shadowdancer. **No sub-agents. No `git`. No worktrees.** Do NOT run
-`./target/release/wat` (orchestrator-only). `cargo test` is yours. The walk lives in **WAT** (Decision A,
+`cargo wat` (orchestrator-only). `cargo test` is yours. The walk lives in **WAT** (Decision A,
 DESIGN-STONE-P12) — builder-readable; do NOT write it in Rust.
 
 ## Scope (the b/c split — read this first)

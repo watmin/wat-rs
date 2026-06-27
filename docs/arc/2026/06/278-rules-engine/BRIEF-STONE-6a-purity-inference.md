@@ -1,6 +1,6 @@
 # BRIEF — Stone 6a: purity inference (`:wat::rete::pure?`)
 
-**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `./target/release/wat` (the binary is orchestrator-only; you may `cargo build`/`cargo test`).**
+**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `cargo wat` (the binary is orchestrator-only; you may `cargo build`/`cargo test`).**
 
 ## The work (one paragraph)
 

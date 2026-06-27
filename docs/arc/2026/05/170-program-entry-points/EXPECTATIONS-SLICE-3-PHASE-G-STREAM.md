@@ -63,7 +63,7 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk
 
 # 2. Walker probe
 echo '(:wat::std::stream::map x y)' > /tmp/probe-stream.wat
-./target/release/wat /tmp/probe-stream.wat 2>&1 | head -10
+cargo wat /tmp/probe-stream.wat 2>&1 | head -10
 # Expected: BareLegacyStreamPath with :wat::stream::* canonical teaching
 
 # 3. Final grep

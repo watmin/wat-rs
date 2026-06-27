@@ -5,7 +5,7 @@
 ;; closed-domain values :kind / :defined-in / :layer (runtime.rs:10120-10122).
 ;;
 ;; Usage:
-;;   ./target/release/wat ./wat-scripts/intrinsic-metadata.wat
+;;   cargo wat ./wat-scripts/intrinsic-metadata.wat
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match

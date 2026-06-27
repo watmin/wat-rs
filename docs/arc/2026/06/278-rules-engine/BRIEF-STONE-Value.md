@@ -1,7 +1,7 @@
 # BRIEF — Stone Value: `:wat::core::Value` universal subtype-top
 
 **Executor:** one **sonnet** Shadowdancer. **No sub-agents. No `git`. No worktrees.** Do not run
-`./target/release/wat` (orchestrator-only); `cargo test` is yours.
+`cargo wat` (orchestrator-only); `cargo test` is yours.
 
 ## The work (one paragraph)
 `:wat::core::Value` is the universal subtype-top: every type `<: Value` (UP is free), but a `Value` is NOT

@@ -56,7 +56,7 @@ eat the type). Use the FULL old name `:wat::Record::def` as the prefix.
    ```
    ⚠ ORDER MATTERS: do `:wat::holon::Record::def` FIRST. `:wat::Record::def` is NOT a prefix of
    `:wat::holon::Record::def` (different namespace), so they are actually disjoint — but run holon-first anyway to
-   be safe. Run it: `printf '[<every .wat path with Record::def>]' | ./target/release/wat ./wat-scripts/fixes/rename-record-def-to-defrecord.wat`
+   be safe. Run it: `printf '[<every .wat path with Record::def>]' | cargo wat ./wat-scripts/fixes/rename-record-def-to-defrecord.wat`
    (get the path list from `grep -rln ':wat::Record::def\|:wat::holon::Record::def' wat/ tests/ wat-tests/ --include='*.wat'`).
    The codemod is idempotent (re-run = 0 changes). Delete neither the codemod nor leave it dangling — it stays in
    `wat-scripts/fixes/` as a recorded migration (like the others there).

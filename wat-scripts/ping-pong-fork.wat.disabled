@@ -5,7 +5,7 @@
 ;; program (thread).
 ;;
 ;; Usage:
-;;   ./target/release/wat ./wat-scripts/ping-pong-fork.wat
+;;   cargo wat ./wat-scripts/ping-pong-fork.wat
 ;;
 ;; Expected output:
 ;;   round 1: ping → pong (forked)

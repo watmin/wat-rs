@@ -15,7 +15,7 @@
 ;; Usage (one EDN vector of EVERY path holding the symbol on stdin — list them ALL; arc 283 learned
 ;; that a hand-listed subset which missed wat-tests/deporder.wat broke the build):
 ;;   printf '["wat/deporder.wat" "wat/lint.wat" "wat-tests/lint.wat" "wat-tests/deporder.wat"]\n' \
-;;     | ./target/release/wat ./wat-scripts/fixes/rename-sourcefile-to-source-file.wat
+;;     | cargo wat ./wat-scripts/fixes/rename-sourcefile-to-source-file.wat
 ;;
 ;; The rewrite is comment-faithful and idempotent (re-running yields zero changes — the old prefix is
 ;; gone). The def itself + its stdlib registration (wat/source.wat, before deporder) are the manual

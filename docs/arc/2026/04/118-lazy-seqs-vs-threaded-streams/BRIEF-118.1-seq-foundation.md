@@ -64,7 +64,7 @@ pub struct LazyCell {
 | # | what | command | expected |
 |---|---|---|---|
 | 1 | the RED probe flips GREEN | `cargo nextest run --release -p wat -E 'test(lazy_seq_cons_first_rest_traverses)'` (un-ignore) | PASS |
-| 2 | the lazy seq runs + prints | `cargo run -q --bin wat -- <a 1-2 lazy-seq program>` | `1` then `2` |
+| 2 | the lazy seq runs + prints | `cargo wat <a 1-2 lazy-seq program>` | `1` then `2` |
 | 3 | the tail is LAZY (not eager) | a `lazy-seq` whose body would error if eval'd, never `rest`-ed | does NOT error (deferred) |
 | 4 | nothing else breaks | `cargo nextest run --release` (whole workspace) | floor 0; SET-diff ∅ vs HEAD |
 

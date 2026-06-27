@@ -153,7 +153,7 @@ applies the renames.** No custom Rust tooling, no sed-with-grep.
 ### The brief shape
 
 ```
-"Run `cargo build --release` (or `./target/release/wat --check
+"Run `cargo build --release` (or `cargo wat --check
 <file>`); read the BareLegacyPrimitive errors. Each names a
 file:line:col + the bare→FQDN rename. Apply per-site. Iterate
 until green. Substrate stdlib first (it loads at every wat
@@ -167,7 +167,7 @@ That's the entire delegation. The diagnostic IS the work order.
 ### Confirming structured emission (optional pre-flight)
 
 ```bash
-./target/release/wat --check --check-output edn <file>
+cargo wat --check --check-output edn <file>
 ```
 
 Each `BareLegacyPrimitive` emits one EDN record with

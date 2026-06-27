@@ -27,7 +27,7 @@
 ```bash
 # Walker probe
 echo '(:wat::std::stream::map x y)' > /tmp/probe-stream.wat
-./target/release/wat /tmp/probe-stream.wat 2>&1 | head -10
+cargo wat /tmp/probe-stream.wat 2>&1 | head -10
 # Expected: BareLegacyStreamPath fires with "legacy stream path ... is retired (arc 109 slice 9d); canonical form is ':wat::stream::*'"
 
 # Final grep

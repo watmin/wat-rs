@@ -99,7 +99,7 @@ cargo test --release --workspace --no-fail-fast 2>&1 | grep "^test result" | awk
 
 # 2. Probe: walker still fires
 echo '(:wat::std::stream::map x y)' > /tmp/probe-stream.wat
-./target/release/wat /tmp/probe-stream.wat 2>&1 | head -10
+cargo wat /tmp/probe-stream.wat 2>&1 | head -10
 # Expected: BareLegacyStreamPath fires with friendly diagnostic naming :wat::stream::* canonical
 
 # 3. Final grep — :wat::std::stream:: hits remain ONLY in Bucket C/D

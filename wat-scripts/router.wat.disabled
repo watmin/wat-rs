@@ -6,9 +6,9 @@
 ;;
 ;; Usage:
 ;;   cat wat-scripts/events.edn \
-;;     | ./target/release/wat ./wat-scripts/router.wat \
-;;     | ./target/release/wat ./wat-scripts/aggregator.wat \
-;;     | ./target/release/wat ./wat-scripts/sink.wat
+;;     | cargo wat ./wat-scripts/router.wat \
+;;     | cargo wat ./wat-scripts/aggregator.wat \
+;;     | cargo wat ./wat-scripts/sink.wat
 
 (:wat::core::struct :demo::Event
   (n :i64))

@@ -1,6 +1,6 @@
 # BRIEF — Stone 8-i: the wat accumulator fold library (`:wat::rete::acc::*`)
 
-**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `./target/release/wat`
+**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `cargo wat`
 (orchestrator-only; you MAY `cargo build`/`cargo test`).** Work ONLY in `/home/watmin/work/holon/wat-rs`.
 
 ## The work (one paragraph)

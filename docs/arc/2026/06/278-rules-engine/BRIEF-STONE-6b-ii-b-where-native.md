@@ -1,6 +1,6 @@
 # BRIEF — Stone 6b-ii-b: `where`/TestNode in the NATIVE kernel + the differential
 
-**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `./target/release/wat`
+**You are a single-hop executor. Do NOT spawn sub-agents. Do NOT run git. Do NOT run `cargo wat`
 (orchestrator-only; you MAY `cargo build`/`cargo test`).** Work ONLY in `/home/watmin/work/holon/wat-rs`.
 
 ## The work (one paragraph)

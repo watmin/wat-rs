@@ -125,7 +125,7 @@ cat > /tmp/probe-list.wat <<'EOF'
   (:test::probe -> :wat::core::Vector<wat::core::i64>)
   (:wat::core::list :wat::core::i64 1 2 3))
 EOF
-cargo run --release --quiet --bin wat -- --check /tmp/probe-list.wat 2>&1 | head -5
+cargo wat --check /tmp/probe-list.wat 2>&1 | head -5
 ```
 
 The probe should show a TypeMismatch / poison diagnostic, NOT a

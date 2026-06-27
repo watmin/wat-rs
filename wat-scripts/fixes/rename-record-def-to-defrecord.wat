@@ -21,7 +21,7 @@
 ;; migration alongside rename-kernel-to-spawn.wat.
 ;;
 ;; Usage (one EDN vector of paths on stdin):
-;;   printf '["wat/Record.wat" "wat/core.wat" ...]\n' | ./target/release/wat ./wat-scripts/fixes/rename-record-def-to-defrecord.wat
+;;   printf '["wat/Record.wat" "wat/core.wat" ...]\n' | cargo wat ./wat-scripts/fixes/rename-record-def-to-defrecord.wat
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String

@@ -27,12 +27,12 @@
 ```bash
 # Probe 1 — verb form
 echo '(:wat::console::spawn fn)' > /tmp/probe-console-1.wat
-./target/release/wat /tmp/probe-console-1.wat 2>&1 | head -20
+cargo wat /tmp/probe-console-1.wat 2>&1 | head -20
 # Expected: BareLegacyConsolePath diagnostic with migration text
 
 # Probe 2 — Console/out method form
 echo '(:wat::console::Console/out c "x")' > /tmp/probe-console-2.wat
-./target/release/wat /tmp/probe-console-2.wat 2>&1 | head -20
+cargo wat /tmp/probe-console-2.wat 2>&1 | head -20
 # Expected: BareLegacyConsolePath diagnostic for ':wat::console::Console/out'
 ```
 

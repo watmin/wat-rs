@@ -53,7 +53,7 @@ readln'(cap) → StdInService::Req {thread-id, max-buffer-bytes}   ;; Req gains 
 3. If `read-frame` turns out to have more than the one StdInService caller — STOP, report (the
    signature change needs all of them).
 
-## Gate (run these yourself — you HAVE permission to run ./target/release/wat)
+## Gate (run these yourself — you HAVE permission to run cargo wat)
 1. `cargo build --release --bin wat` — clean.
 2. `cargo test --release -p wat --test nursery readln_max_buffer` — BOTH probes green (kwarg + plain).
 3. **Restriction test** (add it): a user-namespace fn calling `:wat::kernel::readln'` directly must be

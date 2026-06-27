@@ -39,7 +39,7 @@
 ;;    1.  git stash push -m "rust change" src/check.rs src/runtime.rs   # old checker restored
 ;;    2.  cargo build --release                                          # old checker + your NEW verb
 ;;    3.  printf '["pathA" "pathB" …]\n' \                               # rewrite the WHOLE corpus
-;;          | ./target/release/wat ./wat-scripts/fixes/<your-fix>.wat    #   (list EVERY path; a
+;;          | cargo wat ./wat-scripts/fixes/<your-fix>.wat    #   (list EVERY path; a
 ;;                                                                        #    missed file breaks the build)
 ;;    4.  git stash pop                                                  # restore the rust change
 ;;    5.  cargo build --release && cargo test                           # new checker; corpus now new-form

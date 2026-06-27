@@ -78,7 +78,7 @@ warded by `tests/probe_arc251_read_file_ladder.rs` (write→read round-trip, byt
 `(:wat::kernel::readln -> :Vector<String>)`, recurses `first`/`rest`, `read-file` →
 `fix-macro-param-types` → `write-file`. Migrated all 15 stdlib files carrying `:AST<...>` /
 `:wat::holon::HolonAST` lies → the honest forms, **100/100 balanced replacements, line counts
-preserved**, idempotent — run through `./target/release/wat`, exit 0.
+preserved**, idempotent — run through `cargo wat`, exit 0.
 
 **Two findings the runner forced into the open:**
 1. **The `wat-scripts/` graveyard.** Writing one current program hit *four* retired-form walls —
