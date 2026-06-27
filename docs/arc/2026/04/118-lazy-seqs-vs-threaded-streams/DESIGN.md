@@ -46,7 +46,28 @@ that stream is a lazy seq → which finally builds this arc → which annihilate
 >   from Clojure's persistent seq, so `:wat::core::seq`/`lazy-seq` reads Clojure-misleading. Weigh `stream` at the rename.
 > **Action when the 118.1 sonnet lands: weigh → rip the `OnceLock` out of `LazyCell` + make `realize` non-caching →
 > re-verify the probe + the laziness test → commit.** Removing memoization is strictly LESS code; the cascade +
-> primitives stay valid.
+> primitives stay valid. **✅ DONE 2026-06-27 — committed `74883c15` (single-pass, no memo; probe GREEN, gate 4089/0).**
+
+> **⊘ SUPERSEDED → RESOLVED 2026-06-27: the TWO-WORLD SPLIT — `:wat::seq::*` (eager) + `:wat::stream::*` (lazy
+> single-pass). Surface C above is itself superseded.** Once memoization was removed (single-pass), the lazy thing
+> stopped being Clojure's persistent lazy-seq and became a **stream** — and Surface C's whole rationale (put `map`
+> lazy in `:wat::core::*` to be *clojure-faithful*) collapsed with it: a single-pass stream named `core/map` reads as
+> a persistent lazy seq, which is the lie. The governing principle, from the builder (2026-06-27): **"we do not strive
+> to be clojure — we strive to be FAMILIAR. we reserve the rights to choose our own names and behaviors. wat is a
+> DIALECT of clojure, not an impl."** So the bar is **familiar + internally-consistent, NOT faithful** — which
+> dissolves the "this namespace lies to a Clojure dev" objection that founded Surface C's rejection of the
+> namespace-split (Surface N). That objection measured against the WRONG bar (faithfulness). By wat's own right:
+> - **`:wat::seq::*` = eager, materialized, re-traversable** (renamed from `:wat::list::*`; the eager
+>   `:wat::core::{map,filter,take,…}` consolidate here). `seq` = "sequence" = ordered materialized collection — wat's
+>   word, not Clojure's lazy-abstraction word.
+> - **`:wat::stream::*` = lazy, single-pass, consumed-once** (the `lazy-seq` idea, *annihilated → reborn as stream*;
+>   already the noun on disk — 295 eval-side types the byte stream `(:wat.type/Stream u8)`).
+> - **The namespace IS the cost signal** — single-pass is a sharp footgun (no rewind), so making it scream at every
+>   call site (`stream/map` ≠ `seq/map`) is a SAFETY feature. Surface N's namespace-signal, vindicated by single-pass.
+> - **Foundation rename (fix-wat codemod, NOT a rebuild):** the committed `Value::wat__core__Seq` / `LazyCell` /
+>   `:wat::core::{cons,lazy-seq,seq-empty,first,rest}` → a `Stream` family under `:wat::stream::*`; `:wat::list::*` →
+>   `:wat::seq::*`. Declare the convention loudly in the docs (every dialect documents its vocabulary) — that is the
+>   whole "caveat": ordinary documentation, not a debt owed to Clojure.
 
 This arc closes as DESIGN-only before arc 109 is marked resolved.
 The decision is locked: **lazy seqs implemented as
