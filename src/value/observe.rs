@@ -411,6 +411,15 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out.push(')');
             out
         }
+        // Arc 118 — lazy seq: render head if realized; otherwise show pending.
+        Value::wat__core__Seq(seq) => {
+            use crate::seq::Seq;
+            match seq.as_ref() {
+                Seq::Empty => "(seq-empty)".to_string(),
+                Seq::Cons { head, .. } => format!("(cons {} …)", render_value(head, depth + 1)),
+                Seq::Thunk(_) => "<lazy-seq>".to_string(),
+            }
+        }
         // Stone 237.2 — defclause renders as `<clauses:name/N>`.
         Value::wat__core__clauses(cs) => {
             format!("<clauses:{}/{}>", cs.name, cs.clauses.len())

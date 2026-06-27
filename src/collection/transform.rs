@@ -65,8 +65,8 @@ pub(crate) fn eval_vec_reverse(
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::reverse".into(),
@@ -146,8 +146,8 @@ pub(crate) fn eval_vec_take(
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::take".into(),
@@ -201,8 +201,8 @@ pub(crate) fn eval_vec_drop(
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::drop".into(),
@@ -373,8 +373,8 @@ pub(crate) fn eval_vec_map(
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::map".into(),
@@ -442,8 +442,8 @@ pub(crate) fn eval_vec_foldl(
                 Ok(acc)
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldl".into(),
@@ -513,8 +513,8 @@ pub(crate) fn eval_vec_foldr(
                 Ok(acc)
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::foldr".into(),
@@ -613,8 +613,8 @@ pub(crate) fn eval_vec_filter(
                 Ok(Value::wat__core__List(Arc::new(out)))
             }
             // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet"),
+            SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Seq"),
         },
         _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::filter".into(),

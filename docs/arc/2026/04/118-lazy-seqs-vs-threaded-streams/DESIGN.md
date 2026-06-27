@@ -28,6 +28,26 @@ that stream is a lazy seq → which finally builds this arc → which annihilate
 > successfully*) → reimplemented over the lazy family; threads survive ONLY where a stage guards mutable state.
 > **Open questions § (seq repr · termination · error-prop · seq↔list interop A/B/C · naming) must be settled first.**
 
+> **⚡ DECIDED 2026-06-27 DURING THE BUILD — SINGLE-PASS, NO MEMOIZATION (supersedes the memoized foundation).** The
+> first foundation strike (`src/seq/mod.rs`, sonnet 118.1) built `LazyCell` with an `OnceLock<Arc<Seq>>` memoize
+> (Clojure-faithful: persistent, re-traversable). **The builder overrode it:** *"i do not believe we should have
+> memoize at all … you cannot walk back a stream — if you want this, you gotta write it, you go solve the rewind
+> buffer — core does not ship it."* So a wat lazy seq is a **single-pass STREAM, not Clojure's persistent lazy-seq:**
+> - **Drop the `OnceLock`.** `LazyCell = { thunk: Arc<Function> }` only; `realize` forces and returns, **no caching.**
+> - **Holding-the-head footgun EVAPORATES** (no cache to pin) — constant-memory streaming is now *unconditional*
+>   (terabytes through a teacup, no "don't hold the head" caveat).
+> - **Re-traversal / rewind is NOT shipped** — its **absence is the enforcement** (no runtime check, no policy). Want
+>   to walk it twice? Build a rewind buffer yourself; *"you probably don't want it."* The eager re-traversable world
+>   is `:wat::list::*`.
+> - **Consumer discipline is STRUCTURAL, not policy:** `fold`/`reduce`/`for-each` are *implemented* tail-recursive /
+>   head-dropping (the only correct way to write a streaming fold) — NO enforcement check (the footgun isn't shipped,
+>   so there's nothing to police). Pin this in the HOF brief.
+> - **NAMING (intueri, once green):** `stream` may be the more honest noun than `seq`/`lazy-seq` — single-pass diverges
+>   from Clojure's persistent seq, so `:wat::core::seq`/`lazy-seq` reads Clojure-misleading. Weigh `stream` at the rename.
+> **Action when the 118.1 sonnet lands: weigh → rip the `OnceLock` out of `LazyCell` + make `realize` non-caching →
+> re-verify the probe + the laziness test → commit.** Removing memoization is strictly LESS code; the cascade +
+> primitives stay valid.
+
 This arc closes as DESIGN-only before arc 109 is marked resolved.
 The decision is locked: **lazy seqs implemented as
 closures + recursion + thunks (Option C below)**, with an

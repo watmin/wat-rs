@@ -800,8 +800,8 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             Ok(Value::wat__core__List(Arc::new(out)))
                         }
                         // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-                        SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet =>
-                            unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet"),
+                        SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::HashSet | SeqContainer::Seq =>
+                            unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Seq"),
                     }
                 }
                 // Right side is a different (or non-ordered) container kind.
@@ -1658,6 +1658,23 @@ pub(crate) fn eval_rest(
                         out = out.push_back(elem.clone());
                     }
                     Ok(Value::wat__core__PersistentVector(out))
+                }
+                // Arc 118 — Seq: realize to WHNF, return the tail (or Empty for an empty seq).
+                // Clojure-faithful: (rest empty-seq) → empty-seq (not an error).
+                SeqContainer::Seq => {
+                    let Value::wat__core__Seq(seq) = &v else { unreachable!("of_value⇒Seq") };
+                    let realized = crate::seq::realize(seq, sym, &args[0].span().clone())?;
+                    match realized.as_ref() {
+                        crate::seq::Seq::Empty => {
+                            // rest of empty → empty (Clojure semantic).
+                            Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Empty)))
+                        }
+                        crate::seq::Seq::Cons { tail, .. } => {
+                            Ok(Value::wat__core__Seq(Arc::clone(tail)))
+                        }
+                        // realize guarantees WHNF (Empty | Cons); Thunk is impossible here.
+                        crate::seq::Seq::Thunk(_) => unreachable!("realize returns WHNF"),
+                    }
                 }
                 // has_tail() gate excludes these — named arms, genuinely dead, compiler-forced:
                 SeqContainer::Tuple | SeqContainer::HashSet =>

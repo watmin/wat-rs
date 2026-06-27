@@ -61,6 +61,10 @@ pub(crate) enum SeqContainer {
     Tuple,
     WatAstList,
     HashSet,
+    /// Arc 118 — lazy seq (`Value::wat__core__Seq`). Supports `first`, `rest`, `empty?`.
+    /// NOT indexable by integer (Seq has no O(1) nth); NOT measurable (infinite seqs);
+    /// NOT appendable via `conj` (use `cons`); NOT mappable at this strike (HOFs later).
+    Seq,
 }
 
 impl SeqContainer {
@@ -88,6 +92,10 @@ impl SeqContainer {
             TypeExpr::Parametric { head, .. } if head == "wat::core::HashSet" => {
                 Some(SeqContainer::HashSet)
             }
+            // Arc 118 — Seq<T>: lazy sequence.
+            TypeExpr::Parametric { head, .. } if head == "wat::core::Seq" => {
+                Some(SeqContainer::Seq)
+            }
             // Bare Path forms: annotations without type parameters
             TypeExpr::Path(p) if p == ":wat::core::Vector" => Some(SeqContainer::Vector),
             TypeExpr::Path(p) if p == ":wat::core::List" => Some(SeqContainer::List),
@@ -95,6 +103,7 @@ impl SeqContainer {
                 Some(SeqContainer::PersistentVector)
             }
             TypeExpr::Path(p) if p == ":wat::WatAST" => Some(SeqContainer::WatAstList),
+            TypeExpr::Path(p) if p == ":wat::core::Seq" => Some(SeqContainer::Seq),
             // Tuple is a structural type, not a named head
             TypeExpr::Tuple(_) => Some(SeqContainer::Tuple),
             // Unresolved type variable, named types, or non-containers
@@ -126,6 +135,8 @@ impl SeqContainer {
                 _ => None,
             },
             Value::wat__std__HashSet(_) => Some(SeqContainer::HashSet),
+            // Arc 118 — lazy seq.
+            Value::wat__core__Seq(_) => Some(SeqContainer::Seq),
             _ => None,
         }
     }
@@ -142,6 +153,7 @@ impl SeqContainer {
     ///
     /// `true` for ordered containers (Vector, PersistentVector, List, Tuple,
     /// WatAstList). `false` for HashSet (unordered — no canonical "first").
+    /// Arc 118 — Seq: `true` for `first` (index=0); index>0 raises at runtime.
     pub(crate) fn indexable(self) -> bool {
         match self {
             SeqContainer::Vector => true,
@@ -150,12 +162,15 @@ impl SeqContainer {
             SeqContainer::Tuple => true,
             SeqContainer::WatAstList => true,
             SeqContainer::HashSet => false,
+            // Arc 118 — Seq: `first` (index=0) is valid; higher indices raise at runtime.
+            SeqContainer::Seq => true,
         }
     }
 
     /// `rest` — return all but the first element.
     ///
     /// Un-stubbed: strike 2 migrates `rest` classification through this gate.
+    /// Arc 118 — Seq: `true` (rest returns the tail, or Empty for an empty seq).
     pub(crate) fn has_tail(self) -> bool {
         match self {
             SeqContainer::Vector => true,
@@ -166,12 +181,15 @@ impl SeqContainer {
             SeqContainer::Tuple => false,
             // HashSet is unordered → ∅ N/A
             SeqContainer::HashSet => false,
+            // Arc 118 — Seq: rest returns tail (or Empty) — always valid.
+            SeqContainer::Seq => true,
         }
     }
 
     /// `conj` — append an element.
     ///
     /// Un-stubbed: strike 2 migrates `conj` classification through this gate.
+    /// Arc 118 — Seq: use `cons` instead of `conj` (different operation).
     pub(crate) fn has_append(self) -> bool {
         match self {
             SeqContainer::Vector => true,
@@ -182,6 +200,8 @@ impl SeqContainer {
             SeqContainer::Tuple => false,
             // WatAstList: runtime arm not yet built → ○ gap (treated as false until filled)
             SeqContainer::WatAstList => false,
+            // Arc 118 — Seq: `conj` is not the Seq idiom; use `cons` explicitly. ∅ N/A.
+            SeqContainer::Seq => false,
         }
     }
 
@@ -202,6 +222,8 @@ impl SeqContainer {
             SeqContainer::WatAstList => false,
             // HashSet → set: ○ gap (sensible but not yet built)
             SeqContainer::HashSet => false,
+            // Arc 118 — Seq: HOFs (map/filter/etc.) are a later strike. ○ gap.
+            SeqContainer::Seq => false,
         }
     }
 
@@ -219,6 +241,8 @@ impl SeqContainer {
             // ∅ N/A — Tuple fixed-arity heterogeneous; HashSet unordered
             SeqContainer::Tuple => false,
             SeqContainer::HashSet => false,
+            // Arc 118 — Seq: reverse/take/drop/concat over lazy seqs are a later strike. ○ gap.
+            SeqContainer::Seq => false,
         }
     }
 
@@ -237,6 +261,10 @@ impl SeqContainer {
             SeqContainer::Tuple => true,
             // seq-1b — filled
             SeqContainer::WatAstList => true,
+            // Arc 118 — Seq: length/empty? on an infinite seq would diverge. ∅ N/A for length;
+            // `empty?` IS supported via realize (handled directly in eval_empty's Seq arm, not
+            // routed through this gate). Keep measurable=false so `length` rejects lazy seqs.
+            SeqContainer::Seq => false,
         }
     }
 
@@ -256,6 +284,8 @@ impl SeqContainer {
             SeqContainer::Tuple => true,
             // seq-1b — filled
             SeqContainer::WatAstList => true,
+            // Arc 118 — Seq: contains? would force the whole (possibly infinite) seq. ○ gap.
+            SeqContainer::Seq => false,
         }
     }
 
@@ -280,6 +310,8 @@ impl SeqContainer {
             // ∅ N/A — heterogeneous product; runtime-index can't be typed;
             // use first/second/third or destructure for static access
             SeqContainer::Tuple => false,
+            // Arc 118 — Seq: O(1) integer get is not a Seq operation (no random access). ∅ N/A.
+            SeqContainer::Seq => false,
         }
     }
 }

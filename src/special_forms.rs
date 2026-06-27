@@ -221,6 +221,10 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     insert(&mut m, ":wat::core::quasiquote", &["<template>"]);
     // Arc 294.b — `#holon <form>` reader tag; desugars to this special form.
     insert(&mut m, ":wat::holon::literal", &["<form>"]);
+    // Arc 118 — `lazy-seq` captures its body unevaluated as a thunk (capture-don't-eval,
+    // like quote). Dispatch sites: `src/check.rs` (infer_list arm) + `src/runtime.rs`
+    // (dispatch_keyword_head_value arm + eval_lazy_seq).
+    insert(&mut m, ":wat::core::lazy-seq", &["<body>"]);
     // `unquote` and `unquote-splicing` are only legal INSIDE a
     // quasiquote template; at the top level they return None from
     // expression-position inference (`src/check.rs:3401-3402`).

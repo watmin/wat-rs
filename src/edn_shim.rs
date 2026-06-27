@@ -3010,6 +3010,22 @@ pub fn value_to_edn_with(
                 .collect();
             OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
         }
+        // Arc 118 — Seq: opaque (lazy; realizing for EDN would diverge on infinite seqs).
+        // Render the forced prefix if available, otherwise as an opaque lazy sentinel.
+        Value::wat__core__Seq(seq) => {
+            use crate::seq::Seq;
+            match seq.as_ref() {
+                Seq::Empty => OwnedValue::List(vec![]),
+                Seq::Cons { head, .. } => {
+                    // Only render the head (forced); tail may be infinite.
+                    OwnedValue::Tagged(
+                        Tag::ns("wat-edn.opaque", "Seq"),
+                        Box::new(value_to_edn_with(head, types)),
+                    )
+                }
+                Seq::Thunk(_) => opaque_nil("wat-edn.opaque", "lazy-seq"),
+            }
+        }
         // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;
         // not directly serializable to EDN).
         Value::wat__core__clauses(cs) => opaque_nil("wat-edn.opaque", {

@@ -4400,6 +4400,39 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
+            // Arc 118 — `(:wat::core::lazy-seq <body>) -> Seq<T>`. SPECIAL FORM.
+            // The body is captured unevaluated at runtime (a thunk), but TYPED here:
+            // it must produce a `Seq<T>`, and lazy-seq returns that same `Seq<T>`.
+            // (Unlike quote, the body IS type-checked — runtime laziness defers only
+            // EVALUATION, not type-checking. A mistyped body is still a static error.)
+            ":wat::core::lazy-seq" => {
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: ":wat::core::lazy-seq".into(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                    let t = fresh.fresh();
+                    let seq_ty = TypeExpr::Parametric { head: "wat::core::Seq".into(), args: vec![t] };
+                    return if local_errors.is_empty() { CheckResult::ok(seq_ty) } else { CheckResult::partial_with(seq_ty, local_errors) };
+                }
+                // Type-check the body and unify it with Seq<fresh_T>.
+                let body_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                let elem = fresh.fresh();
+                let seq_ty = TypeExpr::Parametric { head: "wat::core::Seq".into(), args: vec![elem] };
+                if let Some(bt) = body_ty {
+                    if unify(&bt, &seq_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: ":wat::core::lazy-seq".into(),
+                            param: "<body>".into(),
+                            expected: "wat::core::Seq<T>".into(),
+                            got: format_type(&apply_subst(&bt, subst))
+                        } });
+                    }
+                }
+                let result = apply_subst(&seq_ty, subst);
+                return if local_errors.is_empty() { CheckResult::ok(result) } else { CheckResult::partial_with(result, local_errors) };
+            }
             // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
             // The enclosed form is DATA captured without evaluation (exactly
             // as `:wat::core::quote`). The checker does NOT recurse into the
@@ -19138,6 +19171,32 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 118 — lazy-seq foundation: seq-empty + cons type schemes.
+    // `seq-empty :: ∀T. () -> Seq<T>` — the Empty terminator (T free, instantiated fresh).
+    let seq_t = || TypeExpr::Parametric {
+        head: "wat::core::Seq".into(),
+        args: vec![t_var()],
+    };
+    env.register(
+        ":wat::core::seq-empty".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![],
+            ret: seq_t(),
+            rest_param_type: None,
+        },
+    );
+    // `cons :: ∀T. (T, Seq<T>) -> Seq<T>` — strict head + a Seq tail.
+    env.register(
+        ":wat::core::cons".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var(), seq_t()],
+            ret: seq_t(),
             rest_param_type: None,
         },
     );

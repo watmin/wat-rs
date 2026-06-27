@@ -4005,6 +4005,13 @@ fn dispatch_keyword_head_value(
         // The type slot is ERASED at runtime; only the expr is evaluated.
         ":wat::core::ann-form" => eval_ann_form(args, list_span, env, sym),
         ":wat::core::quote" => eval_quote(args, list_span),
+        // Arc 118 — lazy-seq foundation primitives.
+        // `seq-empty`/`cons` are NORMAL intrinsics (args evaluated).
+        ":wat::core::seq-empty" => eval_seq_empty(args, list_span),
+        ":wat::core::cons" => eval_cons(args, list_span, env, sym),
+        // `lazy-seq` is a SPECIAL FORM (capture-don't-eval): wrap the body in a
+        // 0-arg closure over the current env → Seq::Thunk. Mirrors `quote`.
+        ":wat::core::lazy-seq" => eval_lazy_seq(args, list_span, env),
         // Arc 294.b — `#holon <form>` / `(:wat::holon::literal <form>)`.
         // Capture the body as data via `eval_quote` (→ `Value::wat__WatAST`),
         // then lower to a hologram via `to_holon_inner` (which dispatches
@@ -6546,6 +6553,7 @@ fn val_type_path(val: &Value) -> &'static str {
         // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(_) => ":wat::core::char",
         Value::wat__core__List(_) => ":wat::core::List",
+        Value::wat__core__Seq(_) => ":wat::core::Seq",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
         Value::wat__kernel__Receiver(_) => ":wat::kernel::Receiver",
         Value::wat__kernel__ProgramHandle(_) => ":wat::kernel::ProgramHandle",
@@ -7858,6 +7866,8 @@ fn eval_apply(
         ":wat::core::quasiquote",
         // Arc 294.b — holon literal is a special form (body is data, not a callable).
         ":wat::holon::literal",
+        // Arc 118 — lazy-seq is a special form (body is captured unevaluated, not a callable).
+        ":wat::core::lazy-seq",
     ];
     if SPECIAL_FORMS.contains(&head_kw.as_str()) {
         return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
@@ -8858,6 +8868,92 @@ fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
         } }.into());
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+}
+
+/// Arc 118 — `(:wat::core::seq-empty) -> Seq<T>`. The Empty terminator.
+///
+/// Zero-arg constructor producing `Value::wat__core__Seq(Arc::new(Seq::Empty))`.
+fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::seq-empty".into(),
+            expected: 0,
+            got: args.len()
+        } }.into());
+    }
+    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Empty)))
+}
+
+/// Arc 118 — `(:wat::core::cons head tail) -> Seq<T>`. Strict-head Cons cell.
+///
+/// `head` is evaluated (strict); `tail` is evaluated and must be a `Seq` (it may
+/// itself be a Thunk — O(1), no forcing). Returns a `Seq::Cons{head, tail}`.
+fn eval_cons(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::cons".into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let head = eval_inner(&args[0], env, sym)?.value_owned();
+    let tail_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let tail = match tail_val {
+        Value::wat__core__Seq(s) => s,
+        other => return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: ":wat::core::cons".into(),
+            expected: "wat::core::Seq",
+            got: Box::new(ValueSnapshot::of(&other))
+        } }.into()),
+    };
+    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Cons { head, tail })))
+}
+
+/// Arc 118 — `(:wat::core::lazy-seq <body>) -> Seq<T>`. SPECIAL FORM (capture-don't-eval).
+///
+/// The body is NOT evaluated here. Instead it is captured as a 0-arg wat closure
+/// over the current environment (`env.clone()` in `closed_env`), and wrapped in a
+/// `Seq::Thunk(LazyCell{ thunk, forced: OnceLock::new() })`. The body runs ONLY when
+/// the seq is forced (via `realize` on `first`/`rest`/`empty?`), and runs at most ONCE
+/// (memoized in the `OnceLock`).
+///
+/// Mirrors `eval_quote`'s capture-don't-eval shape (runtime.rs) + the fn-closure
+/// construction in `function::eval_fn` (a 0-param `Function` with `closed_env`).
+fn eval_lazy_seq(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: ":wat::core::lazy-seq".into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    // Capture the body as a 0-arg closure over the current env (NOT evaluated now).
+    let thunk = Arc::new(Function {
+        name: None,
+        params: Vec::new(),
+        type_params: Vec::new(),
+        param_types: Vec::new(),
+        ret_type: crate::types::TypeExpr::Parametric {
+            head: "wat::core::Seq".into(),
+            args: vec![crate::types::TypeExpr::Var(0)],
+        },
+        rest_param: None,
+        rest_param_type: None,
+        body: crate::value::FunctionBody::Wat(Arc::new(args[0].clone())),
+        closed_env: Some(env.clone()),
+    });
+    Ok(Value::wat__core__Seq(Arc::new(crate::seq::Seq::Thunk(
+        crate::seq::LazyCell { thunk },
+    ))))
 }
 
 /// `(:wat::core::ann-form <expr> <type>) -> T` — arc 251 Stone 251.4b.
@@ -11211,6 +11307,24 @@ fn eval_positional_accessor(
                         _ => unreachable!("SeqContainer::of_value guarantees WatAST::List for WatAstList"),
                     }
                 }
+                // Arc 118 — Seq: realize to WHNF, return head (index 0) or nil for Empty.
+                // Only `first` (index=0) is supported; second/third (index>0) raise (no random access).
+                SeqContainer::Seq => {
+                    let Value::wat__core__Seq(seq) = &v else { unreachable!("of_value⇒Seq") };
+                    if index != 0 {
+                        return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                            head: op.into(),
+                            reason: format!("{op}: lazy Seq supports only `first` (index 0); positional access at index {index} is not a Seq operation (walk via rest)")
+                        } }.into());
+                    }
+                    let realized = crate::seq::realize(seq, sym, &args[0].span().clone())?;
+                    match realized.as_ref() {
+                        // first of empty → nil (Clojure semantic).
+                        crate::seq::Seq::Empty => Ok(Value::Unit),
+                        crate::seq::Seq::Cons { head, .. } => Ok(head.clone()),
+                        crate::seq::Seq::Thunk(_) => unreachable!("realize returns WHNF"),
+                    }
+                }
                 // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
                 SeqContainer::HashSet =>
                     unreachable!("indexable() gate excludes HashSet"),
@@ -12544,6 +12658,8 @@ fn eval_length(
             // seq-1b — filled
             SeqContainer::Tuple => crate::collection::eval::tuple_length_inner(&arg_val),
             SeqContainer::WatAstList => crate::collection::eval::watastlist_length_inner(&arg_val),
+            // Arc 118 — measurable() gate excludes Seq (length on a lazy/infinite seq diverges):
+            SeqContainer::Seq => unreachable!("measurable() gate excludes Seq"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12604,6 +12720,13 @@ fn eval_empty(
         } }.into()),
         None => {}
     }
+    // Arc 118 — Seq: empty? realizes to WHNF (force one step) and checks for Empty.
+    // Cannot route through the measurable() gate (Seq is not measurable — length diverges
+    // on infinite seqs — but `empty?` is decidable: it forces only ONE step).
+    if let Value::wat__core__Seq(seq) = &arg_val {
+        let realized = crate::seq::realize(seq, sym, list_span)?;
+        return Ok(Value::bool(matches!(realized.as_ref(), crate::seq::Seq::Empty)));
+    }
     // Arc-278 seq-1a — seq-family arms route through SeqContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if c.measurable()` guard is the genuine gate.
     // Exhaustive match over the closed SeqContainer enum — NO `_`. Adding a new seq container
@@ -12618,6 +12741,8 @@ fn eval_empty(
             // seq-1b — filled
             SeqContainer::Tuple => crate::collection::eval::tuple_empty_q_inner(&arg_val),
             SeqContainer::WatAstList => crate::collection::eval::watastlist_empty_q_inner(&arg_val),
+            // Arc 118 — Seq handled above via early realize (not measurable). Dead arm.
+            SeqContainer::Seq => unreachable!("Seq handled by the early realize branch above"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12693,6 +12818,8 @@ fn eval_contains(
             SeqContainer::List => crate::collection::eval::list_contains_q_inner(&arg0_val, &arg1_val),
             SeqContainer::Tuple => crate::collection::eval::tuple_contains_q_inner(&arg0_val, &arg1_val),
             SeqContainer::WatAstList => crate::collection::eval::watastlist_contains_q_inner(&arg0_val, &arg1_val),
+            // Arc 118 — searchable() gate excludes Seq (contains? forces the whole seq):
+            SeqContainer::Seq => unreachable!("searchable() gate excludes Seq"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -12748,8 +12875,8 @@ fn eval_conj(
                 // Arc 220 Stone 220.4 — List: generic conj dispatches to list_conj_inner (PREPEND).
                 SeqContainer::List => crate::collection::eval::list_conj_inner(&arg0_val, &arg1_val),
                 // has_append() gate excludes these — named arms, genuinely dead, compiler-forced:
-                SeqContainer::Tuple | SeqContainer::WatAstList =>
-                    unreachable!("has_append() gate excludes Tuple/WatAstList"),
+                SeqContainer::Tuple | SeqContainer::WatAstList | SeqContainer::Seq =>
+                    unreachable!("has_append() gate excludes Tuple/WatAstList/Seq"),
             }
         }
         // ∅ N/A or ○ gap: container has no append capability (Tuple, WatAstList — nature forbids / gap).
@@ -12823,6 +12950,8 @@ fn eval_get(
             SeqContainer::HashSet => crate::collection::eval::hashset_get_inner(&arg0_val, &arg1_val),
             // ∅ N/A — Tuple: heterogeneous product; runtime-index cannot be typed
             SeqContainer::Tuple => unreachable!("gettable() gate excludes Tuple (∅ N/A — heterogeneous product)"),
+            // Arc 118 — gettable() gate excludes Seq (no O(1) random access; walk via rest):
+            SeqContainer::Seq => unreachable!("gettable() gate excludes Seq (∅ N/A — no random access)"),
         },
         Some(_) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),

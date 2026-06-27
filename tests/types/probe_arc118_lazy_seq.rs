@@ -14,7 +14,6 @@ use wat::load::InMemoryLoader;
 
 /// A lazy 2-element seq `(cons 1 (lazy-seq (cons 2 (lazy-seq (seq-empty)))))` builds and `first`/`rest`-traverses.
 #[test]
-#[ignore = "RED at HEAD: arc-118 lazy-seqs not built; un-ignore when Value::Seq + cons/lazy-seq/first/rest/empty?/force land"]
 fn lazy_seq_cons_first_rest_traverses() {
     let src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil

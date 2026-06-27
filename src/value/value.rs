@@ -19,6 +19,7 @@ use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
 use crate::channel::{SenderInner, ReceiverInner};
 use crate::types::TypeExpr;
 use crate::value::Function;
+use crate::seq::Seq;
 
 /// Runtime value.
 ///
@@ -311,6 +312,20 @@ pub enum Value {
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
+    /// Arc 118 — `:wat::core::Seq<T>`. Lazy sequence (Option C: closures + thunks).
+    /// SINGLE-PASS — NO memoization (builder, 2026-06-27: *"you cannot walk back a stream …
+    /// core does not ship it"*). Diverges from Clojure's persistent lazy-seq: a wat lazy seq
+    /// is a stream, consumed once. `(lazy-seq <body>)` captures body unevaluated as a 0-arg
+    /// closure; `cons head tail` builds a Cons cell; `seq-empty` is the Empty terminator.
+    /// `first`/`rest`/`empty?` force (realize) to WHNF before accessing.
+    ///
+    /// Equality: pointer identity (Arc::ptr_eq). Structural equality on potentially
+    /// infinite seqs is undecidable; pointer equality is the honest bound.
+    /// NOT atomizable: cannot appear as HashSet element or HashMap key.
+    ///
+    /// Constructed by `:wat::core::seq-empty`, `(:wat::core::cons h t)`,
+    /// `(:wat::core::lazy-seq <body>)`.
+    wat__core__Seq(Arc<Seq>),
     /// Arc 234 Stone 234.1 — the holographic dual-form record.
     ///
     /// Carries both projections of an immutable record simultaneously:
@@ -687,6 +702,9 @@ impl PartialEq for Value {
             // are the same dispatcher iff they are the same Arc). Structural equality
             // over clause bodies is not implemented — same rationale as wat__core__fn.
             (Value::wat__core__clauses(a), Value::wat__core__clauses(b)) => Arc::ptr_eq(a, b),
+            // Arc 118 — Seq: pointer equality. Structural equality on potentially infinite
+            // seqs is undecidable; pointer identity is the honest bound (STOP-1 avoided).
+            (Value::wat__core__Seq(a), Value::wat__core__Seq(b)) => Arc::ptr_eq(a, b),
             // Cross-variant pairs are always unequal
             _ => false,
         }
@@ -948,6 +966,13 @@ impl std::hash::Hash for Value {
                 "wat__core__extend_def".hash(state);
                 (Arc::as_ptr(ed) as usize).hash(state);
             }
+            // Arc 118 — Seq: not atomizable (infinite seqs make hashing undecidable).
+            // The is_atomizable predicate in src/check.rs is the static guarantee.
+            Value::wat__core__Seq(_) => unreachable!(
+                "Value::wat__core__Seq is not atomizable; is_atomizable predicate in \
+                 src/check.rs should have rejected this. If you see this panic, \
+                 the predicate has drifted."
+            ),
         }
     }
 }
@@ -1095,6 +1120,8 @@ impl Value {
             Value::wat__core__Char(_) => "wat::core::Char",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
+            // Arc 118 — lazy seq.
+            Value::wat__core__Seq(_) => "wat::core::Seq",
             // Arc 234 Stone 234.1 — generic kind-string (per-instance FQDN via :wat::core::type).
             // Stone S-C.2c — both flavors share the same static kind-string "wat::Record".
             // Per-instance FQDN is `declared_type_name()` (class_fqdn).
@@ -1192,6 +1219,7 @@ impl Value {
             Value::wat__core__Uuid(_) => self.type_name().to_string(),
             Value::wat__core__Char(_) => self.type_name().to_string(),
             Value::wat__core__List(_) => self.type_name().to_string(),
+            Value::wat__core__Seq(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),
             // Arc 232 Stone 232.1 — registry carriers: generic kind string.
             Value::wat__core__protocol_def(_) => self.type_name().to_string(),
