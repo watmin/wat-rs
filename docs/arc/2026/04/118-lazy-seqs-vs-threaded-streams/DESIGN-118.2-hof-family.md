@@ -83,7 +83,7 @@ the flip (lazy) `BOOM` is applied to nothing → the program returns `nil` → G
 ## Expectations (scorecard — fixed before the strike)
 | # | what | command | expected |
 |---|---|---|---|
-| 1 | the RED probe flips GREEN | `cargo nextest run --release -E 'test(lazy_core_map_does_not_force)'` | PASS after 118.2a |
+| 1 | the RED probe flips GREEN | `cargo nextest run --release -E 'test(lazy_core_map_does_not_force_late_elements)'` (RED at HEAD — `DivisionByZero`; `tests/types/probe_arc118_2_lazy_map.rs`) | PASS after 118.2a |
 | 2 | `core::map` returns a `Stream` | `(:wat::core::type (:wat::core::map inc [1 2 3]))` via `cargo wat` | `wat::stream::Stream` |
 | 3 | eager opt-in materializes | `(:wat::core::type (:wat::seq::map inc [1 2 3]))` | `wat::core::Vector` |
 | 4 | whole workspace green | `cargo nextest run --release` | floor 0 (after the full cascade) |
