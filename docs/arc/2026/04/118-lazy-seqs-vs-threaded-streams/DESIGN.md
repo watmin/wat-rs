@@ -11,13 +11,18 @@ that stream is a lazy seq → which finally builds this arc → which annihilate
 > (lazy transformers · eager materializers · forcers · effect-/value-consumers), four-questions-clean, placed and
 > named where a Clojure dev reaches for them. Not a security-only slice with the rest owed.
 >
-> **Reconciliation to settle at the build (the steer vs the 2026-05-01 design):** this DESIGN settled on
-> **namespace distinction** — `:wat::seq::map` (lazy) vs `:wat::list::map` (eager), the namespace signalling
-> eagerness *"cleaner than Clojure's `v` suffix."* The 2026-06-27 steer leans **clojure-faithful default** — a
-> Clojure dev expects bare `map` to be **lazy**, with `mapv` the eager materializer (per the eager `:wat::core::map`
-> being the wart). These are two different surfaces for the same lazy/eager split; **four-question them at the build
-> open** (namespace-signalled vs clojure-default-name) before writing a verb. Either way: the eager `:wat::core::map`/
-> `filter` (~36 stdlib/test sites) get reconciled, not left split.
+> **⊘ SUPERSEDED → RESOLVED 2026-06-27: Surface C (clojure-faithful), one home.** The 2026-05-01 namespace
+> distinction below (`:wat::seq::map` lazy / `:wat::list::map` eager) is **superseded.** Four-questioned against the
+> NOW-grounded state (eager HOFs already split + duplicated: `:wat::core::{map,filter,take,drop,concat,reduce}` AND
+> `:wat::list::{fold,reduce}` — `reduce` in both; `:wat::list::*` half-materialized in `wat/list.wat`), Surface C won
+> all four: **`:wat::core::map` is LAZY** (= `clojure.core/map`), **`:wat::core::mapv`/`filterv` eager → vector** (=
+> `clojure.core/mapv`), `reduce`/`into` eager-to-value, `iterate`/`repeat`/`cycle` lazy-∞ — **everything in
+> `:wat::core::*`.** Obvious (a Clojure dev *knows* core/map is lazy) · Simple (one home; **retire `:wat::list::*`**,
+> kill the duplicate `reduce`) · Honest (mirrors `clojure.core`; the namespace-signal of N was a wat-ism that lies to
+> a Clojure dev) · Good-UX (*"exactly as a clojure dev expects them placed and used"* — the builder's directive).
+> The flip migrates the ~36 eager `:wat::core::map`/`filter` sites to lazy (most just-consume → free; the rest →
+> `mapv`/`for-each`). **Builder: *"C is the call — retire :wat::list:: and flip to clojure-faithful."*** The
+> namespace-distinction section below is kept (amend-with-recognition; the reasoning taught) but is NOT the design.
 >
 > **Annihilation target:** `wat/stream.wat` (the `:wat::stream::*` thread-per-pure-stage HOFs — *built wrong,
 > successfully*) → reimplemented over the lazy family; threads survive ONLY where a stage guards mutable state.
