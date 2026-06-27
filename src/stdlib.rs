@@ -192,10 +192,9 @@ const STDLIB_FILES: &[WatSource] = &[
     // to libc::exit(N) via slice 1i's StdErrService epilogue). The
     // typealias and its loaded form deleted; `wat/kernel/exit-code.wat`
     // removed in this slice.
-    WatSource {
-        path: "wat/stream.wat",
-        source: include_str!("../wat/stream.wat"),
-    },
+    // Arc 118 — wat/stream.wat ANNIHILATED (2026-06-27). The thread-per-pure-stage
+    // `:wat::stream::*` HOFs were built wrong, successfully; the namespace is reclaimed
+    // for the lazy single-pass Stream family (the foundation `74883c15`, renamed in).
     // Arc 170 slice 3 — wat/std/hermetic.wat retired. The
     // `:wat::kernel::run-sandboxed-hermetic-ast` verb it defined
     // is subsumed by the testing-lib three-layer API per

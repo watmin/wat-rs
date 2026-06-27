@@ -149,84 +149,57 @@
         ((:wat::core::Err _) :wat::core::None)))
     (_ :wat::core::None)))
 
-;; ─── Stream sources via spawn-producer ─────────────────────────
+;; ─── Eager read sources ─────────────────────────────────────────
 ;;
-;; The producer-loop helpers iterate a cursor, sending each event
-;; through the substrate channel until either:
-;;   - the cursor returns :None (rows exhausted), or
-;;   - the substrate Sender returns :None (consumer disconnected,
-;;     drop-cascade has begun upstream).
-;;
-;; Each loop runs in the producer thread spawned by
-;; :wat::stream::spawn-producer. Tail-recursive for unbounded
-;; row counts.
+;; Arc 118 (2026-06-27): migrated off the annihilated `:wat::stream::*`
+;; (thread-per-stage, built wrong). A telemetry read returns BOUNDED
+;; query results, so the honest shape is an eager `Vector<Event>`, not
+;; a thread-backed stream. The loop helpers iterate a cursor and
+;; accumulate each event into `acc` until the cursor returns :None
+;; (rows exhausted). Tail-recursive; no thread, no channel.
 
 (:wat::core::defn :wat::telemetry::sqlite/log-loop
   [cursor <- :wat::telemetry::sqlite::LogCursor
-   tx     <- :wat::kernel::Sender<wat::telemetry::Event>]
-  -> :wat::core::nil
+   acc    <- :wat::core::Vector<wat::telemetry::Event>]
+  -> :wat::core::Vector<wat::telemetry::Event>
   (:wat::core::match
     (:wat::telemetry::sqlite::LogCursor/step! cursor)
-    -> :wat::core::nil
-    (:wat::core::None nil)
+    -> :wat::core::Vector<wat::telemetry::Event>
+    (:wat::core::None acc)
     ((:wat::core::Some event)
-      (:wat::core::match
-        (:wat::kernel::send tx event)
-        -> :wat::core::nil
-        ((:wat::core::Ok _)
-          (:wat::telemetry::sqlite/log-loop cursor tx))
-        ((:wat::core::Err _) nil)))))
+      (:wat::telemetry::sqlite/log-loop cursor (:wat::core::conj acc event)))))
 
 (:wat::core::defn :wat::telemetry::sqlite/metric-loop
   [cursor <- :wat::telemetry::sqlite::MetricCursor
-   tx     <- :wat::kernel::Sender<wat::telemetry::Event>]
-  -> :wat::core::nil
+   acc    <- :wat::core::Vector<wat::telemetry::Event>]
+  -> :wat::core::Vector<wat::telemetry::Event>
   (:wat::core::match
     (:wat::telemetry::sqlite::MetricCursor/step! cursor)
-    -> :wat::core::nil
-    (:wat::core::None nil)
+    -> :wat::core::Vector<wat::telemetry::Event>
+    (:wat::core::None acc)
     ((:wat::core::Some event)
-      (:wat::core::match
-        (:wat::kernel::send tx event)
-        -> :wat::core::nil
-        ((:wat::core::Ok _)
-          (:wat::telemetry::sqlite/metric-loop cursor tx))
-        ((:wat::core::Err _) nil)))))
+      (:wat::telemetry::sqlite/metric-loop cursor (:wat::core::conj acc event)))))
 
-;; (sqlite/stream-logs handle query) -> Stream<Event>
+;; (sqlite/read-logs handle query) -> Vector<Event>
 ;;
-;; Re-open the handle inside the producer thread (thread_owned
-;; cells can't cross the spawn boundary; opening a fresh handle
-;; from the captured path is cheap — sqlite handles many concurrent
-;; read connections), construct a fresh cursor, drive the loop.
-(:wat::core::defn :wat::telemetry::sqlite/stream-logs
+;; Open a fresh read-only cursor over the handle's path and drive the
+;; loop to exhaustion, accumulating into a Vector. Eager: the result is
+;; the full bounded query result. (Arc 118 — was stream-logs over the
+;; annihilated :wat::stream::*.)
+(:wat::core::defn :wat::telemetry::sqlite/read-logs
   [handle      <- :wat::sqlite::ReadHandle
    constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
-  -> :wat::stream::Stream<wat::telemetry::Event>
+  -> :wat::core::Vector<wat::telemetry::Event>
   (:wat::core::let
-    [path (:wat::sqlite::ReadHandle/path handle)]
-    (:wat::stream::spawn-producer
-      (:wat::core::fn
-        [tx <- :wat::kernel::Sender<wat::telemetry::Event>] -> :wat::core::nil
-        (:wat::core::let
-          [local-handle
-            (:wat::sqlite::open-readonly path)
-           cursor
-            (:wat::telemetry::sqlite/log-cursor local-handle constraints)]
-          (:wat::telemetry::sqlite/log-loop cursor tx))))))
+    [local-handle (:wat::sqlite::open-readonly (:wat::sqlite::ReadHandle/path handle))
+     cursor       (:wat::telemetry::sqlite/log-cursor local-handle constraints)]
+    (:wat::telemetry::sqlite/log-loop cursor (:wat::core::Vector :wat::telemetry::Event))))
 
-(:wat::core::defn :wat::telemetry::sqlite/stream-metrics
+(:wat::core::defn :wat::telemetry::sqlite/read-metrics
   [handle      <- :wat::sqlite::ReadHandle
    constraints <- :wat::core::Vector<wat::telemetry::TimeConstraint>]
-  -> :wat::stream::Stream<wat::telemetry::Event>
+  -> :wat::core::Vector<wat::telemetry::Event>
   (:wat::core::let
-    [path (:wat::sqlite::ReadHandle/path handle)]
-    (:wat::stream::spawn-producer
-      (:wat::core::fn
-        [tx <- :wat::kernel::Sender<wat::telemetry::Event>] -> :wat::core::nil
-        (:wat::core::let
-          [local-handle
-            (:wat::sqlite::open-readonly path)
-           cursor
-            (:wat::telemetry::sqlite/metric-cursor local-handle constraints)]
-          (:wat::telemetry::sqlite/metric-loop cursor tx))))))
+    [local-handle (:wat::sqlite::open-readonly (:wat::sqlite::ReadHandle/path handle))
+     cursor       (:wat::telemetry::sqlite/metric-cursor local-handle constraints)]
+    (:wat::telemetry::sqlite/metric-loop cursor (:wat::core::Vector :wat::telemetry::Event))))

@@ -124,39 +124,25 @@ fn unregistered_keyword_still_a_literal() {
     }
 }
 
-// ─── named define as stream map argument ───────────────────────────────
+// ─── named define as map argument ───────────────────────────────
 
 #[test]
-fn named_define_as_stream_map_fn() {
-    // The canonical target: pass `:my::double` to `:wat::stream::map`
+fn named_define_as_map_fn() {
+    // The canonical target: pass `:my::double` to `:wat::core::map`
     // without wrapping in a pass-through fn.
     // Arc 170 slice 1f-ζ: returns i64 via :my::compute (first doubled value = 2).
+    // (Migrated off the annihilated `:wat::stream::*` — arc 118, 2026-06-27;
+    //  the intent is named-defn-as-HOF-arg, the collection vehicle is incidental.)
     let src = r##"
 
         (:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
 
         (:wat::core::defn :my::compute [] -> :wat::core::i64
           (:wat::core::let
-                      [source
-                        (:wat::stream::spawn-producer
-                          (:wat::core::fn [tx <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-                            (:wat::core::do
-                              (:wat::core::Result/expect
-                                (:wat::kernel::send tx 1)
-                                "producer: tx disconnected on send 1")
-                              (:wat::core::Result/expect
-                                (:wat::kernel::send tx 2)
-                                "producer: tx disconnected on send 2")
-                              (:wat::core::Result/expect
-                                (:wat::kernel::send tx 3)
-                                "producer: tx disconnected on send 3")
-                              ())))
-                       doubled
-                        (:wat::stream::map source :my::double)
-                       collected (:wat::stream::collect doubled)
-                       first
-                        (:wat::core::first collected)
-                       len (:wat::core::length collected)]
+                      [source  (:wat::core::Vector :wat::core::i64 1 2 3)
+                       doubled (:wat::core::map :my::double source)
+                       first   (:wat::core::first doubled)
+                       len     (:wat::core::length doubled)]
                       (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
                         -> :wat::core::i64
                         1
