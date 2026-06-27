@@ -27,9 +27,11 @@ cosines over plain EDN are structurally honest (identical → 1.0; one-of-two bi
 that routes a literal to the existing `to-holon` codec instead of `infer_map_literal`.
 
 ## Why the NAME is `#holon` (intueri — semantic grounding)
-Koestler (1967, *The Ghost in the Machine*) coined **holon** = Greek *holos* (whole) + *-on* (the part-particle, as
-in prot-*on*): a **whole-and-part**, **Janus-faced** — a complete whole to its constituents AND a dependent part of
-a larger whole; frame-relative identity. The tag IS that Janus face made literal:
+Koestler (1967, *The Ghost in the Machine*) coined **holon** = Greek *holos* (whole) + *-on* (a unit/particle
+suffix, as in prot-*on* / neutr-*on*; **corrected 2026-06-27** — the `-on` carries *unit*, NOT "part": the
+whole-ness is in *holos*, the part-hood is **Koestler's *concept*, not the morphology** — so the project's
+"holon ≈ whole" intuition is etymologically *exact*): a **whole-and-part**, **Janus-faced** — a complete whole to
+its constituents AND a dependent part of a larger whole; frame-relative identity. The tag IS that Janus face made literal:
 - to **wat** → a **whole** (one hologram; the heterogeneous structure as a single hyperdimensional point);
 - to **Clojure** → **identity** (a one-line data-reader `{holon identity}` erases the tag → plain data, an ordinary
   *part* of clj's data world).
