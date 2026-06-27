@@ -59,6 +59,27 @@ A real trust config is plural. The manifest carries:
   the old *public* key is retained). New content rides the new key. *"We handle releases with many keys."* The chain
   can be **forked by any held key.**
 
+### Key ROLES — dev vs distribution (decided 2026-06-27)
+Each key in the manifest **MUST carry a `:role` — `:dev` | `:distribution`** (mandatory, **no default, no option**) —
+the convenient-low-security key vs the guarded-high-security one, separated structurally:
+- **Dev key** — `wat-scripts/dev-{priv,pub}.pem`, **per-repo, local.** Signs local code so it can eval (the doctrine:
+  only signed code runs). Auto-discovered by `wat sign`; auto-generated on first use if absent. You move between
+  repos and each signs with *its own* dev key. **Low stakes — because it never ships.** `dev-priv.pem` is
+  **gitignored** (never in history); `dev-pub.pem` may be committed (recorded `:role :dev`).
+- **Distribution key** — separate, **guarded** (held/HSM). **Required to cut a release**; `wat sign` *refuses* the
+  dev key for distribution.
+- **The dev key NEVER signs distributed code — enforced two-sided (defense in depth):** the signer
+  (`wat sign --distribution`, key piped/HSM) refuses dev-key files in a release manifest; the consumer **rejects
+  them on verify**, because **the manifest MUST record each key's role** — *"the manifest MUST record the illegal
+  key — there is no option"* (builder). A `:dev`-role sig inside a distribution is structurally rejected even if it
+  slips signing; a manifest that fails to declare a key's role is itself **invalid** (no role = no eval).
+- **Context decides the policy:** loading your *own* repo (default/dev manifest) accepts the dev key; loading a
+  *consumed distribution* (`load-key <vendor-manifest> :label`) rejects `:dev`-role keys. **A release is a
+  distribution; local iteration is not.**
+- **Security payoff:** a leaked/shared dev key still cannot forge a distribution (the verifier rejects `:dev`-role) —
+  its blast radius is bounded to "sign local code on your own machine," worthless to an attacker. Rides the multi-key
+  manifest already here; `:role` is just a per-key field the verify policy keys off.
+
 ### The release chain — timestamped, prunable
 - **Version = ISO8601 UTC timestamp** (`2026-06-27T14-32-08Z`) — monotonic, self-ordering, signed *into* the
   manifest (so the version is unforgeable, not a label beside it).
