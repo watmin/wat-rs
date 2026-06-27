@@ -1,85 +1,142 @@
 # Arc 295 — `signed-code-only`: you may only use signed code
 
 > **The doctrine (the builder, verbatim — `294/REALIZATIONS.md`, 2026-06-27):** *"no....... /you may only use
-> signed code/ .... there is no option. period. you sign your code. you may only sign your code."* Plus the
-> mechanism he laid out: a `wat sign` command (private key **piped in, pipe-only**), `.wat` paired with `.sig`,
-> signed eval referencing the **pubkey at the root**, and a **Rust hard-hook** so our key is callable only by the
-> binary build system.
+> signed code/ .... there is no option. period. you sign your code. you may only sign your code."*
 
-**Status: SCOPED (2026-06-27).** This is a foundation-trust arc: code provenance becomes **structural, not
-convention** — the same move the datamancy grimoire makes on its spells (signed, verified, not spoofable), now
-turned on wat's OWN code. The substrate forces the idealized state: unsigned code cannot eval.
+**Status: SCOPED — model locked 2026-06-27 (refine ON DISK, not in volatile context).** Foundation-trust arc: code
+provenance becomes **structural, not convention** — the datamancy static-MCP trust model (signed manifest, pinned
+key, detached sig, release chain), **rebuilt as wat's own, in EDN, with no JSON / no blobs / no KMS dependency.**
 
-## The one inversion (what flips)
-**Signing is opt-in today; the doctrine makes it mandatory and our-key-only.** Everything below is one consequence.
+> **PATH NOTE (amend-with-recognition):** live working contract. Superseded passages get a dated `⊘ SUPERSEDED`
+> note; nothing is deleted. The model below was reached through a fast co-design (the 295 chat, 2026-06-27); the
+> turns are preserved in the supersession notes because the tension taught.
 
-## The foundation — what ALREADY EXISTS (grounded against the disk this session)
-wat is NOT greenfield here. `src/load.rs` already carries a full signed-load path:
-- **`(:wat::signed-load! "path" :wat::verify::signed-ed25519 <sig-iface> <pubkey-iface>)`** — an opt-in signed
-  load form (`load.rs:27`). Verifies **POST-PARSE against the SHA-256 of the canonical-EDN** (`load.rs:60`) — so a
-  signature **survives comment/whitespace edits**; the *AST* is what's signed, not the bytes.
-- **Sidecar payloads already supported** — `:wat::verify::file-path "sidecar.sig"` resolves a `.sig` file next to
-  the source (`PayloadInterface::FilePath`, `load.rs:120`). The `.wat`+`.sig` pairing the doctrine names is the
-  EXISTING sidecar path.
-- **Crypto deps present** — `ed25519-dalek = "2"` + `sha2 = "0.10"` (root `Cargo.toml:62-63`). `sign_source_ed25519`
-  / `SigningKey` / `VerifyingKey` are exercised in `load.rs` tests.
-- **`LoadSpec { source, verification: Option<VerificationSpec> }`** (`load.rs:154`) — verification is `Option` =
-  the opt-in. The enforcement seam is **`FsLoader`** (`load.rs:936`), the production disk reader.
+## The one inversion
+**Signing is opt-in today (`src/load.rs`); the doctrine makes it mandatory and key-pinned.** Every wat distribution
+ships as a verifiable **signed release chain**; unsigned code cannot eval.
 
-So ~70% exists. The arc is **flip opt-in → mandatory + our-key-only trust + the `wat sign` tool + the hard-hook +
-retrofit 119 files** — not invent signing.
+## ⊘ SUPERSEDED — the first-draft sketch (2026-06-27 AM), and why each piece turned
+The arc opened with a simpler model; co-design with the builder turned four pieces. Kept here with recognition:
+- **per-file `.sig` sidecars** → **one signed manifest over all files** (file → digest). One sig, not 119. (His:
+  *"the pubkey validates the sig who signed over the manifest of all signed files."*)
+- **JSON manifest** (imported from datamancy's web wire) → **EDN manifest.** (His: *"there is no json — we vend edn
+  — i will not be misunderstood. wat is edn."*) Datamancy's JSON is *their* wire; wat vends EDN, period.
+- **P-256/KMS as the trust root** → **no runtime KMS dependency.** Algorithm is a pluggable `:sig` support; KMS/HSM
+  is a *sign-side backend only.* (His: *"we do not dep on kms — we provide different load signatures."*)
+- **datamancy's `blobs/sha256/` store** → **dropped.** Content-addressed blobs are datamancy's *web-vending*
+  concern; a wat distribution is the source tree + the chain, files referenced by **path + hash.** (His: *"a
+  distribution of wat is just a signed release chain."*)
 
-## The target architecture
-1. **Mandatory verification at the loader.** `FsLoader` verifies every `.wat` read against its `.sig` sidecar, using
-   the **trusted root pubkey** — an unsigned/unverifiable file is a hard load error, no unsigned branch. (`LoadSpec`
-   verification stops being `Option` for the Fs path; or `FsLoader` injects the signed-load requirement.)
-2. **Our-key-only trust (the hard-hook).** The pubkey the loader trusts is **fixed**, not supplied per-load — so no
-   one can sign with their own key and name their own pubkey. (Today `signed-load!` carries the pubkey inline; the
-   doctrine pins it.) Candidate: the pubkey is **compiled into the binary** (build-embedded) so a swapped root file
-   can't fool it; the root `.pubkey` file is the reference copy.
-3. **`wat sign` command** (in `wat-cli`, sibling of `cargo-wat`). Private key **read from stdin only** (pipe):
-   `cat priv.key | wat sign <files…>`. Signs the canonical-EDN SHA-256 with ed25519 → writes `<file>.sig`. With no
-   path: walks the default positions (`wat/ wat-tests/ wat-scripts/`) and signs all `.wat`.
-4. **Retrofit** — sign all 119 `.wat` in `wat/ wat-tests/ wat-scripts/`; commit the `.sig` sidecars.
+## The model (locked)
 
-## Open questions — the genuine forks (for the builder)
-- **Q1 — the trusted pubkey: embedded-in-binary, root-`.pubkey`-file, or both?** "Hard hook … callable only by us"
-  reads as **compile-time-embedded pubkey** (a swapped file can't downgrade trust); "ref'ing the pubkey at the
-  root" reads as a **root file**. My read: **embed the pubkey in the binary (the hard-hook), root file is the
-  reference copy** — but it's your call.
-- **Q2 — the "key callable only by us" mechanism.** Possession of the private key IS the signing capability — a
-  binary can't refuse a key-holder. So the hard-hook is necessarily on the **trust side** (embedded pubkey) +
-  **operational** on the private key (we hold it; pipe-only input keeps it out of argv/env/history). Confirm that's
-  the intent, or there's a stronger gate you have in mind (e.g. the priv key never leaves a KMS/HSM and `wat sign`
-  calls out to it — mirroring datamancy's KMS model).
-- **Q3 — inline-source (the doctrine's hard edge).** 5 `load-string!`/inline sites in `src/` + the universe
-  bootstrap + in-Rust-string test fixtures are **not files** → can't carry a `.sig` sidecar. Options: **(a)** the
-  doctrine governs FILE loads only (inline source is build-trusted, compiled into the binary we already sign as a
-  whole); **(b)** inline source carries an embedded sig; **(c)** inline source is forbidden (everything becomes a
-  signed file). My lean: **(a)** — the binary itself is the build artifact; inline wat IS the binary, already
-  inside the trust boundary. Your call.
-- **Q4 — sign the canonical-EDN AST (existing) vs raw bytes (digest).** AST-canonical (existing `signed-load!`)
-  survives formatting edits and is the stronger semantic ("authored by us"). Recommend **AST-canonical**; raw-byte
-  digest is the weaker sibling. Confirm.
+### EDN, throughout. No JSON, no blobs.
+The manifest, the chain links, the version, the key registry — all EDN. A wat distribution is **`(manifest,
+enumerate-files ["src/" "wat/" "wat-tests/" "wat-scripts/" …])`** — the source tree as it lives, plus the signed
+manifest. Files are referenced by **path + canonical-EDN hash** (no blob indirection; the tree IS the content).
 
-## Decomposition (provisional — after the forks settle)
-- **295.0** — the disconfirming probe: an unsigned `.wat` loaded via `FsLoader` must be REJECTED (RED at HEAD —
-  today it loads fine). Commit RED.
-- **295.1** — `wat sign` command (pipe-only key) + the canonical-EDN signing, producing `.sig` sidecars. (Reuses the
-  existing `sign_source_ed25519`.)
-- **295.2** — the trusted-pubkey resolution + the Rust hard-hook (embedded pubkey).
-- **295.3** — mandatory verification at `FsLoader` (unsigned = hard error). The probe flips GREEN.
-- **295.4** — retrofit: sign all 119 `.wat` in default positions; gate the suite green (every test-loaded file now
-  carries a `.sig`).
-- **295.5** — resolve inline-source per Q3; close.
+### The signature target — canonical-EDN hash (Q4, decided)
+Sign the **SHA-256 of the canonical-EDN** of each file (the existing `signed-load!` semantics, `load.rs:60`) — so a
+signature survives comment/whitespace edits; the *AST* is what's signed, not raw bytes.
+
+### `:sig` — pluggable signature support (decided; renamed from `:alg`)
+A key's signatures are verified by a named **support**, not a bare algorithm — because the two real custody modes
+differ in the *whole* path (encoding + production + verification), not just the curve. **Two honest supports today,
+named not hidden, extensible (*"whatever else we add later"*):**
+- **PEM-on-disk** — local keypair (ed25519, the existing dep; raw sig). `wat sign` takes the key by **pipe**.
+- **remote-HSM** — non-exportable key (P-256, DER sig). `wat sign` calls the HSM; the private key never lands.
+
+**The runtime never deps KMS:** verification needs only `(pubkey, support)` — pure crypto, no network. The HSM lives
+only in the `wat sign` tool's sign-side backend.
+
+### The manifest is MULTI-KEY (key rotation / loss, decided)
+A real trust config is plural. The manifest carries:
+- **All pubkeys, accreted, never deleted** — so every historical release stays verifiable forever.
+- **Per file: `(path, digest, signing-pubkey)`** — provenance recorded, not assumed.
+- **The chain: each `:previous` paired with the pubkey that signed THAT release** — every link carries the key to
+  verify it.
+- **Rotation/loss falls out:** lose the primary key → ship a new release signed by a **new** key that extends the
+  chain → old files **keep their old-key signatures** (you can't re-sign — the old private key is gone — and needn't,
+  the old *public* key is retained). New content rides the new key. *"We handle releases with many keys."* The chain
+  can be **forked by any held key.**
+
+### The release chain — timestamped, prunable
+- **Version = ISO8601 UTC timestamp** (`2026-06-27T14-32-08Z`) — monotonic, self-ordering, signed *into* the
+  manifest (so the version is unforgeable, not a label beside it).
+- **`:previous sha256:…`** — append-only, tamper-evident log; walk it backward to audit.
+- **The head is the trust entry; the chain back is the audit log.** At load, verify against the *current* manifest;
+  the chain is for `wat verify` (trivial: walk `:previous`, check each sig under its paired key).
+- **Prunable by the signer (forking is trivial):** stop appending, truncate to a known-good release, branch a new
+  direction. The abandoned forward tail is **forgotten** (unreferenced by the published head). Tamper-evidence is
+  against *outsiders* (no key → no splice/forge); *we* hold the key, so the chain is ours to manage. A consumer
+  pinned to a truncated release finds their pin **no longer chains to the head** — that's the loud detection, not a
+  failure.
+- Honest scope: the ISO8601 version is a **self-signed** timestamp (we attest "this release is T"), not a TSA. The
+  chain gives ordering without an external authority; RFC3161 is a later additive `:sig`-style support if ever needed.
+
+### Surface (decided)
+```
+(load "path" :label)              ; verify "path" against the trust-config bound to :label (default label if omitted)
+(load "path")                     ; default label → our embedded key (the build-only root)
+(load-key <manifest> :label)      ; register a whole trust manifest under :label. WRITE-ONCE (collision → denied).
+```
+- The **manifest** is the unit `load-key` consumes — many pubkeys + file→(digest,key) + the chain — NOT a bare key.
+- **Write-once registry:** first `load-key` for a label wins; a second binding of the same label is a hard error
+  (*"first loader wins, second is denied"*) — no relabel/rebind mid-run.
+- The **default label** is pre-bound at build to our **embedded pubkey** (string literal, the hard-hook). External
+  callers can neither bind it (taken → collision) nor satisfy it (they lack our private key) → *"illegal outside the
+  binary build system,"* enforced by math.
+- **Convenience loaders are wat `defn` wrappers** over the contract (e.g. `(defn load-key-file [p l] (load-key
+  (wat.io/read p) l))`) — distinct named functions, not a defclause, not macros (ordinary runtime values).
+  *"however we want to construct helpful key loaders are just wrappers on that contract."*
+
+### Distributions are signed compositions (the Battery pattern, decided)
+A wat distribution is a **composition**: the wat core + N extension crates ("drivers" / optimization layers at the
+Rust layer) + their wat code, under one signed manifest, **namespaced — *"you may not share names."*** This is the
+EXISTING **Battery** mechanism (`wat-cli::run_with_args(batteries: &[Battery], …)`; the `wat` binary already composes
+`wat_telemetry` + `wat_sqlite` + `wat_lru` + `wat_holon_lru` + `wat_telemetry_sqlite`, each a `(register,
+wat_sources)` pair). **`foobar-wat` = wat + the `foo` battery + the `bar` battery.** A plain wat program needs no
+drivers; heavier distributions compose several. Arc 295's job: put the **signed manifest over the composed
+distribution**, so any composition ships as one verifiable signed-release-chain unit.
+
+## The foundation — what ALREADY EXISTS (grounded 2026-06-27)
+NOT greenfield:
+- **`src/load.rs`** — `(:wat::signed-load! "path" :wat::verify::signed-ed25519 <sig> <pubkey>)`, verifying the
+  canonical-EDN SHA-256, sidecar payloads, `LoadSpec{ verification: Option<…> }` (the opt-in to flip), `FsLoader`
+  (the enforcement seam). `sign_source_ed25519` already in tests.
+- **`Cargo.toml`** — `ed25519-dalek = "2"` + `sha2 = "0.10"`. (P-256 verify is the one new dep, for the HSM support.)
+- **`crates/wat-cli`** — `run_with_args(&[Battery])` (the composition mechanism) + `wat sign` home (beside `cargo-wat`).
+- **Prior art mirrored (architecture only):** datamancy static-MCP — `pinned-pubkey.ts` (embedded const root),
+  `signature.ts` (detached-sig verify, fail→reject), the chained manifest (`:version`/`:previous`/`:resources`).
+  wat takes the *shape*, not the JSON / blobs / KMS.
+
+## Open questions — the remaining forks
+- **Q-COMPOSE — per-crate sub-manifests vs one composite manifest?** When `foobar-wat` composes wat + foo + bar:
+  does each crate ship its OWN signed manifest (composed at load, each under its own key/label), or does the
+  distribution build ONE manifest over all composed files (re-signed by the distribution's key)? Per-crate preserves
+  each vendor's independent signature + key; composite is one trust root. *Likely per-crate* (each battery is its own
+  signed unit, its own `:label`), but pin at the strike.
+- **Q-VERIFY-DEPTH — head-only vs full-chain at load?** Head-manifest verification is the hot path; full-chain walk
+  is `wat verify` (audit). Confirm load does head-only (chain is opt-in audit), not a full walk every startup.
+- **Q-DEFAULT-LABEL name** — the reserved default keyword (`:wat` / `:wat::self` / …) users can't bind. `intueri` at
+  the strike.
+
+## Decomposition (provisional — after Q-COMPOSE settles)
+- **295.0** — RED probe: an unsigned file via `FsLoader` is rejected; a tampered file (hash≠manifest), a wrong label,
+  a wrong `:sig`, a broken chain, and a write-once collision are each rejected. Commit RED.
+- **295.1** — the EDN manifest format + `wat verify` (parse, chain-walk, hash + sig check). Pure, testable.
+- **295.2** — `wat sign` (manifest generation + canonical-EDN signing; PEM-pipe backend first, HSM backend stub).
+- **295.3** — the embedded default pubkey + the label registry (`load-key <manifest>`, write-once) + the `:sig`
+  verifier dispatch.
+- **295.4** — mandatory verification at `FsLoader` (unsigned/unverified = hard error). The probe flips GREEN.
+- **295.5** — retrofit: sign all 119 `.wat` (default positions) → the suite's loaded files all chain-verify.
+- **295.6** — the composition/Battery manifest (Q-COMPOSE); inline-source policy; close.
 
 ## Census (grounded 2026-06-27)
-- Retrofit corpus: **119 `.wat`** (`wat/ wat-tests/ wat-scripts/`). Existing `.sig`: **0**. Inline-source sites in
-  `src/`: **5** (+ the bootstrap + test fixtures).
-- Foundation: `src/load.rs` (the signed-load machinery + `FsLoader` seam) · `Cargo.toml` (ed25519-dalek + sha2) ·
-  `crates/wat-cli` (`wat sign` home, beside `cargo-wat`).
+Retrofit corpus **119 `.wat`** (`wat/ wat-tests/ wat-scripts/`); existing `.sig`/manifests **0**; inline-source
+sites in `src/` **5** (+ bootstrap + test fixtures). Foundation: `src/load.rs`, `Cargo.toml` (ed25519+sha2),
+`crates/wat-cli` (Battery + sign home).
 
 ## Pairs
-`294/REALIZATIONS.md` ("you may only sign your code" — the doctrine, verbatim) · `src/load.rs` (the signed-load
-foundation) · the datamancy grimoire trust model (signed/verified/KMS — the prior art this mirrors) ·
+`294/REALIZATIONS.md` (the doctrine, verbatim) · `src/load.rs` (the signed-load foundation) · datamancy
+`src/{pinned-pubkey,signature,manifest}.ts` (the architecture mirrored — EDN not JSON, no blobs, no KMS) ·
 `project_signed_code_only_doctrine` (memory) · `feedback_substrate_forces_idealized_state`.
