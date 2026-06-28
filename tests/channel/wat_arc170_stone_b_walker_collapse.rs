@@ -25,23 +25,14 @@
 //! - **Positive (Process)**: `:wat::*` namespace fn calls
 //!   `Process/join-result` → startup succeeds.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_bare, startup_from_file};
 
-/// Returns the Debug-formatted error bundle from a startup that MUST
+/// Returns the Debug-formatted error bundle from freezing a co-located NEGATIVE fixture that MUST
 /// fail. Tests grep this for the new walker variant + message text.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_err(fixture_rel: &str) -> String {
+    match startup_from_file(fixture_rel) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{:?}", e),
-    }
-}
-
-/// Asserts the given source starts up cleanly.
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
     }
 }
 
@@ -55,12 +46,7 @@ fn stone_b_user_namespace_thread_join_result_is_rejected() {
     // carries `#[restricted_to(":wat::")]` per arc 198 slice 2 Stone 3;
     // Stone 241.14 migrated restriction storage to binding_metadata);
     // the diagnostic names the callee + the allowed-caller whitelist.
-    let src = r#"
-        (:wat::core::defn :my::test::call-thread-join [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>> (:wat::kernel::Thread/join-result thr))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat");
     assert!(
         err.contains("Thread/join-result"),
         "error should name the rejected verb; got: {}",
@@ -78,12 +64,7 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
     // Mirror of the Thread negative case for Process. Arc 198 slice 2
     // Stone 3 applied `#[restricted_to(":wat::")]` to
     // `eval_kernel_process_join_result`; arc 198's walker now enforces.
-    let src = r#"
-        (:wat::core::defn :my::test::call-process-join [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>> (:wat::kernel::Process/join-result proc))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat");
     assert!(
         err.contains("Process/join-result"),
         "error should name the rejected verb; got: {}",
@@ -120,10 +101,7 @@ fn stone_b_substrate_namespace_thread_join_result_is_allowed() {
     // (wat/test.wat) and other substrate fns that call
     // `Thread/join-result`. If the substrate exemption fails, freeze
     // fails. Trivial user source + clean startup = exemption proven.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_bare().expect("substrate-namespace join-result exemption must hold (freeze walks the stdlib)");
 }
 
 #[test]
@@ -132,8 +110,5 @@ fn stone_b_substrate_namespace_process_join_result_is_allowed() {
     // `wat/kernel/hermetic.wat` call `Process/join-result` directly. The
     // freeze pipeline walks them; the new walker must not fire on those
     // substrate-namespace bodies.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_bare().expect("substrate-namespace join-result exemption must hold (freeze walks the stdlib)");
 }

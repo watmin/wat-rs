@@ -22,21 +22,9 @@
 //! values of the expected runtime variant — proving the substrate
 //! does not collapse I and O.
 
-use std::sync::Arc;
-
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_bare, startup_beside};
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-// ─── helpers ───────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 // ─── Stone C1 T1. type mint — both ThreadPeer<i64,String> and the
 //      mirror ThreadPeer<String,i64> type-check ────────────────────────
@@ -47,18 +35,7 @@ fn stone_c1_thread_peer_type_mint_both_orientations_type_check() {
     // ThreadPeer parameter and returns nil. We never CALL them — the
     // mint test is purely that the parametric type resolves at freeze
     // time. Bodies use `:wat::core::nil` to satisfy the return.
-    let src = r#"
-        (:wat::core::defn :my::server-side
-          [_peer <- :wat::kernel::ThreadPeer<wat::core::i64,wat::core::String>]
-          -> :wat::core::nil
-          nil)
-
-        (:wat::core::defn :my::client-side
-          [_peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
-          -> :wat::core::nil
-          nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     assert!(
         world.symbols().get(":my::server-side").is_some(),
         "server-side fn must be present after freeze"
@@ -81,7 +58,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     //
     // Peer A is ThreadPeer<String, i64> — it WRITES i64 (its O = i64).
     // Peer B is ThreadPeer<i64, String> — it READS i64 (its I = i64).
-    let world = freeze_ok("");
+    let world = startup_bare().expect("startup");
     let (peer_a, peer_b) =
         wat::channel::make_thread_peer_pair_for_test();
 
@@ -124,7 +101,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     // String, writes i64); peer B: ThreadPeer<i64, String> (reads i64,
     // writes String). Drive both directions and verify each surface
     // value's runtime variant matches the expected I parameter.
-    let world = freeze_ok("");
+    let world = startup_bare().expect("startup");
     let (peer_a, peer_b) =
         wat::channel::make_thread_peer_pair_for_test();
 

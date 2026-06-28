@@ -32,9 +32,8 @@
 //!   constructed Rust-side and bound into the wat environment
 
 use std::sync::Arc;
-use wat::freeze::startup_from_source;
+use wat::freeze::startup_bare;
 use wat::io::{WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, Value};
 use wat::span::Span;
 use wat::channel::{
@@ -48,8 +47,7 @@ use wat::channel::{
 /// Uses an empty source; the type registry + symbol table land
 /// pre-populated with the kernel built-ins.
 fn empty_world() -> wat::freeze::FrozenWorld {
-    startup_from_source("", None, Arc::new(InMemoryLoader::new()))
-        .expect("empty freeze should succeed")
+    startup_bare().expect("empty freeze should succeed")
 }
 
 fn unwrap_sender_inner(v: &Value) -> &SenderInner {

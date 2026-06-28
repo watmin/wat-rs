@@ -16,19 +16,11 @@
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
+use wat::freeze::startup_bare;
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
 use wat::channel::{receiver_from_pipe, sender_from_pipe, RecvOutcome, SendOutcome};
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Allocate an OS pipe and wrap its ends as WatReader/WatWriter.
 fn os_pipe() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -66,12 +58,8 @@ fn unwrap_receiver_inner(v: &Value) -> &wat::channel::ReceiverInner {
 /// resulting Sender/Receiver Values to send/recv typed values.
 #[test]
 fn probe_sender_receiver_from_pipe_dispatch_arms() {
-    // Minimal world — just needs to freeze.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let env = Environment::new();
+    // Minimal world — this test's subject is the Rust substrate, not any wat program.
+    let world = startup_bare().expect("startup");
     let sym = world.symbols();
     let types = sym.types().map(|a| a.as_ref());
 
@@ -178,10 +166,7 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
     // 1. The keyword `:wat::kernel::Sender/from-pipe` is a known dispatch arm
     //    (does not surface UnknownFunction).
     // 2. Calling it with a wrong type gives TypeMismatch (not UnknownFunction).
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_bare().expect("startup");
     let env = Environment::new();
     let sym = world.symbols();
 

@@ -18,7 +18,23 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
 `tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry + `rmdir`.
 
 ## ▶▶ PRIMARY ACTIVE — TEST-INFRA ANNIHILATION (builder-directed: **"we fix the tests before we resume 293"**, 2026-06-27 SESSION 9)
-**Sequencing DECIDED — this campaign runs to completion BEFORE 293.4 resumes.** (NOT yet started past the scheme + 2 probes + the banked nursery map.)
+**Sequencing DECIDED — this campaign runs to completion BEFORE 293.4 resumes.**
+
+### 🔥 THE FIRE IS LIT (`1e483a79`, builder: *"hard bandaid pull… we witness the fire of our creation"*)
+- **The absolute lint is ON and RED** (`tests/lint/no_inlined_wat_in_tests.rs`): scans `tests/**/*.rs`, fails
+  listing every file building its world from an inlined `startup_from_source(` string. **METER = 423 → 0**
+  (428 − 5 lint-pilot done). Drive it to zero GROUP BY GROUP. Escape hatch: `// LINT-ALLOW-INLINE-WAT: <reason>`.
+- **NEW FLOOR CONVENTION while the campaign runs:** the gate is **1 expected-red (the lint) + everything else
+  green**. nextest isolates it → a SECOND red is a real regression (weigh by it). Full gate now: 4088 / 1 / 89.
+- **THE FIX RECIPE per file** (`DESIGN-test-fixture-migration.md` + the `tests/lint/*` worked refs):
+  REAL wat-under-test → co-located `.wat` + `startup_beside(file!())`; INCIDENTAL world (pure-Rust substrate
+  test, no wat-under-test) → **`startup_bare()`** (NEW, `src/freeze.rs` — frozen default world, no source).
+  **~most of the 423 are incidental** (355 used a trivial/empty world) → a `startup_bare()` swap, not a fixture.
+- **Per-chunk gate:** `binary(<group>)` green + the lint's count dropped + full gate still 4088+/1-red/89.
+- **GROUPS (smallest→largest, the order to grind):** channel 5 · diagnostics 5 · program 7 · value 7 ·
+  reflection 8 · function 12 · comms 15 · collection 16 · process 17 · services 19 · wat_lang 21 · macros 26 ·
+  resolve 32 · kernel 34 · rete 34 · types 42 · **then nursery 179** (dissolve per `NURSERY-DISSOLUTION-MAP.md`:
+  move + fixture/bare in one motion). DONE: lint (5). When METER=0 the lint flips GREEN and the floor returns to 0.
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
 builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise
