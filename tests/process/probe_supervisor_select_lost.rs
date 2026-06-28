@@ -106,11 +106,11 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                     );
                     // Cause must be a Failure struct whose message field contains "boom".
                     match &ev.fields[1] {
-                        Value::Struct(s) => {
+                        Value::Aggregate(s) => {
                             assert_eq!(
-                                s.type_name, ":wat::kernel::Failure",
+                                s.class, "wat::kernel::Failure",
                                 "cause must be Failure struct; got {:?}",
-                                s.type_name
+                                s.class
                             );
                             match s.fields.first() {
                                 Some(Value::String(msg)) => {

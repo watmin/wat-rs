@@ -16,6 +16,7 @@ use crate::rust_deps::marshal::RustOpaqueInner;
 use crate::runtime::Value;
 use crate::span::Span;
 use crate::types::TypeEnv;
+use crate::value::value::AggregateValue;
 use std::sync::OnceLock;
 use wat_edn::{OwnedValue, Tag};
 
@@ -104,39 +105,37 @@ fn socket_address_wire_to_record(minter_pid: i32, name_bytes: Vec<u8>) -> Value 
     let name_vec = Value::Vec(std::sync::Arc::new(
         name_bytes.into_iter().map(|b| Value::i64(b as i64)).collect(),
     ));
-    Value::wat__Record {
-        class_fqdn: std::sync::Arc::new(SOCKET_ADDRESS_WIRE_CLASS.into()),
-        struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
-    }
+    Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
+        SOCKET_ADDRESS_WIRE_CLASS.into(),
+        std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name_vec]),
+    )))
 }
 
 /// Extract `(minter_pid, name_bytes)` from a decoded `SocketAddressWire` `Value`.
 /// Owns the class check (vs `SOCKET_ADDRESS_WIRE_CLASS`), the 2-field check, and all
 /// per-field validation (byte range, non-empty, ≤107 limit). Called by the decode closure.
 fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnReadError> {
-    let (class_fqdn, struct_form) = match rec {
-        Value::wat__Record { ref class_fqdn, ref struct_form } => {
-            (class_fqdn.clone(), struct_form.clone())
-        }
+    let agg = match rec {
+        Value::Aggregate(a) => a,
         _ => {
             return Err(cap_decode_error(
                 "wat-edn.cap/address (expected a SocketAddressWire record)",
             ))
         }
     };
-    if class_fqdn.as_str() != SOCKET_ADDRESS_WIRE_CLASS {
+    if agg.class.as_str() != SOCKET_ADDRESS_WIRE_CLASS {
         return Err(cap_decode_error(format!(
             "wat-edn.cap/address (wrong record class: {})",
-            class_fqdn
+            agg.class
         )));
     }
-    if struct_form.len() != 2 {
+    if agg.fields.len() != 2 {
         return Err(cap_decode_error(
             "wat-edn.cap/address (SocketAddressWire must have 2 fields)",
         ));
     }
     // Field 0: minter-pid (i64)
-    let minter_pid = match &struct_form[0] {
+    let minter_pid = match &agg.fields[0] {
         Value::i64(n) => *n as i32,
         _ => {
             return Err(cap_decode_error(
@@ -145,7 +144,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
         }
     };
     // Field 1: name (Vector<i64> = Value::Vec of Value::i64)
-    let name_bytes_vals = match &struct_form[1] {
+    let name_bytes_vals = match &agg.fields[1] {
         Value::Vec(xs) => xs.clone(),
         _ => {
             return Err(cap_decode_error(
@@ -357,10 +356,10 @@ mod waist_proof {
     /// given `minter_pid`. Takes a raw `Value` name (not `Vec<u8>`) so callers can pass malformed
     /// or oversized names that `socket_address_wire_to_record`'s `Vec<u8>` path cannot construct.
     fn make_address_body(minter_pid: i32, name: Value, types: &crate::types::TypeEnv) -> wat_edn::OwnedValue {
-        let record = Value::wat__Record {
-            class_fqdn: std::sync::Arc::new(SOCKET_ADDRESS_WIRE_CLASS.into()),
-            struct_form: std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
-        };
+        let record = Value::Aggregate(std::sync::Arc::new(AggregateValue::record(
+            SOCKET_ADDRESS_WIRE_CLASS.into(),
+            std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
+        )));
         crate::edn_shim::value_to_edn_with(&record, Some(types))
     }
 

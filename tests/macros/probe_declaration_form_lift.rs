@@ -22,7 +22,7 @@ use wat::runtime::{eval, Environment, ProgramHandleInner};
 /// Drain the stderr field (index 2) of a Process Struct value.
 fn drain_stderr(process: &wat::runtime::Value) -> String {
     match process {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => {
             match &s.fields[2] {
                 wat::runtime::Value::io__IOReader(rdr) => {
                     let mut all = String::new();
@@ -51,7 +51,7 @@ fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> (i64, Strin
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("launch should evaluate").value_owned();
     let handle = match &process {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Process" => {
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => {
             match &s.fields[3] {
                 wat::runtime::Value::wat__kernel__ProgramHandle(h) => h.clone(),
                 other => panic!("expected ProgramHandle field at index 3; got {:?}", other),

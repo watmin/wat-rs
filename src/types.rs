@@ -126,7 +126,7 @@ pub struct StructRestrictions {
 ///   Struct      = named product type (stays in process, never crosses the wire)
 ///   Record      = base record (`:wat::Record` hierarchy, wire-portable)
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Holder {
     Struct,
     Record,

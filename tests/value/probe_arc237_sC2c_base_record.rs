@@ -27,32 +27,31 @@ use std::sync::Arc;
 
 use holon::HolonAST;
 use wat::runtime::Value;
+use wat::{AggregateValue, Holder};
 
 /// A base record `:my::Pt [x y]` with the given two f64 field values.
 fn base_pt(x: f64, y: f64) -> Value {
-    Value::wat__Record {
-        class_fqdn: Arc::new("my::Pt".to_string()),
-        struct_form: Arc::new(vec![Value::f64(x), Value::f64(y)]),
-    }
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "my::Pt".to_string(),
+        Arc::new(vec![Value::f64(x), Value::f64(y)]),
+    )))
 }
 
 /// A base record of an arbitrary class with the given two f64 field values.
 fn base_named(class: &str, x: f64, y: f64) -> Value {
-    Value::wat__Record {
-        class_fqdn: Arc::new(class.to_string()),
-        struct_form: Arc::new(vec![Value::f64(x), Value::f64(y)]),
-    }
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        class.to_string(),
+        Arc::new(vec![Value::f64(x), Value::f64(y)]),
+    )))
 }
 
-/// A HOLONIC record with the "same" logical data — any `holon_form` suffices for the
-/// cross-variant inequality contract (the PartialEq match never pairs base with holonic;
-/// it falls to `_ => false`).
+/// A HOLONIC record with the "same" logical data — different holder so never equal to base.
 fn holonic_pt(x: f64, y: f64) -> Value {
-    Value::wat__holon__Record {
-        class_fqdn: Arc::new("my::Pt".to_string()),
-        struct_form: Arc::new(vec![Value::f64(x), Value::f64(y)]),
-        holon_form: Arc::new(HolonAST::i64(0)),
-    }
+    Value::Aggregate(Arc::new(AggregateValue::holon_record(
+        "my::Pt".to_string(),
+        Arc::new(vec![Value::f64(x), Value::f64(y)]),
+        Arc::new(HolonAST::i64(0)),
+    )))
 }
 
 // ─── Contract 1: structural Eq — equal ────────────────────────────────────────

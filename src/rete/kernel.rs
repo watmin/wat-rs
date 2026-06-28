@@ -26,6 +26,8 @@ use std::sync::{Arc, OnceLock};
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
+use crate::value::value::AggregateValue;
+use crate::types::Holder;
 
 // ─── Native token (P11) ───────────────────────────────────────────────────────
 
@@ -152,7 +154,7 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
 fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
     let struct_form = match tok {
-        Value::wat__Record { struct_form, .. } => struct_form.as_slice(),
+        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice(),
         other => return Err(RuntimeError {
             span: Span::unknown(),
             kind: RuntimeErrorKind::TypeMismatch {
@@ -228,13 +230,13 @@ fn native_token_to_value(tok: Token) -> Value {
         let tuple = Value::Tuple(Arc::new(vec![fact, Value::i64(alpha_id)]));
         matches_pv = matches_pv.push_back(tuple);
     }
-    Value::wat__Record {
-        class_fqdn: token_class_fqdn(),
-        struct_form: Arc::new(vec![
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        (*token_class_fqdn()).clone(),
+        Arc::new(vec![
             Value::wat__core__PersistentVector(matches_pv),
             Value::wat__core__PersistentMap(tok.bindings),
         ]),
-    }
+    )))
 }
 
 /// Decode a `beta-memory` PersistentMap (node-id → PV<Token Record>) into native tokens.
@@ -317,8 +319,8 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
 /// Never panics.
 pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
-    let (class_fqdn, struct_form) = match session {
-        Value::wat__Record { class_fqdn, struct_form } => (class_fqdn, struct_form),
+    let agg = match session {
+        Value::Aggregate(a) if a.holder != Holder::Struct => a,
         other => {
             return Err(RuntimeError {
                 span: Span::unknown(),
@@ -331,7 +333,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
             .into());
         }
     };
-    if class_fqdn.as_str() != "wat::rete::Session" {
+    if agg.class.as_str() != "wat::rete::Session" {
         return Err(RuntimeError {
             span: Span::unknown(),
             kind: RuntimeErrorKind::TypeMismatch {
@@ -342,7 +344,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         }
         .into());
     }
-    let sf = struct_form.as_slice();
+    let sf = agg.fields.as_slice();
     // Declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3)
     //                    production-memory(4) facts(5) next-id(6)
     let network    = sf[0].clone();
@@ -385,9 +387,9 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
     let beta_pm    = beta_to_pm(wm.beta);
     let prod_pm    = hashmap_to_pm(wm.production);
 
-    Value::wat__Record {
-        class_fqdn: Arc::new("wat::rete::Session".into()),
-        struct_form: Arc::new(vec![
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::rete::Session".into(),
+        Arc::new(vec![
             wm.network,
             wm.rules,
             alpha_pm,
@@ -396,7 +398,7 @@ pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
             wm.facts,
             Value::i64(wm.next_id),
         ]),
-    }
+    )))
 }
 
 // ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────
@@ -414,8 +416,8 @@ fn node_kind_label(class_fqdn: &str) -> &str {
 /// Returns `None` for non-record values (should never happen in a well-formed network).
 fn node_record(node: &Value) -> Option<(&str, &[Value])> {
     match node {
-        Value::wat__Record { class_fqdn, struct_form } => {
-            Some((class_fqdn.as_str(), struct_form.as_slice()))
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            Some((a.class.as_str(), a.fields.as_slice()))
         }
         _ => None,
     }
@@ -511,10 +513,10 @@ fn explained_class_fqdn() -> Arc<String> {
 /// Element: `{ fact: :wat::Record, bindings: :wat::core::PersistentMap }` (positional).
 /// class_fqdn = "wat::rete::Element", struct_form = [fact, bindings_pm].
 fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Value {
-    Value::wat__Record {
-        class_fqdn: element_class_fqdn(),
-        struct_form: Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]),
-    }
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        (*element_class_fqdn()).clone(),
+        Arc::new(vec![fact, Value::wat__core__PersistentMap(bindings)]),
+    )))
 }
 
 /// Build a `Token` record value (retained for documentation; superseded by native `Token` in P11).
@@ -525,21 +527,21 @@ fn make_token(
     matches: rpds::VectorSync<Value>,
     bindings: rpds::HashTrieMapSync<Value, Value>,
 ) -> Value {
-    Value::wat__Record {
-        class_fqdn: token_class_fqdn(),
-        struct_form: Arc::new(vec![
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        (*token_class_fqdn()).clone(),
+        Arc::new(vec![
             Value::wat__core__PersistentVector(matches),
             Value::wat__core__PersistentMap(bindings),
         ]),
-    }
+    )))
 }
 
 /// Destructure an Element: (fact, bindings). Panics on malformed.
 /// Group C: returns borrows — no clone of the bindings map per match.
 fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
     match el {
-        Value::wat__Record { struct_form, .. } => {
-            let sf = struct_form.as_slice();
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            let sf = a.fields.as_slice();
             let bindings = match &sf[1] {
                 Value::wat__core__PersistentMap(m) => m,
                 _ => panic!("element_fact_bindings: bindings must be PersistentMap"),
@@ -555,8 +557,8 @@ fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, V
 #[allow(dead_code)]
 fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &rpds::HashTrieMapSync<Value, Value>) {
     match tok {
-        Value::wat__Record { struct_form, .. } => {
-            let sf = struct_form.as_slice();
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            let sf = a.fields.as_slice();
             let matches = match &sf[0] {
                 Value::wat__core__PersistentVector(v) => v,
                 _ => panic!("token_matches_bindings: matches must be PersistentVector"),
@@ -611,11 +613,8 @@ fn alpha_pass(
         for fact in &facts {
             // Resolve fact class + fields.
             let (fact_class, fact_fields) = match fact {
-                Value::wat__Record { class_fqdn, struct_form } => {
-                    (class_fqdn.as_str(), struct_form.as_slice())
-                }
-                Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
-                    (class_fqdn.as_str(), struct_form.as_slice())
+                Value::Aggregate(a) if a.holder != Holder::Struct => {
+                    (a.class.as_str(), a.fields.as_slice())
                 }
                 _ => continue,
             };
@@ -1095,11 +1094,11 @@ fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
 /// `fire-fixpoint` (`wat/rete.wat:991-998`) and `fire-rules` (`wat/rete.wat:1011-1018`).
 fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
     match fired {
-        Value::wat__Record { class_fqdn, struct_form } => {
-            let sf = struct_form.as_slice();
-            Value::wat__Record {
-                class_fqdn: class_fqdn.clone(),
-                struct_form: Arc::new(vec![
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            let sf = a.fields.as_slice();
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.clone(),
+                Arc::new(vec![
                     sf[0].clone(), // network
                     sf[1].clone(), // rules
                     sf[2].clone(), // alpha-memory
@@ -1108,7 +1107,7 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
                     new_facts,     // facts (replaced)
                     sf[6].clone(), // next-id
                 ]),
-            }
+            )))
         }
         // Should never happen — callers pass only a Session; pass through unchanged.
         other => other.clone(),
@@ -1121,7 +1120,7 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
 #[allow(dead_code)]
 fn session_facts(session: &Value) -> Value {
     match session {
-        Value::wat__Record { struct_form, .. } => struct_form.as_slice()[5].clone(),
+        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[5].clone(),
         _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
     }
 }
@@ -1144,7 +1143,7 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
         };
         let fired = fire_once_session(&session, sym)?;
         let production_pm = match &fired {
-            Value::wat__Record { struct_form, .. } => struct_form.as_slice()[4].clone(),
+            Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[4].clone(),
             _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
         };
         let derived = collect_derived(&production_pm);
@@ -1489,11 +1488,8 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
         for fact in &delta_facts {
             let (fact_class, fact_fields) = match fact {
-                Value::wat__Record { class_fqdn, struct_form } => {
-                    (class_fqdn.as_str(), struct_form.as_slice())
-                }
-                Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
-                    (class_fqdn.as_str(), struct_form.as_slice())
+                Value::Aggregate(a) if a.holder != Holder::Struct => {
+                    (a.class.as_str(), a.fields.as_slice())
                 }
                 _ => continue,
             };
@@ -1979,24 +1975,24 @@ pub(crate) fn eval_fire_rules_explain(
     let mut support_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (derived_fact, (rule_name, tok)) in idx {
         let token_value = native_token_to_value(tok);
-        let support_value = Value::wat__Record {
-            class_fqdn: support_class_fqdn(),
-            struct_form: Arc::new(vec![
+        let support_value = Value::Aggregate(Arc::new(AggregateValue::record(
+            (*support_class_fqdn()).clone(),
+            Arc::new(vec![
                 Value::String(Arc::new(rule_name)),
                 token_value,
             ]),
-        };
+        )));
         support_pm = support_pm.insert(derived_fact, support_value);
     }
 
     // Build Explained { session, support }.
-    let explained = Value::wat__Record {
-        class_fqdn: explained_class_fqdn(),
-        struct_form: Arc::new(vec![
+    let explained = Value::Aggregate(Arc::new(AggregateValue::record(
+        (*explained_class_fqdn()).clone(),
+        Arc::new(vec![
             session_out,
             Value::wat__core__PersistentMap(support_pm),
         ]),
-    };
+    )));
 
     Ok(explained)
 }
@@ -2010,6 +2006,8 @@ mod tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
     use crate::runtime::{Environment, Value};
+    use crate::types::Holder;
+    use crate::value::value::AggregateValue;
 
     /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
     const WORLD: &str = "\
@@ -2085,10 +2083,10 @@ mod tests {
     /// `to_transient` on a wrong record class → TypeMismatch.
     #[test]
     fn wrong_record_class_type_mismatch() {
-        let wrong = Value::wat__Record {
-            class_fqdn: Arc::new("weather::Temperature".into()),
-            struct_form: Arc::new(vec![Value::i64(15), Value::String(Arc::new("Oslo".into()))]),
-        };
+        let wrong = Value::Aggregate(Arc::new(AggregateValue::record(
+            "weather::Temperature".into(),
+            Arc::new(vec![Value::i64(15), Value::String(Arc::new("Oslo".into()))]),
+        )));
         let result = to_transient(&wrong);
         assert!(result.is_err(), "to_transient on a non-Session record must return Err");
     }
@@ -2187,8 +2185,8 @@ mod tests {
                 );
                 // The fact must be a Record (Temperature or WindSpeed).
                 match fact {
-                    Value::wat__Record { class_fqdn, .. } => {
-                        let cls = class_fqdn.as_str();
+                    Value::Aggregate(a) if a.holder != Holder::Struct => {
+                        let cls = a.class.as_str();
                         assert!(
                             cls == "weather::Temperature" || cls == "weather::WindSpeed",
                             "supporting fact must be Temperature or WindSpeed; got: {cls}"
@@ -2205,11 +2203,11 @@ mod tests {
 
             // The two facts must be of DIFFERENT types (Temperature != WindSpeed).
             let class0 = match &tok.matches[0].0 {
-                Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str().to_string(),
+                Value::Aggregate(a) if a.holder != Holder::Struct => a.class.clone(),
                 _ => panic!("fact[0] must be a Record"),
             };
             let class1 = match &tok.matches[1].0 {
-                Value::wat__Record { class_fqdn, .. } => class_fqdn.as_str().to_string(),
+                Value::Aggregate(a) if a.holder != Holder::Struct => a.class.clone(),
                 _ => panic!("fact[1] must be a Record"),
             };
             assert_ne!(class0, class1, "the two supporting facts must be of different types");

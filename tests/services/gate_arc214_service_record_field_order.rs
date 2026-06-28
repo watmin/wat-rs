@@ -24,6 +24,7 @@ use std::sync::Arc;
 use wat::freeze::startup_bare;
 use wat::io::{PipeReader, PipeWriter};
 use wat::runtime::Value;
+use wat::AggregateValue;
 use wat::services::{next_thread_id, spawn_service_peer, ServiceMsg, ThreadIO, install_thread_io};
 use wat::types::{Holder, TypeDef};
 
@@ -213,13 +214,13 @@ fn h2_guard_arm_non_struct_req_loop_survives() {
     // proof the malformed one was handled (continue) first. Time is I/O.
 
     // ── Valid Req: should still round-trip ───────────────────────────────
-    let valid_req = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdOutService::Req".into(),
-        fields: vec![
+    let valid_req = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdOutService::Req".into(),
+        vec![
             Value::i64(tid),
             Value::String(Arc::new("hello from h2".into())),
         ],
-    }));
+    )));
     input_tx
         .send(ServiceMsg::Req(valid_req))
         .expect("valid Req sent");
@@ -278,25 +279,25 @@ fn h2_guard_arm_wrong_field0_type_loop_survives() {
     });
 
     // ── Malformed Req #2: Struct but field[0] is String, not i64 ────────
-    let bad_req = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdOutService::Req".into(),
-        fields: vec![
+    let bad_req = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdOutService::Req".into(),
+        vec![
             Value::String(Arc::new("not-an-i64".into())), // field[0] must be i64
             Value::String(Arc::new("line".into())),
         ],
-    }));
+    )));
     input_tx.send(ServiceMsg::Req(bad_req)).expect("bad Req sent");
 
     // No wait: same-channel FIFO ordering serializes bad-then-valid (see above).
 
     // ── Valid Req after the bad one ──────────────────────────────────────
-    let valid_req = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdOutService::Req".into(),
-        fields: vec![
+    let valid_req = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdOutService::Req".into(),
+        vec![
             Value::i64(tid),
             Value::String(Arc::new("hello after bad field".into())),
         ],
-    }));
+    )));
     input_tx.send(ServiceMsg::Req(valid_req)).expect("valid Req sent");
 
     let io_cell = wat::services::uninstall_thread_io().expect("ThreadIO was installed");

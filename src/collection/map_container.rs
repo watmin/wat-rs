@@ -83,7 +83,7 @@ impl MapContainer {
         match v {
             Value::wat__std__HashMap(_) => Some(MapContainer::HashMap),
             Value::wat__core__PersistentMap(_) => Some(MapContainer::PersistentMap),
-            Value::wat__Record { .. } | Value::wat__holon__Record { .. } => {
+            Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => {
                 Some(MapContainer::Record)
             }
             _ => None,

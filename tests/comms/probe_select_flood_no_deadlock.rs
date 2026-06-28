@@ -155,11 +155,11 @@ fn select_prime_flood_no_deadlock() {
                     // fields[1] = cause (Failure struct) — cause message must mention the cap.
                     if ev.fields.len() >= 2 {
                         match &ev.fields[1] {
-                            Value::Struct(s) => {
+                            Value::Aggregate(s) => {
                                 assert_eq!(
-                                    s.type_name, ":wat::kernel::Failure",
+                                    s.class, "wat::kernel::Failure",
                                     "cause must be Failure struct; got {:?}",
-                                    s.type_name
+                                    s.class
                                 );
                                 match s.fields.first() {
                                     Some(Value::String(msg)) => {

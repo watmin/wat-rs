@@ -13,8 +13,9 @@ use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::runtime::{
     eval, Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind,
-    StructValue, SymbolTable, TrackedValue, Value,
+    SymbolTable, TrackedValue, Value,
 };
+use crate::value::value::AggregateValue;
 use crate::span::Span;
 
 use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
@@ -722,15 +723,15 @@ pub fn eval_kernel_spawn_process(
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
 
-    Ok(Value::Struct(Arc::new(StructValue {
-        type_name: ":wat::kernel::Process".into(),
-        fields: vec![
+    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::Process".into(),
+        vec![
             Value::io__IOWriter(stdin_writer),
             Value::io__IOReader(stdout_reader),
             Value::io__IOReader(stderr_reader),
             Value::wat__kernel__ProgramHandle(Arc::new(ProgramHandleInner::Forked(handle))),
         ],
-    })))
+    ))))
 }
 
 // ─── Arg-parsing helpers ─────────────────────────────────────────────

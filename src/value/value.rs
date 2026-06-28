@@ -17,7 +17,7 @@ use crate::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
 use crate::channel::{SenderInner, ReceiverInner};
-use crate::types::TypeExpr;
+use crate::types::{Holder, TypeExpr};
 use crate::value::Function;
 use crate::stream::Stream;
 
@@ -183,17 +183,22 @@ pub enum Value {
     /// exit-status path (`cached_exit` OnceLock) is the live read;
     /// the retired `:wat::kernel::wait-child` is gone (arc 112/214).
     wat__kernel__ChildHandle(Arc<ChildHandle>),
-    /// An instance of a user-declared `:wat::core::struct` type — a
-    /// tagged positional tuple. `type_name` carries the struct's
-    /// keyword path (e.g., `:wat::holon::CapacityExceeded`); `fields`
-    /// holds the values in declaration order. Produced by the
-    /// auto-generated `<struct>/new` constructor. Read via the
-    /// auto-generated `<struct>/<field>` accessors — both of which are
-    /// ordinary [`Function`] entries in the symbol table whose bodies
-    /// invoke the `:wat::core::struct-new` / `:wat::core::struct-field`
-    /// primitives. No field-by-name dispatch at runtime: accessors are
-    /// resolved at parse time like any other keyword-path call.
-    Struct(Arc<StructValue>),
+    /// Arc 293.R2.1 — unified aggregate value (replaces the three former variants:
+    /// `Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record`).
+    ///
+    /// A tagged positional product type. The `holder` field is the ONLY axis of
+    /// variance: `{Struct, Record, HolonRecord}` — it gates wire portability,
+    /// holon identity, and codegen. The `holon` field is `Empty` for Struct/Record
+    /// and `Hologram(h)` for HolonRecord.
+    ///
+    /// Policy table (enforced by the constructor / macro / runtime, NOT by the repr):
+    /// - `Struct`      — never crosses the wire; `holon = Empty`.
+    /// - `Record`      — wire-portable (EDN); `holon = Empty`.
+    /// - `HolonRecord` — wire-portable + VSA-aligned; `holon = Hologram(h)`.
+    ///
+    /// `class` is the colon-free FQDN (e.g. `"myapp::Voltage"`) — no leading `:`.
+    /// `fields` is the positional field vec in declaration order.
+    Aggregate(Arc<AggregateValue>),
     /// An instance of a user-declared `:wat::core::enum` type — a
     /// tagged variant carrying optional positional fields. Arc 048.
     ///
@@ -326,44 +331,9 @@ pub enum Value {
     /// Constructed by `:wat::stream::empty`, `(:wat::stream::cons h t)`,
     /// `(:wat::stream::lazy <body>)`.
     wat__stream__Stream(Arc<Stream>),
-    /// Arc 234 Stone 234.1 — the holographic dual-form record.
-    ///
-    /// Carries both projections of an immutable record simultaneously:
-    /// - `struct_form` for Rust-fast field access (positional Vec)
-    /// - `holon_form` for VSA-aligned operations (HolonAST classifier-wrap)
-    ///
-    /// Field-type constraints (enforced at macro-expand time by defrecord)
-    /// guarantee the two forms are isomorphic. The wat-record IS the hologram.
-    ///
-    /// `class_fqdn` is the record's class name WITHOUT a leading colon,
-    /// e.g. `"myapp::Voltage"`. Identity lives in `holon_form` per Stone
-    /// 221.5 canonical bytes seed; Eq and Hash both delegate to it.
-    ///
-    /// Storage form only — user-facing constructor ships in Stone 234.2
-    /// (`:wat::core::defrecord` macro). Polymorphic verbs in Stone 234.3.
-    wat__holon__Record {
-        /// Record class FQDN — e.g. `"myapp::Voltage"` (no leading colon).
-        class_fqdn: Arc<String>,
-        /// Ordered field values in declaration order (fast Rust-side access).
-        struct_form: Arc<Vec<Value>>,
-        /// VSA-aligned dual form: `Bind(Atom(class), Bundle(field-Binds...))`.
-        /// Identity lives here; Eq and Hash delegate to this field.
-        holon_form: Arc<HolonAST>,
-    },
-    /// Stone S-C.2c — base (wat) record: the reduced flavor. EDN-restricted data
-    /// held in a positional `struct_form`; NO `holon_form`. Field NAMES live on
-    /// the class (`RecordDef.field_names`, S-C.2ab); name→index access rides that
-    /// path. Structural identity over `(class_fqdn, struct_form)`. Holon-ops are a
-    /// teaching error — base has no holon flavor (use a holonic record via
-    /// `:wat::holon::defrecord`). Unconstructed at the wat surface until S-C.3
-    /// mints `:wat::core::defrecord` → base.
-    wat__Record {
-        /// Record class FQDN — e.g. `"my::Pt"` (no leading colon).
-        class_fqdn: Arc<String>,
-        /// Ordered field values in declaration order (fast Rust-side access).
-        /// Structural identity lives here (with `class_fqdn`).
-        struct_form: Arc<Vec<Value>>,
-    },
+    // Arc 293.R2.1: wat__holon__Record and wat__Record DELETED.
+    // Both are now represented by Value::Aggregate with holder=HolonRecord/Record.
+    // See AggregateValue for the unified repr.
     /// Stone 237.2 — `:wat::core::defclause` multi-arity dispatcher.
     ///
     /// A named set of clauses; each clause has its own arg-type list +
@@ -649,8 +619,21 @@ impl PartialEq for Value {
             (Value::Tuple(a), Value::Tuple(b)) => a == b,
             (Value::Option(a), Value::Option(b)) => a == b,
             (Value::Result(a), Value::Result(b)) => a == b,
-            (Value::Struct(a), Value::Struct(b)) => {
-                a.type_name == b.type_name && a.fields == b.fields
+            // Arc 293.R2.1 — Aggregate: branch on holon per STOP-1 contract.
+            // Hologram vs Empty (or vice-versa) → not equal (cross-pair).
+            // Two holograms → eq on (class, holon_form) — identity lives in holon_form.
+            // Two non-holograms → structural (class, fields). Holder mismatch → false.
+            (Value::Aggregate(a), Value::Aggregate(b)) => {
+                if a.holder != b.holder { return false; }
+                match (&a.holon, &b.holon) {
+                    (HolonForm::Hologram(ha), HolonForm::Hologram(hb)) => {
+                        a.class == b.class && ha == hb
+                    }
+                    (HolonForm::Empty, HolonForm::Empty) => {
+                        a.class == b.class && a.fields == b.fields
+                    }
+                    _ => false, // cross holon/empty
+                }
             }
             (Value::Enum(a), Value::Enum(b)) => {
                 a.type_path == b.type_path
@@ -689,19 +672,7 @@ impl PartialEq for Value {
             (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
             (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
             (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
-            // Arc 234 Stone 234.1 — wat__holon__Record: identity lives in holon_form (canonical
-            // bytes seed per Stone 221.5). Class_fqdn match checked first for short-circuit
-            // performance + structural honesty. struct_form is access optimization; not identity.
-            (Value::wat__holon__Record { class_fqdn: a_cls, holon_form: a_h, .. },
-             Value::wat__holon__Record { class_fqdn: b_cls, holon_form: b_h, .. }) => {
-                a_cls == b_cls && a_h == b_h
-            }
-            // Stone S-C.2c — wat__Record (base): structural identity over (class_fqdn, struct_form).
-            // No holon_form; cross pairs (base vs holonic) fall to `_ => false` below.
-            (Value::wat__Record { class_fqdn: a_cls, struct_form: sa },
-             Value::wat__Record { class_fqdn: b_cls, struct_form: sb }) => {
-                a_cls == b_cls && sa == sb
-            }
+            // Arc 293.R2.1: wat__holon__Record and wat__Record arms removed; handled by Aggregate above.
             // Stone 237.2 — wat__core__clauses: pointer equality (two ClauseSet instances
             // are the same dispatcher iff they are the same Arc). Structural equality
             // over clause bodies is not implemented — same rationale as wat__core__fn.
@@ -850,9 +821,23 @@ impl std::hash::Hash for Value {
                     e.hash(state);
                 }
             },
-            Value::Struct(s) => {
-                s.type_name.hash(state);
-                s.fields.hash(state);
+            // Arc 293.R2.1 — Aggregate: sub-discriminant separates holon from structural.
+            // Hologram → hash on holon_form (canonical identity, Stone 234.1).
+            // Empty → hash on (class, fields) (structural identity).
+            // Holder also hashed to prevent spurious cross-holder equality.
+            Value::Aggregate(a) => {
+                a.holder.hash(state);
+                match &a.holon {
+                    HolonForm::Hologram(h) => {
+                        0u8.hash(state);
+                        h.hash(state);
+                    }
+                    HolonForm::Empty => {
+                        1u8.hash(state);
+                        a.class.hash(state);
+                        a.fields.hash(state);
+                    }
+                }
             }
             Value::Enum(e) => {
                 e.type_path.hash(state);
@@ -940,21 +925,7 @@ impl std::hash::Hash for Value {
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            // Arc 234 Stone 234.1 — wat__holon__Record: hash delegates to holon_form (canonical form
-            // per Stone 221.5). Discriminant tag "wat__holon__Record" prevents cross-variant collisions.
-            // struct_form is access optimization; identity lives in holon_form.
-            Value::wat__holon__Record { holon_form, .. } => {
-                "wat__holon__Record".hash(state);
-                holon_form.hash(state);
-            }
-            // Stone S-C.2c — wat__Record (base): structural hash over (class_fqdn, struct_form).
-            // Distinct discriminant tag "wat__Record" prevents cross-variant hash collisions
-            // with holonic records (consistent with base-vs-holonic PartialEq returning false).
-            Value::wat__Record { class_fqdn, struct_form } => {
-                "wat__Record".hash(state);
-                class_fqdn.hash(state);
-                struct_form.hash(state);
-            }
+            // Arc 293.R2.1: wat__holon__Record and wat__Record Hash arms removed; handled by Aggregate above.
             // Stone 237.2 — wat__core__clauses: hash via Arc pointer (consistent with
             // pointer-equality PartialEq). Same discipline as wat__core__fn.
             Value::wat__core__clauses(cs) => {
@@ -981,20 +952,66 @@ impl std::hash::Hash for Value {
     }
 }
 
-/// The payload of a [`Value::Struct`] — the struct's fully-qualified
-/// declared type name plus its positional field values in declaration
-/// order. Cheap to clone (stored in an `Arc` at the Value level).
+/// Arc 293.R2.1 — hologram presence/absence for an aggregate value.
+///
+/// `Empty` for `Holder::Struct` and `Holder::Record` (no VSA dual-form).
+/// `Hologram(h)` for `Holder::HolonRecord` (the canonical VSA identity form).
+///
+/// Named enum (NOT `Option`) per `feedback_option_carrying_semantics_screams_enum`:
+/// `None` would overload "absence" with the identity-gating semantic; `Empty` names
+/// the thing honestly and makes the illegal state (`Hologram` on a non-holon holder)
+/// representable but policy-rejected at construction time.
 #[derive(Debug, Clone)]
-pub struct StructValue {
-    /// Full keyword path of the struct type, e.g.
-    /// `:wat::holon::CapacityExceeded`. Matches the declaration's
-    /// name verbatim; identity for type-tag comparisons.
-    pub type_name: String,
-    /// Field values in declaration order. Length matches the
-    /// `StructDef::fields` length at construction time; the type
-    /// checker enforces alignment.
-    pub fields: Vec<Value>,
+pub enum HolonForm {
+    /// No hologram — structural identity only (`Holder::Struct` / `Holder::Record`).
+    Empty,
+    /// VSA canonical form — `Holder::HolonRecord` identity lives here.
+    Hologram(Arc<HolonAST>),
 }
+
+/// Arc 293.R2.1 — unified product-type value payload.
+///
+/// Replaces `StructValue` + the three inline record variant payloads
+/// (`Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record`).
+///
+/// `class` is the COLON-FREE FQDN (e.g. `"myapp::Voltage"` — no leading `:`).
+/// `fields` is the positional field vec in declaration order.
+/// `holder` is the categorical axis (`{Struct, Record, HolonRecord}`).
+/// `holon` is `Empty` for Struct/Record and `Hologram(h)` for HolonRecord.
+#[derive(Debug, Clone)]
+pub struct AggregateValue {
+    /// Colon-free FQDN of the declared type (e.g. `"wat::kernel::Process"`).
+    /// Was `StructValue.type_name` (stripped of leading `:`) /
+    /// `wat__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
+    pub class: String,
+    /// Positional field values in declaration order.
+    /// Was `StructValue.fields` (wrapped in Arc) / `struct_form`.
+    pub fields: Arc<Vec<Value>>,
+    /// The categorical label: `{Struct, Record, HolonRecord}`.
+    pub holder: Holder,
+    /// `Empty` for Struct/Record; `Hologram(h)` for HolonRecord.
+    pub holon: HolonForm,
+}
+
+impl AggregateValue {
+    /// Construct a Struct-holder aggregate (no hologram).
+    /// `class` must be WITHOUT the leading colon.
+    pub fn struct_(class: String, fields: Vec<Value>) -> Self {
+        AggregateValue { class, fields: Arc::new(fields), holder: Holder::Struct, holon: HolonForm::Empty }
+    }
+    /// Construct a base-Record aggregate (no hologram).
+    pub fn record(class: String, fields: Arc<Vec<Value>>) -> Self {
+        AggregateValue { class, fields, holder: Holder::Record, holon: HolonForm::Empty }
+    }
+    /// Construct a HolonRecord aggregate (with hologram).
+    pub fn holon_record(class: String, fields: Arc<Vec<Value>>, holon_form: Arc<HolonAST>) -> Self {
+        AggregateValue { class, fields, holder: Holder::HolonRecord, holon: HolonForm::Hologram(holon_form) }
+    }
+}
+
+// Arc 293.R2.1: StructValue ANNIHILATED — replaced by AggregateValue.
+// Tombstone: old `StructValue { type_name: String, fields: Vec<Value> }`.
+// `AggregateValue.class` is colon-free; `fields` is `Arc<Vec<Value>>`.
 
 /// The payload of a [`Value::Enum`] — the enum's fully-qualified
 /// declared type path, the variant identifier, and the variant's
@@ -1109,7 +1126,12 @@ impl Value {
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
-            Value::Struct(_) => "wat::core::Struct",
+            // Arc 293.R2.1 — Aggregate: holder gates the kind-string.
+            // Struct holder → "wat::core::Struct"; Record/HolonRecord → "wat::Record".
+            Value::Aggregate(a) => match a.holder {
+                Holder::Struct => "wat::core::Struct",
+                Holder::Record | Holder::HolonRecord => "wat::Record",
+            },
             Value::Enum(_) => "wat::core::Enum",
             Value::Vector(_) => "wat::holon::Vector",
             Value::OnlineSubspace(_) => "wat::holon::OnlineSubspace",
@@ -1126,10 +1148,7 @@ impl Value {
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 118 — lazy seq.
             Value::wat__stream__Stream(_) => "wat::stream::Stream",
-            // Arc 234 Stone 234.1 — generic kind-string (per-instance FQDN via :wat::core::type).
-            // Stone S-C.2c — both flavors share the same static kind-string "wat::Record".
-            // Per-instance FQDN is `declared_type_name()` (class_fqdn).
-            Value::wat__holon__Record { .. } | Value::wat__Record { .. } => "wat::Record",
+            // Arc 293.R2.1: wat__holon__Record and wat__Record removed; covered by Aggregate arm above.
             // Stone 237.2 — multi-arity callable dispatcher.
             Value::wat__core__clauses(_) => "wat::core::clauses",
             // Arc 232 Stone 232.1 — protocol registry carriers (not runtime-callable values).
@@ -1170,15 +1189,10 @@ impl Value {
                 // rune:solvere(historical-shape) — transitional back-arc into the monolith; extract_classifier lifts to its home at the algebra/ migration stone (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md); the back-arc resolves then.
                 crate::runtime::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
             }
-            // Struct: type_name carries the declaration keyword verbatim (e.g.
-            // `:my::Point`); strip the leading colon for consistency with the
-            // extract_classifier convention.  Newtype is Value::Struct at
-            // runtime, so this arm covers it too.
-            Value::Struct(sv) => sv.type_name.trim_start_matches(':').to_string(),
-            // Record (both flavors): class_fqdn is already colon-free (the defrecord
-            // macro stores it without the leading colon). Stone S-C.2c or-pattern.
-            Value::wat__holon__Record { class_fqdn, .. }
-            | Value::wat__Record { class_fqdn, .. } => class_fqdn.to_string(),
+            // Arc 293.R2.1 — Aggregate: class is already colon-free (all holders).
+            // Struct holder: type_name was `:my::Point` → stripped → stored as `my::Point`.
+            // Record/HolonRecord: class_fqdn was already colon-free.
+            Value::Aggregate(a) => a.class.clone(),
             // Enum: type_path is the declared enum FQDN verbatim (e.g.
             // `:my::Color`); strip the leading colon.  Do NOT use
             // self.type_name(), which returns the generic "wat::core::Enum".

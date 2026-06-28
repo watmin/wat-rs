@@ -37,8 +37,8 @@ fn run_fn(fn_name: &str) -> Value {
 /// Unwrap a RunResult struct value into its three fields.
 fn unwrap_run_result(v: Value) -> (Vec<String>, Vec<String>, bool) {
     match v {
-        Value::Struct(sv) => {
-            assert_eq!(sv.type_name, ":wat::kernel::RunResult");
+        Value::Aggregate(sv) => {
+            assert_eq!(sv.class, "wat::kernel::RunResult");
             assert_eq!(sv.fields.len(), 3);
             let stdout = as_vec_string(&sv.fields[0]);
             let stderr = as_vec_string(&sv.fields[1]);
@@ -120,15 +120,15 @@ fn main_writes_to_both_stdout_and_stderr() {
 
 fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option<String>) {
     match v {
-        Value::Struct(sv) => {
-            assert_eq!(sv.type_name, ":wat::kernel::RunResult");
+        Value::Aggregate(sv) => {
+            assert_eq!(sv.class, "wat::kernel::RunResult");
             assert_eq!(sv.fields.len(), 3);
             let stdout = as_vec_string(&sv.fields[0]);
             let stderr = as_vec_string(&sv.fields[1]);
             let failure_msg = match &sv.fields[2] {
                 Value::Option(opt) => match &**opt {
-                    Some(Value::Struct(fs)) => {
-                        assert_eq!(fs.type_name, ":wat::kernel::Failure");
+                    Some(Value::Aggregate(fs)) => {
+                        assert_eq!(fs.class, "wat::kernel::Failure");
                         // fields[0] is message :wat::core::String
                         match &fs.fields[0] {
                             Value::String(s) => Some((**s).clone()),

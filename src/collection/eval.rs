@@ -1222,10 +1222,9 @@ pub(crate) fn record_get_inner(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/get";
-    // Extract class_fqdn and struct_form from BOTH record variants.
-    let (class_fqdn, struct_form) = match record {
-        Value::wat__Record { class_fqdn, struct_form } => (class_fqdn.clone(), struct_form.clone()),
-        Value::wat__holon__Record { class_fqdn, struct_form, .. } => (class_fqdn.clone(), struct_form.clone()),
+    // Arc 293.R2.1 — Aggregate (Record/HolonRecord).
+    let agg = match record {
+        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::Record instance",
@@ -1245,7 +1244,7 @@ pub(crate) fn record_get_inner(
         } }.into()),
     };
     // Resolve field index via RecordDef.
-    let type_key = format!(":{}", class_fqdn);
+    let type_key = format!(":{}", agg.class);
     let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: "record get requires the type registry".into()
@@ -1254,11 +1253,11 @@ pub(crate) fn record_get_inner(
         Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
+            reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
         } }.into()),
     };
     match record_def.field_names().position(|n| n == key_name.as_str()) {
-        Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(struct_form[idx].clone())))),
+        Some(idx) => Ok(Value::Option(std::sync::Arc::new(Some(agg.fields[idx].clone())))),
         None => Ok(Value::Option(std::sync::Arc::new(None))),
     }
 }
@@ -1275,9 +1274,8 @@ pub(crate) fn record_contains_field_q_inner(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/contains?";
-    let class_fqdn = match record {
-        Value::wat__Record { class_fqdn, .. } => class_fqdn.clone(),
-        Value::wat__holon__Record { class_fqdn, .. } => class_fqdn.clone(),
+    let agg = match record {
+        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::Record instance",
@@ -1295,7 +1293,7 @@ pub(crate) fn record_contains_field_q_inner(
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     };
-    let type_key = format!(":{}", class_fqdn);
+    let type_key = format!(":{}", agg.class);
     let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: "record contains? requires the type registry".into()
@@ -1304,7 +1302,7 @@ pub(crate) fn record_contains_field_q_inner(
         Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!("record class :{} is not registered in the TypeEnv", class_fqdn)
+            reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
         } }.into()),
     };
     Ok(Value::bool(record_def.field_names().any(|n| n == key_name.as_str())))
@@ -1317,8 +1315,7 @@ pub(crate) fn record_contains_field_q_inner(
 pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/length";
     match record {
-        Value::wat__Record { struct_form, .. } => Ok(Value::i64(struct_form.len() as i64)),
-        Value::wat__holon__Record { struct_form, .. } => Ok(Value::i64(struct_form.len() as i64)),
+        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::i64(a.fields.len() as i64)),
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::Record instance",
@@ -1330,12 +1327,11 @@ pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
 /// Arc-278-A2 — `record_empty_q_inner`: zero-field check on a Record.
 ///
 /// Returns `true` iff the record has no declared fields.
-/// Does NOT need the type registry — `struct_form.is_empty()` is the source of truth.
+/// Does NOT need the type registry — `fields.is_empty()` is the source of truth.
 pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/empty?";
     match record {
-        Value::wat__Record { struct_form, .. } => Ok(Value::bool(struct_form.is_empty())),
-        Value::wat__holon__Record { struct_form, .. } => Ok(Value::bool(struct_form.is_empty())),
+        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::bool(a.fields.is_empty())),
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::Record instance",

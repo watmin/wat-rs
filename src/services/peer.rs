@@ -106,8 +106,8 @@ pub fn spawn_service_peer<R: Send + 'static>(
                         // :wat::kernel::services::{Std{In,Out,Err}}Service::Req
                         // (wat/kernel/services/{stdin,stdout,stderr}.wat).
                         let thread_id: ThreadId = match &req_value {
-                            Value::Struct(sv) if !sv.fields.is_empty() => {
-                                match &sv.fields[0] {
+                            Value::Aggregate(a) if !a.fields.is_empty() => {
+                                match &a.fields[0] {
                                     Value::i64(n) => *n,
                                     _ => {
                                         eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"Req field[0] is not i64\"}}", service_label);
@@ -116,7 +116,7 @@ pub fn spawn_service_peer<R: Send + 'static>(
                                 }
                             }
                             _ => {
-                                eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"Req is not a Struct\"}}", service_label);
+                                eprintln!("#wat.substrate/Diag{{:site \"{}-peer\" :msg \"Req is not an Aggregate\"}}", service_label);
                                 continue;
                             }
                         };

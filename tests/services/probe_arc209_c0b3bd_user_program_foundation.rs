@@ -23,6 +23,7 @@
 
 use wat::freeze::{eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_beside};
 use wat::runtime::{Environment, Value};
+use wat::types::Holder;
 
 #[test]
 fn injected_user_program_flows_to_main() {
@@ -42,8 +43,8 @@ fn injected_user_program_flows_to_main() {
     let got = invoke_user_main_with_program(&world, vec![], injected)
         .unwrap_or_else(|e| panic!("invoke_user_main_with_program raised: {e:?}"));
     match got {
-        Value::wat__Record { class_fqdn, .. } => assert_eq!(
-            class_fqdn.as_str(),
+        Value::Aggregate(a) if a.holder != Holder::Struct => assert_eq!(
+            a.class.as_str(),
             "user::MyEnv",
             "expected main to read the INJECTED user.program (user::MyEnv), not the EmptyEnv default"
         ),
@@ -59,8 +60,8 @@ fn default_user_program_is_empty_env() {
     let got = invoke_user_main(&world, vec![])
         .unwrap_or_else(|e| panic!("invoke_user_main raised: {e:?}"));
     match got {
-        Value::wat__Record { class_fqdn, .. } => assert_eq!(
-            class_fqdn.as_str(),
+        Value::Aggregate(a) if a.holder != Holder::Struct => assert_eq!(
+            a.class.as_str(),
             "wat::program::EmptyEnv",
             "expected the default user.program to be EmptyEnv when none is injected"
         ),

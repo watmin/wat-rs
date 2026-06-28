@@ -44,7 +44,7 @@ fn probe_runtime_err_stderr_visibility() {
     .expect("driver should not panic");
 
     let sv = match &result {
-        Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult; got {:?}", other),
     };
 
@@ -57,7 +57,7 @@ fn probe_runtime_err_stderr_visibility() {
     // failure field (Option<Failure>)
     let failure_message = match &sv.fields[2] {
         Value::Option(opt) => match opt.as_ref() {
-            Some(Value::Struct(f)) if f.type_name == ":wat::kernel::Failure" => {
+            Some(Value::Aggregate(f)) if f.holder == wat::Holder::Struct && f.class == "wat::kernel::Failure" => {
                 match &f.fields[0] {
                     Value::String(s) => (**s).clone(),
                     _ => "<missing>".to_string(),

@@ -31,6 +31,7 @@ use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::io::{PipeReader, PipeWriter, WatReader};
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::AggregateValue;
 use wat::span::Span;
 use wat::services::{
     install_thread_io, next_thread_id, spawn_service_peer, uninstall_thread_io,
@@ -90,7 +91,7 @@ impl MiniUniverse {
             stdin_reader,
             world.symbols().clone(),
             |rep: &Value| match rep {
-                Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+                Value::Aggregate(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
                     Value::String(s) => Ok((**s).clone()),
                     _ => Err("StdInService Rep field[1] is not a String".into()),
                 },
@@ -520,7 +521,7 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
         stdin_reader,
         world.symbols().clone(),
         |rep: &Value| match rep {
-            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+            Value::Aggregate(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
                 Value::String(s) => Ok((**s).clone()),
                 _ => Err("StdInService Rep field[1] is not a String".into()),
             },
@@ -551,14 +552,14 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
     }
 
     // ── Send Req(tid_a) then Req(tid_b) ──────────────────────────────
-    let req_a = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid_a), Value::i64(524288)],
-    }));
-    let req_b = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid_b), Value::i64(524288)],
-    }));
+    let req_a = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdInService::Req".into(),
+        vec![Value::i64(tid_a), Value::i64(524288)],
+    )));
+    let req_b = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdInService::Req".into(),
+        vec![Value::i64(tid_b), Value::i64(524288)],
+    )));
     stdin_input_tx
         .send(ServiceMsg::Req(req_a))
         .expect("send Req(tid_a)");
@@ -617,7 +618,7 @@ fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
         stdin_reader,
         world.symbols().clone(),
         |rep: &Value| match rep {
-            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+            Value::Aggregate(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
                 Value::String(s) => Ok((**s).clone()),
                 _ => Err("StdInService Rep field[1] is not a String".into()),
             },
@@ -636,10 +637,10 @@ fn row_l_stdin_eof_cascades_to_reply_rx_disconnect() {
     drop(stdin_feed);
 
     // Send a Req — the handle will read None → assertion-failed! → panic.
-    let req = Value::Struct(Arc::new(wat::runtime::StructValue {
-        type_name: ":wat::kernel::services::StdInService::Req".into(),
-        fields: vec![Value::i64(tid), Value::i64(524288)],
-    }));
+    let req = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::services::StdInService::Req".into(),
+        vec![Value::i64(tid), Value::i64(524288)],
+    )));
     // The send may succeed (the loop hadn't panicked yet) or fail (it already did).
     let _ = stdin_input_tx.send(ServiceMsg::Req(req));
 

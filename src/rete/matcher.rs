@@ -41,6 +41,8 @@ use crate::ast::WatAST;
 use crate::form_match::keyword_payload;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
 use crate::span::Span;
+use crate::value::value::AggregateValue;
+use crate::types::Holder;
 use std::sync::Arc;
 
 // ─── Fact abstraction ─────────────────────────────────────────────────────────
@@ -58,18 +60,10 @@ pub(crate) struct Fact<'a> {
 /// non-record Values (Clara semantics: wrong fact type → no match).
 pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
     match v {
-        Value::wat__Record { class_fqdn, struct_form } => Some(Fact {
-            class_fqdn: class_fqdn.as_str(),
-            fields: struct_form.as_slice(),
-        }),
-        Value::wat__holon__Record { class_fqdn, struct_form, .. } => Some(Fact {
-            class_fqdn: class_fqdn.as_str(),
-            fields: struct_form.as_slice(),
-        }),
-        // Value::Struct also represents records in older substrate paths.
-        Value::Struct(sv) => Some(Fact {
-            class_fqdn: sv.type_name.trim_start_matches(':'),
-            fields: sv.fields.as_slice(),
+        // Arc 293.R2.1 — Aggregate covers Record, HolonRecord, and Struct.
+        Value::Aggregate(a) => Some(Fact {
+            class_fqdn: a.class.as_str(),
+            fields: a.fields.as_slice(),
         }),
         _ => None,
     }
@@ -445,16 +439,16 @@ pub(crate) fn build_insert_fact(
             } }.into());
         }
     };
-    // class_fqdn = keyword stripped of leading ':' (mirrors eval_record_of:12798).
-    let class_fqdn = Arc::new(type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string());
+    // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
+    let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
 
     // Resolve each fact-form arg via resolve_operand with empty fact-fields/names.
     // RHS has no current fact — :field references are malformed; only ?var + literal resolve.
     // None → unresolved operand → RuntimeError (a malformed rule, not a silent drop).
-    let mut struct_form: Vec<Value> = Vec::with_capacity(fact_items.len().saturating_sub(1));
+    let mut fields: Vec<Value> = Vec::with_capacity(fact_items.len().saturating_sub(1));
     for arg in &fact_items[1..] {
         match resolve_operand(arg, &[], &[], bindings) {
-            Some(v) => struct_form.push(v),
+            Some(v) => fields.push(v),
             None => {
                 return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
@@ -465,10 +459,7 @@ pub(crate) fn build_insert_fact(
         }
     }
 
-    Ok(Value::wat__Record {
-        class_fqdn,
-        struct_form: Arc::new(struct_form),
-    })
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
 }
 
 /// `(:wat::rete::eval-insert <insert-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
@@ -675,9 +666,9 @@ pub(crate) fn eval_step_payload(
         })
         .unwrap_or_default();
 
-    // ── Get Session.network (struct_form[0]) + look up AlphaNode ─────────────
+    // ── Get Session.network (fields[0]) + look up AlphaNode ─────────────
     let network = match &session_val {
-        Value::wat__Record { struct_form, .. } => struct_form.get(0).cloned(),
+        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.get(0).cloned(),
         _ => None,
     };
     let network = match network {
@@ -707,8 +698,8 @@ pub(crate) fn eval_step_payload(
     // AlphaNode struct_form: [id(0), tests(1), children(2)].
     // tests is PV<WatAST>; tests[0] is `(:FactType clause…)`.
     let cond_ast: WatAST = match &alpha_node_val {
-        Value::wat__Record { struct_form, .. } => {
-            match struct_form.get(1) {
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            match a.fields.get(1) {
                 Some(Value::wat__core__PersistentVector(pv)) => {
                     match pv.first() {
                         Some(Value::wat__WatAST(ast)) => (**ast).clone(),
@@ -839,15 +830,15 @@ pub(crate) fn eval_step_payload(
         .get_or_init(|| Arc::new("wat::rete::DerivationStep".to_string()))
         .clone();
 
-    Ok(Value::wat__Record {
-        class_fqdn: step_class,
-        struct_form: Arc::new(vec![
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+        (*step_class).clone(),
+        Arc::new(vec![
             supporting,                                              // supporting: DerivationNode
             Value::String(Arc::new(pattern)),                       // pattern: String (FQDN)
             Value::wat__core__PersistentMap(step_bindings_pm),      // bindings: PM<String, Value>
             Value::wat__core__PersistentVector(constraints_pv),     // constraints: PV<WatAST>
         ]),
-    })
+    ))))
 }
 
 // ─── Arc 278 Stone 6b-i: eval-test ────────────────────────────────────────────

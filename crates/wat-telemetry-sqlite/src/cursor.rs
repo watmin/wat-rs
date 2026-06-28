@@ -57,8 +57,9 @@ use rusqlite::{Connection, OpenFlags};
 use wat::ast::WatAST;
 use wat::edn_shim::{read_holon_ast_natural, read_holon_ast_tagged};
 use wat::runtime::{
-    eval, Environment, EnumValue, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value, ValueSnapshot,
+    eval, Environment, EnumValue, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
+use wat::AggregateValue;
 use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
     ThreadOwnedCell,
@@ -507,10 +508,10 @@ fn decode_tags(text: &str) -> Result<Value, ReifyError> {
 /// (per arc 049's `register_newtype_methods`); we replicate that
 /// shape here for read-side reify.
 fn wrap_newtype(type_name: &str, inner: Value) -> Value {
-    Value::Struct(Arc::new(StructValue {
-        type_name: type_name.into(),
-        fields: vec![inner],
-    }))
+    Value::Aggregate(Arc::new(AggregateValue::struct_(
+        type_name.trim_start_matches(':').into(),
+        vec![inner],
+    )))
 }
 
 #[derive(Debug)]

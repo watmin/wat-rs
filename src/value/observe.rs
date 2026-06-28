@@ -320,11 +320,15 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             out
         }
 
-        // ── User-declared struct / enum (arc 048) ─────────────────
-        Value::Struct(sv) => {
-            let mut out = format!("{}{{", sv.type_name);
+        // ── Arc 293.R2.1 — Aggregate (Struct/Record/HolonRecord) ────
+        Value::Aggregate(a) => {
+            let prefix = match a.holder {
+                crate::types::Holder::Struct => format!(":{}", a.class),
+                _ => format!("<{}", a.class),
+            };
+            let mut out = format!("{}{{", prefix);
             let mut first = true;
-            for (i, fv) in sv.fields.iter().enumerate() {
+            for (i, fv) in a.fields.iter().enumerate() {
                 if !first {
                     out.push_str(", ");
                 }
@@ -337,6 +341,9 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
                 out.push_str(&render_value(fv, depth + 1));
             }
             out.push('}');
+            if matches!(a.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord) {
+                out.push('>');
+            }
             out
         }
         Value::Enum(ev) => {
@@ -432,30 +439,5 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             format!("<extend-def:{}:{}>", ed.protocol_name, ed.type_name)
         }
 
-        // Arc 234 Stone 234.1 — wat__holon__Record renders as `<class_fqdn{field0, field1, ...}>`.
-        // Stone S-C.2c — wat__Record (base) uses the same rendering (struct_form only).
-        // Uses class_fqdn for identity; struct_form for field values.
-        Value::wat__holon__Record { class_fqdn, struct_form, .. }
-        | Value::wat__Record { class_fqdn, struct_form } => {
-            let mut out = format!("<{}", class_fqdn);
-            if !struct_form.is_empty() {
-                out.push('{');
-                let mut first = true;
-                for fv in struct_form.iter() {
-                    if !first {
-                        out.push_str(", ");
-                    }
-                    first = false;
-                    if out.len() >= SHOW_MAX_LEN {
-                        out.push('…');
-                        break;
-                    }
-                    out.push_str(&render_value(fv, depth + 1));
-                }
-                out.push('}');
-            }
-            out.push('>');
-            out
-        }
     }
 }

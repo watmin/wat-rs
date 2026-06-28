@@ -51,6 +51,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::value::{AggregateValue, HolonForm};
 use crate::scope::Identifier;
 use crate::span::{span_prefix, Span};
 use std::sync::Arc;
@@ -1731,10 +1732,10 @@ fn coerce_struct_path(
             .map_err(|e| e.at(&format!(".{}", fname)))?;
         fields.push(v);
     }
-    Ok(Value::Struct(Arc::new(crate::runtime::StructValue {
-        type_name: type_path.to_string(),
+    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
+        type_path.trim_start_matches(':').to_string(),
         fields,
-    })))
+    ))))
 }
 
 fn coerce_enum_path(
@@ -1877,9 +1878,10 @@ pub fn value_to_edn_notag(
 ) -> OwnedValue {
     match v {
         // ── Struct: drop tag; body is the named-field map ───────
-        Value::Struct(sv) => {
+        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
+            let type_key = format!(":{}", sv.class);
+            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
                 Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
                     a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
@@ -1997,9 +1999,10 @@ pub fn value_to_json_natural(
         Value::wat__core__keyword(k) => {
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
-        Value::Struct(sv) => {
+        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
+            let type_key = format!(":{}", sv.class);
+            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
                 Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
                     a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
@@ -2390,10 +2393,10 @@ fn reconstruct_struct(
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
-    Ok(Value::Struct(Arc::new(crate::runtime::StructValue {
-        type_name: path,
+    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
+        path.trim_start_matches(':').to_string(),
         fields,
-    })))
+    ))))
 }
 
 /// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::wat__Record`.
@@ -2445,12 +2448,9 @@ fn reconstruct_record(
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
-    // class_fqdn stored without leading ':'; path has it — strip.
-    let class_fqdn = path.strip_prefix(':').unwrap_or(&path).to_string();
-    Ok(Value::wat__Record {
-        class_fqdn: Arc::new(class_fqdn),
-        struct_form: Arc::new(fields),
-    })
+    // class stored without leading ':'; path has it — strip.
+    let class = path.strip_prefix(':').unwrap_or(&path).to_string();
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
 }
 
 /// Arc 234 Stone 234.7b — Decode a holon-record tagged body (a `#wat-edn.holon/Bind[…]`
@@ -2542,15 +2542,15 @@ fn reconstruct_holon_record(
         }
     }
 
-    // 3. class_fqdn from the wire tag path (strip leading ':').
+    // 3. class from the wire tag path (strip leading ':').
     let path = ns_to_wat_path(ns, name);
-    let class_fqdn = path.strip_prefix(':').unwrap_or(&path).to_string();
+    let class = path.strip_prefix(':').unwrap_or(&path).to_string();
 
-    Ok(Value::wat__holon__Record {
-        class_fqdn: Arc::new(class_fqdn),
-        struct_form: Arc::new(fields),
-        holon_form: Arc::new(holon_form),
-    })
+    Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
+        class,
+        Arc::new(fields),
+        Arc::new(holon_form),
+    ))))
 }
 
 /// Arc 113 slice 3 — when a declared field type is `Option<T>` but
@@ -2867,11 +2867,13 @@ pub fn value_to_edn_with(
             s.iter().map(|x| value_to_edn_with(x, types)).collect(),
         ),
 
-        // ── User-declared struct / enum ──────────────────────────
-        Value::Struct(sv) => {
-            let tag = tag_from_type_path(&sv.type_name);
+        // ── User-declared struct / record / holon-record ─────────
+        // Arc 293.R2.1 — all three collapsed into Value::Aggregate.
+        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
+            let type_key = format!(":{}", sv.class);
+            let tag = tag_from_type_path(&type_key);
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&sv.type_name)) {
+            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
                 Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
                     a.fields.iter().map(|(name, _ty)| name.clone()).collect()
                 }
@@ -2975,40 +2977,51 @@ pub fn value_to_edn_with(
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
-        // Arc 234 Stone 234.7b — wat__holon__Record: ride holon_form as edn.
-        // The body is a #wat-edn.holon/Bind[...] value (NOT a map) so the decode
-        // path can distinguish holon records from base records (which have Map bodies).
-        // struct_form is not read here — identity lives in holon_form.
-        Value::wat__holon__Record { class_fqdn, holon_form, .. } => {
-            let tag = tag_from_type_path(class_fqdn);
-            OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(holon_form)))
-        }
-        // Arc 234 Stone 234.7a — wat__Record (base): named-field tagged-map.
-        // class_fqdn has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
-        // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
-        // Fallback to field-{i} when no def is found (no-types or unregistered class).
-        Value::wat__Record { class_fqdn, struct_form } => {
-            let tag = tag_from_type_path(class_fqdn);
-            let type_key = format!(":{}", class_fqdn);
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a.field_names().map(|s| s.to_string()).collect(),
-                _ => (0..struct_form.len()).map(|i| format!("field-{}", i)).collect(),
-            };
-            let entries: Vec<(OwnedValue, OwnedValue)> = struct_form
-                .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
-                    (
-                        OwnedValue::Keyword(Keyword::new(key)),
-                        value_to_edn_with(fv, types),
-                    )
-                })
-                .collect();
-            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+        // Arc 293.R2.1 — Record/HolonRecord: Aggregate with holder != Struct.
+        // No guard here — the Struct arm above catches holder==Struct; this arm is reached
+        // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees
+        // Value::Aggregate(_) as fully covered.
+        // Dispatch on holon: Hologram → holon wire form; Empty → base named-field map.
+        Value::Aggregate(a) => {
+            let type_key = format!(":{}", a.class);
+            let tag = tag_from_type_path(&type_key);
+            match &a.holon {
+                HolonForm::Hologram(holon_form) => {
+                    // Arc 234 Stone 234.7b — HolonRecord: ride holon_form as edn.
+                    // The body is a #wat-edn.holon/Bind[...] value (NOT a map) so the decode
+                    // path can distinguish holon records from base records (which have Map bodies).
+                    // fields (struct_form projection) is not read here — identity lives in holon_form.
+                    OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(holon_form)))
+                }
+                HolonForm::Empty => {
+                    // Arc 234 Stone 234.7a — base Record: named-field tagged-map.
+                    // class has NO leading colon; TypeEnv keys DO — prepend ':' for lookup.
+                    // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
+                    // Fallback to field-{i} when no def is found (no-types or unregistered class).
+                    let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
+                        Some(crate::types::TypeDef::Aggregate(def)) if def.holder != crate::types::Holder::Struct => {
+                            def.field_names().map(|s| s.to_string()).collect()
+                        }
+                        _ => (0..a.fields.len()).map(|i| format!("field-{}", i)).collect(),
+                    };
+                    let entries: Vec<(OwnedValue, OwnedValue)> = a
+                        .fields
+                        .iter()
+                        .enumerate()
+                        .map(|(i, fv)| {
+                            let key = field_names
+                                .get(i)
+                                .cloned()
+                                .unwrap_or_else(|| format!("field-{}", i));
+                            (
+                                OwnedValue::Keyword(Keyword::new(key)),
+                                value_to_edn_with(fv, types),
+                            )
+                        })
+                        .collect();
+                    OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+                }
+            }
         }
         // Arc 118 — Stream: opaque (lazy; realizing for EDN would diverge on infinite seqs).
         // Render the forced prefix if available, otherwise as an opaque lazy sentinel.

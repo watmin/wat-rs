@@ -68,7 +68,7 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
 
     // result is :wat::kernel::RunResult { stdout stderr failure }
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult Struct; got {:?}", other),
     };
 
@@ -117,7 +117,7 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
 
     // result is :wat::kernel::RunResult { stdout stderr failure }
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult Struct; got {:?}", other),
     };
 
@@ -136,7 +136,7 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 

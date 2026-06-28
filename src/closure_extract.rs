@@ -33,7 +33,9 @@
 
 use crate::ast::WatAST;
 use crate::scope::Identifier;
-use crate::runtime::{Function, FunctionBody, StructValue, SymbolTable, Value};
+use crate::runtime::{Function, FunctionBody, SymbolTable, Value};
+use crate::value::value::AggregateValue;
+use crate::types::Holder;
 use crate::span::{span_prefix, Span};
 use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -1732,11 +1734,12 @@ fn encode_value_with_path(
                 ))
             }
         },
-        Value::Struct(sv) => {
+        Value::Aggregate(a) if a.holder == Holder::Struct => {
             // `(:my::Type/new f1 f2 ...)`. Extract the struct's TypeDef
             // for inclusion in package.forms.
-            ensure_type_extracted(state, &sv.type_name);
-            encode_struct(sv, binding_name, path, state, span)
+            let type_name_with_colon = format!(":{}", a.class);
+            ensure_type_extracted(state, &type_name_with_colon);
+            encode_struct(a, binding_name, path, state, span)
         }
         Value::Enum(ev) => {
             // `:my::E::Variant` (unit) or `(:my::E::Variant a b)` (tagged).
@@ -1822,11 +1825,12 @@ fn encode_value_with_path(
                 path: path.clone(),
             },
         }),
-        // Arc 234 Stone 234.1 — wat__holon__Record: no closure-extract encoding yet.
-        // Stone 234.2 ships defrecord macro + constructor; closure-extract
-        // for wat__holon__Record lands when the constructor form is available.
-        // Stone S-C.2c — wat__Record (base): same placeholder (base unconstructed at wat surface).
-        Value::wat__holon__Record { .. } | Value::wat__Record { .. } => {
+        // Arc 293.R2.1 — Aggregate (Record/HolonRecord): no closure-extract encoding yet.
+        // The closure-extract path for records lands when the constructor form is available.
+        // No guard here — the Struct arm above catches holder==Struct, so this arm is
+        // reached only when holder!=Struct (Record/HolonRecord). Guard dropped so Rust's
+        // exhaustiveness checker sees Value::Aggregate(_) as fully covered.
+        Value::Aggregate(_) => {
             Err(ExtractionError {
                 span: crate::span::Span::unknown(),
                 kind: ExtractionErrorKind::Internal(format!(
@@ -1874,7 +1878,7 @@ fn encode_value_with_path(
 }
 
 fn encode_struct(
-    sv: &StructValue,
+    sv: &AggregateValue,
     binding_name: &str,
     path: &mut Vec<String>,
     state: &mut ExtractState<'_>,
@@ -1883,7 +1887,8 @@ fn encode_struct(
     // Pull field names from the TypeEnv (if available) for nicer path
     // diagnostics; positional order is what `<Type>/new` expects.
     // Arc 293.2b — AggregateDef with kind==Struct replaces StructDef.
-    let field_names: Option<Vec<String>> = state.parent_types.get(&sv.type_name).and_then(|td| {
+    let type_name_with_colon = format!(":{}", sv.class);
+    let field_names: Option<Vec<String>> = state.parent_types.get(&type_name_with_colon).and_then(|td| {
         if let TypeDef::Aggregate(a) = td {
             if a.holder == crate::types::Holder::Struct {
                 Some(a.fields.iter().map(|(n, _)| n.clone()).collect())
@@ -1896,7 +1901,7 @@ fn encode_struct(
             None
         }
     });
-    let constructor = format!("{}/new", sv.type_name);
+    let constructor = format!(":{}/new", sv.class);
     let mut out = Vec::with_capacity(sv.fields.len() + 1);
     out.push(WatAST::Keyword(constructor, span.clone()));
     for (i, f) in sv.fields.iter().enumerate() {
@@ -1967,9 +1972,10 @@ fn value_static_type_keyword(
             Ok(v) => format!(":wat::core::Result<{},:wat::core::nil>", value_static_type_keyword(v, state)?),
             Err(e) => format!(":wat::core::Result<:wat::core::nil,{}>", value_static_type_keyword(e, state)?),
         },
-        Value::Struct(sv) => {
-            ensure_type_extracted(state, &sv.type_name);
-            sv.type_name.clone()
+        Value::Aggregate(a) if a.holder == Holder::Struct => {
+            let type_name_with_colon = format!(":{}", a.class);
+            ensure_type_extracted(state, &type_name_with_colon);
+            type_name_with_colon
         }
         Value::Enum(ev) => {
             ensure_type_extracted(state, &ev.type_path);

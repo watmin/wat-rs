@@ -71,8 +71,8 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
     // 317 atoms — far past sqrt(10000)=100. Overflows the program-d.
     match run("tests/collection/bundle_capacity_over_error.wat") {
         Value::Result(r) => match &*r {
-            Err(Value::Struct(sv)) => {
-                assert_eq!(sv.type_name, ":wat::holon::CapacityExceeded");
+            Err(Value::Aggregate(sv)) => {
+                assert_eq!(sv.class, "wat::holon::CapacityExceeded");
                 assert_eq!(sv.fields.len(), 2, "CapacityExceeded has cost + budget");
                 match (&sv.fields[0], &sv.fields[1]) {
                     (Value::i64(cost), Value::i64(budget)) => {

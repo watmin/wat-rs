@@ -75,7 +75,7 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 /// `tests/wat_arc170_program_contracts.rs:308-323`.
 fn drain_server_stderr(server: &Value) -> String {
     match server {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[2] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
             Value::io__IOReader(rdr) => {
                 let mut all = String::new();
                 while let Ok(Some(line)) = rdr.read_line(Span::unknown()) {

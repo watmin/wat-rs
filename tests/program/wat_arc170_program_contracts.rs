@@ -187,7 +187,7 @@ fn unwrap_receiver_inner(v: &Value) -> &wat::channel::ReceiverInner {
 
 fn process_stdin_field(process: &Value) -> Arc<dyn wat::io::WatWriter> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[0] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[0] {
             Value::io__IOWriter(w) => w.clone(),
             other => panic!("expected IOWriter at fields[0]; got {:?}", other),
         },
@@ -197,7 +197,7 @@ fn process_stdin_field(process: &Value) -> Arc<dyn wat::io::WatWriter> {
 
 fn process_stdout_field(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[1] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[1] {
             Value::io__IOReader(r) => r.clone(),
             other => panic!("expected IOReader at fields[1]; got {:?}", other),
         },
@@ -207,7 +207,7 @@ fn process_stdout_field(process: &Value) -> Arc<dyn wat::io::WatReader> {
 
 fn process_handle_field(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[3] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
             Value::wat__kernel__ProgramHandle(h) => h.clone(),
             other => panic!("expected ProgramHandle field; got {:?}", other),
         },
@@ -279,7 +279,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
         wat::channel::RecvOutcome::Disconnected => {
             // Drain child stderr for diagnostic.
             let stderr_field = match &process {
-                Value::Struct(s) => &s.fields[2],
+                Value::Aggregate(s) => &s.fields[2],
                 _ => panic!("not a Process Struct"),
             };
             let stderr_text = match stderr_field {
@@ -413,7 +413,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
         other => {
             // Drain child stderr for diagnostic.
             let stderr_text = match &process {
-                Value::Struct(s) => match &s.fields[2] {
+                Value::Aggregate(s) => match &s.fields[2] {
                     Value::io__IOReader(rdr) => {
                         let mut all = String::new();
                         while let Ok(Some(line)) = rdr.read_line(wat::span::Span::unknown()) {
@@ -562,7 +562,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
     let types = world.symbols().types().map(|a| a.as_ref());
     // Thread<I,O> field order: input(0), output(1), join(2)
     let (input, output) = match &thread {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => (&s.fields[0], &s.fields[1]),
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Thread" => (&s.fields[0], &s.fields[1]),
         other => panic!("expected Thread Struct; got {:?}", other),
     };
     let outcome = wat::channel::typed_send(
@@ -772,7 +772,7 @@ fn t17_run_hermetic_layer1_passing_assertion() {
     // result is a :wat::kernel::RunResult { stdout stderr failure }
     // failure must be :None (the assertion passed).
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult Struct; got {:?}", other),
     };
     // RunResult field 2 is failure :Option<Failure>
@@ -816,7 +816,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     )
     .expect("run-hermetic driver should not itself panic");
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult Struct; got {:?}", other),
     };
     // RunResult field 2 is failure :Option<Failure>; must be Some (child panicked).
@@ -830,7 +830,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     };
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
     // Failure.message (field 0) must carry the structured assert-eq diagnostic,
@@ -898,7 +898,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
 
     // result is a :wat::test::RunResultIO<i64> { outputs stderr failure }
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::test::RunResultIO" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::test::RunResultIO" => s,
         other => panic!("expected RunResultIO Struct; got {:?}", other),
     };
 
@@ -964,7 +964,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     .expect("run-hermetic-with-io driver should not itself panic");
 
     let sv = match &result {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::test::RunResultIO" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::test::RunResultIO" => s,
         other => panic!("expected RunResultIO Struct; got {:?}", other),
     };
 
@@ -992,7 +992,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 

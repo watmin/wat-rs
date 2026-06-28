@@ -37,8 +37,9 @@ use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
     ThreadOwnedCell,
 };
-use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value, ValueSnapshot};
+use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use wat::types::{expand_alias, EnumDef, EnumVariant, TypeDef, TypeEnv, TypeExpr};
+use wat::{AggregateValue, Holder};
 
 use wat_sqlite::WatSqliteDb;
 
@@ -581,7 +582,7 @@ fn value_to_tosql(
         // since the constructor's body builds Struct{type_name: declared-type}).
         // Then extract field[0]; render via the matching write strategy; bind
         // as TEXT.
-        (":wat::edn::Tagged", Value::Struct(s)) if s.type_name == ":wat::edn::Tagged" => {
+        (":wat::edn::Tagged", Value::Aggregate(s)) if s.holder == Holder::Struct && s.class == "wat::edn::Tagged" => {
             let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
             let edn = wat::edn_shim::value_to_edn_with(
                 &Value::holon__HolonAST(inner),
@@ -589,7 +590,7 @@ fn value_to_tosql(
             );
             Ok(Box::new(wat_edn::write(&edn)))
         }
-        (":wat::edn::NoTag", Value::Struct(s)) if s.type_name == ":wat::edn::NoTag" => {
+        (":wat::edn::NoTag", Value::Aggregate(s)) if s.holder == Holder::Struct && s.class == "wat::edn::NoTag" => {
             let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
             let edn = wat::edn_shim::value_to_edn_notag(
                 &Value::holon__HolonAST(inner),
@@ -614,7 +615,7 @@ fn value_to_tosql(
 /// arity-1 tuple struct (per arc 049); the inner value lives at
 /// `fields[0]` and must be `Value::holon__HolonAST`.
 fn extract_holon_field(
-    s: &StructValue,
+    s: &AggregateValue,
     op: &str,
     enum_name: &str,
     variant_name: &str,
@@ -624,9 +625,9 @@ fn extract_holon_field(
         head: op.into(),
         reason: format!(
             "{enum_name}::{variant_name}#{idx}: {} value has no inner field",
-            s.type_name
+            s.class
         ),
-        // arc 138: no — extract_holon_field receives &StructValue; no WatAST trace available
+        // arc 138: no — extract_holon_field receives &AggregateValue; no WatAST trace available
     } })?;
     match f0 {
         Value::holon__HolonAST(h) => Ok(h.clone()),
@@ -634,10 +635,10 @@ fn extract_holon_field(
             head: op.into(),
             reason: format!(
                 "{enum_name}::{variant_name}#{idx}: {}'s inner must be HolonAST, got {}",
-                s.type_name,
+                s.class,
                 other.type_name()
             ),
-            // arc 138: no — extract_holon_field receives &StructValue; no WatAST trace available
+            // arc 138: no — extract_holon_field receives &AggregateValue; no WatAST trace available
         } }),
     }
 }

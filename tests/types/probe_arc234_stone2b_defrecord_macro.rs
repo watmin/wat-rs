@@ -4,6 +4,7 @@
 
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
+use wat::types::Holder;
 
 fn run(fn_name: &str) -> Result<Value, String> {
     let world = startup_beside(file!()).map_err(|e| format!("startup: {:?}", e))?;
@@ -19,27 +20,27 @@ fn run(fn_name: &str) -> Result<Value, String> {
 fn probe_1_single_field_construction() {
     match run(":user::probe-1") {
         Ok(v) => match v {
-            Value::wat__Record { class_fqdn, struct_form } => {
+            Value::Aggregate(a) if a.holder != Holder::Struct => {
                 assert_eq!(
-                    class_fqdn.as_str(),
+                    a.class.as_str(),
                     "myapp::Voltage",
-                    "Probe 1: class_fqdn should be 'myapp::Voltage'"
+                    "Probe 1: class should be 'myapp::Voltage'"
                 );
                 assert_eq!(
-                    struct_form.len(),
+                    a.fields.len(),
                     1,
-                    "Probe 1: struct_form should have 1 element"
+                    "Probe 1: fields should have 1 element"
                 );
-                match &struct_form[0] {
+                match &a.fields[0] {
                     Value::f64(f) => assert!(
                         (f - 5.0).abs() < 1e-9,
-                        "Probe 1: struct_form[0] should be 5.0; got {}",
+                        "Probe 1: fields[0] should be 5.0; got {}",
                         f
                     ),
                     other => panic!("Probe 1: expected f64 at index 0; got {:?}", other),
                 }
             }
-            other => panic!("Probe 1: expected Value::wat__Record; got {:?}", other),
+            other => panic!("Probe 1: expected Value::Aggregate(Record); got {:?}", other),
         },
         Err(e) => panic!("Probe 1 FAILED: {}", e),
     }

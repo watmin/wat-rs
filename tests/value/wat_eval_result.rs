@@ -30,8 +30,8 @@ fn run(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
 fn err_kind(v: &Value) -> String {
     match v {
         Value::Result(r) => match &**r {
-            Err(Value::Struct(sv)) => {
-                assert_eq!(sv.type_name, ":wat::core::EvalError");
+            Err(Value::Aggregate(sv)) => {
+                assert_eq!(sv.class, "wat::core::EvalError");
                 match &sv.fields[0] {
                     Value::String(s) => (**s).clone(),
                     other => panic!("EvalError.kind not String; got {:?}", other),

@@ -42,6 +42,6 @@ pub(crate) use frame::{FrameGuard, replace_top_frame};
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};
 pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
-pub use value::{Value, StructValue, EnumValue, SpawnOutcome, ProgramHandleInner,
+pub use value::{Value, AggregateValue, HolonForm, EnumValue, SpawnOutcome, ProgramHandleInner,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason,
     ProtocolMethodSig, ProtocolDef, ExtendDef};

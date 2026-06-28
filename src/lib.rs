@@ -161,7 +161,7 @@ pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, Unresolv
 pub use runtime::{
     eval, register_defines, register_struct_methods,
 };
-pub use value::{EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
+pub use value::{AggregateValue, HolonForm, EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 pub use types::{
     parse_type_expr, register_stdlib_types, register_types, AggregateDef, Holder,
     AliasDef, EnumDef, EnumVariant, NewtypeDef, TypeDef, TypeEnv, TypeError, TypeExpr,

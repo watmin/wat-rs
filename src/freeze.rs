@@ -265,11 +265,11 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         Value::io__IOReader(stdio.stdin.clone()),
         pre_sym.clone(),
         |rep: &Value| match rep {
-            Value::Struct(sv) if sv.fields.len() >= 2 => match &sv.fields[1] {
+            Value::Aggregate(a) if a.fields.len() >= 2 => match &a.fields[1] {
                 Value::String(s) => Ok((**s).clone()),
                 _ => Err("StdInService Rep field[1] is not a String".into()),
             },
-            _ => Err("StdInService Rep is not a Struct with ≥2 fields".into()),
+            _ => Err("StdInService Rep is not an Aggregate with ≥2 fields".into()),
         },
     );
 
@@ -938,7 +938,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
         Value::wat__core__fn(f) => {
             let r = apply_function(f, vec![], world.symbols(), Span::unknown())?;
             match r {
-                r @ (Value::wat__Record { .. } | Value::wat__holon__Record { .. }) => Ok(r),
+                r @ Value::Aggregate(_) => Ok(r),
                 other => Err(RuntimeError {
                     span: Span::unknown(),
                     kind: RuntimeErrorKind::MalformedForm {
@@ -952,7 +952,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
                 }),
             }
         }
-        r @ (Value::wat__Record { .. } | Value::wat__holon__Record { .. }) => Ok(r),
+        r @ Value::Aggregate(_) => Ok(r),
         other => Err(RuntimeError {
             span: Span::unknown(),
             kind: RuntimeErrorKind::MalformedForm {

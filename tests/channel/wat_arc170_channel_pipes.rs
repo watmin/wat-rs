@@ -34,7 +34,8 @@
 use std::sync::Arc;
 use wat::freeze::startup_bare;
 use wat::io::{WatReader, WatWriter};
-use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, StructValue, Value};
+use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::AggregateValue;
 use wat::span::Span;
 use wat::channel::{
     make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
@@ -581,9 +582,9 @@ fn process_struct_has_typed_channel_fields_at_indices_4_and_5() {
         wat::comms::thread::pair::<wat::runtime::SpawnOutcome>();
     drop(handle_tx);
 
-    let process = Value::Struct(Arc::new(StructValue {
-        type_name: ":wat::kernel::Process".into(),
-        fields: vec![
+    let process = Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::Process".into(),
+        vec![
             Value::io__IOWriter(stdin_writer),
             Value::io__IOReader(stdout_reader),
             Value::io__IOReader(stderr_reader),
@@ -593,10 +594,10 @@ fn process_struct_has_typed_channel_fields_at_indices_4_and_5() {
             tx_value,
             rx_value,
         ],
-    }));
+    )));
 
     let proc_struct = match &process {
-        Value::Struct(s) => s.clone(),
+        Value::Aggregate(s) => s.clone(),
         _ => panic!("not a Struct"),
     };
 

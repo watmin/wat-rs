@@ -26,6 +26,7 @@ use crate::ast::WatAST;
 use crate::parser::parse_one_with_file;
 use crate::span::Span;
 use crate::value::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::value::AggregateValue;
 
 /// Walk the intrinsic registry and return every registered intrinsic's
 /// carried `@example`s as a `Vector` of `:wat::intrinsic::Example` records —
@@ -118,9 +119,9 @@ pub(crate) fn eval_intrinsic_examples(
             // payloads that are NOT EDN-able. An Example is fully EDN-representable
             // (keyword + WatASTs + bools), so it's a wat__Record. `class_fqdn` carries
             // NO leading colon (matches the RecordDef class identity).
-            let record = Value::wat__Record {
-                class_fqdn: Arc::new("wat::intrinsic::Example".to_string()),
-                struct_form: Arc::new(vec![
+            let record = Value::Aggregate(Arc::new(AggregateValue::record(
+                "wat::intrinsic::Example".to_string(),
+                Arc::new(vec![
                     fqdn_kw.clone(),
                     expr_q,
                     expected_field,
@@ -128,7 +129,7 @@ pub(crate) fn eval_intrinsic_examples(
                     Value::bool(pure),
                     Value::bool(det),
                 ]),
-            };
+            )));
             tuples.push(record);
         }
     }

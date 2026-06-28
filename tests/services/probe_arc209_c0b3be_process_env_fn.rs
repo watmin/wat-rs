@@ -30,6 +30,7 @@
 
 use wat::freeze::{resolve_env_program, startup_beside};
 use wat::runtime::Value;
+use wat::types::Holder;
 
 // A world that has `app::Env` (a :wat::Record SUBTYPE) + a named env-fn loaded — i.e. the
 // type's code is present, exactly as it is in the spawned universe that runs the env-fn.
@@ -41,8 +42,8 @@ fn world() -> wat::freeze::FrozenWorld {
 
 fn assert_class(got: Value, expected_fqdn: &str, via: &str) {
     match got {
-        Value::wat__Record { class_fqdn, .. } | Value::wat__holon__Record { class_fqdn, .. } => {
-            assert_eq!(class_fqdn.as_str(), expected_fqdn, "via {via}")
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            assert_eq!(a.class.as_str(), expected_fqdn, "via {via}")
         }
         other => panic!("expected a :wat::Record ({expected_fqdn}) via {via}; got {other:?}"),
     }

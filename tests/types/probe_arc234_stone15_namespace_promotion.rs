@@ -5,8 +5,10 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
+use wat::{AggregateValue, Holder};
 use holon::HolonAST;
 
 /// Build a defrecord-instance-shape HolonAST: Bind(Atom(class), Bundle(field-Binds...))
@@ -26,21 +28,20 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> std::sync::Arc
     ))
 }
 
-/// Construct a wat__holon__Record fixture for tests.
+/// Construct a holon_record fixture for tests (was wat__holon__Record).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
-    let struct_form: std::sync::Arc<Vec<Value>> =
-        std::sync::Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
+    let struct_form: Arc<Vec<Value>> =
+        Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
         .iter()
         .map(|(name, _, h)| (*name, h.clone()))
         .collect();
     let holon_form = make_holon_form(class, holon_field_pairs);
-    let class_fqdn = std::sync::Arc::new(class.to_string());
-    Value::wat__holon__Record {
-        class_fqdn,
+    Value::Aggregate(Arc::new(AggregateValue::holon_record(
+        class.to_string(),
         struct_form,
         holon_form,
-    }
+    )))
 }
 
 fn hash_value(v: &Value) -> u64 {
@@ -59,11 +60,11 @@ fn probe_1_variant_compiles_and_constructs() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
     match &r {
-        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
-            assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
-            assert_eq!(struct_form.len(), 1);
+        Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+            assert_eq!(a.class.as_str(), "myapp::Voltage");
+            assert_eq!(a.fields.len(), 1);
         }
-        _ => panic!("Probe 1: expected Value::wat__holon__Record variant"),
+        _ => panic!("Probe 1: expected Value::Aggregate(HolonRecord) variant"),
     }
 }
 
@@ -129,13 +130,13 @@ fn probe_5_class_fqdn_extraction_post_rename() {
     );
     assert_eq!(r.type_name(), "wat::Record");
     match &r {
-        Value::wat__holon__Record { class_fqdn, .. } => {
+        Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
             assert_eq!(
-                class_fqdn.as_str(),
+                a.class.as_str(),
                 "myapp::Voltage",
-                "Probe 5: class_fqdn extraction returns user-named class, NOT umbrella"
+                "Probe 5: class extraction returns user-named class, NOT umbrella"
             );
         }
-        _ => panic!("Probe 5: expected Value::wat__holon__Record variant"),
+        _ => panic!("Probe 5: expected Value::Aggregate(HolonRecord) variant"),
     }
 }

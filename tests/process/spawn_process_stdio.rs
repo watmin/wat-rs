@@ -16,7 +16,7 @@ use wat::span::Span;
 
 fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[1] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[1] {
             Value::io__IOReader(r) => r.clone(),
             other => panic!("expected IOReader at fields[1]; got {:?}", other),
         },
@@ -26,7 +26,7 @@ fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
 
 fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
     match process {
-        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => match &s.fields[3] {
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
             Value::wat__kernel__ProgramHandle(h) => h.clone(),
             other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),
         },
@@ -80,7 +80,7 @@ fn probe_spawn_process_stdio() {
         wat::channel::RecvOutcome::Disconnected => {
             // Drain stderr for diagnostic.
             let stderr_text = match &process {
-                Value::Struct(s) => match &s.fields[2] {
+                Value::Aggregate(s) => match &s.fields[2] {
                     Value::io__IOReader(rdr) => {
                         let mut all = String::new();
                         while let Ok(Some(line)) = rdr.read_line(Span::unknown()) {

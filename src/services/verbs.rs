@@ -12,20 +12,21 @@ use std::sync::Arc;
 
 use crate::ast::WatAST;
 use crate::edn_shim::require_one_arg;
-use crate::runtime::{Environment, RuntimeError, RuntimeErrorKind, StructValue, SymbolTable, Value};
+use crate::runtime::{Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::value::AggregateValue;
 use crate::services::{ServiceMsg, ThreadId, with_thread_io};
 use crate::span::Span;
 
 /// Build a write-service Req {thread-id, line} — THE positional contract
 /// the peer's field[0] extraction and the wat defstructs share.
 fn build_write_req(type_name: &str, thread_id: ThreadId, line: String) -> Value {
-    Value::Struct(Arc::new(StructValue {
-        type_name: type_name.into(),
-        fields: vec![
+    Value::Aggregate(Arc::new(AggregateValue::struct_(
+        type_name.trim_start_matches(':').into(),
+        vec![
             Value::i64(thread_id),
             Value::String(Arc::new(line)),
         ],
-    }))
+    )))
 }
 
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v`
@@ -334,13 +335,13 @@ pub fn eval_kernel_readln_prime(
     with_thread_io(OP, list_span, |io| {
         // Build StdInService::Req {thread-id, max-buffer-bytes} as a Value::Struct.
         // Field order mirrors the defstruct: [thread-id, max-buffer-bytes].
-        let req = Value::Struct(Arc::new(StructValue {
-            type_name: ":wat::kernel::services::StdInService::Req".into(),
-            fields: vec![
+        let req = Value::Aggregate(Arc::new(AggregateValue::struct_(
+            "wat::kernel::services::StdInService::Req".into(),
+            vec![
                 Value::i64(io.thread_id),
                 Value::i64(cap as i64),
             ],
-        }));
+        )));
         services
             .stdin_ctrl
             .send(ServiceMsg::Req(req))

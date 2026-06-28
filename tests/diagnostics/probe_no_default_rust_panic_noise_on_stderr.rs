@@ -31,7 +31,7 @@ use wat::runtime::{apply_function, Value};
 /// Extract the `RunResult.stderr` lines (field index 1).
 fn stderr_lines(result: &Value) -> Vec<String> {
     let sv = match result {
-        Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
+        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult; got {:?}", other),
     };
     match &sv.fields[1] {

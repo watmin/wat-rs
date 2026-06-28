@@ -4,6 +4,7 @@
 
 use crate::channel::inner::{ReceiverInner, SenderInner};
 use crate::span::Span;
+use crate::value::value::AggregateValue;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -382,19 +383,19 @@ pub fn make_thread_peer_pair_for_test()
     // bare crossbeam::unbounded. Depth-1 is sufficient for test fixtures.
     let (tx_ab, rx_ab) = crate::comms::thread::pair::<crate::runtime::Value>();
     let (tx_ba, rx_ba) = crate::comms::thread::pair::<crate::runtime::Value>();
-    let peer_a = crate::runtime::Value::Struct(Arc::new(crate::runtime::StructValue {
-        type_name: ":wat::kernel::ThreadPeer".into(),
-        fields: vec![
+    let peer_a = crate::runtime::Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::ThreadPeer".into(),
+        vec![
             receiver_from_comms(rx_ba),
             sender_from_comms(tx_ab),
         ],
-    }));
-    let peer_b = crate::runtime::Value::Struct(Arc::new(crate::runtime::StructValue {
-        type_name: ":wat::kernel::ThreadPeer".into(),
-        fields: vec![
+    )));
+    let peer_b = crate::runtime::Value::Aggregate(Arc::new(AggregateValue::struct_(
+        "wat::kernel::ThreadPeer".into(),
+        vec![
             receiver_from_comms(rx_ab),
             sender_from_comms(tx_ba),
         ],
-    }));
+    )));
     (peer_a, peer_b)
 }
