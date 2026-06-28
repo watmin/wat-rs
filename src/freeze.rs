@@ -758,6 +758,17 @@ pub fn startup_beside(caller_rs: &str) -> Result<FrozenWorld, StartupError> {
     startup_from_file(&wat)
 }
 
+/// A frozen DEFAULT world with no user source — the canonical "I just need a world to evaluate
+/// against" entry for tests whose subject is the Rust substrate, not any wat program.
+///
+/// Prefer this over a hand-rolled `startup_from_source("")` / `:user::main` placeholder: it carries
+/// NO inlined wat, so a substrate test states honestly that it has no wat-under-test. (For a test
+/// WITH wat-under-test, co-locate the wat and use [`startup_beside`].) The stdlib is loaded; only the
+/// user entry is empty.
+pub fn startup_bare() -> Result<FrozenWorld, StartupError> {
+    startup_from_source("", None, Arc::new(crate::load::InMemoryLoader::new()))
+}
+
 // startup_from_source_with_deps retired in arc 015 slice 3a.
 // Dep sources now install globally via `wat::source::install_dep_sources`
 // before any freezing; `stdlib_forms()` concatenates baked + installed
