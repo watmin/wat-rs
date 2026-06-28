@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `35ba0863` or later.** Tree CLEAN
-(293.4d + 293.4d-fix committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `7d983012` or later.** Tree CLEAN
+(293.4e-pre ArgSpec-heresy kill committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4095 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4096 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
@@ -69,14 +69,18 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   silent-swallow the demo's old `definterface` form hit: a 4-arg non-`:holder` form was read as 2-arg with args 2..
   dropped). Structural invariant: nothing follows the member vector → leftover = hard teaching error. DESIGN.md snippet
   amended (`definterface` separate-args → `defsurface` all-in-vector). RED probe `probe_arc293_4d_fix_silent_member_drop`.
-- ⚠ **293.4e-pre BLOCKS 293.4e (found by an examinare probe, 2026-06-28 — the migration is NOT mechanical):**
-  the surface-method machinery (293.4b dispatch / check call-typing) was only ever exercised with **`[self]`-only**
-  method members. A method with args BEYOND self fails the arity check (`:Surface/m: expected N+1; got N` — self
-  double-counted); a GENERIC method member (`m<T>`) is `unknown callee`. `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>`
-  has **6 args + 5 type params** → the migration to `defsurface` needs **multi-arg + generic surface-method parity**
-  (with arc-267's generic protocol methods) FIRST. Disconfirming probe committed RED + `#[ignore]`'d:
-  `tests/types/probe_arc293_4e_pre_surface_method_parity.{rs,wat}`. **DRAW 293.4e-pre before the Locus migration.**
-- ▶ **293.4e (after 293.4e-pre) — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
+- ✅ **293.4e-pre.i DONE (`7d983012`) — the ArgSpec HERESY annihilated** (builder: *"like the 6th or 7th time argspec
+  got a duplicate — annihilate this heresy"*). `Clause` (defclause + extend-type) re-rolled `ArgSpec`'s exact shape as
+  `args: Vec<(String,TypeExpr)>` + `rest_param`, built by **parse-then-unroll** (parse a clean ArgSpec, then destructure
+  it). Now `Clause { args: ArgSpec }` (stop unrolling) — 22 consumer sites. Plus the surface-method **arity off-by-one**
+  fixed (self was double-counted: `fixed_params[1..]` skips it). The multi-arg surface-method probe RED→GREEN.
+  NOT touched (distinct): `Scheme.params`/`param_types` (the TYPE, no names), `AggregateDef.fields` (data),
+  `ProtocolMethodSig.arg_types` (dies with `defprotocol`).
+- ⚠ **293.4e-pre.ii REMAINING (the last gate before Locus) — GENERIC surface-method dispatch.** A generic method member
+  `(m<T> [self …] -> …)` parses but is `unknown callee` at the call site (`:Surface/m<…>` dispatch doesn't resolve the
+  type-params — needs parity with arc-267's generic *protocol* methods). The 293.4e-pre probe documents it (STOP-2).
+  `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>` is generic → this MUST land before the migration. DRAW 293.4e-pre.ii.
+- ▶ **293.4e (after 293.4e-pre.ii) — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
   - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
