@@ -9,9 +9,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -49,77 +47,39 @@ fn install_fixture_shim() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn add_two_i64s_via_macro_generated_shim() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::MathUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::MathUtils::add 40 2))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-add");
+    assert!(matches!(val, Value::i64(42)), "got {:?}", val);
 }
 
 #[test]
 fn option_some_via_macro_generated_shim() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::MathUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :wat::core::i64
-                      ((:wat::core::Some v) v)
-                      (:wat::core::None -1)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-some");
+    assert!(matches!(val, Value::i64(42)), "got {:?}", val);
 }
 
 #[test]
 fn option_none_via_macro_generated_shim() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::MathUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :wat::core::i64
-                      ((:wat::core::Some v) v)
-                      (:wat::core::None -1)))
-    "#;
-    assert!(matches!(run(src), Value::i64(-1)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-none");
+    assert!(matches!(val, Value::i64(-1)), "got {:?}", val);
 }
 
 #[test]
 fn type_check_rejects_wrong_arg_types() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::MathUtils)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:rust::test::MathUtils::add "not-an-int" 2))
-    "#;
-    let loader = InMemoryLoader::new();
-    let result = startup_from_source(src, None, Arc::new(loader));
+    let result = startup_from_file("tests/kernel/wat_dispatch_193a_bad.wat");
     assert!(result.is_err(), "expected type error; got {:?}", result.ok());
 }

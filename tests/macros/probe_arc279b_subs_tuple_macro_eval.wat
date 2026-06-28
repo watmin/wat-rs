@@ -1,0 +1,40 @@
+;; tests/macros/probe_arc279b_subs_tuple_macro_eval.wat — co-located fixture for
+;; probe_arc279b_subs_tuple_macro_eval.rs, slurped via startup_beside(file!()).
+;;
+;; A macro that, at expand time, walks the chars of a string literal carrying a Tuple(kept, n-open)
+;; accumulator: appends each non-{ char to kept, increments n-open on each {. Emits the
+;; string literal "<kept>|<n-open>".
+(:wat::core::defmacro :user::strip-braces
+  [s <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::let
+    [str   (:wat::core::ast-name s)
+     len   (:wat::core::string::length str)
+     chars (:wat::core::map
+             (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::String
+               (:wat::core::string::subs str i (:wat::core::i64::+ i 1)))
+             (:wat::core::range 0 len))
+     final (:wat::core::foldl
+             (:wat::core::fn [acc <- :wat::core::Tuple
+                              c   <- :wat::core::String]
+               -> :wat::core::Tuple
+               (:wat::core::let
+                 [kept   (:wat::core::first acc)
+                  nopen  (:wat::core::second acc)]
+                 (:wat::core::if
+                   (:wat::core::= c "{")
+                   -> :wat::core::Tuple
+                   (:wat::core::Tuple kept (:wat::core::i64::+ nopen 1))
+                   (:wat::core::Tuple (:wat::core::string::concat kept c) nopen))))
+             (:wat::core::Tuple "" 0)
+             chars)
+     kept   (:wat::core::first final)
+     nopen  (:wat::core::second final)
+     out    (:wat::core::string::concat kept
+              (:wat::core::string::concat "|" (:wat::core::i64::to-string nopen)))]
+    (:wat::core::first
+      (:wat::core::ast->children
+        (:wat::core::read-string
+          (:wat::core::string::concat "\"" (:wat::core::string::concat out "\"")))))))
+
+(:wat::core::defn :user::probe [] -> :wat::core::String (:user::strip-braces "a{b{c"))

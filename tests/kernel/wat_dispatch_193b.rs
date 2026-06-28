@@ -8,9 +8,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -46,52 +44,25 @@ fn install_fixture_shim() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn counter_increments_and_reads_via_macro_generated_shim() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::Counter)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [c (:rust::test::Counter::new 10)
-                       _ (:rust::test::Counter::increment c)
-                       _ (:rust::test::Counter::increment c)
-                       _ (:rust::test::Counter::increment c)]
-                      (:rust::test::Counter::read c)))
-    "#;
-    assert!(matches!(run(src), Value::i64(13)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-increment");
+    assert!(matches!(val, Value::i64(13)), "got {:?}", val);
 }
 
 #[test]
 fn counter_ref_read_preserves_state() {
     install_fixture_shim();
-
-    let src = r#"
-        (:wat::core::use! :rust::test::Counter)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [c (:rust::test::Counter::new 42)]
-                      (:rust::test::Counter::read c)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-read");
+    assert!(matches!(val, Value::i64(42)), "got {:?}", val);
 }

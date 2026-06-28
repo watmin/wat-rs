@@ -8,9 +8,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -47,36 +45,19 @@ fn install() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn shared_handle_reads_message() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Greeting)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [g
-                        (:rust::test::Greeting::new "hello" 2026)]
-                      (:rust::test::Greeting::message g)))
-    "#;
-    match run(src) {
+    match run_fn(":my::compute-message") {
         Value::String(s) => assert_eq!(&*s, "hello"),
         other => panic!("expected String, got {:?}", other),
     }
@@ -85,16 +66,8 @@ fn shared_handle_reads_message() {
 #[test]
 fn shared_handle_reads_year() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Greeting)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [g
-                        (:rust::test::Greeting::new "any" 2026)]
-                      (:rust::test::Greeting::year g)))
-    "#;
-    assert!(matches!(run(src), Value::i64(2026)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-year");
+    assert!(matches!(val, Value::i64(2026)), "got {:?}", val);
 }
 
 #[test]
@@ -109,22 +82,12 @@ fn shared_handle_survives_thread_crossing() {
     // would fail.
     install();
 
-    // Build a Greeting through the macro-generated dispatch path
-    // (i.e., by running a tiny wat program via eval_in_frozen on the parent thread).
-    let src_make = r#"
-        (:wat::core::use! :rust::test::Greeting)
-
-        (:wat::core::defn :my::compute [] -> :rust::test::Greeting (:rust::test::Greeting::new "crossed" 1999))
-    "#;
-    let src_make_with_nil = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src_make
-    );
-    let world = startup_from_source(&src_make_with_nil, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let greeting_value = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
+    // Build a Greeting through the macro-generated dispatch path.
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute-crossing)").expect("parse compute call");
+    let greeting_value = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute should run")
+        .value_owned();
 
     // Ship the Value into a spawned thread. scope=shared → no guard,
     // so downcast + method call should succeed on the child thread.

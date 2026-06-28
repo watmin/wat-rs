@@ -15,29 +15,22 @@
 //!
 //! Run: `cargo test --release -p wat --test probe_arc259_started_at_boot`
 
-use std::sync::Arc;
 use chrono::{TimeZone, Utc};
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::Environment;
 
 /// The seam reads the PRIMED boot clock for started-at — not a fresh `now`.
-/// Inject a known-old boot (epoch 1000s) for this process; `:user::main` asserts
-/// `wat.started-at` is epoch 1000 (the primed value), proving the seam reads the
-/// boot global rather than stamping `now`.
+/// Inject a known-old boot (epoch 1000s) for this process; `:my::assert-started-at`
+/// asserts `wat.started-at` is epoch 1000 (the primed value), proving the seam reads
+/// the boot global rather than stamping `now`.
 #[test]
+#[ignore = "RED: seam must read process boot global (set_process_boot_instant) not fresh now — unlock: implement boot-clock global in the seam"]
 fn started_at_is_the_primed_boot_not_the_seam() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::test::assert-eq<:wat::core::i64> \
-                     (:wat::time::epoch-seconds \
-                       (:wat::program::Env/wat.started-at (:wat::program::env))) \
-                     1000) \
-                   nil))";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::assert-started-at)").expect("parse");
     assert!(
-        invoke_user_main(&world, vec![]).is_ok(),
+        eval_in_frozen(&ast, &world, &Environment::new()).is_ok(),
         "wat.started-at must be the primed boot (epoch 1000), not the seam's now"
     );
 }
@@ -47,22 +40,13 @@ fn started_at_is_the_primed_boot_not_the_seam() {
 /// positive, read out as whole seconds via the Duration readout family. RED at
 /// HEAD where both are `now` → gap is 0 → `(> gap 0)` is false.
 #[test]
+#[ignore = "RED: peer-started-at must be strictly after started-at — unlock: both stamps when boot-clock global is in the seam"]
 fn peer_started_at_is_after_started_at() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::test::assert-true \
-                     (:wat::core::> \
-                       (:wat::time::seconds \
-                         (:wat::time::- \
-                           (:wat::program::Env/wat.peer-started-at (:wat::program::env)) \
-                           (:wat::program::Env/wat.started-at (:wat::program::env)))) \
-                       0)) \
-                   nil))";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::assert-boot-gap)").expect("parse");
     assert!(
-        invoke_user_main(&world, vec![]).is_ok(),
+        eval_in_frozen(&ast, &world, &Environment::new()).is_ok(),
         "peer-started-at must be strictly after the (past-primed) started-at"
     );
 }

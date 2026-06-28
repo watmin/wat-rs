@@ -17,41 +17,13 @@
 //!   2. `rebuild` — a defmacro rebuilds a Vector node with a dropped prefix via `with-children`.
 //!      (= drop the leading `s <- :State` triple → the variant's field vector.)
 //!
+//! Wat source lives in the co-located fixture: probe_arc209_c1_defmacro_ast_walk.wat
+//! (slurped via startup_beside(file!())).
+//!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defmacro_ast_walk
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; PROOF 1 — a defmacro drives ast->children + drop + first on its Vector arg, returns a child.
-;; PROGRAM-BODY path (top-level is a regular form, NOT a top-level quasiquote): the param `v`
-;; is bound as a wat__WatAST node-value, so ast->children accepts it. `(:user::second-child
-;; [10 20 30])` → children [10 20 30] → drop 1 → [20 30] → first → the `20` node → returned
-;; directly (value_to_watast emits it) → the program sees literal 20.
-(:wat::core::defmacro :user::second-child
-  [v <- :wat::WatAST]
-  -> :wat::WatAST
-  (:wat::core::first (:wat::core::drop (:wat::core::ast->children v) 1)))
-
-(:wat::core::defn :user::probe-walk [] -> :wat::core::i64
-  (:user::second-child [10 20 30]))
-
-;; PROOF 2 — a defmacro rebuilds a Vector node via with-children, dropping the first element.
-;; Program-body path again. `(:user::drop-first [10 20 30])` → with-children v (drop children 1)
-;; → the `[20 30]` node → returned directly → a 2-element vector; length 2.
-(:wat::core::defmacro :user::drop-first
-  [v <- :wat::WatAST]
-  -> :wat::WatAST
-  (:wat::core::with-children v
-     (:wat::core::drop (:wat::core::ast->children v) 1)))
-
-(:wat::core::defn :user::probe-rebuild [] -> :wat::core::i64
-  (:wat::core::Vector/length (:user::drop-first [10 20 30])))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 fn eval_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse");
@@ -62,7 +34,7 @@ fn eval_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
 
 #[test]
 fn defmacro_can_walk_arg_with_ast_children() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup: a defmacro using ast->children/drop/first must expand cleanly");
     let got = eval_i64(&world, "(:user::probe-walk)");
     assert!(
@@ -74,7 +46,7 @@ fn defmacro_can_walk_arg_with_ast_children() {
 
 #[test]
 fn defmacro_can_rebuild_node_with_children() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup: a defmacro using with-children must expand cleanly");
     let got = eval_i64(&world, "(:user::probe-rebuild)");
     assert!(

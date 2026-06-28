@@ -10,36 +10,17 @@
 //!   - HYGIENIC → the macro's `t` (fresh unique scope, 100) is distinct from the user's `t` (5) → 105.
 //!   - CAPTURED → the user's `t` resolves to the macro's inner binding (100) → 200.
 //!
-//! RED at HEAD: `:wat::core::fresh-symbol` does not exist (grep-confirmed) → the macro fails to
-//! expand → startup fails. GREEN once 274.1 ships the scope-stamped primitive.
+//! Wat source lives in the co-located fixture: probe_arc274_fresh_symbol_no_capture.wat
+//! (slurped via startup_beside(file!())).
 //!
 //! Run: cargo test --release -p wat --test probe_arc274_fresh_symbol_no_capture -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// A PROGRAM-BODY macro: top-level `let` computes the temp via `fresh-symbol`, then a quasiquote tail
-// uses it as a binder AND a reference (same value → same fresh scope → matches itself, never the user).
-const MACRO: &str = r#"
-(:wat::core::defmacro :test::add-via-fresh
-  [x <- :wat::WatAST]
-  -> :wat::WatAST
-  (:wat::core::let
-    [t (:wat::core::fresh-symbol "t")]
-    `(:wat::core::let [~t 100] (:wat::core::i64::+ ~t ~x))))
-"#;
 
 #[test]
 fn fresh_symbol_binder_does_not_capture_caller() {
-    let src = format!(
-        "{MACRO}\n\
-         (:wat::core::defn :user::compute [] -> :wat::core::i64 \
-           (:wat::core::let [t 5] (:test::add-via-fresh t)))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed once fresh-symbol exists");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

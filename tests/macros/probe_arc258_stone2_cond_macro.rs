@@ -9,22 +9,17 @@
 //! C02: `(cond ((= 1 2) 10) (:else 20))` evals to 20 — falls through to :else.
 //! C03: 3-arm — `(cond ((= 1 2) 10) ((= 2 2) 20) (:else 30))` evals to 20 — proves fixpoint recursion.
 //!
+//! Wat source lives in the co-located fixture: probe_arc258_stone2_cond_macro.wat
+//! (slurped via startup_beside(file!())).
+//!
 //! Run: `cargo test --release --test probe_arc258_stone2_cond_macro`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-fn eval_i64(body: &str) -> Result<i64, String> {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup/check: {e:?}"))?;
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+fn eval_named_i64(world: &wat::freeze::FrozenWorld, fn_call: &str) -> Result<i64, String> {
+    let ast = wat::parse_one!(fn_call).expect("parse");
+    match eval_in_frozen(&ast, world, &Environment::new())
         .map(|tv| tv.value_owned())
         .map_err(|e| format!("eval: {e:?}"))?
     {
@@ -35,8 +30,9 @@ fn eval_i64(body: &str) -> Result<i64, String> {
 
 #[test]
 fn contract_01_first_arm_taken() {
+    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_i64("(:wat::core::cond ((:wat::core::= 1 1) 10) (:else 20))"),
+        eval_named_i64(&world, "(:user::compute-1)"),
         Ok(10),
         "bare cond (no -> :T) expands to nested if; the first true arm is taken"
     );
@@ -44,8 +40,9 @@ fn contract_01_first_arm_taken() {
 
 #[test]
 fn contract_02_else_fallthrough() {
+    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_i64("(:wat::core::cond ((:wat::core::= 1 2) 10) (:else 20))"),
+        eval_named_i64(&world, "(:user::compute-2)"),
         Ok(20),
         "no arm matches → the :else body"
     );
@@ -53,10 +50,9 @@ fn contract_02_else_fallthrough() {
 
 #[test]
 fn contract_03_three_arm_recursion() {
+    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_i64(
-            "(:wat::core::cond ((:wat::core::= 1 2) 10) ((:wat::core::= 2 2) 20) (:else 30))"
-        ),
+        eval_named_i64(&world, "(:user::compute-3)"),
         Ok(20),
         "a middle arm is taken — proves the macro re-expands to fixpoint across N arms"
     );

@@ -10,16 +10,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc283_source_file_lift -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
 
 #[test]
 fn source_file_is_at_the_neutral_home() {
-    let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
-        Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_bare().expect("startup");
     // Construct a :wat::source::File and read its path back through the accessor.
     let ast = wat::parse_one!(
         "(:wat::source::File/path (:wat::source::File \"t.wat\" \"(:t::f)\"))"

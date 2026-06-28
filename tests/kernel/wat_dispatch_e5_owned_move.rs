@@ -7,9 +7,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -40,55 +38,28 @@ fn install() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn ticket_redeems_once_successfully() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Ticket)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [t (:rust::test::Ticket::new 777)]
-                      (:rust::test::Ticket::redeem t)))
-    "#;
-    assert!(matches!(run(src), Value::i64(777)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-redeem");
+    assert!(matches!(val, Value::i64(777)), "got {:?}", val);
 }
 
 #[test]
 fn ticket_second_redemption_errors() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Ticket)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [t (:rust::test::Ticket::new 42)
-                       first (:rust::test::Ticket::redeem t)]
-                      (:rust::test::Ticket::redeem t)))
-    "#;
-    let src_with_nil = with_nil_main(src);
-    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute-double-redeem)").expect("parse compute call");
+    let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.
     assert!(format!("{:?}", err).contains("already consumed"),

@@ -21,34 +21,17 @@
 //! most `EXPANSION_DEPTH_LIMIT` iterations, then fails with a
 //! human-readable "did not reach fixpoint" diagnostic. Item 3b of
 //! the src/macros/ perimeter audit (2026-06-05).
+//!
+//! Wat source lives in the co-located fixture: make_deftest.wat
+//! (slurped via startup_beside(file!())).
 
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside};
 use wat::runtime::Value;
 use wat::span::Span;
-use std::sync::Arc;
 
 #[test]
 fn diag_make_deftest_with_prelude_expansion() {
-    let src = r##"
-
-(:wat::test::make-deftest :my-deftest
-  ((:wat::load-file! "foo.wat")))
-
-;; Expose the expansion result as the main function's return value.
-;; :user::main returns :() per contract, so we stash in a side
-;; effect via stderr? No — we need to inspect structurally from Rust.
-;; Approach: register a :define that returns the expansion, then
-;; invoke it manually from Rust-level symbol lookup.
-(:wat::core::defn :probe::get-expansion [] -> :wat::WatAST
-  (:wat::core::macroexpand-1
-      (:wat::core::quote (:my-deftest :my-test (:wat::test::assert-eq 1 1)))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil ())
-"##;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
 
     // The registered :my-deftest macro's body should be a
     // (quasiquote (:wat::test::deftest ...)) form — deftest NOT
@@ -133,31 +116,7 @@ fn diag_make_deftest_with_prelude_expansion() {
 /// (perimeter audit 2026-06-05, item 3b).
 #[test]
 fn macroexpand_self_recursive_macro_fails_with_macro_expansion_failed() {
-    // Two mutually-recursive macros that ping-pong: :my::ping expands to
-    // (:my::pong) and :my::pong expands to (:my::ping). After one step of
-    // expand_once, (:my::ping) → (:my::pong); after two steps (:my::pong) →
-    // (:my::ping); the chain never converges. macroexpand runs expand_once in
-    // a fixpoint loop (runtime.rs eval_macroexpand) for at most
-    // EXPANSION_DEPTH_LIMIT iterations, then fails with MacroExpansionFailed.
-    let src = r#"
-(:wat::core::defmacro :my::ping
-  []
-  -> :wat::WatAST
-  `(:my::pong))
-
-(:wat::core::defmacro :my::pong
-  []
-  -> :wat::WatAST
-  `(:my::ping))
-
-(:wat::core::defn :probe::run-macroexpand [] -> :wat::WatAST
-  (:wat::core::macroexpand
-    (:wat::core::quote (:my::ping))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil ())
-"#;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup succeeded (macro is registered, not called at freeze time)");
 
     let func = world

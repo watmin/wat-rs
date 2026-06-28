@@ -18,9 +18,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel peer_verb_round_trip_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// Process-tier send'/recv' round-trip via the WAT surface; peer reaped by RAII Drop.
@@ -33,22 +31,8 @@ use wat::runtime::{Environment, Value};
 #[test]
 #[ignore = "process-tier probe: run via setsid timeout 180 cargo test --release --test kernel peer_verb_round_trip_process -- --ignored --test-threads=1"]
 fn process_peer_verb_round_trip() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
-                                   (:wat::core::forms
-                                     (:wat::core::defn :user::main [] -> :wat::core::nil
-                                       (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                                                         _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                                         nil))))
-                            _   (:wat::kernel::send' peer 41)
-                            got (:wat::kernel::recv' peer)]
-            got))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup_from_source must succeed: process-tier peer verb round-trip");
+    let world = startup_beside(file!())
+        .expect("startup must succeed: process-tier peer verb round-trip");
 
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();

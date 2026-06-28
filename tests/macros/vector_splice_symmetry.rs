@@ -27,35 +27,16 @@
 //! a Vector that lands at value position (rather than a consumed signature
 //! position like `:wat::core::fn` parameters), arc 167's diagnostic still
 //! fires. That is a separate concern (Gap 3 in the arc 200 DESIGN).
+//!
+//! Positive tests use the co-located fixture: vector_splice_symmetry.wat
+//! (slurped via startup_beside(file!())). Named compute fns: :my::compute-splice,
+//! :my::compute-hygienic, :my::compute-round-trip.
+//!
+//! Negative test uses: tests/macros/vector_splice_symmetry_bad.wat
+//! (loaded via startup_from_file; must fail with "hygiene-scope divergence").
 
-use std::sync::Arc;
-
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
-
-fn freeze(src: &str) -> wat::freeze::FrozenWorld {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .unwrap_or_else(|e| panic!("startup failed:\n{}", e))
-}
-
-/// Arc 170 slice 1f-ζ pattern: append a canonical nil-returning `:user::main`
-/// when the source has no main on its own. Programs that compute via
-/// `:my::compute` then `eval_in_frozen` to drive the test.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run_compute(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = freeze(&src);
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
 
 // ─── Gap 1 — Vector-bound symbol splices through ~@ ───────────────────
 
@@ -66,15 +47,10 @@ fn run_compute(src: &str) -> Value {
 /// errored with `MacroError::SpliceNotList`.
 #[test]
 fn splice_of_vector_bound_symbol_succeeds() {
-    let src = r#"
-        (:wat::core::defmacro :my::splice-vec
-          [xs <- :wat::WatAST]
-          -> :wat::WatAST
-          `(:wat::core::Vector :wat::core::i64 ~@xs))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::splice-vec [10 20 30]))
-    "#;
-    match run_compute(src) {
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-splice)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
         Value::Vec(items) => {
             assert_eq!(items.len(), 3, "expected 3 spliced elements; got {}", items.len());
             assert!(matches!(items[0], Value::i64(10)));
@@ -124,21 +100,8 @@ fn splice_of_vector_bound_symbol_succeeds() {
 #[test]
 #[should_panic(expected = "hygiene-scope divergence")]
 fn anaphoric_splice_capture_refused_by_hygiene() {
-    let src = r#"
-        (:wat::core::defmacro :my::make-adder
-          [& params <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          `(:wat::core::fn [~@params] -> :wat::core::i64
-              (:wat::core::i64::+ a b)))
-
-        (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:my::adder) 7 35))
-    "#;
-    match run_compute(src) {
-        Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
-        other => panic!("expected i64(42); got {:?}", other),
-    }
+    startup_from_file("tests/macros/vector_splice_symmetry_bad.wat")
+        .unwrap_or_else(|e| panic!("startup failed:\n{}", e));
 }
 
 /// THE HYGIENIC ADDER — the correct way to write the macro above: the body's
@@ -162,21 +125,10 @@ fn anaphoric_splice_capture_refused_by_hygiene() {
 /// elements are now flattened element-wise into the argspec Vector.
 #[test]
 fn hygienic_splice_adder_binds_via_spliced_names() {
-    let src = r#"
-        (:wat::core::defmacro :my::make-adder
-          [& params <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          (:wat::core::let
-            [n0 (:wat::core::Option/expect (:wat::core::get params 0) "make-adder: missing param name 0")
-             n1 (:wat::core::Option/expect (:wat::core::get params 3) "make-adder: missing param name 1")]
-            `(:wat::core::fn [~@params] -> :wat::core::i64
-                (:wat::core::i64::+ ~n0 ~n1))))
-
-        (:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64 (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:my::adder) 7 35))
-    "#;
-    match run_compute(src) {
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-hygienic)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
         Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
         other => panic!("expected i64(42); got {:?}", other),
     }
@@ -195,26 +147,13 @@ fn vector_splice_round_trip_matches_list_splice() {
     // splices into a List template; the other captures a Vector
     // positional and splices into a List template. Both should yield
     // the same runtime value. Pre-arc-200 only the first worked.
-    let src = r#"
-        (:wat::core::defmacro :my::sum-list
-          [& xs <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          `(:wat::core::i64::+ ~@xs))
-
-        (:wat::core::defmacro :my::sum-vec
-          [xs <- :wat::WatAST]
-          -> :wat::WatAST
-          `(:wat::core::i64::+ ~@xs))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::i64::-
-                      (:my::sum-vec [10 32])
-                      (:my::sum-list 10 32)))
-    "#;
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-round-trip)").expect("parse compute call");
+    let env = Environment::new();
     // Both expansions must produce the same numeric result; the
     // difference must be zero — proving Vector and List splice are
     // observationally identical at the runtime layer.
-    match run_compute(src) {
+    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
         Value::i64(0) => {}
         other => panic!("expected i64(0) — Vector and List splice mismatch: {:?}", other),
     }

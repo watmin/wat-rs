@@ -18,24 +18,7 @@
 //! - Whitelist entry NOT ending in `::` (e.g. `:wat::kernel::specific-fn`)
 //!   → caller FQDN must equal this entry exactly (exact FQDN match).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-/// Returns the Debug-formatted error bundle from a startup that MUST fail.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => panic!("expected startup failure; got Ok"),
-        Err(e) => format!("{:?}", e),
-    }
-}
-
-/// Asserts the given source starts up cleanly.
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
-    }
-}
+use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Test 1 — Positive prefix match ───────────────────────────────────────
 
@@ -43,17 +26,7 @@ fn startup_ok(src: &str) {
 fn def_restricted_caller_inside_allowed_namespace_passes() {
     // A restricted fn declared with {:restricted-to [:my::kernel::]}. A caller
     // FQDN `:my::kernel::caller` starts with that prefix, so the walker allows.
-    let src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_beside(file!()).expect("expected startup success; got errors");
 }
 
 // ─── Test 2 — Negative prefix mismatch ────────────────────────────────────
@@ -62,17 +35,9 @@ fn def_restricted_caller_inside_allowed_namespace_passes() {
 fn def_restricted_caller_outside_allowed_namespace_fails() {
     // Same restricted fn whitelist `[:my::kernel::]` but the caller FQDN
     // `:user::app::caller` does NOT start with that prefix. Walker fires.
-    let src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :user::app::caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    let err = format!("{:?}", startup_from_file(
+        "tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat",
+    ).expect_err("expected startup failure; got Ok"));
     assert!(
         err.contains(":my::kernel::restricted-fn"),
         "error should name the restricted callee; got: {}",
@@ -97,29 +62,12 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
     // Whitelist entry `:my::kernel::specific-caller` (no trailing `::`) is an
     // exact FQDN. Only that one caller can reach the restricted fn; a sibling
     // in the same namespace (`:my::kernel::other-caller`) fails.
-    let allowed_src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::specific-caller]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
+    startup_from_file("tests/kernel/wat_arc198_def_restricted_ok_exact_fqdn_allowed.wat")
+        .expect("expected startup success for the exactly-named caller");
 
-        (:wat::core::defn :my::kernel::specific-caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(allowed_src);
-
-    let denied_src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::specific-caller]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :my::kernel::other-caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(denied_src);
+    let err = format!("{:?}", startup_from_file(
+        "tests/kernel/wat_arc198_def_restricted_bad_exact_fqdn_denied.wat",
+    ).expect_err("expected startup failure; got Ok"));
     assert!(
         err.contains(":my::kernel::other-caller"),
         "error should name the denied caller (sibling in the same namespace); got: {}",
@@ -139,20 +87,8 @@ fn def_restricted_multi_prefix_whitelist_admits_either_namespace() {
     // Whitelist `[:my::kernel:: :my::test::]` admits any caller whose FQDN
     // starts with either prefix. Two callers — one in each namespace —
     // both pass.
-    let src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel:: :my::test::]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :my::kernel::kernel-caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 1))
-
-        (:wat::core::defn :my::test::test-caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 2))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_from_file("tests/kernel/wat_arc198_def_restricted_ok_multi_prefix.wat")
+        .expect("expected startup success for multi-prefix whitelist");
 }
 
 // ─── Test 5 — defn metadata-map enforces restriction ──────────────────────
@@ -165,30 +101,14 @@ fn defn_metadata_restricted_enforces_for_caller_outside_whitelist() {
     // non-allowed caller fails with DefRestrictedCallerNotAllowed.
     //
     // Positive: caller in allowed namespace → startup succeeds.
-    let positive_src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :my::kernel::caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 9))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(positive_src);
+    // Reuses test 1's fixture (same logical shape: :my::kernel:: prefix, caller inside).
+    startup_from_file("tests/kernel/wat_arc198_def_restricted.wat")
+        .expect("expected startup success for caller in allowed namespace");
 
     // Negative: caller outside allowed namespace → walker fires.
-    let negative_src = r#"
-        (:wat::core::defn :my::kernel::restricted-fn
-          {:restricted-to [:my::kernel::]}
-          [x <- :wat::core::i64] -> :wat::core::i64 x)
-
-        (:wat::core::defn :user::app::caller [] -> :wat::core::i64
-          (:my::kernel::restricted-fn 9))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(negative_src);
+    let err = format!("{:?}", startup_from_file(
+        "tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat",
+    ).expect_err("expected startup failure; got Ok"));
     assert!(
         err.contains(":my::kernel::restricted-fn"),
         "error should name the restricted callee; got: {}",

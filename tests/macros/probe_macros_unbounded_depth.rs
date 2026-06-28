@@ -7,31 +7,13 @@
 //! registers and is callable, the recursion is proven unbounded (4 is arbitrary; the recursion has no
 //! cap — N=1, N=4, N=∞ are the same code path).
 //!
+//! Wat source lives in the co-located fixture: probe_macros_unbounded_depth.wat
+//! (slurped via startup_beside(file!())).
+//!
 //! Run: cargo test --release -p wat --test probe_macros_unbounded_depth
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const DEEP: &str = r#"
-;; gen-deep emits a defmacro buried FOUR `do`s deep (plus its own emission do = 5 nesting levels).
-(:wat::core::defmacro :t::gen-deep [] -> :wat::WatAST
-  `(:wat::core::do
-     (:wat::core::do
-       (:wat::core::do
-         (:wat::core::do
-           (:wat::core::defmacro :t::deep-answer [] -> :wat::WatAST 42))))))
-
-;; expand at top level → the deeply-nested defmacro must hoist + register
-(:t::gen-deep)
-
-;; call the deeply-hoisted macro (expanded at startup inside this fn body)
-(:wat::core::defn :t::use-deep [] -> :wat::core::i64
-  (:t::deep-answer))
-
-(:wat::core::defn :t::main [] -> :wat::core::nil nil)
-"#;
 
 fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse");
@@ -42,7 +24,7 @@ fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
 
 #[test]
 fn defmacro_buried_four_dos_deep_still_hoists_and_is_callable() {
-    let world = startup_from_source(DEEP, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed if the hoist is depth-unbounded");
     let got = eval_to_i64(&world, "(:t::use-deep)");
     assert!(

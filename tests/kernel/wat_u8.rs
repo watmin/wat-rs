@@ -9,35 +9,21 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn u8_cast_from_i64_in_range_succeeds() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:wat::core::u8 42))
-    "#;
-    match run(src) {
+    match run_fn(":my::compute-u8-42") {
         Value::u8(42) => {}
         other => panic!("expected u8(42); got {:?}", other),
     }
@@ -46,32 +32,17 @@ fn u8_cast_from_i64_in_range_succeeds() {
 #[test]
 fn u8_cast_boundary_values() {
     // 0 and 255 are the edges of :wat::core::u8's range.
-    let src_zero = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:wat::core::u8 0))
-    "#;
-    assert!(matches!(run(src_zero), Value::u8(0)));
-
-    let src_max = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:wat::core::u8 255))
-    "#;
-    assert!(matches!(run(src_max), Value::u8(255)));
+    assert!(matches!(run_fn(":my::compute-u8-zero"), Value::u8(0)));
+    assert!(matches!(run_fn(":my::compute-u8-max"), Value::u8(255)));
 }
 
 #[test]
 fn u8_cast_out_of_range_errors_at_runtime() {
     // 256 is one past :wat::core::u8 max — runtime should reject.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:wat::core::u8 256))
-    "#;
-    let src_with_nil = with_nil_main(src);
-    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env).expect_err("expected runtime error");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute-u8-256)").expect("parse compute call");
+    let err = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("256"),
@@ -82,16 +53,10 @@ fn u8_cast_out_of_range_errors_at_runtime() {
 
 #[test]
 fn u8_cast_negative_errors_at_runtime() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:wat::core::u8 -1))
-    "#;
-    let src_with_nil = with_nil_main(src);
-    let world = startup_from_source(&src_with_nil, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env).expect_err("expected runtime error");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute-u8-neg1)").expect("parse compute call");
+    let err = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("-1"),
@@ -102,35 +67,18 @@ fn u8_cast_negative_errors_at_runtime() {
 
 #[test]
 fn u8_equality_works() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 10)))
-    "#;
-    assert!(matches!(run(src), Value::bool(true)));
+    assert!(matches!(run_fn(":my::compute-u8-eq"), Value::bool(true)));
 }
 
 #[test]
 fn u8_inequality_works() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 11)))
-    "#;
-    assert!(matches!(run(src), Value::bool(false)));
+    assert!(matches!(run_fn(":my::compute-u8-neq"), Value::bool(false)));
 }
 
 #[test]
 fn vec_u8_construction_round_trips() {
     // (:wat::core::Vector :wat::core::u8 0 65 127 255) — cast each from i64 literal.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::u8>
-          (:wat::core::Vector :wat::core::u8
-                      (:wat::core::u8 0)
-                      (:wat::core::u8 65)
-                      (:wat::core::u8 127)
-                      (:wat::core::u8 255)))
-    "#;
-    match run(src) {
+    match run_fn(":my::compute-vec-u8") {
         Value::Vec(items) => {
             assert_eq!(items.len(), 4);
             for (i, v) in items.iter().enumerate() {
@@ -149,15 +97,7 @@ fn vec_u8_construction_round_trips() {
 fn u8_type_mismatch_rejected_at_check_time() {
     // Passing :wat::core::i64 directly where :wat::core::u8 is expected should fail type
     // check — not silently coerce.
-    let src = r#"
-
-        (:wat::core::defn :my::app::byte-taker [b <- :wat::core::u8] -> :wat::core::u8 b)
-
-        (:wat::core::defn :my::probe [] -> :wat::core::u8 (:my::app::byte-taker 42))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let result = startup_from_file("tests/kernel/wat_u8_bad.wat");
     assert!(
         result.is_err(),
         "expected type check to reject :wat::core::i64 literal where :wat::core::u8 was expected"
@@ -168,11 +108,5 @@ fn u8_type_mismatch_rejected_at_check_time() {
 fn u8_parameter_and_return_roundtrip() {
     // A function that takes :wat::core::u8 and returns :wat::core::u8 (identity). Caller
     // provides a properly-cast :wat::core::u8 value. Both sides type-check.
-    let src = r#"
-
-        (:wat::core::defn :my::app::identity [b <- :wat::core::u8] -> :wat::core::u8 b)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::u8 (:my::app::identity (:wat::core::u8 100)))
-    "#;
-    assert!(matches!(run(src), Value::u8(100)));
+    assert!(matches!(run_fn(":my::compute-identity"), Value::u8(100)));
 }

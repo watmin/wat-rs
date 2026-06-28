@@ -10,16 +10,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc284_interpolate -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare, startup_beside};
 use wat::runtime::{Environment, Value};
 
 // Runtime interpolation: named slots, unquoted render (String as itself, i64 as digits), {{ }} escape.
 #[test]
 fn interpolate_runtime_named_unquoted_escaped() {
-    let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
-        Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_bare().expect("startup");
     let ast = wat::parse_one!(
         r#"(:wat::core::string::interpolate "{a}::{b} {{lit}}" :a "x" :b 5)"#
     ).expect("parse interpolate call");
@@ -34,20 +31,11 @@ fn interpolate_runtime_named_unquoted_escaped() {
 
 // THE LOAD-BEARING PROPERTY: interpolate is legal at EXPAND time (inside a defmacro body), unlike the
 // format macro. A macro that builds a keyword name via interpolate at expand time must expand cleanly.
-const MACRO_PROGRAM: &str = r#"
-(:wat::core::defmacro :user::mk [base <- :wat::WatAST] -> :wat::WatAST
-  (:wat::core::let
-    [base-str (:wat::core::ast-name base)
-     full     (:wat::core::string::interpolate "{b}::built" :b base-str)]
-    (:wat::core::first (:wat::core::ast->children
-      (:wat::core::read-string (:wat::core::string::concat "\"" (:wat::core::string::concat full "\"")))))))
-(:wat::core::defn :user::probe [] -> :wat::core::String (:user::mk hello))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+// Fixture: tests/resolve/probe_arc284_interpolate.wat
 
 #[test]
 fn interpolate_is_legal_at_expand_time() {
-    let world = startup_from_source(MACRO_PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("a defmacro body using string::interpolate must expand cleanly (the whole point)");
     let ast = wat::parse_one!("(:user::probe)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new()).expect("probe eval").value_owned();

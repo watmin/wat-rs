@@ -28,29 +28,15 @@
 //! Test asserts the returned Vector<String> contains the three expected
 //! responses in coordinator binder order: ["hello reply", "world", "pong"].
 
-use std::sync::Arc;
-
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat::runtime::Value;
 use wat::span::Span;
-
-// ─── helpers ───────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 // ─── Stone D2 T1. three-factory heterogeneous-behavior coordinator ─────
 
 #[test]
 fn run_threads_d2_three_factories_heterogeneous() {
-    // Worker A: echo factory — reads one line, writes it back unchanged.
-    // Passed as keyword reference :my::worker-a (not a call form).
-    //
+    // Worker A: echo factory — reads one String, writes it back.
     // Worker B: transform factory — reads "hello", writes "world".
     // Worker C: transform factory — reads "ping", writes "pong".
     //
@@ -61,87 +47,7 @@ fn run_threads_d2_three_factories_heterogeneous() {
     //     2. Sends "hello" to peer-b, reads back "world"
     //     3. Sends "ping"  to peer-c, reads back "pong"
     //     4. Returns a Vector<String> of the three replies
-    //
-    // The macro expansion (N=3):
-    //   thread-0 = spawn-thread(wrap-fn-for-worker-a)
-    //   a        = ThreadPeer/new(Thread/output thread-0, Thread/input thread-0)
-    //   thread-1 = spawn-thread(wrap-fn-for-worker-b)
-    //   b        = ThreadPeer/new(Thread/output thread-1, Thread/input thread-1)
-    //   thread-2 = spawn-thread(wrap-fn-for-worker-c)
-    //   c        = ThreadPeer/new(Thread/output thread-2, Thread/input thread-2)
-    //   result   = (coordinator-fn a b c)   ;; calls the inline fn with all peers
-    //   _drained-0 = Thread/drain-and-join thread-0
-    //   _drained-1 = Thread/drain-and-join thread-1
-    //   _drained-2 = Thread/drain-and-join thread-2
-    let src = r#"
-        ;; Factory A: echo — reads one String, writes it back.
-        ;; Passed as keyword :my::worker-a in the coordinator-fn call.
-        (:wat::core::defn :my::worker-a
-          [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::nil
-          (:wat::core::let
-            [line (:wat::kernel::Thread/readln peer)
-             _    (:wat::kernel::Thread/println peer line)]
-            nil))
-
-        ;; Factory B: reads any String, writes "world".
-        (:wat::core::defn :my::worker-b
-          [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::nil
-          (:wat::core::let
-            [_ (:wat::kernel::Thread/readln peer)
-             _ (:wat::kernel::Thread/println peer "world")]
-            nil))
-
-        ;; Factory C: reads any String, writes "pong".
-        (:wat::core::defn :my::worker-c
-          [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::nil
-          (:wat::core::let
-            [_ (:wat::kernel::Thread/readln peer)
-             _ (:wat::kernel::Thread/println peer "pong")]
-            nil))
-
-        ;; Named coordinator fn: the actual parent-side logic.
-        ;; Takes three peers (a=echo, b=hello->world, c=ping->pong).
-        ;; Sends to each, collects replies, returns Vector<String>.
-        (:wat::core::defn :my::three-fac-coordinator
-          [a <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>
-           b <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>
-           c <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::Vector<wat::core::String>
-          (:wat::core::let
-            [;; Interact with peer a (echo): send "hello", read back "hello"
-             _       (:wat::kernel::Thread/println a "hello")
-             reply-a (:wat::kernel::Thread/readln a)
-             ;; Interact with peer b (hello→world): send "hello", read back "world"
-             _       (:wat::kernel::Thread/println b "hello")
-             reply-b (:wat::kernel::Thread/readln b)
-             ;; Interact with peer c (ping→pong): send "ping", read back "pong"
-             _       (:wat::kernel::Thread/println c "ping")
-             reply-c (:wat::kernel::Thread/readln c)]
-            (:wat::core::Vector :wat::core::String reply-a reply-b reply-c)))
-
-        ;; Entry point: three-factory coordinator-fn form.
-        ;; Coordinator body is a single delegating call (advertised pattern).
-        ;; Factories are keyword references (not call forms) — the same
-        ;; convention as D1. The macro expansion is:
-        ;;   (:my::worker-a (ThreadPeer/new server-rx server-tx))
-        ;; which calls the worker fn directly with the server-side peer.
-        (:wat::core::defn :my::test::run-d2
-          [] -> :wat::core::Vector<wat::core::String>
-          (:wat::kernel::run-threads
-            (:wat::core::fn
-              [a <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>
-               b <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>
-               c <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-              -> :wat::core::Vector<wat::core::String>
-              (:my::three-fac-coordinator a b c))
-            :my::worker-a
-            :my::worker-b
-            :my::worker-c))
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     let func = world
         .symbols()
         .get(":my::test::run-d2")

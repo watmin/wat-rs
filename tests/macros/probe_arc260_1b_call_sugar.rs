@@ -12,63 +12,16 @@
 //!   - literal `{map}`                   (connect "h" {:port 443 :tls true})
 //!   - explicit record (escape hatch)    (connect "h" (connect::Kwargs 443 true))
 //!
-//! RED at HEAD: `connect` is a plain fn taking (host, ::Kwargs); `:k v` reads as 4 positional args and
-//! `{map}` as a map (not a ::Kwargs) → arity/type error. Only the explicit-record form works today.
-//! GREEN once 260.1b emits the companion macro.
+//! Disconfirmer: a field declared as PascalCase (FooBar) must be matchable
+//! by `:foo-bar` in the call site.
+//!
+//! Wat source lives in the co-located fixture: probe_arc260_1b_call_sugar.wat
+//! (slurped via startup_beside(file!())).
 //!
 //! Run: cargo test --release -p wat --test probe_arc260_1b_call_sugar
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const KWARGS_SUGAR: &str = r#"
-(:wat::core::defn :user::connect
-  [host <- :wat::core::String
-   & [port <- :wat::core::i64  tls <- :wat::core::bool]]
-  -> :wat::core::i64
-  (:wat::core::i64::+ port (:wat::core::if tls -> :wat::core::i64 1 0)))
-
-;; inline :k v, in order
-(:wat::core::defn :user::via-kv [] -> :wat::core::i64
-  (:user::connect "h" :port 443 :tls true))
-
-;; inline :k v, OUT OF ORDER — only a true reorder-by-field yields 444
-(:wat::core::defn :user::via-kv-reorder [] -> :wat::core::i64
-  (:user::connect "h" :tls true :port 443))
-
-;; literal {map}
-(:wat::core::defn :user::via-map [] -> :wat::core::i64
-  (:user::connect "h" {:port 443 :tls true}))
-
-;; explicit record (the escape hatch — 260.1a; must still work)
-(:wat::core::defn :user::via-record [] -> :wat::core::i64
-  (:user::connect "h" (:user::connect::Kwargs 443 true)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-/// Disconfirmer: a field declared as PascalCase (FooBar) must be matchable
-/// by `:foo-bar` in the call site. This proves the pascal->kebab-in path is
-/// exercised (naive string-compare would fail FooBar ≠ foo-bar).
-const PASCAL_KWARGS: &str = r#"
-(:wat::core::defn :user::pascal-fn
-  [& [FooBar <- :wat::core::i64]]
-  -> :wat::core::i64
-  FooBar)
-
-;; Wrapper functions that invoke the companion macro at startup (macro expansion time).
-;; eval_in_frozen calls runtime::eval, which doesn't expand macros; the macro calls
-;; must be expanded at startup inside these wrapper fn bodies.
-(:wat::core::defn :user::via-kv-pascal [] -> :wat::core::i64
-  (:user::pascal-fn :foo-bar 42))
-
-(:wat::core::defn :user::via-map-pascal [] -> :wat::core::i64
-  (:user::pascal-fn {:foo-bar 99}))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse");
@@ -79,7 +32,7 @@ fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
 
 #[test]
 fn kwargs_call_sugar_kv_map_and_record_all_agree() {
-    let world = startup_from_source(KWARGS_SUGAR, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed once 260.1b emits the companion macro");
     for f in ["(:user::via-kv)", "(:user::via-kv-reorder)", "(:user::via-map)", "(:user::via-record)"] {
         let got = eval_to_i64(&world, f);
@@ -97,7 +50,7 @@ fn kwargs_call_sugar_kv_map_and_record_all_agree() {
 /// `FooBar` → `"foo-bar"` and strips `:` from `:foo-bar` → `"foo-bar"`.
 #[test]
 fn pascal_case_field_matched_by_kebab_call_key() {
-    let world = startup_from_source(PASCAL_KWARGS, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed");
     // via-kv-pascal calls (:user::pascal-fn :foo-bar 42) — lowered by companion macro at startup
     let got = eval_to_i64(&world, "(:user::via-kv-pascal)");

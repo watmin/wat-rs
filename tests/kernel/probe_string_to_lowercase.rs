@@ -8,20 +8,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_string_to_lowercase
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-const PROGRAM: &str = r#"
-(:wat::core::defn :user::lower [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::to-lowercase s))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 fn lower(input: &str) -> String {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let call = format!("(:user::lower {input:?})");
     let ast = wat::parse_one!(&call).expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new())

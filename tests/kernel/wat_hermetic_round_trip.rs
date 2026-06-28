@@ -16,26 +16,16 @@
 //! + eval_in_frozen. Inner programs use canonical nil main +
 //! :wat::kernel::println (EDN-serializes values).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 // ─── Simple hermetic happy path ─────────────────────────────────────────
@@ -44,18 +34,7 @@ fn run(src: &str) -> Value {
 fn hermetic_inner_program_stdout_captured() {
     // Arc 170 slice 1f-ζ: inner uses canonical nil main + :wat::kernel::println.
     // :wat::kernel::println EDN-serializes strings with quotes.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [result
-                        (:wat::test::run-hermetic
-                          (:wat::kernel::println "tada!"))
-                       lines (:wat::kernel::RunResult/stdout result)]
-                      (:wat::core::length lines)))
-    "#;
-    // Inner program wrote one line → captured stdout has 1 element.
-    match run(src) {
+    match run_fn(":my::compute-stdout-count") {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 stdout line; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -71,23 +50,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
     //
     // The round-trip: a value computed by a fork'd child gets
     // evaluated back in the parent's wat runtime.
-    // Arc 170 slice 1f-ζ: inner uses canonical nil main + :wat::kernel::println 42.
-    // :wat::kernel::println 42 writes "42\n" (EDN repr of i64). eval-edn! on "42"
-    // parses it back to i64(42).
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
-          (:wat::core::let
-                      [hermetic-result
-                        (:wat::test::run-hermetic
-                          (:wat::kernel::println 42))
-                       lines
-                        (:wat::kernel::RunResult/stdout hermetic-result)
-                       captured-src
-                        (:wat::core::first lines)]
-                      (:wat::eval-edn! captured-src)))
-    "#;
-    let result = run(src);
+    let result = run_fn(":my::compute-eval-in-outer");
     let inner = unwrap_ok_result(result);
     // eval-edn! on "42" returns an i64 wrapped in a HolonAST (atom) or i64 directly.
     // The round-trip is verified: the child computed 42, parent evaluated it back.

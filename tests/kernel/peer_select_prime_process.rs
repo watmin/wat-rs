@@ -19,9 +19,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// Process-tier `select'` over two echo+1 peers — only one has data.
@@ -40,28 +38,8 @@ fn process_select_prime_picks_ready_peer() {
     // The select' test sends 98 to peer b only; select' fires on b (index 1)
     // and returns ServiceEvent::Message{idx=1, msg=99} — 98+1=99 from the echo+1 server.
     // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64>
-          (:wat::core::let [a (:wat::kernel::spawn-program' (:wat::spawn::process)
-                                (:wat::core::forms
-                                  (:wat::core::defn :user::main [] -> :wat::core::nil
-                                    (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                                                      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                                      nil))))
-                            b (:wat::kernel::spawn-program' (:wat::spawn::process)
-                                (:wat::core::forms
-                                  (:wat::core::defn :user::main [] -> :wat::core::nil
-                                    (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                                                      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                                      nil))))
-                            _ (:wat::kernel::send' b 98)
-                            picked (:wat::kernel::select' [a b])]
-            picked))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup_from_source must succeed: process-tier select' test");
+    let world = startup_beside(file!())
+        .expect("startup must succeed: process-tier select' test");
 
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();

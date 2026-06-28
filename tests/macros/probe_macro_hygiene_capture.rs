@@ -9,61 +9,14 @@
 //! bare. Scope sets feed AST hashing (program identity) but appear UNUSED at
 //! runtime lookup. No hygiene test exists.
 //!
-//! This probe answers it empirically (let the substrate decide, not conviction):
-//!
-//! A macro introduces `tmp` in a `let` binder; the caller passes its OWN `tmp`
-//! as the unquoted arg. Template: `(let [tmp 100] (i64::+ tmp ~x))`.
-//! Caller: `(let [tmp 5] (add-via-tmp tmp))`. Expands to
-//! `(let [tmp{macro-scope} 100] (i64::+ tmp{macro-scope} tmp{user-scope}))`.
-//!   - HYGIENIC  → the spliced `~x` (user's tmp, =5) stays distinct from the
-//!     macro's `tmp` (=100) → 100 + 5 = 105.
-//!   - CAPTURED  → the spliced `~x` resolves to the macro's inner `let tmp`
-//!     binding (=100) → 100 + 100 = 200.
+//! Wat source lives in the co-located fixture: probe_macro_hygiene_capture.wat
+//! (slurped via startup_beside(file!())). Three named compute functions in the
+//! fixture: :test::compute-1, :test::compute-2, :test::compute-3.
 //!
 //! Run: cargo test --release --test probe_macro_hygiene_capture -- --nocapture
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-fn eval_i64(decls: &str, body: &str) -> Result<Value, String> {
-    let src = format!(
-        "{decls}\n(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
-}
-
-// ─── Macro-generated defclause declarations ─────────────────────────────────
-//
-// Macro that, when called at top-level, expands to a defclause form whose
-// arg-binder symbols (x, y) carry the macro-scope tag that `walk_template`
-// applies to ALL template-origin symbols. Without the Stone 249.5b defclause
-// fix, `parse_defclause_clause` would extract bare names ("x"/"y") from the
-// argspec, but `eval_inner` would look up the scoped key
-// ("x\u{1}<scope>"/"y\u{1}<scope>") → UnboundSymbol at call time.
-// With the fix, `scoped_arg_names` re-derives the env-key from the WatAST
-// vector node, so bind-key == lookup-key and the clause body executes correctly.
-const MAKE_MACRO_ADD: &str = "\
-(:wat::core::defmacro :test::make-macro-add \
-  [] -> :wat::WatAST \
-  `(:wat::core::defclause :test::macro-add \
-     ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 \
-       (:wat::core::i64::+ x y))))";
-
-// Call the macro at top-level so it expands to and registers the defclause.
-const CALL_MAKE_MACRO_ADD: &str = "(:test::make-macro-add)";
-
-const CAPTURE_MACRO: &str = "(:wat::core::defmacro :test::add-via-tmp \
-     [x <- :wat::WatAST] -> :wat::WatAST \
-     `(:wat::core::let [tmp 100] (:wat::core::i64::+ tmp ~x)))";
 
 /// DEFCLAUSE MACRO HYGIENE GUARD — proves that a macro-generated defclause
 /// correctly resolves its parameter bindings when the arg idents carry a
@@ -83,12 +36,14 @@ const CAPTURE_MACRO: &str = "(:wat::core::defmacro :test::add-via-tmp \
 /// same key as the body lookup.
 #[test]
 fn macro_generated_defclause_resolves_params() {
-    let decls = format!("{MAKE_MACRO_ADD}\n{CALL_MAKE_MACRO_ADD}");
-    let body = "(:test::macro-add 3 4)";
-    let result = eval_i64(&decls, body).expect(
+    let world = startup_beside(file!()).expect(
         "macro-generated defclause must evaluate without UnboundSymbol; \
          failure means bind key (bare) ≠ lookup key (scoped)"
     );
+    let ast = wat::parse_one!("(:test::compute-1)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .expect("eval should succeed");
     assert_eq!(
         result,
         Value::i64(7),
@@ -111,10 +66,11 @@ fn macro_generated_defclause_resolves_params() {
 /// claim is now TRUE, and this guard keeps it true.
 #[test]
 fn classic_macro_capture_is_prevented() {
-    // Caller binds its own `tmp` to 5, then calls a macro that introduces its
-    // own `tmp`-binder; passes the caller's `tmp` as the unquoted arg.
-    let body = "(:wat::core::let [tmp 5] (:test::add-via-tmp tmp))";
-    let result = eval_i64(CAPTURE_MACRO, body).expect("expansion + eval should succeed");
+    let world = startup_beside(file!()).expect("expansion + eval should succeed");
+    let ast = wat::parse_one!("(:test::compute-2)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .expect("eval");
     assert_eq!(
         result,
         Value::i64(105),
@@ -128,39 +84,18 @@ fn classic_macro_capture_is_prevented() {
 /// scopes (one from an outer macro-generating-macro pass, one from the inner
 /// macro invocation) still resolves correctly at runtime.
 ///
-/// Construction: an outer defmacro whose template contains a nested quasiquote
-/// that produces an inner defmacro. The inner defmacro's template has
-/// `(let [tmp 10] (i64::+ tmp ~x))`. Scope accumulation:
-///
-///   1. Outer expansion (walk_template at depth 2 inside nested quasiquote):
-///      `tmp` in the inner template gets OUTER_SCOPE added. The registered
-///      inner defmacro's body AST now has `tmp{outer_scope}`.
-///
-///   2. Inner invocation (walk_template at depth 1 with a fresh INNER_SCOPE):
-///      `tmp` — already carrying `{outer_scope}` — gets INNER_SCOPE added.
-///      Both the `let` binder `tmp` and the body-reference `tmp` end up with
-///      `{outer_scope, inner_scope}` (2 scopes). `env_key` encodes both,
-///      so `env_key(binder) == env_key(body_ref)` → bind-key == lookup-key.
-///
-/// The arithmetic `10 + 7 = 17` proves both resolution AND non-capture
-/// (the caller's `x` value 7 is correctly substituted via `~x`).
-///
 /// Shape: outer defmacro `make-add-inner` defines inner defmacro `inner-add`.
 /// Call outer → registers `inner-add`. Call inner with 7 → result 17.
 #[test]
 fn two_scope_identifier_resolves_correctly_end_to_end() {
-    let decls = "\
-        (:wat::core::defmacro :test::make-add-inner \
-          [] -> :wat::WatAST \
-          `(:wat::core::defmacro :test::inner-add \
-             [x <- :wat::WatAST] -> :wat::WatAST \
-             `(:wat::core::let [tmp 10] (:wat::core::i64::+ tmp ~x)))) \
-        (:test::make-add-inner)";
-    let body = "(:test::inner-add 7)";
-    let result = eval_i64(decls, body).expect(
+    let world = startup_beside(file!()).expect(
         "2-scope identifier must resolve correctly; failure means \
          bind-key (2-scope env_key) ≠ lookup-key or env_key encoding is broken"
     );
+    let ast = wat::parse_one!("(:test::compute-3)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .expect("eval");
     assert_eq!(
         result,
         Value::i64(17),

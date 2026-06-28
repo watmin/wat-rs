@@ -1,0 +1,98 @@
+;; Migrator code baked in from wat-migrate/fix-decl.wat at migration time (arc 251 throwaway,
+;; retires at hard-cut; non-blessed so cannot be auto-loaded — captured here verbatim).
+
+(:wat::core::defn :migrate::name-fix [kw <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::let [stripped (:wat::core::first
+                                (:wat::core::string::split (:wat::core::ast-name kw) "<"))]
+    (:wat::core::if (:wat::core::string::contains? stripped "::")
+      (:wat::core::keyword/to-symbol (:wat::core::keyword-node stripped))
+      (:wat::core::symbol-node
+        (:wat::core::string::subs stripped 1 (:wat::core::string::length stripped))))))
+
+(:wat::core::defn :migrate::type-slot-2? [head-name <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= head-name ":wat::core::typealias") true
+    (:wat::core::if (:wat::core::= head-name ":wat::core::newtype") true
+      (:wat::core::= head-name ":wat::core::recordtype"))))
+
+(:wat::core::defn :migrate::name-head? [head-name <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= head-name ":wat::core::defn") true
+    (:wat::core::if (:wat::core::= head-name ":wat::core::def") true
+      (:wat::core::if (:wat::core::= head-name ":wat::core::typealias") true
+        (:wat::core::if (:wat::core::= head-name ":wat::core::newtype") true
+          (:wat::core::if (:wat::core::= head-name ":wat::core::recordtype") true
+            (:wat::core::if (:wat::core::= head-name ":wat::core::defstruct") true
+              (:wat::core::if (:wat::core::= head-name ":wat::core::defclause") true
+                (:wat::core::if (:wat::core::= head-name ":wat::core::defenum") true
+                  (:wat::core::= head-name ":wat::core::typeunion"))))))))))
+
+(:wat::core::defn :migrate::fix-types [items <- :wat::core::Vector<wat::WatAST>] -> :wat::core::Vector<wat::WatAST>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :wat::WatAST)
+    (:wat::core::let [h   (:wat::core::first items)
+                      out (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
+                            (:wat::core::keyword/to-type-form h)
+                            (:wat::fix::fix-source h))]
+      (:wat::core::concat (:wat::core::Vector :wat::WatAST out)
+                          (:migrate::fix-types (:wat::core::rest items))))))
+
+(:wat::core::defn :migrate::fix-type-vector [vec <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::with-children vec (:migrate::fix-types (:wat::core::ast->children vec))))
+
+(:wat::core::defn :migrate::fix-form [node <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::let [ch   (:wat::core::ast->children node)
+                      head (:wat::core::first ch)]
+      (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
+                        (:migrate::name-head? (:wat::core::ast-name head))
+                        false)
+        (:wat::core::let [ch1   (:wat::core::first (:wat::core::drop ch 1))
+                          rest2  (:wat::core::drop ch 2)
+                          fixed-head (:wat::core::keyword/to-symbol head)
+                          fixed-name (:migrate::name-fix ch1)
+                          fixed-rest (:wat::core::if (:migrate::type-slot-2? (:wat::core::ast-name head))
+                                       (:wat::core::if (:wat::core::empty? rest2)
+                                         (:wat::core::Vector :wat::WatAST)
+                                         (:wat::core::let [ch2   (:wat::core::first rest2)
+                                                           rest3  (:wat::core::rest rest2)]
+                                           (:wat::core::concat
+                                             (:wat::core::Vector :wat::WatAST
+                                               (:wat::core::keyword/to-type-form ch2))
+                                             (:wat::fix::fix-seq rest3 false))))
+                                     (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::core::typeunion")
+                                       (:wat::core::if (:wat::core::empty? rest2)
+                                         (:wat::core::Vector :wat::WatAST)
+                                         (:wat::core::let [uch2  (:wat::core::first rest2)
+                                                           urest (:wat::core::rest rest2)]
+                                           (:wat::core::concat
+                                             (:wat::core::Vector :wat::WatAST
+                                               (:migrate::fix-type-vector uch2))
+                                             (:wat::fix::fix-seq urest false))))
+                                       (:wat::fix::fix-seq rest2 false)))]
+          (:wat::core::with-children node
+            (:wat::core::concat
+              (:wat::core::Vector :wat::WatAST fixed-head)
+              (:wat::core::concat
+                (:wat::core::Vector :wat::WatAST fixed-name)
+                fixed-rest))))
+        (:wat::fix::fix-source node)))
+    (:wat::fix::fix-source node)))
+
+(:wat::core::defn :user::topform [src <- :wat::core::String] -> :wat::WatAST
+  (:wat::core::first (:wat::core::ast->children (:wat::core::read-string src))))
+
+(:wat::core::defn :user::c01 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :svc::Alias :wat::core::i64)"))))
+(:wat::core::defn :user::c02 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::defn :my::ns::map<T> [x <- :T] -> :T x)"))))
+(:wat::core::defn :user::c03 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)"))))
+(:wat::core::defn :user::c04 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :wat::edn::Tagged :wat::holon::HolonAST)"))))
+(:wat::core::defn :user::c05 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::newtype :wat::edn::NoTag :wat::holon::HolonAST)"))))
+(:wat::core::defn :user::c06 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typeunion :my::Foo [:wat::core::i64 :wat::core::f64])"))))
+(:wat::core::defn :user::c07 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typeunion :my::Shape [:my::Circle :my::Square])"))))
+(:wat::core::defn :user::c08 [] -> :wat::core::String
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::defenum :counter::AdminReq :Provision [initial <- :wat::core::i64])"))))

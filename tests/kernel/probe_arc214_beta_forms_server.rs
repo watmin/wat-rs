@@ -31,9 +31,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel \
 //!     probe_arc214_beta_forms_server -- --ignored --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 /// FM-2-bis (β): a forms-program spawned `:process` runs as a `readln`/`println`
@@ -47,24 +45,8 @@ fn beta_forms_server_round_trip_via_send_recv_prime() {
     // Parent (client): spawn the forms-server, send' 41, recv' the echo+1.
     // Server (the spawned program): the proven arc112_slice2b worker —
     //   read one i64, write n+1 — wrapped as the program's :user::main.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let
-            [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
-                    (:wat::core::forms
-                      (:wat::core::defn :user::main [] -> :wat::core::nil
-                        (:wat::core::let
-                          [n (:wat::kernel::readln -> :wat::core::i64)
-                           _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                          nil))))
-             _   (:wat::kernel::send' peer 41)
-             got (:wat::kernel::recv' peer)]
-            got))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup_from_source must succeed: β forms-server probe (RED at HEAD = type error here)");
+    let world = startup_beside(file!())
+        .expect("startup must succeed: β forms-server probe (RED at HEAD = type error here)");
 
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();

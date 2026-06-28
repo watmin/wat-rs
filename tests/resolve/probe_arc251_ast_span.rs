@@ -1,36 +1,18 @@
 //! Forward-proof probe — Stone 251.5 / Slice 4.2a: `ast-span` (intueri-named).
 //!
 //! `(:wat::core::ast-span node) -> {:line N :col N}` — a plain map (HashMap<keyword,i64>) of the
-//! node's source START location. The one substrate verb that unlocks wat's comment-faithful
-//! codemod (wat's rewrite-clj). Rhymes with `ast-kind`/`ast-name` (property-read of a node).
-//! `:file` is dropped (the codemod processes one known file; a mixed-value map is un-typeable in
-//! wat's ADT model — `{:line :col}` is homogeneous i64).
-//!
-//! Ground truth (pinned empirically from `(:wat::core::map x)`):
-//!   top `(`            -> {:line 1 :col 1}
-//!   head `:wat::core::map` -> {:line 1 :col 2}
-//!   symbol `x`         -> {:line 1 :col 18}
-//! col = 1-indexed char-count from line start, at the token START.
+//! node's source START location.
 //!
 //! RED at HEAD: `:wat::core::ast-span` is UnknownFunction.
 //!
 //! Run: `cargo test --release --test probe_arc251_ast_span`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Eval an i64-returning `compute` body.
-fn eval_i64(body: &str) -> Result<i64, String> {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup/check: {e:?}"))?;
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+fn eval_i64(world: &wat::freeze::FrozenWorld, call: &str) -> Result<i64, String> {
+    let ast = wat::parse_one!(call).expect("parse");
+    match eval_in_frozen(&ast, world, &Environment::new())
         .map(|tv| tv.value_owned())
         .map_err(|e| format!("eval: {e:?}"))?
     {
@@ -39,46 +21,20 @@ fn eval_i64(body: &str) -> Result<i64, String> {
     }
 }
 
-/// `read-string` WRAPS top-level forms in a list, so `first(ast->children(read-string src))` is the
-/// first FORM (the inner `(:wat::core::map x)` list), and a SECOND `ast->children` + `first` reaches
-/// the head keyword. (Idiom confirmed by the fix-source/decl-migrator probes' `topform`.)
-const FORM: &str =
-    "(:wat::core::first (:wat::core::ast->children (:wat::core::read-string \"(:wat::core::map x)\")))";
-
-/// head = `(first (ast->children FORM))` — the head keyword `:wat::core::map` (col 2).
-fn head_span_field(key: &str) -> Result<i64, String> {
-    eval_i64(&format!(
-        "(:wat::core::Option/expect \
-           (:wat::core::HashMap/get \
-             (:wat::core::ast-span \
-               (:wat::core::first (:wat::core::ast->children \
-                 {FORM}))) \
-             {key}) \
-           \"field\")"
-    ))
-}
-
 #[test]
 fn c01_ast_span_head_line() {
-    assert_eq!(head_span_field(":line"), Ok(1), "head keyword line should be 1");
+    let world = startup_beside(file!()).expect("startup");
+    assert_eq!(eval_i64(&world, "(:user::c01)"), Ok(1), "head keyword line should be 1");
 }
 
 #[test]
 fn c02_ast_span_head_col() {
-    assert_eq!(head_span_field(":col"), Ok(2), "head keyword col should be 2 (just after `(`)");
+    let world = startup_beside(file!()).expect("startup");
+    assert_eq!(eval_i64(&world, "(:user::c02)"), Ok(2), "head keyword col should be 2 (just after `(`)");
 }
 
 #[test]
 fn c03_ast_span_symbol_col() {
-    // The form's second child (symbol `x`) starts at col 18.
-    let got = eval_i64(&format!(
-        "(:wat::core::Option/expect \
-           (:wat::core::HashMap/get \
-             (:wat::core::ast-span \
-               (:wat::core::first (:wat::core::rest (:wat::core::ast->children \
-                 {FORM})))) \
-             :col) \
-           \"field\")"
-    ));
-    assert_eq!(got, Ok(18), "symbol x col should be 18");
+    let world = startup_beside(file!()).expect("startup");
+    assert_eq!(eval_i64(&world, "(:user::c03)"), Ok(18), "symbol x col should be 18");
 }

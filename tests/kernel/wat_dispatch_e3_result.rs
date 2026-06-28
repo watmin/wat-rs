@@ -3,9 +3,7 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -38,73 +36,40 @@ fn install() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    install();
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 #[test]
 fn result_ok_matched() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Fallible)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :wat::core::i64
-                      ((:wat::core::Ok v) v)
-                      ((:wat::core::Err _) -1)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-ok-matched");
+    assert!(matches!(val, Value::i64(42)), "got {:?}", val);
 }
 
 #[test]
 fn result_err_matched() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::Fallible)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :wat::core::i64
-                      ((:wat::core::Ok _) 0)
-                      ((:wat::core::Err _) 99)))
-    "#;
-    assert!(matches!(run(src), Value::i64(99)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-err-matched");
+    assert!(matches!(val, Value::i64(99)), "got {:?}", val);
 }
 
 #[test]
 fn user_built_ok_value() {
     // (Ok expr) should work at the wat source level too, independent
     // of any Rust shim.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Ok 7) -> :wat::core::i64
-                      ((:wat::core::Ok v) v)
-                      ((:wat::core::Err _) -1)))
-    "#;
-    assert!(matches!(run(src), Value::i64(7)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-user-ok");
+    assert!(matches!(val, Value::i64(7)), "got {:?}", val);
 }
 
 #[test]
 fn user_built_err_value() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Err "x") -> :wat::core::i64
-                      ((:wat::core::Ok _) 0)
-                      ((:wat::core::Err _) 11)))
-    "#;
-    assert!(matches!(run(src), Value::i64(11)), "got {:?}", run(src));
+    let val = run_fn(":my::compute-user-err");
+    assert!(matches!(val, Value::i64(11)), "got {:?}", val);
 }

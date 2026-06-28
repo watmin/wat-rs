@@ -22,26 +22,16 @@
 //! + eval_in_frozen. Inner programs use canonical nil main + ambient
 //! :wat::kernel::println / :wat::kernel::eprintln.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute should run")
+        .value_owned()
 }
 
 /// Unwrap a RunResult struct value into its three fields.
@@ -88,14 +78,7 @@ fn noop_main_yields_empty_stdout_and_stderr() {
     // was a startup setter for the CHILD's parse. The canonical macro
     // takes BODY FORMS (no inner startup parse), so the child uses
     // default capacity-mode. The body is a no-op nil.
-    let src = r#"
-
-        ;; Outer program: runs a hermetic no-op body.
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      nil))
-    "#;
-    let (stdout, stderr, failure) = unwrap_run_result(run(src));
+    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-noop"));
     assert!(stdout.is_empty(), "expected empty stdout; got {:?}", stdout);
     assert!(stderr.is_empty(), "expected empty stderr; got {:?}", stderr);
     assert!(!failure, "expected failure: None; got Some");
@@ -110,13 +93,7 @@ fn main_writes_single_line_to_stdout() {
     // is a startup-time setter (not a runtime verb) and cannot appear
     // inside the macro body. The child uses default capacity-mode.
     // Body calls println (rule 2); outer reads stdout (rule 1) — hermetic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::kernel::println "hello")))
-    "#;
-    let (stdout, stderr, failure) = unwrap_run_result(run(src));
+    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-single-line"));
     // :wat::kernel::println EDN-serializes strings with quotes.
     assert_eq!(stdout, vec!["\"hello\"".to_string()]);
     assert!(stderr.is_empty());
@@ -132,17 +109,7 @@ fn main_writes_to_both_stdout_and_stderr() {
     // `set-capacity-mode!` is startup-time, cannot live in macro body.
     // Body writes stdout & stderr (rule 2); outer reads both slots
     // (rule 1) — hermetic is the only honest container.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::core::do
-                        (:wat::kernel::println "one")
-                        (:wat::kernel::println "two")
-                        (:wat::kernel::eprintln "oops")
-                        nil)))
-    "#;
-    let (stdout, stderr, failure) = unwrap_run_result(run(src));
+    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-stdout-stderr"));
     // :wat::kernel::println EDN-serializes strings with quotes.
     assert_eq!(stdout, vec!["\"one\"".to_string(), "\"two\"".to_string()]);
     assert_eq!(stderr, vec!["\"oops\"".to_string()]);
@@ -192,13 +159,7 @@ fn parse_error_in_source_surfaces_as_failure() {
     // — "body failure surfaces as Failure with a non-empty message". The
     // startup-parse-error surface needs separate coverage outside this
     // slice (legacy verb retains the original capability until #310).
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::kernel::raise! (:wat::holon::leaf "inner-failure"))))
-    "##;
-    let (stdout, _stderr, failure) = unwrap_run_result_with_failure(run(src));
+    let (stdout, _stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-parse-error"));
     assert!(stdout.is_empty());
     // Stderr-empty no longer asserted: under canonical hermetic, raise!
     // routes structured EDN through stderr as part of failure capture.
@@ -221,13 +182,7 @@ fn missing_user_main_surfaces_as_failure() {
     // appears in Failure. The startup-missing-user-main surface needs
     // separate coverage outside this slice (legacy verb retains the
     // original capability until #310 retires it).
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::kernel::raise! (:wat::holon::leaf "needs-main-sentinel"))))
-    "##;
-    let (_, _, failure) = unwrap_run_result_with_failure(run(src));
+    let (_, _, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-missing-main"));
     let msg = failure.expect("expected raised failure");
     assert!(
         msg.contains("needs-main-sentinel"),
@@ -252,16 +207,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // — same shape: partial-stdout-before-panic must survive + Failure
     // carries the payload. The original raw-panic-via-Bundle surface
     // needs separate coverage outside this slice.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::core::let
-                        [_ (:wat::kernel::println "before panic")
-                         _ (:wat::kernel::raise! (:wat::holon::leaf "boom"))]
-                        nil)))
-    "##;
-    let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
+    let (stdout, _, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-panic-partial"));
     // Stdout captured BEFORE the raise! should survive.
     // :wat::kernel::println EDN-serializes "before panic" with quotes.
     assert_eq!(
@@ -278,39 +224,6 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
 }
 
 // ─── Scope enforcement (slice 2b) ───────────────────────────────────────
-
-/// RAII test dir under std::env::temp_dir. Cleanup on drop.
-struct ScopeDir {
-    path: std::path::PathBuf,
-}
-
-impl ScopeDir {
-    fn new() -> Self {
-        let mut path = std::env::temp_dir();
-        path.push(format!(
-            "wat-sandbox-scope-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&path).unwrap();
-        Self { path }
-    }
-
-    fn write(&self, name: &str, contents: &str) -> std::path::PathBuf {
-        let file_path = self.path.join(name);
-        std::fs::write(&file_path, contents).unwrap();
-        file_path
-    }
-}
-
-impl Drop for ScopeDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
-    }
-}
 
 #[test]
 fn scoped_file_eval_inside_scope_succeeds() {
@@ -330,22 +243,10 @@ fn scoped_file_eval_inside_scope_succeeds() {
     // ambient-loader behavior. The original in-scope-read-succeeds
     // surface needs separate coverage (a future follow-up that bypasses
     // spawn-sandbox or threads a Scoped loader into the child).
-    let scope = ScopeDir::new();
-    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+ 40 2)");
-    let src = format!(
-        r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::core::match
-                        (:wat::eval-file! "{path}")
-                        -> :wat::core::nil
-                        ((:wat::core::Ok h) (:wat::kernel::println "ok"))
-                        ((:wat::core::Err _) (:wat::kernel::eprintln "err")))))
-        "##,
-        path = inner_source_path.display()
-    );
-    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run(&src));
+    //
+    // The fixture uses a fixed non-existent path — the path is irrelevant
+    // since the child's InMemoryLoader is always empty under hermetic.
+    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-inside"));
     // SEMANTIC SHIFT — under hermetic the child's InMemoryLoader is empty,
     // so eval-file! takes the Err arm → stderr "err". This used to assert
     // stdout="ok" under ScopedLoader; the loss is documented above.
@@ -372,26 +273,10 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     // the original. The test now exercises canonical-macro Err-arm
     // routing, not ScopedLoader containment. The original containment
     // surface needs separate coverage outside this slice.
-    let scope = ScopeDir::new();
-    let outside = ScopeDir::new();
-    let outside_file = outside.write("leak.txt", "secrets");
-
-    let src = format!(
-        r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::core::match
-                        (:wat::eval-file! "{path}")
-                        -> :wat::core::nil
-                        ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
-                        ((:wat::core::Err _) (:wat::kernel::eprintln "blocked")))))
-        "##,
-        path = outside_file.display()
-    );
-    // keep `scope` alive for RAII cleanup; no longer threaded into body.
-    let _ = &scope;
-    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run(&src));
+    //
+    // The fixture uses a fixed non-existent path — the path is irrelevant
+    // since the child's InMemoryLoader is always empty under hermetic.
+    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-outside"));
     // Under hermetic the child's InMemoryLoader has no entry → Err arm
     // → stderr "blocked". (Same final shape as the original, different
     // mechanism — documented above.)

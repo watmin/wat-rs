@@ -29,6 +29,7 @@
 
 use std::sync::Arc;
 
+use wat::freeze::startup_beside;
 use wat::kernel::spawn::{PeerRecvError, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
 use wat::rust_deps::marshal::{downcast_ref_opaque, rust_opaque_arc};
 use wat::span::Span;
@@ -106,12 +107,8 @@ fn forms_from_src(src: &str) -> Vec<wat::ast::WatAST> {
 /// Build a no-op post-spawn-fn: `fn [_l <- ProcessLaunch] -> nil nil`.
 /// Used to satisfy the `post_spawn_fn` arg when tests don't need the hook.
 fn noop_process_post_spawn_fn() -> Arc<wat::Function> {
-    let world = wat::freeze::startup_from_source(
-        "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)",
-        None,
-        Arc::new(wat::load::InMemoryLoader::new()),
-    )
-    .expect("startup for noop process post-spawn fn must succeed");
+    let world = startup_beside(file!())
+        .expect("startup for noop process post-spawn fn must succeed");
     world
         .symbols
         .get(":my::noop-post-spawn")

@@ -36,11 +36,16 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
   cargo's build lock serializes the builds safely). Then the ORCHESTRATOR WEIGHS each against the disk (grep clean
   + binary green + spot-check a diff for honesty — watch `invoke_user_main`+stdout → `eval_in_frozen` return-value
   refactors: they're fine IF the asserted VALUE is identical) + full gate 1-red → commit per batch.
-- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 356.** DONE (9 groups): lint 5 (`e195573`→`1e483a79` pilot+fire),
-  channel 5 (`e75d5f67`), diagnostics 5 (`bc40e656`), program+value+reflection 21 (`603b2fde`),
-  function+comms+collection 36 (`e65eea26`). REMAINING (smallest→largest): **process 17 · services 19 · wat_lang 21
-  · macros 26 · resolve 32 · kernel 34 · rete 34 · types 42 · then nursery 179** (dissolve per
-  `NURSERY-DISSOLUTION-MAP.md`: move + fixture/bare in one motion). When METER=0 the lint flips GREEN, floor → 0.
+- **THE USELESS-MAIN SWEEP (orchestrator-owned, NOT delegated — builder: "we are exemplars of behavior"):** sonnets
+  keep emitting dead trivial mains even copying clean exemplars, so AFTER each batch I run a guarded sweep that strips
+  lone `(:wat::core::defn :(user|t)::main [] -> :wat::core::nil nil)` from MULTI-DEFN, NON-spawn-child fixtures (KEEP:
+  spawn-child entrypoints, negative-test-subject mains like `\😀`/`_bad`, and arc-170 main-as-subject tests). The cited
+  exemplar fixtures are kept PRISTINE so the clean shape propagates by example. Do NOT put main-dropping in the briefs.
+- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 221.** DONE (15 groups): lint 5 (`1e483a79` pilot+fire), channel 5
+  (`e75d5f67`), diagnostics 5 (`bc40e656`), program+value+reflection (`603b2fde`), function+comms+collection (`e65eea26`),
+  process+services+wat_lang + 78-main-sweep (`c2196f35`), macros+resolve+kernel + 98-main-sweep (NEXT commit).
+  REMAINING: **rete 34 · types 41 · then nursery 155** (dissolve per `NURSERY-DISSOLUTION-MAP.md`: move + fixture/bare
+  in one motion). When METER=0 the lint flips GREEN, floor → 0. THE LOOP: fan 3 sonnets parallel → weigh each → sweep → commit.
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
 builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise

@@ -13,34 +13,30 @@
 //!     clean diagnostic — at HEAD the head is not allow-listed, so the error is a generic
 //!     RefusedInMacro that does NOT carry "msg".
 //!
+//! Negative fixtures (must fail at startup):
+//!   tests/macros/probe_arc258_stone2b_macro_error_c01.wat
+//!   tests/macros/probe_arc258_stone2b_macro_error_c02.wat
+//!   tests/macros/probe_arc258_stone2b_macro_error_c03.wat
+//!
 //! Run: `cargo test --release --test probe_arc258_stone2b_macro_error`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
-fn check_src(body: &str) -> Result<(), String> {
-    let src = format!("{body}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+fn check_path(rel_path: &str) -> Result<(), String> {
+    startup_from_file(rel_path)
         .map(|_| ())
         .map_err(|e| format!("{e:?}"))
 }
 
 #[test]
 fn contract_01_keyword_bodied_non_exhaustive_cond_rejected() {
-    let r = check_src(
-        "(:wat::core::defn :user::f [] -> :wat::core::Keyword \
-           (:wat::core::cond ((:wat::core::= 1 1) :a) ((:wat::core::= 2 2) :b)))",
-    );
+    let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c01.wat");
     assert!(r.is_err(), "a non-exhaustive cond (keyword bodies, no :else) must be rejected");
 }
 
 #[test]
 fn contract_02_non_exhaustive_cond_names_else() {
-    let r = check_src(
-        "(:wat::core::defn :user::g [] -> :wat::core::String \
-           (:wat::core::cond ((:wat::core::= 1 1) \"x\") ((:wat::core::= 2 2) \"y\")))",
-    );
+    let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c02.wat");
     assert!(r.is_err(), "a non-exhaustive cond must be rejected");
     assert!(
         r.unwrap_err().contains(":else"),
@@ -53,11 +49,7 @@ fn contract_03_macro_error_surfaces_its_message() {
     // A trivial macro that aborts. After 258.2b the abort message reaches the diagnostic;
     // at HEAD `macro-error` is not on the pure-combinator allow-list, so expansion refuses
     // it generically and the message never surfaces.
-    let r = check_src(
-        "(:wat::core::defmacro :user::boom [] -> :wat::WatAST \
-           (:wat::core::macro-error \"kaboom-sentinel-9173\"))\n\
-         (:wat::core::defn :user::h [] -> :wat::core::i64 (:user::boom))",
-    );
+    let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c03.wat");
     assert!(r.is_err(), "a macro calling macro-error must abort");
     assert!(
         r.unwrap_err().contains("kaboom-sentinel-9173"),

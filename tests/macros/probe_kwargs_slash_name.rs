@@ -7,35 +7,13 @@
 //! name could collide / fail to mint. This probe isolates exactly that: a `& [argspec]` defn whose
 //! name carries a `/`, called with inline `:k v` kwargs (in AND out of order).
 //!
+//! Wat source lives in the co-located fixture: probe_kwargs_slash_name.wat
+//! (slurped via startup_beside(file!())).
+//!
 //! Run: cargo test --release -p wat --test probe_kwargs_slash_name
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// A `/`-named kwargs fn (mirrors a defservice `worker/start` shape) + wrapper fns that invoke the
-// companion macro at startup (macro expansion time), exactly as the 260.1b probe does.
-const SLASH_KWARGS: &str = r#"
-(:wat::core::defn :t::worker/start
-  [& [count <- :wat::core::i64  step <- :wat::core::i64]]
-  -> :wat::core::i64
-  (:wat::core::i64::+ count step))
-
-;; inline :k v, in order
-(:wat::core::defn :t::via-kv [] -> :wat::core::i64
-  (:t::worker/start :count 40 :step 2))
-
-;; inline :k v, OUT OF ORDER — only a true reorder-by-field yields 42
-(:wat::core::defn :t::via-kv-reorder [] -> :wat::core::i64
-  (:t::worker/start :step 2 :count 40))
-
-;; literal {map}
-(:wat::core::defn :t::via-map [] -> :wat::core::i64
-  (:t::worker/start {:count 40 :step 2}))
-
-(:wat::core::defn :t::main [] -> :wat::core::nil nil)
-"#;
 
 fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse");
@@ -46,7 +24,7 @@ fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
 
 #[test]
 fn slash_named_kwargs_fn_lowers_through_companion_macro() {
-    let world = startup_from_source(SLASH_KWARGS, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed if the companion-macro path composes onto a /-named fn");
     for f in ["(:t::via-kv)", "(:t::via-kv-reorder)", "(:t::via-map)"] {
         let got = eval_to_i64(&world, f);

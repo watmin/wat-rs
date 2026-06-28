@@ -32,21 +32,9 @@
 //! What D2 adds (separate test file `tests/wat_run_threads_d2.rs`):
 //!   N=3 heterogeneous factories via the same coordinator-fn macro.
 
-use std::sync::Arc;
-
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat::runtime::Value;
 use wat::span::Span;
-
-// ─── helpers ───────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 // ─── Stone D2 N=1. single-factory coordinator-fn round-trip ───────────
 
@@ -84,42 +72,7 @@ fn run_threads_d1_single_factory_round_trips_string() {
     // (:my::echo-factory (ThreadPeer/new ...)) — calling the factory fn
     // directly with the peer. Same as D1's original positional form.
     // Noted in SCORE as honest delta on factory call form convention.
-    let src = r#"
-        ;; Server-side echo worker: reads one String, writes it back.
-        ;; Passed as keyword :my::echo-factory in the coordinator-fn call.
-        ;; Expansion: (:my::echo-factory (ThreadPeer/new server-rx server-tx)).
-        (:wat::core::defn :my::echo-factory
-          [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::nil
-          (:wat::core::let
-            [line (:wat::kernel::Thread/readln peer)
-             _    (:wat::kernel::Thread/println peer line)]
-            nil))
-
-        ;; Named echo-client fn: the actual coordinator logic (independently testable).
-        ;; Takes the client-side peer, sends "hello", reads echo, returns it.
-        (:wat::core::defn :my::echo-client
-          [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::String
-          (:wat::core::let
-            [_     (:wat::kernel::Thread/println peer "hello")
-             reply (:wat::kernel::Thread/readln peer)]
-            reply))
-
-        ;; Entry point: uses the coordinator-fn form.
-        ;; Coordinator body is a single delegating call to :my::echo-client
-        ;; (advertised pattern per BRIEF + STOP-trigger 6).
-        ;; Factory is passed as a keyword reference (not a call form).
-        (:wat::core::defn :my::test::run-d1
-          [] -> :wat::core::String
-          (:wat::kernel::run-threads
-            (:wat::core::fn
-              [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::String>]
-              -> :wat::core::String
-              (:my::echo-client peer))
-            :my::echo-factory))
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     let func = world
         .symbols()
         .get(":my::test::run-d1")

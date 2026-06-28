@@ -8,49 +8,16 @@
 //! covering the 5 remaining forms: def / defmacro / defclause / newtype /
 //! typealias.
 //!
-//! ## Why this matters
-//!
-//! Before Gap I-A, writing `(:wat::core::def :x 42)` at a fn body's
-//! `do`-prefix caused the child to fail with `DefNotTopLevel` or
-//! `EvalForbidsMutationForm` (the form was left in the body for eval to see).
-//! Same for defmacro / define-dispatch / newtype / typealias. After Gap I-A,
-//! all 8 forms lift; the child's `startup_from_forms` processes them at
-//! startup before the body is evaluated.
-//!
-//! ## Probe structure
-//!
-//! Each probe (positive-case-only):
-//!   1. Declares a fn whose body is `(:wat::core::do declaration-form(s)... expr)`
-//!   2. Spawns it as a child process via `spawn-process`
-//!   3. Waits for child to exit and asserts exit code 0
-//!
-//! Gap H's 5 probes serve as the failing-baseline precedent for the
-//! prelude-lift mechanism. Gap I-A's probes prove additional coverage for the
-//! 5 newly-covered forms.
-//!
-//! ## The 6 probes
-//!
-//! 1. `def` in fn body do-prefix lifts to prologue
-//! 2. `defmacro` in fn body do-prefix lifts to prologue
-//! 3. `defclause` in fn body do-prefix lifts to prologue
-//! 4. `newtype` in fn body do-prefix lifts to prologue
-//! 5. `typealias` in fn body do-prefix lifts to prologue
-//! 6. mixed prelude covering all 8 form kinds — all lift in source order
+//! Wat source lives in the co-located fixture: probe_declaration_form_lift.wat
+//! (slurped via startup_beside(file!())). Four named launch functions
+//! (:my::launch-defmacro, :my::launch-newtype, :my::launch-typealias,
+//! :my::launch-mixed) are called by name per test.
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::{is_declaration_form, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{is_declaration_form, startup_beside};
 use wat::runtime::{eval, Environment, ProgramHandleInner};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Drain the stderr field (index 2) of a Process Struct value.
 fn drain_stderr(process: &wat::runtime::Value) -> String {
@@ -71,12 +38,12 @@ fn drain_stderr(process: &wat::runtime::Value) -> String {
     }
 }
 
-/// Evaluate `(:my::launch)` in the frozen world, fork the child, wait for
+/// Evaluate the named launch fn in the frozen world, fork the child, wait for
 /// it to exit, and return (exit_code, stderr_text).
-fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
+fn run_named_launch(world: &wat::freeze::FrozenWorld, name: &str) -> (i64, String) {
     let call = WatAST::List(
         vec![WatAST::Keyword(
-            ":my::launch".into(),
+            name.into(),
             wat::span::Span::unknown(),
         )],
         wat::span::Span::unknown(),
@@ -182,21 +149,8 @@ fn probe_is_declaration_form_covers_all_7_keywords() {
 /// (idempotent with the parent's registration) and exits 0.
 #[test]
 fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
-    // Arc 170 slice 6 — defmacro lives at program top-level via the
-    // new spawn-process program shape; the "lift" mechanism is retired
-    // because declarations sit at their natural position from the start.
-    // Stone 241.11 — define hard-cut; use defn in the child program forms.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defmacro :h::id-macro [x <- :wat::WatAST] -> :wat::WatAST `~x)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil nil))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let (exit_code, stderr) = run_launch(&world);
+    let world = startup_beside(file!()).expect("freeze should succeed");
+    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-defmacro");
     assert_eq!(
         exit_code, 0i64,
         "child should exit 0 (defmacro in do-prefix lifted to prologue); stderr:\n{}",
@@ -213,20 +167,8 @@ fn probe_defmacro_in_fn_body_do_prefix_lifts_to_prologue() {
 /// and `:h::LocalAmount/0` successfully; the child exits 0.
 #[test]
 fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
-    // Arc 170 slice 6 — newtype at program top-level.
-    // Stone 241.11 — define hard-cut; use defn in the child program forms.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::newtype :h::LocalAmount :wat::core::i64)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [a (:h::LocalAmount/new 100)] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let (exit_code, stderr) = run_launch(&world);
+    let world = startup_beside(file!()).expect("freeze should succeed");
+    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-newtype");
     assert_eq!(
         exit_code, 0i64,
         "child should exit 0 (newtype in do-prefix lifted to prologue); stderr:\n{}",
@@ -242,21 +184,8 @@ fn probe_newtype_in_fn_body_do_prefix_lifts_to_prologue() {
 /// the child type-checks it successfully and exits 0.
 #[test]
 fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
-    // Arc 170 slice 6 — typealias at program top-level.
-    // Stone 241.11 — define hard-cut; use defn in the child program forms.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::typealias :h::LocalCount :wat::core::i64)
-                        (:wat::core::defn :h::get-count [] -> :h::LocalCount 7)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [_c (:h::get-count)] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let (exit_code, stderr) = run_launch(&world);
+    let world = startup_beside(file!()).expect("freeze should succeed");
+    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-typealias");
     assert_eq!(
         exit_code, 0i64,
         "child should exit 0 (typealias in do-prefix lifted to prologue); stderr:\n{}",
@@ -281,55 +210,10 @@ fn probe_typealias_in_fn_body_do_prefix_lifts_to_prologue() {
 /// Gap I-B (extending the check-time validator). Gap I-B is the follow-on
 /// slice; this probe confirms the lift works for the 6 forms not blocked by
 /// the check-time validator.
-///
-/// Order in prelude: struct → enum → newtype → typealias → defn (arm impl) →
-///                   defmacro
-///
-/// The residual body exercises each declaration: constructs a struct, references
-/// an enum variant, constructs a newtype, calls a fn.
-///
-/// The typealias is used as the return type of the arm impl. The defmacro
-/// is registered in the child's macro registry (the parent has already expanded
-/// any macro call sites; the child registration is correct for future macro
-/// expansion in a subsequent spawn).
 #[test]
 fn probe_mixed_declaration_prelude_all_lift() {
-    // Arc 170 slice 6 — all declaration kinds sit at program top-level
-    // alongside :user::main. The new substrate makes the "lift" a no-op
-    // (declarations were already at the position the lift would move
-    // them to).
-    // Stone 241.11 — define hard-cut; use defn in the child program forms.
-    // Stone 241.13 — define-dispatch hard-cut; defclause is the surviving
-    // dispatch entity kind (not applicable in this mixed-prelude fixture
-    // since the form requires arc 237.2's defclause dispatch table, which
-    // only exercises clause definition — no runtime dispatch invocation here).
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defstruct :h::MixPoint
-                          [x <- :wat::core::i64
-                           y <- :wat::core::i64])
-                        (:wat::core::defenum :h::MixDir
-                          :Up
-                          :Down)
-                        (:wat::core::newtype :h::MixAmount :wat::core::i64)
-                        (:wat::core::typealias :h::MixCount :wat::core::i64)
-                        (:wat::core::defn :h::mix-i64 [v <- :wat::core::i64] -> :h::MixCount
-                          v)
-                        (:wat::core::defmacro :h::mix-id [z <- :wat::WatAST] -> :wat::WatAST `~z)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [_p  (:h::MixPoint/new 1 2)
-                             _d  :h::MixDir::Up
-                             _a  (:h::MixAmount/new 10)
-                             _n  (:h::mix-i64 7)]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
-    let (exit_code, stderr) = run_launch(&world);
+    let world = startup_beside(file!()).expect("freeze should succeed");
+    let (exit_code, stderr) = run_named_launch(&world, ":my::launch-mixed");
     assert_eq!(
         exit_code, 0i64,
         "child should exit 0 (6 of 7 declaration kinds in mixed prelude lifted to prologue; def excluded pending Gap I-B); stderr:\n{}",

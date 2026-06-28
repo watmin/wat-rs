@@ -11,30 +11,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc281_ast_end_span -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// read-string "(a b c)" → the parse tree; first top-level form is the (a b c) list.
-// ast-span of that list = {:line 1 :col 1} (the `(`); ast-end-span must = {:line 1 :col 8}
-// (one past the `)` at col 7). The probe returns the end :col; RED until the intrinsic exists.
-const PROGRAM: &str = r#"
-(:wat::core::defn :user::end-col [] -> :wat::core::i64
-  (:wat::core::let
-    [tree (:wat::core::read-string "(a b c)")
-     form (:wat::core::first (:wat::core::ast->children tree))
-     espan (:wat::core::ast-end-span form)]
-    (:wat::core::Option/expect
-      (:wat::core::HashMap/get espan :col)
-      "end :col")))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn ast_end_span_returns_position_past_close_paren() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup: ast-end-span must be defined once arc 281 ships");
+    let world = startup_beside(file!()).expect("startup: ast-end-span must be defined once arc 281 ships");
     let ast = wat::parse_one!("(:user::end-col)").expect("parse the defn call");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("end-col raised (ast-end-span undefined at HEAD): {e:?}"))

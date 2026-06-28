@@ -11,33 +11,17 @@
 //! `ast-span` the constructed node, read `:line`. RED at HEAD: the node carries `Span::unknown`
 //! → line 0. GREEN after: the call-site line (> 0).
 //!
+//! Wat source lives in the co-located fixture: probe_arc209_macro_span_fidelity.wat
+//! (slurped via startup_beside(file!())).
+//!
 //! Run: cargo test --release -p wat --test probe_arc209_macro_span_fidelity
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; keyword-node returns a Value::wat__WatAST NODE with Span::unknown baked in (edn_shim:581);
-;; value_to_watast passes such a node through DIRECT, so the unknown span survives — the gap.
-;; (keyword/from-string returns a keyword VALUE, auto-stamped call-site by value_to_watast — no gap.)
-(:wat::core::defmacro :user::mk-kw [] -> :wat::WatAST
-  (:wat::core::keyword-node ":foo"))
-
-(:wat::core::defn :user::probe-line [] -> :wat::core::i64
-  (:wat::core::Option/expect
-    (:wat::core::HashMap/get
-      (:wat::core::ast-span (:wat::core::macroexpand-1 (:wat::core::quote (:user::mk-kw))))
-      :line)
-    "ast-span should carry :line"))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn macro_constructed_node_carries_call_site_span() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (macro span-fidelity probe)");
     let ast = wat::parse_one!("(:user::probe-line)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

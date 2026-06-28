@@ -19,32 +19,16 @@
 //! - Rest-param without a following binder rejected.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
-//! Computation moved to :my::compute; canonical nil main appended.
+//! Computation moved to named fns; canonical nil main appended.
+//!
+//! Positive tests use the co-located fixture: variadic_defmacro.wat
+//! Negative tests use explicit bad fixtures in tests/macros/:
+//!   variadic_defmacro_bad_arity.wat
+//!   variadic_defmacro_bad_double_rest.wat
+//!   variadic_defmacro_bad_rest_no_binder.wat
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
 use wat::runtime::{Environment, Value};
-
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-}
-
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup(&src).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
 
 // ─── Canonical use: splice into a core form ───────────────────────────
 
@@ -53,33 +37,21 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
     // `(my::vec-of :wat::core::i64 1 2 3)` expands to
     // `(:wat::core::Vector :wat::core::i64 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
-    let src = r#"
-
-        (:wat::core::defmacro :my::vec-of
-          [& items <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          `(:wat::core::Vector :wat::core::i64 ~@items))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::first (:my::vec-of 10 20 30)))
-    "#;
-    assert!(matches!(run(src), Value::i64(10)));
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-splice)").expect("parse compute call");
+    let env = Environment::new();
+    let got = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
+    assert!(matches!(got, Value::i64(10)));
 }
 
 // ─── Zero rest-args ───────────────────────────────────────────────────
 
 #[test]
 fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
-    let src = r#"
-
-        (:wat::core::defmacro :my::empty-vec
-          [& items <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          `(:wat::core::Vector :wat::core::i64 ~@items))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64> (:my::empty-vec))
-    "#;
-    match run(src) {
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-empty)").expect("parse compute call");
+    let env = Environment::new();
+    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
         Value::Vec(items) => assert_eq!(items.len(), 0),
         other => panic!("expected empty Vec; got {:?}", other),
     }
@@ -89,27 +61,13 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
 
 #[test]
 fn variadic_macro_mixes_fixed_params_and_rest() {
-    // `(my::prefix-sum 100 1 2 3)` expands to
-    // `(+ 100 (+ 1 (+ 2 3)))` via a sum helper. Tests that fixed
-    // params bind first and rest picks up only the trailing args.
-    //
     // Simpler shape: macro expands to `(vec :wat::core::i64 init ,@items)` and
     // we sum-fold the result. Keeps the splice the point of the test.
-    let src = r#"
-
-        (:wat::core::defmacro :my::sum-of
-          [init <- :wat::WatAST
-           & items <- :wat::core::Vector<wat::WatAST>]
-          -> :wat::WatAST
-          `(:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))
-              ~init
-              (:wat::core::Vector :wat::core::i64 ~@items)))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::sum-of 100 1 2 3))
-    "#;
-    assert!(matches!(run(src), Value::i64(106)));
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let ast = wat::parse_one!("(:my::compute-sum)").expect("parse compute call");
+    let env = Environment::new();
+    let got = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
+    assert!(matches!(got, Value::i64(106)));
 }
 
 // ─── Arity error: too few args ────────────────────────────────────────
@@ -119,21 +77,7 @@ fn variadic_macro_requires_at_least_fixed_arity() {
     // `(my::sum-of)` with NO args — fixed-arity of :init is 1, so
     // zero args is a short call. Surfaces as a macro-expansion
     // ArityMismatch during startup.
-    let src = r#"
-
-        (:wat::core::defmacro :my::sum-of
-          [init <- :AST<wat::core::i64>
-           & items <- :AST<wat::holon::Holons>]
-          -> :AST<wat::holon::HolonAST>
-          `(:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))
-              ~init
-              (:wat::core::Vector :wat::core::i64 ~@items)))
-
-        (:wat::core::defn :user::main [] -> :wat::core::i64 (:my::sum-of))
-    "#;
-    match startup(src) {
+    match startup_from_file("tests/macros/variadic_defmacro_bad_arity.wat") {
         Err(StartupError::Macro(_)) => {}
         Err(other) => panic!("expected Macro error; got {:?}", other),
         Ok(_) => panic!("expected startup to fail"),
@@ -144,16 +88,7 @@ fn variadic_macro_requires_at_least_fixed_arity() {
 
 #[test]
 fn double_rest_marker_refused_at_registration() {
-    let src = r#"
-
-        (:wat::core::defmacro :my::bogus
-          [& & items <- :AST<wat::holon::Holons>]
-          -> :AST<wat::holon::HolonAST>
-          `(:wat::core::Vector :wat::core::i64 ~@items))
-
-        (:wat::core::defn :user::main [] -> :wat::core::i64 0)
-    "#;
-    match startup(src) {
+    match startup_from_file("tests/macros/variadic_defmacro_bad_double_rest.wat") {
         Err(StartupError::Macro(_)) => {}
         Err(other) => panic!("expected Macro error; got {:?}", other),
         Ok(_) => panic!("expected startup to fail on duplicate `&`"),
@@ -162,17 +97,7 @@ fn double_rest_marker_refused_at_registration() {
 
 #[test]
 fn rest_marker_without_binder_refused_at_registration() {
-    let src = r#"
-
-        (:wat::core::defmacro :my::bogus
-          [x <- :AST<wat::core::i64>
-           &]
-          -> :AST<wat::holon::HolonAST>
-          `(:wat::core::i64::+ ~x 0))
-
-        (:wat::core::defn :user::main [] -> :wat::core::i64 0)
-    "#;
-    match startup(src) {
+    match startup_from_file("tests/macros/variadic_defmacro_bad_rest_no_binder.wat") {
         Err(StartupError::Macro(_)) => {}
         Err(other) => panic!("expected Macro error; got {:?}", other),
         Ok(_) => panic!("expected startup to fail on `&` without binder"),

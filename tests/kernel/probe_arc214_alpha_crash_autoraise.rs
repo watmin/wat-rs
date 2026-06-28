@@ -34,9 +34,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel \
 //!     probe_arc214_alpha_crash_autoraise -- --ignored --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 /// FM-2-bis (α): `recv'` on a crashed `:process` child must auto-raise the
@@ -53,22 +51,8 @@ fn alpha_recv_prime_autoraises_child_crash_reason() {
     // the panic propagates up through invoke_user_main → catch_unwind →
     // finish_forked_child → emit_structured_exit → fd 2 (the Err channel) →
     // parent's err_rx → recv' raises the crash reason (which names DivisionByZero).
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
-                                   (:wat::core::forms
-                                     (:wat::core::defn :user::main [] -> :wat::core::nil
-                                       (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                                                         _ (:wat::kernel::println (:wat::core::i64::/ 100 n))]
-                                         nil))))
-                            _ (:wat::kernel::send' peer 0)
-                            got (:wat::kernel::recv' peer)]
-            got))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup_from_source must succeed: α crash-autoraise probe");
+    let world = startup_beside(file!())
+        .expect("startup must succeed: α crash-autoraise probe");
 
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();

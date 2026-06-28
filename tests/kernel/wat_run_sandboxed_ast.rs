@@ -17,26 +17,16 @@
 //! layer. Inner programs use canonical nil main + `:wat::kernel::println`.
 //! Rust asserts on the Value returned by eval_in_frozen.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_fn(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let call = format!("({fn_name})");
+    let ast = wat::parse_one!(&call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 fn unwrap_string(v: Value) -> String {
@@ -54,20 +44,8 @@ fn ast_entry_prints_hello() {
     // to `:wat::test::run-hermetic`. The body invokes
     // `:wat::kernel::println` and the outer reads `RunResult/stdout` —
     // rules 1+2 of FM 7-ter demand hermetic for accurate stdio capture.
-    // Outer is :my::compute returning the captured stdout line.
-    let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-hermetic
-                          (:wat::kernel::println "hello"))
-                       lines (:wat::kernel::RunResult/stdout r)
-                       line  (:wat::core::first lines)]
-                      line))
-    "##;
     // :wat::kernel::println EDN-serializes strings with quotes.
-    assert_eq!(unwrap_string(run(src)), "\"hello\"");
+    assert_eq!(unwrap_string(run_fn(":my::compute-prints-hello")), "\"hello\"");
 }
 
 // ─── Body-AST entry — failure surfaces identically (run-thread safe) ───
@@ -83,20 +61,7 @@ fn ast_entry_captures_assertion_failure() {
     // FM 7-ter's three rules do not fire, so thread is the correct
     // (cheaper) destination. The outer only inspects `RunResult/failure`
     // which the thread driver populates from the cascade chain.
-    let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-thread
-                          (:wat::test::assert-eq 1 2))
-                       fail
-                        (:wat::kernel::RunResult/failure r)]
-                      (:wat::core::match fail -> :wat::core::i64
-                        ((:wat::core::Some _) 1)
-                        (:wat::core::None    0))))
-    "##;
-    match run(src) {
+    match run_fn(":my::compute-assertion-failure") {
         Value::i64(n) => assert_eq!(n, 1, "expected failure to be detected (1); got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }

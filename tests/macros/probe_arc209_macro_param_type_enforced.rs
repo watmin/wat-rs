@@ -3,23 +3,21 @@
 //! annotation must be CHECKED at macro-def time: a non-AST type (a lie like `x <- :i64`) is
 //! rejected. BEFORE (HEAD): silently accepted (the bug). AFTER: a clean MalformedDefmacro.
 //!
+//! Wat source lives in the NEGATIVE fixture:
+//! tests/macros/probe_arc209_macro_param_type_enforced_bad.wat
+//! (loaded via startup_from_file — must fail).
+//!
 //! Run: cargo test --release -p wat --test probe_arc209_macro_param_type_enforced
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-// A macro whose param claims `:wat::core::i64` — a lie: a macro param is always a form.
-const LYING_PARAM: &str = r#"
-(:wat::core::defmacro :user::bad [x <- :wat::core::i64] -> :wat::WatAST x)
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+use wat::freeze::startup_from_file;
 
 // ENFORCE landed (arc 251.5 / 209): macro-def now REJECTS a lying `<- :i64` at definition
 // time. This gate flipped RED→GREEN when the validator landed in src/macros/parse.rs.
 #[test]
 fn lying_macro_param_type_is_rejected_at_macro_def() {
-    let r = startup_from_source(LYING_PARAM, None, Arc::new(InMemoryLoader::new()));
+    let r = startup_from_file(
+        "tests/macros/probe_arc209_macro_param_type_enforced_bad.wat",
+    );
     // AFTER (ENFORCE): macro-def must REJECT a non-:wat::WatAST param type.
     // BEFORE (HEAD): Ok — silently accepted (the mandatory-then-discarded bug). RED.
     match &r {
