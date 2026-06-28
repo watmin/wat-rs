@@ -1,9 +1,11 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `c62a817c` or later.** Tree CLEAN
-(293.4e-pre COMPLETE — heresy + generics committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0a64148d` or later.** Tree CLEAN
+(293.4e-pre.iii STRIKE-READY committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4097 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4097 passed / 0 failed / 93 skipped`** (the 93rd skip = the 293.4e-pre.iii `#[ignore]`'d RED probe).
+**NEXT STRIKE = 293.4e-pre.iii** (`BRIEF-293.4e-pre-iii-extend-impl-inherits-types.md`) — the last gate before the
+`defprotocol` annihilation; its EXPECTATIONS row #3 IS the Locus migration. The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
