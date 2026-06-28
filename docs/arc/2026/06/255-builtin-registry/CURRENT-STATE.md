@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `cf89fb52` or later.** Tree CLEAN
-(293.4d committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `35ba0863` or later.** Tree CLEAN
+(293.4d + 293.4d-fix committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4094 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4095 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
@@ -65,14 +65,11 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   `:T/name` resolves (a record field accessor OR a method/extend) — a broadening of the 293.4b/c method-only arms across
   resolve/check/runtime + surface.rs satisfaction. `(:geo::demo)` runs end-to-end (foreign holon-Vector taught to be a
   Shape, field+method backing one accessor). `SCORE-293.4d.md`; 293 REALIZATIONS R1 turned to PROBATUM.
-- ▶ **NEXT — two clean strikes before 293 closes:**
-  - **293.4d-fix (the silent-swallow extirpare, IMMEDIATE):** `parse_defsurface` SILENTLY DROPS members written outside
-    the `[...]` member vector (the demo's old `[color] (area) (label)` lost its methods — arity-4 branch reads `[color]`
-    as members, ignores the rest). A surface can be declared weaker than written, no error → satisfaction passes things
-    it shouldn't. Fix at the ROOT: `parse_defsurface` must ERROR on unexpected extra args. RED probe first. ALSO:
-    `DESIGN.md` § "What the arc delivers" snippet is stale (`definterface` separate-arg methods → `defsurface`
-    all-in-vector) — amend-with-recognition.
-  - **293.4e — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
+- ✅ **293.4d-fix DONE (`35ba0863`)** — `parse_defsurface` now rejects members written OUTSIDE the `[...]` vector (the
+  silent-swallow the demo's old `definterface` form hit: a 4-arg non-`:holder` form was read as 2-arg with args 2..
+  dropped). Structural invariant: nothing follows the member vector → leftover = hard teaching error. DESIGN.md snippet
+  amended (`definterface` separate-args → `defsurface` all-in-vector). RED probe `probe_arc293_4d_fix_silent_member_drop`.
+- ▶ **293.4e NEXT — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
   - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
