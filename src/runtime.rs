@@ -5214,6 +5214,92 @@ fn dispatch_keyword_head_value(
                     return eval_inner(&clause.body, &call_env, sym)
                         .map(|tv| tv.value_owned());
                 }
+
+                // Arc 293.4b — surface-method dispatch.
+                //
+                // A head `:S/method` where `S` is a `TypeDef::Surface` with method member `method`
+                // routes to the plain `defn :<T>/<method>` in `sym.functions` (NOT an extend-def).
+                // Surfaces have no `extend-type` machinery; each satisfying type backs the method
+                // with a direct `defn :T/name`. The check layer has already verified the receiver
+                // satisfies S; here we only need the concrete type for the lookup key.
+                //
+                // `sym.types` is populated at freeze time (`FrozenWorld::freeze` → `symbols.set_types`).
+                // The protocol arm above runs first and returns early if the stem is a protocol_def,
+                // so surfaces and protocols cannot conflict.
+                if let Some(types) = sym.types.as_ref() {
+                    if let Some(crate::types::TypeDef::Surface(s)) = types.get(protocol_fqdn) {
+                        if s.members.iter().any(|m| {
+                            matches!(m, crate::types::SurfaceMember::Method { name, .. } if name == method_name)
+                        }) {
+                            // Must have at least 1 arg (the receiver).
+                            if args.is_empty() {
+                                return Err(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::ArityMismatch {
+                                        op: other.to_string(),
+                                        expected: 1,
+                                        got: 0,
+                                    },
+                                }.into());
+                            }
+                            // Eval the receiver (arg 0).
+                            let receiver = eval_inner(&args[0], env, sym)?.value_owned();
+                            // Read the receiver's concrete type FQDN — reuse the EXACT same
+                            // extraction as the protocol dispatch above (Record/holon-Record/Struct/RustOpaque).
+                            let concrete_type_fqdn: String = match &receiver {
+                                Value::wat__Record { class_fqdn, .. }
+                                | Value::wat__holon__Record { class_fqdn, .. } => {
+                                    // class_fqdn has NO leading colon — add it.
+                                    format!(":{}", class_fqdn)
+                                }
+                                Value::Struct(sv) => sv.type_name.clone(),
+                                Value::RustOpaque(inner) => inner.type_path.to_string(),
+                                other_val => {
+                                    return Err(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: other.to_string(),
+                                            reason: format!(
+                                                "surface-method receiver must be a type that satisfies `{}`; \
+                                                 got a `{}` value",
+                                                protocol_fqdn,
+                                                other_val.type_name()
+                                            ),
+                                        },
+                                    }.into());
+                                }
+                            };
+                            // Look up `:<T>/<method>` as a plain function in sym.functions.
+                            // The ONE semantic change from the protocol path: surfaces have no
+                            // extend-def; the satisfier exposes a regular `defn :<T>/<method>`.
+                            let method_key = format!("{}/{}", concrete_type_fqdn, method_name);
+                            let func = match sym.get(canonical_callable_name(&method_key)) {
+                                Some(f) => f.clone(),
+                                None => {
+                                    return Err(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::UnknownFunction(format!(
+                                            "type `{}` does not implement surface method `{}` — \
+                                             expected a `defn {}` but none is registered",
+                                            concrete_type_fqdn, method_name, method_key
+                                        )),
+                                    }.into());
+                                }
+                            };
+                            // Eval the remaining args.
+                            let rest_vals: Vec<Value> = args[1..]
+                                .iter()
+                                .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+                                .collect::<Result<Vec<_>, _>>()?;
+                            // Full arg list: receiver + rest (receiver is arg 0 as declared in `defn :T/<method>`).
+                            let mut all_vals = Vec::with_capacity(1 + rest_vals.len());
+                            all_vals.push(receiver);
+                            all_vals.extend(rest_vals);
+                            return apply_function(func, all_vals, sym, list_span.clone())
+                                .map_err(Into::into);
+                        }
+                    }
+                }
             }
 
             // Arc 139 — strip `<T,...>` from the head before lookup.

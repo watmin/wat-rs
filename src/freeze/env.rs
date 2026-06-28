@@ -231,6 +231,15 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             ),
         })?;
 
+    // 6.97. Arc 293.4b — pre-attach the TypeEnv to the SymbolTable BEFORE the
+    //       resolve pass so `is_resolvable_call_head` can distinguish a
+    //       `:S/method` surface-method call head from an UnresolvedReference.
+    //       At this point `types` is fully populated (all steps 5–6.9x done).
+    //       `FrozenWorld::freeze` later overwrites `sym.types` with the same
+    //       data (via `symbols.set_types(Arc::new(types.clone()))`); the early
+    //       attach here is strictly for the resolve pass.
+    symbols.types = Some(std::sync::Arc::new(types.clone()));
+
     // 7. Name resolution.
     // Stone 251.1b — normalize before resolve so rewritten AST flows
     // through check + eval with keyword heads.

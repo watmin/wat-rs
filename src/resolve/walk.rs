@@ -238,12 +238,28 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // protocol FQDNs are stored as `Value::wat__core__protocol_def` in
     // `runtime_def_values`.
     if let Some(slash_pos) = head.rfind('/') {
-        let protocol_fqdn = &head[..slash_pos];
+        let stem = &head[..slash_pos];
         if matches!(
-            sym.runtime_def_values.get(protocol_fqdn),
+            sym.runtime_def_values.get(stem),
             Some(crate::runtime::Value::wat__core__protocol_def(_))
         ) {
             return true;
+        }
+        // Arc 293.4b — surface-method call heads (`:S/method`).
+        //
+        // A head `:S/method` where the stem names a `TypeDef::Surface` is a
+        // surface-method call — e.g. `:t::Shape/area`. The resolver accepts these
+        // so they survive to the type-checker (which verifies the receiver satisfies
+        // S and the method is declared) and the runtime dispatcher (which routes to
+        // `:<T>/<method>` by concrete type). Surfaces and protocols are DISJOINT: a
+        // name registered as both is a programmer error; the protocol arm above wins.
+        //
+        // `sym.types` is pre-attached at step 6.97 (freeze/env.rs) BEFORE this
+        // resolve pass runs, so the TypeDef::Surface lookup is safe here.
+        if let Some(types) = sym.types.as_ref() {
+            if matches!(types.get(stem), Some(crate::types::TypeDef::Surface(_))) {
+                return true;
+            }
         }
     }
     // Arc 245 long-tail — single-segment keyword call heads (field accessors).

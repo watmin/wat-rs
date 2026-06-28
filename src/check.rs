@@ -5952,6 +5952,98 @@ fn infer_list(
                 });
                 return CheckResult::errs(local_errors);
             }
+
+            // Arc 293.4b — surface-method call-site check.
+            //
+            // A head `:S/method` where `S` is a `TypeDef::Surface` with a `SurfaceMember::Method`
+            // named `method`. Surfaces are disjoint from protocols (a name is one or the other;
+            // the protocol arm above runs first and returns early if the stem is a protocol).
+            //
+            // Type rule: receiver (arg 0) must satisfy S; remaining args must match the method's
+            // ArgSpec.fixed_params[1..]; return type is the method member's `ret`.  This is a
+            // PARALLEL arm to the protocol check — same checker machinery, different registry.
+            if let Some(crate::types::TypeDef::Surface(s)) = env.types().get(protocol_fqdn) {
+                if let Some(member) = s.members.iter().find(|m| {
+                    matches!(m, crate::types::SurfaceMember::Method { name, .. } if name == method_name)
+                }) {
+                    let (member_ret, member_args) = match member {
+                        crate::types::SurfaceMember::Method { ret, args, .. } => (ret.clone(), args.clone()),
+                        _ => unreachable!("filtered to Method variants above"),
+                    };
+                    // Arity: 1 (the receiver) + the method's fixed_params count.
+                    let expected_arity = 1 + member_args.fixed_params.len();
+                    if args.len() != expected_arity {
+                        local_errors.push(CheckError {
+                            span: head_span.clone(),
+                            kind: CheckErrorKind::ArityMismatch {
+                                callee: k.clone(),
+                                expected: expected_arity,
+                                got: args.len(),
+                            },
+                        });
+                        for arg in args {
+                            let _ = infer(arg, env, locals, fresh, subst)
+                                .drain_errors_into(&mut local_errors);
+                        }
+                        return CheckResult::errs(local_errors);
+                    }
+                    // Infer each argument's type.
+                    let arg_tys: Vec<Option<TypeExpr>> = args
+                        .iter()
+                        .map(|arg| {
+                            infer(arg, env, locals, fresh, subst)
+                                .drain_errors_into(&mut local_errors)
+                        })
+                        .collect();
+                    // Check receiver (arg 0) satisfies the surface S.
+                    if let Some(recv_ty) = &arg_tys[0] {
+                        let surface_expected = TypeExpr::Path(protocol_fqdn.to_string());
+                        if !assignable(recv_ty, &surface_expected, subst, env) {
+                            local_errors.push(CheckError {
+                                span: args[0].span().clone(),
+                                kind: CheckErrorKind::TypeMismatch {
+                                    callee: k.clone(),
+                                    param: "#1 (receiver)".into(),
+                                    expected: protocol_fqdn.to_string(),
+                                    got: format_type(&apply_subst(recv_ty, subst)),
+                                },
+                            });
+                        }
+                    }
+                    // Check remaining args against the method's fixed_params types.
+                    for (i, (arg_ty_opt, (_, expected_ty))) in arg_tys[1..]
+                        .iter()
+                        .zip(member_args.fixed_params.iter())
+                        .enumerate()
+                    {
+                        if let Some(arg_ty) = arg_ty_opt {
+                            if !assignable(arg_ty, expected_ty, subst, env) {
+                                local_errors.push(CheckError {
+                                    span: args[i + 1].span().clone(),
+                                    kind: CheckErrorKind::TypeMismatch {
+                                        callee: k.clone(),
+                                        param: format!("#{}", i + 2),
+                                        expected: format_type(expected_ty),
+                                        got: format_type(&apply_subst(arg_ty, subst)),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                    // Return the method's declared return type.
+                    return if local_errors.is_empty() {
+                        CheckResult::ok(member_ret)
+                    } else {
+                        CheckResult::partial_with(member_ret, local_errors)
+                    };
+                }
+                // Surface found but `method_name` is not a method member — report unknown callee.
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
+                });
+                return CheckResult::errs(local_errors);
+            }
         }
 
         // Stone 237.2 — defclause call-site dispatch.
