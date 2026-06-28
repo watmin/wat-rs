@@ -1338,8 +1338,12 @@ fn def_inner_typeexprs(def: &TypeDef) -> Vec<TypeExpr> {
         TypeDef::Alias(a) => vec![a.expr.clone()],
         // Stone 237.1 — typeunion members are the inner type references.
         TypeDef::Union(u) => u.members.clone(),
-        // Arc 293.3-core — surface members are typed; return their TypeExprs.
-        TypeDef::Surface(s) => s.members.iter().map(|(_, t)| t.clone()).collect(),
+        // Arc 293.3-core / 293.4a — surface members carry Field and Method variants.
+        // Return the TypeExpr from each member (Field.ty or Method.ret) for reachability.
+        TypeDef::Surface(s) => s.members.iter().map(|m| match m {
+            crate::types::SurfaceMember::Field { ty, .. } => ty.clone(),
+            crate::types::SurfaceMember::Method { ret, .. } => ret.clone(),
+        }).collect(),
     }
 }
 
@@ -2421,13 +2425,44 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                 span,
             )
         }
-        // Arc 293.3-core — reconstruct defsurface form: [member <- :T ...].
+        // Arc 293.3-core / 293.4a — reconstruct defsurface form.
+        // Field members → `name <- :T` triples; Method members → `(name [self] -> :R)` lists.
         TypeDef::Surface(s) => {
-            let mut member_vec_items = Vec::with_capacity(s.members.len() * 3);
-            for (mname, mty) in &s.members {
-                member_vec_items.push(WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()));
-                member_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
-                member_vec_items.push(WatAST::Keyword(crate::check::format_type(mty), span.clone()));
+            let mut member_vec_items = Vec::new();
+            for member in &s.members {
+                match member {
+                    crate::types::SurfaceMember::Field { name: mname, ty: mty } => {
+                        member_vec_items.push(WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()));
+                        member_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
+                        member_vec_items.push(WatAST::Keyword(crate::check::format_type(mty), span.clone()));
+                    }
+                    crate::types::SurfaceMember::Method { name: mname, args: margs, ret: mret, .. } => {
+                        // Reconstruct as `(name [arg_triples... | self] -> :RetType)`.
+                        // Rebuild the argvec from the ArgSpec's fixed_params; fall back to
+                        // bare `[self]` when fixed_params is empty (untyped surface member).
+                        let arg_vec_items: Vec<WatAST> = if margs.fixed_params.is_empty() {
+                            vec![WatAST::Symbol(Identifier::bare("self".to_string()), span.clone())]
+                        } else {
+                            margs.fixed_params.iter().flat_map(|(id, ty)| {
+                                vec![
+                                    WatAST::Symbol(id.clone(), span.clone()),
+                                    WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()),
+                                    WatAST::Keyword(crate::check::format_type(ty), span.clone()),
+                                ]
+                            }).collect()
+                        };
+                        let method_list = WatAST::List(
+                            vec![
+                                WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()),
+                                WatAST::Vector(arg_vec_items, span.clone()),
+                                WatAST::Symbol(Identifier::bare("->".to_string()), span.clone()),
+                                WatAST::Keyword(crate::check::format_type(mret), span.clone()),
+                            ],
+                            span.clone(),
+                        );
+                        member_vec_items.push(method_list);
+                    }
+                }
             }
             WatAST::List(
                 vec![

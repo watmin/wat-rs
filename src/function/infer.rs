@@ -145,7 +145,7 @@ pub(crate) fn infer_fn(
         // Arc 258 cascade — use `assignable` instead of bare `unify` so that a
         // specifically-typed record (e.g. :myapp::Voltage) satisfies a declared
         // return of :wat::Record via the is_subtype hierarchy.
-        if !assignable(&body_ty, &ret_type, subst, env.types()) {
+        if !assignable(&body_ty, &ret_type, subst, env) {
             // WHY: location rendered once via span_prefix in Display; human label carries no span
             errors.push(CheckError {
                 span: body_span.clone(),

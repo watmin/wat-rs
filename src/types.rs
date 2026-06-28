@@ -222,6 +222,31 @@ pub struct UnionDef {
     pub members: Vec<TypeExpr>,
 }
 
+/// Arc 293.4a — a member of a `defsurface` declaration: either a required named
+/// field (row-polymorphic width subtyping) or a required named method (structural
+/// "methods are accessors": the satisfier backs it with a `defn :T/<name>`).
+///
+/// Types-local: mirrors `value::ProtocolMethodSig` but does NOT depend on `value`.
+/// The `Method` variant carries the full `ArgSpec` from `parse_argspec_triples`
+/// (not a flattened `Vec<TypeExpr>`) so the binder names are preserved and the
+/// structural check can compare per-position with the candidate `defn`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SurfaceMember {
+    /// A field requirement: type T must have a field `name` with a type assignable to `ty`.
+    Field { name: String, ty: TypeExpr },
+    /// A method requirement: type T must expose a `defn :T/<name>` with an assignable sig.
+    /// `args` is the ArgSpec from parsing `[self …]`; `fixed_params` may be empty when the
+    /// surface member uses a bare `[self]` with no type annotation. `ret` is the required
+    /// return type. The satisfier checks `defn :<T>/name` ret ← mret (+ arg types per-position
+    /// when `args.fixed_params` is non-empty).
+    Method {
+        name: String,
+        args: crate::argspec::ArgSpec,
+        ret: TypeExpr,
+        type_params: Vec<String>,
+    },
+}
+
 /// Surface declaration — structural interface (arc 293.3-core).
 ///
 /// `(:wat::core::defsurface :Name [member <- :T ...])` declares a named
@@ -229,11 +254,13 @@ pub struct UnionDef {
 /// by having every member with a field-type assignable to the member's type
 /// (row-polymorphic width subtyping — extra fields are fine). No `:satisfies`,
 /// no `:parent`, no declaration at the use site.
+///
+/// Arc 293.4a — `members` now carries `SurfaceMember` variants (Field or Method).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SurfaceDef {
     pub name: String,
     pub type_params: Vec<String>,
-    pub members: Vec<(String, TypeExpr)>,
+    pub members: Vec<SurfaceMember>,
     /// Arc 293 R3 — optional categorical holder bound. `None` → pure-structural (today's behavior).
     /// `Some(h)` → the aggregate's `holder` must equal `h` (enforced in `assignable`).
     pub holder: Option<Holder>,

@@ -3242,7 +3242,7 @@ fn check_function_body(
     // specifically-typed record (e.g. :myapp::Voltage) satisfies a declared
     // return of :wat::Record via the is_subtype hierarchy.
     if let Some(body_ty) = body_ty {
-        if !assignable(&body_ty, &scheme.ret, &mut subst, env.types()) {
+        if !assignable(&body_ty, &scheme.ret, &mut subst, env) {
             let resolved_ret = apply_subst(&scheme.ret, &subst);
             let resolved_body = apply_subst(&body_ty, &subst);
             let remedies = variant_typo_remedies(body_ast, &resolved_ret, env.types());
@@ -4369,7 +4369,7 @@ fn infer_list(
                     .drain_errors_into(&mut local_errors);
                 // Require expr's type S assignable to the ascribed type T.
                 if let Some(s) = expr_ty {
-                    if !assignable(&s, &ascribed_ty, subst, env.types()) {
+                    if !assignable(&s, &ascribed_ty, subst, env) {
                         local_errors.push(CheckError {
                             span: args[0].span().clone(),
                             kind: CheckErrorKind::TypeMismatch {
@@ -4885,7 +4885,7 @@ fn infer_list(
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let expected = TypeExpr::Path(":wat::WatAST".into());
-                    if !assignable(&arg_ty, &expected, subst, env.types()) {
+                    if !assignable(&arg_ty, &expected, subst, env) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
@@ -5902,7 +5902,7 @@ fn infer_list(
                     // never a type-param, so no instantiation needed here.
                     if let Some(recv_ty) = &arg_tys[0] {
                         let receiver_expected = TypeExpr::Path(protocol_fqdn.to_string());
-                        if !assignable(recv_ty, &receiver_expected, subst, env.types()) {
+                        if !assignable(recv_ty, &receiver_expected, subst, env) {
                             local_errors.push(CheckError {
                                 span: args[0].span().clone(),
                                 kind: CheckErrorKind::TypeMismatch {
@@ -5923,7 +5923,7 @@ fn infer_list(
                         .enumerate()
                     {
                         if let Some(arg_ty) = arg_ty_opt {
-                            if !assignable(arg_ty, expected_ty, subst, env.types()) {
+                            if !assignable(arg_ty, expected_ty, subst, env) {
                                 local_errors.push(CheckError {
                                     span: args[i + 1].span().clone(),
                                     kind: CheckErrorKind::TypeMismatch {
@@ -6003,7 +6003,7 @@ fn infer_list(
                 let mut all_match = true;
                 for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(inst_arg_types.iter()) {
                     if let Some(arg_ty) = arg_ty_opt {
-                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env.types()) {
+                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env) {
                             all_match = false;
                             continue 'outer;
                         }
@@ -6204,7 +6204,7 @@ fn infer_list(
             {
                 let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 if let Some(arg_ty) = arg_ty {
-                    if !assignable(&arg_ty, expected, subst, env.types()) {
+                    if !assignable(&arg_ty, expected, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{}", i + 1),
@@ -6229,7 +6229,7 @@ fn infer_list(
                     // accepted in the rest position — e.g. i64 is-a :wat::core::Value
                     // (the universal top, arc 278 R7). Mirrors the fixed-arg check above;
                     // `assignable` consults is_subtype first, falls to unify (binds vars).
-                    if !assignable(&arg_ty, &elem_inst, subst, env.types()) {
+                    if !assignable(&arg_ty, &elem_inst, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: format!("#{} (rest)", j + 1),
@@ -6259,7 +6259,7 @@ fn infer_list(
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
             let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
             if let Some(arg_ty) = arg_ty {
-                if !assignable(&arg_ty, expected, subst, env.types()) {
+                if !assignable(&arg_ty, expected, subst, env) {
                     local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: k.clone(),
                         param: format!("#{}", i + 1),
@@ -6391,7 +6391,7 @@ fn infer_list(
     }
     for (i, (arg, expected)) in call_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if !assignable(&arg_ty, expected, subst, env.types()) {
+            if !assignable(&arg_ty, expected, subst, env) {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: "(value head)".into(),
                     param: format!("#{}", i + 1),
@@ -9154,7 +9154,7 @@ fn infer_try(
         head: "wat::core::Result".into(),
         args: vec![fresh_t.clone(), enclosing_err_ty],
     };
-    if !assignable(&arg_ty, &expected, subst, env.types()) {
+    if !assignable(&arg_ty, &expected, subst, env) {
         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
@@ -9261,7 +9261,7 @@ fn infer_option_try(
         head: "wat::core::Option".into(),
         args: vec![fresh_t.clone()],
     };
-    if !assignable(&arg_ty, &expected, subst, env.types()) {
+    if !assignable(&arg_ty, &expected, subst, env) {
         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
             callee: callee.into(),
             param: "arg".into(),
@@ -10133,7 +10133,7 @@ fn infer_spawn(
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if !assignable(&arg_ty, expected, subst, env.types()) {
+            if !assignable(&arg_ty, expected, subst, env) {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: callee_label.clone(),
                     param: format!("#{}", i + 1),
@@ -11304,7 +11304,7 @@ fn infer_kernel_after(
     let peer_kind_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(peer_kind_ty) = &peer_kind_ty_opt {
         let expected_kind = TypeExpr::Path(":wat::program::PeerKind".into());
-        if !assignable(peer_kind_ty, &expected_kind, subst, &env.types) {
+        if !assignable(peer_kind_ty, &expected_kind, subst, env) {
             local_errors.push(CheckError {
                 span: args[0].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
@@ -11321,7 +11321,7 @@ fn infer_kernel_after(
     let dur_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(dur_ty) = &dur_ty_opt {
         let expected_dur = TypeExpr::Path(":wat::time::Duration".into());
-        if !assignable(dur_ty, &expected_dur, subst, &env.types) {
+        if !assignable(dur_ty, &expected_dur, subst, env) {
             local_errors.push(CheckError {
                 span: args[1].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
@@ -14322,12 +14322,19 @@ fn unify_union_union(
 /// registered edge), then falls through to ordinary unification (behaviour
 /// unchanged for every other pair). Peels each side exactly as `unify` does at
 /// its head (line ~14633): `reduce(&walk(x, subst), subst, types)`.
+///
+/// Arc 293.4a — takes `env: &CheckEnv` instead of `types: &TypeEnv` so that the
+/// surface method-member satisfaction check can reach `env.schemes` (where
+/// `defn :T/<name>` sigs are registered) via the `resolve_method` closure.
+/// All callers previously passed `env.types()` as the last arg; they now pass
+/// `env` directly.
 pub(crate) fn assignable(
     actual: &TypeExpr,
     expected: &TypeExpr,
     subst: &mut Subst,
-    types: &TypeEnv,
+    env: &CheckEnv,
 ) -> bool {
+    let types = env.types();
     let a = reduce(&walk(actual, subst), subst, types);
     let e = reduce(&walk(expected, subst), subst, types);
     if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
@@ -14367,6 +14374,7 @@ pub(crate) fn assignable(
     }
     // Arc 293.3-core — structural surface satisfaction (row-polymorphic width subtyping).
     // Arc 293 R3 — plus optional categorical :holder bound (hard rejection).
+    // Arc 293.4a — method member satisfaction via resolve_method (env.schemes lookup).
     // Logic lives in `types::surface::struct_satisfies_surface` (homes discipline).
     if let TypeExpr::Path(ep) = &e {
         if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
@@ -14377,10 +14385,20 @@ pub(crate) fn assignable(
                 if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
                     let fields_clone = agg.fields.clone();
                     let agg_holder = agg.holder; // Copy before fields_clone consumes the borrow.
+                    // Arc 293.4a — build the method resolver: looks up `defn :<T>/<name>` in
+                    // env.schemes and returns (arg_types, ret) for the sig check.
+                    // The type FQDN (e.g. ":t::Sq") is captured from `ap`; the accessor key
+                    // is `"<fqdn>/<method_name>"` (e.g. ":t::Sq/area") — the same key used
+                    // when `defn :t::Sq/area` is pre-registered into sym.functions at startup.
+                    let type_fqdn = ap.clone();
                     let structural = crate::types::surface::struct_satisfies_surface(
                         &fields_clone,
                         &surf_clone,
-                        |fty, mty| assignable(fty, mty, subst, types),
+                        |fty, mty| assignable(fty, mty, subst, env),
+                        |method_name| {
+                            let key = format!("{}/{}", type_fqdn, method_name);
+                            env.get(&key).map(|s| (s.params.clone(), s.ret.clone()))
+                        },
                     );
                     // Arc 293 R3 — categorical holder check (hard, orthogonal to structural).
                     let holder_ok = match surf_clone.holder {

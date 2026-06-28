@@ -1,5 +1,17 @@
 # BRIEF — 293.4a: method members in `defsurface` (parse + satisfy)
 
+> **⊘ CORRECTION (mid-build, 2026-06-28 — builder + orchestrator; amend-with-recognition):** the suggested
+> `Method { arg_types: Vec<TypeExpr>, … }` shape below was WRONG. There is exactly ONE canonical representation of a
+> typed binder list — `crate::argspec::ArgSpec` (what `parse_argspec_triples` returns; the Field path already uses it;
+> the arc's own DESIGN decision #2 = "defsurface = a named ArgSpec"). A second `arg_types: Vec<TypeExpr>` is the
+> decomplection this arc exists to kill. **As built:** `SurfaceMember::Method { name, args: ArgSpec, ret, type_params }`
+> — the member carries the full `ArgSpec`, NOT a flatten. (The original `parse_defprotocol_form` flatten —
+> `spec.fixed_params.iter().map(|(_,ty)| ty).collect()` — is the original sin; mirrored its *parse*, dropped its
+> *flatten*.) The `arg_types: Vec<TypeExpr>` text in § "the one contract decision" and § "Read in order" is kept below
+> with recognition; the ArgSpec shape is what shipped. **Second delta:** STOP-1 (CheckEnv unreachable) did NOT fire —
+> `assignable` only had `&TypeEnv`, so the executor threaded `&CheckEnv` THROUGH `assignable` (17 call sites,
+> +35/-17 check.rs); the correct seam, broader than this brief drew.
+
 **The work, in one paragraph.** Today a `defsurface` member list is field-only — `parse_defsurface`
 (`src/types/surface.rs:48`) runs the whole member vector through `argspec::parse_argspec_triples`, which only
 understands `[name <- :T]` field triples; a method member `(area [self] -> :f64)` (a list element inside the vector)

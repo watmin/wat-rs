@@ -13,13 +13,11 @@
 //! `struct_satisfies_surface` treats a Method member as satisfied by a matching
 //! `defn :T/name`. NO dispatcher (`:Shape/area s`) is exercised here — that is 293.4b.
 
-use wat::freeze::startup_beside;
+use wat::freeze::{startup_beside, startup_from_file};
 
 /// A `defsurface` mixing a field member + a method member must parse, and a record
 /// that backs the method with a `defn :T/area` must structurally satisfy it.
 #[test]
-#[ignore = "RED at HEAD: arc-293.4a (method members in defsurface — parse + satisfy) not built; \
-            un-ignore when the strike lands GREEN"]
 fn method_member_surface_parses_and_is_satisfied_by_a_defn() {
     let world = startup_beside(file!());
     assert!(
@@ -27,5 +25,22 @@ fn method_member_surface_parses_and_is_satisfied_by_a_defn() {
         "a defsurface with a method member must parse, and a record backing it with a \
          `defn :T/area` must satisfy it structurally; got: {:?}",
         world.err()
+    );
+}
+
+/// NEGATIVE arm (EXPECTATIONS row #4): a record with the field member (`color`) but
+/// NO `defn :T/area` must NOT satisfy the surface — the checker must REJECT the call.
+///
+/// This proves that method-member satisfaction is a real sig-check (resolver returns None →
+/// not satisfied), not a parse-only always-accept stub.
+#[test]
+fn method_member_not_satisfied_when_defn_is_absent() {
+    let world = startup_from_file(
+        "tests/types/probe_arc293_4a_method_members_bad.wat",
+    );
+    assert!(
+        world.is_err(),
+        "a record with `color` field but no `defn :T/area` must NOT satisfy the surface; \
+         but startup succeeded (method satisfaction is always-accepting — fix the resolver)"
     );
 }

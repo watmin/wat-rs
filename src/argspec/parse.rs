@@ -11,7 +11,7 @@ use super::error::{ArgSpecError, ArgSpecErrorKind};
 /// includes `& name <- :T`. Otherwise `None`.
 /// Ret-clause (`-> :Ret`) is NOT represented here — fn-form parsers (defn, fn, etc.)
 /// compose argspec + ret-clause at the form level.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgSpec {
     /// Ordered list of `(name, type)` pairs for the fixed positional parameters.
     pub fixed_params: Vec<(Identifier, TypeExpr)>,
