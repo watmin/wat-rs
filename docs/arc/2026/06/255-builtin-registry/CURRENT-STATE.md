@@ -239,5 +239,8 @@ NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a
 not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
-> disk; do not trust a single line you did not re-verify this session. 118 contract = `118/DESIGN.md` (decided blocks at
-> top); the doctrine = `294/REALIZATIONS.md`. The list→seq fix-wat + the HOF family are the next strikes.**
+> disk; do not trust a single line you did not re-verify this session. THE NEXT STRIKE = 293.4e-pre.iii** (extend-impl
+> inherits the surface method's sig — `BRIEF-293.4e-pre-iii-extend-impl-inherits-types.md`, RED probe `#[ignore]`'d), the
+> last gate before the `defprotocol` annihilation (293.4e). **The 293.4 chain (a/b/c/d + demo GREEN + R1 PROBATUM) is
+> done; the whole ArgSpec-heresy detour is killed; floor 4097/0.** Beyond 293: `Seqable` → 118 (`118/DESIGN.md`) → 295;
+> doctrine = `294/REALIZATIONS.md`.
