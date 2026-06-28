@@ -1,42 +1,23 @@
-//! Arc 277 — disconfirming probe: `wat-lint` has no rule engine yet (RED at HEAD).
+//! Arc 277.1 — the linter's `nested-if-=-ladder` rule surfaces a finding.
 //!
-//! 277.1 builds the lint framework (`wat/lint.wat`): `(:wat::lint::lint-source files) ->
-//! Vector<Finding>`, where a rule is `(form -> Vector<Finding>)`. The first structural rule is the
-//! `nested-if-=-ladder` — a chain of `(if (= VAR LIT) true (if (= VAR LIT) true … false))` comparing
-//! ONE var against literals, all returning `true` on match: a `HashSet/contains?` membership in
-//! disguise (the exact bad form that `deporder`/`fix.wat` carried, arc 275). The rule detects it and
-//! carries a `fix` edit toward `(:wat::core::contains? (:wat::core::HashSet :T LIT…) VAR)` — the cleaned
-//! `deporder.wat` shape is the worked-reference output.
-//!
-//! At HEAD `:wat::lint::lint-source` is undefined → this eval errors → RED. GREEN when 277.1 ships the
-//! framework + the ladder rule and the fixture's 3-deep ladder surfaces ≥1 finding.
+//! **The wat source is the co-located sibling fixture** `probe_arc277_lint_if_ladder.wat`, slurped via
+//! `startup_beside(file!())` — the repo's test-fixture scheme (never inlined as a Rust string). The
+//! fixture's `:t::lint` wraps a `lint-source` over a 3-deep nested-if-=-ladder (a set membership in
+//! disguise); the probe eval_in_frozen's `(:t::lint)` and asserts the finding count.
 //!
 //! Reuses `:wat::source::File` (shipped arc 275) — the pure-function-of-sources input shape.
 //!
-//! Run: cargo test --release -p wat --test probe_arc277_lint_if_ladder -- --include-ignored
+//! Run: cargo test --release -p wat --test probe_arc277_lint_if_ladder
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// A SourceFile whose body is a 3-deep nested-if-=-ladder over one var — a set membership in disguise.
-// (Inner quotes escaped for the wat string lexer; the raw Rust string preserves the backslashes.)
-const LINT_LADDER: &str = r#"
-(:wat::lint::lint-source
-  (:wat::core::Vector :wat::source::File
-    (:wat::source::File "t.wat"
-      "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))")))
-"#;
 
 #[test]
 fn lint_finds_the_nested_if_ladder() {
-    let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
-        Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed once wat/lint.wat is in the stdlib");
-    let ast = wat::parse_one!(LINT_LADDER).expect("parse the lint-source call");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::lint)").expect("parse the lint call");
     let findings = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("lint-source raised (undefined at HEAD): {e:?}"))
+        .unwrap_or_else(|e| panic!("lint-source raised: {e:?}"))
         .value_owned();
     let n = match findings {
         Value::Vec(ref v) => v.len(),

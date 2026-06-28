@@ -1,37 +1,22 @@
-//! Arc 277.1b — disconfirming probe: the nested-if-=-ladder rule has no AUTO-FIX yet (RED at HEAD).
+//! Arc 277.1b — the `nested-if-=-ladder` rule carries a real AUTO-FIX (rewrites the ladder).
 //!
-//! 277.1 shipped the ladder rule REPORT-ONLY (Finding.fix = ""). The arc-281 keystone (`ast-end-span`)
-//! now makes a structural node's extent readable, so the rule can carry a real fix that REWRITES the
-//! whole `(if (= x "a") true (if … false))` ladder into `(:wat::core::contains? (:wat::core::HashSet
-//! :wat::type::Infer "a" "b" "c") x)`. `:wat::lint::lint-fix-file` lints a SourceFile + applies its
-//! findings' fixes (via fix.wat's fix-text-apply), returning the fixed source.
+//! **The wat source is the co-located sibling fixture** `probe_arc277_1b_ladder_autofix.wat`, slurped
+//! via `startup_beside(file!())` — the repo's test-fixture scheme (never inlined as a Rust string).
+//! `:wat::lint::lint-fix-file` lints a SourceFile + applies its findings' fixes, returning the fixed
+//! source. The fixture's `:t::fix` runs it over a 3-deep ladder; the probe eval_in_frozen's `(:t::fix)`
+//! and asserts the ladder became a `(contains? (HashSet …) x)` call.
 //!
-//! At HEAD `lint-fix-file` is undefined → RED. GREEN when 277.1b ships the fix + the applier.
-//!
-//! Run: cargo test --release -p wat --test probe_arc277_1b_ladder_autofix -- --include-ignored
+//! Run: cargo test --release -p wat --test probe_arc277_1b_ladder_autofix
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// A SourceFile whose body is a 3-deep nested-if-=-ladder over one var `x`. lint-fix-file must rewrite
-// the ladder form into a (contains? (HashSet …) x) call — so the fixed source contains "contains?"
-// and no longer contains the nested "(:wat::core::if (:wat::core::= x".
-const LINT_FIX: &str = r#"
-(:wat::lint::lint-fix-file
-  (:wat::source::File "t.wat"
-    "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"))
-"#;
 
 #[test]
 fn ladder_autofix_rewrites_to_contains() {
-    let world = startup_from_source("(:wat::core::defn :user::main [] -> :wat::core::nil nil)", None,
-        Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!(LINT_FIX).expect("parse the lint-fix-file call");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::fix)").expect("parse the fix call");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("lint-fix-file raised (undefined at HEAD): {e:?}"))
+        .unwrap_or_else(|e| panic!("lint-fix-file raised: {e:?}"))
         .value_owned();
     let fixed = match got {
         Value::String(ref s) => s.to_string(),

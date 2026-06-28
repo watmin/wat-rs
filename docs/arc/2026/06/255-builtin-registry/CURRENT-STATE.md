@@ -9,13 +9,16 @@ trust git log + the docs.
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
 > propose or move. The feeling of continuity is the failure, not the all-clear.
 
-## ⚠️ IN-FLIGHT at compaction (2026-06-27, SESSION 8 tail) — RETRIEVE FIRST
-A background **partire cast** (agentId `a3815708b1a63b028`; output `/tmp/claude-1000/-home-watmin-work-holon/<session>/tasks/a3815708b1a63b028.output`)
-was deriving the **`tests/nursery/` dissolution map** (which of its ~147 files re-home to which domain test-group).
-On wake: check if it completed (the tool result / the output file holds the SPLIT verdict). If lost, RE-CAST partire
-(now in the grimoire — `/partire/SKILL.md`) on `tests/nursery/`. Do NOT redo by hand from memory.
+## ✅ partire RETRIEVED + BANKED (2026-06-27 SESSION 9) — the nursery dissolution map
+The background **partire cast** (`a3815708b1a63b028`) COMPLETED — verdict **SPLIT**: all **179** `tests/nursery/`
+files re-home into **15 existing groups** (types 31, collection 17, macros 16, kernel 15, diagnostics 15, comms 13,
+function 13, wat_lang 12, process 10, reflection 10, value 9, program 7, channel 6, services 4, resolve 1); **zero new
+groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-call splits: **`NURSERY-DISSOLUTION-MAP.md`**
+(beside this file). `build.rs` auto-globs `tests/<group>/*.rs` → a file re-homes by MOVING it; then delete
+`tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry + `rmdir`.
 
-## ▶▶ ALSO ACTIVE (parallel campaign) — TEST-INFRA ANNIHILATION (builder-directed 2026-06-27 tail; NOT yet started past the scheme + 2 probes)
+## ▶▶ PRIMARY ACTIVE — TEST-INFRA ANNIHILATION (builder-directed: **"we fix the tests before we resume 293"**, 2026-06-27 SESSION 9)
+**Sequencing DECIDED — this campaign runs to completion BEFORE 293.4 resumes.** (NOT yet started past the scheme + 2 probes + the banked nursery map.)
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
 builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise
@@ -38,7 +41,7 @@ SHIPPED of this so far (`e04256f2`): the fixture SCHEME + helpers + 2 probes (29
 (they're RED disconfirming probes — kept `#[ignore]`'d so floor=0; un-ignore when their strikes land). The other 426
 + nursery + the lint are AHEAD. This is a multi-session fleet campaign.
 
-## ▶▶ ACTIVE — arc 293 `struct-record-symmetry` § 293.4 (the PIVOT — **293 unblocks 118**). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN.md` (decomposition § lines 164-170 + the HOLDER×SURFACE model).
+## ▷ (BLOCKED behind the test-infra campaign — builder: "fix the tests before we resume 293") — arc 293 `struct-record-symmetry` § 293.4 (the PIVOT — **293 unblocks 118**). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN.md` (decomposition § lines 164-170 + the HOLDER×SURFACE model).
 
 **Why we're here (the chain, builder-confirmed 2026-06-27):** 118.2's HOF family needs a **`Seqable`** abstraction
 (map/filter/take over any Vec|List|Stream). Four-questions (C): `Seqable` must be a structural surface, NOT worked
