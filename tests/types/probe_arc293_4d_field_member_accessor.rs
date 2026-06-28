@@ -16,8 +16,6 @@ use wat::runtime::{Environment, Value};
 
 /// `(:t::Colored/color (:t::Ball "red" 2.0))` routes the FIELD member to `:t::Ball/color` (the auto field accessor).
 #[test]
-#[ignore = "RED at HEAD: arc-293.4d (field members are accessors too — :Surface/field dispatch) not built; \
-            un-ignore when the strike lands GREEN"]
 fn field_member_dispatches_through_the_surface() {
     let world = startup_beside(file!())
         .expect("293.4d: a field member called as :t::Colored/color must dispatch through the surface");

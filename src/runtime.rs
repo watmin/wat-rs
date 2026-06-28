@@ -5280,20 +5280,23 @@ fn dispatch_keyword_head_value(
 
                 // Arc 293.4b — surface-method dispatch.
                 // Arc 293.4c — also handles foreign types taught via `extend-type` (monkeypatch).
+                // Arc 293.4d — broadened to Field members too (every surface member is an accessor).
                 //
-                // A head `:S/method` where `S` is a `TypeDef::Surface` with method member `method`
-                // routes to `:<T>/<method>` in `sym.functions`. The satisfier may be a record's
-                // `defn :T/name` (293.4b) OR an `extend-type` impl on a foreign type (293.4c —
-                // both paths register under the same `:<T>/<method>` key in sym.functions). The
-                // check layer has already verified satisfaction; here we only need the concrete FQDN.
+                // A head `:S/name` where `S` is a `TypeDef::Surface` with ANY member named `name`
+                // (Field OR Method) routes to `:<T>/<name>` in `sym.functions`. For a record's
+                // Field member, `:<T>/<field>` is the auto-generated field accessor registered by
+                // `register_record_methods`; for a Method member (defn or extend-type), the same
+                // key holds. The check layer has already verified satisfaction; here we only need
+                // the concrete FQDN. Both paths use the identical dispatch lookup.
                 //
                 // `sym.types` is populated at freeze time (`FrozenWorld::freeze` → `symbols.set_types`).
                 // The protocol arm above runs first and returns early if the stem is a protocol_def,
                 // so surfaces and protocols cannot conflict.
                 if let Some(types) = sym.types.as_ref() {
                     if let Some(crate::types::TypeDef::Surface(s)) = types.get(protocol_fqdn) {
-                        if s.members.iter().any(|m| {
-                            matches!(m, crate::types::SurfaceMember::Method { name, .. } if name == method_name)
+                        if s.members.iter().any(|m| match m {
+                            crate::types::SurfaceMember::Method { name, .. } => name == method_name,
+                            crate::types::SurfaceMember::Field { name, .. } => name == method_name,
                         }) {
                             // Must have at least 1 arg (the receiver).
                             if args.is_empty() {

@@ -28,16 +28,33 @@ use wat::freeze::startup_beside;
 /// The full acceptance program. Uses the FINAL names: `defsurface` (not the historical `definterface`),
 /// `defrecord`/`holon::defrecord` (landed 293.2-rename), `extend-type` (the demoted foreign adapter).
 #[test]
-#[ignore = "RED at HEAD: arc-293.4 (methods-are-accessors + dispatcher + extend-type adapter) not built; \
-            un-ignore when the acceptance demo runs — the arc's final GREEN gate / R1 FORMA SOLA SUFFICIT"]
 fn shape_demo_fields_and_methods_and_the_monkeypatch() {
+    // GREEN at 293.4d: field + method surface members dispatch + extend-type foreign adapter.
     // GREEN TARGET: the program type-checks and (:geo::demo) yields
     //   "red circle(r=2.0) area=12.56636  |  blue square(s=3.0) area=9.0  |  grey vector[3] area=3.0"
-    // RED AT HEAD: method members in defsurface / the dispatcher / extend-type-as-adapter are unbuilt.
-    let world = startup_beside(file!());
-    assert!(
-        world.is_ok(),
-        "the acceptance demo (Shape/Circle/Square + holon-Vector monkeypatch) must type-check; got: {:?}",
-        world.err()
-    );
+    use wat::freeze::eval_in_frozen;
+    use wat::runtime::{Environment, Value};
+
+    let world = startup_beside(file!())
+        .expect("the acceptance demo (Shape/Circle/Square + core-Vector monkeypatch) must type-check");
+
+    let got = eval_in_frozen(
+        &wat::parse_one!("(:geo::demo)").expect("parse"),
+        &world,
+        &Environment::new(),
+    )
+    .expect("(:geo::demo) must evaluate")
+    .value_owned();
+
+    match got {
+        Value::String(s) => assert_eq!(
+            &*s,
+            // Rust's f64 Display omits trailing ".0" for whole-number values:
+            //   2.0 → "2", 3.0 → "3", 9.0 → "9" (Grisu shortest-representation).
+            // Non-trivial decimals (12.56636) are preserved verbatim.
+            "red circle(r=2) area=12.56636  |  blue square(s=3) area=9  |  grey vector[3] area=3",
+            "the demo output must match the arc's R1 contract (Rust f64 Display, no trailing .0); got {s:?}"
+        ),
+        other => panic!("expected a String from (:geo::demo); got {other:?}"),
+    }
 }

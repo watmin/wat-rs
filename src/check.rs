@@ -5954,24 +5954,35 @@ fn infer_list(
             }
 
             // Arc 293.4b — surface-method call-site check.
+            // Arc 293.4d — broadened to Field members too (every surface member is an accessor).
             //
-            // A head `:S/method` where `S` is a `TypeDef::Surface` with a `SurfaceMember::Method`
-            // named `method`. Surfaces are disjoint from protocols (a name is one or the other;
+            // A head `:S/name` where `S` is a `TypeDef::Surface` with ANY member named `name`
+            // (Field OR Method). Surfaces are disjoint from protocols (a name is one or the other;
             // the protocol arm above runs first and returns early if the stem is a protocol).
             //
             // Type rule: receiver (arg 0) must satisfy S; remaining args must match the method's
-            // ArgSpec.fixed_params[1..]; return type is the method member's `ret`.  This is a
-            // PARALLEL arm to the protocol check — same checker machinery, different registry.
+            // extra param types (empty for a Field member — it is a 1-arg accessor); return type
+            // is the member's declared type. This is a PARALLEL arm to the protocol check —
+            // same checker machinery, different registry.
             if let Some(crate::types::TypeDef::Surface(s)) = env.types().get(protocol_fqdn) {
-                if let Some(member) = s.members.iter().find(|m| {
-                    matches!(m, crate::types::SurfaceMember::Method { name, .. } if name == method_name)
+                if let Some(member) = s.members.iter().find(|m| match m {
+                    crate::types::SurfaceMember::Method { name, .. } => name == method_name,
+                    crate::types::SurfaceMember::Field { name, .. } => name == method_name,
                 }) {
-                    let (member_ret, member_args) = match member {
-                        crate::types::SurfaceMember::Method { ret, args, .. } => (ret.clone(), args.clone()),
-                        _ => unreachable!("filtered to Method variants above"),
+                    // Arc 293.4d — Field member: accessor = 1 arg (receiver only), returns field type.
+                    //              Method member: 1 + fixed_params args, returns method ret.
+                    let (member_ret, extra_param_types): (TypeExpr, Vec<TypeExpr>) = match member {
+                        crate::types::SurfaceMember::Method { ret, args, .. } => {
+                            let param_types =
+                                args.fixed_params.iter().map(|(_, ty)| ty.clone()).collect();
+                            (ret.clone(), param_types)
+                        }
+                        crate::types::SurfaceMember::Field { ty, .. } => {
+                            (ty.clone(), vec![]) // accessor: receiver only, no extra params
+                        }
                     };
-                    // Arity: 1 (the receiver) + the method's fixed_params count.
-                    let expected_arity = 1 + member_args.fixed_params.len();
+                    // Arity: 1 (the receiver) + extra params (0 for Field members).
+                    let expected_arity = 1 + extra_param_types.len();
                     if args.len() != expected_arity {
                         local_errors.push(CheckError {
                             span: head_span.clone(),
@@ -6010,10 +6021,10 @@ fn infer_list(
                             });
                         }
                     }
-                    // Check remaining args against the method's fixed_params types.
-                    for (i, (arg_ty_opt, (_, expected_ty))) in arg_tys[1..]
+                    // Check remaining args against the member's extra param types (empty for Field).
+                    for (i, (arg_ty_opt, expected_ty)) in arg_tys[1..]
                         .iter()
-                        .zip(member_args.fixed_params.iter())
+                        .zip(extra_param_types.iter())
                         .enumerate()
                     {
                         if let Some(arg_ty) = arg_ty_opt {
@@ -6030,14 +6041,14 @@ fn infer_list(
                             }
                         }
                     }
-                    // Return the method's declared return type.
+                    // Return the member's declared return type.
                     return if local_errors.is_empty() {
                         CheckResult::ok(member_ret)
                     } else {
                         CheckResult::partial_with(member_ret, local_errors)
                     };
                 }
-                // Surface found but `method_name` is not a method member — report unknown callee.
+                // Surface found but `method_name` is not any member (Field or Method) — unknown callee.
                 local_errors.push(CheckError {
                     span: head_span.clone(),
                     kind: CheckErrorKind::UnknownCallee { callee: k.clone() },

@@ -46,10 +46,20 @@ where
 {
     surface.members.iter().all(|member| match member {
         SurfaceMember::Field { name: mname, ty: mty } => {
-            // Field member: struct must have a field with an assignable type.
-            struct_fields
+            // Arc 293.4d — Field member: satisfied by a struct field with an assignable type
+            // OR by a `:<T>/<name>` accessor (method / extend-type) that returns an assignable
+            // type. This lets a foreign type back a Field member with an extend-type method.
+            let has_struct_field = struct_fields
                 .iter()
-                .any(|(fname, fty)| fname == mname && is_assignable(fty, mty))
+                .any(|(fname, fty)| fname == mname && is_assignable(fty, mty));
+            if has_struct_field {
+                return true;
+            }
+            // Fall through to the method resolver (for foreign types with extend-type).
+            if let Some((_, defn_ret)) = resolve_method(mname) {
+                return is_assignable(&defn_ret, mty);
+            }
+            false
         }
         SurfaceMember::Method { name: mname, args: margs, ret: mret, .. } => {
             // Method member: a `defn :T/<name>` must exist with an assignable sig.
