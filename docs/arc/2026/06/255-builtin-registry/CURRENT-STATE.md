@@ -41,11 +41,28 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
   lone `(:wat::core::defn :(user|t)::main [] -> :wat::core::nil nil)` from MULTI-DEFN, NON-spawn-child fixtures (KEEP:
   spawn-child entrypoints, negative-test-subject mains like `\😀`/`_bad`, and arc-170 main-as-subject tests). The cited
   exemplar fixtures are kept PRISTINE so the clean shape propagates by example. Do NOT put main-dropping in the briefs.
-- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 221.** DONE (15 groups): lint 5 (`1e483a79` pilot+fire), channel 5
-  (`e75d5f67`), diagnostics 5 (`bc40e656`), program+value+reflection (`603b2fde`), function+comms+collection (`e65eea26`),
-  process+services+wat_lang + 78-main-sweep (`c2196f35`), macros+resolve+kernel + 98-main-sweep (NEXT commit).
-  REMAINING: **rete 34 · types 41 · then nursery 155** (dissolve per `NURSERY-DISSOLUTION-MAP.md`: move + fixture/bare
-  in one motion). When METER=0 the lint flips GREEN, floor → 0. THE LOOP: fan 3 sonnets parallel → weigh each → sweep → commit.
+- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 147.** ALL non-nursery groups DONE: lint 5 (`1e483a79` fire), channel
+  (`e75d5f67`), diagnostics (`bc40e656`), program+value+reflection (`603b2fde`), function+comms+collection (`e65eea26`),
+  process+services+wat_lang (`c2196f35`), macros+resolve+kernel (`c2195ec8`), rete+types (`4ce97de3`).
+  **REMAINING: nursery only** (155-file dissolution per `NURSERY-DISSOLUTION-MAP.md`: each file moves to its domain group
+  + fixture/bare in one motion; then delete `tests/nursery/mod.rs` + `Cargo.toml:123-125` + `rmdir`). When METER=0 the
+  lint flips GREEN, floor → 0. THE LOOP: fan ~3 sonnets parallel → weigh each → MAIN-SWEEP → commit.
+
+- **THE rune:lint EXEMPTION SCHEME (intueri-derived, builder-crowned, `4ce97de3`):** the bespoke `LINT-ALLOW-INLINE-WAT`
+  is RETIRED → `// rune:lint(<lint-name>) — <reason>` (the lint detector matches it). `lint` = the project-custom-lint
+  suite owner (NOT a grimoire spell; precedent: `rune:coverage(unreachable)` in src/, also a non-spell owner). Categories
+  are SPELL-owned vocab — a project lint has no category, just owner+reason. **excusare audits the reason** (it weighs ANY
+  reasoned checker-override). 6 rete files carry it (genuinely-dynamic worlds). DEFERRED FAMILY (build later, NOT now):
+  ① a `rune:lint` REGISTRAR build-tool (validates `<name>` against a lint registry + reason-present — the project-lint
+  twin of `grimoire --check` #166); ② the `coverage` spell (post-109, task #190); siblings of #166.
+
+- **THE MAIN-SWEEP IS NOW A TOOL (`4de048ac`) — `wat-grep`:** `wat-scripts/lib/wat-grep.wat` = a general form-aware grep
+  primitive (`(:user::wat-grep src pred)` → top-level WatAST matches; `(:user::wat-grep-strip src pred)` → span-delete).
+  First consumer `wat-scripts/fixes/strip-useless-mains.wat` (predicate `useless-main?` + GUARD: never strip a SOLE-defn
+  main — that's an arc-170 main-AS-SUBJECT test). **This replaces the host-side bash main-sweep** — run it on nursery +
+  onward: `git ls-files 'tests/**/*.wat' | grep -vE '_bad\.wat|wat_arc220_char' | <to-EDN-vec> | cargo wat ./wat-scripts/fixes/strip-useless-mains.wat`.
+  (Known gap: `read-string` panics on malformed `_bad.wat`/non-BMP char fixtures → filter them.) Form-aware caught ~13
+  the bash missed; the GATE caught its one over-strip (4 arc-170 subject-mains) → guard added. weigh-against-disk works.
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
 builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise

@@ -14,24 +14,20 @@
 //! RED at HEAD: `Env` is a 2-arg record → the 4-arg constructor is an arity error,
 //! and the seam-installed env carries no `wat.process-id`.
 //!
-//! Run: `cargo test --release -p wat --test nursery probe_arc259_env_identity`
+//! Wat source lives in the co-located sibling fixture `probe_arc259_env_identity.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
+//! Run: `cargo test --release --test program probe_arc259_env_identity`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, invoke_user_main, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// The record carries `wat.process-id` + `wat.os-thread-id` as readable i64 fields
 /// (RED via arity at HEAD: a 4-arg `Env` constructor is an arity error).
 #[test]
 fn env_record_carries_process_and_thread_id() {
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-                 (:wat::program::Env/wat.process-id \
-                   (:wat::program::Env (:wat::time::now) (:wat::time::now) 12345 67890 :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv)))) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup/check should succeed");
+    let ast = wat::parse_one!("(:probe::c01-compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("eval")
         .value_owned();
@@ -42,27 +38,16 @@ fn env_record_carries_process_and_thread_id() {
     );
 }
 
-/// The SEAM stamps the REAL process-id: `invoke_user_main` installs an env whose
-/// `wat.process-id` the running `:user::main` can read and assert equals the
-/// Rust-side `std::process::id()`. RED at HEAD because the field does not exist.
+/// The SEAM stamps the REAL process-id and os-thread-id: `invoke_user_main` installs
+/// an env with both fields; the fixture's :user::main reads them for effect — accessor
+/// errors if the seam did not stamp them. RED at HEAD because the fields do not exist.
 #[test]
 fn seam_installs_env_with_process_id() {
-    let expected_pid = std::process::id() as i64;
-    let src = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil \
-           (:wat::core::do \
-             (:wat::test::assert-eq<:wat::core::i64> \
-               (:wat::program::Env/wat.process-id (:wat::program::env)) \
-               {expected_pid}) \
-             (:wat::program::Env/wat.os-thread-id (:wat::program::env)) \
-             nil))"
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let result = invoke_user_main(&world, vec![]);
     assert!(
         result.is_ok(),
-        "seam must stamp the real process-id ({expected_pid}); assert-eq failed: {:?}",
+        "seam must stamp process-id and os-thread-id into the env; main read failed: {:?}",
         result.err()
     );
 }

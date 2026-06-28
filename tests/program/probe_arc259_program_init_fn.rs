@@ -14,34 +14,21 @@
 //! user.program is always EmptyEnv. The peer reads `user.program`'s `port` field
 //! back over the channel (a peer assertion is swallowed; only what it sends counts).
 //!
-//! Run SERIALLY (spawns a thread):
-//!   `cargo test --release -p wat --test nursery probe_arc259_program_init_fn -- --test-threads=1`
+//! Wat source lives in the co-located sibling fixture `probe_arc259_program_init_fn.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
+//! Run SERIALLY (spawns threads):
+//!   `cargo nextest run --release -E 'test(init_fn)'`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// A `(thread/init f)` peer's `user.program` is f's custom record. f returns a
 /// `MyEnv{port: 8080}`; the peer reads `user.program`'s port back. Parent asserts 8080.
 #[test]
 fn thread_init_populates_user_program() {
-    let src = "(:wat::core::defrecord :user::MyEnv [port <- :wat::core::i64]) \
-               (:wat::core::defn :user::compute [] -> :wat::core::i64 \
-                 (:wat::core::let \
-                   [peer (:wat::kernel::spawn-program' \
-                           (:wat::spawn::thread/init \
-                             (:wat::core::fn [] -> :wat::Record (:user::MyEnv 8080))) \
-                           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                             (:wat::kernel::send' self \
-                               (:user::MyEnv/port \
-                                 (:wat::program::Env/user.program (:wat::program::env)))))) \
-                    got (:wat::kernel::recv' peer)] \
-                   got)) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup (RED at HEAD: (thread/init …) does not exist)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup (RED at HEAD: (thread/init …) does not exist)");
+    let ast = wat::parse_one!("(:probe::compute-init)").expect("parse");
     let got = match eval_in_frozen(&ast, &world, &Environment::new())
         .expect("compute eval")
         .value_owned()
@@ -62,20 +49,8 @@ fn thread_init_populates_user_program() {
 fn erroring_init_fn_kills_the_peer() {
     // init-fn divides by zero → errors at peer-start → the thread exits before
     // sending → recv' raises → compute eval panics here (NOT a Unit smuggled in).
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-                 (:wat::core::let \
-                   [peer (:wat::kernel::spawn-program' \
-                           (:wat::spawn::thread/init \
-                             (:wat::core::fn [] -> :wat::Record \
-                               (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv)))) \
-                           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                             (:wat::kernel::send' self 7))) \
-                    got (:wat::kernel::recv' peer)] \
-                   got)) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:probe::compute-error-init)").expect("parse");
     let _ = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("compute eval")
         .value_owned();
@@ -85,22 +60,8 @@ fn erroring_init_fn_kills_the_peer() {
 /// constructor's init-fn is the EmptyEnv thunk. The peer reports conformance (1/0).
 #[test]
 fn thread_default_user_program_is_empty_env() {
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-                 (:wat::core::let \
-                   [peer (:wat::kernel::spawn-program' (:wat::spawn::thread) \
-                           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                             (:wat::kernel::send' self \
-                               (:wat::core::if \
-                                 (:wat::core::conforms? \
-                                   (:wat::program::Env/user.program (:wat::program::env)) \
-                                   :wat::program::EmptyEnv) -> :wat::core::i64 \
-                                 1 0)))) \
-                    got (:wat::kernel::recv' peer)] \
-                   got)) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:probe::compute-default)").expect("parse");
     let got = match eval_in_frozen(&ast, &world, &Environment::new())
         .expect("compute eval")
         .value_owned()

@@ -17,44 +17,29 @@
 //! RED at HEAD: the peer can't read a nonexistent env → it dies before sending → the
 //! parent's cascade-aware `recv'` raises → compute errors.
 //!
+//! Wat source lives in the co-located sibling fixture `probe_arc259_peer_env_install.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
 //! Run SERIALLY (spawn probes flake under parallel load):
-//!   `cargo test --release -p wat --test nursery probe_arc259_peer_env_install -- --test-threads=1`
+//!   `cargo nextest run --release -E 'test(thread_peer)'`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// Spawn a thread peer whose prog sends `body` (an i64 read from its own env) back;
-/// return what the parent receives. Panics (RED) if the peer dies before sending.
-fn peer_sends_i64(body: &str) -> i64 {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-           (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread) \
-                                    (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                                      (:wat::kernel::send' self {body}))) \
-                             got (:wat::kernel::recv' peer)] \
-             got)) \
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval (RED at HEAD: peer has no env → dies → recv' raises)")
-        .value_owned()
-    {
-        Value::i64(n) => n,
-        other => panic!("expected i64; got {other:?}"),
-    }
-}
 
 /// The peer reads its OWN os-thread-id from its OWN env — a real tid (> 0),
 /// distinct from the parent (test) thread's tid.
 #[test]
 fn thread_peer_reads_its_own_os_thread_id() {
     let parent_tid = unsafe { libc::gettid() } as i64;
-    let peer_tid = peer_sends_i64("(:wat::program::Env/wat.os-thread-id (:wat::program::env))");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:probe::compute-a)").expect("parse");
+    let peer_tid = match eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute eval (RED at HEAD: peer has no env → dies → recv' raises)")
+        .value_owned()
+    {
+        Value::i64(n) => n,
+        other => panic!("expected i64; got {other:?}"),
+    };
     assert!(peer_tid > 0, "peer's os-thread-id is a real tid (> 0); got {peer_tid}");
     assert_ne!(
         peer_tid, parent_tid,
@@ -66,11 +51,14 @@ fn thread_peer_reads_its_own_os_thread_id() {
 /// exercising the `:thread` variant the root main never stamps.
 #[test]
 fn thread_peer_kind_is_thread() {
-    let got = peer_sends_i64(
-        "(:wat::core::if \
-           (:wat::core::= (:wat::program::Env/wat.peer-kind (:wat::program::env)) \
-                          :wat::program::PeerKind::thread) -> :wat::core::i64 \
-           111 222)",
-    );
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:probe::compute-b)").expect("parse");
+    let got = match eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute eval")
+        .value_owned()
+    {
+        Value::i64(n) => n,
+        other => panic!("expected i64; got {other:?}"),
+    };
     assert_eq!(got, 111, "a thread peer's wat.peer-kind is :thread");
 }

@@ -11,11 +11,12 @@
 //! RED at HEAD: `Env` is a 4-arg record → the 5-arg constructor is an arity error,
 //! and the seam env carries no `wat.peer-kind`.
 //!
-//! Run: `cargo test --release -p wat --test nursery probe_arc259_env_peer_kind`
+//! Wat source lives in the co-located sibling fixture `probe_arc259_env_peer_kind.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
+//! Run: `cargo test --release --test program probe_arc259_env_peer_kind`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, invoke_user_main, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// The record carries `wat.peer-kind` as a `PeerKind` value (RED via arity at HEAD:
@@ -23,16 +24,8 @@ use wat::runtime::{Environment, Value};
 /// a genuine `:wat::program::PeerKind` (the proven nominal-membership idiom).
 #[test]
 fn env_record_carries_peer_kind() {
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::bool \
-                 (:wat::core::conforms? \
-                   (:wat::program::Env/wat.peer-kind \
-                     (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0 \
-                       :wat::program::PeerKind::thread 1 (:wat::program::EmptyEnv))) \
-                   :wat::program::PeerKind)) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup/check should succeed");
+    let ast = wat::parse_one!("(:probe::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("eval")
         .value_owned();
@@ -45,18 +38,11 @@ fn env_record_carries_peer_kind() {
 
 /// The SEAM stamps `:process` for the root `:user::main` (it owns its address
 /// space). RED at HEAD because the field does not exist → the accessor fails →
-/// main errors → invoke returns Err. The `assert-eq<PeerKind>` proves the stamped
-/// value is EXACTLY `:process`, not just any PeerKind member.
+/// main errors → invoke returns Err. The `assert-eq<PeerKind>` in the fixture proves
+/// the stamped value is EXACTLY `:process`, not just any PeerKind member.
 #[test]
 fn seam_stamps_process_for_root_main() {
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::test::assert-eq<:wat::program::PeerKind> \
-                     (:wat::program::Env/wat.peer-kind (:wat::program::env)) \
-                     :wat::program::PeerKind::process) \
-                   nil))";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     assert!(
         invoke_user_main(&world, vec![]).is_ok(),
         "the seam must stamp wat.peer-kind = :process before :user::main; assert-eq failed"

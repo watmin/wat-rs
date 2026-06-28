@@ -13,11 +13,12 @@
 //! RED at HEAD: `Env` is a 5-arg record → the 6-arg constructor is an arity error,
 //! and the seam env carries no `user.program`.
 //!
-//! Run: `cargo test --release -p wat --test nursery probe_arc259_user_program_slot`
+//! Wat source lives in the co-located sibling fixture `probe_arc259_user_program_slot.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
+//! Run: `cargo test --release --test program probe_arc259_user_program_slot`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, invoke_user_main, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// The record carries `user.program` holding a record (RED via arity at HEAD: a
@@ -25,16 +26,8 @@ use wat::runtime::{Environment, Value};
 /// the slot holds a genuine record value.
 #[test]
 fn env_record_carries_user_program_slot() {
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::bool \
-                 (:wat::core::conforms? \
-                   (:wat::program::Env/user.program \
-                     (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0 \
-                       :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv))) \
-                   :wat::Record)) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup/check should succeed");
+    let ast = wat::parse_one!("(:probe::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("eval")
         .value_owned();
@@ -49,15 +42,7 @@ fn env_record_carries_user_program_slot() {
 /// never nil. RED at HEAD: the field does not exist → accessor fails → main errors.
 #[test]
 fn seam_defaults_user_program_to_empty_env() {
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::test::assert-true \
-                     (:wat::core::conforms? \
-                       (:wat::program::Env/user.program (:wat::program::env)) \
-                       :wat::program::EmptyEnv)) \
-                   nil))";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     assert!(
         invoke_user_main(&world, vec![]).is_ok(),
         "the seam must default user.program to a :wat::program::EmptyEnv record"

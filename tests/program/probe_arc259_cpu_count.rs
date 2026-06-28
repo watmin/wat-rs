@@ -12,25 +12,20 @@
 //! RED at HEAD: `Env` is a 6-arg record → the 7-arg constructor is an arity error,
 //! and the seam env carries no `wat.cpu-count`.
 //!
-//! Run: `cargo test --release -p wat --test nursery probe_arc259_cpu_count`
+//! Wat source lives in the co-located sibling fixture `probe_arc259_cpu_count.wat`,
+//! slurped via `startup_beside(file!())`.
+//!
+//! Run: `cargo test --release --test program probe_arc259_cpu_count`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, invoke_user_main, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// The record carries `wat.cpu-count` as a readable i64, the 6th constructor arg
 /// (before `user.program`). RED via arity at HEAD: a 7-arg `Env` is an arity error.
 #[test]
 fn env_record_carries_cpu_count() {
-    let src = "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-                 (:wat::program::Env/wat.cpu-count \
-                   (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0 \
-                     :wat::program::PeerKind::process 8 (:wat::program::EmptyEnv)))) \
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:probe::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("eval")
         .value_owned();
@@ -43,22 +38,14 @@ fn env_record_carries_cpu_count() {
 
 /// The SEAM stamps the REAL host parallelism — `std::thread::available_parallelism`.
 /// The escape hatch reads true: a program's `wat.cpu-count` equals what the kernel
-/// reports. RED at HEAD: the field does not exist → accessor fails → main errors.
+/// reports. The fixture's :user::main asserts env cpu-count == live cpu-count verb.
+/// RED at HEAD: the field does not exist → accessor fails → main errors.
 #[test]
 fn seam_stamps_real_cpu_count() {
     let expected = std::thread::available_parallelism()
         .map(|n| n.get() as i64)
         .unwrap_or(1);
-    let src = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil \
-           (:wat::core::do \
-             (:wat::test::assert-eq<:wat::core::i64> \
-               (:wat::program::Env/wat.cpu-count (:wat::program::env)) \
-               {expected}) \
-             nil))"
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     assert!(
         invoke_user_main(&world, vec![]).is_ok(),
         "the seam must stamp the real available_parallelism ({expected}) into wat.cpu-count"
