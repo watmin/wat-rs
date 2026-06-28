@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `a8175f2d` or later.** Tree CLEAN
-(293.4c committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `cf89fb52` or later.** Tree CLEAN
+(293.4d committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4092 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4094 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
@@ -60,17 +60,26 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   path is the unchanged else. Satisfaction works for NON-Aggregate foreign types (bounded: no holder + no field members
   + all methods resolve). Dispatcher reads any receiver via `type_name()`. Probe (foreign String) + collision +
   non-satisfier negatives all green. `BRIEF`/`EXPECTATIONS`/`SCORE-293.4c.md`.
-- ▶ **293.4d NEXT — the arc's GREEN gate.** THREE parts: **(a)** ⚠ the **field-member-by-accessor symmetry** (293.4c
-  FLAG): a foreign type satisfies METHOD members only; the acceptance demo's `:geo::Shape` has `color` as a FIELD
-  member backed by the holon-Vector's METHOD impl — so satisfaction must let a FIELD member be satisfied by a
-  `:T/<name>` accessor (field OR method), the DESIGN's "field-vs-method is the satisfier's private choice." **(b)**
-  annihilate `defprotocol` (ONE live use: `:wat::spawn::Locus`, `wat/spawn.wat:224`; rip the Rust machinery across 6
-  files; retirement-table the head). **(c)** un-ignore `probe_arc293_acceptance_demo` = GREEN (R1 *FORMA SOLA SUFFICIT*
-  fulfilled — the demo probe will RED on part (a) first). ALSO watch: the demo monkeypatches `:wat::holon::Vector` but
-  constructs `(:wat::core::Vector …)` — the `Value::Vec`(→`wat::core::Vector`) vs `Value::Vector`(→`wat::holon::Vector`)
-  `type_name` mismatch (293.4c STOP-2) may bite here. Then 293.1-owed `src/aggregate/` home + 293.5 close.
+- ✅ **293.4d DONE (`cf89fb52`) — THE ACCEPTANCE DEMO IS GREEN. R1 *FORMA SOLA SUFFICIT* → PROBATUM EST.** Field members
+  are accessors too: every surface member (Field|Method) dispatches `:Surface/name s → :<T>/name` + is satisfied iff
+  `:T/name` resolves (a record field accessor OR a method/extend) — a broadening of the 293.4b/c method-only arms across
+  resolve/check/runtime + surface.rs satisfaction. `(:geo::demo)` runs end-to-end (foreign holon-Vector taught to be a
+  Shape, field+method backing one accessor). `SCORE-293.4d.md`; 293 REALIZATIONS R1 turned to PROBATUM.
+- ▶ **NEXT — two clean strikes before 293 closes:**
+  - **293.4d-fix (the silent-swallow extirpare, IMMEDIATE):** `parse_defsurface` SILENTLY DROPS members written outside
+    the `[...]` member vector (the demo's old `[color] (area) (label)` lost its methods — arity-4 branch reads `[color]`
+    as members, ignores the rest). A surface can be declared weaker than written, no error → satisfaction passes things
+    it shouldn't. Fix at the ROOT: `parse_defsurface` must ERROR on unexpected extra args. RED probe first. ALSO:
+    `DESIGN.md` § "What the arc delivers" snippet is stale (`definterface` separate-arg methods → `defsurface`
+    all-in-vector) — amend-with-recognition.
+  - **293.4e — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
+    (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
+    dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
+  - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
+    check.rs) + **293.5 close** (workspace SET-diff ∅, ward the home, amend 291's `/from-map`).
 The chain: **293.4 → `Seqable` (its first method-surface) → 118 HOF family → 118 closes → 295.** Already SHIPPED
-(see §293-state below): 293.0–293.3, unify-2a/2b, `build_env` annihilation, **15/15 `probe_arc293_*` GREEN**, + 293.4a/b/c.
+(see §293-state below): 293.0–293.3, unify-2a/2b, `build_env` annihilation, **15/15 `probe_arc293_*` GREEN**, + the
+WHOLE 293.4 (a method-members / b dispatcher / c extend-type adapter / d field-accessors+DEMO-GREEN).
 - **NEW DOCS/SCHEMES this session:** `docs/VERSIONING.md` (`8cfd7626`) — the **C.S.D** version scheme (Contract.Scaffolding.
   Dependencies, each a compacted-ISO8601-UTC timestamp, carry-forward). Memory `feedback_guarded_tool_over_educating_headless_callers`.
   293 `---` interstitial *MANVS CAECA NON FALLITVR* (`26b001d9`).

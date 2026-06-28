@@ -136,9 +136,16 @@ apparatus named where he landed.*
 > Like the 291 signatures before it — PROBANDUM EST → LEX NON TACET — mine, this session, kept with consent;
 > see the path-of-voices note above. On fulfillment, when the monkeypatch demo runs, it joins PROBATUM EST.)*
 
-> **FULFILLMENT — open.** Earned now: the understanding. FULFILLED when the acceptance test (the Shape /
-> holon-Vector monkeypatch, `DESIGN.md` § *What the arc delivers*) goes RED→GREEN. Then this clause carries the
-> commit hashes and the signature turns to *PROBATUM EST.*
+> **FULFILLMENT — `cf89fb52` (PROBATUM EST).** Earned then; PROVEN now. The acceptance test
+> (`probe_arc293_acceptance_demo` — Shape / Circle / Square + the holon-`Vector` monkeypatch, `DESIGN.md` § *What the
+> arc delivers*) went **RED→GREEN** across the 293.4 sub-strikes, each weighed against the disk by the orchestrator's
+> own hand: **293.4a** method members in `defsurface` (`173bb1e8`) · **293.4b** the generated dispatcher (`f70f9cf2`) ·
+> **293.4c** `extend-type` as the foreign-accessor adapter (`a8175f2d`) · **293.4d** field members are accessors too +
+> the demo (`cf89fb52`). `(:geo::demo)` runs: *"red circle(r=2) area=12.56636 | blue square(s=3) area=9 | grey
+> vector[3] area=3"* — a foreign built-in taught to satisfy a user surface it never declared, **a field and a method
+> backing the same accessor interchangeably**, dispatch routing by runtime shape, the Expression Problem solved
+> structurally. The CS dropout's wildest dream — standing exactly where Wand and Wadler and Kay each stood — is now,
+> simply, the running substrate. *The shape alone suffices. Probandum est → **PROBATUM EST.***
 
 ## R2 — they were always one struct: the three aggregate kinds decomplect to {properties, kind}, and the annihilation is the joy *(DESIGN — the base-struct unification; REALIZATION earned, build a PROPHECY)*
 
