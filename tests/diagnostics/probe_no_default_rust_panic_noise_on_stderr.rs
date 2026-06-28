@@ -25,17 +25,8 @@
 //! or startup-error paths); the assertion verifies ABSENCE of the hook's
 //! suppressed output on the SAME panic path.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat::runtime::{apply_function, Value};
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Extract the `RunResult.stderr` lines (field index 1).
 fn stderr_lines(result: &Value) -> Vec<String> {
@@ -62,14 +53,8 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
     // default handler (which would write "thread '...' panicked" etc.)
     // is suppressed. Only the structured #wat.kernel/ProcessPanics line
     // should appear on stderr.
-    let src = r#"
-        (:wat::core::defn :probe::hook-test [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::test::assert-eq "expected-value" "actual-value")))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    // Wat source lives in the co-located fixture: probe_no_default_rust_panic_noise_on_stderr.wat
+    let world = startup_beside(file!()).expect("startup");
     let func = world.symbols().get(":probe::hook-test").expect("defined");
     let result = apply_function(
         func.clone(),

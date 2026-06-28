@@ -20,17 +20,8 @@
 //! "exited 3", the test infra is throwing diagnostics away. That's the
 //! foundational flaw to fix.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat::runtime::{apply_function, Value};
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Run a body that triggers a runtime error in the spawn-process child.
 /// Surface the full RunResult — both `stderr` field and `failure` field —
@@ -41,14 +32,8 @@ fn probe_runtime_err_stderr_visibility() {
     // This goes through the assertion-failed! path which IS structured
     // (we should see the cascade). Use this as the CONTROL: structured
     // path should populate stderr-chain properly.
-    let src_structured = r#"
-        (:wat::core::defn :probe::structured [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::test::assert-eq "intentional" "different")))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src_structured);
+    // Wat source lives in the co-located fixture: probe_runtime_err_stderr_visibility.wat
+    let world = startup_beside(file!()).expect("startup");
     let func = world.symbols().get(":probe::structured").expect("defined");
     let result = apply_function(
         func.clone(),

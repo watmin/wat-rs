@@ -27,17 +27,8 @@
 //! non-AssertionPayload panic exit path. No assert-eq, no raise!, no
 //! RuntimeError.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Extract `RunResult.failure.message` from a `Value::Struct` RunResult.
 fn failure_message(v: &Value) -> String {
@@ -71,26 +62,8 @@ fn probe_plain_panic_produces_structured_edn() {
     // to `:wat::test::run-hermetic`. The body sets `set-dim-count!` +
     // `set-capacity-mode!` (rule 3 of FM 7-ter) so hermetic is the
     // required destination — the body needs a private, mutable runtime.
-    let outer_src = r#"
-(:wat::core::defn :probe::plain-panic [] -> :wat::kernel::RunResult
-  (:wat::test::run-hermetic
-      (:wat::core::do
-        (:wat::config::set-dim-count! 1)
-        (:wat::config::set-capacity-mode! :panic)
-        ;; Two Atom children exceed floor(sqrt(1))=1 budget
-        ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
-        (:wat::core::let
-          [_bundle
-            (:wat::holon::Bundle
-              (:wat::core::Vector :wat::holon::HolonAST
-                (:wat::holon::to-holon "key1")
-                (:wat::holon::to-holon "key2")))]
-          :wat::core::nil))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-    let world = freeze_ok(outer_src);
+    // Wat source lives in the co-located fixture: probe_plain_panic_produces_structured_edn.wat
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!("(:probe::plain-panic)").expect("parse");
     let env = Environment::new();
     let result = eval_in_frozen(&ast, &world, &env).expect("outer should not panic").value_owned();
