@@ -82,7 +82,17 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   suffix-split was already shared. **293.4e-pre is COMPLETE — surface methods are multi-arg + generic + whole, parity
   with arc-267 protocol methods. The Locus migration is UNBLOCKED.** (Banked micro: `split_method_name_type_params` is a
   ~15-line copy of runtime.rs's private `split_name_and_type_params` — could share if visibility allowed.)
-- ▶▶ **293.4e NEXT (UNBLOCKED) — annihilate `defprotocol`** (the qualified annihilation, the joy): ONE live use `:wat::spawn::Locus`
+- ⚠ **293.4e-pre.iii BLOCKS 293.4e (found by the inline Locus migration attempt, 2026-06-28 — reverted, no broken
+  commit):** `extend-type` on a SURFACE registers the bare impl `:T/method` with PLACEHOLDER `nil` types (293.4c
+  STOP-1). The 293.4c probe used a monomorphic CONSTANT body (`tag [self] -> :i64 42`) so it never bit. But Locus's
+  `ThreadOpts/launch` / `ProcessOpts/launch` impls USE `self` typed + RETURN `:Launched<…>` → they type-check against
+  `nil` args/ret and fail (`ReturnTypeMismatch ThreadOpts/launch expected :nil got :Launched<…>`; `self: :()`). **FIX
+  (293.4e-pre.iii): extend-type-for-surface must make the bare impl INHERIT the surface method's declared sig** (argspec
+  + ret, with `self` → the extending type, type-params instantiated) — exactly as the protocol dispatch typed the impl
+  against the protocol method sig. The fix lives in the 293.4c registration (check.rs `collect_splice_defs_ctx` surface
+  branch + the runtime registration): look up the surface member's sig, don't use the bare impl's nil types. RED probe:
+  an extend-impl whose body uses `self` typed + returns a non-nil value. DRAW 293.4e-pre.iii.
+- ▶ **293.4e (after 293.4e-pre.iii) — annihilate `defprotocol`** (the qualified annihilation, the joy): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
   - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
