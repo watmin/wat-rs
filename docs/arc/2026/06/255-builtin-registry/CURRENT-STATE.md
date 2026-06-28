@@ -1,13 +1,42 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 8; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ed1e6408` or later.** Tree clean.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e04256f2` or later.** Tree clean.
 **Gate (arc-290 widened): `cargo nextest run --release` (the WHOLE workspace / default-members, NOT `-p wat`)**
-≈ **4088 passed / 0 failed / ~87 skipped**, ~35s. If HEAD is older than `ed1e6408`, this breadcrumb is stale —
+≈ **4088 passed / 0 failed / ~89 skipped**, ~35s. If HEAD is older than `e04256f2`, this breadcrumb is stale —
 trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
 > propose or move. The feeling of continuity is the failure, not the all-clear.
+
+## ⚠️ IN-FLIGHT at compaction (2026-06-27, SESSION 8 tail) — RETRIEVE FIRST
+A background **partire cast** (agentId `a3815708b1a63b028`; output `/tmp/claude-1000/-home-watmin-work-holon/<session>/tasks/a3815708b1a63b028.output`)
+was deriving the **`tests/nursery/` dissolution map** (which of its ~147 files re-home to which domain test-group).
+On wake: check if it completed (the tool result / the output file holds the SPLIT verdict). If lost, RE-CAST partire
+(now in the grimoire — `/partire/SKILL.md`) on `tests/nursery/`. Do NOT redo by hand from memory.
+
+## ▶▶ ALSO ACTIVE (parallel campaign) — TEST-INFRA ANNIHILATION (builder-directed 2026-06-27 tail; NOT yet started past the scheme + 2 probes)
+The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
+fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
+builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise
+at the shadowdancer's blade."* TWO fused annihilations + a final lint:
+- **(A) inlined-wat → co-located fixtures.** ~**428** test files call `startup_from_source(` on an inline string.
+  Migrate EACH to a sibling `.wat` + `startup_beside(file!())` (the SCHEME — DONE + codified:
+  `feedback_test_wat_is_colocated_fixture`; `src/freeze.rs` `startup_from_file`/`startup_beside`). 5 transform shapes
+  (static / `eval_in_frozen` 288 / multi-program-per-file 155 / `format!`-dynamic / `fn run` helper 122) → SHADOWDANCER
+  JUDGMENT per file (not a blind codemod). Decompose by test-group (18 groups; counts: nursery 147→dissolved, types 40,
+  rete 34, resolve 31, kernel 29, macros 23, wat_lang 20, services 19, collection 16, process 13, function 11, comms 9,
+  reflection 8, value 7, program 6, lint/diagnostics/channel 5). Worktree-isolated fleet, pilot ONE small group first.
+- **(B) `tests/nursery/` ANNIHILATED** — a junk-drawer group (intueri misc/utils anti-pattern). Dissolve via the
+  partire map (above): each file re-homes to its domain group + its wat→fixture in one motion; `mod.rs` + the
+  `Cargo.toml [[test]]` entry retire. (NEW SPELL `partire` — decompose along true seams — minted by builder THIS
+  session FOR this; grimoire refreshed, 24 spells.)
+- **(C) the absolute lint** — once 0 violations: a gate that FAILS on ANY new inlined-wat test (zero, not a ratchet).
+  Builder rejected the ratchet (it blesses debt). Legit dynamic-program uses (rare) carry an explicit rune.
+
+SHIPPED of this so far (`e04256f2`): the fixture SCHEME + helpers + 2 probes (293.4a, 118.2) migrated + `#[ignore]`'d
+(they're RED disconfirming probes — kept `#[ignore]`'d so floor=0; un-ignore when their strikes land). The other 426
++ nursery + the lint are AHEAD. This is a multi-session fleet campaign.
 
 ## ▶▶ ACTIVE — arc 293 `struct-record-symmetry` § 293.4 (the PIVOT — **293 unblocks 118**). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN.md` (decomposition § lines 164-170 + the HOLDER×SURFACE model).
 
