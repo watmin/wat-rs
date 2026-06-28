@@ -1,11 +1,11 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `2bc63a85` or later.** Tree CLEAN
-(test-infra campaign CLOSED + pushed; nothing in flight).
-**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS NOW 0 —
-`4085 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
-meter is **GREEN** (the "1 expected-red" floor convention is RETIRED — any red now is a real regression). If HEAD is
-older than `2bc63a85`, this breadcrumb is stale — trust git log + the docs.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `173bb1e8` or later.** Tree CLEAN
+(293.4a committed + pushed; nothing in flight).
+**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
+`4087 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
+trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -37,16 +37,23 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   (`src/collection/mod.rs:31`, 2× `crates/wat-macros/`, `tests/kernel/test.rs:9`).
 
 ## ▶▶ PRIMARY ACTIVE — arc 293 § **293.4** (UNBLOCKED — the campaign that gated it is now closed). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN-293.4-strike.md` + DESIGN § 293.4 + the HOLDER×SURFACE model.
-**293.4 = methods-are-accessors over `defsurface` + `defprotocol` ANNIHILATED + `extend-type` demoted.** The strike is
-already DRAWN: `DESIGN-293.4-strike.md` (sub-strikes 293.4a–d) + the RED gate `probe_arc293_acceptance_demo`
-(`#[ignore]`'d). Path: **293.4a** method members in `defsurface` (`SurfaceDef.members` → Field|Method; reuse the
-arc-232 method parser) → **293.4b** the generated dispatcher (LIFT arc-232 `extract-classifier`+`apply`,
-`runtime.rs:670`) → **293.4c** `extend-type` foreign-accessor adapter → **293.4d** annihilate `defprotocol` (ONE live
-use: `:wat::spawn::Locus`, `wat/spawn.wat:224`; rip the Rust machinery across 6 files; retirement-table the head) +
-un-ignore the demo = GREEN. Then 293.1-owed `src/aggregate/` home + 293.5 close. The chain: **293.4 → `Seqable`
-(its first method-surface) → 118 HOF family → 118 closes → 295** (signed eval rides the finished stream substrate).
-Already SHIPPED (see §293-state below): 293.0–293.3, unify-2a/2b, the `build_env` annihilation, **15/15 `probe_arc293_*`
-GREEN**. The strike is the next act — draw the RED probe is already done; 293.4a is the first cut.
+**293.4 = methods-are-accessors over `defsurface` + `defprotocol` ANNIHILATED + `extend-type` demoted.** Strike DRAWN:
+`DESIGN-293.4-strike.md` (sub-strikes 293.4a–d) + the RED gate `probe_arc293_acceptance_demo` (`#[ignore]`'d). Path:
+- ✅ **293.4a DONE (`173bb1e8`)** — method members in `defsurface` (parse + satisfy). `SurfaceMember = Field | Method
+  { args: ArgSpec, … }` (the member carries the canonical `ArgSpec`, NOT a flattened `Vec<TypeExpr>` — builder caught
+  the brief's wrong shape mid-build; "one canonical binder list = ArgSpec"); `struct_satisfies_surface` gains a
+  `resolve_method` closure (a Method member satisfied by an assignable `defn :T/name`); `assignable` threads `&CheckEnv`
+  (was `&TypeEnv`) for the defn registry. RED→GREEN probe + negative arm. `BRIEF`/`EXPECTATIONS`/`SCORE-293.4a.md`.
+  **Banked follow-up (a real decomplect):** "args = ArgSpec EVERYWHERE" — `Scheme.params` + `ProtocolMethodSig.arg_types`
+  still flatten; make the one-canonical-binder-list law hold substrate-wide. Plus a purgare: the stale stray probe
+  `probe_arc293_4a_surface_method_member.{rs,wat}` (non-canonical syntax, `#[ignore]`'d).
+- ▶ **293.4b NEXT** — the generated dispatcher (`:Shape/area s` routes by `s`'s runtime type to `:T/area`; LIFT arc-232
+  `extract-classifier`+`apply`, `runtime.rs:670`) → **293.4c** `extend-type` foreign-accessor adapter → **293.4d**
+  annihilate `defprotocol` (ONE live use: `:wat::spawn::Locus`, `wat/spawn.wat:224`; rip the Rust machinery across 6
+  files; retirement-table the head) + un-ignore `probe_arc293_acceptance_demo` = GREEN. Then 293.1-owed `src/aggregate/`
+  home + 293.5 close.
+The chain: **293.4 → `Seqable` (its first method-surface) → 118 HOF family → 118 closes → 295.** Already SHIPPED
+(see §293-state below): 293.0–293.3, unify-2a/2b, `build_env` annihilation, **15/15 `probe_arc293_*` GREEN**, + 293.4a.
 - **NEW DOCS/SCHEMES this session:** `docs/VERSIONING.md` (`8cfd7626`) — the **C.S.D** version scheme (Contract.Scaffolding.
   Dependencies, each a compacted-ISO8601-UTC timestamp, carry-forward). Memory `feedback_guarded_tool_over_educating_headless_callers`.
   293 `---` interstitial *MANVS CAECA NON FALLITVR* (`26b001d9`).
