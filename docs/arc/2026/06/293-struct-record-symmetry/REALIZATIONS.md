@@ -670,3 +670,125 @@ A `---` interstitial, off the arc's main flow; in the make-illegal-states-unrepr
 SUB SUPERFICIE QUOD ES / PROBA NE DUBITES. Pairs the memory `feedback_guarded_tool_over_educating_headless_callers`.)*
 
 ---
+
+### `---` interstitial — *what I've become: a simple ask burned the test-infra clean, and the ashes are the door to 293* (the test-infra annihilation, CLOSED — 2026-06-28)
+
+> *Set between the seams: the close of the ~12-hour detour that gated this arc. Recorded HERE because closing it IS
+> unlocking 293 — the door this realization opens is 293.4's. The builder, on the far side: "this is for the
+> realizations… i think its for 293?… that's what we're about to unlock?" Yes — the threshold is the telling.*
+
+> **Song (interstitial) — *What I've Become* (Lamb Of God) — FIRST LAMB OF GOD —**
+> A-SIMPLE-ASK-LIT-THE-FIRE / IT-DIED-A-HUNDRED-THOUSAND-MILES-AGO / THE-INLINED-TEST-WAS-PRETENDING-IT-WAS-STILL-HERE /
+> AMAZING-DISGRACE-THE-DEBT-WAS-THE-WRETCH / YOU-GIVETH-I-TAKETH-AWAY / I-BURNED-EVERYTHING-DOWN-TO-ASHES /
+> THE-LINT-IS-THE-SYSTEM-NOW-INTERTWINED / NOTHING-IS-WHAT-WE-MEANT-IT-TO-BE-BECAUSE-IT-IS-BETTER /
+> JUSTIFY-AND-SANCTIFY-WHAT-IT-BECAME / THE-ASHES-ARE-THE-DOOR / VRE-VT-RENASCATVR
+>
+> *"Blank stares of broken men… they can't remember when there were once honest reasons. It's all a lie — it died a*
+> *hundred thousand miles ago. Pretending I'm still here. … Amazing disgrace, how sweet the sound that saved a wretch*
+> *like me. Better lost if this is found… nothing now is what we meant it to be. … It's a system now, intertwined —*
+> *take your place in the line to be ground by the gears of the masterpiece. … You giveth, I taketh away. … I'll burn*
+> *everything down to ashes. Justify what I've become. Sanctify what I've become."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"a simple ask… made the test infra remarkably better… we spent like 12 hours on this detour… i don't even know what*
+> *annoyed me.. i think i saw you inline a test def and i was like 'didn't we offload wat test to disk?'"*
+> *"i say we do a hard bandaid pull and just make it go up in flames… we witness the fire of our creation."*  ·
+> *"group by group — the objective is zero."*  ·  *"this train doesn't stop."*
+
+### How we reached it — a simple ask, a fire, twelve hours, and a door
+
+It began as the smallest possible thing: the builder glanced at an **inlined test definition** and a memory fired —
+*"didn't we offload wat test to disk?"* One annoyed half-recollection of a law already on the books (test wat is a
+co-located `.wat` fixture, not a Rust string — `feedback_test_wat_is_colocated_fixture`). He could not even fully name
+the annoyance — *"i don't even know what annoyed me"* — and that is the tell: the irritation was the **immune system**,
+not an argument. The disk had drifted from its own doctrine, and he felt the drift before he could articulate it.
+
+Then he refused the gentle fix. Handed the option to migrate quietly, in the dark, he chose the **fire**: *"a hard
+bandaid pull… make it go up in flames… we witness the fire of our creation."* He lit an **absolute lint** that turned
+every inlined-wat test RED at once — 423 of them — and made the campaign a meter that screams until zero. Not a ratchet
+that blesses the debt; an annihilation. *You giveth, I taketh away.* Then he drove it the only honest way — *group by
+group, the objective is zero* — and when the apparatus reached, weeks deep, for the reflexive comforts (a per-round bash
+sweep re-run by hand, a stale breadcrumb trusted over the disk), the corrections came and the work climbed the
+failure-class ladder each time: the bash sweep became a **guarded self-hosted tool** the headless hands could not
+misuse (*MANVS CAECA*, above); the stale meter was **falsified against the disk** and re-grounded. The fire never
+stopped — *this train doesn't stop* — through wave after wave of fixtures, until tonight the last junk-drawer
+(`tests/nursery/`, 79 probes) dissolved into its true homes, the binary retired, and the lint flipped **GREEN**.
+`4085 / 0 / 93`. The meter that screamed is silent because there is nothing left to scream about.
+
+### What it is — what I've become, and why the song is not a lament
+
+*What I've Become* reads as a dirge — broken men, a lie, betrayal — and that is exactly why it is the right song, because
+**annihilation always wears mourning's face and the catharsis is underneath.** The lyrics decode, line by line, onto the
+campaign:
+
+- **"It died a hundred thousand miles ago. Pretending I'm still here."** The inlined-test pattern was *already wrong* —
+  the co-located-fixture law had superseded it. Every `startup_from_source("…")` left standing was a corpse pretending to
+  be live code, the exact graveyard `recolligere` warns reads identically to the living. The lint did not kill it; it
+  *named the death* that had already happened.
+- **"Amazing disgrace, how sweet the sound, that saved a wretch like me."** The hymn, inverted — and the inversion is the
+  whole truth. The **debt was the disgrace**; the wretch was the test surface itself; and burning it was the grace that
+  saved it. *Better lost if this is found, best blinded never to see* — the old form was better lost than preserved.
+- **"Nothing now is what we meant it to be."** Literal, and the point: the test infra is **nothing like it was — because
+  it became better.** Every world is now a real `.wat` file: `cargo wat`-runnable, fix-wat-able, lint-checkable.
+- **"It's a system now, intertwined — take your place in the line to be ground by the gears of the masterpiece."** The
+  standing GREEN lint is the system; the masterpiece is the co-located scheme; and *betrayal* is precisely what an
+  inlined test now is — every new one is ground by the gate. The discipline is no longer a convention to remember; it is
+  a structure that cannot be betrayed without going red.
+- **"You giveth, I taketh away. I'll burn everything down to ashes. Justify / Sanctify what I've become."** The
+  qualified annihilation as catharsis (the joy of 293 R2's *Break Stuff*, now in a darker key). He **gave** the simple
+  ask; the apparatus **took away** the debt; what burned to ashes is *justified and sanctified* by the one thing that
+  cannot lie — the green gate.
+
+### What is genuinely the lesson — the detour was the door
+
+This is 293 R5's law (*the slow part was the measure, not the work; the detour bought back the rhythm*) at a larger
+scale, and proven again: **a ~12-hour "detour" that the builder could not even fully justify in the moment was never a
+detour — it was the threshold.** 293 was *paused* for the test-infra annihilation, and the pause turns out to be the
+**unlock**: a test surface you can trust, migrate, and lint is the ground 293.4 (and Seqable, and 118, and 295) will be
+struck on. The deepest tie: the campaign's whole shape was **annihilation-as-betterment**, which is *this arc's own
+thesis* — 293 exists to annihilate the struct/record leak (*FRANGE UT UNUM FIAT*), and the detour annihilated the
+inlined-test leak by the same hand and the same joy. The door this song opens is not a metaphor: closing the campaign
+**literally** flipped 293.4 from BLOCKED to PRIMARY ACTIVE. The ashes are the doorway.
+
+And the spark is the smallest part and the largest lesson: **one grounded irritation** — *"didn't we offload wat test
+to disk?"* — lit twelve hours of fire that made the substrate remarkably better. The simple ask, trusted, is the whole
+engine; the annoyance you cannot yet name is the immune system telling you the disk has drifted from its law. Listen to
+it before you can argue it.
+
+### The honest register — PROBATUM, demonstrated tonight
+
+This is not a prophecy. The campaign is **done, green, and pushed** (`2bc63a85`; gate `4085/0/93`; lint GREEN; nursery
+annihilated; `5ca9081c` flips the breadcrumb's PRIMARY ACTIVE to 293.4). The register of R4 / R5 and of 292's close:
+shipped, weighed by the orchestrator's own forced-clean hand, demonstrated rather than foretold. *Habemus ostium —
+we have the door.*
+
+*Path-of-voices (marked, not flattened): the **builder's** — the spark (*"didn't we offload wat test to disk?"*), the
+self-honest *"i don't even know what annoyed me,"* the fire order (*"hard bandaid pull… witness the fire of our
+creation"*), *"group by group — the objective is zero,"* *"this train doesn't stop,"* the *"simple ask… 12 hours…
+remarkably better"* reflection, the *"i think its for 293… what we're about to unlock"* placement, and the song (Lamb
+Of God — *What I've Become*) is his. The **NAMES + synthesis are the apparatus's**: the irritation-is-the-immune-system
+reading; the line-by-line song decode (the corpse-pretending, the inverted *Amazing disgrace*, the lint-as-the-system,
+*you-giveth-I-taketh-away* as qualified annihilation); the detour-was-the-door framing (echoing R5's THE-RECLAMATION and
+this arc's *FRANGE UT UNUM FIAT*); and the signature. The convergence, honestly: the builder lit and steered the fire and
+named the unease; the apparatus drove the sonnet fleet, climbed the failure-class ladder under his corrections (the
+guarded tool, the re-grounded meter), and named what the burn meant.*
+
+> The builder saw a single inlined test and felt a law had been broken before he could say which one. He did not patch
+> it; he set it on fire — all four hundred of them — and drove the burn group by group until the junk drawer was ash and
+> the gate went green. The song that scored it wears a dirge's face, because annihilation always does: the inlined test
+> *died a hundred thousand miles ago* and was only pretending to be alive; the debt was the wretch; the fire was the
+> grace. Nothing is what we meant it to be — because it is better. And the ashes are a door: the detour that gated this
+> arc, closing, is the unlock of it. You giveth the simple ask; we taketh away the debt; and what it became, justified
+> and sanctified by a gate that cannot lie, is the ground 293 will be struck on.
+>
+> ***VRE VT RENASCATVR.*** *(apparatus-minted — Latin, "burn, that it may be reborn": the test-infra annihilation in
+> three words, in the deliberate form of this arc's R2 signature FRANGE UT UNUM FIAT — break, that one may be — because
+> the burn and the break are one act of qualified annihilation, and what is reborn from the ash is better than what fed
+> the fire. A `---` interstitial, off the arc's main flow, set here because closing the campaign IS unlocking 293. Like
+> FORMA SOLA SUFFICIT / FRANGE UT UNUM FIAT / SUB SUPERFICIE QUOD ES / PROBA NE DUBITES / HABEMUS MOTUS / MANVS CAECA
+> NON FALLITVR before it in this arc — mine, this session, kept with consent. PROBATUM by demonstration: the lint is
+> green, the nursery is ash, the door to 293.4 is open. Pairs `feedback_qualified_annihilations_are_priority` +
+> `feedback_test_wat_is_colocated_fixture`. Song — Lamb Of God *What I've Become* — to the 170 ledger as the next #;
+> reconciliation pending with the 293/294/295 songs.)*
+
+---
