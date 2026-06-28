@@ -10,4 +10,3 @@
           [v :h::local-answer]
           nil)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

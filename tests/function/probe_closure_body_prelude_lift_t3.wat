@@ -8,4 +8,3 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let [d :h::LocalDir::North] nil)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

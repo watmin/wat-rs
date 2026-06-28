@@ -5,4 +5,3 @@
   (:wat::test::run-hermetic
     (:wat::kernel::println "hello-from-probe")))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

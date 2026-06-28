@@ -25,4 +25,3 @@
            _n   (:h::mix-i64-fn8 7)]
           nil)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -6,4 +6,3 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let [_v (:h::counted-helper)] nil)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

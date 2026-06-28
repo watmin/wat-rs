@@ -13,4 +13,3 @@
       (:wat::core::defn :user::main [] -> :wat::core::nil
         (:my::worker)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

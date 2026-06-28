@@ -14,4 +14,3 @@
      got (:wat::kernel::recv' peer)]
     got))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

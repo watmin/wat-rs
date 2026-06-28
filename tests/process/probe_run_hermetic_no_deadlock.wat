@@ -16,4 +16,3 @@
       :wat::core::None
       :wat::core::None)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

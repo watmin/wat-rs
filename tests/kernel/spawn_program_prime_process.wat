@@ -3,4 +3,3 @@
 
 (:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

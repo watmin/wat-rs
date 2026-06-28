@@ -8,4 +8,3 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let [p (:h::LocalPoint/new 3 4)] nil)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

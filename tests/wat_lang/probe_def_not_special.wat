@@ -12,4 +12,3 @@
 (:wat::core::defn :my::compute [] -> :wat::core::i64 :my-answer)
 
 ;; Required for startup (child processes still need :user::main below them).
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
