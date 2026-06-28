@@ -14,25 +14,14 @@
 //! RED at HEAD: `:wat::core::structtype` is an unknown declaration head. GREEN when 293.2-parity lands:
 //! `structtype` registers the struct, and `defstruct` is a thin macro emitting it.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 #[test]
 fn structtype_primitive_registers_a_struct() {
-    let src = r#"
-        (:wat::core::structtype :my::Point
-          [x <- :wat::core::i64  y <- :wat::core::i64])
-
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          (:wat::core::i64::+
-            (:my::Point/x (:my::Point/new 3 4))
-            (:my::Point/y (:my::Point/new 3 4))))
-    "#;
     // GREEN TARGET: structtype registers :my::Point (a struct); register_struct_methods synthesizes
     // :my::Point/new + :my::Point/x + :my::Point/y exactly as for defstruct today. startup type-checks.
     // RED AT HEAD: :wat::core::structtype is an unknown declaration head.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_beside(file!());
     assert!(
         world.is_ok(),
         ":wat::core::structtype should register a struct with /new + field accessors; got: {:?}",

@@ -11,9 +11,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1a_data_model -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
 
 // A `let` that hand-builds a 2-node Session and exposes `s`; the caller appends the body expression.
@@ -29,12 +27,7 @@ const SESSION: &str = "\
 
 #[test]
 fn rete_data_model_constructs_and_renders() {
-    let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_bare().expect("startup");
 
     let ev = |body: &str| -> Value {
         let expr = format!("{SESSION}{body})");

@@ -26,34 +26,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7a_base_record_roundtrip`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// Shared program source: declares a base record `:test::rd::Pt` with fields `x` and `y`,
-/// then defines compute functions we can call via eval_in_frozen.
-const PROG: &str = r#"
-    (:wat::core::defrecord :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-
-    (:wat::core::defn :user::write-pt [] -> :wat::core::String
-        (:wat::core::let [p (:test::rd::Pt 3 4)]
-            (:wat::edn::write p)))
-
-    (:wat::core::defn :user::roundtrip-eq [] -> :wat::core::bool
-        (:wat::core::let
-            [p  (:test::rd::Pt 3 4)
-             s  (:wat::edn::write p)
-             p2 (:wat::edn::read s)]
-            (:wat::core::= p p2)))
-
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 /// C1 — the written EDN string contains `:x` and `:y`, not `field-0`.
 #[test]
 fn c1_named_keys_in_edn_string() {
-    let world = startup_from_source(PROG, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("C1 startup must succeed");
     let ast = wat::parse_one!("(:user::write-pt)").expect("parse write-pt call");
     let tv = eval_in_frozen(&ast, &world, &Environment::new())
@@ -83,7 +62,7 @@ fn c1_named_keys_in_edn_string() {
 /// C2 — round-trip: write → read → equal to original.
 #[test]
 fn c2_round_trip_equality() {
-    let world = startup_from_source(PROG, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("C2 startup must succeed");
     let ast = wat::parse_one!("(:user::roundtrip-eq)").expect("parse roundtrip-eq call");
     let tv = eval_in_frozen(&ast, &world, &Environment::new())

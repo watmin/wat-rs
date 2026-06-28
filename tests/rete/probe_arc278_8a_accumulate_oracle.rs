@@ -16,6 +16,7 @@ use wat::runtime::{Environment, Value};
 
 /// A world whose rule counts the Readings at a Station's location and gates on `(where <gate>)`.
 /// `acc` is the accumulate condition; `gate` the where-expr over `?n`.
+// rune:lint(no-inlined-wat) — world parameterized by runtime acc/gate strings — cartesian matrix of combinations cannot be pre-extracted
 fn world(acc: &str, gate: &str) -> String {
     format!(
         "(:wat::core::defrecord :w::Station  [location <- :wat::core::String])\n\

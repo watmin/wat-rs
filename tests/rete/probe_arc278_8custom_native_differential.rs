@@ -15,6 +15,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// World with a PURE custom fold (`sum-of-squares`) + a rule using it as an accumulator, gated by `gate`.
+// rune:lint(no-inlined-wat) — world parameterized by runtime gate expression — many gate variants tested inline; also has a literal impure-src in fence_rejects_impure_fold
 fn world(gate: &str) -> String {
     format!(
         "(:wat::core::defrecord :w::Station [location <- :wat::core::String])\n\

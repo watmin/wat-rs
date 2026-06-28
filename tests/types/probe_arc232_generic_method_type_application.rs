@@ -11,31 +11,12 @@
 //! `S=i64, R=i64` so the call checks under that substitution.
 //! Full design: docs/arc/2026/06/272-…/DESIGN-STONE-6b-DEP-generic-method-type-application.md.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-(:wat::core::defprotocol :user::Mk
-  (mk<S,R> [self <- :user::Mk] -> :wat::spawn::Bound<S,R>))
-
-;; the impl body instantiates the method's type-params S,R as type-args to listener'.
-(:wat::core::extend-type :wat::spawn::ThreadOpts :user::Mk
-  (mk [self] (:wat::kernel::listener' self :S :R)))
-
-;; calling with explicit type-args <i64,i64>; if the Bound minted, return 42.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [b (:user::Mk/mk<wat::core::i64,wat::core::i64> (:wat::spawn::thread))]
-    (:wat::core::let [_ (:wat::spawn::Bound/listener b)] 42)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn generic_method_called_with_explicit_type_args_mints_a_typed_bound() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed once generic-method type-application is built");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

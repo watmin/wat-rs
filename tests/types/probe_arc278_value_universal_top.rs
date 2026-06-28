@@ -17,7 +17,7 @@
 //!
 //! Two surfaces, both pinned by the stone's NEXT-ACTION note:
 //!   A. `is_subtype` — the type-engine predicate, in isolation (no parser, no checker).
-//!   B. `check_program` (via `startup_from_source`, the full type-check pipeline) — the AUTHOR surface:
+//!   B. `check_program` (via `startup_from_file`, the full type-check pipeline) — the AUTHOR surface:
 //!      widen accepted, narrow rejected.
 //!
 //! THE DISCONFIRM lives in the UP / WIDEN asserts: at HEAD they FAIL because `:wat::core::Value` does not
@@ -33,9 +33,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_value_universal_top
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 use wat::types::{is_subtype, TypeEnv};
 
 const VALUE: &str = ":wat::core::Value";
@@ -43,19 +41,11 @@ const I64: &str = ":wat::core::i64";
 const STRING: &str = ":wat::core::String";
 
 /// Type-check a program through the full freeze pipeline (parse → `check_program` → freeze).
-/// `Ok(())` iff the program type-checks. A canonical nil `:user::main` is appended (the startup
-/// pipeline wants an entrypoint; mirrors tests/types/parametric_enum.rs).
-fn typechecks(src: &str) -> Result<(), String> {
-    let full = format!(
-        "{src}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)"
-    );
-    startup_from_source(
-        &full,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .map(|_| ())
-    .map_err(|e| format!("{e:?}"))
+/// `Ok(())` iff the program type-checks.
+fn typechecks_file(path: &str) -> Result<(), String> {
+    startup_from_file(path)
+        .map(|_| ())
+        .map_err(|e| format!("{e:?}"))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,12 +102,8 @@ fn down_value_is_not_subtype_of_string() {
 /// (the type `:wat::core::Value` is unknown → check error).
 #[test]
 fn widen_record_value_field_accepts_i64_and_string() {
-    let src = "\
-(:wat::core::defrecord :my::Box [slot <- :wat::core::Value])\n\
-(:wat::core::defn :my::box-int [] -> :my::Box (:my::Box 7))\n\
-(:wat::core::defn :my::box-str [] -> :my::Box (:my::Box \"hi\"))";
     assert!(
-        typechecks(src).is_ok(),
+        typechecks_file("tests/types/probe_arc278_value_universal_top_widen.wat").is_ok(),
         "WIDEN must be accepted: i64 AND String are assignable to a :wat::core::Value field \
          (RED at HEAD — :wat::core::Value is an unknown type)"
     );
@@ -128,11 +114,8 @@ fn widen_record_value_field_accepts_i64_and_string() {
 /// still hold after the stone (for the right reason: `assignable(Value, i64)` falls to a failing unify).
 #[test]
 fn narrow_value_into_i64_param_is_type_error() {
-    let src = "\
-(:wat::core::defn :my::needs-int [n <- :wat::core::i64] -> :wat::core::i64 n)\n\
-(:wat::core::defn :my::down [v <- :wat::core::Value] -> :wat::core::i64 (:my::needs-int v))";
     assert!(
-        typechecks(src).is_err(),
+        typechecks_file("tests/types/probe_arc278_value_universal_top_narrow_bad.wat").is_err(),
         "NARROW must be rejected: a :wat::core::Value is NOT assignable where :wat::core::i64 is wanted \
          (the non-negotiable discipline — if this type-checks, Value is a loose any)"
     );

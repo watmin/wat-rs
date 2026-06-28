@@ -10,24 +10,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7exists_native_differential
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :w::Station [location <- :wat::core::String])\n\
-(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
-(:wat::core::defrecord :w::Watched [location <- :wat::core::String])\n\
-\n\
-(:wat::rete::defrule :w::watched\n\
-  :when\n\
-  [(:w::Station (?loc <- :location))\n\
-   (:wat::rete::exists (:w::Reading (?loc <- :location)))]\n\
-  :then\n\
-  (:wat::rete::insert (:w::Watched ?loc)))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Fire via `fire_fn` after the given inserts; count derived Watched facts.
 fn count(fire_fn: &str, inserts: &[&str]) -> Result<i64, String> {
@@ -44,8 +28,7 @@ fn count(fire_fn: &str, inserts: &[&str]) -> Result<i64, String> {
              fired   (:wat::rete::{fire_fn} session)]\n\
             (:wat::rete::query fired :w::Watched)))"
     );
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {e:?}"))?;
+    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
     match eval_in_frozen(&ast, &world, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned() {
         Value::i64(n) => Ok(n),

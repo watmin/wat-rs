@@ -16,20 +16,15 @@
 //! Run: cargo test --release -p wat --test probe_arc278_2a_alpha_match -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // Condition: a Temp whose :value binds ?t and must be > 20.
 const COND: &str =
     "(:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))";
 
 fn world() -> wat::freeze::FrozenWorld {
-    startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup")
+    startup_beside(file!()).expect("startup")
 }
 
 fn ev(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {

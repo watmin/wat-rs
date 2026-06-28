@@ -8,24 +8,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7a_negation_oracle
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :ops::Maintenance     [location <- :wat::core::String])\n\
-(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])\n\
-\n\
-(:wat::rete::defrule :alert::unattended\n\
-  :when\n\
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))\n\
-   (:wat::rete::not (:ops::Maintenance (?loc <- :location)))]\n\
-  :then\n\
-  (:wat::rete::insert (:alert::Unattended ?loc)))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Fire the oracle after the given inserts (each a wat insert form) and count derived Unattended facts.
 fn count(inserts: &[&str]) -> Result<i64, String> {
@@ -42,8 +26,7 @@ fn count(inserts: &[&str]) -> Result<i64, String> {
              fired   (:wat::rete::fire-rules-spec session)]\n\
             (:wat::rete::query fired :alert::Unattended)))"
     );
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {e:?}"))?;
+    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
     match eval_in_frozen(&ast, &world, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned() {
         Value::i64(n) => Ok(n),

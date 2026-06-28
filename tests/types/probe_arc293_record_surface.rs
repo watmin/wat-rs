@@ -16,23 +16,13 @@
 //! RED at HEAD: a core/holon record passed where a `:geo::Shape` is wanted fails to
 //! type-check (`field_types = None` + no Record arm). GREEN when 293.3-records lands.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// A CORE record (`:wat::core::defrecord`) that HAS the surface's members satisfies it
 /// structurally (width subtyping — the extra `radius` is fine).
 #[test]
 fn core_record_structurally_satisfies_a_defsurface() {
-    let src = r#"
-        (:wat::core::defsurface :geo::Shape [color <- :wat::core::String])
-        (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])
-        (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
-          "ok")
-        (:wat::core::defn :user::main [] -> :wat::core::String
-          (:geo::describe (:geo::Circle "red" 2.0)))
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_record_surface_core.wat");
     assert!(
         world.is_ok(),
         "a core record with the surface's members should satisfy it; got: {:?}",
@@ -44,15 +34,7 @@ fn core_record_structurally_satisfies_a_defsurface() {
 /// because it carries the same `(class, fields)` as a core record, plus a hologram.
 #[test]
 fn holon_record_structurally_satisfies_a_core_surface() {
-    let src = r#"
-        (:wat::core::defsurface :geo::Shape [color <- :wat::core::String])
-        (:wat::holon::defrecord :geo::HCircle [color <- :wat::core::String  radius <- :wat::core::f64])
-        (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
-          "ok")
-        (:wat::core::defn :user::main [] -> :wat::core::String
-          (:geo::describe (:geo::HCircle "red" 2.0)))
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_record_surface_holon.wat");
     assert!(
         world.is_ok(),
         "a holon record satisfies the surface of a core record (R2); got: {:?}",
@@ -64,15 +46,7 @@ fn holon_record_structurally_satisfies_a_core_surface() {
 /// a record MISSING a surface member is rejected.
 #[test]
 fn record_missing_a_surface_member_is_rejected() {
-    let src = r#"
-        (:wat::core::defsurface :geo::Shape [color <- :wat::core::String])
-        (:wat::core::defrecord :geo::Bare [other <- :wat::core::i64])
-        (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
-          "ok")
-        (:wat::core::defn :user::main [] -> :wat::core::String
-          (:geo::describe (:geo::Bare 5)))
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_record_surface_missing_bad.wat");
     assert!(
         world.is_err(),
         "a record lacking `color` must NOT satisfy :geo::Shape"

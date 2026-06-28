@@ -15,29 +15,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc232_1_defprotocol_extend_register
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; Declare a single-receiver protocol (self is arg 0, typed :t::Greeter).
-(:wat::core::defprotocol :t::Greeter
-  (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-
-;; A concrete record joins the protocol — the satisfaction edge + the impl body.
-(:wat::core::defrecord :t::Robot [])
-(:wat::core::extend-type :t::Robot :t::Greeter
-  (greet [self loudness] "beep"))
-
-;; No :P-typed param, no (greet …) call yet — 232.1 only registers.
-(:wat::core::defn :user::ok [] -> :wat::core::i64 42)
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn defprotocol_and_extend_type_parse_and_register() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (232.1: defprotocol + extend-type parse + register)");
     let ast = wat::parse_one!("(:user::ok)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

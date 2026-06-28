@@ -22,6 +22,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// Type-check a whole program at freeze time. Ok = clean; Err = a CheckError fired.
+// rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
 fn check(src: &str) -> Result<(), String> {
     startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
         .map(|_| ())
@@ -29,6 +30,7 @@ fn check(src: &str) -> Result<(), String> {
 }
 
 /// Build a world from one probe `defn`, start it (TYPE-CHECK fires here), then eval `call`.
+// rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
 fn eval_probe(defn: &str, call: &str) -> Result<Value, String> {
     let world = format!("{defn}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
     let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))

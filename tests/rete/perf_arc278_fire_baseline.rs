@@ -18,21 +18,13 @@
 //!   N=200  ( 400 facts) ~1799ms     ~220 facts/s
 //!   N=400  ( 800 facts) ~6134ms     ~130 facts/s   (per-fact cost climbs 1.2ms→7.7ms = O(N^2))
 
-use std::sync::Arc;
 use std::time::Instant;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
-
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // N Temperatures + N WindSpeeds at N distinct locations → N same-loc joins → N derived ColdAndWindy.
 fn run_for(n: usize) {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
 
     let mut binds = String::from(
         "   c1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
@@ -91,7 +83,7 @@ fn fire_throughput_baseline() {
 // The native hash-join cost is the variable: P2 (cross) is O(N²); P3 (keyed) is O(N).
 // Times `(:wat::rete::fire-once' s)` — the per-fact us should stay ~flat under keying, climb under cross.
 fn run_native(n: usize) {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let mut binds = String::from(
         "   c1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
             c2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\

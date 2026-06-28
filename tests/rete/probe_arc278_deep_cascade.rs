@@ -18,6 +18,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// Frozen world: `Stage{k}` + `Tag{k}` record defs for k in 0..=depth, plus main.
+// rune:lint(no-inlined-wat) — world generated from runtime depth parameter (N record types) — cannot be pre-extracted to a static .wat file
 fn gen_world(depth: usize) -> String {
     let mut s = String::new();
     for k in 0..=depth {

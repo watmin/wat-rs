@@ -13,31 +13,8 @@
 //! `Explained` is EPHEMERAL — re-derived per explain, never serialized; the snapshot stays `{facts, rules}`.
 //! Run: cargo test --release -p wat --test probe_arc278_P12a_explain_substrate -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
-(:wat::core::defrecord :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
-\n\
-(:wat::rete::defrule :weather::cold-and-windy\n\
-  :when\n\
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 0))\n\
-   (:weather::WindSpeed   (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::ColdAndWindy ?c ?k)))\n\
-\n\
-(:wat::rete::defrule :weather::alert\n\
-  :when\n\
-  [(:weather::ColdAndWindy (?c <- :celsius) (?k <- :kph))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::WeatherAlert ?c ?k)))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// The shared lifecycle prefix: collect → compile → insert ×2 → fire-rules-explain, binding the
 /// `Explained` result to `ex`. `body` is spliced in with `ex` in scope.
@@ -51,8 +28,7 @@ fn run_with_explained(body: &str) -> Value {
            ex      (:wat::rete::fire-rules-explain session)]\n\
           {body})"
     );
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(&compute).expect("parse compute");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()

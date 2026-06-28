@@ -20,30 +20,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc271_multi_param_generic_method
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; A protocol method generic over TWO type params A,B. The impl returns the first arg.
-(:wat::core::defprotocol :t::Combiner
-  (combine<A,B> [self <- :t::Combiner  x <- :A  y <- :B] -> :A))
-
-(:wat::core::defrecord :t::C [])
-(:wat::core::extend-type :t::C :t::Combiner (combine [self x y] x))
-
-;; Call with (i64, String): A must instantiate to i64 (the return), B to String (the y arg — a
-;; literal `:B` would reject the String). Result is the i64 5.
-(:wat::core::defn :user::go [] -> :wat::core::i64
-  (:t::Combiner/combine (:t::C) 5 "hi"))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn multi_param_generic_method_parses_and_instantiates() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (combine<A,B>: both type params parse + instantiate at the call)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

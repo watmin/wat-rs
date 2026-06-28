@@ -16,9 +16,7 @@
 //! literal inference. GREEN when `#holon` reads as ONE tagged literal that types as `Hologram` — so a
 //! *heterogeneous* map (which `infer_map_literal` rejects monomorphically) measures directly (identical → ~1.0).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// The 294.b demo fixture — slurped, not inlined; the same bytes a Clojure data-reader will read.
 const DEMO_FIXTURE: &str = "wat-scripts/demos/holon-literal/cosine.wat";
@@ -26,12 +24,10 @@ const DEMO_FIXTURE: &str = "wat-scripts/demos/holon-literal/cosine.wat";
 /// `#holon {heterogeneous}` reads as one Hologram literal and measures — heterogeneous keys AND values.
 #[test]
 fn holon_tag_makes_heterogeneous_edn_measure() {
-    let src = std::fs::read_to_string(DEMO_FIXTURE)
-        .unwrap_or_else(|e| panic!("294.b demo fixture {DEMO_FIXTURE} must exist (run from crate root): {e}"));
     // GREEN TARGET: `#holon {…}` is ONE Hologram literal; the heterogeneous map types as Hologram (not a
     //   monomorphic HashMap), so cosine gets 2 args and measures (cosine of identical → ~1.0).
     // RED AT HEAD: `#holon` + `{…}` parse as separate forms → cosine gets 4 args → ArityMismatch at check.
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file(DEMO_FIXTURE);
     assert!(
         world.is_ok(),
         "#holon should make a heterogeneous EDN literal type as a Hologram and measure; got: {:?}",

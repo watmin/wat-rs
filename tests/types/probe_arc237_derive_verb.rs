@@ -19,29 +19,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc237_derive_verb
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-const PROGRAM: &str = r#"
-(:wat::core::defrecord :t::A [])
-(:wat::core::defrecord :t::B [])
-
-;; derive both onto a marker — the typesub/isa? axis, no methods.
-(:wat::core::derive :t::A :t::Marker)
-(:wat::core::derive :t::B :t::Marker)
-
-;; a fn bound over the marker — accepts any type that derives it.
-(:wat::core::defn :user::take-marker [m <- :t::Marker] -> :wat::core::i64 42)
-
-(:wat::core::defn :user::go-a [] -> :wat::core::i64 (:user::take-marker (:t::A)))
-(:wat::core::defn :user::go-b [] -> :wat::core::i64 (:user::take-marker (:t::B)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 fn run(call: &str) -> Value {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (derive verb: A/B derive :t::Marker; marker is a usable bound)");
     let ast = wat::parse_one!(call).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())

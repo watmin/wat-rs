@@ -7,18 +7,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_fence_hof
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Eval `(:wat::rete::<pred> (:wat::core::quote <expr>))` → bool.
 fn classify(pred: &str, expr: &str) -> bool {
     let run = format!("(:wat::rete::{pred} (:wat::core::quote {expr}))");
-    let w = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let w = startup_bare().expect("startup");
     let ast = wat::parse_one!(&run).expect("parse");
     match eval_in_frozen(&ast, &w, &Environment::new()).expect("eval").value_owned() {
         Value::bool(b) => b,

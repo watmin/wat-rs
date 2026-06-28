@@ -10,7 +10,10 @@
 //! nextest isolates it, so a SECOND red is a real regression.
 //!
 //! Escape hatch: a file with a genuine need for a dynamically-constructed world carries a
-//! `// LINT-ALLOW-INLINE-WAT: <reason>` rune and is skipped (rare — the reason must earn it).
+//! `// rune:lint(no-inlined-wat) — <reason>` marker and is skipped (rare — the reason must earn it).
+//! `rune:lint(<name>)` is the repo's project-custom-lint exemption form: owner `lint` = the project
+//! lint suite, NOT a grimoire spell (precedent: `rune:coverage(unreachable)` in src/). excusare audits
+//! the reason; a future build tool will validate `<name>` against the lint registry.
 
 use std::path::{Path, PathBuf};
 
@@ -45,7 +48,7 @@ fn tests_carry_no_inlined_wat() {
             continue;
         }
         let src = std::fs::read_to_string(f).expect("read test source");
-        if src.to_lowercase().contains("// lint-allow-inline-wat") {
+        if src.contains("// rune:lint(no-inlined-wat)") {
             continue;
         }
         if src.contains(&needle) {

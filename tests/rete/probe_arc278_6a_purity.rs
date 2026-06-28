@@ -8,33 +8,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6a_purity
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defn :test::pure-double [n <- :wat::core::i64] -> :wat::core::i64\n\
-  (:wat::core::* n 2))\n\
-\n\
-(:wat::core::defn :test::nondet-uuid [] -> :wat::core::Uuid\n\
-  (:wat::core::Uuid/v4))\n\
-\n\
-(:wat::core::defn :test::io-fn [] -> :wat::io::IOReader\n\
-  (:wat::io::IOReader/open-file \"x\"))\n\
-\n\
-(:wat::core::defn :test::countdown [n <- :wat::core::i64] -> :wat::core::i64\n\
-  (:wat::core::if (:wat::core::<= n 0)\n\
-    0\n\
-    (:test::countdown (:wat::core::- n 1))))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Run `(:wat::rete::<pred> (:wat::core::quote <expr>))` and return the bool.
 fn ask(pred: &str, expr: &str) -> Value {
     let compute = format!("(:wat::rete::{pred} (:wat::core::quote {expr}))");
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(&compute).expect("parse compute");
     eval_in_frozen(&ast, &world, &Environment::new()).expect("predicate should run").value_owned()
 }

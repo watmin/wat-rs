@@ -21,36 +21,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc267_parametric_extend_type
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; A PARAMETRIC struct (parametric types already exist + work — this is not arc 266).
-(:wat::core::defstruct :t::Box<T> [val <- :T])
-
-;; A plain (non-parametric) protocol.
-(:wat::core::defprotocol :t::Tagged
-  (tag [self <- :t::Tagged] -> :wat::core::String))
-
-;; The PARAMETRIC extender satisfies the plain protocol (the novel part — 232 only did Records).
-(:wat::core::extend-type :t::Box :t::Tagged (tag [self] "box"))
-
-;; A fn typed over the protocol bound — must accept a Box<i64> (Parametric) via the extend edge.
-(:wat::core::defn :user::tag-of [x <- :t::Tagged] -> :wat::core::String
-  (:t::Tagged/tag x))
-
-;; Box<i64> — a Parametric actual passed where the :t::Tagged Path bound is expected.
-(:wat::core::defn :user::go [] -> :wat::core::String
-  (:user::tag-of (:t::Box/new 5)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn parametric_type_satisfies_a_plain_protocol_bound() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (267: a parametric Box<i64> satisfies the :t::Tagged bound)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

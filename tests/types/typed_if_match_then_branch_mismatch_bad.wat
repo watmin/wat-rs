@@ -1,0 +1,2 @@
+;; typed_if_match_then_branch_mismatch_bad.wat — then branch type mismatch. Must FAIL.
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 "oops" 0))

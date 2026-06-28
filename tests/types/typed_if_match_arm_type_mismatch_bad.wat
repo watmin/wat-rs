@@ -1,0 +1,5 @@
+;; typed_if_match_arm_type_mismatch_bad.wat — arm #2 type mismatch (String vs i64). Must FAIL.
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::match (:wat::core::Some 7) -> :wat::core::i64
+    ((:wat::core::Some v) v)
+    (:wat::core::None "oops")))

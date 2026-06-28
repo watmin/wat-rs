@@ -10,9 +10,8 @@
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -41,10 +40,9 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-fn run(src: &str) -> Vec<String> {
+fn run(path: &str) -> Vec<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_from_file(path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -58,9 +56,8 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-fn run_expecting_check_error(src: &str) -> String {
-    let err = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect_err("startup should fail with check error");
+fn run_expecting_check_error(path: &str) -> String {
+    let err = startup_from_file(path).expect_err("startup should fail with check error");
     format!("{:?}", err)
 }
 
@@ -68,96 +65,35 @@ fn run_expecting_check_error(src: &str) -> String {
 
 #[test]
 fn unit_variant_evaluates_via_bare_keyword() {
-    let src = r##"
-        (:wat::core::defenum :my::Color :Red :Green :Blue)
-
-        (:wat::core::defn :my::pick [] -> :my::Color :my::Color::Green)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match (:my::pick) -> :wat::core::nil
-                      (:my::Color::Red   (:wat::kernel::println "red"))
-                      (:my::Color::Green (:wat::kernel::println "green"))
-                      (:my::Color::Blue  (:wat::kernel::println "blue"))))
-    "##;
-    assert_eq!(run(src), vec!["\"green\"".to_string()]);
+    assert_eq!(run("tests/types/enums_unit_variant.wat"), vec!["\"green\"".to_string()]);
 }
 
 // ─── Tagged variant construction + match with binders ─────────────────
 
 #[test]
 fn tagged_variant_constructs_and_match_binds_fields() {
-    let src = r##"
-        (:wat::core::defenum :my::Event
-          :Candle  [open <- :wat::core::f64 close <- :wat::core::f64]
-          :Deposit [amount <- :wat::core::f64]
-          :Nothing)
-
-        (:wat::core::defn :my::a-candle [] -> :my::Event (:my::Event::Candle 100.0 105.0))
-
-        (:wat::core::defn :my::summary [e <- :my::Event] -> :wat::core::String
-          (:wat::core::match e -> :wat::core::String
-                      ((:my::Event::Candle  o c) (:wat::core::f64::to-string c))
-                      ((:my::Event::Deposit amt) (:wat::core::f64::to-string amt))
-                      (:my::Event::Nothing       "nothing")))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println (:my::summary (:my::a-candle))))
-    "##;
-    assert_eq!(run(src), vec!["\"105\"".to_string()]);
+    assert_eq!(run("tests/types/enums_tagged_variant.wat"), vec!["\"105\"".to_string()]);
 }
 
 // ─── Wildcard arm covers any remaining variants ───────────────────────
 
 #[test]
 fn wildcard_arm_satisfies_exhaustiveness() {
-    let src = r##"
-        (:wat::core::defenum :my::Color :Red :Green :Blue)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match :my::Color::Blue -> :wat::core::nil
-                      (:my::Color::Red (:wat::kernel::println "red"))
-                      (_               (:wat::kernel::println "other"))))
-    "##;
-    assert_eq!(run(src), vec!["\"other\"".to_string()]);
+    assert_eq!(run("tests/types/enums_wildcard_arm.wat"), vec!["\"other\"".to_string()]);
 }
 
 // ─── Mixed unit + tagged in one match ────────────────────────────────
 
 #[test]
 fn match_mixes_unit_and_tagged_arms() {
-    let src = r##"
-        (:wat::core::defenum :my::Event
-          :Open [size <- :wat::core::f64]
-          :Hold)
-
-        (:wat::core::defn :my::act [e <- :my::Event] -> :wat::core::String
-          (:wat::core::match e -> :wat::core::String
-                      ((:my::Event::Open size) (:wat::core::f64::to-string size))
-                      (:my::Event::Hold        "hold")))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [line1 (:my::act (:my::Event::Open 7.5))
-                       line2 (:my::act :my::Event::Hold)]
-                      (:wat::core::do
-                        (:wat::kernel::println line1)
-                        (:wat::kernel::println line2))))
-    "##;
-    assert_eq!(run(src), vec!["\"7.5\"".to_string(), "\"hold\"".to_string()]);
+    assert_eq!(run("tests/types/enums_mixed_unit_tagged.wat"), vec!["\"7.5\"".to_string(), "\"hold\"".to_string()]);
 }
 
 // ─── Type errors — checker rejects bad patterns ───────────────────────
 
 #[test]
 fn missing_variant_arm_reports_non_exhaustive() {
-    let src = r##"
-        (:wat::core::defenum :my::Color :Red :Green :Blue)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match :my::Color::Red -> :wat::core::i64
-                      (:my::Color::Red   1)
-                      (:my::Color::Green 2)))
-    "##;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/enums_missing_variant_bad.wat");
     assert!(
         err.contains("non-exhaustive") && err.contains("Blue"),
         "expected non-exhaustive error naming Blue, got: {}",
@@ -167,17 +103,7 @@ fn missing_variant_arm_reports_non_exhaustive() {
 
 #[test]
 fn cross_enum_variant_pattern_rejected() {
-    let src = r##"
-        (:wat::core::defenum :my::Color :Red :Green)
-        (:wat::core::defenum :my::Side  :Buy :Sell)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match :my::Color::Red -> :wat::core::i64
-                      (:my::Side::Buy  1)
-                      (:my::Color::Red 2)
-                      (:my::Color::Green 3)))
-    "##;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/enums_cross_enum_bad.wat");
     assert!(
         err.contains("doesn't belong to scrutinee enum") || err.contains("Side"),
         "expected cross-enum error, got: {}",
@@ -187,15 +113,7 @@ fn cross_enum_variant_pattern_rejected() {
 
 #[test]
 fn tagged_variant_arity_mismatch_reported() {
-    let src = r##"
-        (:wat::core::defenum :my::Event
-          :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
-                      ((:my::Event::Pair just-one) just-one)))
-    "##;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/enums_tagged_arity_mismatch_bad.wat");
     assert!(
         err.contains("takes") && err.contains("field"),
         "expected arity error mentioning field count, got: {}",
@@ -205,15 +123,7 @@ fn tagged_variant_arity_mismatch_reported() {
 
 #[test]
 fn unit_variant_pattern_on_tagged_variant_rejected() {
-    let src = r##"
-        (:wat::core::defenum :my::Event
-          :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
-                      (:my::Event::Pair 0)))
-    "##;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/enums_unit_pattern_on_tagged_bad.wat");
     assert!(
         err.contains("tagged") || err.contains("not a tagged"),
         "expected tagged-variant pattern error, got: {}",

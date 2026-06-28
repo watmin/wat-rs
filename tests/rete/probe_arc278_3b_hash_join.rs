@@ -15,14 +15,8 @@
 //! Run: cargo test --release -p wat --test probe_arc278_3b_hash_join -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // Build the fired session for a given WindSpeed location, then isolate the HashJoinNode's Tokens (`htoks`).
 fn setup(wind_loc: &str) -> String {
@@ -51,7 +45,7 @@ fn setup(wind_loc: &str) -> String {
 }
 
 fn ev(expr: &str) -> Value {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))

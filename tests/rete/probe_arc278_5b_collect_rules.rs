@@ -9,30 +9,11 @@
 //! Run: cargo test --release -p wat --test probe_arc278_5b_collect_rules -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-// Two rules in :weather, a NON-rule defn in :weather (must be excluded), and one rule in :other.
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
-(:wat::rete::defrule :weather::cold-and-windy\n\
-  :when [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))\n\
-         (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]\n\
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-(:wat::rete::defrule :weather::cold-temp\n\
-  :when [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 0))]\n\
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-(:wat::core::defn :weather::helper [] -> :wat::core::i64 42)\n\
-(:wat::rete::defrule :other::windy\n\
-  :when [(:weather::WindSpeed (?loc <- :location) (?k <- :kph))]\n\
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-
 fn ev(expr: &str) -> Value {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))

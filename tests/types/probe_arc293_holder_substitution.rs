@@ -4,22 +4,13 @@
 //! separate branch.  Widening (holon → record) must be accepted; narrowing (record →
 //! holon) must be rejected even when the fields match.  Struct is disjoint from Record.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// Case 1 — a core record IS a record: passing `:geo::Pt` where `:wat::Record` is
 /// wanted must succeed.
 #[test]
 fn core_record_accepted_where_record_wanted() {
-    let src = r#"
-        (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-record [r <- :wat::Record] -> :wat::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-record (:geo::Pt 1 2))
-          nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c1.wat");
     assert!(
         world.is_ok(),
         "a core record should be accepted where :wat::Record is wanted; got: {:?}",
@@ -31,14 +22,7 @@ fn core_record_accepted_where_record_wanted() {
 /// Passing `:geo::HPt` where `:wat::Record` is wanted must succeed.
 #[test]
 fn holon_record_accepted_where_record_wanted() {
-    let src = r#"
-        (:wat::holon::defrecord :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-record [r <- :wat::Record] -> :wat::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-record (:geo::HPt 1 2))
-          nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c2.wat");
     assert!(
         world.is_ok(),
         "a holon record should widen to :wat::Record (holon <: record); got: {:?}",
@@ -50,14 +34,7 @@ fn holon_record_accepted_where_record_wanted() {
 /// is wanted must succeed (same-kind, not a substitution question at all).
 #[test]
 fn holon_record_accepted_where_holon_wanted() {
-    let src = r#"
-        (:wat::holon::defrecord :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-holon (:geo::HPt 1 2))
-          nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c3.wat");
     assert!(
         world.is_ok(),
         "a holon record should be accepted where :wat::holon::Record is wanted; got: {:?}",
@@ -70,14 +47,7 @@ fn holon_record_accepted_where_holon_wanted() {
 /// Holon-ness is CATEGORICAL (carries `holon_form`/VSA capability), not structural.
 #[test]
 fn core_record_rejected_where_holon_wanted() {
-    let src = r#"
-        (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-holon (:geo::Pt 1 2))
-          nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c4_bad.wat");
     // The rejection must be the HOLDER mismatch — not an incidental error. The fields are
     // identical to a holon's, so the only thing that can fail is `:geo::Pt` ↛ `:wat::holon::Record`.
     let err = format!("{:?}", world.err());
@@ -92,14 +62,7 @@ fn core_record_rejected_where_holon_wanted() {
 /// `:wat::Record` is wanted must be rejected.
 #[test]
 fn struct_rejected_where_record_wanted() {
-    let src = r#"
-        (:wat::core::defstruct :geo::SPt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-record [r <- :wat::Record] -> :wat::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-record (:geo::SPt/new 1 2))
-          nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5_bad.wat");
     assert!(
         world.is_err(),
         "a struct must NOT satisfy :wat::Record (struct is a separate branch of the holder lattice)"

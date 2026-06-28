@@ -23,9 +23,7 @@
 //! typed foreign-accessor adapter (`defprotocol` annihilated, its live spawn/service users migrated).
 //! `#[ignore]`'d STRIKE-READY; un-ignore when the demo runs.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 /// The full acceptance program. Uses the FINAL names: `defsurface` (not the historical `definterface`),
 /// `defrecord`/`holon::defrecord` (landed 293.2-rename), `extend-type` (the demoted foreign adapter).
@@ -33,50 +31,10 @@ use wat::load::InMemoryLoader;
 #[ignore = "RED at HEAD: arc-293.4 (methods-are-accessors + dispatcher + extend-type adapter) not built; \
             un-ignore when the acceptance demo runs — the arc's final GREEN gate / R1 FORMA SOLA SUFFICIT"]
 fn shape_demo_fields_and_methods_and_the_monkeypatch() {
-    let src = r#"
-        ;; ── THE SURFACE — a set-of-accessor (fields AND methods, uniformly) ──
-        (:wat::core::defsurface :geo::Shape
-          [color <- :wat::core::String]              ; FIELD-style accessor  → :T/color -> :String
-          (area  [self] -> :wat::core::f64)           ; METHOD accessor       → :T/area  [self] -> :f64
-          (label [self] -> :wat::core::String))       ; METHOD accessor       → :T/label [self] -> :String
-
-        ;; ── OWN TYPE #1 — Circle (core record). :geo::Circle/color is generated FREE by the field. ──
-        (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])
-        (:wat::core::defn :geo::Circle/area [self <- :geo::Circle] -> :wat::core::f64
-          (:wat::core::f64::* 3.14159 (:wat::core::f64::* (:geo::Circle/radius self) (:geo::Circle/radius self))))
-        (:wat::core::defn :geo::Circle/label [self <- :geo::Circle] -> :wat::core::String
-          (:wat::core::str "circle(r=" (:geo::Circle/radius self) ")"))
-        ;;  ⇒ Circle exposes color+area+label ⇒ STRUCTURALLY satisfies :geo::Shape. No declaration.
-
-        ;; ── OWN TYPE #2 — Square. Same surface, different fields. ──
-        (:wat::core::defrecord :geo::Square [color <- :wat::core::String  side <- :wat::core::f64])
-        (:wat::core::defn :geo::Square/area [self <- :geo::Square] -> :wat::core::f64
-          (:wat::core::f64::* (:geo::Square/side self) (:geo::Square/side self)))
-        (:wat::core::defn :geo::Square/label [self <- :geo::Square] -> :wat::core::String
-          (:wat::core::str "square(s=" (:geo::Square/side self) ")"))
-
-        ;; ── THE MONKEYPATCH — teach a FOREIGN built-in (holon Vector) to be a Shape (you don't own it) ──
-        (:wat::core::extend-type :wat::holon::Vector :geo::Shape
-          (color [self] -> :wat::core::String "grey")
-          (area  [self] -> :wat::core::f64 (:wat::core::i64::to-f64 (:wat::core::length self)))
-          (label [self] -> :wat::core::String (:wat::core::str "vector[" (:wat::core::length self) "]")))
-
-        ;; ── POLYMORPHIC CONSUMER — accepts ANY Shape; the dispatcher routes :T/<accessor> by runtime type ──
-        (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
-          (:wat::core::str (:geo::Shape/color s) " " (:geo::Shape/label s) " area=" (:geo::Shape/area s)))
-
-        (:wat::core::defn :geo::demo [] -> :wat::core::String
-          (:wat::core::str
-            (:geo::describe (:geo::Circle "red" 2.0))                  "  |  "
-            (:geo::describe (:geo::Square "blue" 3.0))                 "  |  "
-            (:geo::describe (:wat::core::Vector :wat::core::i64 10 20 30))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::String (:geo::demo))
-    "#;
     // GREEN TARGET: the program type-checks and (:geo::demo) yields
     //   "red circle(r=2.0) area=12.56636  |  blue square(s=3.0) area=9.0  |  grey vector[3] area=3.0"
     // RED AT HEAD: method members in defsurface / the dispatcher / extend-type-as-adapter are unbuilt.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_beside(file!());
     assert!(
         world.is_ok(),
         "the acceptance demo (Shape/Circle/Square + holon-Vector monkeypatch) must type-check; got: {:?}",

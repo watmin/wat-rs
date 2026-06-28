@@ -22,30 +22,13 @@
 //! (`field_types = None`), so SOUND record-matching rides 293.2 (which gives records their field types). The
 //! same `assignable` Surface arm then serves both kinds.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
 fn record_structurally_satisfies_a_defsurface() {
-    let src = r#"
-        (:wat::core::defsurface :geo::Shape
-          [color <- :wat::core::String])
-
-        (:wat::core::defstruct :geo::Circle
-          [color <- :wat::core::String  radius <- :wat::core::f64])
-
-        ;; accepts ANYTHING with the Shape surface; Circle has `color` ⇒ structurally satisfies it
-        ;; (and `radius` is extra — width subtyping, fine).
-        (:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
-          true)
-
-        (:wat::core::defn :user::main [] -> :wat::core::bool
-          (:geo::accepts-shape (:geo::Circle/new "red" 2.0)))
-    "#;
     // GREEN TARGET: Circle structurally satisfies :geo::Shape (width subtyping) ⇒ startup type-checks.
     // RED AT HEAD: defsurface is unknown; :geo::Shape does not resolve.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_beside(file!());
     assert!(
         world.is_ok(),
         ":geo::Circle should structurally satisfy :geo::Shape via field-match; got: {:?}",
@@ -60,22 +43,11 @@ fn record_structurally_satisfies_a_defsurface() {
 /// be a type error — the surface is a real lower bound, not a rubber stamp.
 #[test]
 fn missing_surface_member_is_rejected() {
-    let src = r#"
-        (:wat::core::defsurface :geo::Shape
-          [color <- :wat::core::String])
-
-        (:wat::core::defstruct :geo::Bare
-          [other <- :wat::core::i64])
-
-        (:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
-          true)
-
-        (:wat::core::defn :user::main [] -> :wat::core::bool
-          (:geo::accepts-shape (:geo::Bare/new 42)))
-    "#;
     // GREEN TARGET: startup FAILS (type error) because :geo::Bare lacks `color`
     // and therefore does NOT structurally satisfy :geo::Shape.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file(
+        "tests/types/probe_arc293_structural_surface_missing_bad.wat",
+    );
     assert!(
         world.is_err(),
         ":geo::Bare (missing `color`) should NOT satisfy :geo::Shape; but startup succeeded"

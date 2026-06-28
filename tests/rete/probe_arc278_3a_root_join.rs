@@ -15,13 +15,8 @@
 //! Run: cargo test --release -p wat --test probe_arc278_3a_root_join -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 const SETUP: &str = "\
    cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
@@ -38,7 +33,7 @@ const TOK: &str = "\
    tok  (:wat::core::Option/expect -> :wat::rete::Token (:wat::core::get toks 0) \"tok\")";
 
 fn ev(expr: &str) -> Value {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))

@@ -10,32 +10,15 @@
 //! Run: cargo test --release -p wat --test probe_arc278_5a_defrule_query -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-// Records only — for the query-only tests (rule built by hand).
-const WORLD_PLAIN: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+// Paths to the co-located .wat fixtures (relative to the crate root).
+const WORLD_PLAIN_PATH: &str = "tests/rete/probe_arc278_5a_defrule_query_plain.wat";
+const WORLD_WITH_RULE_PATH: &str = "tests/rete/probe_arc278_5a_defrule_query_with_rule.wat";
 
-// Records + a defrule — for the defrule tests (fails to freeze at HEAD: defrule undefined).
-const WORLD_WITH_RULE: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
-(:wat::rete::defrule :weather::cold-and-windy\n\
-  :when\n\
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))\n\
-   (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-
-fn ev(world_src: &str, expr: &str) -> Value {
-    let world = startup_from_source(world_src, None, Arc::new(InMemoryLoader::new())).expect("startup");
+fn ev(world_path: &str, expr: &str) -> Value {
+    let world = startup_from_file(world_path).expect("startup");
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
@@ -57,7 +40,7 @@ const HANDBUILT_FIRED: &str = "\
 
 #[test]
 fn query_reads_derived_facts_by_type() {
-    let got = ev(WORLD_PLAIN, &format!(
+    let got = ev(WORLD_PLAIN_PATH, &format!(
         "(:wat::core::let [{HANDBUILT_FIRED}] \
            (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy)))"));
     assert_eq!(got, Value::i64(1), "query returns the one derived ColdAndWindy; got {got:?}");
@@ -65,7 +48,7 @@ fn query_reads_derived_facts_by_type() {
 
 #[test]
 fn query_empty_for_absent_type() {
-    let got = ev(WORLD_PLAIN, &format!(
+    let got = ev(WORLD_PLAIN_PATH, &format!(
         "(:wat::core::let [{HANDBUILT_FIRED}] \
            (:wat::core::length (:wat::rete::query fired :weather::WindSpeed)))"));
     assert_eq!(got, Value::i64(0), "no WindSpeed was derived → empty query; got {got:?}");
@@ -76,14 +59,14 @@ fn query_empty_for_absent_type() {
 #[test]
 fn defrule_produces_a_rule_value() {
     // Calling the generated zero-arg fn yields a Rule with the expected name + lhs/rhs arity.
-    let name = ev(WORLD_WITH_RULE,
+    let name = ev(WORLD_WITH_RULE_PATH,
         "(:wat::rete::Rule/name (:weather::cold-and-windy))");
     assert_eq!(name, Value::String(Arc::new("weather::cold-and-windy".to_string())),
         "defrule sets Rule.name to the fqdn without colon");
-    let lhs = ev(WORLD_WITH_RULE,
+    let lhs = ev(WORLD_WITH_RULE_PATH,
         "(:wat::core::length (:wat::rete::Rule/lhs (:weather::cold-and-windy)))");
     assert_eq!(lhs, Value::i64(2), "two conditions in :when → lhs length 2");
-    let rhs = ev(WORLD_WITH_RULE,
+    let rhs = ev(WORLD_WITH_RULE_PATH,
         "(:wat::core::length (:wat::rete::Rule/rhs (:weather::cold-and-windy)))");
     assert_eq!(rhs, Value::i64(1), "one insert in :then → rhs length 1");
 }
@@ -91,7 +74,7 @@ fn defrule_produces_a_rule_value() {
 #[test]
 fn defrule_rule_fires_end_to_end() {
     // Collect the one rule MANUALLY (call its fn), compile, insert, fire, query → one ColdAndWindy.
-    let got = ev(WORLD_WITH_RULE,
+    let got = ev(WORLD_WITH_RULE_PATH,
         "(:wat::core::let [\
            rules (:wat::core::PersistentVector (:weather::cold-and-windy))\
            sess0 (:wat::rete::compile rules)\

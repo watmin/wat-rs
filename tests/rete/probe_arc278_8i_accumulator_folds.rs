@@ -8,14 +8,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8i_accumulator_folds
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :net::Packet [src <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Wrap `body` in a let binding `els` = a PV of 3 Elements with bindings {?bytes, ?port} + Packet facts,
 /// and `empty` = an empty PV. ?bytes = 100/200/300 (sum 600, min 100, max 300, mean 200);
@@ -42,8 +36,7 @@ fn run(body: &str) -> Result<Value, String> {
            empty (:wat::core::PersistentVector)]\n\
           {body})"
     );
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {e:?}"))?;
+    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&compute).map_err(|e| format!("parse: {e:?}"))?;
     eval_in_frozen(&ast, &world, &Environment::new())
         .map_err(|e| format!("eval: {e:?}"))

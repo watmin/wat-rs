@@ -12,6 +12,7 @@ use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
+// rune:lint(no-inlined-wat) — world parameterized by runtime acc/gate strings — cartesian matrix of combinations cannot be pre-extracted
 fn world(acc: &str, gate: &str) -> String {
     format!(
         "(:wat::core::defrecord :w::Station  [location <- :wat::core::String])\n\

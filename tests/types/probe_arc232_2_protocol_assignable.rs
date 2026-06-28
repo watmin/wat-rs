@@ -14,30 +14,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc232_2_protocol_assignable
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-(:wat::core::defprotocol :t::Greeter
-  (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::core::defrecord :t::Robot [])
-(:wat::core::extend-type :t::Robot :t::Greeter
-  (greet [self loudness] "beep"))
-
-;; A fn typed over the protocol bound. 232.2: a Robot (which extend-types Greeter) is accepted here.
-(:wat::core::defn :user::takes-greeter [g <- :t::Greeter] -> :wat::core::i64 99)
-
-(:wat::core::defn :user::go [] -> :wat::core::i64
-  (:user::takes-greeter (:t::Robot)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn p_typed_param_accepts_an_extender() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (232.2: a :P-typed param accepts an extender)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -53,19 +35,11 @@ fn p_typed_param_accepts_an_extender() {
 // Anti-over-reach: a record that does NOT extend the protocol must STILL be rejected where :P is
 // required. Proves the edge is precise (only registered extenders satisfy), not a blanket accept.
 // This errors at HEAD and after 232.2 alike — a regression guard, not a RED→GREEN gate.
-const NON_EXTENDER: &str = r#"
-(:wat::core::defprotocol :t::Greeter
-  (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::core::defrecord :t::Rock [])
-(:wat::core::defn :user::takes-greeter [g <- :t::Greeter] -> :wat::core::i64 99)
-(:wat::core::defn :user::go [] -> :wat::core::i64
-  (:user::takes-greeter (:t::Rock)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
 fn p_typed_param_rejects_a_non_extender() {
-    let result = startup_from_source(NON_EXTENDER, None, Arc::new(InMemoryLoader::new()));
+    let result = startup_from_file(
+        "tests/types/probe_arc232_2_protocol_assignable_non_extender_bad.wat",
+    );
     assert!(
         result.is_err(),
         ":t::Rock does NOT extend-type :t::Greeter, so passing it where :t::Greeter is required \

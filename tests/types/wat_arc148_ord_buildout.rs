@@ -23,26 +23,11 @@
 //! `tests/wat_u8.rs`: `(:user::compute -> :wat::core::bool)` bodies with no IO args
 //! so the boolean falls out of `invoke_user_main` directly.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ — canonical main wrapper.
-/// Appends `(:user::main -> :nil)` so startup_from_source accepts the
-/// source. Tests use `(:user::compute -> :T)` for the actual expression;
-/// `run_bool` / `run_expecting_runtime_error` call compute via eval_in_frozen.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run_bool(src: &str) -> bool {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+fn run_bool(path: &str) -> bool {
+    let world = startup_from_file(path).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
@@ -51,22 +36,11 @@ fn run_bool(src: &str) -> bool {
     }
 }
 
-fn run_expecting_runtime_error(src: &str) -> String {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should pass type-check");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env).expect_err("compute should error");
-    format!("{:?}", err)
-}
-
 /// Stone 245.8 — ordering is a relational intrinsic: non-orderable types are
-/// rejected at check time (not at runtime). Assert that startup_from_source
+/// rejected at check time (not at runtime). Assert that startup_from_file
 /// returns a Check error containing "TypeMismatch".
-fn run_expecting_check_error(src: &str) -> String {
-    let src = with_nil_main(src);
-    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+fn run_expecting_check_error(path: &str) -> String {
+    match startup_from_file(path) {
         Err(StartupError::Check(errs)) => format!("{:?}", errs),
         Ok(_) => panic!("expected check-time rejection but startup succeeded"),
         Err(other) => panic!("expected StartupError::Check but got: {:?}", other),
@@ -77,483 +51,225 @@ fn run_expecting_check_error(src: &str) -> String {
 
 #[test]
 fn instant_lt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< (:wat::time::at 1) (:wat::time::at 2)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_instant_lt.wat"));
 }
 
 #[test]
 fn instant_gt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::> (:wat::time::at 5) (:wat::time::at 2)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_instant_gt.wat"));
 }
 
 #[test]
 fn instant_le_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::<= (:wat::time::at 3) (:wat::time::at 3)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_instant_le.wat"));
 }
 
 #[test]
 fn instant_ge_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::>= (:wat::time::at 3) (:wat::time::at 4)))
-    "#;
-    assert!(!run_bool(src));
+    assert!(!run_bool("tests/types/ord_instant_ge.wat"));
 }
 
 // ─── Duration — chronological ord (i64 ns) ───────────────────────────
 
 #[test]
 fn duration_lt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< (:wat::time::Second 1) (:wat::time::Minute 1)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_duration_lt.wat"));
 }
 
 #[test]
 fn duration_gt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::> (:wat::time::Hour 1) (:wat::time::Minute 1)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_duration_gt.wat"));
 }
 
 #[test]
 fn duration_le_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::<= (:wat::time::Hour 1) (:wat::time::Minute 60)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_duration_le.wat"));
 }
 
 #[test]
 fn duration_ge_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::>= (:wat::time::Day 1) (:wat::time::Hour 24)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_duration_ge.wat"));
 }
 
 // ─── Bytes — byte-wise lex (Bytes is :wat::core::Vector<wat::core::u8>) ─
 
 #[test]
 fn bytes_lt_works() {
-    // [1,2,3] < [1,2,4] — byte-wise lex
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3))
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 4))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_bytes_lt.wat"));
 }
 
 #[test]
 fn bytes_gt_works() {
-    // [9] > [1] — first element decides
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 9))
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_bytes_gt.wat"));
 }
 
 #[test]
 fn bytes_le_works() {
-    // [1,2] <= [1,2] — equal lex
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<=
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2))
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_bytes_le.wat"));
 }
 
 #[test]
 fn bytes_ge_shorter_lt_longer_on_prefix_tie() {
-    // Per Rust's slice cmp: [1,2] < [1,2,3] (shorter is less when prefix ties).
-    // So [1,2] >= [1,2,3] is false.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>=
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2))
-                      (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3))))
-    "#;
-    assert!(!run_bool(src));
+    // [1,2] >= [1,2,3] is false — shorter is less when prefix ties
+    assert!(!run_bool("tests/types/ord_bytes_ge_prefix_tie.wat"));
 }
 
 // ─── Vec (parametric :wat::core::Vector<T>) — element-wise lex ───────
 
 #[test]
 fn vec_i64_lt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Vector :wat::core::i64 1 2 3)
-                      (:wat::core::Vector :wat::core::i64 1 2 4)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_i64_lt.wat"));
 }
 
 #[test]
 fn vec_i64_gt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>
-                      (:wat::core::Vector :wat::core::i64 5)
-                      (:wat::core::Vector :wat::core::i64 1)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_i64_gt.wat"));
 }
 
 #[test]
 fn vec_string_le_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<=
-                      (:wat::core::Vector :wat::core::String "a" "b")
-                      (:wat::core::Vector :wat::core::String "a" "c")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_string_le.wat"));
 }
 
 #[test]
 fn vec_string_ge_equal_lex() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>=
-                      (:wat::core::Vector :wat::core::String "a" "b")
-                      (:wat::core::Vector :wat::core::String "a" "b")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_string_ge_equal.wat"));
 }
 
 // ─── Vec recursion — shallow fail-fast + deep recursion ──────────────
 
 #[test]
 fn vec_recursion_shallow_first_element_decides() {
-    // [9, 1, 1] > [1, 99, 99] — first element wins; rest never inspected.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>
-                      (:wat::core::Vector :wat::core::i64 9 1 1)
-                      (:wat::core::Vector :wat::core::i64 1 99 99)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_recursion_shallow.wat"));
 }
 
 #[test]
 fn vec_recursion_deep_via_nested_vec() {
-    // Vec<Vec<i64>>: [[1,2],[3,4]] < [[1,2],[3,5]] — recursion descends
-    // through outer Vec into inner Vec arm, then to i64 leaf.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Vector :wat::core::Vector<wat::core::i64>
-                        (:wat::core::Vector :wat::core::i64 1 2)
-                        (:wat::core::Vector :wat::core::i64 3 4))
-                      (:wat::core::Vector :wat::core::Vector<wat::core::i64>
-                        (:wat::core::Vector :wat::core::i64 1 2)
-                        (:wat::core::Vector :wat::core::i64 3 5))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_vec_recursion_deep.wat"));
 }
 
 // ─── Tuple — element-wise lex ────────────────────────────────────────
 
 #[test]
 fn tuple_lt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Tuple 1 "alpha")
-                      (:wat::core::Tuple 2 "alpha")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_lt.wat"));
 }
 
 #[test]
 fn tuple_gt_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>
-                      (:wat::core::Tuple 5 "z")
-                      (:wat::core::Tuple 5 "a")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_gt.wat"));
 }
 
 #[test]
 fn tuple_le_equal() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<=
-                      (:wat::core::Tuple 1 2 3)
-                      (:wat::core::Tuple 1 2 3)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_le_equal.wat"));
 }
 
 #[test]
 fn tuple_ge_works() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::>=
-                      (:wat::core::Tuple 10 "x")
-                      (:wat::core::Tuple 9 "x")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_ge.wat"));
 }
 
 // ─── Tuple recursion — shallow fail-fast + deep recursion ────────────
 
 #[test]
 fn tuple_recursion_shallow_first_element_decides() {
-    // (1, X) < (2, Y) — second element of either side never inspected.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Tuple 1 "anything-here")
-                      (:wat::core::Tuple 2 "anything-there")))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_recursion_shallow.wat"));
 }
 
 #[test]
 fn tuple_recursion_deep_via_nested_tuple() {
-    // Tuple containing Tuple — recursion descends into the inner Tuple
-    // arm, then to leaves.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::core::Tuple 1 (:wat::core::Tuple 2 3))
-                      (:wat::core::Tuple 1 (:wat::core::Tuple 2 4))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_tuple_recursion_deep.wat"));
 }
 
 // ─── Option — variant-order (None < Some) ────────────────────────────
 
 #[test]
 fn option_none_lt_some() {
-    // :None < (Some 0) regardless of payload
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a :wat::core::None
-                       b (:wat::core::Some 0)]
-                      (:wat::core::< a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_none_lt_some.wat"));
 }
 
 #[test]
 fn option_some_gt_none() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a (:wat::core::Some 99)]
-                      (:wat::core::> a :wat::core::None)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_some_gt_none.wat"));
 }
 
 #[test]
 fn option_some_le_same_payload() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::<= (:wat::core::Some 5) (:wat::core::Some 5)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_some_le_same.wat"));
 }
 
 #[test]
 fn option_some_ge_compares_payload() {
-    // Some(7) >= Some(3)
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::>= (:wat::core::Some 7) (:wat::core::Some 3)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_some_ge_payload.wat"));
 }
 
 // ─── Option recursion — shallow + deep ───────────────────────────────
 
 #[test]
 fn option_recursion_shallow_payload_decides() {
-    // Some(10) < Some(20) — payload comparison; both Some so variant
-    // tag matches, then i64 leaf wins.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< (:wat::core::Some 10) (:wat::core::Some 20)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_recursion_shallow.wat"));
 }
 
 #[test]
 fn option_recursion_deep_via_nested_option() {
-    // Some(Some(1)) < Some(Some(2))
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Some (:wat::core::Some 1))
-                       b
-                        (:wat::core::Some (:wat::core::Some 2))]
-                      (:wat::core::< a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_option_recursion_deep.wat"));
 }
 
 // ─── Result — variant-order (Err < Ok) ───────────────────────────────
 
 #[test]
 fn result_err_lt_ok() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Err "boom")
-                       b
-                        (:wat::core::Ok 1)]
-                      (:wat::core::< a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_err_lt_ok.wat"));
 }
 
 #[test]
 fn result_ok_gt_err() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Ok 100)
-                       b
-                        (:wat::core::Err "anything")]
-                      (:wat::core::> a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_ok_gt_err.wat"));
 }
 
 #[test]
 fn result_ok_le_same_payload() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Ok 5)
-                       b
-                        (:wat::core::Ok 5)]
-                      (:wat::core::<= a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_ok_le_same.wat"));
 }
 
 #[test]
 fn result_err_ge_smaller_err_payload() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Err "z")
-                       b
-                        (:wat::core::Err "a")]
-                      (:wat::core::>= a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_err_ge_smaller.wat"));
 }
 
 // ─── Result recursion — shallow + deep ───────────────────────────────
 
 #[test]
 fn result_recursion_shallow_same_variant_payload_decides() {
-    // Both Err — payload (String) lex decides.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Err "alpha")
-                       b
-                        (:wat::core::Err "beta")]
-                      (:wat::core::< a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_recursion_shallow.wat"));
 }
 
 #[test]
 fn result_recursion_deep_via_ok_payload_tuple() {
-    // Both Ok with Tuple payload — recursion: Result arm → Tuple arm →
-    // i64 leaf.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [a
-                        (:wat::core::Ok (:wat::core::Tuple 1 5))
-                       b
-                        (:wat::core::Ok (:wat::core::Tuple 1 9))]
-                      (:wat::core::< a b)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_result_recursion_deep.wat"));
 }
 
 // ─── Vector (algebra :wat::holon::Vector) — bit-exact i8 lex ─────────
 
 #[test]
 fn algebra_vector_le_self() {
-    // Same vector compared to itself: <= true (equal).
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
-                      (:wat::core::<= v v)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_algebra_vector_le_self.wat"));
 }
 
 #[test]
 fn algebra_vector_ge_self() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
-                      (:wat::core::>= v v)))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_algebra_vector_ge_self.wat"));
 }
 
 #[test]
 fn algebra_vector_lt_self_is_false() {
-    // v < v should be false (equality holds).
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [v (:wat::holon::encode (:wat::holon::to-holon "x"))]
-                      (:wat::core::< v v)))
-    "#;
-    assert!(!run_bool(src));
+    assert!(!run_bool("tests/types/ord_algebra_vector_lt_self_false.wat"));
 }
 
 #[test]
 fn algebra_vector_distinct_atoms_have_some_order() {
-    // Two encoded atoms produce distinct Vectors. They are NOT equal,
-    // so exactly one of (a < b) and (b < a) is true. We assert that
-    // the call returns a bool without raising — establishing the arm
-    // is reachable without panicking — by OR'ing the two.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
-                       vb (:wat::holon::encode (:wat::holon::to-holon "omega"))]
-                      (:wat::core::or (:wat::core::< va vb) (:wat::core::> va vb))))
-    "#;
-    assert!(run_bool(src));
+    assert!(run_bool("tests/types/ord_algebra_vector_distinct_order.wat"));
 }
 
 // ─── Rejected types — Stone 245.8: intrinsic rejects at check time ────────
@@ -569,17 +285,7 @@ fn algebra_vector_distinct_atoms_have_some_order() {
 
 #[test]
 fn hashmap_ord_raises_type_mismatch() {
-    // HashMap — not in the orderable class; rejected at check.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [m1
-                        (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 1)
-                       m2
-                        (:wat::core::HashMap :wat::core::String :wat::core::i64 "b" 2)]
-                      (:wat::core::< m1 m2)))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_hashmap_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on HashMap ord; got {}",
@@ -589,17 +295,7 @@ fn hashmap_ord_raises_type_mismatch() {
 
 #[test]
 fn hashset_ord_raises_type_mismatch() {
-    // HashSet — not in the orderable class; rejected at check.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [s1
-                        (:wat::core::HashSet :wat::core::i64 1 2)
-                       s2
-                        (:wat::core::HashSet :wat::core::i64 3 4)]
-                      (:wat::core::< s1 s2)))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_hashset_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on HashSet ord; got {}",
@@ -609,13 +305,7 @@ fn hashset_ord_raises_type_mismatch() {
 
 #[test]
 fn enum_ord_raises_type_mismatch() {
-    // User enum — not in the orderable class; rejected at check.
-    let src = r#"
-        (:wat::core::defenum :my::Color :Red :Green :Blue)
-
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< :my::Color::Red :my::Color::Blue))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_enum_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on Enum ord; got {}",
@@ -625,19 +315,7 @@ fn enum_ord_raises_type_mismatch() {
 
 #[test]
 fn struct_ord_raises_type_mismatch() {
-    // Struct — not in the orderable class; rejected at check.
-    let src = r#"
-        (:wat::core::defstruct :my::Point
-          [x <- :wat::core::i64
-           y <- :wat::core::i64])
-
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [p (:my::Point/new 1 2)
-                       q (:my::Point/new 3 4)]
-                      (:wat::core::< p q)))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_struct_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on Struct ord; got {}",
@@ -651,10 +329,7 @@ fn unit_ord_raises_type_mismatch() {
     // the checker types `()` as unit, which the orderable gate excludes —
     // ordering a one-inhabitant type is meaningless). Same shape as the
     // five sibling rejection witnesses above.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::< () ()))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_unit_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on unit ord; got {}",
@@ -664,14 +339,7 @@ fn unit_ord_raises_type_mismatch() {
 
 #[test]
 fn holon_ast_ord_raises_type_mismatch() {
-    // HolonAST — not in the orderable class; rejected at check.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::<
-                      (:wat::holon::to-holon "x")
-                      (:wat::holon::to-holon "y")))
-    "#;
-    let err = run_expecting_check_error(src);
+    let err = run_expecting_check_error("tests/types/ord_holon_ast_bad.wat");
     assert!(
         err.contains("TypeMismatch"),
         "expected check-time TypeMismatch on HolonAST ord; got {}",

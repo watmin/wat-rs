@@ -21,23 +21,11 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main/stdout-capture to
 //! eval_in_frozen with :my::compute returning values.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+fn run(path: &str) -> Value {
+    let world = startup_from_file(path).expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
@@ -51,15 +39,7 @@ fn run(src: &str) -> Value {
 /// Arc 170 slice 1f-ζ: :my::compute calls :my::test::wrap and returns i64.
 #[test]
 fn walkstep_continue_parametric_inference_at_use_site() {
-    let src = r#"
-        (:wat::core::defn :my::test::wrap [n <- :wat::core::i64] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue n))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [wrapped (:my::test::wrap 7)]
-                      7))
-    "#;
-    assert!(matches!(run(src), Value::i64(7)), "expected i64(7)");
+    assert!(matches!(run("tests/types/parametric_enum_walkstep_continue.wat"), Value::i64(7)), "expected i64(7)");
 }
 
 #[test]
@@ -67,18 +47,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
     // `Skip` takes (terminal :HolonAST, acc :A). Same parametric
     // inference path but with a different field count.
     // Arc 170 slice 1f-ζ: :my::compute calls :my::test::halt and returns i64.
-    let src = r#"
-        (:wat::core::defn :my::test::halt [n <- :wat::core::i64] -> :wat::eval::WalkStep<wat::core::i64>
-          (:wat::eval::WalkStep::Skip
-                      (:wat::holon::leaf 999)
-                      n))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [halted (:my::test::halt 3)]
-                      3))
-    "#;
-    assert!(matches!(run(src), Value::i64(3)), "expected i64(3)");
+    assert!(matches!(run("tests/types/parametric_enum_walkstep_skip.wat"), Value::i64(3)), "expected i64(3)");
 }
 
 /// The full walker pattern from arc 070's USER-GUIDE example,
@@ -89,23 +58,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
 /// Arc 170 slice 1f-ζ: :my::compute runs the walk and returns the count.
 #[test]
 fn walk_visitor_signature_matches_at_use_site() {
-    let src = r#"
-        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match
-                      (:wat::eval::walk
-                        (:wat::core::quote
-                          (:wat::holon::Bind
-                            (:wat::holon::to-holon "k")
-                            (:wat::holon::to-holon "v")))
-                        0
-                        :my::test::count-visit) -> :wat::core::i64
-                      ((:wat::core::Ok pair)
-                        (:wat::core::second pair))
-                      ((:wat::core::Err _e) -1)))
-    "#;
-    match run(src) {
+    match run("tests/types/parametric_enum_walk_visitor.wat") {
         Value::i64(n) => assert_eq!(n, 1, "expected count=1; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }

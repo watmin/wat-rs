@@ -9,32 +9,9 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P12c_explain_payload -- --include-ignored
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature  [celsius <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph     <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
-(:wat::core::defrecord :weather::WeatherAlert [celsius <- :wat::core::i64  kph      <- :wat::core::i64])\n\
-\n\
-(:wat::rete::defrule :weather::cold-and-windy\n\
-  :when\n\
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 0))\n\
-   (:weather::WindSpeed   (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::ColdAndWindy ?c ?k)))\n\
-\n\
-(:wat::rete::defrule :weather::alert\n\
-  :when\n\
-  [(:weather::ColdAndWindy (?c <- :celsius) (?k <- :kph))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::WeatherAlert ?c ?k)))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Lifecycle prefix binding `root` (explain of ColdAndWindy) and `step0` (its first via edge), then `body`.
 fn nav(body: &str) -> Value {
@@ -49,8 +26,7 @@ fn nav(body: &str) -> Value {
            step0   (:wat::core::nth (:wat::rete::DerivationNode/via root) 0)]\n\
           {body})"
     );
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(&compute).expect("parse compute");
     eval_in_frozen(&ast, &world, &Environment::new()).expect("compute should run").value_owned()
 }

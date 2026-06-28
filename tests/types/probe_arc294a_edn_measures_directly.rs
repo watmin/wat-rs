@@ -17,22 +17,14 @@
 //! HashMap<…>`. GREEN when the surface accepts `EdnRepresentable` and lifts internally.
 //! (Proven RED manually this session via `target/release/wat`.)
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// A plain EDN MAP measures directly — `(cosine {:a 1 :b 2} {:a 1 :b 3})`, no manual `to-holon`.
 #[test]
 fn edn_map_measures_directly() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::pprintln (:wat::holon::cosine {:a 1 :b 2} {:a 1 :b 3}))
-            nil))
-    "#;
     // GREEN TARGET: the map is lifted internally and measured (a cosine in [-1, 1]).
     // RED AT HEAD: type-check rejects HashMap<keyword,i64> at parameter #1 of :wat::holon::cosine.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc294a_edn_measures_directly_map.wat");
     assert!(
         world.is_ok(),
         "a plain EDN map should measure directly via :wat::holon::cosine (no manual to-holon); got: {:?}",
@@ -43,15 +35,9 @@ fn edn_map_measures_directly() {
 /// A plain EDN VECTOR measures directly — `(cosine [1 2 3] [1 2 4])`.
 #[test]
 fn edn_vec_measures_directly() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::pprintln (:wat::holon::cosine [1 2 3] [1 2 4]))
-            nil))
-    "#;
     // GREEN TARGET: the vec is lifted internally and measured.
     // RED AT HEAD: type-check rejects Vector<i64> at parameter #1 of :wat::holon::cosine.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc294a_edn_measures_directly_vec.wat");
     assert!(
         world.is_ok(),
         "a plain EDN vec should measure directly via :wat::holon::cosine; got: {:?}",

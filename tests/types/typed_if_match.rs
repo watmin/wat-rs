@@ -22,39 +22,19 @@
 //!   surrounding it sees `:T`, not "some branch type").
 //! - Nested typed forms compose normally.
 
-use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append the canonical nil-returning `:user::main`
-/// so startup_from_source accepts the source. Tests define
-/// `:user::compute -> :T` for the expression under test.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(&with_nil_main(src), None, Arc::new(InMemoryLoader::new()))
-}
-
-/// Arc 170 slice 1f-ζ: `run` evaluates `:user::compute` via
-/// eval_in_frozen. Sources define `:user::compute -> :T` for the
-/// expression under test + `:user::main -> :nil` for the canonical
-/// entry point.
-fn run(src: &str) -> Value {
-    let world = startup(src).expect("startup should succeed");
+fn run(path: &str) -> Value {
+    let world = startup_from_file(path).expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
-fn check_errors(src: &str) -> Vec<CheckError> {
-    match startup(src) {
+fn check_errors(path: &str) -> Vec<CheckError> {
+    match startup_from_file(path) {
         Err(StartupError::Check(errs)) => errs.0,
         Err(other) => panic!("expected Check errors; got {:?}", other),
         Ok(_) => panic!("expected Check errors; startup succeeded"),
@@ -89,44 +69,22 @@ fn assert_type_mismatch_on(errs: &[CheckError], callee: &str, param: &str) {
 
 #[test]
 fn typed_if_returns_then_branch_on_true() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 11 22))
-    "#;
-    assert!(matches!(run(src), Value::i64(11)));
+    assert!(matches!(run("tests/types/typed_if_match_if_true.wat"), Value::i64(11)));
 }
 
 #[test]
 fn typed_if_returns_else_branch_on_false() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if false -> :wat::core::i64 11 22))
-    "#;
-    assert!(matches!(run(src), Value::i64(22)));
+    assert!(matches!(run("tests/types/typed_if_match_if_false.wat"), Value::i64(22)));
 }
 
 #[test]
 fn typed_match_on_some_returns_some_arm() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Some 7) -> :wat::core::i64
-                      ((:wat::core::Some v) v)
-                      (:wat::core::None 0)))
-    "#;
-    assert!(matches!(run(src), Value::i64(7)));
+    assert!(matches!(run("tests/types/typed_if_match_match_some.wat"), Value::i64(7)));
 }
 
 #[test]
 fn typed_match_on_none_returns_none_arm() {
-    // Type-annotate the :None literal through a let-bound var so the
-    // checker knows the scrutinee is Option<i64>.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [o :wat::core::None]
-                      (:wat::core::match o -> :wat::core::i64
-                        ((:wat::core::Some v) v)
-                        (:wat::core::None -1))))
-    "#;
-    assert!(matches!(run(src), Value::i64(-1)));
+    assert!(matches!(run("tests/types/typed_if_match_match_none.wat"), Value::i64(-1)));
 }
 
 // ─── Migration-hint refusals (old untyped shape) ──────────────────────
@@ -137,23 +95,14 @@ fn untyped_if_gives_migration_hint() {
     // annotation is gone; the form's type is inferred from branch unification.
     // This test was previously checking a migration-hint rejection; it now asserts
     // the new behavior: bare if type-checks and evals correctly.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true 1 2))
-    "#;
-    assert!(matches!(run(src), Value::i64(1)));
+    assert!(matches!(run("tests/types/typed_if_match_untyped_if_bare.wat"), Value::i64(1)));
 }
 
 #[test]
 fn untyped_match_gives_migration_hint() {
     // Three args, where the second is NOT `->` — detected as the
     // old untyped shape.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Some 1)
-                      ((:wat::core::Some v) v)
-                      (:wat::core::None 0)))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_untyped_match_bad.wat");
     assert_malformed_mentioning(&errs, ":wat::core::match", "now requires `-> :T`");
 }
 
@@ -161,24 +110,13 @@ fn untyped_match_gives_migration_hint() {
 
 #[test]
 fn if_without_type_keyword_after_arrow_rejected() {
-    // `-> :wat::core::i64 then` is correct; this uses `-> then else without ty`.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> 1 2 3))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_if_no_type_kw_bad.wat");
     assert_malformed_mentioning(&errs, ":wat::core::if", "type keyword");
 }
 
 #[test]
 fn match_without_type_keyword_after_arrow_rejected() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::match (:wat::core::Some 1) -> oops ((:wat::core::Some v) v) (:wat::core::None 0)))
-    "#;
-    let errs = check_errors(src);
-    // `oops` is a bare symbol at args[2], not a keyword — triggers
-    // the migration-hint path because args[1] isn't `->`... actually
-    // args[1] IS `->`, args[2] is a Symbol "oops", not a Keyword.
-    // The type-keyword guard catches that.
+    let errs = check_errors("tests/types/typed_if_match_match_no_type_kw_bad.wat");
     assert_malformed_mentioning(&errs, ":wat::core::match", "type keyword");
 }
 
@@ -187,20 +125,13 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
     // Six args — one too many for both the bare 3-arg and annotated 5-arg forms.
     // Arc 258.1 updated the error to name both valid shapes; the needle matches
     // the annotated-shape portion of the message.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 1 2 99))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_if_wrong_arity_bad.wat");
     assert_malformed_mentioning(&errs, ":wat::core::if", "(:wat::core::if cond -> :T then else)");
 }
 
 #[test]
 fn match_too_few_args_rejected_with_shape_guidance() {
-    // Scrutinee + `->` + type but no arm at all.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::match (:wat::core::Some 1) -> :wat::core::i64))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_match_too_few_bad.wat");
     assert_malformed_mentioning(&errs, ":wat::core::match", "at least 4 args");
 }
 
@@ -208,32 +139,20 @@ fn match_too_few_args_rejected_with_shape_guidance() {
 
 #[test]
 fn if_then_branch_type_mismatch_named_by_branch() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 "oops" 0))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_then_branch_mismatch_bad.wat");
     assert_type_mismatch_on(&errs, ":wat::core::if", "then-branch");
 }
 
 #[test]
 fn if_else_branch_type_mismatch_named_by_branch() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true -> :wat::core::i64 1 "oops"))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_else_branch_mismatch_bad.wat");
     assert_type_mismatch_on(&errs, ":wat::core::if", "else-branch");
 }
 
 #[test]
 fn match_arm_type_mismatch_named_by_arm_index() {
     // Arm #2 (the :None arm) produces a String instead of i64.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Some 7) -> :wat::core::i64
-                      ((:wat::core::Some v) v)
-                      (:wat::core::None "oops")))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_arm_type_mismatch_bad.wat");
     assert_type_mismatch_on(&errs, ":wat::core::match", "arm #2");
 }
 
@@ -241,10 +160,7 @@ fn match_arm_type_mismatch_named_by_arm_index() {
 
 #[test]
 fn if_non_bool_cond_rejected_at_check() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if 42 -> :wat::core::i64 1 2))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_non_bool_cond_bad.wat");
     assert_type_mismatch_on(&errs, ":wat::core::if", "cond");
 }
 
@@ -252,30 +168,12 @@ fn if_non_bool_cond_rejected_at_check() {
 
 #[test]
 fn typed_if_result_flows_into_enclosing_let_bind() {
-    // The `let` binding `x :wat::core::i64` only unifies if infer_if reports
-    // `:wat::core::i64` as the if-form's result type — proving the declared `:T`
-    // flows out.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [x (:wat::core::if true -> :wat::core::i64 10 20)]
-                      x))
-    "#;
-    assert!(matches!(run(src), Value::i64(10)));
+    assert!(matches!(run("tests/types/typed_if_match_if_result_in_let.wat"), Value::i64(10)));
 }
 
 #[test]
 fn typed_match_result_flows_into_enclosing_let_bind() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [s
-                        (:wat::core::match (:wat::core::Some 1) -> :wat::core::String
-                          ((:wat::core::Some _) "yes")
-                          (:wat::core::None "no"))]
-                      s))
-    "#;
-    match run(src) {
+    match run("tests/types/typed_if_match_match_result_in_let.wat") {
         Value::String(s) => assert_eq!(&*s, "yes"),
         other => panic!("expected \"yes\"; got {:?}", other),
     }
@@ -285,14 +183,7 @@ fn typed_match_result_flows_into_enclosing_let_bind() {
 
 #[test]
 fn typed_if_inside_typed_match_arm_composes() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::match (:wat::core::Some 3) -> :wat::core::i64
-                      ((:wat::core::Some v)
-                        (:wat::core::if (:wat::core::> v 0) -> :wat::core::i64 v 0))
-                      (:wat::core::None -1)))
-    "#;
-    assert!(matches!(run(src), Value::i64(3)));
+    assert!(matches!(run("tests/types/typed_if_match_if_inside_match.wat"), Value::i64(3)));
 }
 
 // ─── Bare-symbol variant pattern hint (arc 105 follow-up) ──────────────
@@ -306,48 +197,12 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
     // the scrutinee is a user enum AND any arm pattern uses a bare-
     // symbol head matching one of that enum's variants, emit a
     // MalformedForm pointing the user at the keyword form.
-    //
-    // Wat-rs convention: built-in `Some` / `Ok` / `Err` use bare
-    // symbols; user-enum variants must be qualified with the enum's
-    // keyword path (`:wat::kernel::ThreadDiedError::Panic`, not
-    // `Panic`). Disambiguation discipline — two enums could both
-    // declare `Panic`; the keyword path resolves the namespace.
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [handle
-                        (:wat::kernel::spawn-thread
-                          (:wat::core::fn
-                            [_in <- :wat::kernel::Receiver<wat::core::nil>
-                             _out <- :wat::kernel::Sender<wat::core::nil>]
-                             -> :wat::core::nil
-                            ()))
-                       result
-                        (:wat::kernel::Thread/drain-and-join handle)
-                       chain
-                        (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
-                          ((:wat::core::Ok _)   (:wat::core::panic! "test wants Err"))
-                          ((:wat::core::Err e)  e))
-                       err
-                        (:wat::core::match (:wat::core::first chain) -> :wat::kernel::ThreadDiedError
-                          ((:wat::core::Some e) e)
-                          (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))]
-                      ;; The bug-trigger pattern: bare-symbol `Panic` head
-                      ;; against ThreadDiedError. Pre-fix produced
-                      ;; "expected Option<?>"; post-fix produces a hint
-                      ;; pointing at :wat::kernel::ThreadDiedError::Panic.
-                      (:wat::core::match err -> :wat::core::String
-                        ((Panic m)        m)
-                        ((RuntimeError m) m)
-                        (:wat::kernel::ThreadDiedError::ChannelDisconnected "disc"))))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/typed_if_match_bare_symbol_variant_bad.wat");
     assert_malformed_mentioning(
         &errs,
         ":wat::core::match",
         ":wat::kernel::ThreadDiedError::Panic",
     );
-    // The hint should also explain WHY (bare-symbol heads are reserved).
     assert_malformed_mentioning(
         &errs,
         ":wat::core::match",

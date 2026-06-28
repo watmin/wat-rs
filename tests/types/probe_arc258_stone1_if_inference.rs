@@ -12,18 +12,11 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone1_if_inference`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn eval_i64(body: &str) -> Result<i64, String> {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup/check: {e:?}"))?;
+fn eval_i64_file(path: &str) -> Result<i64, String> {
+    let world = startup_from_file(path).map_err(|e| format!("startup/check: {e:?}"))?;
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new())
         .map(|tv| tv.value_owned())
@@ -34,21 +27,10 @@ fn eval_i64(body: &str) -> Result<i64, String> {
     }
 }
 
-/// Returns Ok(()) if the source type-checks, else Err(<diagnostic string>).
-fn check_src(body: &str) -> Result<(), String> {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 {body})\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"))
-}
-
 #[test]
 fn contract_01_bare_if_infers_and_evals() {
     assert_eq!(
-        eval_i64("(:wat::core::if true 1 2)"),
+        eval_i64_file("tests/types/probe_arc258_stone1_if_inference_c01.wat"),
         Ok(1),
         "bare `(if true 1 2)` infers via branch-unification and evals the then-branch"
     );
@@ -57,7 +39,7 @@ fn contract_01_bare_if_infers_and_evals() {
 #[test]
 fn contract_02_annotated_if_still_works() {
     assert_eq!(
-        eval_i64("(:wat::core::if false -> :wat::core::i64 1 2)"),
+        eval_i64_file("tests/types/probe_arc258_stone1_if_inference_c02.wat"),
         Ok(2),
         "the annotated 5-arg `(if cond -> :T then else)` keeps working (dual-read)"
     );
@@ -67,7 +49,9 @@ fn contract_02_annotated_if_still_works() {
 fn contract_03_branch_mismatch_rejected_for_the_right_reason() {
     // then=:i64, else=:String — they do not unify. Inference must reject this as a branch
     // mismatch, NOT as an arity error ("now requires -> :T").
-    let r = check_src(r#"(:wat::core::if true 1 "s")"#);
+    let r = startup_from_file("tests/types/probe_arc258_stone1_if_inference_c03_bad.wat")
+        .map(|_| ())
+        .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "a branch-type mismatch must be rejected");
     let msg = r.unwrap_err();
     assert!(

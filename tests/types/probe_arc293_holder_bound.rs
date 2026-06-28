@@ -26,28 +26,16 @@
 //! `:env::Holon`), not merely `is_err` — else it would pass at HEAD for the wrong reason (a parse
 //! error, not a categorical rejection). Mirrors `probe_arc293_holder_substitution.rs` case 4.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// THE ACCEPT CASE — a holon record satisfies a `:holder :holon-record` surface.
 /// `:env::HEnv` is a holon record with the `slot` member, so it satisfies `:env::Holon`
 /// both structurally (has `slot`) AND categorically (holder == HolonRecord).
 #[test]
 fn holon_record_satisfies_holder_bound_surface() {
-    let src = r#"
-        (:wat::core::defsurface :env::Holon
-          :holder :holon-record
-          [slot <- :wat::core::i64])
-        (:wat::holon::defrecord :env::HEnv [slot <- :wat::core::i64])
-        (:wat::core::defn :env::wants-holon [x <- :env::Holon] -> :wat::core::bool
-          true)
-        (:wat::core::defn :user::main [] -> :wat::core::bool
-          (:env::wants-holon (:env::HEnv 1)))
-    "#;
     // GREEN TARGET: HEnv is a holon record with `slot` ⇒ satisfies the holder-bound surface.
     // RED AT HEAD: `:holder` makes defsurface a >2-arg form ⇒ MalformedDecl, startup errors.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_bound_accept.wat");
     assert!(
         world.is_ok(),
         "a holon record should satisfy a :holder :holon-record surface it structurally fits; got: {:?}",
@@ -61,21 +49,11 @@ fn holon_record_satisfies_holder_bound_surface() {
 /// the surface (a holder mismatch), NOT be the incidental MalformedDecl parse error of HEAD.
 #[test]
 fn core_record_rejected_by_holon_holder_bound() {
-    let src = r#"
-        (:wat::core::defsurface :env::Holon
-          :holder :holon-record
-          [slot <- :wat::core::i64])
-        (:wat::core::defrecord :env::CEnv [slot <- :wat::core::i64])
-        (:wat::core::defn :env::wants-holon [x <- :env::Holon] -> :wat::core::bool
-          true)
-        (:wat::core::defn :user::main [] -> :wat::core::bool
-          (:env::wants-holon (:env::CEnv 1)))
-    "#;
     // GREEN TARGET: startup FAILS for the HOLDER mismatch — CEnv's fields match but it is a core
     // record, and `:holder :holon-record` is categorical. The error cites the surface `:env::Holon`.
     // RED AT HEAD: the error is a MalformedDecl on the `:holder` clause, which does NOT cite the
     // surface — so this assertion fails at HEAD (disconfirms on exactly the gap, not the parse).
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_holder_bound_reject.wat");
     // `world.err()` is `None` for an Ok world ⇒ formats as "None" ⇒ fails the cite check (an Ok
     // is wrong). A built holder-rejection cites `:env::Holon`; HEAD's MalformedDecl does not.
     let err = format!("{:?}", world.err());

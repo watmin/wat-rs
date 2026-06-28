@@ -19,30 +19,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :weather::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])\n\
-\n\
-(:wat::rete::defrule :weather::cold-and-windy\n\
-  :when\n\
-  [(:weather::Temperature\n\
-     (?loc <- :location)\n\
-     (?c   <- :celsius)\n\
-     (:wat::core::< ?c 20))\n\
-   (:weather::WindSpeed\n\
-     (?loc <- :location)\n\
-     (?k   <- :kph)\n\
-     (:wat::core::> ?k 30))]\n\
-  :then\n\
-  (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the derived
 // facts (wrapped in `length` so the test is a single eval to a scalar — no env gymnastics).
@@ -58,7 +36,7 @@ const RUN: &str = "\
 
 #[test]
 fn cold_and_windy_fires_and_derives_the_fact() {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("world (records + defrule) should freeze once the rete surface exists");
 
     // The rule fires (Temp 15<20 AND Wind 45>30 at the SAME location "Oslo" — the equality join on ?loc),

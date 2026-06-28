@@ -16,23 +16,14 @@
 //! declaration heads. GREEN now: they ARE the record decl macros; the old `::def` heads throw the
 //! retirement remedy.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// The core record macro reaches `:wat::core::defrecord` (peer to `:wat::core::defstruct`).
 #[test]
 fn core_defrecord_is_the_record_decl_head() {
-    let src = r#"
-        (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-pt [r <- :geo::Pt] -> :geo::Pt r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-pt (:geo::Pt 1 2))
-          nil)
-    "#;
     // RED AT HEAD: :wat::core::defrecord is an unknown declaration head.
     // GREEN: it registers :geo::Pt (a core record) with its positional ctor + accessors.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_defrecord_rename_core.wat");
     assert!(
         world.is_ok(),
         ":wat::core::defrecord should be the core record decl head; got: {:?}",
@@ -43,16 +34,9 @@ fn core_defrecord_is_the_record_decl_head() {
 /// The holon record macro reaches the reclaimed `:wat::holon::defrecord`.
 #[test]
 fn holon_defrecord_is_the_holon_record_decl_head() {
-    let src = r#"
-        (:wat::holon::defrecord :geo::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
-        (:wat::core::defn :u::wants-holon [r <- :wat::holon::Record] -> :wat::holon::Record r)
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:u::wants-holon (:geo::HPt 1 2))
-          nil)
-    "#;
     // RED AT HEAD: :wat::holon::defrecord is an unknown declaration head.
     // GREEN: it registers :geo::HPt (a holon record) — widens to :wat::holon::Record.
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_from_file("tests/types/probe_arc293_defrecord_rename_holon.wat");
     assert!(
         world.is_ok(),
         ":wat::holon::defrecord should be the holon record decl head; got: {:?}",

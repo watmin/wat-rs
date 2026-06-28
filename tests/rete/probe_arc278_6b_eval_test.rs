@@ -9,23 +9,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6b_eval_test
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defn :test::big? [n <- :wat::core::i64] -> :wat::core::bool\n\
-  (:wat::core::> n 100))\n\
-\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 /// Build `(:wat::rete::eval-test (quote <expr>) <bindings>)` and run it; bindings is a wat expr that
 /// builds a PersistentMap (empty + /assoc), e.g. `{?a 5 ?b 3}`.
 fn run(expr: &str, bindings: &str) -> Result<Value, String> {
     let compute = format!("(:wat::rete::eval-test (:wat::core::quote {expr}) {bindings})");
-    let world = startup_from_source(WORLD, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {e:?}"))?;
+    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&compute).map_err(|e| format!("parse: {e:?}"))?;
     eval_in_frozen(&ast, &world, &Environment::new())
         .map_err(|e| format!("eval: {e:?}"))

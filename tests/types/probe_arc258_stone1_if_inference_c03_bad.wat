@@ -1,0 +1,4 @@
+;; probe_arc258_stone1_if_inference_c03_bad.wat — branch mismatch (i64 vs String). Must FAIL.
+;; then=i64, else=String → fail for type mismatch, NOT arity error.
+
+(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::if true 1 "s"))

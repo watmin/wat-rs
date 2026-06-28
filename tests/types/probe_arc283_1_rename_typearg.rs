@@ -12,24 +12,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc283_1_rename_typearg -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// Rename :t::Old → :t::New over a source exercising: a TYPE-ARG (Vector<t::Old>), a start-anchored
-// return type (:t::Old), an accessor (:t::Old/make), and a boundary DECOY (:t::OldExtra — must NOT
-// rename). The fixture is the `src` arg; rename-keyword-prefix returns the migrated source.
-const PROGRAM: &str = r#"
-(:wat::core::defn :user::run [] -> :wat::core::String
-  (:wat::fix::rename-keyword-prefix ":t::Old" ":t::New"
-    "(:wat::core::defn :u::f [xs <- :wat::core::Vector<t::Old> y <- :t::OldExtra] -> :t::Old (:t::Old/make xs))"))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn rename_reaches_type_arguments() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!("(:user::run)").expect("parse");
     let out = eval_in_frozen(&ast, &world, &Environment::new())
         .expect("rename-keyword-prefix must eval")

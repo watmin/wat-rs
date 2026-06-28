@@ -12,35 +12,22 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_dotted_record_field`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// A recordtype with a dotted field `wat.started-at : Instant`, constructed and read back as
-/// epoch-millis (i64) so we can assert a concrete value end-to-end.
-fn eval_dotted_field_roundtrip() -> Result<i64, String> {
-    let src = "\
-        (:wat::core::defrecord :user::Probe [wat.started-at <- :wat::time::Instant])\n\
-        (:wat::core::defn :user::compute [] -> :wat::core::i64\n\
-          (:wat::time::epoch-millis\n\
-            (:user::Probe/wat.started-at (:user::Probe (:wat::time::at-millis 1234)))))\n\
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup/check: {e:?}"))?;
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
-        Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {other:?}")),
-    }
-}
 
 #[test]
 fn c01_dotted_record_field_roundtrips() {
+    let world = startup_beside(file!())
+        .map_err(|e| format!("startup/check: {e:?}"))
+        .expect("dotted record field fixture must load");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    let got = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned())
+        .map_err(|e| panic!("eval: {e:?}"))
+        .unwrap();
     // Construct a Probe with Instant=at-millis(1234), read wat.started-at back, → 1234.
-    assert_eq!(eval_dotted_field_roundtrip(), Ok(1234),
-        "a dotted recordtype field `wat.started-at` should declare, construct, and access cleanly");
+    assert!(
+        matches!(got, Value::i64(1234)),
+        "a dotted recordtype field `wat.started-at` should declare, construct, and access cleanly; got: {got:?}"
+    );
 }

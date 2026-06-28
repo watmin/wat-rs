@@ -23,29 +23,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc232_generic_method
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; A protocol with a GENERIC method: T is bound per-call (the arg type → the Vector element type).
-(:wat::core::defprotocol :t::Maker
-  (make<T> [self <- :t::Maker  x <- :T] -> :wat::core::Vector<T>))
-
-(:wat::core::defrecord :t::Dup [])
-(:wat::core::extend-type :t::Dup :t::Maker (make [self x] [x x]))
-
-;; Call with a concrete i64 → T must instantiate to i64 → result is Vector<i64>.
-(:wat::core::defn :user::go [] -> :wat::core::i64
-  (:wat::core::nth (:t::Maker/make (:t::Dup) 5) 0))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn generic_protocol_method_instantiates_at_call_site() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (generic protocol method make<T>: T binds to i64 at the call)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

@@ -16,6 +16,7 @@ use wat::runtime::{Environment, Value};
 
 /// cold-and-windy with a `where (> ?c THRESH)` filtering the joined token. The join is on ?loc
 /// (Temperature ⋈ WindSpeed at the same location); the where filters by the temperature.
+// rune:lint(no-inlined-wat) — world parameterized by runtime threshold (i64) — cannot be pre-extracted to a static .wat file
 fn world(threshold: i64) -> String {
     format!(
         "(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])\n\

@@ -17,30 +17,11 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc232_3_protocol_dispatch
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-const PROGRAM: &str = r#"
-(:wat::core::defprotocol :t::Greeter
-  (greet [self <- :t::Greeter loudness <- :wat::core::i64] -> :wat::core::String))
-(:wat::core::defrecord :t::Robot [])
-(:wat::core::defrecord :t::Dog [])
-(:wat::core::extend-type :t::Robot :t::Greeter (greet [self loudness] "beep"))
-(:wat::core::extend-type :t::Dog   :t::Greeter (greet [self loudness] "woof"))
-
-;; A fn typed over the protocol bound — calls the method, dispatching on the concrete receiver.
-(:wat::core::defn :user::greet-it [g <- :t::Greeter] -> :wat::core::String
-  (:t::Greeter/greet g 3))
-
-(:wat::core::defn :user::go-robot [] -> :wat::core::String (:user::greet-it (:t::Robot)))
-(:wat::core::defn :user::go-dog   [] -> :wat::core::String (:user::greet-it (:t::Dog)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 fn run(call: &str) -> String {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (232.3: protocol-method dispatch)");
     let ast = wat::parse_one!(call).expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new())

@@ -8,25 +8,12 @@
 //! exist only for eager collections. GREEN when the six primitives land in `src/seq/` and `first`/`rest` extend to
 //! `Value::Stream` — so a lazy cons-cell builds and traverses (the tail thunked, forced on `rest`).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 /// A lazy 2-element seq `(cons 1 (lazy-seq (cons 2 (lazy-seq (seq-empty)))))` builds and `first`/`rest`-traverses.
 #[test]
 fn lazy_seq_cons_first_rest_traverses() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let [s (:wat::stream::cons 1
-                                 (:wat::stream::lazy
-                                   (:wat::stream::cons 2
-                                     (:wat::stream::lazy (:wat::stream::empty)))))]
-            (:wat::core::do
-              (:wat::kernel::pprintln (:wat::core::first s))
-              (:wat::kernel::pprintln (:wat::core::first (:wat::core::rest s)))
-              nil)))
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let world = startup_beside(file!());
     assert!(
         world.is_ok(),
         "lazy-seq cons/first/rest should build a lazy seq and traverse it; got: {:?}",

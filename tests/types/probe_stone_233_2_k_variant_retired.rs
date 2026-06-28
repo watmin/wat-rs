@@ -22,9 +22,7 @@
 //! absent. Stone 233.2.l seals the meta-class via #[wat_value] proc-macro.
 
 use std::fs;
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
 use wat::value::{Provenance, TrackedValue};
 
@@ -129,12 +127,7 @@ fn probe_2_value_enum_has_no_tracked_variant() {
 
 #[test]
 fn probe_3_producer_provenance_survives_let_binding() {
-    let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_bare().expect("startup");
 
     // Bind keyword/from-string result to a let; then reference it via Symbol
     // lookup. Provenance must flow through env.

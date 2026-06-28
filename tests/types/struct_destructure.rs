@@ -25,38 +25,20 @@
 //! 10. multi_form_body_with_destructure
 //! 11. hyphenated_field_names_work
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-const PROLOGUE: &str = r#"
-(:wat::core::defstruct :test::PaperResolved
-  [outcome       <- :wat::core::String
-   grace-residue <- :wat::core::f64])
-"#;
-
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
 /// Asserts startup succeeds and `:user::compute` returns the given value.
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
+fn run(path: &str) -> Value {
+    let world = startup_from_file(path).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
 }
 
 /// Asserts startup fails and returns `format!("{}\n---\n{:?}", e, e)`.
-fn startup_err(src: &str) -> String {
-    let src = with_nil_main(src);
-    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_err(path: &str) -> String {
+    match startup_from_file(path) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{}\n---\n{:?}", e, e),
     }
@@ -67,18 +49,7 @@ fn startup_err(src: &str) -> String {
 /// `[{:keys [outcome]} p]` binds `outcome :String`; body returns it.
 #[test]
 fn single_field() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 7.5)
-                       {{:keys [outcome]}} p]
-                      outcome))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_single_field.wat");
     match v {
         Value::String(s) => assert_eq!(s.as_str(), "Grace"),
         other => panic!("expected String; got {:?}", other),
@@ -90,18 +61,7 @@ fn single_field() {
 /// `[{:keys [outcome grace-residue]} p]` binds both fields.
 #[test]
 fn multi_field() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 7.5)
-                       {{:keys [outcome grace-residue]}} p]
-                      grace-residue))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_multi_field.wat");
     match v {
         Value::f64(x) => assert_eq!(x, 7.5),
         other => panic!("expected f64; got {:?}", other),
@@ -114,19 +74,7 @@ fn multi_field() {
 /// alongside a keys-destructure binder, both in one let.
 #[test]
 fn mixed_with_regular_bindings() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 3.5)
-                       whole p
-                       {{:keys [outcome grace-residue]}} whole]
-                      grace-residue))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_mixed_bindings.wat");
     match v {
         Value::f64(x) => assert_eq!(x, 3.5),
         other => panic!("expected f64; got {:?}", other),
@@ -139,20 +87,7 @@ fn mixed_with_regular_bindings() {
 /// names. Confirms the bindings reach inner scopes intact.
 #[test]
 fn nested_let() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 4.0)
-                       {{:keys [outcome grace-residue]}} p]
-                      (:wat::core::let
-                        [doubled (:wat::core::f64::* grace-residue 2.0)]
-                        doubled)))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_nested_let.wat");
     match v {
         Value::f64(x) => assert_eq!(x, 8.0),
         other => panic!("expected f64; got {:?}", other),
@@ -166,18 +101,7 @@ fn nested_let() {
 /// binds correctly. Field-name lookup, not positional.
 #[test]
 fn field_order_can_differ_from_declaration() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 5.5)
-                       {{:keys [grace-residue outcome]}} p]
-                      outcome))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_field_order.wat");
     match v {
         Value::String(s) => assert_eq!(s.as_str(), "Grace"),
         other => panic!("expected String; got {:?}", other),
@@ -192,18 +116,7 @@ fn field_order_can_differ_from_declaration() {
 /// user can fix without going back to the declaration.
 #[test]
 fn unknown_field_name_is_clean_malformed_form() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 5.5)
-                       {{:keys [nonexistent]}} p]
-                      nonexistent))
-        "#,
-        prologue = PROLOGUE
-    );
-    let err = startup_err(&src);
+    let err = startup_err("tests/types/struct_destructure_unknown_field_bad.wat");
     assert!(
         err.contains("nonexistent"),
         "diagnostic must name the offending field; got: {}",
@@ -222,17 +135,7 @@ fn unknown_field_name_is_clean_malformed_form() {
 /// surfaces a clean TypeMismatch.
 #[test]
 fn non_struct_subject_is_clean_type_mismatch() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [{{:keys [outcome]}} 42]
-                      outcome))
-        "#,
-        prologue = PROLOGUE
-    );
-    let err = startup_err(&src);
+    let err = startup_err("tests/types/struct_destructure_non_struct_subject_bad.wat");
     assert!(
         err.contains("TypeMismatch") || err.contains("type mismatch") || err.contains("malformed"),
         "diagnostic must surface a type or malformed error; got: {}",
@@ -251,18 +154,7 @@ fn non_struct_subject_is_clean_type_mismatch() {
 /// surfaces as a malformed binder error.
 #[test]
 fn empty_brace_form_is_clean_malformed_form() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 5.5)
-                       {{}} p]
-                      "ok"))
-        "#,
-        prologue = PROLOGUE
-    );
-    let err = startup_err(&src);
+    let err = startup_err("tests/types/struct_destructure_empty_brace_bad.wat");
     assert!(
         err.contains("empty")
             || err.contains("at least one")
@@ -279,18 +171,7 @@ fn empty_brace_form_is_clean_malformed_form() {
 /// `[{42} p]` — odd-arity map body (1 item); parse-time MalformedBraceLiteral.
 #[test]
 fn non_symbol_inside_brace_form_is_clean_malformed_form() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 5.5)
-                       {{42}} p]
-                      "ok"))
-        "#,
-        prologue = PROLOGUE
-    );
-    let err = startup_err(&src);
+    let err = startup_err("tests/types/struct_destructure_non_symbol_bad.wat");
     assert!(
         err.contains("bare symbol")
             || err.contains("bare symbols")
@@ -310,20 +191,7 @@ fn non_symbol_inside_brace_form_is_clean_malformed_form() {
 /// shape (arc 168) keeps working with arc 257.2 keys-destructure.
 #[test]
 fn multi_form_body_with_destructure() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 1.0)
-                       {{:keys [outcome grace-residue]}} p]
-                      (:wat::core::f64::+ grace-residue 99.0)
-                      (:wat::core::f64::+ grace-residue 50.0)
-                      (:wat::core::f64::+ grace-residue 41.0)))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_multi_form_body.wat");
     match v {
         Value::f64(x) => assert_eq!(x, 42.0, "expected last form 1.0+41.0=42.0"),
         other => panic!("expected f64; got {:?}", other),
@@ -336,18 +204,7 @@ fn multi_form_body_with_destructure() {
 /// a legal local just like the declared field name.
 #[test]
 fn hyphenated_field_names_work() {
-    let src = format!(
-        r#"
-        {prologue}
-        (:wat::core::defn :user::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [p (:test::PaperResolved/new "Grace" 9.25)
-                       {{:keys [grace-residue]}} p]
-                      grace-residue))
-        "#,
-        prologue = PROLOGUE
-    );
-    let v = run(&src);
+    let v = run("tests/types/struct_destructure_hyphenated_field.wat");
     match v {
         Value::f64(x) => assert_eq!(x, 9.25),
         other => panic!("expected f64; got {:?}", other),

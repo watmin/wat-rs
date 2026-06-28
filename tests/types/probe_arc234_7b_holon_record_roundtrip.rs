@@ -31,44 +31,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7b_holon_record_roundtrip`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// Shared program source: declares a holon record `:test::rd::HPt` with fields `x` and `y`,
-/// then defines compute functions we call via `eval_in_frozen`.
-///
-/// Constructor: `(:test::rd::HPt 7 8)` — positional field order (x=7, y=8).
-/// Accessor: `(:test::rd::HPt/x h)` — slash-accessor for field `x`.
-const PROG: &str = r#"
-    (:wat::holon::defrecord :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
-
-    (:wat::core::defn :user::write-hpt [] -> :wat::core::String
-        (:wat::core::let [h (:test::rd::HPt 7 8)]
-            (:wat::edn::write h)))
-
-    (:wat::core::defn :user::roundtrip-eq [] -> :wat::core::bool
-        (:wat::core::let
-            [h  (:test::rd::HPt 7 8)
-             s  (:wat::edn::write h)
-             h2 (:wat::edn::read s)]
-            (:wat::core::= h h2)))
-
-    (:wat::core::defn :user::roundtrip-field-x [] -> :wat::core::i64
-        (:wat::core::let
-            [h  (:test::rd::HPt 7 8)
-             s  (:wat::edn::write h)
-             h2 (:wat::edn::read s)]
-            (:test::rd::HPt/x h2)))
-
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 /// C3 — the written EDN string contains `#wat-edn.holon` (rode the holon encoding).
 #[test]
 fn c3_holon_tag_in_edn_string() {
-    let world = startup_from_source(PROG, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("C3 startup must succeed");
     let ast = wat::parse_one!("(:user::write-hpt)").expect("parse write-hpt call");
     let tv = eval_in_frozen(&ast, &world, &Environment::new())
@@ -93,7 +62,7 @@ fn c3_holon_tag_in_edn_string() {
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).
 #[test]
 fn c1_round_trip_equality() {
-    let world = startup_from_source(PROG, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("C1 startup must succeed");
     let ast = wat::parse_one!("(:user::roundtrip-eq)").expect("parse roundtrip-eq call");
     let tv = eval_in_frozen(&ast, &world, &Environment::new())
@@ -114,7 +83,7 @@ fn c1_round_trip_equality() {
 /// (C1 alone can't catch a wrong struct_form because Eq delegates to holon_form.)
 #[test]
 fn c2_field_accessor_on_decoded_record() {
-    let world = startup_from_source(PROG, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("C2 startup must succeed");
     let ast = wat::parse_one!("(:user::roundtrip-field-x)").expect("parse roundtrip-field-x call");
     let tv = eval_in_frozen(&ast, &world, &Environment::new())

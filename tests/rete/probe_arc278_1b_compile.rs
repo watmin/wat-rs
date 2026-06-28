@@ -18,9 +18,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
 
 /// Children-count of the FIRST node line whose text contains `kind` — parses the `[...]` child list.
@@ -35,12 +33,7 @@ fn children_count(rendered: &str, kind: &str) -> usize {
 }
 
 fn render(prog: &str) -> String {
-    let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_bare().expect("startup");
     let ast = wat::parse_one!(prog).expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile raised: {e:?}"))

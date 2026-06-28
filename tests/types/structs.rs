@@ -18,34 +18,19 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
 use wat::runtime::{Environment, Value};
 
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-}
-
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup(&src).expect("startup should succeed");
+fn run(path: &str) -> Value {
+    let world = startup_from_file(path).expect("startup should succeed");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
-fn check_errors(src: &str) -> Vec<CheckError> {
-    match startup(src) {
+fn check_errors(path: &str) -> Vec<CheckError> {
+    match startup_from_file(path) {
         Err(StartupError::Check(errs)) => errs.0,
         Err(other) => panic!("expected Check errors; got {:?}", other),
         Ok(_) => panic!("expected Check errors; startup succeeded"),
@@ -56,22 +41,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 
 #[test]
 fn user_struct_constructor_and_accessor_round_trip() {
-    // Declare a Candle-like struct with two fields; construct via
-    // /new; read back via /open and /close accessors.
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Bar
-          [open <- :wat::core::f64
-           close <- :wat::core::f64])
-
-        (:wat::core::defn :my::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [b (:my::market::Bar/new 1.0 2.0)
-                       o             (:my::market::Bar/open b)
-                       c             (:my::market::Bar/close b)]
-                      (:wat::core::f64::- c o)))
-    "#;
-    match run(src) {
+    match run("tests/types/structs_ctor_accessor_roundtrip.wat") {
         Value::f64(x) if (x - 1.0).abs() < 1e-12 => {}
         other => panic!("expected f64 1.0; got {:?}", other),
     }
@@ -79,23 +49,7 @@ fn user_struct_constructor_and_accessor_round_trip() {
 
 #[test]
 fn user_method_can_use_auto_accessors_in_body() {
-    // The FOUNDATION framing: user-defined methods on a struct type
-    // use the auto-generated accessors. Here the method
-    // :my::market::spread/of computes high - low from a Bar.
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Bar
-          [high <- :wat::core::f64
-           low  <- :wat::core::f64])
-
-        (:wat::core::defn :my::market::spread-of [b <- :my::market::Bar] -> :wat::core::f64 (:wat::core::f64::- (:my::market::Bar/high b) (:my::market::Bar/low b)))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::f64
-          (:wat::core::let
-                      [b (:my::market::Bar/new 10.0 3.0)]
-                      (:my::market::spread-of b)))
-    "#;
-    match run(src) {
+    match run("tests/types/structs_user_method_auto_accessors.wat") {
         Value::f64(x) if (x - 7.0).abs() < 1e-12 => {}
         other => panic!("expected f64 7.0; got {:?}", other),
     }
@@ -103,21 +57,7 @@ fn user_method_can_use_auto_accessors_in_body() {
 
 #[test]
 fn struct_can_hold_heterogeneous_fields() {
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Tick
-          [symbol <- :wat::core::String
-           price  <- :wat::core::f64
-           volume <- :wat::core::i64])
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [t
-                        (:my::market::Tick/new "BTC" 50000.0 1000)
-                       v (:my::market::Tick/volume t)]
-                      v))
-    "#;
-    match run(src) {
+    match run("tests/types/structs_heterogeneous_fields.wat") {
         Value::i64(1000) => {}
         other => panic!("expected i64 1000; got {:?}", other),
     }
@@ -125,23 +65,7 @@ fn struct_can_hold_heterogeneous_fields() {
 
 #[test]
 fn structs_are_values_that_survive_rebinding() {
-    // A struct value binds to a name and remains readable after
-    // passing through let bindings and function calls.
-    let src = r#"
-
-        (:wat::core::defstruct :my::Point
-          [x <- :wat::core::i64
-           y <- :wat::core::i64])
-
-        (:wat::core::defn :my::y-of [p <- :my::Point] -> :wat::core::i64 (:my::Point/y p))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [p (:my::Point/new 3 7)
-                       q p]
-                      (:my::y-of q)))
-    "#;
-    match run(src) {
+    match run("tests/types/structs_survive_rebinding.wat") {
         Value::i64(7) => {}
         other => panic!("expected i64 7; got {:?}", other),
     }
@@ -151,19 +75,7 @@ fn structs_are_values_that_survive_rebinding() {
 
 #[test]
 fn constructor_arity_mismatch_rejected_at_check() {
-    // Bar/new expects 2 args (open, close); we pass 1.
-    // Bad code in :my::probe; canonical nil main appended.
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Bar
-          [open <- :wat::core::f64
-           close <- :wat::core::f64])
-
-        (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new 1.0))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/structs_ctor_arity_mismatch_bad.wat");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 2, got: 1, .. }, .. }
@@ -174,19 +86,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
 
 #[test]
 fn constructor_field_type_mismatch_rejected_at_check() {
-    // Bar/new expects f64 for `open`; we pass a :wat::core::String.
-    // Bad code in :my::probe; canonical nil main appended.
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Bar
-          [open <- :wat::core::f64
-           close <- :wat::core::f64])
-
-        (:wat::core::defn :my::probe [] -> :my::market::Bar (:my::market::Bar/new "not-a-float" 2.0))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/structs_ctor_type_mismatch_bad.wat");
     let saw_type = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. }
@@ -197,24 +97,7 @@ fn constructor_field_type_mismatch_rejected_at_check() {
 
 #[test]
 fn accessor_returns_correct_field_type() {
-    // :Bar/volume is declared :wat::core::i64 in the struct; using it where
-    // :wat::core::f64 is expected is a type error. Proves the accessor's
-    // return type flows from the field declaration.
-    // Bad code in :my::probe; canonical nil main appended.
-    let src = r#"
-
-        (:wat::core::defstruct :my::market::Bar
-          [open <- :wat::core::f64
-           volume <- :wat::core::i64])
-
-        (:wat::core::defn :my::probe [] -> :wat::core::f64
-          (:wat::core::let
-                      [b (:my::market::Bar/new 1.0 100)]
-                      (:my::market::Bar/volume b)))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors("tests/types/structs_accessor_return_type_bad.wat");
     let saw_ret = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. }
@@ -226,20 +109,7 @@ fn accessor_returns_correct_field_type() {
 
 #[test]
 fn builtin_capacity_exceeded_struct_is_usable() {
-    // wat-rs seeds :wat::holon::CapacityExceeded as a built-in
-    // struct; its /new and /cost / /budget accessors must be
-    // available at startup without any user declaration.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [e
-                        (:wat::holon::CapacityExceeded/new 200 100)
-                       cost (:wat::holon::CapacityExceeded/cost   e)
-                       budget (:wat::holon::CapacityExceeded/budget e)]
-                      (:wat::core::i64::- cost budget)))
-    "#;
-    match run(src) {
+    match run("tests/types/structs_builtin_capacity_exceeded.wat") {
         Value::i64(100) => {}
         other => panic!("expected i64 100; got {:?}", other),
     }
@@ -247,18 +117,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
 
 #[test]
 fn builtin_capacity_exceeded_cannot_be_redeclared() {
-    // User source cannot claim `:wat::holon::CapacityExceeded`
-    // because the reserved-prefix gate on `TypeEnv::register` blocks
-    // user struct registrations under `:wat::*`. This test shows the
-    // duplicate surfaces as a startup error (not a silent override).
-    let src = r#"
-
-        (:wat::core::defstruct :wat::holon::CapacityExceeded
-          [boom <- :wat::core::bool])
-
-        (:wat::core::defn :user::main [] -> :() ())
-    "#;
-    match startup(src) {
+    match startup_from_file("tests/types/structs_builtin_redeclare_bad.wat") {
         Err(_) => {}
         Ok(_) => panic!("expected startup to reject redeclaration of builtin"),
     }

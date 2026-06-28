@@ -15,13 +15,8 @@
 //! Run: cargo test --release -p wat --test probe_arc278_2b_insert_alpha -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const WORLD: &str = "\
-(:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 
 // let-bindings shared by every assertion: build the fired session + grab alpha-memory.
 const SETUP: &str = "\
@@ -34,7 +29,7 @@ const SETUP: &str = "\
    amem  (:wat::rete::Session/alpha-memory fired)";
 
 fn ev(expr: &str) -> Value {
-    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new())).expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!(expr).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))

@@ -35,25 +35,15 @@
 //!       symmetric/return-position uses).
 //! S-A picks the layer; this probe does not gate on it.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// T1a — a `defmacro` that emits a `struct` decl. After startup the macro-emitted
 /// type must be first-class: its `is-<Name>?` predicate auto-synthesized (proves
 /// the decl flowed through register_types → register_type_predicates).
 #[test]
 fn s0_t1a_macro_emitted_struct_synthesizes_is_predicate() {
-    let src = r#"
-        (:wat::core::defmacro :my::defthing
-          [name <- :wat::WatAST]
-          -> :wat::WatAST
-          `(:wat::core::defstruct ~name [n <- :wat::core::i64]))
-
-        (:my::defthing :my::g::Widget)
-    "#;
     let world =
-        startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
+        startup_from_file("tests/types/probe_arc237_s0_records_gate_struct.wat").expect("freeze");
     assert!(
         world.symbols().get(":my::g::is-Widget?").is_some(),
         "T1 FAIL: macro-emitted struct decl did NOT flow through \
@@ -67,16 +57,8 @@ fn s0_t1a_macro_emitted_struct_synthesizes_is_predicate() {
 /// macro emission.
 #[test]
 fn s0_t1b_macro_emitted_typeunion_synthesizes_is_predicate() {
-    let src = r#"
-        (:wat::core::defmacro :my::defnum
-          [name <- :wat::WatAST]
-          -> :wat::WatAST
-          `(:wat::core::typeunion ~name [:wat::core::i64 :wat::core::f64]))
-
-        (:my::defnum :my::g::Num)
-    "#;
     let world =
-        startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("freeze");
+        startup_from_file("tests/types/probe_arc237_s0_records_gate_typeunion.wat").expect("freeze");
     assert!(
         world.symbols().get(":my::g::is-Num?").is_some(),
         "T1 FAIL: macro-emitted typeunion decl did NOT register + synthesize \
