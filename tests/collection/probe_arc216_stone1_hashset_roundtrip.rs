@@ -1,0 +1,237 @@
+//! Arc 216 Stone 1 — `HashSet<T>` round-trip through `HolonAST::Bundle`.
+//!
+//! Verifies bidirectional round-trip: `value_to_atom` (forward, `Value → HolonAST`)
+//! and `atom-value` (reverse, `HolonAST → Value`) for `HashSet<T>`.
+//!
+//! ## The 10 probes
+//!
+//! Forward direction:
+//!  1. `(:wat::holon::to-holon #{1 2 3})` → classifier-wrapped HolonAST (arc 228)
+//!
+//! Reverse direction:
+//!  2. `(:wat::holon::from-holon<bundle>)` on a round-tripped HashSet → reconstructs set
+//!
+//! Edge cases:
+//!  3. Empty set `#{}` → `Bundle([])` → `#{}`; length preserved
+//!  4. Single element `#{42}` → `Bundle([I64(42)])` → `#{42}`
+//!
+//! Multi-T types:
+//!  5. Works for `HashSet<i64>`, `HashSet<String>`, `HashSet<bool>`, `HashSet<keyword>`
+//!
+//! Dedupe semantic:
+//!  6. Reverse trip with duplicate atoms in Bundle deduplicates naturally via HashSet insert
+//!
+//! Nested set:
+//!  7. `HashSet<HashSet<i64>>` — outer Bundle of inner Bundles; recursive atomization
+//!
+//! Check-level atomizable predicate:
+//!  8. `(:wat::holon::to-holonmy-hashset)` for atomizable T type-checks cleanly
+//!  9. `(:wat::holon::to-holonfn-value)` where T is Fn — fails at check (TypeMismatch)
+//!
+//! HolonRepresentable Rust-side:
+//! 10. `HashSet<String>` satisfies `HolonRepresentable` at compile time; roundtrip correct
+
+use std::collections::HashSet;
+use wat::comms::HolonRepresentable;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
+
+// ─── Probe 1 — Forward: `#{1 2 3}` → classifier-wrapped HolonAST ────────────
+
+#[test]
+fn probe_1_forward_hashset_to_bundle() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p1-forward-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 3, "classifier-wrapped Set encoding must preserve 3 elements in round-trip"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 2 — Reverse: Bundle → HashSet round-trip ─────────────────────────
+
+#[test]
+fn probe_2_reverse_bundle_to_hashset_roundtrip() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p2a-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 3, "round-trip must preserve length 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p2b-rt-contains)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::bool(b) => assert!(b, "round-trip must preserve element 2"),
+        other => panic!("expected bool; got {:?}", other),
+    }
+}
+
+// ─── Probe 3 — Empty set round-trip ──────────────────────────────────────────
+
+#[test]
+fn probe_3_empty_set_roundtrip() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p3-empty-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 0, "empty set round-trip must preserve length 0"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 4 — Single element round-trip ─────────────────────────────────────
+
+#[test]
+fn probe_4_single_element_roundtrip() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p4a-single-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 1, "single-element round-trip must have length 1"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p4b-single-rt-contains)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::bool(b) => assert!(b, "single-element round-trip must contain 42"),
+        other => panic!("expected bool; got {:?}", other),
+    }
+}
+
+// ─── Probe 5 — Multi-T types ─────────────────────────────────────────────────
+
+#[test]
+fn probe_5_multi_t_types() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p5a-i64-rt-contains)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::bool(b) => assert!(b, "HashSet<i64> round-trip must contain 20"),
+        other => panic!("expected bool; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p5b-str-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 3, "HashSet<String> round-trip: length must be 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p5c-bool-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 2, "HashSet<bool> round-trip: length must be 2"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 6 — Dedupe semantic ────────────────────────────────────────────────
+
+#[test]
+fn probe_6_dedupe_semantic() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p6-dedupe-rt-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 3, "deduplicated set round-trip must yield length 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 7 — Nested set round-trip ─────────────────────────────────────────
+
+#[test]
+fn probe_7_nested_set_roundtrip() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p7a-nested-rt-outer-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 2, "nested set round-trip: outer length must be 2"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p7b-nested-rt-arc228)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 2, "nested set: round-trip outer HashSet length must be 2 (arc 228 classifier-wrap verified)"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 8 — Check passes for atomizable T ─────────────────────────────────
+
+#[test]
+fn probe_8_check_passes_for_atomizable_t() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p8a-atomizable-passes)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 1, "Atom on HashSet<i64> must pass check and run"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p8b-nested-atomizable)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 1, "Atom on HashSet<HashSet<i64>> must pass check and run (recursive atomizable)"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 9 — Check fails for non-atomizable T ──────────────────────────────
+
+#[test]
+fn probe_9_check_fails_for_non_atomizable_t() {
+    let err = startup_from_file(
+        "tests/collection/probe_arc216_stone1_hashset_roundtrip_p9_bad.wat",
+    )
+    .expect_err("expected startup failure for non-atomizable Fn type");
+    let err = format!("{}\n---\n{:?}", err, err);
+    assert!(
+        err.contains("TypeMismatch"),
+        "Atom on Fn type must fail at check with TypeMismatch; got: {}",
+        err
+    );
+    assert!(
+        err.contains(":wat::holon::to-holon"),
+        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
+        err
+    );
+}
+
+// ─── Probe 10 — HolonRepresentable cascade (compile-time + runtime) ──────────
+
+fn assert_holon_representable<T: HolonRepresentable>() {}
+
+#[test]
+fn probe_10_holon_representable_cascade() {
+    // Compile-time: if this function call compiles, HashSet<String>: HolonRepresentable.
+    assert_holon_representable::<HashSet<String>>();
+
+    // Runtime roundtrip: {hello, world}.
+    let set: HashSet<String> = vec!["hello".into(), "world".into()].into_iter().collect();
+    let ast = set.to_holon_ast();
+
+    // to_holon_ast produces a Bundle of String leaves.
+    match &ast {
+        holon::HolonAST::Bundle(items) => {
+            assert_eq!(items.len(), 2, "Bundle must have 2 children");
+            for item in items.iter() {
+                assert!(
+                    matches!(item, holon::HolonAST::String(_)),
+                    "each child must be HolonAST::String leaf"
+                );
+            }
+        }
+        other => panic!("expected HolonAST::Bundle, got {:?}", other),
+    }
+
+    // from_holon_ast reconstructs the set exactly.
+    let reconstructed: HashSet<String> =
+        HolonRepresentable::from_holon_ast(&ast).expect("roundtrip");
+    assert_eq!(
+        reconstructed,
+        set,
+        "roundtrip must reproduce original HashSet<String>"
+    );
+}

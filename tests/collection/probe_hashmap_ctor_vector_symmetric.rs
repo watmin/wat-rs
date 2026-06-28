@@ -1,0 +1,152 @@
+//! Arc 214 P1 — HashMap constructor: Vector-symmetric shape probes.
+//!
+//! Verifies that the refactored `:wat::core::HashMap :K :V k0 v0 ...`
+//! constructor shape (two separate type-keywords, per arc 109 slice 1f)
+//! is accepted by both the runtime evaluator and the type-checker.
+//!
+//! ## The 9 probes
+//!
+//! 1. Empty literal — `(:wat::core::HashMap :wat::core::keyword :wat::core::i64)` constructs empty HashMap
+//! 2. Single pair — length 1; get returns the value
+//! 3. Multi pair — three pairs; length + get per key
+//! 4. String-keyed — K = String confirms K can be any hashable type
+//! 5. HolonAST-keyed — K = HolonAST confirms structural keys
+//! 6. Wrong-type rejection — value type mismatch at type-check
+//! 7. Odd count rejection — type-check catches arity parity error
+//! 8. Missing K type-arg — `(:wat::core::HashMap)` fails arity check
+//! 9. Missing V type-arg — `(:wat::core::HashMap :wat::core::keyword)` fails arity check
+
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
+
+// ─── Probe 1: Empty literal ──────────────────────────────────────────────────
+
+#[test]
+fn probe_p1_empty_literal_constructs_empty_hashmap() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p1-empty-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 0, "empty HashMap must have length 0"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 2: Single pair ────────────────────────────────────────────────────
+
+#[test]
+fn probe_p2_single_pair_length_and_get() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p2-single-get)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 42, "get :foo should return 42"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 3: Multi pair ─────────────────────────────────────────────────────
+
+#[test]
+fn probe_p3_multi_pair_length_and_get() {
+    let world = startup_beside(file!()).expect("startup");
+    let env = Environment::new();
+
+    let ast = wat::parse_one!("(:t::p3a-multi-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 3, "three pairs → length 3"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+
+    let ast = wat::parse_one!("(:t::p3b-multi-get)").expect("parse");
+    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 20, "get :b from three-pair map → 20"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 4: String-keyed ───────────────────────────────────────────────────
+
+#[test]
+fn probe_p4_string_keyed_constructs_correctly() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p4-str-keyed-get)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 2, "String-keyed HashMap: get \"b\" → 2"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 5: HolonAST-keyed ─────────────────────────────────────────────────
+
+#[test]
+fn probe_p5_holonast_keyed_length() {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:t::p5-holonast-keyed-len)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => assert_eq!(n, 1, "HolonAST-keyed HashMap with one pair → length 1"),
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+// ─── Probe 6: Wrong-type rejection ───────────────────────────────────────────
+
+#[test]
+fn probe_p6_wrong_value_type_rejected_at_type_check() {
+    let err = startup_from_file(
+        "tests/collection/probe_hashmap_ctor_vector_symmetric_p6_bad.wat",
+    )
+    .expect_err("expected startup failure for wrong value type");
+    let err = format!("{:?}", err);
+    assert!(
+        err.to_lowercase().contains("mismatch") || err.to_lowercase().contains("type"),
+        "wrong-value type must produce a type-check error; got: {}",
+        err
+    );
+}
+
+// ─── Probe 7: Odd count rejection ────────────────────────────────────────────
+
+#[test]
+fn probe_p7_odd_pair_count_rejected() {
+    let err = startup_from_file(
+        "tests/collection/probe_hashmap_ctor_vector_symmetric_p7_bad.wat",
+    )
+    .expect_err("expected startup failure for odd pair count");
+    let err = format!("{:?}", err);
+    assert!(
+        err.contains("even") || err.contains("MalformedForm"),
+        "odd pair count must produce the 'even' arity error; got: {}",
+        err
+    );
+}
+
+// ─── Probe 8: Zero type-args (arity error) ───────────────────────────────────
+
+#[test]
+fn probe_p8_missing_both_type_args_rejected() {
+    let err = startup_from_file(
+        "tests/collection/probe_hashmap_ctor_vector_symmetric_p8_bad.wat",
+    )
+    .expect_err("expected startup failure for missing type args");
+    let err = format!("{:?}", err);
+    assert!(
+        err.contains("ArityMismatch") || err.contains("arity") || err.contains("2"),
+        "missing type args must produce an arity error; got: {}",
+        err
+    );
+}
+
+// ─── Probe 9: Missing V type-arg ─────────────────────────────────────────────
+
+#[test]
+fn probe_p9_missing_v_type_arg_rejected() {
+    let err = startup_from_file(
+        "tests/collection/probe_hashmap_ctor_vector_symmetric_p9_bad.wat",
+    )
+    .expect_err("expected startup failure for missing V type arg");
+    let err = format!("{:?}", err);
+    assert!(
+        err.contains("ArityMismatch") || err.contains("arity") || err.contains("2"),
+        "missing V type arg must produce an arity error; got: {}",
+        err
+    );
+}

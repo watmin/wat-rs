@@ -1,0 +1,97 @@
+//! FM 2-bis probe — arc 237 Stone S-C.3: the base/holonic macro split.
+//!
+//! See `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-S-C3.md`.
+//!
+//! `:wat::core::defrecord` → BASE (struct only; recordtype parent :wat::Record).
+//! `:wat::holon::defrecord` → HOLONIC (struct + holon; parent :wat::holon::Record <: :wat::Record).
+//! The recordtype parent IS the Liskov mechanism: a func wanting :wat::holon::Record rejects a
+//! base-defined record at CHECK time; wanting :wat::Record accepts both.
+//!
+//! RED at the arc-237 strike: `:wat::holon::Record::def` did not exist, and `:wat::Record::def` still
+//! built holonic (so base ops + to-holon-error + Liskov rejection were unmet). GREEN after the stone.
+//! (Both macros were later renamed — arc 293.2 — to `:wat::core::defrecord` / `:wat::holon::defrecord`,
+//! the names used in the design lines above.)
+//!
+//! Coverage (feedback_logic_coverage_mandate): base ops · holonic preserved · Liskov accept/reject
+//! · cross-flavor.
+
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
+
+fn eval_bool(fn_name: &str) -> bool {
+    let world = startup_beside(file!()).expect("startup for macro_split fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::bool(b) => b,
+        other => panic!("expected bool from {}; got {:?}", fn_name, other),
+    }
+}
+
+fn eval_i64(fn_name: &str) -> i64 {
+    let world = startup_beside(file!()).expect("startup for macro_split fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
+    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+        Value::i64(n) => n,
+        other => panic!("expected i64 from {}; got {:?}", fn_name, other),
+    }
+}
+
+// ─── BASE flavor (:my::Pt via :wat::core::defrecord) ──────────────────────────────
+#[test] fn base_construct_and_field() { assert_eq!(eval_i64(":user::base-construct-and-field"), 1); }
+#[test] fn base_accessor() { assert_eq!(eval_i64(":user::base-accessor"), 2); }
+#[test] fn base_predicate_true() { assert!(eval_bool(":user::base-predicate-true")); }
+#[test] fn base_predicate_false() { assert!(!eval_bool(":user::base-predicate-false")); }
+#[test] fn base_eq_equal() { assert!(eval_bool(":user::base-eq-equal")); }
+#[test] fn base_eq_diff() { assert!(!eval_bool(":user::base-eq-diff")); }
+#[test] fn base_same_data() { assert!(eval_bool(":user::base-same-data")); }
+#[test] fn base_assoc_then_read() { assert_eq!(eval_i64(":user::base-assoc-then-read"), 9); }
+#[test] fn base_to_holon_errors() {
+    // base has NO holon flavor — to-holon must error (teaching error), not return Ok.
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::base-to-holon-errors)").expect("parse");
+    let h = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(h.is_err(), "to-holon on a BASE record must error; got {:?}", h);
+}
+
+// ─── HOLONIC flavor (:my::HPt via :wat::holon::defrecord) ────────────────────
+#[test] fn holonic_construct_field() { assert_eq!(eval_i64(":user::holonic-construct-field"), 7); }
+#[test] fn holonic_predicate_true() { assert!(eval_bool(":user::holonic-predicate-true")); }
+#[test] fn holonic_to_holon_ok() {
+    // holonic HAS a holon flavor — to-holon works.
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::holonic-to-holon-ok)").expect("parse");
+    let t = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(t.is_ok(), "to-holon on a HOLONIC record must work; got {:?}", t);
+}
+
+// ─── Liskov type-distinction (the static proof) ───────────────────────────────
+// Positive cases: the shared .wat file includes :fb, :fh, :gh — their presence
+// in the startup proves they type-check (startup_beside succeeds only if ALL pass).
+
+#[test] fn liskov_base_into_base_ok() {
+    startup_beside(file!()).expect("liskov: :fb [p <- :my::Pt] calling :wb [v <- :wat::Record] must type-check");
+}
+#[test] fn liskov_holonic_into_base_ok() {
+    // holonic <: base — a func wanting base accepts a holonic-defined record.
+    startup_beside(file!()).expect("liskov: :fh [p <- :my::HPt] calling :wb [v <- :wat::Record] must type-check");
+}
+#[test] fn liskov_holonic_into_holon_ok() {
+    startup_beside(file!()).expect("liskov: :gh [p <- :my::HPt] calling :wh [v <- :wat::holon::Record] must type-check");
+}
+#[test] fn liskov_base_into_holon_rejected() {
+    // THE static proof: a base-defined record is NOT a :wat::holon::Record → check error.
+    let r = startup_from_file(
+        "tests/types/probe_arc237_sC3_macro_split_liskov_base_into_holon_bad.wat",
+    );
+    assert!(r.is_err(), "a base-defined record must be REJECTED at a :wat::holon::Record param");
+}
+
+// ─── Cross-flavor (needs both macros) ─────────────────────────────────────────
+#[test] fn cross_flavor_same_data_true() {
+    // base Pt[0,0] vs holonic HPt[0,0], same field names → type-blind same-data? true
+    assert!(eval_bool(":user::cross-flavor-same-data-true"));
+}
+#[test] fn cross_flavor_eq_false() {
+    // = is type-strict: different type/flavor → false
+    assert!(!eval_bool(":user::cross-flavor-eq-false"));
+}

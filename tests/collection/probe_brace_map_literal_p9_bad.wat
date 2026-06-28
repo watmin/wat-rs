@@ -1,0 +1,7 @@
+;; tests/collection/probe_brace_map_literal_p9_bad.wat
+;; Probe 9: keyword in binding position {:foo bar} must be rejected at CHECK time.
+(:wat::core::defn :user::compute [] -> :wat::core::String
+  (:wat::core::let
+    [{:foo bar} "val"]
+    "ok"))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

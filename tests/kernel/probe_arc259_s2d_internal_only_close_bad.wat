@@ -1,0 +1,12 @@
+;; Rejection fixture for probe_arc259_s2d_internal_only.rs — user_calling_close_prime_is_a_check_error.
+;; Post-S2d: :user:: caller of internal close' must be a CHECK error (teardown is RAII).
+
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::let
+    [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self))))
+     _ (:wat::kernel::close' peer)]
+    0))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

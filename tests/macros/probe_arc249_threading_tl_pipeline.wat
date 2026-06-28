@@ -1,0 +1,5 @@
+(:wat::core::defn :user::compute [] -> :wat::core::bool
+  (:wat::core::= (:wat::core::->> [1 2 3]
+                   (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1)))
+                   (:wat::core::filter (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 2))))
+                 [3 4]))

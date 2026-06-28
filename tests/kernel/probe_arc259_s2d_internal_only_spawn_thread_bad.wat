@@ -1,0 +1,11 @@
+;; Rejection fixture for probe_arc259_s2d_internal_only.rs — user_calling_spawn_thread_prime_is_a_check_error.
+;; Post-S2d: :user:: caller of internal spawn-thread' must be a CHECK error (restricted-to :wat::kernel::).
+
+(:wat::core::defn :user::compute [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::kernel::spawn-thread'
+      (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil nil)
+      (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv)))
+    nil))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

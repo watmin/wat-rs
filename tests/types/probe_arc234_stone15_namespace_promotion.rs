@@ -1,0 +1,141 @@
+//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::Record` namespace promotion.
+//!
+//! Probes 1-3 and 5 are pure Rust substrate tests using make_record() directly (no WAT startup).
+//! Probe 4 uses tests/types/probe_arc234_stone15_namespace_promotion.wat (via startup_beside).
+
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, Value};
+use holon::HolonAST;
+
+/// Build a defrecord-instance-shape HolonAST: Bind(Atom(class), Bundle(field-Binds...))
+fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> std::sync::Arc<HolonAST> {
+    let field_binds: Vec<HolonAST> = fields
+        .into_iter()
+        .map(|(name, value)| {
+            HolonAST::Bind(
+                std::sync::Arc::new(HolonAST::Atom(std::sync::Arc::new(HolonAST::String(std::sync::Arc::from(name))))),
+                std::sync::Arc::new(HolonAST::Atom(std::sync::Arc::new(value))),
+            )
+        })
+        .collect();
+    std::sync::Arc::new(HolonAST::Bind(
+        std::sync::Arc::new(HolonAST::Atom(std::sync::Arc::new(HolonAST::String(std::sync::Arc::from(class))))),
+        std::sync::Arc::new(HolonAST::Bundle(std::sync::Arc::new(field_binds))),
+    ))
+}
+
+/// Construct a wat__holon__Record fixture for tests.
+fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
+    let struct_form: std::sync::Arc<Vec<Value>> =
+        std::sync::Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
+    let holon_field_pairs: Vec<(&str, HolonAST)> = fields
+        .iter()
+        .map(|(name, _, h)| (*name, h.clone()))
+        .collect();
+    let holon_form = make_holon_form(class, holon_field_pairs);
+    let class_fqdn = std::sync::Arc::new(class.to_string());
+    Value::wat__holon__Record {
+        class_fqdn,
+        struct_form,
+        holon_form,
+    }
+}
+
+fn hash_value(v: &Value) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    v.hash(&mut hasher);
+    hasher.finish()
+}
+
+// ─── Probe 1 ────────────────────────────────────────────────────────────────
+//
+// `Value::wat__holon__Record { ... }` constructible (variant exists with renamed identifier).
+#[test]
+fn probe_1_variant_compiles_and_constructs() {
+    let r = make_record(
+        "myapp::Voltage",
+        vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
+    );
+    match &r {
+        Value::wat__holon__Record { class_fqdn, struct_form, .. } => {
+            assert_eq!(class_fqdn.as_str(), "myapp::Voltage");
+            assert_eq!(struct_form.len(), 1);
+        }
+        _ => panic!("Probe 1: expected Value::wat__holon__Record variant"),
+    }
+}
+
+// ─── Probe 2 ────────────────────────────────────────────────────────────────
+//
+// type_name() returns `"wat::Record"` — verifies D2 + D5 in lockstep.
+#[test]
+fn probe_2_type_name_returns_wat_record() {
+    let r = make_record(
+        "myapp::Voltage",
+        vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
+    );
+    assert_eq!(
+        r.type_name(),
+        "wat::Record",
+        "Probe 2: type_name() must return \"wat::Record\""
+    );
+}
+
+// ─── Probe 3 ────────────────────────────────────────────────────────────────
+//
+// Eq + Hash consistency — two same-args wat__Records are equal AND hash-equal.
+#[test]
+fn probe_3_eq_hash_consistency_under_rename() {
+    let a = make_record(
+        "myapp::Voltage",
+        vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
+    );
+    let b = make_record(
+        "myapp::Voltage",
+        vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
+    );
+    assert_eq!(a, b, "Probe 3: two same-args wat__Records must compare equal");
+    assert_eq!(
+        hash_value(&a),
+        hash_value(&b),
+        "Probe 3: equal wat__Records must hash equal"
+    );
+}
+
+// ─── Probe 4 ────────────────────────────────────────────────────────────────
+//
+// `[v <- :wat::Record]` annotation type-checks in WAT source.
+#[test]
+fn probe_4_namespace_type_registration() {
+    startup_beside(file!())
+        .expect("Probe 4: :wat::Record annotation must type-check cleanly");
+    // Verify the probe-4 function is callable (returns nil)
+    let world = startup_beside(file!()).expect("startup for probe 4 eval");
+    let ast = wat::parse_one!("(:user::probe-4)").expect("parse probe-4");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("Probe 4: eval should succeed");
+}
+
+// ─── Probe 5 ────────────────────────────────────────────────────────────────
+//
+// class_fqdn extraction returns user-named class; type_name() is separate umbrella.
+#[test]
+fn probe_5_class_fqdn_extraction_post_rename() {
+    let r = make_record(
+        "myapp::Voltage",
+        vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
+    );
+    assert_eq!(r.type_name(), "wat::Record");
+    match &r {
+        Value::wat__holon__Record { class_fqdn, .. } => {
+            assert_eq!(
+                class_fqdn.as_str(),
+                "myapp::Voltage",
+                "Probe 5: class_fqdn extraction returns user-named class, NOT umbrella"
+            );
+        }
+        _ => panic!("Probe 5: expected Value::wat__holon__Record variant"),
+    }
+}

@@ -1,0 +1,9 @@
+(:wat::core::defmacro :my::capturing
+  [x <- :wat::holon::HolonAST]
+  -> :AST<wat::holon::HolonAST>
+  (:wat::core::if (:wat::core::= 1 1) -> :AST<wat::holon::HolonAST>
+    `(:wat::core::let [tmp ~x] tmp)
+    `~x))
+(:wat::core::defn :user::probe [n <- :wat::core::i64]
+  -> :wat::core::i64 (:my::capturing n))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

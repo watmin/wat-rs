@@ -1,0 +1,10 @@
+;; tests/collection/probe_hashmap_ctor_vector_symmetric_p6_bad.wat
+;; Probe 6: wrong value type must fail type-check.
+(:wat::core::defn :user::compute [] -> :wat::core::i64
+  (:wat::core::let
+    [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
+          :foo "not-an-i64")]
+    (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
+      ((:wat::core::Some v) v)
+      (:wat::core::None -1))))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
