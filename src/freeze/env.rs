@@ -24,7 +24,7 @@ use crate::macros::{expand_all, register_defmacros, register_stdlib_defmacros, M
 use crate::resolve::{normalize_symbol_refs, resolve_references};
 use crate::runtime::{
     preregister_acronyms, preregister_protocol_names, preregister_stdlib_defclause_stub,
-    register_defines, register_enum_methods, register_newtype_methods, register_record_methods,
+    register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
     register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
     register_type_predicates, EvalBreak, Environment, SymbolTable,
 };
@@ -179,14 +179,16 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         .collect();
     let mut residue = register_defines(post_types, &mut symbols)?;
 
-    // 6a. Struct auto-methods.
+    // 6a. Struct auto-methods (ctor only; accessors now in 6.8a).
     register_struct_methods(&types, &mut symbols)?;
     // 6.5. Enum variant constructors.
     register_enum_methods(&types, &mut symbols)?;
     // 6.7. Newtype auto-methods.
     register_newtype_methods(&types, &mut symbols)?;
-    // 6.8a. Record auto-methods (typed-field syntax).
-    register_record_methods(&types, &mut symbols)?;
+    // 6.8a. Arc 293.R2.2 — ONE unified accessor codegen for all Aggregate holders
+    // (Struct + Record + HolonRecord). Replaces the deleted register_record_methods
+    // + the accessor loop that was in register_struct_methods.
+    register_aggregate_methods(&types, &mut symbols)?;
     // 6.9. Type membership predicates.
     register_type_predicates(&types, &mut symbols)?;
 

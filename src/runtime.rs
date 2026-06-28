@@ -982,35 +982,9 @@ pub fn register_struct_methods(
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
-        // Accessors — `<struct>/<field>` per field, positional body.
-        // The accessor's single param is called `self` by convention;
-        // the body references it as a symbol and the `struct-field`
-        // primitive reads by the index baked into the body.
-        for (index, (field_name, field_type)) in struct_def.fields.iter().enumerate() {
-            let accessor_path = format!("{}/{}", struct_def.name, field_name);
-            let accessor_body = WatAST::List(vec![
-                WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
-                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                WatAST::IntLit(index as i64, Span::unknown()),
-            ], Span::unknown());
-            let accessor_func = Function {
-                name: Some(accessor_path.clone()),
-                params: vec!["self".into()],
-                type_params: struct_def.type_params.clone(),
-                param_types: vec![struct_type.clone()],
-                ret_type: field_type.clone(),
-                rest_param: None,
-                rest_param_type: None,
-                body: FunctionBody::Wat(Arc::new(accessor_body)),
-                closed_env: None,
-            };
-            if sym.functions.contains_key(&accessor_path) {
-                // arc 138: no span — synthesized struct accessor; collision
-                // surfaces at type-registry walk time.
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
-            }
-            sym.functions.insert(accessor_path, Arc::new(accessor_func));
-        }
+        // Arc 293.R2.2 — accessor loop extracted to register_aggregate_methods
+        // (unified for all holders). Ctor stays here; restrictions stay here
+        // since they are struct-only.
 
         // Arc 203 / Stone 241.14 — if the struct carries restriction metadata
         // (from `struct-restricted`, now HARD CUT per Stone 241.8), write the
@@ -1036,6 +1010,245 @@ pub fn register_struct_methods(
                     .or_default()
                     .insert(":restricted-to".to_string(), field_ast);
             }
+        }
+    }
+    Ok(())
+}
+
+/// Arc 293.R2.2 — ONE unified accessor codegen for every `TypeDef::Aggregate`
+/// (Struct + Record + HolonRecord). The `register_struct_methods` ctor loop
+/// and the deleted `register_record_methods` accessor loop are collapsed here:
+/// same `parametric_decl_type` / `type_params` / `struct-field` body for ALL
+/// holders, bare name guaranteed by the `parse_declared_name` fix in
+/// `parse_recordtype`.
+///
+/// For Record/HolonRecord with non-root parents (e.g. `:wat::program::Env`),
+/// the inherited field count is computed via [`collect_all_record_fields`] so
+/// each own-field accessor carries the correct absolute positional index.
+///
+/// **DuplicateDefine is an error** — after the macro's accessor emission was
+/// removed, no other path registers these accessor paths.
+pub fn register_aggregate_methods(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::scope::Identifier;
+    use crate::types::TypeDef;
+
+    const ROOT_PARENTS: &[&str] = &[
+        ":wat::core::Value",
+        ":wat::Record",
+        ":wat::holon::Record",
+    ];
+
+    for (_name, def) in types.iter() {
+        let agg = match def {
+            TypeDef::Aggregate(a) => a,
+            _ => continue,
+        };
+
+        // The parametric self-type (e.g. `:t::R<T>` for generic, `:myapp::Pt`
+        // for monomorphic) — used as the accessor's single param type so the
+        // type checker binds type params at each call site.
+        //
+        // Accessor param type strategy (Arc 293.R2.2):
+        //   Struct: always use the specific parametric type (was the existing behaviour
+        //     and must stay so for struct type-safety).
+        //   Record/HolonRecord, non-generic (type_params.is_empty()): use `:wat::Record`
+        //     (backward compatible — existing stdlib code in rete.wat etc. passes
+        //     `:wat::Record`-typed values to these accessors; changing to the specific
+        //     type would break them. The old macro accessor used `:wat::Record` too.)
+        //   Record/HolonRecord, generic (!type_params.is_empty()): use the specific
+        //     parametric type so the type checker can bind the type variable at each
+        //     call site and infer the correct return type (the probe requires this).
+        let aggregate_type = parametric_decl_type(&agg.name, &agg.type_params);
+        let accessor_param_type = match agg.holder {
+            crate::types::Holder::Struct => aggregate_type.clone(),
+            _ => {
+                if agg.type_params.is_empty() {
+                    crate::types::TypeExpr::Path(":wat::Record".into())
+                } else {
+                    aggregate_type.clone()
+                }
+            }
+        };
+
+        // Absolute base index for own fields = count of inherited fields.
+        // Struct's parent is `:wat::core::Value` (in ROOT_PARENTS) → 0.
+        // Record/HolonRecord with root parent → 0.
+        // Record/HolonRecord with non-root parent → parent's full field count.
+        let inherited_fields: Vec<(String, crate::types::TypeExpr)> =
+            if ROOT_PARENTS.contains(&agg.parent.as_str()) {
+                vec![]
+            } else {
+                collect_all_record_fields(&agg.parent, types)
+            };
+        let inherited_count = inherited_fields.len();
+
+        // Arc 293.R2.2 — constructor fallback for raw `recordtype` declarations.
+        //
+        // `defrecord`/`defholon::defrecord` macro expansions emit a `defn` for the
+        // constructor, which is registered by `register_defines` (step 6) BEFORE this
+        // step.  Raw `recordtype` declarations have no matching `defn`, so their
+        // constructor path is absent from `sym.functions`.  We fill the gap here —
+        // exactly what the deleted `register_record_methods` did — so that existing
+        // code using raw `recordtype` (e.g. `tests/program/probe_arc258_*`) continues
+        // to resolve the constructor at the resolve step.
+        //
+        // Skipped for Struct (ctor registered by `register_struct_methods`) and for
+        // any Record/HolonRecord whose ctor is already present (macro already did it).
+        if matches!(agg.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord)
+            && !sym.functions.contains_key(&agg.name)
+        {
+            let name_str = agg.name.trim_start_matches(':').to_string();
+            // All fields in struct_form order: inherited first, then own.
+            let all_fields: Vec<(String, crate::types::TypeExpr)> = inherited_fields
+                .iter()
+                .chain(agg.fields.iter())
+                .cloned()
+                .collect();
+            let all_param_names: Vec<String> = all_fields.iter().map(|(n, _)| n.clone()).collect();
+            let all_param_types: Vec<crate::types::TypeExpr> =
+                all_fields.iter().map(|(_, t)| t.clone()).collect();
+            let struct_form_elems: Vec<WatAST> = all_param_names
+                .iter()
+                .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
+                .collect();
+            let kw_from_str_call = WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::keyword/from-string".into(), Span::unknown()),
+                    WatAST::StringLit(name_str, Span::unknown()),
+                ],
+                Span::unknown(),
+            );
+            let ctor_body = WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::Record::of".into(), Span::unknown()),
+                    kw_from_str_call,
+                    WatAST::Vector(struct_form_elems, Span::unknown()),
+                ],
+                Span::unknown(),
+            );
+            let ctor_func = Function {
+                name: Some(agg.name.clone()),
+                params: all_param_names,
+                type_params: vec![],
+                param_types: all_param_types,
+                // Return the specific record type (not the root :wat::Record) so the
+                // type checker lets the value flow where the specific type is required.
+                ret_type: crate::types::TypeExpr::Path(agg.name.clone()),
+                rest_param: None,
+                rest_param_type: None,
+                body: FunctionBody::Wat(Arc::new(ctor_body)),
+                closed_env: None,
+            };
+            sym.functions.insert(agg.name.clone(), Arc::new(ctor_func));
+        }
+
+        // Emit ONE accessor per OWN field with the correct absolute index.
+        //
+        // Arc 293.R2.2 — class-safety strategy:
+        //   Struct: `struct-field self idx` — type system already enforces the specific type;
+        //     no runtime class check needed (accessor param type IS the struct type).
+        //   Generic Record/HolonRecord: `struct-field self idx` — type system enforces it via
+        //     the parametric type at each call site (accessor param type = specific generic type).
+        //   Non-generic Record/HolonRecord: class-checked `Record/field-at` body — the accessor
+        //     param type is `:wat::Record` (backward compat), so the type checker allows ANY
+        //     record. The runtime check is the only guard; it mirrors the old macro accessor body
+        //     that was removed from wat/Record.wat.
+        let use_class_check = matches!(agg.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord)
+            && agg.type_params.is_empty();
+
+        for (own_idx, (field_name, field_type)) in agg.fields.iter().enumerate() {
+            let abs_idx = inherited_count + own_idx;
+            let accessor_path = format!("{}/{}", agg.name, field_name);
+
+            // Class-no-colon: what `(type self)` returns for this aggregate at runtime.
+            // `declared_type_name()` for Aggregate returns `a.class.clone()` which is
+            // colon-free (e.g., `"myapp::Voltage"`). `agg.name` = `":myapp::Voltage"`.
+            let class_no_colon = agg.name.trim_start_matches(':').to_string();
+
+            let accessor_body = if use_class_check {
+                // Build:
+                //   (:wat::Record/field-at
+                //     (:wat::core::Option/expect
+                //       (:wat::core::if
+                //         (:wat::core::= (:wat::core::type self) "<class-no-colon>")
+                //         -> :wat::core::Option<wat::Record>
+                //         (:wat::core::Some self)
+                //         :wat::core::None)
+                //       (:wat::core::string::concat "<msg-prefix>" (:wat::core::type self)))
+                //     <abs_idx>)
+                let msg_prefix = format!(
+                    "{}/{}: expected receiver of class {}, got class :",
+                    agg.name, field_name, agg.name
+                );
+                WatAST::List(vec![
+                    WatAST::Keyword(":wat::Record/field-at".into(), Span::unknown()),
+                    WatAST::List(vec![
+                        WatAST::Keyword(":wat::core::Option/expect".into(), Span::unknown()),
+                        // if-form: (if cond -> :Type then else)
+                        WatAST::List(vec![
+                            WatAST::Keyword(":wat::core::if".into(), Span::unknown()),
+                            // condition: (= (type self) "class-no-colon")
+                            WatAST::List(vec![
+                                WatAST::Keyword(":wat::core::=".into(), Span::unknown()),
+                                WatAST::List(vec![
+                                    WatAST::Keyword(":wat::core::type".into(), Span::unknown()),
+                                    WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                                ], Span::unknown()),
+                                WatAST::StringLit(class_no_colon, Span::unknown()),
+                            ], Span::unknown()),
+                            // ->
+                            WatAST::Symbol(Identifier::bare("->"), Span::unknown()),
+                            // :wat::core::Option<wat::Record>  (type annotation for the checker)
+                            WatAST::Keyword(":wat::core::Option<wat::Record>".into(), Span::unknown()),
+                            // then: (Some self)
+                            WatAST::List(vec![
+                                WatAST::Keyword(":wat::core::Some".into(), Span::unknown()),
+                                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                            ], Span::unknown()),
+                            // else: :wat::core::None
+                            WatAST::Keyword(":wat::core::None".into(), Span::unknown()),
+                        ], Span::unknown()),
+                        // message: (string::concat msg_prefix (type self))
+                        WatAST::List(vec![
+                            WatAST::Keyword(":wat::core::string::concat".into(), Span::unknown()),
+                            WatAST::StringLit(msg_prefix, Span::unknown()),
+                            WatAST::List(vec![
+                                WatAST::Keyword(":wat::core::type".into(), Span::unknown()),
+                                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                            ], Span::unknown()),
+                        ], Span::unknown()),
+                    ], Span::unknown()),
+                    WatAST::IntLit(abs_idx as i64, Span::unknown()),
+                ], Span::unknown())
+            } else {
+                // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
+                WatAST::List(vec![
+                    WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
+                    WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                    WatAST::IntLit(abs_idx as i64, Span::unknown()),
+                ], Span::unknown())
+            };
+            let accessor_func = Function {
+                name: Some(accessor_path.clone()),
+                params: vec!["self".into()],
+                type_params: agg.type_params.clone(),
+                param_types: vec![accessor_param_type.clone()],
+                ret_type: field_type.clone(),
+                rest_param: None,
+                rest_param_type: None,
+                body: FunctionBody::Wat(Arc::new(accessor_body)),
+                closed_env: None,
+            };
+            if sym.functions.contains_key(&accessor_path) {
+                return Err(RuntimeError {
+                    span: Span::unknown(),
+                    kind: RuntimeErrorKind::DuplicateDefine(accessor_path),
+                }.into());
+            }
+            sym.functions.insert(accessor_path, Arc::new(accessor_func));
         }
     }
     Ok(())
@@ -1291,181 +1504,10 @@ fn collect_all_record_fields(
     all
 }
 
-/// Arc 258 A2 — auto-mint constructor + per-field accessors for every `TypeDef::Record`
-/// that carries typed-field information (`field_types = Some(...)`).
-///
-/// Records declared via the `Record::def` macro already have their constructor and
-/// accessors registered from the macro-emitted `defn` forms; those appear in
-/// `TypeDef::Record` with `field_types = None` (string-literal form). Only records
-/// declared with the typed-declaration form `[name <- :type ...]` (direct `recordtype`
-/// syntax) have `field_types = Some(...)` and need auto-generation here.
-///
-/// Synthesizes:
-/// - Constructor `:<Name>` — takes ALL fields (inherited first, then own),
-///   calls `(:wat::Record::of (:wat::core::keyword/from-string ":Name") [fields...])`.
-///   Class is passed via `keyword/from-string` to prevent the checker from treating
-///   the bare keyword as a function reference.
-/// - Per-field accessor `:<Name>/<field>` for each OWN field only, calling
-///   `:wat::Record/field-at` with the correct absolute index (after inherited fields).
-///
-/// Inherited fields are collected from the parent constructor (already registered
-/// at step 6 by the stdlib `Record::def` macro) so that arity and param types
-/// include the full field set in struct_form order.
-///
-/// Mirrored on `register_struct_methods` / `register_newtype_methods`.
-pub fn register_record_methods(
-    types: &crate::types::TypeEnv,
-    sym: &mut SymbolTable,
-) -> Result<(), RuntimeError> {
-    use crate::scope::Identifier;
-    use crate::types::{TypeDef, TypeExpr};
-
-    // Collect all records with typed fields first (avoids borrow conflict while
-    // looking up sym). We need a snapshot because sym is mutably borrowed below.
-    struct RecordEntry {
-        name: String,
-        own_field_names: Vec<String>,
-        own_field_types: Vec<TypeExpr>,
-        /// Total field count from the parent's registered constructor (inherited fields).
-        /// Parent constructor was registered at step 6 by Record::def macro.
-        inherited_field_names: Vec<String>,
-        inherited_field_types: Vec<TypeExpr>,
-    }
-
-    let entries: Vec<RecordEntry> = {
-        let mut out = Vec::new();
-        for (_key, def) in types.iter() {
-            // Arc 293.2b — only Aggregate with holder != Struct (i.e. Record | HolonRecord)
-            // gets record methods.
-            let rec_def = match def {
-                TypeDef::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
-                _ => continue,
-            };
-            // All records are typed (fields: Vec<(String, TypeExpr)>) — D2.
-            let own_types: Vec<TypeExpr> = rec_def.field_types().cloned().collect();
-
-            // Collect inherited fields from the parent hierarchy when the parent is a
-            // non-root extensible record (e.g. `:wat::program::Env`). Root holders
-            // (`:wat::Record`, `:wat::holon::Record`) and the Value top have no
-            // user-constructable fields — nothing to inherit from them.
-            const ROOT_PARENTS: &[&str] = &[
-                ":wat::core::Value",
-                ":wat::Record",
-                ":wat::holon::Record",
-            ];
-            let (inherited_names, inherited_types) = if ROOT_PARENTS.contains(&rec_def.parent.as_str()) {
-                (Vec::new(), Vec::new())
-            } else {
-                // Transitively collect the parent's complete field list (own + inherited).
-                let parent_fields = collect_all_record_fields(&rec_def.parent, types);
-                let names = parent_fields.iter().map(|(n, _)| n.clone()).collect();
-                let tys   = parent_fields.iter().map(|(_, t)| t.clone()).collect();
-                (names, tys)
-            };
-
-            out.push(RecordEntry {
-                name: rec_def.name.clone(),
-                own_field_names: rec_def.field_names().map(|s| s.to_string()).collect(),
-                own_field_types: own_types,
-                inherited_field_names: inherited_names,
-                inherited_field_types: inherited_types,
-            });
-        }
-        out
-    };
-
-    for entry in entries {
-        let record_ty = TypeExpr::Path(":wat::Record".into());
-
-        // All params = inherited fields + own fields (struct_form order).
-        let all_param_names: Vec<String> = entry.inherited_field_names.iter()
-            .chain(entry.own_field_names.iter())
-            .cloned()
-            .collect();
-        let all_param_types: Vec<TypeExpr> = entry.inherited_field_types.iter()
-            .chain(entry.own_field_types.iter())
-            .cloned()
-            .collect();
-
-        // Constructor body:
-        //   (:wat::Record::of (:wat::core::keyword/from-string "name_str") [f0 f1 ...])
-        // Using keyword/from-string instead of a bare keyword so the checker
-        // does not treat the class as a function reference (arc 009 inference rule).
-        // keyword/from-string takes the text WITHOUT the leading ':' sigil.
-        // e.g. entry.name = ":user::MyEnv" → name_str = "user::MyEnv"
-        let name_str = entry.name.trim_start_matches(':').to_string();
-        let kw_from_str_call = WatAST::List(vec![
-            WatAST::Keyword(":wat::core::keyword/from-string".into(), Span::unknown()),
-            WatAST::StringLit(name_str.clone(), Span::unknown()),
-        ], Span::unknown());
-        let struct_form_elems: Vec<WatAST> = all_param_names.iter()
-            .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
-            .collect();
-        let ctor_body = WatAST::List(vec![
-            WatAST::Keyword(":wat::Record::of".into(), Span::unknown()),
-            kw_from_str_call,
-            WatAST::Vector(struct_form_elems, Span::unknown()),
-        ], Span::unknown());
-
-        let constructor_path = entry.name.clone();
-        let ctor_func = Function {
-            name: Some(constructor_path.clone()),
-            params: all_param_names.clone(),
-            type_params: vec![],
-            param_types: all_param_types,
-            // A record constructor returns its OWN type, not the root :wat::Record —
-            // else the value is only assignable to :wat::Record and fails everywhere the
-            // SPECIFIC record is required (e.g. spawn-program' arg[1] = :wat::program::Env).
-            ret_type: crate::types::TypeExpr::Path(entry.name.clone()),
-            rest_param: None,
-            rest_param_type: None,
-            body: FunctionBody::Wat(Arc::new(ctor_body)),
-            closed_env: None,
-        };
-        // Arc 293.3-records — Record::def macros now emit the typed recordtype form
-        // (field_types = Some), so macro-defined records and directly-declared records
-        // are no longer distinguished by field_types. The macro-emitted defn forms
-        // already registered the constructor and accessors at step 6. Skip auto-gen
-        // for any record whose constructor is already in the symbol table.
-        if sym.functions.contains_key(&constructor_path) {
-            continue;
-        }
-        sym.functions.insert(constructor_path, Arc::new(ctor_func));
-
-        // Per-field accessors for OWN fields only (inherited fields' accessors
-        // are already registered by the parent's Record::def or register_record_methods).
-        // Index = number of inherited fields + own field index.
-        let base_idx = entry.inherited_field_names.len();
-        for (own_idx, (field_name, field_type)) in entry.own_field_names.iter()
-            .zip(entry.own_field_types.iter())
-            .enumerate()
-        {
-            let abs_idx = base_idx + own_idx;
-            let accessor_path = format!("{}/{}", entry.name, field_name);
-            let accessor_body = WatAST::List(vec![
-                WatAST::Keyword(":wat::Record/field-at".into(), Span::unknown()),
-                WatAST::Symbol(Identifier::bare("v"), Span::unknown()),
-                WatAST::IntLit(abs_idx as i64, Span::unknown()),
-            ], Span::unknown());
-            let accessor_func = Function {
-                name: Some(accessor_path.clone()),
-                params: vec!["v".into()],
-                type_params: vec![],
-                param_types: vec![record_ty.clone()],
-                ret_type: field_type.clone(),
-                rest_param: None,
-                rest_param_type: None,
-                body: FunctionBody::Wat(Arc::new(accessor_body)),
-                closed_env: None,
-            };
-            if sym.functions.contains_key(&accessor_path) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
-            }
-            sym.functions.insert(accessor_path, Arc::new(accessor_func));
-        }
-    }
-    Ok(())
-}
+// Arc 293.R2.2 — register_record_methods DELETED.
+// Accessor codegen for Record + HolonRecord is now in register_aggregate_methods
+// (unified with Struct). The macro's accessor emission was removed from wat/Record.wat.
+// freeze/env.rs calls register_aggregate_methods instead.
 
 /// Arc 237 Stone 237.6 — auto-mint `is-<Name>?` membership predicates for every
 /// non-Alias TypeDef registered in the TypeEnv (Struct / Enum / Newtype / Union).
@@ -12079,13 +12121,16 @@ fn eval_struct_field(
         } }.into());
     }
     let struct_val = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc 293.R2.1 — Aggregate with holder==Struct.
+    // Arc 293.R2.2 — accept ANY Value::Aggregate (unified repr post-R2.1;
+    // STOP-3 resolution: the old Holder::Struct guard was a pre-unification
+    // artifact; record + holon-record field accessors now use this same
+    // primitive via register_aggregate_methods).
     let inner = match struct_val {
-        Value::Aggregate(a) if a.holder == Holder::Struct => a,
+        Value::Aggregate(a) => a,
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::struct-field".into(),
-                expected: "Struct",
+                expected: "Aggregate",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }

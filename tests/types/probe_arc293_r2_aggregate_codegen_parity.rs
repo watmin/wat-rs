@@ -16,8 +16,6 @@ use wat::runtime::{Environment, Value};
 /// Generic core-record + holon-record field accessors resolve, at parity with the generic struct;
 /// and a holon record is accepted where a core `:wat::Record` is wanted (policy c).
 #[test]
-#[ignore = "RED at HEAD: arc-293.R2 — generic core-record/holon-record field accessors are not registered \
-            (register_record_methods drops <T> from the accessor key); un-ignore when the codegen merge lands"]
 fn aggregate_codegen_parity_generic_record_accessors() {
     let world = startup_beside(file!())
         .expect("293.R2: a generic record + holon-record must expose their field accessor (one aggregate toolkit)");

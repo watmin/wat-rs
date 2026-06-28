@@ -2116,33 +2116,12 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
     let name_kw = iter.next().unwrap();
     let parent_kw = iter.next().unwrap();
     let fields_arg = iter.next().unwrap();
-    // Name: plain keyword (no type params for records).
-    let name = match &name_kw {
-        WatAST::Keyword(k, _) => {
-            if !k.starts_with(':') {
-                return Err(TypeError {
-                    span: decl_span,
-                    kind: TypeErrorKind::MalformedDecl {
-                        head: "recordtype".into(),
-                        reason: format!("name must begin with ':'; got {}", k),
-                    },
-                });
-            }
-            k.clone()
-        }
-        other => {
-            return Err(TypeError {
-                span: decl_span,
-                kind: TypeErrorKind::MalformedDecl {
-                    head: "recordtype".into(),
-                    reason: format!(
-                        "name must be a keyword; got {}",
-                        other.variant_name()
-                    ),
-                },
-            })
-        }
-    };
+    // Name: keyword, possibly parametric (e.g. `:t::R<T>`).
+    // parse_declared_name extracts the bare name + type params, exactly as
+    // parse_defstruct / parse_newtype / parse_typealias / parse_typeunion do.
+    // Arc 293.R2.2 — replaced the raw k.clone() path that stored the mangled
+    // `:t::R<T>` name, causing accessor keys to land at the wrong slot.
+    let (name, type_params) = parse_declared_name("recordtype", &name_kw, &decl_span)?;
     // Parent: any plain type keyword. The holder is derived directly:
     //   - `:wat::holon::Record` → HolonRecord
     //   - anything else        → Record
@@ -2258,7 +2237,7 @@ fn parse_recordtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
             });
         }
     };
-    Ok(TypeDef::Aggregate(AggregateDef { name, type_params: vec![], fields, holder, parent, restrictions: None }))
+    Ok(TypeDef::Aggregate(AggregateDef { name, type_params, fields, holder, parent, restrictions: None }))
 }
 
 // Stone 241.9 — `parse_field` DELETED. Its only caller was `parse_enum_variant`,

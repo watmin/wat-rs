@@ -2293,7 +2293,20 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 | ":wat::core::nil"
                 // Type variables and inference sentinels — can't prove non-atomizable
                 | ":wat::type::Infer"
-        ),
+        ) || {
+            // Arc 293.R2.2 — bare type-variable paths like ":T", ":K", "T" are
+            // conservatively treated as potentially atomizable at check time.
+            // Generic record ctors call `(:wat::holon::to-holon field-var)` where
+            // field-var has a declared type like `:T` (a type parameter). The runtime
+            // will enforce the actual atomizability constraint; the checker allows it
+            // here (mirrors the existing `TypeExpr::Var(_) => true` case below for
+            // unresolved inference vars). A type variable path has no `::` or `.` and
+            // its first alphabetic character is uppercase (same rule as
+            // `collect_free_type_vars::is_type_var` in runtime.rs).
+            let s = p.strip_prefix(':').unwrap_or(p.as_str());
+            !s.contains("::") && !s.contains('.')
+                && s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
+        },
         // Type variables (Var) — unresolved; conservatively allow
         TypeExpr::Var(_) => true,
         TypeExpr::Parametric { head, args } => match head.as_str() {
@@ -12642,6 +12655,12 @@ fn infer_record_of(
 /// Recover the SPECIFIC record type a `Record::of` constructs, from its statically-known class
 /// argument `(:wat::core::keyword/from-string "<fqdn-without-leading-colon>")`. Returns `None`
 /// when the class is not a static, registered recordtype (caller falls back to `:wat::Record`).
+///
+/// Arc 293.R2.2 — after `parse_recordtype` was fixed to store the BARE name (`:t::R` not `:t::R<T>`),
+/// the class string in the macro is `"t::R<T>"` but the TypeEnv key is `":t::R"`. Strip the type
+/// params from the class string before lookup; reconstruct the parametric TypeExpr using the
+/// AggregateDef's declared `type_params` so `Record::of` correctly infers `:r2::CR<T>` for generic
+/// records (fixing the ReturnTypeMismatch for generic record ctors).
 fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExpr> {
     let WatAST::List(items, _) = class_arg else { return None };
     if items.len() != 2 { return None; }
@@ -12651,10 +12670,31 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
     );
     if !from_string { return None; }
     let WatAST::StringLit(s, _) = items.get(1)? else { return None };
-    let class_name = format!(":{}", s);
+    // Strip any type-params suffix (`<T>`, `<K,V>`) before the TypeEnv lookup.
+    // Before the R2.2 parse_recordtype fix, the TypeEnv key carried the full `<T>`;
+    // after the fix, the key is the bare name. The class string in the macro is still
+    // derived from `keyword/to-string` of the original keyword (e.g., `"r2::CR<T>"`)
+    // so we must strip here.
+    let bare_str = s.split('<').next().unwrap_or(s.as_str());
+    let class_name = format!(":{}", bare_str);
     // Arc 293.2b — record aggregates (kind != Struct) are the records.
-    matches!(env.types().get(&class_name), Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct)
-        .then(|| TypeExpr::Path(class_name))
+    let agg = match env.types().get(&class_name) {
+        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        _ => return None,
+    };
+    // For non-generic records: return the bare path (existing behaviour).
+    // For generic records: reconstruct the parametric type using the declared type_params
+    // so the checker's return-type unification works for `:r2::CR<T>`.
+    if agg.type_params.is_empty() {
+        Some(TypeExpr::Path(class_name))
+    } else {
+        Some(TypeExpr::Parametric {
+            head: bare_str.to_string(),
+            args: agg.type_params.iter()
+                .map(|p| TypeExpr::Path(format!(":{}", p)))
+                .collect(),
+        })
+    }
 }
 
 /// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.

@@ -118,48 +118,12 @@
                                var-w))
                            (:wat::core::range 0 nf))]
                syms)]))
-     ~@(:wat::core::let
-           [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
-            n           (:wat::holon::statement-length fields-h)
-            nf          (:wat::core::i64::/ n 3)
-            children    (:wat::holon::Bundle/children fields-h)
-            fqdn-str    (:wat::core::keyword/to-string fqdn)
-            accessors   (:wat::core::map
-                          (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
-                            (:wat::core::let
-                              [idx          (:wat::core::i64::* fi 3)
-                               name-h       (:wat::core::Option/expect  
-                                              (:wat::core::Vector/get children idx)
-                                              "Record::def: field name index out of range")
-                               name-s       (:wat::core::keyword/to-string
-                                              (:wat::holon::from-holon name-h))
-                               type-h       (:wat::core::Option/expect  
-                                              (:wat::core::Vector/get children
-                                                (:wat::core::i64::+ idx 2))
-                                              "Record::def: field type index out of range")
-                               type-w       (:wat::holon::to-wat type-h)
-                               accessor-name (:wat::core::keyword/from-string
-                                               (:wat::core::string::interpolate "{fqdn-str}/{name-s}" :fqdn-str fqdn-str :name-s name-s))
-                               msg-prefix   (:wat::core::string::interpolate ":{fqdn-str}/{name-s}: expected receiver of class :{fqdn-str}, got class :" :fqdn-str fqdn-str :name-s name-s)]
-                              (:wat::core::quasiquote
-                                (:wat::core::defn
-                                  (:wat::core::unquote accessor-name)
-                                  [v <- :wat::Record] -> (:wat::core::unquote type-w)
-                                  (:wat::Record/field-at
-                                    (:wat::core::Option/expect  
-                                      (:wat::core::if
-                                        (:wat::core::=
-                                          (:wat::core::type v)
-                                          (:wat::core::unquote fqdn-str))
-                                        -> :wat::core::Option<wat::Record>
-                                        (:wat::core::Some v)
-                                        :wat::core::None)
-                                      (:wat::core::string::concat
-                                        (:wat::core::unquote msg-prefix)
-                                        (:wat::core::type v)))
-                                    (:wat::core::unquote fi))))))
-                          (:wat::core::range 0 nf))]
-           accessors)))
+))
+
+;; Arc 293.R2.2 — accessor emission removed from BASE macro.
+;; register_aggregate_methods (runtime.rs) now mints all field accessors for
+;; every Aggregate holder (Struct + Record + HolonRecord): bare name, struct-field
+;; body, type_params-aware.  The ctor defn above stays exactly as-is.
 
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
 
@@ -231,45 +195,9 @@
                  "Record::def "
                  (:wat::core::keyword/to-string fqdn)
                  " instance: Bundle capacity exceeded")))))
-     ~@(:wat::core::let
-           [fields-h    (:wat::holon::from-wat (:wat::core::quote fields))
-            n           (:wat::holon::statement-length fields-h)
-            nf          (:wat::core::i64::/ n 3)
-            children    (:wat::holon::Bundle/children fields-h)
-            fqdn-str    (:wat::core::keyword/to-string fqdn)
-            accessors   (:wat::core::map
-                          (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
-                            (:wat::core::let
-                              [idx          (:wat::core::i64::* fi 3)
-                               name-h       (:wat::core::Option/expect  
-                                              (:wat::core::Vector/get children idx)
-                                              "Record::def: field name index out of range")
-                               name-s       (:wat::core::keyword/to-string
-                                              (:wat::holon::from-holon name-h))
-                               type-h       (:wat::core::Option/expect  
-                                              (:wat::core::Vector/get children
-                                                (:wat::core::i64::+ idx 2))
-                                              "Record::def: field type index out of range")
-                               type-w       (:wat::holon::to-wat type-h)
-                               accessor-name (:wat::core::keyword/from-string
-                                               (:wat::core::string::interpolate "{fqdn-str}/{name-s}" :fqdn-str fqdn-str :name-s name-s))
-                               msg-prefix   (:wat::core::string::interpolate ":{fqdn-str}/{name-s}: expected receiver of class :{fqdn-str}, got class :" :fqdn-str fqdn-str :name-s name-s)]
-                              (:wat::core::quasiquote
-                                (:wat::core::defn
-                                  (:wat::core::unquote accessor-name)
-                                  [v <- :wat::Record] -> (:wat::core::unquote type-w)
-                                  (:wat::Record/field-at
-                                    (:wat::core::Option/expect  
-                                      (:wat::core::if
-                                        (:wat::core::=
-                                          (:wat::core::type v)
-                                          (:wat::core::unquote fqdn-str))
-                                        -> :wat::core::Option<wat::Record>
-                                        (:wat::core::Some v)
-                                        :wat::core::None)
-                                      (:wat::core::string::concat
-                                        (:wat::core::unquote msg-prefix)
-                                        (:wat::core::type v)))
-                                    (:wat::core::unquote fi))))))
-                          (:wat::core::range 0 nf))]
-           accessors)))
+))
+
+;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
+;; register_aggregate_methods (runtime.rs) now mints all field accessors for
+;; every Aggregate holder (Struct + Record + HolonRecord): bare name, struct-field
+;; body, type_params-aware.  The ctor defn above stays exactly as-is.
