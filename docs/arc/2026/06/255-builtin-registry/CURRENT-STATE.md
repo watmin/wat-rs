@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `7d983012` or later.** Tree CLEAN
-(293.4e-pre ArgSpec-heresy kill committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `c62a817c` or later.** Tree CLEAN
+(293.4e-pre COMPLETE — heresy + generics committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4096 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4097 passed / 0 failed / 92 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
@@ -76,11 +76,13 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   fixed (self was double-counted: `fixed_params[1..]` skips it). The multi-arg surface-method probe RED→GREEN.
   NOT touched (distinct): `Scheme.params`/`param_types` (the TYPE, no names), `AggregateDef.fields` (data),
   `ProtocolMethodSig.arg_types` (dies with `defprotocol`).
-- ⚠ **293.4e-pre.ii REMAINING (the last gate before Locus) — GENERIC surface-method dispatch.** A generic method member
-  `(m<T> [self …] -> …)` parses but is `unknown callee` at the call site (`:Surface/m<…>` dispatch doesn't resolve the
-  type-params — needs parity with arc-267's generic *protocol* methods). The 293.4e-pre probe documents it (STOP-2).
-  `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>` is generic → this MUST land before the migration. DRAW 293.4e-pre.ii.
-- ▶ **293.4e (after 293.4e-pre.ii) — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
+- ✅ **293.4e-pre.ii DONE (`c62a817c`) — generic surface methods.** `parse_method_member_sig` now splits the `<T>` off
+  the name (was: stored `"make<T>"`, `type_params: vec![]`) + the check arm mirrors the protocol type-param
+  instantiation (identity/explicit/fresh-var). Generic surface method dispatches (`make<T>` T=i64 → 42); the runtime
+  suffix-split was already shared. **293.4e-pre is COMPLETE — surface methods are multi-arg + generic + whole, parity
+  with arc-267 protocol methods. The Locus migration is UNBLOCKED.** (Banked micro: `split_method_name_type_params` is a
+  ~15-line copy of runtime.rs's private `split_name_and_type_params` — could share if visibility allowed.)
+- ▶▶ **293.4e NEXT (UNBLOCKED) — annihilate `defprotocol`** (the qualified annihilation, the joy): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
   - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
