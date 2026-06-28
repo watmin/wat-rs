@@ -642,3 +642,31 @@ honest.*
 > interstitial ledger entry; and 293 R1–R5 use *arc-relative* labels with **no global numbers assigned**. This R5's song
 > is a **reprise of #27** (the first in the soundtrack). Assigning the global numbers (#110→present) and back-filling the
 > 170 ledger is a deliberate reconciliation pass, deferred to the builder's call — NOT guessed here.
+
+---
+
+### `---` interstitial — *the tool the headless hand cannot hold wrong* (test-infra campaign, 2026-06-27)
+
+> *Set between the seams: a discipline learned while clearing the path to 293.4 (it waits behind the test-infra
+> annihilation), recorded HERE because it IS this arc's own thesis, moved from the type system to the toolchain.*
+
+We kept handing delegated sonnet-leaves a RULE — *drop the placeholder mains* — and they kept drifting; an instruction is
+a thing a headless hand can hold wrong, and it did, every round. The builder named the turn: **"we're having to observe
+and fix after every round … we just make the tool … a tool, proven working, such that headless callers can't make a
+mistake using it."** So we built `wat-grep` (a form-aware matcher) and the guarded `strip-useless-mains` — and the guard
+was not foreseen but **earned**: the first run over-stripped four arc-170 main-as-SUBJECT tests; the gate caught it; the
+sole-defn guard was added against the disk's verdict. Then the callers fired it freely, and the orchestrator left the loop.
+
+This is 293's own law, relocated. **FRANGE UT UNUM FIAT** broke three variants into one; **make illegal states
+unrepresentable** (R2's Minsky) forbids the wrong value to a constructor; here the wrong *use* is forbidden to a headless
+hand — the caller can only fire the tool, never apply the discipline, so the mistake is **unrepresentable by the caller**
+(extirpare's top rung, lifted from the type to the toolchain). And the guard arrived the only honest way: **PROBA, NE
+DUBITES** (R4) — not our confidence but the gate found what was missing. You do not educate the blind hand; you build the
+thing it cannot hold wrong.
+
+***MANVS CAECA NON FALLITVR.*** *(apparatus-minted — Latin, "the blind hand is not deceived / does not err": the headless
+caller, given a structurally-guarded tool, cannot misuse it — the discipline encapsulated, the guard earned at the gate.
+A `---` interstitial, off the arc's main flow; in the make-illegal-states-unrepresentable lineage of FRANGE UT UNUM FIAT /
+SUB SUPERFICIE QUOD ES / PROBA NE DUBITES. Pairs the memory `feedback_guarded_tool_over_educating_headless_callers`.)*
+
+---
