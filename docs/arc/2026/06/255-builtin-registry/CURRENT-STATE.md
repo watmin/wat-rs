@@ -1,9 +1,11 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-27 SESSION 8; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e04256f2` or later.** Tree clean.
-**Gate (arc-290 widened): `cargo nextest run --release` (the WHOLE workspace / default-members, NOT `-p wat`)**
-≈ **4088 passed / 0 failed / ~89 skipped**, ~35s. If HEAD is older than `e04256f2`, this breadcrumb is stale —
-trust git log + the docs.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `8cfd7626` or later.** Tree clean EXCEPT
+mid-flight nursery-dissolution sonnets (see the WAVE 2 IN FLIGHT block below — their uncommitted moves/migrations).
+**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **DURING the test-infra
+campaign the FLOOR is `4086 passed / 1 failed / ~91 skipped`** — the ONE expected red is `wat::lint
+no_inlined_wat_in_tests` (the campaign meter, RED BY DESIGN until it hits 0; nextest isolates it → a SECOND red is a real
+regression). If HEAD is older than `8cfd7626`, this breadcrumb is stale — trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -41,12 +43,24 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
   lone `(:wat::core::defn :(user|t)::main [] -> :wat::core::nil nil)` from MULTI-DEFN, NON-spawn-child fixtures (KEEP:
   spawn-child entrypoints, negative-test-subject mains like `\😀`/`_bad`, and arc-170 main-as-subject tests). The cited
   exemplar fixtures are kept PRISTINE so the clean shape propagates by example. Do NOT put main-dropping in the briefs.
-- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 147.** ALL non-nursery groups DONE: lint 5 (`1e483a79` fire), channel
-  (`e75d5f67`), diagnostics (`bc40e656`), program+value+reflection (`603b2fde`), function+comms+collection (`e65eea26`),
-  process+services+wat_lang (`c2196f35`), macros+resolve+kernel (`c2195ec8`), rete+types (`4ce97de3`).
-  **REMAINING: nursery only** (155-file dissolution per `NURSERY-DISSOLUTION-MAP.md`: each file moves to its domain group
-  + fixture/bare in one motion; then delete `tests/nursery/mod.rs` + `Cargo.toml:123-125` + `rmdir`). When METER=0 the
-  lint flips GREEN, floor → 0. THE LOOP: fan ~3 sonnets parallel → weigh each → MAIN-SWEEP → commit.
+- **PROGRESS (2026-06-28 SESSION 9): METER 423 → 120; nursery DISSOLUTION underway.** ALL non-nursery groups DONE (lint
+  `1e483a79`, channel `e75d5f67`, diagnostics `bc40e656`, program+value+reflection `603b2fde`, function+comms+collection
+  `e65eea26`, process+services+wat_lang `c2196f35`, macros+resolve+kernel `c2195ec8`, rete+types `4ce97de3`). **NURSERY
+  DISSOLUTION** (per `NURSERY-DISSOLUTION-MAP.md`; each bucket = a sonnet git mv's its files nursery→domain-group +
+  migrates off inlined-wat + SELF-FIRES `strip-useless-mains` + verifies its binary; orchestrator weighs + commits):
+  DONE = program 7 (`951b587e`) + wave-1 resolve/services/channel/value/reflection 30 (`43630057`); nursery 180→143 .rs.
+  ⚠️ **WAVE 2 IN FLIGHT (5 sonnets; re-weigh/retrieve on wake):** process `afcc1578e2e02a935` · function `a9c6852d5eb23ede1`
+  · comms `ad092aca47e6daf70` · wat_lang `acbccb875b3a2ee41` · diagnostics `a0a05324c52414819` (63 files; move+migrate+
+  self-strip, NOT committed). REMAINING after wave 2: **WAVE 3 = types 31 · collection 17 · macros 16 · kernel 15** (~79),
+  THEN **retire the `nursery` binary**: `git rm tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry + `rmdir
+  tests/nursery` (build.rs OUT_DIR `nursery_mods.rs` can go stale on file removal → `touch build.rs`). When METER=0 the
+  lint flips GREEN, floor → 0, **293.4 unblocks**.
+- **`tests/` ROOT LAW (builder-directed): NO loose `.rs` — every test in a named group home.** Vestigial 0-byte
+  `tests/test.rs` deleted (`086b141d`, zero test loss; the "217 deftests" comments referencing it are stale). FOLLOW-UP:
+  4 stale `tests/test.rs`-naming comments to clean (`src/collection/mod.rs:31`, 2× `crates/wat-macros/`, `tests/kernel/test.rs:9`).
+- **NEW DOCS/SCHEMES this session:** `docs/VERSIONING.md` (`8cfd7626`) — the **C.S.D** version scheme (Contract.Scaffolding.
+  Dependencies, each a compacted-ISO8601-UTC timestamp, carry-forward). Memory `feedback_guarded_tool_over_educating_headless_callers`.
+  293 `---` interstitial *MANVS CAECA NON FALLITVR* (`26b001d9`).
 
 - **THE rune:lint EXEMPTION SCHEME (intueri-derived, builder-crowned, `4ce97de3`):** the bespoke `LINT-ALLOW-INLINE-WAT`
   is RETIRED → `// rune:lint(<lint-name>) — <reason>` (the lint detector matches it). `lint` = the project-custom-lint
