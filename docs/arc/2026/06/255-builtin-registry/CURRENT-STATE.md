@@ -1,11 +1,11 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `cdf62b57` or later.** Tree CLEAN (wave 2
-committed `cdf62b57` + pushed; nothing in flight).
-**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **DURING the test-infra
-campaign the FLOOR is `~4084 passed / 1 failed / ~93 skipped`** — the ONE expected red is `wat::lint
-no_inlined_wat_in_tests` (the campaign meter, RED BY DESIGN until it hits 0; nextest isolates it → a SECOND red is a real
-regression). If HEAD is older than `cdf62b57`, this breadcrumb is stale — trust git log + the docs.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `2bc63a85` or later.** Tree CLEAN
+(test-infra campaign CLOSED + pushed; nothing in flight).
+**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS NOW 0 —
+`4085 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+meter is **GREEN** (the "1 expected-red" floor convention is RETIRED — any red now is a real regression). If HEAD is
+older than `2bc63a85`, this breadcrumb is stale — trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -19,49 +19,34 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
 (beside this file). `build.rs` auto-globs `tests/<group>/*.rs` → a file re-homes by MOVING it; then delete
 `tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry + `rmdir`.
 
-## ▶▶ PRIMARY ACTIVE — TEST-INFRA ANNIHILATION (builder-directed: **"we fix the tests before we resume 293"**, 2026-06-27 SESSION 9)
-**Sequencing DECIDED — this campaign runs to completion BEFORE 293.4 resumes.**
+## ✅ TEST-INFRA ANNIHILATION — **COMPLETE** (2026-06-28 SESSION 9; builder: *"we fix the tests before we resume 293"* → *"this train doesn't stop"*)
+The whole campaign is CLOSED. Every test world is now a co-located `.wat` fixture (or `startup_bare()` incidental);
+zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-dynamic worlds); `tests/nursery/` is
+**ANNIHILATED** (binary retired). The `no_inlined_wat_in_tests` lint is **GREEN**; gate floor = 0 (`4085/0/93`).
+- **Final strikes:** wave 2 (`cdf62b57` — 5 groups' inlined-wat migration) → **nursery dissolution `2bc63a85`** (the 79
+  remaining probes re-homed via a 5-LEAF-sonnet fleet per `NURSERY-DISSOLUTION-MAP.md`: types += 31, collection += 17,
+  macros += 16, kernel += 15) + the `nursery` binary retired (mod.rs rm'd, `Cargo.toml [[test]]` deleted, dir gone).
+- **DURABLE artifacts the campaign minted** (reusable, standing — NOT historical): the fixture scheme
+  (`startup_beside`/`startup_from_file`/`startup_bare`, `src/freeze.rs`; `feedback_test_wat_is_colocated_fixture`); the
+  absolute lint (`tests/lint/no_inlined_wat_in_tests.rs`, now a GREEN standing gate — any NEW inlined-wat fails it); the
+  `rune:lint` exemption scheme (below); the self-hosted `wat-grep` + `strip-useless-mains` tool (below); `tests/` ROOT
+  LAW (NO loose `.rs`; every test in a named domain home).
+- **FOLLOW-UP (cleanup, NON-blocking — warnings, not reds):** the migration left **dead helper fns** in some moved
+  probes (`startup_ok`/`runtime_err`/`startup_err`/`run_bool`/`register_alias`/`try_startup_display` — unused after the
+  shape change) → a quick `cargo build` warning-sweep (purgare). Plus 4 stale `tests/test.rs`-naming comments
+  (`src/collection/mod.rs:31`, 2× `crates/wat-macros/`, `tests/kernel/test.rs:9`).
 
-### 🔥 THE FIRE IS LIT (`1e483a79`, builder: *"hard bandaid pull… we witness the fire of our creation"*)
-- **The absolute lint is ON and RED** (`tests/lint/no_inlined_wat_in_tests.rs`): scans `tests/**/*.rs`, fails
-  listing every file building its world from an inlined `startup_from_source(` string. **METER = 423 → 0**
-  (428 − 5 lint-pilot done). Drive it to zero GROUP BY GROUP. Escape hatch: `// LINT-ALLOW-INLINE-WAT: <reason>`.
-- **NEW FLOOR CONVENTION while the campaign runs:** the gate is **1 expected-red (the lint) + everything else
-  green**. nextest isolates it → a SECOND red is a real regression (weigh by it). Full gate now: 4088 / 1 / 89.
-- **THE FIX RECIPE per file** (`DESIGN-test-fixture-migration.md` + the `tests/lint/*` worked refs):
-  REAL wat-under-test → co-located `.wat` + `startup_beside(file!())`; INCIDENTAL world (pure-Rust substrate
-  test, no wat-under-test) → **`startup_bare()`** (NEW, `src/freeze.rs` — frozen default world, no source).
-  **~most of the 423 are incidental** (355 used a trivial/empty world) → a `startup_bare()` swap, not a fixture.
-- **Per-chunk gate:** `binary(<group>)` green + the lint's count dropped + full gate still 4088+/1-red/89.
-- **THE LOOP (proven, humming):** fan out ~3 small groups in PARALLEL as `model:"sonnet"` LEAF shadowdancers
-  (each embeds the recipe + the worked refs + STOP-on-new-shape; each SELF-VERIFIES its `binary(<group>)` green —
-  cargo's build lock serializes the builds safely). Then the ORCHESTRATOR WEIGHS each against the disk (grep clean
-  + binary green + spot-check a diff for honesty — watch `invoke_user_main`+stdout → `eval_in_frozen` return-value
-  refactors: they're fine IF the asserted VALUE is identical) + full gate 1-red → commit per batch.
-- **THE USELESS-MAIN SWEEP (orchestrator-owned, NOT delegated — builder: "we are exemplars of behavior"):** sonnets
-  keep emitting dead trivial mains even copying clean exemplars, so AFTER each batch I run a guarded sweep that strips
-  lone `(:wat::core::defn :(user|t)::main [] -> :wat::core::nil nil)` from MULTI-DEFN, NON-spawn-child fixtures (KEEP:
-  spawn-child entrypoints, negative-test-subject mains like `\😀`/`_bad`, and arc-170 main-as-subject tests). The cited
-  exemplar fixtures are kept PRISTINE so the clean shape propagates by example. Do NOT put main-dropping in the briefs.
-- **PROGRESS (2026-06-28 SESSION 9): LINT METER = 76 (ALL in `tests/nursery/`).** ⚠️ **GROUNDING CORRECTION (the
-  prior breadcrumb's "120" + "nursery 180→143" + "wave 3 = types/collection/macros/kernel" were STALE/WRONG — the disk
-  falsified them this session; recolligere trap, FM 13).** TRUE state, grounded by `grep -rln 'startup_from_source('
-  tests`: **every non-nursery group is CLEAN; the only inlined-wat left is 76 files inside `tests/nursery/` + 6
-  rune:lint-EXEMPTED in `tests/rete/`** (genuinely-dynamic worlds — not counted; lint skips the `// rune:lint(no-inlined-wat)`
-  marker). So the lint fails on **76 = exactly the un-dissolved nursery**.
-  - **Wave 2 DONE + committed `cdf62b57` + pushed** (comms/diagnostics/function/process/wat_lang inlined-wat→fixtures;
-    grep-clean; gate 4084/1-lint/93). NOTE: these files were ALREADY in their group homes (the nursery MOVE landed in the
-    earlier chunk commits e65eea26/c2196f35/bc40e656); wave 2 was the MIGRATION only, not a move.
-  - **REMAINING = dissolve `tests/nursery/` (79 probes; 76 carry inlined-wat).** Its actual contents (NOT the partire
-    target-tallies): arc237 14 · arc259 11 · arc234 9 · arc216 8 · let/do/arc249/diagnostic/arc241/arc214/… Per
-    `NURSERY-DISSOLUTION-MAP.md` each file re-homes to its domain group + migrates off inlined-wat + self-strips. These are
-    UNIQUE files (no dup with existing group files — verified, only `mod.rs` basenames overlap).
-  - **THEN retire the `nursery` binary:** `git rm tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry +
-    `rmdir tests/nursery` (build.rs OUT_DIR `nursery_mods.rs` can go stale on file removal → `touch build.rs`). When
-    nursery=0 the lint flips GREEN, floor → 0, **293.4 unblocks**.
-- **`tests/` ROOT LAW (builder-directed): NO loose `.rs` — every test in a named group home.** Vestigial 0-byte
-  `tests/test.rs` deleted (`086b141d`, zero test loss; the "217 deftests" comments referencing it are stale). FOLLOW-UP:
-  4 stale `tests/test.rs`-naming comments to clean (`src/collection/mod.rs:31`, 2× `crates/wat-macros/`, `tests/kernel/test.rs:9`).
+## ▶▶ PRIMARY ACTIVE — arc 293 § **293.4** (UNBLOCKED — the campaign that gated it is now closed). Read `docs/arc/2026/06/293-struct-record-symmetry/DESIGN-293.4-strike.md` + DESIGN § 293.4 + the HOLDER×SURFACE model.
+**293.4 = methods-are-accessors over `defsurface` + `defprotocol` ANNIHILATED + `extend-type` demoted.** The strike is
+already DRAWN: `DESIGN-293.4-strike.md` (sub-strikes 293.4a–d) + the RED gate `probe_arc293_acceptance_demo`
+(`#[ignore]`'d). Path: **293.4a** method members in `defsurface` (`SurfaceDef.members` → Field|Method; reuse the
+arc-232 method parser) → **293.4b** the generated dispatcher (LIFT arc-232 `extract-classifier`+`apply`,
+`runtime.rs:670`) → **293.4c** `extend-type` foreign-accessor adapter → **293.4d** annihilate `defprotocol` (ONE live
+use: `:wat::spawn::Locus`, `wat/spawn.wat:224`; rip the Rust machinery across 6 files; retirement-table the head) +
+un-ignore the demo = GREEN. Then 293.1-owed `src/aggregate/` home + 293.5 close. The chain: **293.4 → `Seqable`
+(its first method-surface) → 118 HOF family → 118 closes → 295** (signed eval rides the finished stream substrate).
+Already SHIPPED (see §293-state below): 293.0–293.3, unify-2a/2b, the `build_env` annihilation, **15/15 `probe_arc293_*`
+GREEN**. The strike is the next act — draw the RED probe is already done; 293.4a is the first cut.
 - **NEW DOCS/SCHEMES this session:** `docs/VERSIONING.md` (`8cfd7626`) — the **C.S.D** version scheme (Contract.Scaffolding.
   Dependencies, each a compacted-ISO8601-UTC timestamp, carry-forward). Memory `feedback_guarded_tool_over_educating_headless_callers`.
   293 `---` interstitial *MANVS CAECA NON FALLITVR* (`26b001d9`).
